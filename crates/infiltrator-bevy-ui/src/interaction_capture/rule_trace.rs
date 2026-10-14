@@ -33,8 +33,6 @@ use bevy::ui_widgets::{Activate, Button};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -46,6 +44,8 @@ use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 use std::mem::discriminant;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
@@ -57,7 +57,7 @@ struct TraceCapture {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = super::mihomo_rule_trace_fixture();
+    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let handler = CommandApplication::new().with_rule_tracer(owner.clone());
@@ -69,8 +69,12 @@ pub fn install(app: &mut App) {
     let reader = Arc::new(
         ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_rule_tracer(owner.clone())
-            .with_profiles(super::mihomo_profiles(store.clone()))
-            .with_configuration(super::mihomo_configuration_application(store.clone())),
+            .with_profiles(
+                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+            )
+            .with_configuration(
+                infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+            ),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         handler,

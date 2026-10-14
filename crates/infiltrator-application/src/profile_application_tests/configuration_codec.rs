@@ -69,12 +69,13 @@ impl ActiveProfileReferenceApplier for WorkspaceApplyRuntime {
     ) -> Result<ProfileWorkspace, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         *self.update.lock().unwrap() = Some(update.clone());
-        let mut receipt = crate::profile_workspace_test_support::workspace_with_raw_sidecar(
-            expected.document.profile_id.as_str(),
-            &update.document_bytes,
-            update.sidecar_bytes.clone(),
-            None,
-        )?;
+        let mut receipt =
+            infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar(
+                expected.document.profile_id.as_str(),
+                &update.document_bytes,
+                update.sidecar_bytes.clone(),
+                None,
+            )?;
         receipt.document.identity.source = expected.document.source.clone();
         Ok(receipt)
     }

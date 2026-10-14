@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::view::rules_window::{rendered_rule_rows, rules_window_page};
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_domain::rules::view::{
     clamp_page, filter_rule_indices, page_bounds, rendered_row_bound, rule_scroll_offset_for_index,
 };

@@ -15,12 +15,12 @@ use iced::{Element, Point, Rectangle, Size, Task, Theme};
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::routing_intent_fixtures::RoutingIntentScenarioController;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProxyControlOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::surface::SurfaceKind;
+use infiltrator_test_support::routing_intent_fixtures::RoutingIntentScenarioController;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 
@@ -176,7 +176,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
         .next_observation_revision();
     assert!(state.apply_shared_surface_snapshot(healthy));
     assert!(state.runtime.routing_intent_actions.failure().is_some());
-    controller.reject_with(None);
+    controller.accept_requests();
     let messages = click(&state, InteractionRegion::RoutingIntentRetry);
     assert_eq!(messages.len(), 1);
     assert!(matches!(messages[0], Message::RetryRoutingIntent));
@@ -195,9 +195,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
     );
     assert!(state.runtime.routing_intent_actions.failure().is_none());
     assert_eq!(state.runtime.core_lifecycle, lifecycle);
-    controller.reject_with(Some(Failure::unsupported(
-        "routing intent control unavailable",
-    )));
+    controller.reject_requests(Failure::unsupported("routing intent control unavailable"));
     let task = state.update(Message::SetRoutingIntent(RoutingIntent::BypassProxy));
     let _ = state.update(terminal(task));
     assert_eq!(
@@ -222,11 +220,11 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::RouteAllThroughProxy)
     );
-    controller.reject_with(Some(Failure::new(
+    controller.reject_requests(Failure::new(
         ErrorCode::Authentication,
         "controller token rejected",
         false,
-    )));
+    ));
     let task = state.update(Message::SetRoutingIntent(RoutingIntent::BypassProxy));
     let _ = state.update(terminal(task));
     let messages = click(&state, InteractionRegion::RoutingIntentSettings);

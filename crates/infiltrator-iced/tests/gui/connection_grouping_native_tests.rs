@@ -4,8 +4,8 @@ use crate::test_mounts::native_widgets::native;
 use crate::types::message::Message;
 use crate::view::runtime::connections_controls;
 use crate::view_root::interaction_regions::InteractionRegion;
-use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 
 fn feed(state: &mut AppState, messages: Vec<Message>) {
     assert!(

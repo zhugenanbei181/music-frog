@@ -2,11 +2,11 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_application::rule_list_fixtures::list_document;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::rules_statistics::RulesStatisticsState;
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_source::RuleSourceIdentity;

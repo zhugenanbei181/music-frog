@@ -3,9 +3,7 @@
 
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
-use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_options_application::ProfileOptionsApplication;
-use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
 use chrono::Timelike;
 use infiltrator_contract::active_profile_reference::{
@@ -29,6 +27,8 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpd
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument,
 };
+use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
+use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
 use std::collections::BTreeMap;
 use std::future::ready;
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -12,9 +12,6 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::filter_capture_store::{
-    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
-};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor_filter::{EditorFilterDiscard, EditorFilterText};
 use infiltrator_bevy_ui::pages::profiles_editor_panes::{
@@ -30,6 +27,9 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::filter_capture_store::{
+    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
+};
 use std::future::Future;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

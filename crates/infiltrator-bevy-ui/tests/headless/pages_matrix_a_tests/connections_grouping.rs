@@ -6,7 +6,6 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_application::connection_rate_application::project_connection;
 use infiltrator_bevy_ui::command::DemoCommandSink;
 use infiltrator_bevy_ui::pages::connections::{
@@ -20,6 +19,7 @@ use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::runtime::ConnectionSnapshot;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 use std::sync::Arc;
 
 fn publish(app: &mut App, snapshot: &ConnectionSnapshot) {

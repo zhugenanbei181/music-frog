@@ -1,10 +1,10 @@
 //! test-intent: behavior
 use crate::test_support::demo_env;
-use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 
 #[test]
 fn grouping_updates_all_groups_and_preserves_search_without_commands() {

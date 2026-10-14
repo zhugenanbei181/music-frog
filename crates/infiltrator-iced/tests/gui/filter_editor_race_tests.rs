@@ -5,10 +5,10 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
-use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use std::path::PathBuf;
 use tokio::runtime::Builder;
 

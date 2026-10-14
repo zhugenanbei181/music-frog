@@ -6,14 +6,12 @@ use infiltrator_contract::profile_document_identity::{
     ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-#[cfg(test)]
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profile_source::hash_bytes;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 
-#[cfg(test)]
-pub(super) fn workspace_with_origin(
+pub fn workspace_with_origin(
     profile: &str,
     document_bytes: &[u8],
     options: Option<&ProfileOptions>,
@@ -27,7 +25,7 @@ pub(super) fn workspace_with_origin(
     workspace_with_raw_sidecar(profile, document_bytes, sidecar_bytes, subscription_url)
 }
 
-pub(super) fn workspace_with_raw_sidecar(
+pub fn workspace_with_raw_sidecar(
     profile: &str,
     document_bytes: &[u8],
     sidecar_bytes: Option<Vec<u8>>,

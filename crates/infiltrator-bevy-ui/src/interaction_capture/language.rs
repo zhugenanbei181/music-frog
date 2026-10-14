@@ -18,12 +18,12 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::language_choice::{
     LanguageChoicePhase, LanguageReadPhase, project_language,
 };
-use infiltrator_application::language_choice_fixtures::LanguageCaptureStore;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, UiLocale};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureStore;
 use std::sync::Arc;
 
 #[derive(Resource)]

@@ -19,10 +19,6 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::rule_trace_fixtures::{
-    RuleTraceStore, scoped_rule_trace_request, unknown_rule_trace_observation,
-};
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::modal::ModalScrim;
@@ -36,6 +32,10 @@ use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use infiltrator_test_support::rule_trace_fixtures::{
+    RuleTraceStore, scoped_rule_trace_request, unknown_rule_trace_observation,
+};
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
 #[derive(Resource)]
@@ -45,7 +45,7 @@ pub struct StatisticsCapture {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = super::mihomo_rule_trace_fixture();
+    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let core = Arc::new(CoreApplication::new(
@@ -55,7 +55,9 @@ pub fn install(app: &mut App) {
     ));
     let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_rule_tracer(owner.clone())
-        .with_configuration(super::mihomo_configuration_application(store.clone()));
+        .with_configuration(
+            infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+        );
     let observed = Arc::new(Mutex::new(None));
     let result = observed.clone();
     let trace_store = store.clone();

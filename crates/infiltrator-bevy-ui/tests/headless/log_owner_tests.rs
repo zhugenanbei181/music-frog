@@ -14,12 +14,12 @@ use infiltrator_application::command_application::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
 };
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::logs::{ClearLogsButton, LogLevelFilterButton};
 use infiltrator_bevy_ui::pages::logs_search::LogsViewState;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
+use infiltrator_composition::capture_fixtures::populate_logs;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::capability::Capability;
@@ -29,6 +29,7 @@ use infiltrator_contract::error::Failure;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 use std::time::Duration;

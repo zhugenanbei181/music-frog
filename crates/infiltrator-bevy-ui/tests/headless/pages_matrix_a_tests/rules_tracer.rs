@@ -259,7 +259,7 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
     updated_rules[41].rule = "DOMAIN-SUFFIX,github.com,REJECT".to_owned();
     let post_apply_workspace = tracer_test_workspace(&updated_rules);
     let (scope, observed_workspace, trace_request) =
-        infiltrator_application::rule_trace_fixtures::scoped_rule_trace_request(
+        infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request(
             RuleTraceRequest {
                 query: "github.com".into(),
                 context: TrafficContextSnapshot::default(),
@@ -267,7 +267,9 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
             post_apply_workspace.profile_identity,
         );
     let outbound_observation =
-        infiltrator_application::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+        infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
+            scope.clone(),
+        );
     Builder::new_current_thread()
         .build()
         .expect("test runtime")

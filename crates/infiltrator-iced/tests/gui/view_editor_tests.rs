@@ -5,9 +5,9 @@ use crate::test_mounts::command_harness::{
 use crate::test_mounts::profile_edit_fixture;
 use iced::widget::text_editor::{Action, Cursor, Motion, Position};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::dns_hosts_fixtures::HostsCaptureStore;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
+use infiltrator_test_support::dns_hosts_fixtures::HostsCaptureStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -269,9 +269,11 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
 #[test]
 fn editor_live_preflight_reports_the_shared_diagnostic_line() {
     let (mut state, _) = AppState::new();
-    let profiles =
-        crate::configuration::profiles_for_mihomo(Arc::new(HostsCaptureStore::default()));
-    let configuration = crate::configuration::for_mihomo_profiles(profiles.clone());
+    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(Arc::new(
+        HostsCaptureStore::default(),
+    ));
+    let configuration =
+        infiltrator_composition::mihomo_configuration::for_mihomo_profiles(profiles.clone());
     let (core, _) = recording_application();
     core.install_command_handler(Arc::new(
         CommandApplication::new()

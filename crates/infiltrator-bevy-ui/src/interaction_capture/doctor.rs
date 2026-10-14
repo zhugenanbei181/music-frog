@@ -22,12 +22,12 @@ use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_application::doctor_capture_fixtures::{CHECK_ID, DoctorCapturePort};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_test_support::doctor_capture_fixtures::{CHECK_ID, DoctorCapturePort};
 use std::sync::Arc;
 #[derive(Resource)]
 struct CaptureDoctor {

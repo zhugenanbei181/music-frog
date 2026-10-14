@@ -19,10 +19,9 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
-fn mihomo_identity(codec: &MihomoProfileDocumentCodec) -> ProfileDocumentIdentity {
+fn mihomo_identity(codec: &dyn ProfileDocumentCodecPort) -> ProfileDocumentIdentity {
     let scope = codec.scope();
     ProfileDocumentIdentity::new(
         ProfileId::new("protocol-test").unwrap(),
@@ -244,10 +243,10 @@ rules:
     assert_eq!(draft.cipher, "2022-blake3-aes-256-gcm");
     assert_eq!(draft.password.len(), 44, "32-byte PSK as base64");
     draft.server = "9.9.9.9".to_owned();
-    let codec = MihomoProfileDocumentCodec;
+    let codec = infiltrator_composition::mihomo_configuration::profile_document_codec_fixture();
     let mutation = codec
         .apply_configuration(
-            &mihomo_identity(&codec),
+            &mihomo_identity(codec.as_ref()),
             profile.as_bytes(),
             ProfileConfigurationUpdate::UpsertProtocolNode(draft),
         )
@@ -327,10 +326,10 @@ fn importing_wireguard_surfaces_the_shared_typed_parameters() {
     );
 
     // The mihomo-correct key spellings are what actually gets written.
-    let codec = MihomoProfileDocumentCodec;
+    let codec = infiltrator_composition::mihomo_configuration::profile_document_codec_fixture();
     let mutation = codec
         .apply_configuration(
-            &mihomo_identity(&codec),
+            &mihomo_identity(codec.as_ref()),
             b"proxies: []\n",
             ProfileConfigurationUpdate::UpsertProtocolNode(draft.clone()),
         )
@@ -437,7 +436,7 @@ fn quic_and_xhttp_notes_are_surfaced_not_hidden() {
 #[test]
 fn protocol_codec_matrix_passes_on_the_iced_surface() {
     let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
-        MihomoProfileDocumentCodec,
+        infiltrator_composition::mihomo_configuration::profile_document_codec_fixture(),
     ));
     assert!(
         report.all_covered_passed(),

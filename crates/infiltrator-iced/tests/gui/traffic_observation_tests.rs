@@ -9,7 +9,6 @@ use iced::advanced::layout::{Layout, Limits};
 use iced::advanced::widget::{Id, Operation, Tree};
 use iced::{Color, Rectangle, Size};
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::telemetry_observation_fixtures::TelemetryObservationReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -18,6 +17,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 fn run<T>(future: impl Future<Output = T>) -> T {

@@ -18,10 +18,8 @@ use iced_runtime::task::into_stream;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_application::LogIngestOutcome;
-use infiltrator_application::log_capture_fixtures::{
-    LogCaptureProcess, append_follow_records, populate_logs,
-};
 use infiltrator_application::log_export_application::LogExportApplication;
+use infiltrator_composition::capture_fixtures::{append_follow_records, populate_logs};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
@@ -35,6 +33,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;

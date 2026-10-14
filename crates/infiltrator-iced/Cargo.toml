@@ -26,7 +26,7 @@ native-tray-backend = []
 static-openssl = ["dep:openssl", "openssl/vendored"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
 # Screenshot/demo fixture path; disabled in shipped product defaults.
-capture-tools = ["infiltrator-application/capture-fixtures"]
+capture-tools = ["infiltrator-composition/capture-fixtures", "dep:infiltrator-test-support"]
 
 [dependencies]
 zhuge-ui-tokens.workspace = true
@@ -47,13 +47,13 @@ tokio = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-composition = { path = "../infiltrator-composition" }
+infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
-mihomo-config = { path = "../mihomo-config" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
@@ -96,7 +96,9 @@ openssl = { version = "0.10", optional = true }
 #   stream so journey tests drive the REAL worker chains end to end instead
 #   of re-running task bodies by hand. Same 0.14 tree as the `iced` dep.
 [dev-dependencies]
-infiltrator-application = { path = "../infiltrator-application", features = ["capture-fixtures"] }
+infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-composition = { path = "../infiltrator-composition", features = ["capture-fixtures"] }
+infiltrator-test-support = { path = "../infiltrator-test-support" }
 tempfile = { workspace = true }
 axum = { workspace = true }
 iced_runtime = "0.14"

@@ -5,19 +5,20 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let store = Arc::new(HostsCaptureStore::default());
     store.deny_save.store(true, Ordering::SeqCst);
-    let configuration = crate::configuration::for_mihomo_store(store.clone());
+    let configuration =
+        infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone());
     let read = configuration.clone();
     let runtime = tokio_application_runtime().expect("isolated capture runtime");
     let observed = Arc::new(Mutex::new(None));

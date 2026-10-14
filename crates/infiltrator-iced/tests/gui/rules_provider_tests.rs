@@ -1,6 +1,6 @@
 use super::*;
 use async_trait::async_trait;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, RuleProviderCacheSnapshot,
 };

@@ -48,7 +48,7 @@ async fn rule_simulation_replay_does_not_recompute_or_rebind_to_another_document
     assert_eq!(execution.operation, RuleTraceOperation::Completed);
     assert_eq!(execution.report_id, Some(RuleTraceOperationId(1)));
     let owner = infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding::new(
-        crate::rule_trace_fixtures::rule_trace_test_scope(),
+        infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope(),
         override_workspace(&original).profile_identity,
     )
     .unwrap();
@@ -198,9 +198,11 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
     let app = RuleTracerApplication::new();
     app.set_override_port(host.clone());
     let active_workspace = override_workspace(&rules);
-    let active_scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let active_scope = infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope();
     let outbound_observation =
-        crate::rule_trace_fixtures::unknown_rule_trace_observation(active_scope.clone());
+        infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
+            active_scope.clone(),
+        );
     let input = request("example.org", None);
 
     let mut stale_scope = active_scope.clone();
@@ -296,7 +298,7 @@ async fn foreign_outbound_observation_is_rejected_before_rule_adapter_read() {
     let app = RuleTracerApplication::new();
     app.set_override_port(host.clone());
     let active_workspace = override_workspace(&rules);
-    let active_scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let active_scope = infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope();
     let mut foreign_scope = active_scope.clone();
     foreign_scope.generation = infiltrator_contract::core_identity::CoreGeneration::new(2);
     let outbound_observation = super::typed_rule_trace_observation(&foreign_scope);

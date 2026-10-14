@@ -1,10 +1,13 @@
 //! Explicit isolated profile ports for Hosts behavior and capture; no filesystem or network fallback.
+use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
+use futures_util::lock;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision,
     ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
@@ -20,9 +23,10 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use std::collections::BTreeMap;
+use std::mem::replace;
 use std::path::PathBuf;
 use std::sync::{
-    Arc, Mutex,
+    Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 pub const HOSTS_PROFILE: &str = "hosts-work";
@@ -30,7 +34,7 @@ pub const ORIGINAL_HOSTS: &str = "mixed-port: 7890\ndns:\n  enable: false\n  fut
 pub struct HostsCaptureStore {
     active_reference: Mutex<ActiveProfileReferenceState>,
     files: Mutex<BTreeMap<String, String>>,
-    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
+    workspace_write_gate: lock::Mutex<()>,
     pub deny_save: AtomicBool,
     pub deny_read: AtomicBool,
     pub writes: AtomicUsize,
@@ -40,7 +44,7 @@ struct HostsWorkspaceWriteLease<'a> {
     store: &'a HostsCaptureStore,
     expected_reference: ActiveProfileReference,
     observed: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: lock::MutexGuard<'a, ()>,
 }
 
 struct HostsWorkspacePublishedLease<'a> {
@@ -48,12 +52,12 @@ struct HostsWorkspacePublishedLease<'a> {
     expected_reference: ActiveProfileReference,
     published: ProfileWorkspace,
     previous: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: lock::MutexGuard<'a, ()>,
 }
 
-struct HostsWorkspaceRestoredLease {
+struct HostsWorkspaceRestoredLease<'a> {
     workspace: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: lock::MutexGuard<'a, ()>,
 }
 impl Default for HostsCaptureStore {
     fn default() -> Self {
@@ -69,7 +73,7 @@ impl Default for HostsCaptureStore {
                 (HOSTS_PROFILE.into(), ORIGINAL_HOSTS.into()),
                 ("other".into(), "hosts:\n  other.test: 4.4.4.4\n".into()),
             ])),
-            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
+            workspace_write_gate: lock::Mutex::new(()),
             deny_save: AtomicBool::new(false),
             deny_read: AtomicBool::new(false),
             writes: AtomicUsize::new(0),
@@ -164,7 +168,7 @@ impl ActiveProfileWorkspacePublishedLease for HostsWorkspacePublishedLease<'_> {
 }
 
 #[async_trait]
-impl ActiveProfileWorkspaceRestoredLease for HostsWorkspaceRestoredLease {
+impl ActiveProfileWorkspaceRestoredLease for HostsWorkspaceRestoredLease<'_> {
     fn restored_workspace(&self) -> &ProfileWorkspace {
         &self.workspace
     }
@@ -226,7 +230,7 @@ impl ProfileStore for HostsCaptureStore {
                 Ok(reference.profile_id.as_str().to_owned())
             }
             ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "test store has no selected active profile",
             )),
         }
@@ -244,9 +248,9 @@ impl ProfileStore for HostsCaptureStore {
         &self,
         expected: ActiveProfileReferenceState,
         target: ActiveProfileReferenceTarget,
-        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        _: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
-        let _workspace_guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
+        let _workspace_guard = self.workspace_write_gate.lock().await;
         let mut active_reference = self
             .active_reference
             .lock()
@@ -271,7 +275,7 @@ impl ProfileStore for HostsCaptureStore {
             } => {
                 if engine_id != self.engine_id() {
                     return Err(PortError::unsupported(
-                        infiltrator_contract::capability::Capability::Profiles,
+                        Capability::Profiles,
                         "test store cannot select a foreign engine",
                     ));
                 }
@@ -288,7 +292,7 @@ impl ProfileStore for HostsCaptureStore {
                 ))
             }
         };
-        let previous = std::mem::replace(&mut *active_reference, current.clone());
+        let previous = replace(&mut *active_reference, current.clone());
         Ok(ActiveProfileReferenceCasOutcome::Committed { previous, current })
     }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -321,12 +325,7 @@ impl ProfileStore for HostsCaptureStore {
             .get(profile.as_str())
             .cloned()
             .ok_or_else(|| PortError::NotFound(profile.as_str().into()))?;
-        crate::profile_workspace_test_support::workspace_with_raw_sidecar(
-            profile.as_str(),
-            content.as_bytes(),
-            None,
-            None,
-        )
+        workspace_with_raw_sidecar(profile.as_str(), content.as_bytes(), None, None)
     }
     async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
         let profile = match &*self
@@ -339,7 +338,7 @@ impl ProfileStore for HostsCaptureStore {
             }
             ActiveProfileReferenceState::Unselected { .. } => {
                 return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     "test store has no selected active profile",
                 ));
             }
@@ -358,9 +357,9 @@ impl ProfileStore for HostsCaptureStore {
         &self,
         expected_reference: ActiveProfileReference,
         expected: ProfileWorkspaceIdentity,
-        authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
-        let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
+        let guard = self.workspace_write_gate.lock().await;
         match authorization {
             ActiveProfileReferenceWriteAuthorization::Unowned => {}
             ActiveProfileReferenceWriteAuthorization::BoundOwner { identity, .. }
@@ -474,12 +473,7 @@ impl HostsCaptureStore {
         let content = files
             .get(profile)
             .ok_or_else(|| PortError::NotFound(profile.into()))?;
-        let actual = crate::profile_workspace_test_support::workspace_with_raw_sidecar(
-            profile,
-            content.as_bytes(),
-            None,
-            None,
-        )?;
+        let actual = workspace_with_raw_sidecar(profile, content.as_bytes(), None, None)?;
         if actual.identity() != *expected {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
@@ -504,7 +498,7 @@ impl HostsCaptureStore {
             .map_err(|error| PortError::Io(error.to_string()))?;
         files.insert(profile.to_owned(), content);
         self.writes.fetch_add(1, Ordering::SeqCst);
-        crate::profile_workspace_test_support::workspace_with_raw_sidecar(
+        workspace_with_raw_sidecar(
             profile,
             &update.document_bytes,
             update.sidecar_bytes.clone(),

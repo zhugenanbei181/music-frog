@@ -13,15 +13,13 @@ use crate::types::message::Message;
 use crate::types::options::{EditorPane, MrsProviderDetail, SyncDiffBundle, SyncDiffState};
 use iced::widget::text_editor;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use infiltrator_composition::mihomo_configuration::save_profile_options_fixture;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::mrs::parse_mrs_header;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
-use mihomo_config::profile_option_store::save_options;
+use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
@@ -53,8 +51,7 @@ fn futures_executor_block_on<F: Future>(future: F) -> F::Output {
 
 fn attach_mihomo_editor_codec(state: &mut AppState) {
     let manager = futures_executor_block_on(crate::configs_dir::config_manager()).unwrap();
-    let profiles =
-        ProfileApplication::new(manager).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager);
     let application = identified_core_application();
     application.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
     attach_product_application_with_accepted_owner_snapshot(state, application);
@@ -73,7 +70,12 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
         },
         filter: None,
     };
-    futures_executor_block_on(save_options(&dir.join("configs"), "alpha", &options)).unwrap();
+    futures_executor_block_on(save_profile_options_fixture(
+        &dir.join("configs"),
+        "alpha",
+        &options,
+    ))
+    .unwrap();
 
     let reply = profile_edit_fixture::document(
         &mut state,
@@ -153,7 +155,7 @@ fn test_filter_draft_updates_and_validation_gate() {
     // switching to the Filter pane after ProfileContentLoaded keys the load
     // on editor_path's stem.
     let dir2 = temp_options_dir("filter");
-    futures_executor_block_on(save_options(
+    futures_executor_block_on(save_profile_options_fixture(
         &dir2.join("configs"),
         "alpha",
         &ProfileOptions {

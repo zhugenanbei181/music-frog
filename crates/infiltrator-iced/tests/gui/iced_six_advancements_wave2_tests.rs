@@ -6,7 +6,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationTemplate,
 };

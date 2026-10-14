@@ -18,12 +18,12 @@ use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
-use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::LocalizedLabel;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_presentation::dns_query_actions::QuerySection;
+use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use std::sync::Arc;
 
 #[derive(Resource)]

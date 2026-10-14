@@ -21,10 +21,10 @@ use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
-use infiltrator_application::dns_leak_fixtures::IsolatedEcho;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_test_support::dns_leak_fixtures::IsolatedEcho;
 use std::sync::Arc;
 #[derive(Resource)]
 struct LeakCapture {

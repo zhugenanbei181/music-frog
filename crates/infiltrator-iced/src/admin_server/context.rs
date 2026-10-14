@@ -29,13 +29,15 @@ impl IcedAdminContext {
 impl AdminApiContext for IcedAdminContext {
     async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
         let store = profile_store().await?;
-        Ok(crate::configuration::profiles_for_mihomo(store))
+        Ok(infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store))
     }
 
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
-        Ok(crate::configuration::for_mihomo_profiles(
-            self.profile_application().await?,
-        ))
+        Ok(
+            infiltrator_composition::mihomo_configuration::for_mihomo_profiles(
+                self.profile_application().await?,
+            ),
+        )
     }
 
     async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {

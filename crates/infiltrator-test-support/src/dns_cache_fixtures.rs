@@ -2,7 +2,6 @@
 use async_trait::async_trait;
 use futures_util::future::pending;
 use infiltrator_contract::capability::Capability;
-#[cfg(test)]
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
@@ -69,8 +68,7 @@ impl IsolatedCaches {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn test_core_scope() -> CoreScope {
+pub fn test_core_scope() -> CoreScope {
     CoreScope {
         identity: CoreIdentity::new(
             EngineId::new("mihomo").expect("valid engine ID"),

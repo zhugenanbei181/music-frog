@@ -1,5 +1,4 @@
 use super::*;
-use crate::rule_workspace_test_support::rule_workspace;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::outbound::details::{
     OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEgressSample,
@@ -24,6 +23,7 @@ use infiltrator_contract::rule_tracer::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::rule_trace_projection::present_chain;
+use infiltrator_test_support::rule_workspace_test_support::rule_workspace;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn scoped_for_test(
@@ -34,7 +34,7 @@ fn scoped_for_test(
     infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
     ScopedRuleTraceRequest,
 ) {
-    let scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let scope = infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope();
     let observed_workspace = workspace.profile_identity.clone();
     let owner = RuleTraceOwnerBinding::new(scope.clone(), observed_workspace.clone())
         .expect("fixture owner engine matches workspace");
@@ -53,7 +53,9 @@ async fn simulate_for_test(
 ) -> Result<(), Failure> {
     let (scope, observed_workspace, request) = scoped_for_test(request, workspace);
     let outbound_observation =
-        crate::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+        infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
+            scope.clone(),
+        );
     app.simulate_scoped(
         &scope,
         &observed_workspace,
@@ -940,7 +942,7 @@ async fn no_session_keeps_local_trace_explicitly_offline_with_unavailable_outbou
     let app = RuleTracerApplication::new();
     app.set_override_port(host.clone());
     let workspace = override_workspace(&rules);
-    let mut scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let mut scope = infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope();
     scope.session_token = None;
     scope.generation = infiltrator_contract::core_identity::CoreGeneration::new(7);
     let observed_workspace = workspace.profile_identity.clone();
@@ -1027,7 +1029,7 @@ async fn no_session_rejects_live_outbound_observation_before_profile_adapter() {
     let app = RuleTracerApplication::new();
     app.set_override_port(host.clone());
     let workspace = override_workspace(&rules);
-    let mut scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let mut scope = infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope();
     scope.session_token = None;
     let observed_workspace = workspace.profile_identity.clone();
     let request = ScopedRuleTraceRequest {
@@ -1037,7 +1039,9 @@ async fn no_session_rejects_live_outbound_observation_before_profile_adapter() {
             context: TrafficContextSnapshot::default(),
         },
     };
-    let observation = crate::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+    let observation = infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
+        scope.clone(),
+    );
 
     assert_eq!(
         app.simulate_scoped(
@@ -1088,7 +1092,7 @@ async fn builtin_direct_and_reject_targets_do_not_require_outbound_observation()
 
 #[tokio::test]
 async fn ambiguous_typed_display_name_keeps_rule_trace_outbound_unknown() {
-    let scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let scope = infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope();
     let observation = ambiguous_rule_trace_observation(&scope);
     assert!(super::resolve_rule_target("Shared display name", &observation).is_none());
     let rules = vec![RuleEntry {

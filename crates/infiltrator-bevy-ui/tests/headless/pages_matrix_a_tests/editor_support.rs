@@ -1,7 +1,6 @@
 //! Coherent editor document/sidecar observations for native matrix scenarios.
 use super::snapshot_diff_page_projection;
 use super::snapshot_history_fixture;
-use infiltrator_application::subscription_filter_fixture;
 use infiltrator_bevy_ui::pages::profiles::ProfilesProjection;
 use infiltrator_contract::profile_document::{
     DocumentInspection, DocumentValidation, ProfileDocumentSnapshot,
@@ -9,6 +8,7 @@ use infiltrator_contract::profile_document::{
 use infiltrator_contract::profile_editor_read::{ProfileEditorReadSnapshot, ProfileReadStatus};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_test_support::subscription_filter_fixture;
 
 pub(super) fn editor_page_projection(
     protection: ProfileWriteProtection,

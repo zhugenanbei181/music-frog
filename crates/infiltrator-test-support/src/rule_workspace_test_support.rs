@@ -8,13 +8,13 @@ use infiltrator_ports::rule_tracer::RuleWorkspace;
 use serde_yaml_ng::Value;
 use std::collections::BTreeMap;
 
-pub(crate) fn rule_workspace(profile: String, content: &str) -> Result<RuleWorkspace, Failure> {
+pub fn rule_workspace(profile: String, content: &str) -> Result<RuleWorkspace, Failure> {
     let workspace = workspace_with_raw_sidecar(profile.as_str(), content.as_bytes(), None, None)
         .map_err(Failure::from)?;
     rule_workspace_with_identity(profile, content, workspace.identity())
 }
 
-pub(crate) fn rule_workspace_with_identity(
+pub fn rule_workspace_with_identity(
     profile: String,
     content: &str,
     profile_identity: ProfileWorkspaceIdentity,

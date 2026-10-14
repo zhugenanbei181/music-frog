@@ -22,10 +22,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::ui::UiSystems;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::configuration_application::ConfigurationApplication;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_ports::profile_store::ProfileStore;
 use std::env;
 use std::sync::Arc;
 
@@ -84,28 +81,6 @@ pub fn selected(
     page: Route,
 ) -> bool {
     state.feature == feature && route.0 == Some(page)
-}
-
-/// Capture fixtures explicitly select the engine adapter for their Mihomo profile fixtures.
-pub(crate) fn mihomo_configuration_application(
-    store: Arc<dyn ProfileStore>,
-) -> ConfigurationApplication {
-    ConfigurationApplication::from_profile_application(mihomo_profiles(store))
-}
-
-pub(crate) fn mihomo_profiles(store: Arc<dyn ProfileStore>) -> ProfileApplication {
-    ProfileApplication::new(store).with_document_codec(Arc::new(
-        mihomo_config::profile_document_codec::MihomoProfileDocumentCodec,
-    ))
-}
-
-pub(crate) fn mihomo_rule_trace_fixture()
--> Arc<infiltrator_application::rule_trace_fixtures::RuleTraceStore> {
-    Arc::new(
-        infiltrator_application::rule_trace_fixtures::RuleTraceStore::with_document_codec(
-            Arc::new(mihomo_config::profile_document_codec::MihomoProfileDocumentCodec),
-        ),
-    )
 }
 
 pub fn supported(_feature: FeatureId) -> bool {

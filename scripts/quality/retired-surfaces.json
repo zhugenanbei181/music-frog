@@ -2133,6 +2133,175 @@
       "source_roots": [
         "crates/infiltrator-ports/src/profile_document_codec.rs"
       ]
+    },
+    {
+      "id": "application-dns-cache-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_cache_fixtures",
+      "rationale": "DNS-cache port fakes now live in engine-neutral infiltrator-test-support; Application no longer exports a capture fixture module.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/dns_cache_behavior_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-dns-hosts-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_hosts_fixtures",
+      "rationale": "Hosts store fakes and serialized fixtures now live in infiltrator-test-support; product codec selection stays in composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/configuration_dns_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-dns-leak-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_leak_fixtures",
+      "rationale": "DNS leak port fakes moved to infiltrator-test-support; Application exposes only the use case.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/dns_leak_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-dns-query-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_query_fixtures",
+      "rationale": "DNS query fakes moved to infiltrator-test-support and remain shared by Core behavior tests and capture consumers.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/dns_query_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-doctor-capture-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "doctor_capture_fixtures",
+      "rationale": "The doctor capture port fake moved to infiltrator-test-support; product snapshot assembly remains in composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-composition/src/surface_reader_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-filter-capture-store-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "filter_capture_store",
+      "rationale": "The deterministic filter profile store moved to infiltrator-test-support.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/script_export_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-language-capture-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "language_choice_fixtures",
+      "rationale": "Language process/store fakes moved to infiltrator-test-support.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-composition/src/surface_reader_profile_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-connection-grouping-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "connection_grouping_fixtures",
+      "rationale": "Shared connection facts moved to infiltrator-test-support; application-specific surface projection is private test-only composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/connection_grouping/tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-log-capture-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "log_capture_fixtures",
+      "rationale": "The fake Core process and fixed log rows moved to infiltrator-test-support; CoreApplication log population moved to composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-desktop/src/log_export_core_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-routing-intent-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "routing_intent_fixtures",
+      "rationale": "The routing-intent test controller moved to infiltrator-test-support and now uses an explicit Accept/Reject enum.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/routing_intent_native_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-list-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_list_fixtures",
+      "rationale": "The engine-neutral RuleWorkspace fixture moved to infiltrator-test-support; RuleDocumentSnapshot projection moved to composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/rules_provider_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-trace-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_trace_fixtures",
+      "rationale": "Rule-trace store and deterministic observations moved to infiltrator-test-support; Mihomo codec injection belongs to composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/rule_trace_statistics_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-subscription-filter-fixtures-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "subscription_filter_fixture",
+      "rationale": "Subscription-filter fixture data and observations moved to infiltrator-test-support.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/subscription_filter_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
     }
   ]
 }

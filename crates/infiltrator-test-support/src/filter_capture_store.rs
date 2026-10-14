@@ -1,7 +1,9 @@
 //! Isolated complete profile/options transactions for native tests and captures.
 use async_trait::async_trait;
+use futures_util::lock;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
@@ -20,10 +22,12 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
     ActiveProfileWorkspaceWriteLease, ProfileStore,
 };
-use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 
 pub const FILTER_PROFILE: &str = "filter-source";
 pub const FILTER_DOCUMENT: &str = "mixed-port: 7890\nmode: rule\nproxies:\n  - {name: HK-public, type: ss, server: 1.1.1.1, port: 443, cipher: aes-128-gcm, password: fixture}\n  - {name: HK-private, type: ss, server: 192.168.1.1, port: 443, cipher: aes-128-gcm, password: fixture}\n  - {name: US-public, type: ss, server: 8.8.8.8, port: 80, cipher: aes-128-gcm, password: fixture}\n";
@@ -32,7 +36,7 @@ pub const FILTER_POLICY: &str = "{drop-private-ip: true, remove-emojis: true, so
 pub struct FilterCaptureStore {
     workspace: Mutex<ProfileWorkspace>,
     active_reference: Mutex<ActiveProfileReferenceState>,
-    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
+    workspace_write_gate: lock::Mutex<()>,
     pub deny_write: AtomicBool,
     pub deny_read: AtomicBool,
     pub writes: AtomicUsize,
@@ -42,7 +46,7 @@ struct FilterWorkspaceWriteLease<'a> {
     store: &'a FilterCaptureStore,
     expected_reference: ActiveProfileReference,
     observed: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: lock::MutexGuard<'a, ()>,
 }
 
 struct FilterWorkspacePublishedLease<'a> {
@@ -50,12 +54,12 @@ struct FilterWorkspacePublishedLease<'a> {
     expected_reference: ActiveProfileReference,
     previous: ProfileWorkspace,
     published: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: lock::MutexGuard<'a, ()>,
 }
 
-struct FilterWorkspaceRestoredLease {
+struct FilterWorkspaceRestoredLease<'a> {
     workspace: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: lock::MutexGuard<'a, ()>,
 }
 fn workspace(
     content: String,
@@ -114,7 +118,7 @@ impl Default for FilterCaptureStore {
                     ActiveProfileReferenceRevision::default(),
                 ),
             )),
-            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
+            workspace_write_gate: lock::Mutex::new(()),
             deny_write: AtomicBool::new(false),
             deny_read: AtomicBool::new(false),
             writes: AtomicUsize::new(0),
@@ -236,7 +240,7 @@ impl ActiveProfileWorkspacePublishedLease for FilterWorkspacePublishedLease<'_> 
         let restored = self.store.commit_workspace(
             &self.published.identity(),
             &ProfileWorkspaceUpdate {
-                purpose: infiltrator_ports::profile_workspace::ProfileWorkspacePurpose::Derived,
+                purpose: ProfileWorkspacePurpose::Derived,
                 document_bytes: self.previous.document.raw_bytes.clone(),
                 sidecar_bytes: self.previous.sidecar_bytes.clone(),
             },
@@ -251,7 +255,7 @@ impl ActiveProfileWorkspacePublishedLease for FilterWorkspacePublishedLease<'_> 
 }
 
 #[async_trait]
-impl ActiveProfileWorkspaceRestoredLease for FilterWorkspaceRestoredLease {
+impl ActiveProfileWorkspaceRestoredLease for FilterWorkspaceRestoredLease<'_> {
     fn restored_workspace(&self) -> &ProfileWorkspace {
         &self.workspace
     }
@@ -334,12 +338,10 @@ impl ProfileStore for FilterCaptureStore {
         &self,
         expected_reference: ActiveProfileReference,
         expected_workspace: ProfileWorkspaceIdentity,
-        authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
-        let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
-        if authorization
-            != infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned
-        {
+        let guard = self.workspace_write_gate.lock().await;
+        if authorization != ActiveProfileReferenceWriteAuthorization::Unowned {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "isolated filter fixture has no bound Core owner",

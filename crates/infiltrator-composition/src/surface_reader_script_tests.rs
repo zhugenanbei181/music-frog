@@ -1,6 +1,5 @@
 //! Composition-level proof that shared script owners publish consistently across surfaces.
 use super::*;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_contract::script_export::ScriptExportKind;
@@ -8,6 +7,7 @@ use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExport
 use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::Arc;
 
 fn run_request(operation: u64) -> ScriptRunRequest {

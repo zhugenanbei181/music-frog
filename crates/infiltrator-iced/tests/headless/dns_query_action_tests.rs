@@ -5,7 +5,6 @@ use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::dns_query_application::DnsQueryApplication;
-use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::DnsRecordType;
@@ -18,6 +17,7 @@ use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 use infiltrator_presentation::dns_query_projection::project_query;
+use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

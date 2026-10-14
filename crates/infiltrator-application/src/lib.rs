@@ -16,7 +16,8 @@ pub mod command_capability;
 pub mod configuration_application;
 pub mod connection_application;
 pub mod connection_grouping;
-pub mod connection_grouping_fixtures;
+#[cfg(test)]
+mod connection_grouping_capture_tests;
 pub mod connection_rate_application;
 pub mod connection_search;
 pub mod core_application;
@@ -29,25 +30,16 @@ mod core_product_control_tests;
 pub mod core_version_management_application;
 pub mod dialer_chain_application;
 pub mod dns_cache_application;
-pub mod dns_cache_fixtures;
-#[cfg(any(test, feature = "capture-fixtures"))]
-pub mod dns_hosts_fixtures;
 pub mod dns_latency_application;
 pub mod dns_leak_actions;
 pub mod dns_leak_application;
-pub mod dns_leak_fixtures;
 pub mod dns_query_application;
-pub mod dns_query_fixtures;
 pub mod dns_self_heal_application;
 pub mod dns_workbench_application;
 pub mod doctor_actions;
 pub mod doctor_application;
-pub mod doctor_capture_fixtures;
-#[cfg(any(test, feature = "capture-fixtures"))]
-pub mod filter_capture_store;
 pub mod geo_database_application;
 pub mod language_choice;
-pub mod language_choice_fixtures;
 pub mod mini_hud_application;
 pub mod mrs_acceleration_application;
 pub mod mtu_application;
@@ -63,12 +55,8 @@ pub mod privileged_network_application;
 pub mod profile_aggregation_application;
 pub mod profile_application;
 pub mod profile_document_application;
-#[cfg(test)]
-pub(crate) mod profile_document_codec_test_support;
 pub mod profile_options_application;
 pub mod profile_reset_application;
-#[cfg(any(test, feature = "capture-fixtures"))]
-mod profile_workspace_test_support;
 pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;
 pub mod protocol_node_params;
@@ -80,17 +68,10 @@ pub mod resource_application;
 pub mod responsive_viewport_application;
 pub mod routing_application;
 pub mod routing_intent_application;
-pub mod routing_intent_fixtures;
 pub mod rule_list_application;
-#[cfg(any(test, feature = "capture-fixtures"))]
-pub mod rule_list_fixtures;
 pub mod rule_provider_application;
 pub mod rule_provider_runtime_application;
-#[cfg(any(test, feature = "capture-fixtures"))]
-pub mod rule_trace_fixtures;
 pub mod rule_tracer_application;
-#[cfg(test)]
-mod rule_workspace_test_support;
 pub mod runtime_configuration_application;
 pub mod runtime_control_projection;
 pub mod runtime_probe_settings;
@@ -114,8 +95,6 @@ pub mod speedtest_application;
 pub mod stun_probe_application;
 pub mod subscription_filter_copy;
 pub mod subscription_filter_editor;
-#[cfg(any(test, feature = "capture-fixtures"))]
-pub mod subscription_filter_fixture;
 pub mod subscription_import_application;
 pub mod subscription_quota_application;
 pub mod subscription_refresh_application;
@@ -162,7 +141,6 @@ pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
 
 pub mod protocol_form;
 
-pub mod log_capture_fixtures;
 pub mod log_search;
 
 pub mod log_application;

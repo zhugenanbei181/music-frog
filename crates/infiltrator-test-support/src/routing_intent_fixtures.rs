@@ -13,7 +13,7 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
@@ -26,7 +26,13 @@ pub struct RoutingIntentScenarioController {
 struct ControllerState {
     intent: RoutingIntent,
     requests: Vec<RoutingIntent>,
-    failure: Option<Failure>,
+    disposition: RoutingIntentScenarioDisposition,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RoutingIntentScenarioDisposition {
+    Accept,
+    Reject(Failure),
 }
 
 impl Default for RoutingIntentScenarioController {
@@ -35,7 +41,7 @@ impl Default for RoutingIntentScenarioController {
             state: Mutex::new(ControllerState {
                 intent: RoutingIntent::FollowRules,
                 requests: Vec::new(),
-                failure: Some(Failure::new(
+                disposition: RoutingIntentScenarioDisposition::Reject(Failure::new(
                     ErrorCode::Network,
                     "Controller temporarily refused routing change",
                     true,
@@ -46,8 +52,18 @@ impl Default for RoutingIntentScenarioController {
 }
 
 impl RoutingIntentScenarioController {
-    pub fn reject_with(&self, failure: Option<Failure>) {
-        self.state.lock().expect("routing intent fixture").failure = failure;
+    pub fn accept_requests(&self) {
+        self.state
+            .lock()
+            .expect("routing intent fixture")
+            .disposition = RoutingIntentScenarioDisposition::Accept;
+    }
+
+    pub fn reject_requests(&self, failure: Failure) {
+        self.state
+            .lock()
+            .expect("routing intent fixture")
+            .disposition = RoutingIntentScenarioDisposition::Reject(failure);
     }
 
     pub fn requests(&self) -> Vec<RoutingIntent> {
@@ -95,10 +111,7 @@ impl CoreProcess for RoutingIntentScenarioController {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         Err(PortError::Failed(
             "Routing intent scenario refuses lifecycle effects".into(),
         ))
@@ -176,8 +189,11 @@ impl RoutingIntentPort for RoutingIntentScenarioController {
         }
         let mut state = self.state.lock().expect("routing intent fixture");
         state.requests.push(intent.clone());
-        if let Some(failure) = &state.failure {
-            return Err(PortError::Rejected(failure.clone()));
+        match &state.disposition {
+            RoutingIntentScenarioDisposition::Accept => {}
+            RoutingIntentScenarioDisposition::Reject(failure) => {
+                return Err(PortError::Rejected(failure.clone()));
+            }
         }
         if matches!(intent, RoutingIntent::EngineDefined(_)) {
             return Err(PortError::unsupported(

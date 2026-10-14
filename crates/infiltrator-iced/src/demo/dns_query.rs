@@ -7,14 +7,14 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
-use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

@@ -2,8 +2,6 @@
 //! conditional subscription lifecycle.
 
 use super::*;
-use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
-use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use async_trait::async_trait;
 use chrono::Timelike;
 use infiltrator_contract::active_profile_reference::{
@@ -35,6 +33,10 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::subscription_source::SubscriptionDocument;
+use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
+use infiltrator_test_support::profile_workspace_test_support::{
+    workspace_with_origin, workspace_with_raw_sidecar,
+};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

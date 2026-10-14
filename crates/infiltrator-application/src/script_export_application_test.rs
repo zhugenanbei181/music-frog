@@ -6,9 +6,7 @@
 //! there against a real temporary directory.
 
 use super::*;
-use crate::filter_capture_store::FilterCaptureStore;
 use crate::profile_application::ProfileApplication;
-use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::script_export::{
@@ -17,6 +15,8 @@ use infiltrator_contract::script_export::{
 use infiltrator_contract::script_export_review::ScriptExportDraft;
 use infiltrator_contract::script_export_review::ScriptExportValidationScope;
 use infiltrator_domain::script_engine::HookStage;
+use infiltrator_test_support::filter_capture_store::FilterCaptureStore;
+use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 

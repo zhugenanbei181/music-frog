@@ -19,7 +19,9 @@ use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileRuntimeAccess,
 };
 use infiltrator_application::profile_options_application::ProfileOptionsApplication;
-use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use infiltrator_composition::mihomo_configuration::{
+    delete_profile_options_fixture, save_profile_options_fixture,
+};
 use infiltrator_contract::core_control::CoreControlLabel;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::profile_document_identity::ProfileId;
@@ -39,7 +41,7 @@ use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
 use infiltrator_shared::locales::Lang;
-use mihomo_config::profile_option_store::{delete_options, save_options};
+use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use std::fs::write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -117,7 +119,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     let name = sanitize_profile_name("Bad Sub").unwrap();
     let remote = block_on(async {
         let store = config_manager().await.unwrap();
-        let application = crate::configuration::profiles_for_mihomo(store);
+        let application = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store);
         let source = HttpSubscriptionSource::with_default_clients();
         application
             .import_subscription(&source, &name, "http://127.0.0.1:1/sub")
@@ -419,7 +421,7 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
 
     // A stored, non-empty options sidecar exists for the doomed profile
     // (empty options would be treated as "no sidecar" by save_options).
-    block_on(save_options(
+    block_on(save_profile_options_fixture(
         &home.profile_config_dir(),
         "Doomed",
         &ProfileOptions {
@@ -450,7 +452,9 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
         let manager = config_manager().await.unwrap();
         manager.delete_profile("Doomed").await.unwrap();
         let dir = configs_dir().await.unwrap();
-        delete_options(&dir, "Doomed").await.unwrap();
+        delete_profile_options_fixture(&dir, "Doomed")
+            .await
+            .unwrap();
     });
 
     let units = feed(&mut state, Message::ProfileDeleted(Ok(())));
@@ -672,7 +676,8 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
             .await
             .unwrap();
 
-        let application = crate::configuration::profiles_for_mihomo(manager);
+        let application =
+            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager);
         let refresh = SubscriptionRefreshApplication::new(
             application,
             application_runtime(),
@@ -750,7 +755,8 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     let draft = state.editor.filter_editor.draft.clone();
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let profiles = crate::configuration::profiles_for_mihomo(manager.clone());
+        let profiles =
+            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager.clone());
         let application = ProfileOptionsApplication::new(profiles.clone());
         let runtime = ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline;
         let report = application
@@ -881,7 +887,7 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     // Opt out for real so the editor state is the honest persisted one.
     block_on(async {
         let manager = config_manager().await.unwrap();
-        crate::configuration::profiles_for_mihomo(manager)
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager)
             .update_subscription_auto_reload("Paid", false)
             .await
             .expect("shared application persists the opt-out");
@@ -935,7 +941,8 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     // in the config.toml store the editor reloads.
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let application = crate::configuration::profiles_for_mihomo(manager.clone());
+        let application =
+            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager.clone());
         application
             .update_subscription_schedule(
                 "Paid",

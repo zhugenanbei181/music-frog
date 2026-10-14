@@ -9,7 +9,6 @@ use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::dns_hosts_fixtures::HostsCaptureStore;
 use infiltrator_application::protocol_codec_application::clear_studio;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{
@@ -35,6 +34,7 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_form::ProtocolField;
+use infiltrator_test_support::dns_hosts_fixtures::HostsCaptureStore;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;

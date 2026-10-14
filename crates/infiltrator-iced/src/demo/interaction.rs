@@ -3,9 +3,7 @@ use crate::state::AppState;
 use crate::state::runtime::ProbeSettingsDialogState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
-use infiltrator_application::connection_grouping_fixtures::{grouping_snapshot, grouping_surface};
-use infiltrator_application::doctor_capture_fixtures::CHECK_ID;
-use infiltrator_application::filter_capture_store::{FILTER_POLICY, FILTER_PROFILE};
+use infiltrator_composition::capture_fixtures::grouping_surface;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::fixture_identities::HK_PRIMARY;
 use infiltrator_contract::outbound::details::OutboundObservation;
@@ -17,6 +15,9 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::doctor_capture_fixtures::CHECK_ID;
+use infiltrator_test_support::filter_capture_store::{FILTER_POLICY, FILTER_PROFILE};
 
 pub(super) fn parse(raw: &str) -> FeatureId {
     FeatureId::ALL

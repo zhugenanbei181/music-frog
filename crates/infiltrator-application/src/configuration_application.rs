@@ -4,7 +4,9 @@ use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use infiltrator_contract::dns_hosts::DnsHostEntry;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_configuration;
-use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
+use infiltrator_contract::profile_configuration::{
+    ProfileConfigurationRequest, SnifferConfiguration,
+};
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
@@ -16,6 +18,8 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::RuleWorkspace;
+#[cfg(test)]
+use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 #[cfg(test)]
 use std::sync::Arc;
 
@@ -30,9 +34,8 @@ pub struct ConfigurationApplication {
 impl ConfigurationApplication {
     #[cfg(test)]
     pub(crate) fn test_configuration_application(store: Arc<dyn ProfileStore>) -> Self {
-        let profiles = ProfileApplication::new(store).with_document_codec(Arc::new(
-            crate::profile_document_codec_test_support::TestProfileDocumentCodec::mihomo(),
-        ));
+        let profiles = ProfileApplication::new(store)
+            .with_document_codec(Arc::new(TestProfileDocumentCodec::mihomo()));
         Self::from_profile_application(profiles)
     }
 
@@ -450,9 +453,7 @@ impl ConfigurationApplication {
     }
 }
 
-fn sniffer_config_from_contract(
-    value: infiltrator_contract::profile_configuration::SnifferConfiguration,
-) -> sniffer::SnifferConfig {
+fn sniffer_config_from_contract(value: SnifferConfiguration) -> sniffer::SnifferConfig {
     sniffer::SnifferConfig {
         enable: value.enable,
         sniff: value.sniff,

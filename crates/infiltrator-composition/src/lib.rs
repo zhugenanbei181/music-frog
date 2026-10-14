@@ -50,6 +50,9 @@ use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle;
 use tokio::time::{MissedTickBehavior, interval, sleep};
 
+#[cfg(feature = "capture-fixtures")]
+pub mod capture_fixtures;
+
 /// The watchdog probes process liveness four times per second. This keeps a
 /// dead core inside the three-second recovery budget without busy spinning.
 pub const CORE_WATCHDOG_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -518,6 +521,7 @@ where
 pub mod active_profile_backend;
 pub mod engine_backend_factory;
 pub mod engine_capability_provider_registry;
+pub mod mihomo_configuration;
 pub mod mihomo_engine_backend_provider;
 pub mod snapshot_restore_fixture;
 pub mod surface_reader;

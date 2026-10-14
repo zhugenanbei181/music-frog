@@ -7,14 +7,14 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_application::doctor_capture_fixtures::DoctorCapturePort;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::doctor_projection::project_observation;
+use infiltrator_test_support::doctor_capture_fixtures::DoctorCapturePort;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

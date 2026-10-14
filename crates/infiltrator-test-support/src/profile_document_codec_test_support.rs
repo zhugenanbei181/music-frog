@@ -1,18 +1,22 @@
+use crate::rule_workspace_test_support::rule_workspace_with_identity;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion,
+    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::filter::SubscriptionFilterPipeline;
 use infiltrator_domain::filter_policy_form;
 use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config_fidelity};
 use infiltrator_domain::profile_options::{ProfileOptions, strip_rule_lines};
+use infiltrator_domain::yaml_edit::rule_location::replace_rule_at_location;
 use infiltrator_domain::{dns, dns_hosts, fake_ip, proxy_providers, rules, sniffer, tun};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
@@ -24,12 +28,13 @@ use infiltrator_ports::profile_document_codec::{
     ProfileRuleWorkspaceUpdate,
 };
 use std::collections::VecDeque;
+use std::fmt::Display;
 use std::str::from_utf8;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub(crate) struct TestProfileDocumentCodec {
+pub struct TestProfileDocumentCodec {
     scope: ProfileDocumentCodecScope,
     inspections: Arc<AtomicUsize>,
     inspection_fixtures: Arc<Mutex<VecDeque<DocumentValidation>>>,
@@ -43,11 +48,11 @@ pub(crate) struct TestProfileDocumentCodec {
 }
 
 impl TestProfileDocumentCodec {
-    pub(crate) fn mihomo() -> Self {
+    pub fn mihomo() -> Self {
         Self::for_scope("mihomo", "mihomo-yaml", 1)
     }
 
-    pub(crate) fn for_scope(engine: &str, format: &str, schema: u32) -> Self {
+    pub fn for_scope(engine: &str, format: &str, schema: u32) -> Self {
         Self {
             scope: ProfileDocumentCodecScope {
                 engine_id: EngineId::new(engine).expect("valid test engine ID"),
@@ -65,34 +70,34 @@ impl TestProfileDocumentCodec {
         }
     }
 
-    pub(crate) fn inspection_count(&self) -> usize {
+    pub fn inspection_count(&self) -> usize {
         self.inspections.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn queue_inspection(&self, validation: DocumentValidation) {
+    pub fn queue_inspection(&self, validation: DocumentValidation) {
         self.inspection_fixtures
             .lock()
             .expect("test codec inspection fixtures")
             .push_back(validation);
     }
 
-    pub(crate) fn insertion_count(&self) -> usize {
+    pub fn insertion_count(&self) -> usize {
         self.insertions.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn options_call_count(&self) -> usize {
+    pub fn options_call_count(&self) -> usize {
         self.options_calls.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn configuration_read_count(&self) -> usize {
+    pub fn configuration_read_count(&self) -> usize {
         self.configuration_reads.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn configuration_update_count(&self) -> usize {
+    pub fn configuration_update_count(&self) -> usize {
         self.configuration_updates.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn queue_configuration_readout(
+    pub fn queue_configuration_readout(
         &self,
         query: ProfileConfigurationQuery,
         readout: ProfileConfigurationReadout,
@@ -103,7 +108,7 @@ impl TestProfileDocumentCodec {
             .push_back((query, readout));
     }
 
-    pub(crate) fn queue_configuration_mutation(
+    pub fn queue_configuration_mutation(
         &self,
         mutation: Result<ProfileConfigurationMutation, PortError>,
     ) {
@@ -168,12 +173,12 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
 
     fn read_rule_workspace(
         &self,
-        workspace: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        workspace: &ProfileWorkspaceIdentity,
         raw_bytes: &[u8],
     ) -> Result<ProfileRuleWorkspaceProjection, PortError> {
         self.configuration_reads.fetch_add(1, Ordering::SeqCst);
         let content = from_utf8(raw_bytes).map_err(|error| PortError::Failed(error.to_string()))?;
-        let parsed = crate::rule_workspace_test_support::rule_workspace_with_identity(
+        let parsed = rule_workspace_with_identity(
             workspace.document.profile_id.as_str().to_owned(),
             content,
             workspace.clone(),
@@ -189,7 +194,7 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
 
     fn apply_rule_workspace(
         &self,
-        workspace: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        workspace: &ProfileWorkspaceIdentity,
         raw_bytes: &[u8],
         update: ProfileRuleWorkspaceUpdate,
     ) -> Result<ProfileRuleWorkspaceMutation, PortError> {
@@ -208,15 +213,10 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
                 location,
                 expected_rule,
                 replacement,
-            } => infiltrator_domain::yaml_edit::rule_location::replace_rule_at_location(
-                content,
-                &location,
-                &expected_rule,
-                &replacement,
-            )
-            .map_err(|error| {
-                PortError::Rejected(Failure::new(ErrorCode::NotReady, error.to_string(), true))
-            })?,
+            } => replace_rule_at_location(content, &location, &expected_rule, &replacement)
+                .map_err(|error| {
+                    PortError::Rejected(Failure::new(ErrorCode::NotReady, error.to_string(), true))
+                })?,
         };
         let projection = self.read_rule_workspace(workspace, updated.as_bytes())?;
         Ok(ProfileRuleWorkspaceMutation {
@@ -233,10 +233,10 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
     ) -> Result<ProfileDocumentSnippetOutcome, PortError> {
         self.insertions.fetch_add(1, Ordering::SeqCst);
         let previous = self.inspect(content.as_bytes())?;
-        let insertion = infiltrator_contract::yaml_snippets::insert_at_caret(
+        let insertion = insert_at_caret(
             content,
             snippet_id,
-            infiltrator_contract::yaml_snippets::SnippetCaret {
+            SnippetCaret {
                 line: caret.line,
                 column: caret.column,
             },
@@ -289,7 +289,7 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
         let mixin: MixinConfig = serde_yaml_ng::from_str(mixin_yaml).map_err(|error| {
             PortError::Rejected(
                 Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
-                    .with_reason(infiltrator_contract::error::FailureReason::MixinYaml),
+                    .with_reason(FailureReason::MixinYaml),
             )
         })?;
         let removals = old
@@ -298,8 +298,8 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
             .iter()
             .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
             .collect::<Vec<_>>();
-        let content = std::str::from_utf8(document_bytes)
-            .map_err(|error| PortError::Io(error.to_string()))?;
+        let content =
+            from_utf8(document_bytes).map_err(|error| PortError::Io(error.to_string()))?;
         let base = strip_rule_lines(content, &removals);
         let merged = merge_profile_with_config_fidelity(&base, &mixin)
             .map_err(|error| PortError::Failed(error.to_string()))?;
@@ -336,8 +336,8 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
             parsed,
             draft.advanced_policy.is_some(),
         );
-        let content = std::str::from_utf8(document_bytes)
-            .map_err(|error| PortError::Io(error.to_string()))?;
+        let content =
+            from_utf8(document_bytes).map_err(|error| PortError::Io(error.to_string()))?;
         let (filtered, report) = SubscriptionFilterPipeline::new(
             spec.to_rule()
                 .map_err(|error| PortError::Failed(error.to_string()))?,
@@ -362,7 +362,7 @@ fn decode_options(bytes: Option<&[u8]>) -> Result<ProfileOptions, PortError> {
     let Some(bytes) = bytes else {
         return Ok(ProfileOptions::default());
     };
-    let text = std::str::from_utf8(bytes).map_err(|error| PortError::Io(error.to_string()))?;
+    let text = from_utf8(bytes).map_err(|error| PortError::Io(error.to_string()))?;
     if text.trim().is_empty() {
         return Ok(ProfileOptions::default());
     }
@@ -406,7 +406,7 @@ fn fake_read_configuration(
         ProfileConfigurationQuery::ProtocolNodes | ProfileConfigurationQuery::TrustAnchors
     ) {
         return Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "test fake typed protocol and CA readouts must be queued explicitly",
         ));
     }
@@ -489,7 +489,7 @@ fn fake_apply_configuration(
             | ProfileConfigurationUpdate::TrustAnchors(_)
     ) {
         return Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "test fake typed protocol and CA mutations must be queued explicitly",
         ));
     }
@@ -537,13 +537,13 @@ fn fake_apply_configuration(
         ),
         ProfileConfigurationUpdate::UpsertProtocolNode(_) => {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "test fake protocol node mutation must be queued explicitly",
             ));
         }
         ProfileConfigurationUpdate::TrustAnchors(_) => {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "test fake CA trust-anchor mutation must be queued explicitly",
             ));
         }
@@ -625,7 +625,7 @@ fn fake_dns_patch_from_settings(patch: DnsSettingsPatch) -> dns::DnsConfigPatch 
     output
 }
 
-fn invalid_configuration(error: impl std::fmt::Display) -> PortError {
+fn invalid_configuration(error: impl Display) -> PortError {
     PortError::Rejected(Failure::new(
         ErrorCode::InvalidInput,
         error.to_string(),
@@ -633,7 +633,7 @@ fn invalid_configuration(error: impl std::fmt::Display) -> PortError {
     ))
 }
 
-fn configuration_failure(error: impl std::fmt::Display) -> PortError {
+fn configuration_failure(error: impl Display) -> PortError {
     PortError::Rejected(Failure::new(
         ErrorCode::Configuration,
         error.to_string(),

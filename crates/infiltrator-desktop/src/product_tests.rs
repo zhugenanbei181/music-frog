@@ -13,7 +13,6 @@ use infiltrator_application::command_application::handler::{
 };
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
-use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_application::surface_application::{SurfacePump, UnavailableSurfaceReader};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::active_profile_reference::{
@@ -47,6 +46,7 @@ use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;

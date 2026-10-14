@@ -5,7 +5,7 @@ use super::*;
 use crate::view::rules_window::{
     rendered_rule_rows, rules_window, rules_window_page, visible_rule_items,
 };
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 
 #[test]
 fn test_rules_virtual_window_renders_bounded_rows_for_50k_list() {

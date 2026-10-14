@@ -61,7 +61,7 @@ pub fn fresh_state() -> AppState {
 pub fn list_profiles() -> Vec<ProfileInfo> {
     block_on(async {
         let store = config_manager().await.unwrap();
-        crate::configuration::profiles_for_mihomo(store)
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store)
             .list_profiles()
             .await
             .unwrap()

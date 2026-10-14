@@ -9,7 +9,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::view::speedtest_modal::speedtest_card;
 use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};

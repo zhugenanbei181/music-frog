@@ -4,22 +4,22 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::routing_intent_fixtures::RoutingIntentScenarioController;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::surface::SurfaceKind;
+use infiltrator_test_support::routing_intent_fixtures::RoutingIntentScenarioController;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message> {
     let port = Arc::new(RoutingIntentScenarioController::default());
     if feature == FeatureId::ShellRoutingIntentAuthentication {
-        port.reject_with(Some(Failure::new(
+        port.reject_requests(Failure::new(
             ErrorCode::Authentication,
             "Controller token rejected",
             false,
-        )));
+        ));
     }
     let runtime = tokio_application_runtime().expect("capture runtime");
     let application = CoreApplication::new_with_overview(

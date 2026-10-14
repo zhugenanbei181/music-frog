@@ -5,7 +5,6 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -13,10 +12,11 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
-    let store = crate::configuration::mihomo_rule_trace_fixture();
+    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
     let core = CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
@@ -31,8 +31,10 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
     )
-    .with_profiles(crate::configuration::profiles_for_mihomo(store.clone()))
-    .with_configuration(crate::configuration::for_mihomo_store(store));
+    .with_profiles(
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+    )
+    .with_configuration(infiltrator_composition::mihomo_configuration::for_mihomo_store(store));
     attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;
     Task::perform(

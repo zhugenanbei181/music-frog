@@ -6428,6 +6428,7 @@ dependencies = [
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-shared",
+ "infiltrator-test-support",
  "log",
  "mihomo-config",
  "regex",
@@ -6466,7 +6467,7 @@ dependencies = [
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-shared",
- "mihomo-config",
+ "infiltrator-test-support",
  "mockito",
  "openssl",
  "serde",
@@ -6527,6 +6528,7 @@ dependencies = [
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-profile-store",
+ "infiltrator-test-support",
  "log",
  "mihomo-api",
  "mihomo-config",
@@ -6612,6 +6614,7 @@ dependencies = [
  "infiltrator-platform",
  "infiltrator-ports",
  "infiltrator-profile-store",
+ "infiltrator-test-support",
  "log",
  "mihomo-api",
  "mihomo-config",
@@ -6691,10 +6694,10 @@ dependencies = [
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-shared",
+ "infiltrator-test-support",
  "is_elevated",
  "ksni",
  "log",
- "mihomo-config",
  "mihomo-version",
  "muda",
  "naga 27.0.3",
@@ -6825,6 +6828,19 @@ dependencies = [
  "openssl",
  "slint",
  "slint-build",
+]
+
+[[package]]
+name = "infiltrator-test-support"
+version = "0.41.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "infiltrator-contract",
+ "infiltrator-domain",
+ "infiltrator-ports",
+ "serde_json",
+ "serde_yaml_ng",
 ]
 
 [[package]]

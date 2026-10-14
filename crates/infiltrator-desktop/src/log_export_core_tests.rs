@@ -6,10 +6,8 @@ use infiltrator_application::core_capability_application::CoreCapabilityApplicat
 use infiltrator_application::log_application::{
     LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
 };
-use infiltrator_application::log_capture_fixtures::{
-    LogCaptureProcess, append_follow_records, populate_logs,
-};
 use infiltrator_application::log_export_application::LogExportApplication;
+use infiltrator_composition::capture_fixtures::{append_follow_records, populate_logs};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_capabilities::{
@@ -25,6 +23,7 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::fs;
 use std::sync::Arc;
 use tempfile::tempdir;

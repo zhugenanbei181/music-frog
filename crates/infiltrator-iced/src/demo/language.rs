@@ -6,11 +6,11 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice::project_language;
-use infiltrator_application::language_choice_fixtures::{
-    LanguageCaptureProcess, LanguageCaptureStore,
-};
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_test_support::language_choice_fixtures::{
+    LanguageCaptureProcess, LanguageCaptureStore,
+};
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

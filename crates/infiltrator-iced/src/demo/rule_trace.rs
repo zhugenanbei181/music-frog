@@ -9,7 +9,6 @@ use iced::widget::operation::snap_to;
 use iced::widget::scrollable::RelativeOffset;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -18,11 +17,12 @@ use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let confirm = state.shell.capture_scenario == Some(FeatureId::RulesOverrideEditor);
-    let port = crate::configuration::mihomo_rule_trace_fixture();
+    let port = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(port.clone());
     let core = CoreApplication::new(
@@ -40,8 +40,12 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
             HostKind::Desktop,
         )
         .with_rule_tracer(owner)
-        .with_profiles(crate::configuration::profiles_for_mihomo(port.clone()))
-        .with_configuration(crate::configuration::for_mihomo_store(port.clone())),
+        .with_profiles(
+            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(port.clone()),
+        )
+        .with_configuration(
+            infiltrator_composition::mihomo_configuration::for_mihomo_store(port.clone()),
+        ),
     );
     attach_capture_owner(state, core);
     let _ = state.update(Message::SetRulesTab(RulesTab::Tracer));

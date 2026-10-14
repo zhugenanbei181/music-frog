@@ -2,7 +2,6 @@
 //! scheduled (tick) updates, plus the subscription-editor sync helper.
 
 use crate::configs_dir::config_manager;
-use crate::configuration::profiles_for_mihomo;
 use crate::host::runtime::{application_runtime, subscription_notifier};
 use crate::host::storage::subscription_source;
 use crate::notify::NotifyUrgency;
@@ -12,6 +11,7 @@ use crate::types::message::Message;
 use chrono::Utc;
 use iced::Task;
 use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionContentEffectOutcome, SubscriptionScheduleDraft,

@@ -19,6 +19,7 @@ members = [
   "crates/infiltrator-ports",
   "crates/infiltrator-profile-store",
   "crates/infiltrator-application",
+  "crates/infiltrator-test-support",
   "crates/infiltrator-composition",
   "crates/infiltrator-core",
   "crates/infiltrator-http",

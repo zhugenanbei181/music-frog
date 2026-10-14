@@ -12,7 +12,6 @@ use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::Text;
-use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin};
 use infiltrator_bevy_ui::pages::app_routing::{
     AppItem, AppRoutingProjection, AppRoutingProjectionUpdated, AppRuleText,
@@ -82,6 +81,7 @@ use infiltrator_contract::version::{
 };
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
+use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 
 fn create_test_app() -> App {
     let mut app = App::new();

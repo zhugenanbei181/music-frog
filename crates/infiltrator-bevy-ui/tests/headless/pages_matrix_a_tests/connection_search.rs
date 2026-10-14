@@ -9,7 +9,6 @@ use bevy::text::{TextColor, TextSpan};
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ButtonPlugin};
-use infiltrator_application::connection_grouping_fixtures::grouping_surface;
 use infiltrator_bevy_ui::command::DemoCommandSink;
 use infiltrator_bevy_ui::pages::connections::{
     CloseConnectionButton, ConnHostText, ConnectionsProjection, ConnectionsProjectionUpdated,
@@ -24,6 +23,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::capture_fixtures::grouping_surface;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use std::sync::Arc;
 

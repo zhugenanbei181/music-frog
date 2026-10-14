@@ -40,7 +40,6 @@ use infiltrator_contract::protocol_form::ProtocolStudioSlot;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
 };
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
 use crate::support::*;
@@ -388,7 +387,7 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
 #[test]
 fn protocol_codec_matrix_passes_on_the_bevy_surface() {
     let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
-        MihomoProfileDocumentCodec,
+        infiltrator_composition::mihomo_configuration::profile_document_codec_fixture(),
     ));
     assert!(
         report.all_covered_passed(),
@@ -413,7 +412,7 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
     // The engine codec returns an honest audit for a typed profile mutation;
     // the surface renders that readback directly.
     let profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 443\n    cipher: aes-128-gcm\n    password: pw\n    future-flag: 7\nmode: rule\n";
-    let codec = MihomoProfileDocumentCodec;
+    let codec = infiltrator_composition::mihomo_configuration::profile_document_codec_fixture();
     let scope = codec.scope();
     let identity = ProfileDocumentIdentity::new(
         ProfileId::new("bevy-protocol-test").unwrap(),

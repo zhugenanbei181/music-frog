@@ -32,10 +32,6 @@ use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
-use infiltrator_application::filter_capture_store::{
-    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
-};
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
@@ -48,6 +44,10 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::filter_capture_store::{
+    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
+};
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::{Arc, Mutex, RwLock, atomic::Ordering};
 
 #[derive(Resource)]
@@ -66,12 +66,14 @@ pub fn install(app: &mut App) {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated filter runtime"),
     ));
-    core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(super::mihomo_profiles(store.clone())),
-    ));
+    core.install_command_handler(Arc::new(CommandApplication::new().with_profile(
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+    )));
     let reader = Arc::new(
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(super::mihomo_profiles(store.clone())),
+            .with_profiles(
+                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+            ),
     );
     let scope = core.snapshot().scope().expect("identified capture owner");
     app.insert_resource(CommandSinkHandle(Arc::new(

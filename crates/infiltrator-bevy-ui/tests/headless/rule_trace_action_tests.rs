@@ -12,9 +12,6 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ButtonPlugin, ValueChange};
 use bevy::window::{Ime, PrimaryWindow, Window};
-use infiltrator_application::rule_trace_fixtures::{
-    NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
-};
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabStrip};
@@ -38,6 +35,9 @@ use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::rule_trace_fixtures::{
+    NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
+};
 use std::mem::discriminant;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

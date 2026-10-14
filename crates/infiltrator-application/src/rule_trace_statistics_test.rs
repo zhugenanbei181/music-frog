@@ -2,10 +2,10 @@
 //! Real source loads and commands must isolate local statistics without reader side effects.
 use super::*;
 use crate::command_application::CommandApplication;
-use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use infiltrator_test_support::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use std::sync::atomic::Ordering;
 
 const DOCUMENT: &str = "rules:\n  - DOMAIN,example.com,DIRECT\n  - MATCH,REJECT\n";
@@ -23,12 +23,14 @@ async fn simulate_for_workspace(
     workspace: &RuleWorkspace,
 ) -> Result<(), Failure> {
     let (scope, observed_workspace, request) =
-        crate::rule_trace_fixtures::scoped_rule_trace_request(
+        infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request(
             request,
             workspace.profile_identity.clone(),
         );
     let outbound_observation =
-        crate::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+        infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
+            scope.clone(),
+        );
     application
         .simulate_scoped(
             &scope,

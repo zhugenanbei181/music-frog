@@ -1,8 +1,6 @@
 //! test-intent: behavior
 //! Real isolated profile bytes and full documents, never a truncated display save.
 use super::*;
-use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
-use crate::rule_workspace_test_support::rule_workspace;
 use infiltrator_contract::rule_document::RuleListCommit;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
@@ -10,6 +8,8 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::document::definitions_from_entries;
 use infiltrator_presentation::rule_form_binding::RuleFormBinding;
 use infiltrator_presentation::rule_list_editor::{RuleListEditor, RuleListReadback};
+use infiltrator_test_support::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
+use infiltrator_test_support::rule_workspace_test_support::rule_workspace;
 use std::sync::atomic::Ordering;
 
 #[tokio::test]

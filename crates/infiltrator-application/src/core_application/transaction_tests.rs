@@ -7,7 +7,6 @@ use crate::core_application::CoreApplication;
 use crate::core_application::{
     test_dispatch_at_current_scope, test_execute_result_at_current_scope,
 };
-use crate::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use futures_util::poll;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
@@ -17,6 +16,7 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};
+use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;

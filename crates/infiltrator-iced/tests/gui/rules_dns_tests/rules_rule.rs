@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderContentOrigin;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;

@@ -10,9 +10,8 @@ use crate::test_mounts::outbound_fixtures::{
     OutboundFixture, OutboundFixtureInput, OutboundMemberFixture,
 };
 use crate::types::message::Message;
-use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
+use infiltrator_composition::capture_fixtures::populate_logs;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
@@ -43,6 +42,8 @@ use infiltrator_contract::surface_snapshot::{PageData, PageStatus, SurfaceSnapsh
 use infiltrator_iced::state::proxy_preferences::ProxyPreferencePhase;
 use infiltrator_iced::state::proxy_search::ProxySearchPhase;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

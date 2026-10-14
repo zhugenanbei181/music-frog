@@ -15,8 +15,6 @@ description = "Runtime-neutral application services over MusicFrog ports."
 # this crate's README.
 default = ["script-engine-boa"]
 script-engine-boa = ["dep:boa_engine"]
-# Screenshot and deterministic surface fixtures are opt-in for product builds.
-capture-fixtures = ["dep:tokio"]
 
 [dependencies]
 zhuge-ui-core.workspace = true
@@ -32,10 +30,10 @@ log = { workspace = true }
 serde_yaml_ng = { workspace = true }
 serde_json = { workspace = true }
 regex = { workspace = true }
-tokio = { workspace = true, optional = true }
 url = { workspace = true }
 unicode-segmentation = { workspace = true }
 [dev-dependencies]
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 mihomo-config = { path = "../mihomo-config" }
 tokio = { workspace = true, features = ["test-util"] }
+infiltrator-test-support = { path = "../infiltrator-test-support" }

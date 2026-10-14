@@ -14,7 +14,6 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::telemetry_observation_fixtures::{
     TelemetryObservationReader, stale_zero_snapshot,
@@ -23,6 +22,7 @@ use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::{Arc, Mutex};
 
 #[derive(Resource)]

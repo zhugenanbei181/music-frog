@@ -8,7 +8,6 @@ use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
-use infiltrator_application::dns_leak_fixtures::{EchoMode, IsolatedEcho};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
@@ -20,6 +19,7 @@ use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::dns_leak_fixtures::{EchoMode, IsolatedEcho};
 use std::sync::Arc;
 use tokio::runtime::Builder;
 fn terminal(task: Task<Message>) -> Message {

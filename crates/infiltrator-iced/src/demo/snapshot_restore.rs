@@ -6,9 +6,9 @@ use crate::types::snapshot_restore::RestoreAction;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_composition::snapshot_restore_fixture::SnapshotRestoreFixture;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::Arc;
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let fixture = SnapshotRestoreFixture::new();

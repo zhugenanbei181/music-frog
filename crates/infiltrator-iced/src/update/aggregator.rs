@@ -8,13 +8,13 @@
 //! profiles are never touched.
 
 use crate::configs_dir::config_manager;
-use crate::configuration::profiles_for_mihomo;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_aggregation_application::ProfileAggregationApplication;
 use infiltrator_application::profile_application::ProfileRuntimeAccess;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationActivationOutcome, AggregationCustomGroup,
     AggregationDraft, AggregationRenameRule,

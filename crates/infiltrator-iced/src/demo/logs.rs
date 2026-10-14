@@ -6,11 +6,9 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::{
-    LOG_QUERY, LogCaptureProcess, append_follow_records, populate_logs,
-};
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::log_export_capture::ReadOnlyLogExportCapture;
+use infiltrator_composition::capture_fixtures::{append_follow_records, populate_logs};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command_output::CommandOutput;
@@ -18,6 +16,7 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::log_capture_fixtures::{LOG_QUERY, LogCaptureProcess};
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message> {

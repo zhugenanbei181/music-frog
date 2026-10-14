@@ -24,6 +24,10 @@ use infiltrator_domain::rules::tracer::{RuleTraceMatch, TrafficContext, trace_ru
 use infiltrator_domain::rules::types::parse_rule_str;
 use infiltrator_domain::rules::{RuleEntry, rewrite_rule_target};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
+#[cfg(test)]
+use infiltrator_test_support::rule_trace_fixtures::{
+    rule_trace_test_scope, unknown_rule_trace_observation,
+};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -273,9 +277,7 @@ impl RuleTracerApplication {
         rules: &[RuleEntry],
         query: &str,
     ) -> Result<(Option<RuleTraceMatch>, DecisionChainSnapshot), RuleTraceIssue> {
-        let observation = crate::rule_trace_fixtures::unknown_rule_trace_observation(
-            crate::rule_trace_fixtures::rule_trace_test_scope(),
-        );
+        let observation = unknown_rule_trace_observation(rule_trace_test_scope());
         self.trace_with_outbounds(
             rules,
             None,
@@ -414,9 +416,7 @@ impl RuleTracerApplication {
     ) -> Result<RuleTracerSnapshot, RuleTraceIssue> {
         let outbound_facts = match core.scope() {
             Some(scope) => match scope.session_token.as_ref() {
-                Some(_) => RuleTraceOutboundFacts::Observed(
-                    crate::rule_trace_fixtures::unknown_rule_trace_observation(scope),
-                ),
+                Some(_) => RuleTraceOutboundFacts::Observed(unknown_rule_trace_observation(scope)),
                 None => RuleTraceOutboundFacts::Unavailable(Failure::new(
                     ErrorCode::NotReady,
                     "Core session is unavailable; local AST simulation only",

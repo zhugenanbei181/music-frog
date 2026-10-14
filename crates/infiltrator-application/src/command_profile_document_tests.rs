@@ -4,7 +4,6 @@ use super::*;
 use crate::command_application::handler::ValidatedCoreCommandScope;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
 use crate::profile_document_application::ProfileDocumentApplication;
-use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use infiltrator_contract::profile_document::{
     DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
     DocumentInspectionUnsupportedReason, DocumentValidation,
@@ -12,6 +11,7 @@ use infiltrator_contract::profile_document::{
 use infiltrator_contract::profile_document_identity::{ProfileDocumentIdentity, ProfileId};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 use std::str::from_utf8;
 
 fn profile_id(name: &str) -> ProfileId {

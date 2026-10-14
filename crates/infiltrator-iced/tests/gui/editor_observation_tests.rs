@@ -9,13 +9,13 @@ use crate::types::message::Message;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::Ordering};
@@ -41,7 +41,8 @@ fn terminal(task: Task<Message>) -> Message {
 fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_without_an_invented_save()
  {
     let store = Arc::new(FilterCaptureStore::default());
-    let profiles = crate::configuration::profiles_for_mihomo(store.clone());
+    let profiles =
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone());
     let core = identified_core_application();
     core.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])

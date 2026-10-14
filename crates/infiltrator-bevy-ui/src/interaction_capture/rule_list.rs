@@ -23,9 +23,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_list_application::RuleListApplication;
-use infiltrator_application::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -34,6 +32,8 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use infiltrator_test_support::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
 #[derive(Resource)]
@@ -43,7 +43,7 @@ struct CaptureList {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = super::mihomo_rule_trace_fixture();
+    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
     let core = Arc::new(CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
@@ -52,8 +52,12 @@ pub fn install(app: &mut App) {
     ));
     let reader = Arc::new(
         ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(super::mihomo_profiles(store.clone()))
-            .with_configuration(super::mihomo_configuration_application(store.clone())),
+            .with_profiles(
+                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+            )
+            .with_configuration(
+                infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+            ),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         CommandApplication::new().with_rule_list(RuleListApplication::new(store.clone())),

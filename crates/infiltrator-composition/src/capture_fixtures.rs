@@ -1,75 +1,47 @@
-//! Isolated controller records pass through the actual application lifecycle and buffer.
-use crate::core_application::CoreApplication;
-use crate::log_application::{LogBindingIntent, LogBindingOutcome, LogIngestOutcome};
-use async_trait::async_trait;
-use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::{
-    CoreCommandRequest, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
+//! Application-specific deterministic capture assembly.
+use infiltrator_application::connection_rate_application::connections_page_snapshot;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::log_application::{
+    LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
 };
+use infiltrator_application::rule_list_application::document_snapshot;
+use infiltrator_application::shell_readout_application::ShellReadoutApplication;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
+use infiltrator_contract::rule_document::RuleDocumentSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
-use std::sync::atomic::{AtomicBool, Ordering};
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::log_capture_fixtures::LOG_RECORDS;
+use infiltrator_test_support::rule_list_fixtures::list_workspace;
 
-pub const LOG_QUERY: &str = "api\\.example|timeout";
-pub const LOG_RECORDS: [&str; 3] = [
-    "WARN[12:00:01] [TCP] API.EXAMPLE dial TIMEOUT",
-    "INFO[12:00:02] [TCP] connected api.example safely",
-    "DEBUG[12:00:03] resolver healthy",
-];
-#[derive(Default)]
-pub struct LogCaptureProcess(AtomicBool);
-#[async_trait]
-impl CoreProcess for LogCaptureProcess {
-    fn core_identity(&self) -> Option<CoreIdentity> {
-        Some(CoreIdentity::new(
-            EngineId::new("log-capture").expect("valid test engine"),
-            CoreInstanceId::new("isolated").expect("valid test instance"),
-            Some(CoreVersion::new("1.19.12").expect("valid test version")),
-        ))
+pub fn grouping_surface(mut surface: SurfaceSnapshot) -> SurfaceSnapshot {
+    let connections = grouping_snapshot();
+    let page = connections_page_snapshot(&connections, &Default::default());
+    surface.origin = SurfaceOrigin::Demo;
+    surface.failure = None;
+    surface.core.failure = None;
+    surface.core.lifecycle = CoreLifecycle::Running;
+    surface.revision += 1;
+    surface.core.revision += 1;
+    surface.core.active_connections = page.total_connections as u32;
+    if let Some(overview) = surface.pages.overview.data.as_mut() {
+        overview.active_connections = surface.core.active_connections;
     }
-
-    async fn start(
-        &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> Result<(), PortError> {
-        self.0.store(true, Ordering::Release);
-        Ok(())
-    }
-    async fn stop(&self) -> Result<(), PortError> {
-        self.0.store(false, Ordering::Release);
-        Ok(())
-    }
-    async fn status(&self) -> Result<CoreLifecycle, PortError> {
-        Ok(if self.0.load(Ordering::Acquire) {
-            CoreLifecycle::Running
-        } else {
-            CoreLifecycle::Stopped
-        })
-    }
-    fn controller_endpoint(&self) -> Option<String> {
-        Some("http://isolated-controller.invalid".into())
-    }
+    surface.pages.connections = PageData::ready(page);
+    surface.shell_readout = ShellReadoutApplication::default().project(&surface);
+    surface
 }
-#[async_trait]
-impl CoreReadiness for LogCaptureProcess {
-    async fn probe(&self) -> Result<String, PortError> {
-        if self.0.load(Ordering::Acquire) {
-            Ok("isolated-log-controller".into())
-        } else {
-            Err(PortError::Failed("isolated controller is stopped".into()))
-        }
-    }
 
-    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
-        Ok(Some(
-            CoreVersion::new("1.19.12").expect("valid fixture controller version"),
-        ))
-    }
+pub fn list_document(rules: Vec<RuleEntry>) -> RuleDocumentSnapshot {
+    let workspace = list_workspace(rules);
+    document_snapshot(&workspace)
 }
+
 pub async fn populate_logs(core: &CoreApplication) -> Result<(), Failure> {
     let scope = core.snapshot().scope().ok_or_else(|| {
         Failure::new(

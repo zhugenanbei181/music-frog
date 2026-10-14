@@ -7,12 +7,12 @@
 //! apply/reload/readiness/rollback contract.
 
 use crate::configs_dir::config_manager;
-use crate::configuration::profiles_for_mihomo;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileRuntimeAccess,
 };
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;

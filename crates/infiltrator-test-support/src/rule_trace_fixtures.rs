@@ -1,4 +1,5 @@
 //! Explicit in-memory profile transactions shared by behavior tests and captures.
+use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
@@ -92,12 +93,9 @@ pub struct RuleTraceStore {
     pub writes: AtomicUsize,
     pub rule_loads: AtomicUsize,
 }
-#[cfg(test)]
 impl Default for RuleTraceStore {
     fn default() -> Self {
-        Self::with_document_codec(Arc::new(
-            crate::profile_document_codec_test_support::TestProfileDocumentCodec::mihomo(),
-        ))
+        Self::with_document_codec(Arc::new(TestProfileDocumentCodec::mihomo()))
     }
 }
 

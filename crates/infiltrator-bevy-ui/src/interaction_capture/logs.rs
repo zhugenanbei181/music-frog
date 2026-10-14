@@ -26,14 +26,12 @@ use bevy::ui::widget::Text;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::{
-    LOG_QUERY, LogCaptureProcess, append_follow_records, populate_logs,
-};
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::log_export_capture::ReadOnlyLogExportCapture;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_composition::capture_fixtures::{append_follow_records, populate_logs};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
@@ -42,6 +40,7 @@ use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::log_capture_fixtures::{LOG_QUERY, LogCaptureProcess};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 

@@ -22,8 +22,8 @@ ui-application-projections = ["dep:infiltrator-application"]
 capture-tools = [
     "dep:infiltrator-composition",
     "dep:infiltrator-application",
-    "infiltrator-application/capture-fixtures",
-    "dep:mihomo-config",
+    "dep:infiltrator-test-support",
+    "infiltrator-composition/capture-fixtures",
 ]
 # Explicit opt-in for the legacy controller-only live Overview capture adapter.
 capture-controller = ["capture-tools"]
@@ -44,6 +44,7 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-composition = { path = "../infiltrator-composition", optional = true }
+infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 infiltrator-shared = { path = "../infiltrator-shared" }
 
 # Base `bevy` declaration with an EMPTY feature set; the per-target tables
@@ -53,7 +54,6 @@ bevy = { workspace = true }
 # The application-owned controller pump (BEVY-005).
 infiltrator-application = { path = "../infiltrator-application", default-features = false, optional = true }
 infiltrator-ports = { path = "../infiltrator-ports" }
-mihomo-config = { path = "../mihomo-config", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
@@ -65,13 +65,13 @@ serde_json = { workspace = true }
 openssl = { version = "0.10", optional = true }
 
 [dev-dependencies]
-infiltrator-application = { path = "../infiltrator-application", features = ["capture-fixtures"] }
-infiltrator-composition = { path = "../infiltrator-composition" }
+infiltrator-application = { path = "../infiltrator-application", default-features = false }
+infiltrator-composition = { path = "../infiltrator-composition", features = ["capture-fixtures"] }
+infiltrator-test-support = { path = "../infiltrator-test-support" }
 tempfile = { workspace = true }
 mockito = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
-mihomo-config = { path = "../mihomo-config" }
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 bevy = { workspace = true, features = [

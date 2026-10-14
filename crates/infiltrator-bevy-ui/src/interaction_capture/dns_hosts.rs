@@ -19,11 +19,11 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
-use infiltrator_application::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 #[derive(Resource)]
@@ -36,7 +36,8 @@ pub struct HostsCapture {
 pub fn install(app: &mut App) {
     let store = Arc::new(HostsCaptureStore::default());
     store.deny_save.store(true, Ordering::SeqCst);
-    let configuration = super::mihomo_configuration_application(store.clone());
+    let configuration =
+        infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone());
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         CommandApplication::new().with_configuration(configuration.clone()),
         CaptureCapability::Hosts,

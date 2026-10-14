@@ -16,8 +16,8 @@ use crate::types::runtime::{
     RuntimeStreamState,
 };
 use iced::widget::text_editor;
-use infiltrator_application::rule_list_fixtures::list_document;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_control::CoreControlLabel;
 use infiltrator_contract::core_identity::{

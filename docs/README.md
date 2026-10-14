@@ -33,6 +33,7 @@
 - Mihomo process adapter：[mihomo-process/README.md](../crates/mihomo-process/README.md)。
 - sing-box adapters：[singbox-api](../crates/singbox-api/README.md)、[singbox-config](../crates/singbox-config/README.md)、[singbox-process](../crates/singbox-process/README.md)、[singbox-version](../crates/singbox-version/README.md)。
 - Shared Core infrastructure：[ProfileStore port](../crates/infiltrator-ports/src/profile_store.rs)、[profile-store extraction target](../crates/infiltrator-profile-store/README.md)、[platform adapters](../crates/infiltrator-platform/README.md)。
+- Engine-neutral test fixtures：[infiltrator-test-support](../crates/infiltrator-test-support/README.md)。
 - Desktop：[infiltrator-desktop/docs/README.md](../crates/infiltrator-desktop/docs/README.md)。
 
 测试命令见根目录 [TESTING.md](../TESTING.md)。`docs/archive/` 是 Git 忽略的本机历史目录，不是规则来源。

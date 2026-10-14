@@ -9,7 +9,7 @@ use crate::state::AppState;
 use crate::state::proxy_probe;
 use crate::types::message::Message;
 use crate::types::message::mtu_probe::MtuProbeCompletion;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};

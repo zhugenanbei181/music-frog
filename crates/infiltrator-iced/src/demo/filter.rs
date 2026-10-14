@@ -6,10 +6,6 @@ use crate::types::options::EditorPane;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::filter_capture_store::{
-    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
-};
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
@@ -17,6 +13,10 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::filter_capture_store::{
+    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
+};
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::Ordering};
 
@@ -28,7 +28,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated filter runtime"),
     );
-    let profiles = crate::configuration::profiles_for_mihomo(store);
+    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store);
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_profile(profiles.clone()),
     ));

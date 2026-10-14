@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 
 #[test]
 fn test_rules_game_presets_and_geo_update() {

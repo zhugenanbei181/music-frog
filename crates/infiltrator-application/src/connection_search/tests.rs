@@ -1,8 +1,8 @@
 //! test-intent: behavior
 use crate::connection_grouping::ConnectionGroupingState;
-use crate::connection_grouping_fixtures::grouping_snapshot;
 use crate::connection_rate_application::project_connection;
 use crate::connection_search::project_search_row;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 
 #[test]
 fn live_and_projected_facts_have_identical_case_insensitive_runs_and_metadata_matches() {

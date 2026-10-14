@@ -8,11 +8,11 @@ use crate::types::rule_list::RuleListAction;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_presentation::shell_readout::count_copy;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 use std::sync::atomic::Ordering;
 use tokio::runtime::Builder;
 

@@ -31,7 +31,6 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
 use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::{Arc, RwLock};
 
 pub fn headless_plugins(app: &mut App) {
@@ -175,5 +174,5 @@ pub fn allow_outbound_probe(snapshot: &mut SurfaceSnapshot) {
 
 /// Headless Bevy tests select the same engine codec as the product host.
 pub fn mihomo_profiles(store: Arc<dyn ProfileStore>) -> ProfileApplication {
-    ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileDocumentCodec))
+    infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store)
 }

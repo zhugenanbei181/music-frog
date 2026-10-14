@@ -67,8 +67,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{FlexDirection, Node, Overflow, percent, px};
 /// Root marker on the Profiles page scene.
 use bevy::ui_widgets::{Activate, ScrollArea};
-#[cfg(any(feature = "capture-tools", test))]
-use infiltrator_application::subscription_filter_fixture;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -86,6 +84,8 @@ use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_test_support::subscription_filter_fixture;
 pub mod cards;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]

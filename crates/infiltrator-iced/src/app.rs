@@ -1,6 +1,5 @@
 use crate::admin_server::{ADMIN_DEFAULT_PORT, AdminServerManager, AdminSharedRuntime};
 use crate::configs_dir::config_manager;
-use crate::configuration::profiles_for_mihomo;
 use crate::host::desktop::{read_system_proxy_state, system_proxy_port};
 use crate::mini_hud_window::install_host_handle;
 use crate::notify::startup_probe_task;
@@ -27,6 +26,7 @@ use iced::widget::text_editor::Content;
 use iced::window::latest;
 use infiltrator_application::connection_rate_application::ConnectionRateApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::command_catalogue::CommandCatalogue;
 use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::dns_cache::DnsCacheFlushReport;

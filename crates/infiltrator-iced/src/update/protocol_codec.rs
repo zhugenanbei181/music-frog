@@ -8,7 +8,6 @@
 //! the surface state machine around it.
 
 use crate::configs_dir::config_manager;
-use crate::configuration::profiles_for_mihomo;
 use crate::state::AppState;
 use crate::state::runtime::CustomNodeSaveState;
 use crate::types::app::ToastStatus;
@@ -18,6 +17,7 @@ use infiltrator_application::protocol_codec_application::{
     ProtocolCodecApplication, publish_studio,
 };
 use infiltrator_application::protocol_form::ProtocolInputs;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::dialer_chain::DialerChainReport;
 use infiltrator_contract::error::InfiltratorError;

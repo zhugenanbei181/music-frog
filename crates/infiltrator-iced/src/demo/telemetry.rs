@@ -4,13 +4,13 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::telemetry_observation_fixtures::{
     TelemetryObservationReader, stale_zero_snapshot,
 };
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

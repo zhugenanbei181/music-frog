@@ -2,7 +2,6 @@
 
 use super::*;
 use async_trait::async_trait;
-use infiltrator_application::doctor_capture_fixtures::DoctorCapturePort;
 use infiltrator_contract::android_control::{
     VpnAuthorizationState, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
     VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
@@ -40,6 +39,10 @@ use infiltrator_contract::outbound::{
 };
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::privileged_network::PrivilegedNetworkState;
+use infiltrator_contract::runtime_status::{
+    ControlServiceObservation, CoreProcessObservation, ProxyEffectivenessObservation,
+    ProxyReadinessBlocker, TunDataPlaneObservation, VpnAuthorizationObservation,
+};
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
@@ -60,6 +63,7 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use infiltrator_ports::core_process::CoreProcessStartContext;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::mtu_probe::MtuProbePort;
@@ -73,6 +77,7 @@ use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
 };
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+use infiltrator_test_support::doctor_capture_fixtures::DoctorCapturePort;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::runtime::Builder;
@@ -131,10 +136,7 @@ struct TestProcess;
 
 #[async_trait]
 impl CoreProcess for TestProcess {
-    async fn start(
-        &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         Ok(())
     }
 
@@ -165,10 +167,7 @@ impl CoreProcess for ScopeProcess {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         self.running.store(true, Ordering::SeqCst);
         Ok(())
     }
@@ -654,24 +653,24 @@ async fn surface_reader_publishes_android_authorization_separately_from_runtime_
 
     assert_eq!(
         snapshot.runtime_status.vpn_authorization,
-        infiltrator_contract::runtime_status::VpnAuthorizationObservation::Granted
+        VpnAuthorizationObservation::Granted
     );
     assert!(matches!(
         snapshot.runtime_status.control_service,
-        infiltrator_contract::runtime_status::ControlServiceObservation::Available { .. }
+        ControlServiceObservation::Available { .. }
     ));
     assert_eq!(
         snapshot.runtime_status.core_process,
-        infiltrator_contract::runtime_status::CoreProcessObservation::Unselected
+        CoreProcessObservation::Unselected
     );
     assert!(matches!(
         snapshot.runtime_status.tun_data_plane,
-        infiltrator_contract::runtime_status::TunDataPlaneObservation::Inconsistent { .. }
+        TunDataPlaneObservation::Inconsistent { .. }
     ));
     assert_eq!(
         snapshot.runtime_status.proxy_effectiveness,
-        infiltrator_contract::runtime_status::ProxyEffectivenessObservation::NotReady {
-            blocker: infiltrator_contract::runtime_status::ProxyReadinessBlocker::CoreNotRunning,
+        ProxyEffectivenessObservation::NotReady {
+            blocker: ProxyReadinessBlocker::CoreNotRunning,
         }
     );
 }

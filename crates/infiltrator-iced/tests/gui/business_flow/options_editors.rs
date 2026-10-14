@@ -57,7 +57,8 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let mut state = fresh_state();
 
     let store = block_on(config_manager()).unwrap();
-    let profiles = crate::configuration::profiles_for_mihomo(store.clone());
+    let profiles =
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone());
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([
@@ -176,9 +177,11 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
             CoreOperation::Profile(ProfileOperation::ApplyFeature),
             CoreOperation::Profile(ProfileOperation::Validate),
         ])
-        .with_profile(crate::configuration::profiles_for_mihomo(
-            block_on(config_manager()).unwrap(),
-        )),
+        .with_profile(
+            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(
+                block_on(config_manager()).unwrap(),
+            ),
+        ),
     ));
     attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
 
@@ -292,9 +295,11 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         "whitelist applied: {kept_names:?}"
     );
     let reopened = block_on(async {
-        ProfileOptionsApplication::new(crate::configuration::profiles_for_mihomo(
-            config_manager().await.unwrap(),
-        ))
+        ProfileOptionsApplication::new(
+            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(
+                config_manager().await.unwrap(),
+            ),
+        )
         .load(Some("alpha"))
         .await
         .unwrap()
@@ -349,7 +354,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     let profile_path = home.profile_config_dir().join("alpha.yaml");
     let mut state = fresh_state();
     let manager = block_on(config_manager()).unwrap();
-    let profiles = crate::configuration::profiles_for_mihomo(manager);
+    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager);
     let core = identified_core_application();
     core.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
     attach_product_application_with_accepted_owner_snapshot(&mut state, core);
@@ -483,7 +488,7 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
         home.profile_config_dir(),
     ))));
     let store = block_on(config_manager()).unwrap();
-    let profiles = crate::configuration::profiles_for_mihomo(store);
+    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store);
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([])

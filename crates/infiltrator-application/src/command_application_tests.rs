@@ -10,8 +10,6 @@ use crate::command_application::CommandApplication;
 use crate::command_application::handler::ValidatedCoreCommandScope;
 use crate::configuration_application::ConfigurationApplication;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
-use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
-use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
@@ -45,6 +43,10 @@ use infiltrator_ports::profile_workspace::{
 };
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
+};
+use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
+use infiltrator_test_support::profile_workspace_test_support::{
+    workspace_with_origin, workspace_with_raw_sidecar,
 };
 use std::path::PathBuf;
 use std::sync::Mutex;

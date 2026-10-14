@@ -1,0 +1,15 @@
+[package]
+name = "infiltrator-test-support"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Engine-neutral fake ports and deterministic fixtures for MusicFrog tests and captures."
+
+[dependencies]
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
+infiltrator-ports = { path = "../infiltrator-ports" }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }

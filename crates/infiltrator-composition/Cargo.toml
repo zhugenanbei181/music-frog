@@ -5,6 +5,9 @@ edition = "2024"
 publish = false
 description = "Composition roots that wire concrete outbound and host adapters into the application layer."
 
+[features]
+capture-fixtures = ["dep:infiltrator-test-support"]
+
 [dependencies]
 async-trait = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
@@ -14,6 +17,7 @@ infiltrator-ios = { path = "../infiltrator-ios" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
+infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
@@ -24,6 +28,7 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }
+infiltrator-test-support = { path = "../infiltrator-test-support" }
 mihomo-process = { path = "../mihomo-process" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }

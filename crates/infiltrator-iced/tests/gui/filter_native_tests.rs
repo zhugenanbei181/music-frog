@@ -14,14 +14,14 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
-use infiltrator_application::filter_capture_store::{
-    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
-};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
+use infiltrator_test_support::filter_capture_store::{
+    FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
+};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 use tokio::runtime::Builder;
@@ -32,7 +32,9 @@ fn composed() -> (AppState, Arc<FilterCaptureStore>) {
     let core = identified_core_application();
     core.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Profile(ProfileOperation::ApplyFeature)])
-            .with_profile(crate::configuration::profiles_for_mihomo(store.clone())),
+            .with_profile(
+                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+            ),
     ));
     let observed = core.clone();
     let reply = Arc::new(Mutex::new(None));

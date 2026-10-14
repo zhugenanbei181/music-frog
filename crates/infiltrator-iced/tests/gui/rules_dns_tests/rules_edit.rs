@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_domain::rules::edit::{CUSTOM_RULE_TYPE_CHOICES, build_custom_rule};

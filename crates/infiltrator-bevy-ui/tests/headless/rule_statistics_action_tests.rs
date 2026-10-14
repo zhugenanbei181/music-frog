@@ -12,7 +12,6 @@ use bevy::ui::{InteractionDisabled, Pressed};
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::rules_builder_input::{RuleBuilderField, RuleBuilderFieldKind};
@@ -36,6 +35,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
+use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 use std::mem::discriminant;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;
@@ -54,7 +54,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
             .block_on(store.load_rule_workspace())
             .unwrap();
         let (scope, observed_workspace, request) =
-            infiltrator_application::rule_trace_fixtures::scoped_rule_trace_request(
+            infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request(
                 RuleTraceRequest {
                     query: "special.com".into(),
                     context: TrafficContextSnapshot {
@@ -65,7 +65,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
                 workspace.profile_identity,
             );
         let outbound_observation =
-            infiltrator_application::rule_trace_fixtures::unknown_rule_trace_observation(
+            infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
                 scope.clone(),
             );
         Builder::new_current_thread()

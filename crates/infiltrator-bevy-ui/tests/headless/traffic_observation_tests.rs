@@ -15,7 +15,6 @@ use bevy::picking::pointer::{Location, PointerId};
 use bevy::ui::widget::Text;
 use bevy::ui::{ComputedNode, ScrollPosition};
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::overview::{OverviewLine, OverviewLineKind, OverviewPageRoot};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -28,6 +27,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 fn run<T>(future: impl Future<Output = T>) -> T {

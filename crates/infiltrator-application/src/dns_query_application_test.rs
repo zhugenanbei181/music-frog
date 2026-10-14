@@ -1,10 +1,10 @@
 use super::*;
 use crate::command_application::CommandApplication;
 use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
-use crate::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use futures_util::FutureExt;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::dns_query::DnsRecordType;
+use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use std::pin::pin;
 
 fn request() -> DnsQueryRequest {

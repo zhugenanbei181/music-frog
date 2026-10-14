@@ -12,9 +12,6 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::rule_list_application::RuleListApplication;
-use infiltrator_application::rule_trace_fixtures::{
-    NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
-};
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
@@ -22,15 +19,20 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::rule_trace_fixtures::{
+    NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
+};
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 
 pub(crate) fn setup() -> (AppState, ProductSurfaceReader, Arc<RuleTraceStore>) {
-    let store = infiltrator_iced::configuration::mihomo_rule_trace_fixture();
+    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let profiles = infiltrator_iced::configuration::profiles_for_mihomo(store.clone());
-    let configuration = infiltrator_iced::configuration::for_mihomo_profiles(profiles.clone());
+    let profiles =
+        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone());
+    let configuration =
+        infiltrator_composition::mihomo_configuration::for_mihomo_profiles(profiles.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([

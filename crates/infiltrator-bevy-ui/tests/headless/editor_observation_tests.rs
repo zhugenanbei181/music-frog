@@ -11,7 +11,6 @@ use bevy::ecs::entity::Entity;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor::{
     ProfileEditorSaveButton, ProfileEditorStatusText,
@@ -28,6 +27,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_test_support::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
 use std::future::Future;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
