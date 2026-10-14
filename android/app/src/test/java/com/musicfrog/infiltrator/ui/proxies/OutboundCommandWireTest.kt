@@ -286,6 +286,8 @@ class OutboundCommandWireTest {
               "origin":"live",
               "generation":8,
               "revision":12,
+              "capabilities":{"host":"Android","revision":1,"entries":[]},
+              "vpn":"NotApplicable",
               "core":{"identity":{"engine":"mihomo","instance":"observed-core","version":"1.19.12"},"lifecycle":"Running","generation":8,"session_token":9223372036854775808,"revision":3,"routing_intent":{"current":{"kind":"follow_rules"},"status":"Ready","failure":null},"core_version":"1.19.12","sampled_at_epoch_ms":1,"failure":null,"upload_bps":0,"download_bps":0,"active_connections":0,"memory_bytes":null,"watchdog":{"status":"Running"}},
               "outbound_inventory":{
                 "status":"Ready",

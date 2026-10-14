@@ -2,6 +2,7 @@ package com.musicfrog.infiltrator.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,5 +46,22 @@ class AppRouteTest {
         assertEquals("settings-Dns", dns.saveableStateKey)
         assertFalse(overview.saveableStateKey == proxies.saveableStateKey)
         assertFalse(settings.saveableStateKey == dns.saveableStateKey)
+    }
+
+    @Test
+    fun everyNavigationVariantRoundTripsThroughItsSaveableRepresentation() {
+        val routes = AppSection.values().map(AppRoute::Main) +
+            SettingsDestination.values().map(AppRoute::SettingsDetail)
+
+        routes.forEach { route ->
+            assertEquals(route, restoreAppRoute(route.toSaveableValue()))
+        }
+    }
+
+    @Test
+    fun unknownSavedNavigationStateIsRejected() {
+        assertNull(restoreAppRoute("main:NoSuchSection"))
+        assertNull(restoreAppRoute("settings:NoSuchDestination"))
+        assertNull(restoreAppRoute("unrecognized"))
     }
 }

@@ -61,7 +61,7 @@ pub use product::{android_execute_product_command_json, android_surface_snapshot
 pub use profile_age_credential_owner::android_dispatch_profile_age_credential_owner_operation_wire_json;
 pub use profile_age_credential_owner::execute_profile_age_credential_owner_submission;
 pub(crate) use profile_age_credential_owner::{
-    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1, ProfileAgeCredentialOwnerWireOutcome,
+    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2, ProfileAgeCredentialOwnerWireOutcome,
     ProfileAgeCredentialOwnerWireReply, ProfileAgeCredentialOwnerWireRequest,
 };
 pub use profiles::{ProfileSummary, ProfilesResult};

@@ -1,9 +1,7 @@
 //! Owner-authorized Age credential editing, separate from profile snapshots.
 
 use super::ProfileApplication;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
-};
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
@@ -27,14 +25,18 @@ impl PreparedSubscriptionContent<'_> {
 }
 
 impl ProfileApplication {
-    /// Read Age-key presence and revision through the exact selected-reference
-    /// snapshot and Core-owner authorization. The secret is never returned.
+    /// Read Age-key presence, revision, and the exact owner-fenced selection
+    /// context. The secret is never returned.
     pub async fn profile_age_credential(
         &self,
         profile_id: ProfileId,
-        expected_selection: ActiveProfileReferenceState,
         authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<ProfileAgeCredentialReadOutcome, Failure> {
+        let expected_selection = self
+            .store
+            .read_active_profile_reference()
+            .await
+            .map_err(Failure::from)?;
         self.store
             .profile_age_credential(ProfileAgeCredentialReadRequest {
                 profile_id,

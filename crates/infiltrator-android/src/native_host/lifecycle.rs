@@ -55,26 +55,89 @@ impl ActivityPhase {
         matches!(self, Self::Resumed)
     }
 
-    /// Whether the Activity can still be visible to the user. `Paused` is
-    /// partially obscured but visible; only `Stopped`/`Destroyed` hide it.
+    /// Whether the Activity has reached a potentially visible phase. `Paused`
+    /// may remain partially visible; `Created` has not reached `onStart` yet.
     pub const fn is_visible(self) -> bool {
-        matches!(
-            self,
-            Self::Created | Self::Started | Self::Resumed | Self::Paused
-        )
+        matches!(self, Self::Started | Self::Resumed | Self::Paused)
     }
+
+    /// Apply one legal Android lifecycle transition.
+    pub const fn transition_to(self, next: Self) -> ActivityPhaseTransition {
+        use ActivityPhase::Created;
+        use ActivityPhase::Destroyed;
+        use ActivityPhase::Paused;
+        use ActivityPhase::Resumed;
+        use ActivityPhase::Started;
+        use ActivityPhase::Stopped;
+        use ActivityPhaseTransition::Advanced;
+        use ActivityPhaseTransition::Rejected;
+        use ActivityPhaseTransition::Unchanged;
+
+        match self {
+            Created => match next {
+                Created => Unchanged,
+                Started | Destroyed => Advanced,
+                Resumed | Paused | Stopped => Rejected,
+            },
+            Started => match next {
+                Started => Unchanged,
+                Resumed | Stopped | Destroyed => Advanced,
+                Created | Paused => Rejected,
+            },
+            Resumed => match next {
+                Resumed => Unchanged,
+                Paused | Stopped | Destroyed => Advanced,
+                Created | Started => Rejected,
+            },
+            Paused => match next {
+                Paused => Unchanged,
+                Resumed | Stopped | Destroyed => Advanced,
+                Created | Started => Rejected,
+            },
+            Stopped => match next {
+                Stopped => Unchanged,
+                Started | Destroyed => Advanced,
+                Created | Resumed | Paused => Rejected,
+            },
+            Destroyed => match next {
+                Destroyed => Unchanged,
+                Created | Started | Resumed | Paused | Stopped => Rejected,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActivityPhaseTransition {
+    Unchanged,
+    Advanced,
+    Rejected,
 }
 
 /// Window focus, reported independently of the Activity lifecycle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowFocus {
+    Unknown,
     Focused,
     Unfocused,
 }
 
 impl WindowFocus {
-    pub const fn is_focused(self) -> bool {
-        matches!(self, Self::Focused)
+    pub const fn from_code(code: i32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Unknown),
+            1 => Some(Self::Focused),
+            2 => Some(Self::Unfocused),
+            _ => None,
+        }
+    }
+
+    pub const fn as_code(self) -> i32 {
+        match self {
+            Self::Unknown => 0,
+            Self::Focused => 1,
+            Self::Unfocused => 2,
+        }
     }
 }
 
@@ -86,33 +149,28 @@ pub struct HostLifecycleFact {
     pub generation: u64,
     pub phase: ActivityPhase,
     pub focus: WindowFocus,
-    /// Whether the host reports the Activity started (`onStart`..`onStop`).
-    pub visible: bool,
 }
 
-/// The typed lifecycle state the UI consumes.
+/// The host observation is either not installed yet or contains one coherent
+/// Activity phase and its independent window-focus fact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HostLifecycleState {
-    pub generation: u64,
-    pub phase: ActivityPhase,
-    pub focus: WindowFocus,
-    pub visible: bool,
+pub enum HostLifecycleState {
+    Unobserved,
+    Observed {
+        generation: u64,
+        phase: ActivityPhase,
+        focus: WindowFocus,
+    },
 }
 
 impl HostLifecycleState {
-    /// The state before the host has pushed anything: treated as an active,
-    /// focused, visible surface so a cold start is never throttled by a
-    /// missing observation.
-    pub const COLD: Self = Self {
-        generation: 0,
-        phase: ActivityPhase::Created,
-        focus: WindowFocus::Focused,
-        visible: true,
-    };
-
-    /// Whether the surface should observe and render at all.
+    /// Whether to observe and render. Before the first host observation, allow
+    /// the initial frame without claiming foreground or focus.
     pub const fn surface_active(self) -> bool {
-        self.visible && self.phase.is_visible() && !matches!(self.phase, ActivityPhase::Destroyed)
+        match self {
+            Self::Unobserved => true,
+            Self::Observed { phase, .. } => phase.is_visible(),
+        }
     }
 
     /// The shared render cadence these facts select. A paused/stopped/
@@ -120,26 +178,43 @@ impl HostLifecycleState {
     /// visible but unfocused window is [`RenderCadence::Background`]; a
     /// visible, focused window is [`RenderCadence::Active`].
     pub const fn cadence(self) -> RenderCadence {
-        if !self.surface_active() {
-            return RenderCadence::Suspended;
+        match self {
+            Self::Unobserved => RenderCadence::Active,
+            Self::Observed { phase, .. } if !phase.is_visible() => RenderCadence::Suspended,
+            Self::Observed {
+                focus: WindowFocus::Focused,
+                ..
+            } => RenderCadence::Active,
+            Self::Observed {
+                focus: WindowFocus::Unknown | WindowFocus::Unfocused,
+                ..
+            } => RenderCadence::Background,
         }
-        RenderCadence::from_visible_focused(true, self.focus.is_focused())
     }
 
     /// Whether the Activity is in the foreground.
     pub const fn is_foreground(self) -> bool {
-        self.surface_active() && self.phase.is_foreground()
+        match self {
+            Self::Unobserved => false,
+            Self::Observed { phase, .. } => phase.is_foreground(),
+        }
     }
 }
 
 /// The outcome of applying one lifecycle fact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LifecycleUpdate {
-    /// The fact was newer or equal and replaced the state; `recreated` marks a
-    /// generation bump (the previous Activity's requests must be retired).
-    Applied { recreated: bool },
+    /// The first accepted host observation or a legal phase/focus update.
+    Applied,
+    /// A newer Activity instance replaced the prior generation.
+    Recreated,
     /// A fact from a retired generation; it was ignored.
     Stale,
+    /// The phase jump is not allowed for this Activity generation.
+    Rejected {
+        from: ActivityPhase,
+        to: ActivityPhase,
+    },
 }
 
 /// Tracks the latest lifecycle fact and fences Activity recreation.
@@ -151,7 +226,7 @@ pub struct HostLifecycleTracker {
 impl HostLifecycleTracker {
     pub const fn new() -> Self {
         Self {
-            current: HostLifecycleState::COLD,
+            current: HostLifecycleState::Unobserved,
         }
     }
 
@@ -159,20 +234,35 @@ impl HostLifecycleTracker {
         self.current
     }
 
-    /// Apply one fact. A fact from an older generation is rejected so a
-    /// retiring Activity cannot overwrite the recreated one.
+    /// Apply one fact. Retired generations and illegal same-generation phase
+    /// jumps cannot overwrite the current observation.
     pub fn apply(&mut self, fact: HostLifecycleFact) -> LifecycleUpdate {
-        if fact.generation < self.current.generation {
-            return LifecycleUpdate::Stale;
-        }
-        let recreated = fact.generation > self.current.generation;
-        self.current = HostLifecycleState {
+        let update = match self.current {
+            HostLifecycleState::Unobserved => LifecycleUpdate::Applied,
+            HostLifecycleState::Observed { generation, .. } if fact.generation < generation => {
+                return LifecycleUpdate::Stale;
+            }
+            HostLifecycleState::Observed { generation, .. } if fact.generation > generation => {
+                LifecycleUpdate::Recreated
+            }
+            HostLifecycleState::Observed { phase, .. } => match phase.transition_to(fact.phase) {
+                ActivityPhaseTransition::Unchanged | ActivityPhaseTransition::Advanced => {
+                    LifecycleUpdate::Applied
+                }
+                ActivityPhaseTransition::Rejected => {
+                    return LifecycleUpdate::Rejected {
+                        from: phase,
+                        to: fact.phase,
+                    };
+                }
+            },
+        };
+        self.current = HostLifecycleState::Observed {
             generation: fact.generation,
             phase: fact.phase,
             focus: fact.focus,
-            visible: fact.visible && fact.phase.is_visible(),
         };
-        LifecycleUpdate::Applied { recreated }
+        update
     }
 }
 
@@ -186,17 +276,11 @@ impl Default for HostLifecycleTracker {
 mod tests {
     use super::*;
 
-    fn fact(
-        generation: u64,
-        phase: ActivityPhase,
-        focus: WindowFocus,
-        visible: bool,
-    ) -> HostLifecycleFact {
+    fn fact(generation: u64, phase: ActivityPhase, focus: WindowFocus) -> HostLifecycleFact {
         HostLifecycleFact {
             generation,
             phase,
             focus,
-            visible,
         }
     }
 
@@ -212,14 +296,23 @@ mod tests {
         ] {
             assert_eq!(ActivityPhase::from_code(phase.as_code()), Some(phase));
         }
+        for focus in [
+            WindowFocus::Unknown,
+            WindowFocus::Focused,
+            WindowFocus::Unfocused,
+        ] {
+            assert_eq!(WindowFocus::from_code(focus.as_code()), Some(focus));
+        }
         assert_eq!(ActivityPhase::from_code(-1), None);
         assert_eq!(ActivityPhase::from_code(6), None);
+        assert_eq!(WindowFocus::from_code(-1), None);
+        assert_eq!(WindowFocus::from_code(3), None);
     }
 
     #[test]
-    fn a_cold_host_starts_active_and_focused() {
+    fn an_unobserved_host_allows_an_initial_frame_without_foreground() {
         let tracker = HostLifecycleTracker::new();
-        assert_eq!(tracker.current(), HostLifecycleState::COLD);
+        assert_eq!(tracker.current(), HostLifecycleState::Unobserved);
         assert!(tracker.current().surface_active());
         assert_eq!(tracker.current().cadence(), RenderCadence::Active);
     }
@@ -228,26 +321,38 @@ mod tests {
     fn pause_stops_frames_and_resume_restores_them() {
         let mut tracker = HostLifecycleTracker::new();
         assert_eq!(
-            tracker.apply(fact(1, ActivityPhase::Resumed, WindowFocus::Focused, true)),
-            LifecycleUpdate::Applied { recreated: true }
+            tracker.apply(fact(1, ActivityPhase::Created, WindowFocus::Unknown)),
+            LifecycleUpdate::Applied
+        );
+        assert_eq!(tracker.current().cadence(), RenderCadence::Suspended);
+        assert_eq!(
+            tracker.apply(fact(1, ActivityPhase::Started, WindowFocus::Unknown)),
+            LifecycleUpdate::Applied
+        );
+        assert_eq!(tracker.current().cadence(), RenderCadence::Background);
+        assert_eq!(
+            tracker.apply(fact(1, ActivityPhase::Started, WindowFocus::Focused)),
+            LifecycleUpdate::Applied
+        );
+        assert_eq!(tracker.current().cadence(), RenderCadence::Active);
+        assert_eq!(
+            tracker.apply(fact(1, ActivityPhase::Resumed, WindowFocus::Focused)),
+            LifecycleUpdate::Applied
         );
         assert_eq!(tracker.current().cadence(), RenderCadence::Active);
 
-        tracker.apply(fact(1, ActivityPhase::Paused, WindowFocus::Unfocused, true));
+        tracker.apply(fact(1, ActivityPhase::Paused, WindowFocus::Unfocused));
         assert!(!tracker.current().is_foreground());
         // Still visible (paused), but unfocused: the 2 FPS background rate.
         assert_eq!(tracker.current().cadence(), RenderCadence::Background);
 
-        tracker.apply(fact(
-            1,
-            ActivityPhase::Stopped,
-            WindowFocus::Unfocused,
-            false,
-        ));
+        tracker.apply(fact(1, ActivityPhase::Stopped, WindowFocus::Unfocused));
         assert!(!tracker.current().surface_active());
         assert_eq!(tracker.current().cadence(), RenderCadence::Suspended);
 
-        tracker.apply(fact(1, ActivityPhase::Resumed, WindowFocus::Focused, true));
+        tracker.apply(fact(1, ActivityPhase::Started, WindowFocus::Unfocused));
+        assert_eq!(tracker.current().cadence(), RenderCadence::Background);
+        tracker.apply(fact(1, ActivityPhase::Resumed, WindowFocus::Focused));
         assert_eq!(tracker.current().cadence(), RenderCadence::Active);
     }
 
@@ -256,12 +361,7 @@ mod tests {
         let mut tracker = HostLifecycleTracker::new();
         // Resumed but the window lost focus (a dialog/split screen): the
         // surface stays visible and drops to the background cadence.
-        tracker.apply(fact(
-            1,
-            ActivityPhase::Resumed,
-            WindowFocus::Unfocused,
-            true,
-        ));
+        tracker.apply(fact(1, ActivityPhase::Resumed, WindowFocus::Unfocused));
         assert!(tracker.current().surface_active());
         assert!(tracker.current().is_foreground());
         assert_eq!(tracker.current().cadence(), RenderCadence::Background);
@@ -271,42 +371,81 @@ mod tests {
     fn a_retired_activity_cannot_overwrite_the_recreated_one() {
         let mut tracker = HostLifecycleTracker::new();
         assert_eq!(
-            tracker.apply(fact(7, ActivityPhase::Resumed, WindowFocus::Focused, true)),
-            LifecycleUpdate::Applied { recreated: true }
+            tracker.apply(fact(7, ActivityPhase::Created, WindowFocus::Unknown)),
+            LifecycleUpdate::Applied
+        );
+        assert_eq!(
+            tracker.apply(fact(7, ActivityPhase::Started, WindowFocus::Focused)),
+            LifecycleUpdate::Applied
+        );
+        assert_eq!(
+            tracker.apply(fact(7, ActivityPhase::Resumed, WindowFocus::Focused)),
+            LifecycleUpdate::Applied
         );
         // A late callback from the previous Activity instance is rejected.
         assert_eq!(
-            tracker.apply(fact(
-                6,
-                ActivityPhase::Stopped,
-                WindowFocus::Unfocused,
-                false
-            )),
+            tracker.apply(fact(6, ActivityPhase::Stopped, WindowFocus::Unfocused)),
             LifecycleUpdate::Stale
         );
-        assert_eq!(tracker.current().generation, 7);
+        assert_eq!(
+            tracker.current(),
+            HostLifecycleState::Observed {
+                generation: 7,
+                phase: ActivityPhase::Resumed,
+                focus: WindowFocus::Focused,
+            }
+        );
         assert!(tracker.current().surface_active());
 
         // The recreated Activity is reported as a recreation.
         assert_eq!(
-            tracker.apply(fact(8, ActivityPhase::Created, WindowFocus::Focused, true)),
-            LifecycleUpdate::Applied { recreated: true }
+            tracker.apply(fact(8, ActivityPhase::Created, WindowFocus::Unknown)),
+            LifecycleUpdate::Recreated
         );
-        assert_eq!(tracker.current().generation, 8);
+        assert_eq!(
+            tracker.current(),
+            HostLifecycleState::Observed {
+                generation: 8,
+                phase: ActivityPhase::Created,
+                focus: WindowFocus::Unknown,
+            }
+        );
     }
 
     #[test]
-    fn a_hidden_phase_never_claims_a_visible_surface() {
+    fn illegal_phase_jump_is_rejected_without_changing_the_previous_state() {
         let mut tracker = HostLifecycleTracker::new();
-        // Even if the host wrongly reports `visible = true` for a destroyed
-        // Activity, the phase wins and the surface is suspended.
-        tracker.apply(fact(
-            2,
-            ActivityPhase::Destroyed,
-            WindowFocus::Unfocused,
-            true,
-        ));
-        assert!(!tracker.current().visible);
+        tracker.apply(fact(2, ActivityPhase::Created, WindowFocus::Unknown));
+        assert_eq!(
+            tracker.apply(fact(2, ActivityPhase::Paused, WindowFocus::Focused)),
+            LifecycleUpdate::Rejected {
+                from: ActivityPhase::Created,
+                to: ActivityPhase::Paused,
+            }
+        );
+        assert_eq!(
+            tracker.current(),
+            HostLifecycleState::Observed {
+                generation: 2,
+                phase: ActivityPhase::Created,
+                focus: WindowFocus::Unknown,
+            }
+        );
+    }
+
+    #[test]
+    fn destroyed_activity_is_terminal_for_its_generation() {
+        let mut tracker = HostLifecycleTracker::new();
+        tracker.apply(fact(3, ActivityPhase::Created, WindowFocus::Unknown));
+        tracker.apply(fact(3, ActivityPhase::Started, WindowFocus::Focused));
+        tracker.apply(fact(3, ActivityPhase::Destroyed, WindowFocus::Unknown));
+        assert_eq!(
+            tracker.apply(fact(3, ActivityPhase::Started, WindowFocus::Focused)),
+            LifecycleUpdate::Rejected {
+                from: ActivityPhase::Destroyed,
+                to: ActivityPhase::Started,
+            }
+        );
         assert!(!tracker.current().surface_active());
         assert_eq!(tracker.current().cadence(), RenderCadence::Suspended);
     }

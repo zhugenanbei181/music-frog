@@ -2,8 +2,8 @@ use super::read_credential_record;
 use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use age::secrecy::ExposeSecret;
 use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceWriteAuthorization,
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::profile_age_credential::{
@@ -208,9 +208,10 @@ async fn age_credential_is_secure_revisioned_and_absent_from_profile_read_models
     let readback = ProfileStore::profile_age_credential(&store, read_request(&profile_id))
         .await
         .expect("initial read");
-    let ProfileAgeCredentialReadOutcome::Observed { current } = readback else {
+    let ProfileAgeCredentialReadOutcome::Observed { current, selection } = readback else {
         panic!("expected current owner readback")
     };
+    assert_eq!(selection, ActiveProfileReferenceState::default());
     assert_eq!(
         current,
         observation(&profile_id, 0, ProfileAgeCredentialState::NotConfigured)
@@ -296,7 +297,51 @@ async fn age_credential_clear_is_revisioned_and_stale_edits_have_no_effect() {
             .await
             .unwrap(),
         ProfileAgeCredentialReadOutcome::Observed {
-            current: observation(&profile_id, 2, ProfileAgeCredentialState::NotConfigured)
+            current: observation(&profile_id, 2, ProfileAgeCredentialState::NotConfigured),
+            selection: ActiveProfileReferenceState::default(),
+        }
+    );
+}
+
+#[tokio::test]
+async fn age_credential_readback_returns_the_exact_selected_reference_revision() {
+    let root = TempDir::new().expect("config root");
+    let store = make_store(root.path().to_path_buf(), MemorySecureStore::healthy());
+    let profile_id = ProfileId::new("primary").unwrap();
+    create_profile(&store, &profile_id).await;
+
+    ProfileStore::compare_and_set_active_profile_reference(
+        &store,
+        ActiveProfileReferenceState::default(),
+        ActiveProfileReferenceTarget::selected(EngineId::mihomo(), profile_id.clone()),
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+    .await
+    .expect("select profile");
+    let selection = ProfileStore::read_active_profile_reference(&store)
+        .await
+        .expect("read selected profile");
+
+    let readback = ProfileStore::profile_age_credential(
+        &store,
+        ProfileAgeCredentialReadRequest {
+            profile_id: profile_id.clone(),
+            expected_selection: selection.clone(),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
+        },
+    )
+    .await
+    .expect("read owner credential state");
+
+    assert_eq!(
+        readback,
+        ProfileAgeCredentialReadOutcome::Observed {
+            current: observation(&profile_id, 0, ProfileAgeCredentialState::NotConfigured),
+            selection: ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                EngineId::mihomo(),
+                profile_id,
+                selection.revision(),
+            )),
         }
     );
 }
@@ -419,7 +464,8 @@ async fn age_credential_secure_entry_is_engine_scoped() {
                 profile_id.clone(),
                 ProfileAgeCredentialRevision::new(0),
                 ProfileAgeCredentialState::NotConfigured,
-            )
+            ),
+            selection: ActiveProfileReferenceState::default(),
         }
     );
     assert!(shared_probe.contains_value("AGE-SECRET-KEY-mihomo-only"));
@@ -521,7 +567,7 @@ async fn age_subscription_can_preconfigure_a_new_profile_before_import() {
             .is_err()
     );
 
-    let ProfileAgeCredentialReadOutcome::Observed { current } =
+    let ProfileAgeCredentialReadOutcome::Observed { current, .. } =
         ProfileStore::profile_age_credential(&store, read_request(&profile_id))
             .await
             .expect("read pre-import credential state")

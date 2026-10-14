@@ -80,7 +80,7 @@ Compose 的日志清空与连接关闭统一经 CoreScope 绑定的 `AndroidProd
 
 ## Activity、输入与后台
 
-- Surface/Activity 重建复用现有 Bevy host 生命周期；已提交状态由 Rust owner 持有，未提交输入由明确的页面 owner 持有，不在页面重挂载时重置。
+- Native host 以 `NativeActivityPhase` 和 `NativeWindowFocus` 发布生命周期观察；可见性由 phase 推导，`onDestroy` 在宿主观察资源释放前送达 Rust，Rust 按 generation 丢弃旧 Activity 事件并拒绝非法 phase 跳转。Compose 路由使用 sealed `AppRoute` 的显式 Saver 跨 Activity 重建保存；外部导入 URL 仍从 Android Intent 重新读取，不写入 saved-state Bundle。页面局部草稿的 Activity 重建保留仍需按页面 owner 收口，不能由 Surface 销毁代替 Core 提交。真机生命周期循环仍以 MACHINE 证据收口。
 - 文本输入使用真实 Android `InputConnection` 或等效 GameTextInput 接线，覆盖 IME 组合、提交、选区、粘贴和系统返回。状态变量或合成按键不能证明真机输入可用。
 - `WindowInsets` 分别表达系统安全区和 IME 区域；剪贴板通过 Android 宿主访问系统 `ClipboardManager`。复制成功须等系统写入结果，缺失和失败显式返回。
 - 前后台与可见页面驱动 UI cadence 和观察订阅。静态页面不空转轮询；VPN 服务只保留必要工作。异步队列和快照有界，列表保留完整数据并以稳定业务身份回收可见实体。

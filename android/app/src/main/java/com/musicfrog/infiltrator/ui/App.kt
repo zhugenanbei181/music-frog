@@ -29,7 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,7 +62,9 @@ fun InfiltratorApp(
     pendingImportUrl: String? = null,
     onImportHandled: () -> Unit = {}
 ) {
-    var route by remember { mutableStateOf<AppRoute>(AppRoute.Main(AppSection.Overview)) }
+    var route by rememberSaveable(stateSaver = AppRouteSaver) {
+        mutableStateOf<AppRoute>(AppRoute.Main(AppSection.Overview))
+    }
     val routeStateHolder = rememberSaveableStateHolder()
 
     // Handle deep link redirect

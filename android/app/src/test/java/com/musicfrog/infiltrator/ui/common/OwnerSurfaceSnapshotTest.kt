@@ -45,10 +45,7 @@ class OwnerSurfaceSnapshotTest {
 
     @Test
     fun androidVpnObservationKeepsOwnerSnapshotAndRequiresMatchingCoreReadback() {
-        val read = parseOwnerSurfaceSnapshot(liveSnapshot.replace(
-            "\"vpn\":\"NotApplicable\"",
-            ownerVpnSnapshot,
-        ))
+        val read = parseOwnerSurfaceSnapshot(liveSnapshotWithAndroidVpnOwner())
         assertTrue("Android owner snapshot was rejected: $read", read is OwnerSurfaceRead.Available)
         val owner = ((read as OwnerSurfaceRead.Available).snapshot.vpn as OwnerVpnObservation.AndroidOwner)
             .snapshot
@@ -57,7 +54,7 @@ class OwnerSurfaceSnapshotTest {
         assertEquals(VpnOwnerDataPlaneState.Running, owner.dataPlaneState())
 
         val staleCoreRevision = parseOwnerSurfaceSnapshot(
-            liveSnapshot.replace("\"vpn\":\"NotApplicable\"", ownerVpnSnapshot)
+            liveSnapshotWithAndroidVpnOwner()
                 .replaceFirst("\"revision\":3", "\"revision\":4"),
         )
         assertTrue(
@@ -69,8 +66,7 @@ class OwnerSurfaceSnapshotTest {
     @Test
     fun failedCoreOwnerReadbackMustMatchTheCompleteTypedFailure() {
         val failure = """{"code":"Configuration","message":"profile YAML could not be parsed","retryable":true,"reason":{"YamlSyntax":{"line":23,"column":6}}}"""
-        val base = liveSnapshot
-            .replace("\"vpn\":\"NotApplicable\"", ownerVpnSnapshot)
+        val base = liveSnapshotWithAndroidVpnOwner()
             .replace("\"lifecycle\":\"Running\"", "\"lifecycle\":\"Failed\"")
             .replace("\"failure\":null,\"upload_bps\"", "\"failure\":$failure,\"upload_bps\"")
             .replace("\"revision\":3,\"failure\":null", "\"revision\":3,\"failure\":$failure")
@@ -407,6 +403,9 @@ class OwnerSurfaceSnapshotTest {
         assertEquals(CoreBinaryTargetObservation.Aarch64LinuxAndroid, snapshot.scope.binaryTarget)
     }
 
+    private fun liveSnapshotWithAndroidVpnOwner(): String =
+        liveSnapshot.replace("\"vpn\":\"NotApplicable\"", "\"vpn\":$ownerVpnSnapshot")
+
     private companion object {
         val liveSnapshot = """
             {
@@ -448,9 +447,9 @@ class OwnerSurfaceSnapshotTest {
               "vpn":"NotApplicable",
               "core":{"identity":null,"lifecycle":"Stopped","generation":0,"session_token":null,"revision":1,"routing_intent":{"current":null,"status":"Unobserved","failure":null},"core_version":null,"sampled_at_epoch_ms":1,"failure":null,"upload_bps":0.0,"download_bps":0.0,"active_connections":0,"memory_bytes":null,"watchdog":{"status":"Stopped"}},
               "pages":{
-                "overview":{"status":{"Unavailable":{"failure":{"message":"core not running"}}},"data":null},
-                "connections":{"status":{"Unavailable":{"failure":{"message":"core not running"}}},"data":null},
-                "logs":{"status":{"Unavailable":{"failure":{"message":"core not running"}}},"data":null}
+                "overview":{"status":{"Unavailable":{"failure":{"code":"NotReady","message":"core not running","retryable":true,"reason":null}}},"data":null},
+                "connections":{"status":{"Unavailable":{"failure":{"code":"NotReady","message":"core not running","retryable":true,"reason":null}}},"data":null},
+                "logs":{"status":{"Unavailable":{"failure":{"code":"NotReady","message":"core not running","retryable":true,"reason":null}}},"data":null}
               }
             }
         """.trimIndent()

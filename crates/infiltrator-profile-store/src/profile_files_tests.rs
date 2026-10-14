@@ -136,7 +136,7 @@ async fn delete_profile_locked_restores_document_when_sidecar_removal_fails() {
         .write_profile_document_locked(&profile, previous)
         .await
         .unwrap();
-    let ProfileAgeCredentialReadOutcome::Observed { current } =
+    let ProfileAgeCredentialReadOutcome::Observed { current, .. } =
         ProfileStore::profile_age_credential(
             &store,
             ProfileAgeCredentialReadRequest {
@@ -172,7 +172,7 @@ async fn delete_profile_locked_restores_document_when_sidecar_removal_fails() {
     assert!(store.delete_profile_locked(&profile).await.is_err());
     assert_eq!(fs::read(document).await.unwrap(), previous);
     assert!(secure_store_probe.contains_value(secret));
-    let ProfileAgeCredentialReadOutcome::Observed { current } =
+    let ProfileAgeCredentialReadOutcome::Observed { current, .. } =
         ProfileStore::profile_age_credential(
             &store,
             ProfileAgeCredentialReadRequest {

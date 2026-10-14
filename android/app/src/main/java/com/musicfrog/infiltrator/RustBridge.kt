@@ -31,9 +31,8 @@ object RustBridge {
     private external fun nativeClearNativeHost(): Int
     private external fun nativeOnLifecycle(
         generation: Long,
-        phase: Int,
-        focused: Boolean,
-        visible: Boolean,
+        phaseCode: Int,
+        focusCode: Int,
     ): Int
     private external fun nativeOnInsets(
         density: Float,
@@ -127,11 +126,15 @@ object RustBridge {
         }
     }
 
-    /** Push one Activity lifecycle/focus observation. */
-    fun onLifecycle(generation: Long, phase: Int, focused: Boolean, visible: Boolean): Int {
+    /** Push one typed Activity lifecycle/focus observation. */
+    internal fun onLifecycle(observation: NativeHostLifecycleObservation): Int {
         return if (ensureLoaded()) {
             try {
-                nativeOnLifecycle(generation, phase, focused, visible)
+                nativeOnLifecycle(
+                    observation.generation,
+                    observation.phase.wireCode,
+                    observation.focus.wireCode,
+                )
             } catch (err: LinkageError) {
                 Log.e("RustBridge", "nativeOnLifecycle failed: ${err.message}", err)
                 255

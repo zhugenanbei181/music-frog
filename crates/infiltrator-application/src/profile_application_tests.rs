@@ -12,8 +12,9 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::profile_age_credential::{
-    ProfileAgeContentDecryption, ProfileAgeCredentialRevision, ProfileAgeDecryptedContent,
-    ProfileAgeEncryptedContent,
+    ProfileAgeContentDecryption, ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
+    ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
+    ProfileAgeDecryptedContent, ProfileAgeEncryptedContent,
 };
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
@@ -831,6 +832,21 @@ impl ProfileStore for FakeStore {
         display_name::set_fake_store(self, profile, target)
     }
 
+    async fn profile_age_credential(
+        &self,
+        request: ProfileAgeCredentialReadRequest,
+    ) -> Result<ProfileAgeCredentialReadOutcome, PortError> {
+        Ok(ProfileAgeCredentialReadOutcome::Observed {
+            current: ProfileAgeCredentialObservation::new(
+                self.engine_id(),
+                request.profile_id,
+                ProfileAgeCredentialRevision::new(4),
+                ProfileAgeCredentialState::NotConfigured,
+            ),
+            selection: request.expected_selection,
+        })
+    }
+
     async fn decrypt_age_subscription_content(
         &self,
         _profile: &ProfileId,
@@ -1069,6 +1085,9 @@ mod engine_scope;
 mod namespace;
 #[path = "profile_application_tests/read_status.rs"]
 mod read_status;
+
+#[path = "profile_application_tests/age_credential.rs"]
+mod age_credential;
 
 #[path = "profile_application_tests/configuration_codec.rs"]
 mod configuration_codec;

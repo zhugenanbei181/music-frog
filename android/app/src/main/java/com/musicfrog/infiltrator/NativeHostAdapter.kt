@@ -122,55 +122,41 @@ class NativeHostAdapter(
     @Volatile
     private var latestWindowInsetsJson: String? = null
 
-    /** `onStart`..`onStop` visibility. */
-    private var visible = false
-
-    /** Window focus, tracked independently of the lifecycle. */
-    private var focused = true
-
-    /** The last Activity phase, sent with focus-only updates. */
-    private var phase = PHASE_CREATED
+    /** One typed lifecycle/focus observation; visibility is derived from phase. */
+    private var lifecycleObservation = NativeHostLifecycleObservation(
+        generation = generation,
+        phase = NativeActivityPhase.Created,
+        focus = NativeWindowFocus.Unknown,
+    )
 
     private val clipboard: ClipboardManager?
         get() = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
     private val lifecycle = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(owner: Activity, state: Bundle?) {
-            if (owner === activity) updatePhase(PHASE_CREATED)
+            if (owner === activity) updatePhase(NativeActivityPhase.Created)
         }
 
         override fun onActivityStarted(owner: Activity) {
-            if (owner === activity) {
-                visible = true
-                updatePhase(PHASE_STARTED)
-            }
+            if (owner === activity) updatePhase(NativeActivityPhase.Started)
         }
 
         override fun onActivityResumed(owner: Activity) {
-            if (owner === activity) {
-                visible = true
-                updatePhase(PHASE_RESUMED)
-            }
+            if (owner === activity) updatePhase(NativeActivityPhase.Resumed)
         }
 
         override fun onActivityPaused(owner: Activity) {
-            if (owner === activity) updatePhase(PHASE_PAUSED)
+            if (owner === activity) updatePhase(NativeActivityPhase.Paused)
         }
 
         override fun onActivityStopped(owner: Activity) {
-            if (owner === activity) {
-                visible = false
-                updatePhase(PHASE_STOPPED)
-            }
+            if (owner === activity) updatePhase(NativeActivityPhase.Stopped)
         }
 
         override fun onActivitySaveInstanceState(owner: Activity, state: Bundle) = Unit
 
         override fun onActivityDestroyed(owner: Activity) {
-            if (owner === activity) {
-                visible = false
-                updatePhase(PHASE_DESTROYED)
-            }
+            if (owner === activity) updatePhase(NativeActivityPhase.Destroyed)
         }
     }
 
@@ -203,10 +189,9 @@ class NativeHostAdapter(
             }
 
         override fun publishInitialLifecycle(): NativeHostOperationResult {
-            phase = PHASE_CREATED
             return nativeStatus(
                 "nativeOnLifecycle",
-                RustBridge.onLifecycle(generation, phase, focused, visible),
+                RustBridge.onLifecycle(lifecycleObservation),
             )
         }
 
@@ -254,6 +239,11 @@ class NativeHostAdapter(
 
     /** Release each resource independently; failed cleanup stays typed and retryable. */
     internal fun detach(): NativeHostDetachOutcome {
+        if (attachment.acceptsCallbacks() &&
+            lifecycleObservation.phase != NativeActivityPhase.Destroyed
+        ) {
+            updatePhase(NativeActivityPhase.Destroyed)
+        }
         val outcome = attachment.detach()
         if (outcome is NativeHostDetachOutcome.CleanupNeeded) {
             Log.e(
@@ -270,13 +260,35 @@ class NativeHostAdapter(
      * from the lifecycle (dialogs/split screen), so it is published on its own.
      */
     fun onWindowFocusChanged(hasFocus: Boolean) {
-        if (!attachment.acceptsCallbacks()) return
-        focused = hasFocus
+        updateFocus(
+            when (hasFocus) {
+                true -> NativeWindowFocus.Focused
+                false -> NativeWindowFocus.Unfocused
+            },
+        )
+    }
+
+    private fun updatePhase(next: NativeActivityPhase) {
+        when (lifecycleObservation.phase.transitionTo(next)) {
+            NativeActivityPhaseTransition.Unchanged -> return
+            NativeActivityPhaseTransition.Rejected -> {
+                Log.w(TAG, "rejected lifecycle transition: ${lifecycleObservation.phase} -> $next")
+                return
+            }
+            NativeActivityPhaseTransition.Advanced -> Unit
+        }
+        lifecycleObservation = lifecycleObservation.copy(phase = next)
         publish()
     }
 
-    private fun updatePhase(next: Int) {
-        phase = next
+    private fun updateFocus(next: NativeWindowFocus) {
+        if (!attachment.acceptsCallbacks() ||
+            lifecycleObservation.phase == NativeActivityPhase.Destroyed ||
+            lifecycleObservation.focus == next
+        ) {
+            return
+        }
+        lifecycleObservation = lifecycleObservation.copy(focus = next)
         publish()
     }
 
@@ -284,7 +296,7 @@ class NativeHostAdapter(
         if (!attachment.acceptsCallbacks()) return
         val result = nativeStatus(
             "nativeOnLifecycle",
-            RustBridge.onLifecycle(generation, phase, focused, visible),
+            RustBridge.onLifecycle(lifecycleObservation),
         )
         if (result is NativeHostOperationResult.Failed) {
             Log.e(TAG, "lifecycle publish failed: ${result.detail}")
@@ -404,14 +416,6 @@ class NativeHostAdapter(
     companion object {
         private const val TAG = "NativeHostAdapter"
         private const val CLIP_LABEL = "MusicFrog"
-
-        // Wire codes mirrored by `infiltrator_android::native_host::lifecycle`.
-        private const val PHASE_CREATED = 0
-        private const val PHASE_STARTED = 1
-        private const val PHASE_RESUMED = 2
-        private const val PHASE_PAUSED = 3
-        private const val PHASE_STOPPED = 4
-        private const val PHASE_DESTROYED = 5
 
         private val GENERATION = AtomicLong(0)
         private val NATIVE_HOST_BRIDGE_OWNERS = NativeHostGenerationRegistry()

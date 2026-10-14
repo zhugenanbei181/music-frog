@@ -33,6 +33,7 @@ kotlin {
             kotlin.srcDir("../app/src/main/java")
             kotlin.include(
                 "com/musicfrog/infiltrator/AndroidProcessRole.kt",
+                "com/musicfrog/infiltrator/NativeHostLifecycle.kt",
                 "com/musicfrog/infiltrator/AndroidCredentialStore.kt",
                 "com/musicfrog/infiltrator/CoreHost.kt",
                 "com/musicfrog/infiltrator/MihomoApplicationFixture.kt",
@@ -85,6 +86,7 @@ kotlin {
             kotlin.srcDir("../app/src/test/java")
             kotlin.include(
                 "com/musicfrog/infiltrator/TestFfiStatus.kt",
+                "com/musicfrog/infiltrator/NativeHostLifecycleTest.kt",
                 "com/musicfrog/infiltrator/AndroidCoreProcessRecordStoreTest.kt",
                 "com/musicfrog/infiltrator/AndroidControlIntentWireTest.kt",
                 "com/musicfrog/infiltrator/AndroidCoreSnapshotFenceTest.kt",

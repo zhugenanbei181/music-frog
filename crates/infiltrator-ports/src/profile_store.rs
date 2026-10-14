@@ -216,8 +216,9 @@ pub trait ProfileStore: Send + Sync {
             "profile display-name mutation is unavailable",
         ))
     }
-    /// Read only whether an engine-scoped Age private key exists. The secret
-    /// itself is never part of the profile metadata or presentation snapshot.
+    /// Read whether an engine-scoped Age private key exists and return the
+    /// exact active-reference state fenced during the read. The secret itself
+    /// is never part of the profile metadata or presentation snapshot.
     async fn profile_age_credential(
         &self,
         _request: ProfileAgeCredentialReadRequest,

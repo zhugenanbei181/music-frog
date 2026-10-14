@@ -41,7 +41,7 @@ pub struct NativeHostFacts {
 impl Default for NativeHostFacts {
     fn default() -> Self {
         Self {
-            lifecycle: HostLifecycleState::COLD,
+            lifecycle: HostLifecycleState::Unobserved,
             insets: NativeInsets::ZERO,
         }
     }
@@ -82,8 +82,8 @@ fn with_state<T>(f: impl FnOnce(&mut HostFactState) -> T) -> T {
     f(&mut guard)
 }
 
-/// Push one lifecycle fact from the native Activity. Returns whether it was
-/// applied or rejected as stale (a retired Activity generation).
+/// Push one lifecycle fact from the native Activity. Typed results distinguish
+/// accepted observations/recreation from stale generations and illegal jumps.
 pub fn push_lifecycle_fact(fact: HostLifecycleFact) -> LifecycleUpdate {
     with_state(|state| state.lifecycle.apply(fact))
 }
@@ -153,11 +153,20 @@ mod tests {
 
         let update = push_lifecycle_fact(HostLifecycleFact {
             generation: 3,
+            phase: ActivityPhase::Created,
+            focus: WindowFocus::Unknown,
+        });
+        assert_eq!(update, LifecycleUpdate::Applied);
+        push_lifecycle_fact(HostLifecycleFact {
+            generation: 3,
+            phase: ActivityPhase::Started,
+            focus: WindowFocus::Unknown,
+        });
+        push_lifecycle_fact(HostLifecycleFact {
+            generation: 3,
             phase: ActivityPhase::Resumed,
             focus: WindowFocus::Focused,
-            visible: true,
         });
-        assert_eq!(update, LifecycleUpdate::Applied { recreated: true });
         assert!(native_host_facts().lifecycle.surface_active());
 
         let insets = push_raw_insets(RawInsetsPx::new(

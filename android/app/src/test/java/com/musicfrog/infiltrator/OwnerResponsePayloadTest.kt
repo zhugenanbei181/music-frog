@@ -11,7 +11,7 @@ class OwnerResponsePayloadTest {
         val core = OwnerCoreSnapshot(
             lifecycle = CoreOwnerLifecycleWire.Stopped,
             generation = 7L,
-            sessionToken = "core-session",
+            sessionToken = "42",
             revision = 12L,
             identity = CoreOwnerIdentityWire.Absent,
             failure = null,
@@ -61,7 +61,7 @@ class OwnerResponsePayloadTest {
         val newerCore = OwnerCoreSnapshot(
             lifecycle = CoreOwnerLifecycleWire.Running,
             generation = 8L,
-            sessionToken = "core-session-8",
+            sessionToken = "8",
             revision = 14L,
             identity = CoreOwnerIdentityWire.Present("mihomo", "core-8", "1.19.32"),
             failure = null,

@@ -7,6 +7,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.runtime.saveable.Saver
 import com.musicfrog.infiltrator.R
 
 internal enum class AppSection(
@@ -71,5 +72,31 @@ internal sealed interface AppRoute {
         override val canGoBack: Boolean = true
 
         override fun back(): AppRoute = Main(AppSection.AppRouting)
+    }
+}
+
+/** Save and restore the exhaustive navigation state across Activity recreation. */
+internal val AppRouteSaver: Saver<AppRoute, String> = Saver(
+    save = { route -> route.toSaveableValue() },
+    restore = ::restoreAppRoute,
+)
+
+internal fun AppRoute.toSaveableValue(): String = when (this) {
+    is AppRoute.Main -> "main:${section.name}"
+    is AppRoute.SettingsDetail -> "settings:${destination.name}"
+}
+
+internal fun restoreAppRoute(value: String): AppRoute? {
+    val parts = value.split(':', limit = 2)
+    if (parts.size != 2) return null
+    val (kind, key) = parts
+    return when (kind) {
+        "main" -> AppSection.values()
+            .firstOrNull { it.name == key }
+            ?.let(AppRoute::Main)
+        "settings" -> SettingsDestination.values()
+            .firstOrNull { it.name == key }
+            ?.let(AppRoute::SettingsDetail)
+        else -> null
     }
 }

@@ -16,7 +16,7 @@ use crate::native_host::push_lifecycle_fact;
 use crate::native_host::push_raw_insets;
 use crate::service_init::init_android_process;
 use crate::uniffi_api::{
-    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1, ProfileAgeCredentialOwnerWireOutcome,
+    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2, ProfileAgeCredentialOwnerWireOutcome,
     ProfileAgeCredentialOwnerWireReply, ProfileAgeCredentialOwnerWireRequest,
 };
 use crate::{FfiErrorCode, FfiStatus};
@@ -41,7 +41,7 @@ use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
 use jni::signature::RuntimeMethodSignature;
 use jni::strings::JNIString;
-use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
+use jni::sys::{jfloat, jint, jlong, jstring};
 use jni::{Env, EnvUnowned, JavaVM, errors};
 use std::path::PathBuf;
 use std::result;
@@ -580,7 +580,7 @@ impl AndroidBridge for JniBridge {
         let metadata = submission.metadata;
         let expected_metadata = metadata.clone();
         let request_json = serde_json::to_string(&ProfileAgeCredentialOwnerWireRequest {
-            protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1,
+            protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2,
             metadata,
         })
         .map_err(|error| {
@@ -600,7 +600,7 @@ impl AndroidBridge for JniBridge {
                     "Android Age credential owner reply is invalid: {error}"
                 ))
             })?;
-        if reply.protocol != PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1
+        if reply.protocol != PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2
             || reply.metadata != expected_metadata
         {
             return Err(PortError::Failed(
@@ -960,8 +960,7 @@ pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeOnLifecyc
     _object: JObject<'local>,
     generation: jlong,
     phase: jint,
-    focused: jboolean,
-    visible: jboolean,
+    focus: jint,
 ) -> jint {
     let mut status = FfiErrorCode::InvalidState as jint;
     env.with_env(|_env| -> errors::Result<()> {
@@ -969,19 +968,24 @@ pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeOnLifecyc
             status = FfiErrorCode::InvalidInput as jint;
             return Ok(());
         };
+        let Some(focus) = WindowFocus::from_code(focus) else {
+            status = FfiErrorCode::InvalidInput as jint;
+            return Ok(());
+        };
+        if generation < 0 {
+            status = FfiErrorCode::InvalidInput as jint;
+            return Ok(());
+        }
         let fact = HostLifecycleFact {
-            generation: generation.max(0) as u64,
+            generation: generation as u64,
             phase,
-            focus: if focused {
-                WindowFocus::Focused
-            } else {
-                WindowFocus::Unfocused
-            },
-            visible,
+            focus,
         };
         status = match push_lifecycle_fact(fact) {
-            LifecycleUpdate::Applied { .. } => FfiErrorCode::Ok as jint,
-            LifecycleUpdate::Stale => FfiErrorCode::InvalidState as jint,
+            LifecycleUpdate::Applied | LifecycleUpdate::Recreated => FfiErrorCode::Ok as jint,
+            LifecycleUpdate::Stale | LifecycleUpdate::Rejected { .. } => {
+                FfiErrorCode::InvalidState as jint
+            }
         };
         Ok(())
     })

@@ -334,6 +334,9 @@ pub struct ProfileAgeCredentialReadRequest {
 pub enum ProfileAgeCredentialReadOutcome {
     Observed {
         current: ProfileAgeCredentialObservation,
+        /// Exact active-reference state fenced by the owner for this read.
+        /// A later Set/Clear must submit this state unchanged.
+        selection: ActiveProfileReferenceState,
     },
     StaleSelection {
         expected: ActiveProfileReferenceState,
@@ -359,7 +362,6 @@ pub enum ProfileAgeCredentialOwnerMetadata {
     Read {
         scope: CoreScope,
         profile_id: ProfileId,
-        expected_selection: ActiveProfileReferenceState,
     },
     Set {
         scope: CoreScope,
@@ -380,7 +382,6 @@ pub enum ProfileAgeCredentialOwnerRequest {
     Read {
         scope: CoreScope,
         profile_id: ProfileId,
-        expected_selection: ActiveProfileReferenceState,
     },
     Set {
         scope: CoreScope,
@@ -406,14 +407,9 @@ pub struct ProfileAgeCredentialOwnerSubmission {
 impl ProfileAgeCredentialOwnerRequest {
     pub fn metadata(&self) -> ProfileAgeCredentialOwnerMetadata {
         match self {
-            Self::Read {
-                scope,
-                profile_id,
-                expected_selection,
-            } => ProfileAgeCredentialOwnerMetadata::Read {
+            Self::Read { scope, profile_id } => ProfileAgeCredentialOwnerMetadata::Read {
                 scope: scope.clone(),
                 profile_id: profile_id.clone(),
-                expected_selection: expected_selection.clone(),
             },
             Self::Set {
                 scope,
@@ -492,7 +488,8 @@ fn scrub_bytes(value: &mut [u8]) {
 mod tests {
     use super::{
         AgePrivateKey, ProfileAgeCredentialObservation, ProfileAgeCredentialOwnerMetadata,
-        ProfileAgeCredentialOwnerRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialSecret,
+        ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
+        ProfileAgeCredentialReadOutcome, ProfileAgeCredentialRevision, ProfileAgeCredentialSecret,
         ProfileAgeCredentialState, ProfileAgeDecryptedContent, ProfileAgeEncryptedContent,
     };
     use crate::active_profile_reference::{
@@ -595,6 +592,52 @@ mod tests {
             } if observed_scope == scope && observed == expected && expected_selection == selection
         ));
         assert!(!format!("{request:?}").contains("AGE-SECRET-KEY-never-wire"));
+    }
+
+    #[test]
+    fn owner_read_metadata_omits_selection_and_readback_returns_its_fenced_state() {
+        let engine = EngineId::mihomo();
+        let profile_id = ProfileId::new("primary").unwrap();
+        let scope = CoreScope {
+            identity: CoreIdentity::new(
+                engine.clone(),
+                CoreInstanceId::new("android-vpn").unwrap(),
+                None,
+            ),
+            generation: CoreGeneration::new(12),
+            session_token: None,
+        };
+        let selection = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            engine.clone(),
+            profile_id.clone(),
+            ActiveProfileReferenceRevision::new(8),
+        ));
+        let metadata = ProfileAgeCredentialOwnerMetadata::Read {
+            scope: scope.clone(),
+            profile_id: profile_id.clone(),
+        };
+        let encoded_metadata = serde_json::to_string(&metadata).unwrap();
+        assert!(!encoded_metadata.contains("expected_selection"));
+        assert_eq!(
+            serde_json::from_str::<ProfileAgeCredentialOwnerMetadata>(&encoded_metadata).unwrap(),
+            metadata,
+        );
+
+        let readback =
+            ProfileAgeCredentialOwnerReadback::Read(ProfileAgeCredentialReadOutcome::Observed {
+                current: ProfileAgeCredentialObservation::new(
+                    engine,
+                    profile_id,
+                    ProfileAgeCredentialRevision::new(4),
+                    ProfileAgeCredentialState::Configured,
+                ),
+                selection,
+            });
+        let encoded_readback = serde_json::to_string(&readback).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ProfileAgeCredentialOwnerReadback>(&encoded_readback).unwrap(),
+            readback,
+        );
     }
 
     #[test]

@@ -19,7 +19,7 @@ use infiltrator_platform::android_bridge::get_android_bridge;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use serde::{Deserialize, Serialize};
 
-pub(crate) const PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1: u8 = 1;
+pub(crate) const PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2: u8 = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,17 +70,9 @@ fn decode_owner_request(
     mut private_key_bytes: Vec<u8>,
 ) -> Result<ProfileAgeCredentialOwnerRequest, FfiStatus> {
     match metadata {
-        ProfileAgeCredentialOwnerMetadata::Read {
-            scope,
-            profile_id,
-            expected_selection,
-        } => {
+        ProfileAgeCredentialOwnerMetadata::Read { scope, profile_id } => {
             if private_key_bytes.is_empty() {
-                Ok(ProfileAgeCredentialOwnerRequest::Read {
-                    scope,
-                    profile_id,
-                    expected_selection,
-                })
+                Ok(ProfileAgeCredentialOwnerRequest::Read { scope, profile_id })
             } else {
                 scrub_bytes(&mut private_key_bytes);
                 Err(FfiStatus::err(
@@ -159,7 +151,7 @@ fn wire_reply(
     outcome: ProfileAgeCredentialOwnerWireOutcome,
 ) -> String {
     serde_json::to_string(&ProfileAgeCredentialOwnerWireReply {
-        protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1,
+        protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2,
         metadata,
         outcome,
     })
@@ -242,12 +234,8 @@ async fn execute_owner_request(
         .map_err(map_application_failure)?;
     let application = super::profiles::build_profile_application().await?;
     match request {
-        ProfileAgeCredentialOwnerRequest::Read {
-            profile_id,
-            expected_selection,
-            ..
-        } => application
-            .profile_age_credential(profile_id, expected_selection, authorization)
+        ProfileAgeCredentialOwnerRequest::Read { profile_id, .. } => application
+            .profile_age_credential(profile_id, authorization)
             .await
             .map(ProfileAgeCredentialOwnerReadback::Read)
             .map_err(map_application_failure),
@@ -527,7 +515,7 @@ pub async fn android_dispatch_profile_age_credential_owner_operation_wire_json(
         .spawn(async move {
             let request =
                 match serde_json::from_str::<ProfileAgeCredentialOwnerWireRequest>(&request_json) {
-                    Ok(request) if request.protocol == PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1 => {
+                    Ok(request) if request.protocol == PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2 => {
                         request
                     }
                     Ok(_) => {
@@ -605,7 +593,7 @@ pub async fn execute_profile_age_credential_owner_submission(
 #[cfg(test)]
 mod tests {
     use super::{
-        PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1, ProfileAgeCredentialOwnerWireRequest,
+        PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2, ProfileAgeCredentialOwnerWireRequest,
         RequestScopeMatch, decode_owner_request, request_scope_match,
     };
     use crate::ffi::FfiErrorCode;
@@ -663,7 +651,7 @@ mod tests {
         let secret = b"AGE-SECRET-KEY-owner-only".to_vec();
         let metadata = set_metadata();
         let request_json = serde_json::to_string(&ProfileAgeCredentialOwnerWireRequest {
-            protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1,
+            protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2,
             metadata: metadata.clone(),
         })
         .unwrap();
@@ -681,11 +669,10 @@ mod tests {
 
     #[test]
     fn age_owner_rejects_secret_for_read_and_invalid_or_oversized_set_payloads() {
-        let (profile_id, expected_selection) = selected_profile();
+        let (profile_id, _) = selected_profile();
         let read = ProfileAgeCredentialOwnerMetadata::Read {
             scope: scope(4),
             profile_id,
-            expected_selection,
         };
         assert_eq!(
             decode_owner_request(read, b"unexpected".to_vec())
@@ -705,6 +692,28 @@ mod tests {
                 .code,
             FfiErrorCode::InvalidInput,
         );
+    }
+
+    #[test]
+    fn age_owner_v2_read_request_has_no_ui_supplied_selection() {
+        let (profile_id, _) = selected_profile();
+        let metadata = ProfileAgeCredentialOwnerMetadata::Read {
+            scope: scope(4),
+            profile_id: profile_id.clone(),
+        };
+        let encoded = serde_json::to_string(&metadata).unwrap();
+        assert!(!encoded.contains("expected_selection"));
+        assert_eq!(
+            serde_json::from_str::<ProfileAgeCredentialOwnerMetadata>(&encoded).unwrap(),
+            metadata,
+        );
+        assert!(matches!(
+            decode_owner_request(metadata, Vec::new()).unwrap(),
+            ProfileAgeCredentialOwnerRequest::Read {
+                profile_id: observed,
+                ..
+            } if observed == profile_id
+        ));
     }
 
     #[test]

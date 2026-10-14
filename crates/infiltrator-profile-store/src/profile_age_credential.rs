@@ -166,9 +166,11 @@ impl<S: SecureStore> EngineProfileStore<S> {
             }
         };
 
+        let selection = request.expected_selection.clone();
         let record = read_credential_record(self, &request.profile_id).await?;
         Ok(ProfileAgeCredentialReadOutcome::Observed {
             current: record.observation(self.engine_id(), request.profile_id),
+            selection,
         })
     }
 
