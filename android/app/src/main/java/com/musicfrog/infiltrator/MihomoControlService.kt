@@ -869,7 +869,7 @@ class MihomoControlService : Service() {
         request: AndroidHostRequest,
         arguments: Bundle,
     ): OwnerResponse {
-        val host = (application as? MihomoApplication)?.processHost
+        val host = (application as? MihomoApplication)?.coreHost
             ?: return OwnerResponse(
                 AndroidHostReply.SERVICE_UNAVAILABLE,
                 FfiErrorCode.NOT_READY,
@@ -891,12 +891,13 @@ class MihomoControlService : Service() {
             }
             AndroidHostRequest.READ_SURFACE_SNAPSHOT -> {
                 val result = androidSurfaceSnapshotJson()
-                if (result.status.code == FfiErrorCode.OK && result.value != null) {
+                val snapshotJson = result.value
+                if (result.status.code == FfiErrorCode.OK && snapshotJson != null) {
                     OwnerResponse(
                         AndroidHostReply.SURFACE_SNAPSHOT_AVAILABLE,
                         FfiErrorCode.OK,
                         payload = OwnerResponsePayload.SurfaceSnapshot(
-                            result.value,
+                            snapshotJson,
                             OwnerCoreReadback.Unavailable,
                         ),
                     ).withCurrentCoreSnapshot()
@@ -937,6 +938,8 @@ class MihomoControlService : Service() {
                     AndroidOwnerOperationIpcState.VPN_CONFIGURATION_BUSY -> AndroidHostReply.VPN_CONFIGURATION_BUSY
                     AndroidOwnerOperationIpcState.FAILED -> AndroidHostReply.FAILED
                 }
+                val dataDomain = result.dataDomain
+                val snapshotJson = result.snapshotJson
                 OwnerResponse(
                     reply = reply,
                     statusCode = result.statusCode,
@@ -946,13 +949,9 @@ class MihomoControlService : Service() {
                         revision = result.dataRevision.toLong(),
                         generation = result.coreGeneration.toLong(),
                         dataFacts = when {
-                            result.dataDomain == null -> OwnerOperationDataFacts.RevisionOnly
-                            result.snapshotJson == null ->
-                                OwnerOperationDataFacts.Domain(result.dataDomain)
-                            else -> OwnerOperationDataFacts.Snapshot(
-                                result.dataDomain,
-                                result.snapshotJson,
-                            )
+                            dataDomain == null -> OwnerOperationDataFacts.RevisionOnly
+                            snapshotJson == null -> OwnerOperationDataFacts.Domain(dataDomain)
+                            else -> OwnerOperationDataFacts.Snapshot(dataDomain, snapshotJson)
                         },
                         coreReadback = OwnerCoreReadback.Unavailable,
                     ),
@@ -1282,9 +1281,13 @@ class MihomoControlService : Service() {
     private fun AndroidCoreLifecycleResult.toOwnerCoreReadback(): OwnerCoreReadback {
         if (status.code != FfiErrorCode.OK) return OwnerCoreReadback.Unavailable
         val state = lifecycle?.toCoreOwnerLifecycleWire() ?: return OwnerCoreReadback.Unavailable
-        if (generation < 0L || revision < 0L ||
-            (sessionToken != null && (sessionToken.isBlank() || !sessionToken.all(Char::isDigit)))
-        ) {
+        val ownerGeneration = generation.toLong()
+        val ownerRevision = revision.toLong()
+        val ownerSessionToken = sessionToken
+        val invalidSessionToken = ownerSessionToken?.let { token ->
+            token.isBlank() || !token.all(Char::isDigit)
+        } == true
+        if (ownerGeneration < 0L || ownerRevision < 0L || invalidSessionToken) {
             return OwnerCoreReadback.Unavailable
         }
         val identity = CoreOwnerIdentityWire.fromNullableParts(engineId, coreInstanceId, coreVersion)
@@ -1296,9 +1299,9 @@ class MihomoControlService : Service() {
         return OwnerCoreReadback.Available(
             OwnerCoreSnapshot(
                 lifecycle = state,
-                generation = generation.toLong(),
-                sessionToken = sessionToken,
-                revision = revision.toLong(),
+                generation = ownerGeneration,
+                sessionToken = ownerSessionToken,
+                revision = ownerRevision,
                 identity = identity,
                 failure = failure,
             ),

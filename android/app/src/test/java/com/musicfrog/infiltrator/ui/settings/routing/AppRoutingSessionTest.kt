@@ -215,7 +215,7 @@ class AppRoutingSessionTest {
     }
 
     private class FakeInstalledAppsProvider(
-        private val values: List<AppItem> = apps(),
+        private val values: List<AppItem> = appRoutingSessionTestApps(),
     ) : InstalledAppsProvider {
         override suspend fun loadInstalledApps(): List<AppItem> = values
     }
@@ -241,3 +241,8 @@ class AppRoutingSessionTest {
         key: FailureTextKey = FailureTextKey.NotReady,
     ) = AppFailure(code = code, localization = key)
 }
+
+private fun appRoutingSessionTestApps() = listOf(
+    AppItem("User App", "org.example.user", null, AppClassification.User),
+    AppItem("System App", "org.example.system", null, AppClassification.System),
+)

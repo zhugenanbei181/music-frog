@@ -34,8 +34,9 @@ import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
-fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
+internal fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val observation = state.observation
     val settingsBusy = state.settingsActivity == FakeIpSettingsActivity.Busy
     val cacheBusy = state.hostCacheOperation is HostFakeIpFileCacheState.Clearing
     val canEdit = lastAcceptedFakeIp(state.observation) != null
@@ -134,11 +135,13 @@ fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
                 if (settingsBusy || cacheBusy) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
-                if (state.observation is FakeIpSettingsReadState.Unavailable) {
-                    LocalizedFailureText(
-                        failure = state.observation.failure.toLocalizedFailure(),
+                when (val read = observation) {
+                    is FakeIpSettingsReadState.Unavailable -> LocalizedFailureText(
+                        failure = read.failure.toLocalizedFailure(),
                         modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
                     )
+                    is FakeIpSettingsReadState.Loading,
+                    is FakeIpSettingsReadState.Observed -> Unit
                 }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {

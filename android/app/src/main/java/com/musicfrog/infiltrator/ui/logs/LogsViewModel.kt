@@ -98,13 +98,19 @@ internal class LogsViewModel internal constructor(
         if (pageVisibility != LogsPageVisibility.Visible) return
         if (_state.value.operation is LogsOperationState.Clearing) return
 
+        val coreScope = _state.value.observation.lastAccepted()?.coreScope
+        if (coreScope == null) {
+            _state.value = _state.value.copy(operation = LogsOperationState.Failed(logsNotReadyFailure()))
+            return
+        }
+
         cancelReads()
         clearOperationSequence += 1uL
         val operationSequence = clearOperationSequence
         _state.value = _state.value.copy(operation = LogsOperationState.Clearing)
         coroutineScope.launch {
             try {
-                when (val call = runCall(LONG_FFI_TIMEOUT_MS) { repository.clearLogs() }) {
+                when (val call = runCall(LONG_FFI_TIMEOUT_MS) { repository.clearLogs(coreScope) }) {
                     is CallResult.Failure -> publishClearFailure(operationSequence, call.failure)
                     is CallResult.Success -> when (val result = call.value) {
                         LogsClearResult.Accepted -> confirmClear(operationSequence)
@@ -232,7 +238,7 @@ internal class LogsViewModel internal constructor(
                             publishUnavailable(failure)
                             LogsRefreshResult.Unavailable(failure)
                         } else {
-                            val point = LogsObservationPoint(logs, read.revision)
+                            val point = LogsObservationPoint(logs, read.revision, read.coreScope)
                             _state.value = _state.value.copy(
                                 observation = LogsObservationState.Content(point),
                             )

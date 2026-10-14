@@ -11,13 +11,6 @@ namespace infiltrator_android {
   // Async functions
   [Async]
   IpResult ip_check();
-
-  [Async]
-  FfiStatus connection_close(string id);
-
-  [Async]
-  FfiStatus connections_close_all();
-
 };
 
 enum FfiErrorCode {

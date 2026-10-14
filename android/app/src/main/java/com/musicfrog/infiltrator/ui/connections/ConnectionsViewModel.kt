@@ -5,15 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.CallResult
 import com.musicfrog.infiltrator.ui.common.ConnectionRecord
+import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import com.musicfrog.infiltrator.ui.common.OwnerSurfaceRead
+import com.musicfrog.infiltrator.ui.common.ScopedProductCommandResult
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.runCall
 import com.musicfrog.infiltrator.ui.common.toAppFailure
-import infiltrator_android.FfiStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -98,17 +99,23 @@ class ConnectionsViewModel internal constructor(
     }
 
     fun closeConnection(id: String) {
+        if (actionState.value != ConnectionActionState.Idle) return
+        val scope = observedCoreScope() ?: return failUnavailableClose()
+        val targetId = id.trim()
+        if (targetId.isEmpty()) return failUnavailableClose()
         executeClose(
             working = ConnectionActionState.ClosingConnection,
-            operation = { repository.closeConnection(id) },
-            expectation = ConnectionCloseExpectation.TargetClosed(id),
+            operation = { repository.closeConnection(scope, targetId) },
+            expectation = ConnectionCloseExpectation.TargetClosed(targetId),
         )
     }
 
     fun closeAllConnections() {
+        if (actionState.value != ConnectionActionState.Idle) return
+        val scope = observedCoreScope() ?: return failUnavailableClose()
         executeClose(
             working = ConnectionActionState.ClosingAll,
-            operation = { repository.closeAll() },
+            operation = { repository.closeAll(scope) },
             expectation = ConnectionCloseExpectation.AllClosed,
         )
     }
@@ -121,7 +128,7 @@ class ConnectionsViewModel internal constructor(
 
     private fun executeClose(
         working: ConnectionActionState,
-        operation: suspend () -> FfiStatus,
+        operation: suspend () -> ScopedProductCommandResult,
         expectation: ConnectionCloseExpectation,
     ) {
         viewModelScope.launch {
@@ -132,9 +139,16 @@ class ConnectionsViewModel internal constructor(
                     actionState.value = ConnectionActionState.Failed(call.failure)
                     return@launch
                 }
-                is CallResult.Success -> {
-                    if (call.value.code != infiltrator_android.FfiErrorCode.OK) {
-                        actionState.value = ConnectionActionState.Failed(call.value.toAppFailure())
+                is CallResult.Success -> when (val result = call.value) {
+                    is ScopedProductCommandResult.Completed -> Unit
+                    is ScopedProductCommandResult.Failed -> {
+                        actionState.value = ConnectionActionState.Failed(result.failure.toAppFailure())
+                        return@launch
+                    }
+                    ScopedProductCommandResult.ScopeMismatch,
+                    ScopedProductCommandResult.NonTerminal,
+                    ScopedProductCommandResult.Invalid -> {
+                        actionState.value = ConnectionActionState.Failed(notReadyFailure())
                         return@launch
                     }
                 }
@@ -192,6 +206,7 @@ class ConnectionsViewModel internal constructor(
                             totalConnections = data.totalConnections,
                             uploadTotal = data.uploadTotal,
                             downloadTotal = data.downloadTotal,
+                            coreScope = snapshot.coreScope,
                         ),
                         revision = revision,
                     ).also { connectionReadState.value = it }
@@ -212,4 +227,11 @@ class ConnectionsViewModel internal constructor(
     }
 
     private fun notReadyFailure(): AppFailure = localizedFailure(FailureTextKey.NotReady).toAppFailure()
+
+    private fun observedCoreScope(): CoreScopeObservation? =
+        lastAcceptedConnection(connectionReadState.value)?.value?.coreScope
+
+    private fun failUnavailableClose() {
+        actionState.value = ConnectionActionState.Failed(notReadyFailure())
+    }
 }

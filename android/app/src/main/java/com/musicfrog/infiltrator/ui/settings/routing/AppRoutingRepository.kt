@@ -120,7 +120,7 @@ internal class PackageManagerInstalledAppsProvider(
 ) : InstalledAppsProvider {
     override suspend fun loadInstalledApps(): List<AppItem> = withContext(Dispatchers.IO) {
         packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-            .map(::toAppItem)
+            .map { applicationInfo -> applicationInfo.toAppItem() }
             .sortedBy { app -> app.name.lowercase() }
     }
 

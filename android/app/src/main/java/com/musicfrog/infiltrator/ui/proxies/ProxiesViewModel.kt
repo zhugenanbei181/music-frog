@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-class ProxiesViewModel internal constructor(
+internal class ProxiesViewModel internal constructor(
     private val repository: AndroidComposeRepository,
 ) : ViewModel() {
     constructor() : this(com.musicfrog.infiltrator.ui.common.UniFfiAndroidComposeRepository)

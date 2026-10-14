@@ -2,15 +2,17 @@ package com.musicfrog.infiltrator.ui.connections
 
 import com.musicfrog.infiltrator.ui.common.OwnerSurfaceRead
 import com.musicfrog.infiltrator.ui.common.AndroidComposeRepository
+import com.musicfrog.infiltrator.ui.common.AndroidApplicationCommand
+import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
+import com.musicfrog.infiltrator.ui.common.ScopedProductCommandResult
 import com.musicfrog.infiltrator.ui.common.UniFfiAndroidComposeRepository
-import infiltrator_android.FfiStatus
-import infiltrator_android.connectionClose
-import infiltrator_android.connectionsCloseAll
+import com.musicfrog.infiltrator.ui.common.buildApplicationCommandJson
+import com.musicfrog.infiltrator.ui.common.parseScopedProductCommandResult
 
 internal interface ConnectionsRepository {
     suspend fun readSurface(): OwnerSurfaceRead
-    suspend fun closeConnection(id: String): FfiStatus
-    suspend fun closeAll(): FfiStatus
+    suspend fun closeConnection(scope: CoreScopeObservation, id: String): ScopedProductCommandResult
+    suspend fun closeAll(scope: CoreScopeObservation): ScopedProductCommandResult
 }
 
 internal class UniFfiConnectionsRepository(
@@ -18,7 +20,16 @@ internal class UniFfiConnectionsRepository(
 ) : ConnectionsRepository {
     override suspend fun readSurface(): OwnerSurfaceRead = ownerSurface.readOwnerSurface()
 
-    override suspend fun closeConnection(id: String): FfiStatus = connectionClose(id)
+    override suspend fun closeConnection(
+        scope: CoreScopeObservation,
+        id: String,
+    ): ScopedProductCommandResult {
+        val command = buildApplicationCommandJson(scope, AndroidApplicationCommand.CloseConnection(id))
+        return parseScopedProductCommandResult(ownerSurface.executeProductCommand(command), scope)
+    }
 
-    override suspend fun closeAll(): FfiStatus = connectionsCloseAll()
+    override suspend fun closeAll(scope: CoreScopeObservation): ScopedProductCommandResult {
+        val command = buildApplicationCommandJson(scope, AndroidApplicationCommand.CloseAllConnections)
+        return parseScopedProductCommandResult(ownerSurface.executeProductCommand(command), scope)
+    }
 }

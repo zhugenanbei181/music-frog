@@ -509,7 +509,7 @@ class VpnProcessStateTest {
                 VpnDataPlaneStartPublication.Published,
                 lifecycle.completeDataPlaneStart(
                     start.generation,
-                    FfiStatus(FfiErrorCode.OK, null).toVpnDataPlaneStartReceipt(),
+                    testFfiStatus(FfiErrorCode.OK).toVpnDataPlaneStartReceipt(),
                     VpnRoutingLeaseState.Held(lease),
                 ),
             )
@@ -570,7 +570,7 @@ class VpnProcessStateTest {
         val pending = VpnRoutingLeaseState.Held(lease).afterReleaseAttempt(
             lease,
             AndroidVpnRoutingActivationReleaseResult.Failed(
-                FfiStatus(FfiErrorCode.NOT_READY, "owner unavailable"),
+                testFfiStatus(FfiErrorCode.NOT_READY, "owner unavailable"),
             ),
         )
 
@@ -601,7 +601,7 @@ class VpnProcessStateTest {
         val pending = held.afterReleaseAttempt(
             lease,
             AndroidVpnRoutingActivationReleaseResult.Failed(
-                FfiStatus(FfiErrorCode.NOT_READY, "owner unavailable"),
+                testFfiStatus(FfiErrorCode.NOT_READY, "owner unavailable"),
             ),
         )
 
@@ -649,7 +649,7 @@ class VpnProcessStateTest {
             VpnDataPlaneStartPublication.Published,
             lifecycle.completeDataPlaneStart(
                 retry.generation,
-                FfiStatus(FfiErrorCode.INVALID_STATE, "worker failed")
+                testFfiStatus(FfiErrorCode.INVALID_STATE, "worker failed")
                     .toVpnDataPlaneStartReceipt(),
                 VpnRoutingLeaseState.Held(AndroidVpnRoutingActivationLease(8uL, 13uL)),
             ),

@@ -35,7 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-sealed interface ObservationState<out T> {
+internal sealed interface ObservationState<out T> {
     data class Loading<out T>(
         val lastAccepted: ObservationPoint<T>? = null,
     ) : ObservationState<T>
@@ -444,7 +444,7 @@ internal class OverviewViewModel(
                         routingIntent = preservePendingRoutingIntent(current.routingIntent, ownerSnapshot),
                         error = when (read) {
                             is OwnerSurfaceRead.Available -> failure
-                            is OwnerSurfaceRead.Unavailable -> read.failure,
+                            is OwnerSurfaceRead.Unavailable -> read.failure
                         },
                     )
                 }

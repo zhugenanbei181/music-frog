@@ -54,7 +54,7 @@ Compose 路由页使用 `AndroidOwnerOperation::{AppRoutingSnapshot, AppRoutingM
 
 - VPN session readback：`vpn_session_status` 的 Kotlin observation 已读取 owner service 状态枚举，但 Rust revision/附加元数据仍保存在调用进程，尚不是 owner-authored revisioned `VpnOwnerSnapshot`。TUN settings 已通过 `AndroidOwnerOperation::{TunSettings, TunSettingsSave}` 迁到唯一 owner。入口见 [vpn.rs](../../crates/infiltrator-android/src/uniffi_api/vpn.rs) 和 [owner_operation.rs](../../crates/infiltrator-android/src/uniffi_api/owner_operation.rs)。
 
-迁移时须由 `:vpn` 执行读写并返回类型化结果，保留输入/终态错误，不得用 UI 本地文件并写或静默回退。`connection_close`、`connections_close_all`、`logs_clear` 已使用 CoreScope + typed product command；`ip_check` 是独立公网探测，不属于这些持久化入口。
+Compose 的日志清空与连接关闭统一经 CoreScope 绑定的 `AndroidProductCommand` 发送到 `:vpn` owner，并校验同一 Core activation 的终态；不再为这些动作暴露逐项 UniFFI 函数。`ip_check` 是独立公网探测入口。
 
 ## VPN 与 Core 生命周期
 

@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator.ui.profiles
 
+import com.musicfrog.infiltrator.testFfiStatus
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.AppFailure
@@ -65,7 +66,7 @@ class ProfilesRepositoryTest {
         val mismatching = reply(requested, listOf(profile("alpha", active = false))).copy(
             readback = AndroidOwnerOperationReadback.ProfileSelection(
                 AndroidProfileSelectionReadback(
-                    operationStatus = FfiStatus(FfiErrorCode.OK, null),
+                    operationStatus = testFfiStatus(FfiErrorCode.OK),
                     activeReference = AndroidActiveProfileReferenceObservation.Selected(
                         target = AndroidProfileSelectionTarget.SingBox("alpha"),
                         revision = 4uL,
@@ -106,7 +107,7 @@ class ProfilesRepositoryTest {
         val ownerProfiles = listOf(profile("alpha"))
         val mismatched = reply(AndroidOwnerOperation.ProfilesList, ownerProfiles).copy(
             readback = AndroidOwnerOperationReadback.ProfilesList(
-                ProfilesResult(FfiStatus(FfiErrorCode.OK, null), listOf(profile("other"))),
+                ProfilesResult(testFfiStatus(FfiErrorCode.OK), listOf(profile("other"))),
             ),
         )
         val repository = repository { clientCompleted(mismatched) }
@@ -125,7 +126,7 @@ class ProfilesRepositoryTest {
                 reply(
                     requested,
                     listOf(profile("alpha")),
-                    status = FfiStatus(FfiErrorCode.CANCELED, "canceled by owner"),
+                    status = testFfiStatus(FfiErrorCode.CANCELED, "canceled by owner"),
                 ),
             )
         }
@@ -193,10 +194,10 @@ class ProfilesRepositoryTest {
     private fun reply(
         operation: AndroidOwnerOperation,
         profiles: List<ProfileSummary>,
-        status: FfiStatus = FfiStatus(FfiErrorCode.OK, null),
+        status: FfiStatus = testFfiStatus(FfiErrorCode.OK),
         profileDetail: ProfileDetail = detail("alpha", active = false, content = "mixed-port: 7890"),
     ): AndroidOwnerOperationReply {
-        val profilesResult = ProfilesResult(FfiStatus(FfiErrorCode.OK, null), profiles)
+        val profilesResult = ProfilesResult(testFfiStatus(FfiErrorCode.OK), profiles)
         val readback = when (operation) {
             AndroidOwnerOperation.ProfilesList -> AndroidOwnerOperationReadback.ProfilesList(profilesResult)
             is AndroidOwnerOperation.ProfileDetail -> AndroidOwnerOperationReadback.ProfileDetail(

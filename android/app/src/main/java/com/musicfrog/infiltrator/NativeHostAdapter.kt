@@ -239,7 +239,7 @@ class NativeHostAdapter(
     private val attachment = NativeHostAttachment(generation, attachmentEffects)
 
     /** Register lifecycle, Insets and Rust resources as one typed transaction. */
-    fun attach(): NativeHostAttachOutcome {
+    internal fun attach(): NativeHostAttachOutcome {
         val outcome = attachment.attach()
         when (outcome) {
             is NativeHostAttachOutcome.Failed ->
@@ -253,7 +253,7 @@ class NativeHostAdapter(
     }
 
     /** Release each resource independently; failed cleanup stays typed and retryable. */
-    fun detach(): NativeHostDetachOutcome {
+    internal fun detach(): NativeHostDetachOutcome {
         val outcome = attachment.detach()
         if (outcome is NativeHostDetachOutcome.CleanupNeeded) {
             Log.e(

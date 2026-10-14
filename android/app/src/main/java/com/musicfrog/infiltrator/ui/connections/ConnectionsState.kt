@@ -1,6 +1,7 @@
 package com.musicfrog.infiltrator.ui.connections
 
 import com.musicfrog.infiltrator.ui.common.AppFailure
+import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.ConnectionRecord
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 
@@ -9,6 +10,7 @@ internal data class ConnectionSnapshot(
     val totalConnections: Int,
     val uploadTotal: ULong,
     val downloadTotal: ULong,
+    val coreScope: CoreScopeObservation? = null,
 )
 
 internal data class ConnectionObservationPoint(

@@ -33,7 +33,7 @@ import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
-fun RulesScreen(viewModel: RulesViewModel = viewModel()) {
+internal fun RulesScreen(viewModel: RulesViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val savedMessage = when (state.operation) {
         RulesOperationState.RulesSaved -> stringResource(R.string.text_saved)

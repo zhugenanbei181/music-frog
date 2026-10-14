@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class ProfilesViewModel internal constructor(
+internal class ProfilesViewModel internal constructor(
     private val repository: ProfilesRepository,
 ) : ViewModel() {
     constructor() : this(UniFfiProfilesRepository())

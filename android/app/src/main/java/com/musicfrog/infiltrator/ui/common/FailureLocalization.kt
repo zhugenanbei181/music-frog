@@ -272,7 +272,7 @@ internal fun LocalizedFailureText(
 }
 
 @Composable
-internal fun LocalizedFailureText.asDisplayString(): String {
+internal fun LocalizedFailure.asDisplayString(): String {
     val title = stringResource(key.resource, *arguments.toTypedArray())
     val detail = diagnostic?.let { stringResource(R.string.failure_diagnostic_detail, it) }
     return listOfNotNull(title, detail).joinToString("\n")

@@ -33,7 +33,7 @@ import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
-fun TunScreen(viewModel: TunViewModel = viewModel()) {
+internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showMtuDialog by remember { mutableStateOf(false) }
     var showStackDialog by remember { mutableStateOf(false) }

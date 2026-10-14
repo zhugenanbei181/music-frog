@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator.ui.sync
 
+import com.musicfrog.infiltrator.testFfiStatus
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.AppFailure
@@ -126,7 +127,7 @@ class SyncRepositoryTest {
         operation: AndroidOwnerOperation,
         snapshotSettings: WebDavSettings,
     ): AndroidOwnerOperationReply {
-        val successful = FfiStatus(FfiErrorCode.OK, null)
+        val successful = testFfiStatus(FfiErrorCode.OK)
         val settingsResult = WebDavSettingsResult(successful, snapshotSettings)
         val readback = when (operation) {
             AndroidOwnerOperation.WebDavSettings,

@@ -2,6 +2,8 @@ package com.musicfrog.infiltrator.ui.logs
 
 import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.AppFailureCode
+import com.musicfrog.infiltrator.ui.common.CoreIdentityObservation
+import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LogEntry
 import com.musicfrog.infiltrator.ui.common.LogLevel
@@ -39,6 +41,7 @@ class LogsViewModelTest {
         viewModel.dispatch(LogsIntent.Clear)
 
         assertEquals(1, repository.clearCount)
+        assertEquals(testCoreScope(), repository.lastClearScope)
         assertEquals(
             LogsOperationState.Cleared(ObservationRevision.Owner(3uL, 5uL)),
             viewModel.state.value.operation,
@@ -107,6 +110,22 @@ class LogsViewModelTest {
         assertEquals(1, repository.readCount)
         assertEquals(1, repository.clearCount)
         assertEquals("kept", viewModel.state.value.observation.lastAccepted()?.logs?.entries?.single()?.message)
+        scope.cancel()
+    }
+
+    @Test
+    fun clearWithoutObservedCoreScopeFailsClosed() = runBlocking {
+        val repository = FakeLogsRepository().apply {
+            enqueue(ownerLogs(revision = 4uL, entries = listOf(logEntry("kept")), coreScope = null))
+        }
+        val scope = testScope()
+        val viewModel = testViewModel(repository, scope)
+
+        viewModel.dispatch(LogsIntent.PageVisible)
+        viewModel.dispatch(LogsIntent.Clear)
+
+        assertEquals(0, repository.clearCount)
+        assertEquals(LogsOperationState.Failed(logsNotReadyFailure()), viewModel.state.value.operation)
         scope.cancel()
     }
 
@@ -190,6 +209,7 @@ private class FakeLogsRepository : LogsRepository {
     var cancelledReadCount: Int = 0
         private set
     var clearResult: LogsClearResult = LogsClearResult.Accepted
+    var lastClearScope: CoreScopeObservation? = null
 
     fun enqueue(read: LogsSnapshotRead) {
         readReplies.addLast(CompletableDeferred(read))
@@ -209,8 +229,9 @@ private class FakeLogsRepository : LogsRepository {
         }
     }
 
-    override suspend fun clearLogs(): LogsClearResult {
+    override suspend fun clearLogs(scope: CoreScopeObservation): LogsClearResult {
         clearCount += 1
+        lastClearScope = scope
         return clearResult
     }
 }
@@ -231,6 +252,7 @@ private fun ownerLogs(
     generation: ULong = 3uL,
     revision: ULong,
     entries: List<LogEntry>,
+    coreScope: CoreScopeObservation? = testCoreScope(),
 ): LogsSnapshotRead.OwnerSnapshot {
     val logs = OwnerLogsPage(
         stream = OwnerLogStreamState.LIVE,
@@ -238,6 +260,7 @@ private fun ownerLogs(
         entries = entries,
     )
     return LogsSnapshotRead.OwnerSnapshot(
+        coreScope = coreScope,
         revision = ObservationRevision.Owner(generation = generation, revision = revision),
         page = OwnerPage(
             state = if (entries.isEmpty()) OwnerPageState.Empty else OwnerPageState.Ready,
@@ -246,6 +269,13 @@ private fun ownerLogs(
         ),
     )
 }
+
+private fun testCoreScope() = CoreScopeObservation(
+    identity = CoreIdentityObservation("mihomo", "android-vpn", "1.19.12"),
+    generation = "7",
+    sessionToken = "8",
+    json = """{"identity":{"engine":"mihomo","instance":"android-vpn","version":"1.19.12"},"generation":7,"session_token":8}""",
+)
 
 private fun logEntry(message: String) = LogEntry(
     level = LogLevel.INFO,

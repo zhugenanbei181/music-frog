@@ -10,7 +10,7 @@ import androidx.compose.ui.res.stringResource
 import com.musicfrog.infiltrator.R
 
 @Composable
-fun ErrorDialog(
+internal fun ErrorDialog(
     failure: LocalizedFailure,
     onDismiss: () -> Unit,
 ) {

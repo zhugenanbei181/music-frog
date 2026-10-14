@@ -82,7 +82,11 @@ class SyncStateTest {
         settings: WebDavSettings,
         revision: SyncSettingsRevision,
         sequence: ULong,
-    ) = SyncForm(snapshot(settings, revision), settings.toDraft(), sequence)
+    ) = SyncForm(
+        snapshot(settings, revision),
+        snapshot(settings, revision).toDraft(),
+        sequence,
+    )
 
     private fun snapshot(
         settings: WebDavSettings,

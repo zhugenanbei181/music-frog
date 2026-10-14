@@ -46,9 +46,9 @@ internal interface RulesRepository {
     ): RulesRepositoryResult
 }
 
-internal object UniFfiRulesRepository : RulesRepository {
-    private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway
-
+internal class UniFfiRulesRepository(
+    private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway,
+) : RulesRepository {
     override suspend fun execute(
         operation: AndroidOwnerOperation,
         timeoutMs: Long,

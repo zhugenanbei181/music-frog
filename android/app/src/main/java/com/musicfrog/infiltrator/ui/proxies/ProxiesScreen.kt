@@ -78,7 +78,7 @@ import com.musicfrog.infiltrator.ui.common.asDisplayString
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
-fun ProxiesScreen(viewModel: ProxiesViewModel = viewModel()) {
+internal fun ProxiesScreen(viewModel: ProxiesViewModel = viewModel()) {
     val inventory by viewModel.inventory.collectAsState()
     val details by viewModel.details.collectAsState()
     val preferences by viewModel.preferences.collectAsState()

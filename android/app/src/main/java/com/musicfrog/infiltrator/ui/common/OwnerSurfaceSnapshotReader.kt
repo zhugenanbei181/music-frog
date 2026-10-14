@@ -159,9 +159,11 @@ private fun validateVpnCoreBinding(
             require(
                 owner.identity == surfaceIdentity &&
                     owner.lifecycle == surfaceLifecycle &&
-                    owner.generation.toULong() == parseUnsignedDecimal(rawGeneration, "Core generation") &&
+                    owner.generation.toULong().toString() ==
+                        parseUnsignedDecimal(rawGeneration, "Core generation") &&
                     ownerSession == surfaceSession &&
-                    owner.revision.toULong() == parseUnsignedDecimal(rawRevision, "Core revision") &&
+                    owner.revision.toULong().toString() ==
+                        parseUnsignedDecimal(rawRevision, "Core revision") &&
                     owner.failure == surfaceFailure,
             ) {
                 "Surface Core facts and :vpn owner Core lifecycle snapshot do not match"

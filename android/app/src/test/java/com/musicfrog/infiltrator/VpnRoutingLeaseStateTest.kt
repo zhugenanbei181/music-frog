@@ -30,7 +30,7 @@ class VpnRoutingLeaseStateTest {
             AndroidVpnRoutingActivationReleaseResult.LeaseMissing to
                 VpnRoutingLeaseReleaseProblem.LeaseMissing,
             AndroidVpnRoutingActivationReleaseResult.Failed(
-                FfiStatus(FfiErrorCode.NOT_READY, "owner unavailable"),
+                testFfiStatus(FfiErrorCode.NOT_READY, "owner unavailable"),
             ) to VpnRoutingLeaseReleaseProblem.OwnerFailure("owner unavailable"),
         )
 

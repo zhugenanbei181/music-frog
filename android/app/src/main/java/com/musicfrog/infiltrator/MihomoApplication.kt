@@ -170,14 +170,20 @@ class MihomoApplication : Application() {
 }
 
 private fun AndroidCoreLifecycleResult.toOwnerCoreReadback(): VpnOwnerCoreReadbackWire {
-    if (status.code != FfiErrorCode.OK || lifecycle == null) {
+    if (status.code != FfiErrorCode.OK) {
         return VpnOwnerCoreReadbackWire.Unavailable(
             status.message ?: "Core lifecycle readback is unavailable",
         )
     }
-    if (generation < 0L || revision < 0L ||
-        (sessionToken != null && (sessionToken.isBlank() || !sessionToken.all(Char::isDigit)))
-    ) {
+    val lifecycleState = lifecycle
+        ?: return VpnOwnerCoreReadbackWire.Unavailable("Core lifecycle readback is missing")
+    val ownerGeneration = generation.toLong()
+    val ownerRevision = revision.toLong()
+    val ownerSessionToken = sessionToken
+    val invalidSessionToken = ownerSessionToken?.let { token ->
+        token.isBlank() || !token.all(Char::isDigit)
+    } == true
+    if (ownerGeneration < 0L || ownerRevision < 0L || invalidSessionToken) {
         return VpnOwnerCoreReadbackWire.Unavailable("Core lifecycle counters or session token are invalid")
     }
     val identity = CoreOwnerIdentityWire.fromNullableParts(engineId, coreInstanceId, coreVersion)
@@ -190,10 +196,10 @@ private fun AndroidCoreLifecycleResult.toOwnerCoreReadback(): VpnOwnerCoreReadba
     return VpnOwnerCoreReadbackWire.Available(
         CoreOwnerSnapshotWire(
             identity = identity,
-            lifecycle = lifecycle.toCoreOwnerLifecycleWire(),
-            generation = generation.toLong(),
-            sessionToken = sessionToken,
-            revision = revision.toLong(),
+            lifecycle = lifecycleState.toCoreOwnerLifecycleWire(),
+            generation = ownerGeneration,
+            sessionToken = ownerSessionToken,
+            revision = ownerRevision,
             failure = failure,
         ),
     )

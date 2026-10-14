@@ -29,7 +29,7 @@ class OwnerResponsePayloadTest {
                 revision = 4L,
                 generation = 7L,
                 dataFacts = OwnerOperationDataFacts.Snapshot(
-                    AndroidOwnerDataDomain.Profiles,
+                    AndroidOwnerDataDomain.PROFILES,
                     "{}",
                 ),
                 coreReadback = OwnerCoreReadback.Available(core),
@@ -53,7 +53,7 @@ class OwnerResponsePayloadTest {
             revision = 31L,
             generation = 6L,
             dataFacts = OwnerOperationDataFacts.Snapshot(
-                AndroidOwnerDataDomain.Profiles,
+                AndroidOwnerDataDomain.PROFILES,
                 "{\"profiles\":[]}",
             ),
             coreReadback = OwnerCoreReadback.Unavailable,
@@ -75,7 +75,7 @@ class OwnerResponsePayloadTest {
         assertEquals(8L, operation.generation)
         assertEquals(
             OwnerOperationDataFacts.Snapshot(
-                AndroidOwnerDataDomain.Profiles,
+                AndroidOwnerDataDomain.PROFILES,
                 "{\"profiles\":[]}",
             ),
             operation.dataFacts,

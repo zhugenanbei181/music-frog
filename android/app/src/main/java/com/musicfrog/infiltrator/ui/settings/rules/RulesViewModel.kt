@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 internal class RulesViewModel(
     private val repository: RulesRepository,
 ) : ViewModel() {
-    constructor() : this(UniFfiRulesRepository)
+    constructor() : this(UniFfiRulesRepository())
 
     private val _state = MutableStateFlow(RulesUiState())
     val state: StateFlow<RulesUiState> = _state.asStateFlow()

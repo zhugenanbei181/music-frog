@@ -1,6 +1,7 @@
 package com.musicfrog.infiltrator.ui.logs
 
 import com.musicfrog.infiltrator.ui.common.AppFailure
+import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import com.musicfrog.infiltrator.ui.common.OwnerLogsPage
 import com.musicfrog.infiltrator.ui.common.OwnerPage
@@ -8,6 +9,7 @@ import com.musicfrog.infiltrator.ui.common.OwnerPage
 internal data class LogsObservationPoint(
     val logs: OwnerLogsPage,
     val revision: ObservationRevision.Owner,
+    val coreScope: CoreScopeObservation?,
 )
 
 internal sealed interface LogsObservationState {
@@ -84,6 +86,7 @@ internal data class LogsUiState(
 
 internal sealed interface LogsSnapshotRead {
     data class OwnerSnapshot(
+        val coreScope: CoreScopeObservation?,
         val revision: ObservationRevision.Owner,
         val page: OwnerPage<OwnerLogsPage>,
     ) : LogsSnapshotRead

@@ -9,7 +9,6 @@ mod controller;
 mod core_owner_session;
 mod doctor;
 mod localization;
-mod logs;
 mod owner_operation;
 mod product;
 mod profiles;

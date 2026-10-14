@@ -71,7 +71,7 @@ private data class LocalImportDraft(
 )
 
 @Composable
-fun ProfilesScreen(
+internal fun ProfilesScreen(
     viewModel: ProfilesViewModel = viewModel(),
     initialImportUrl: String? = null,
     onImportHandled: () -> Unit = {}

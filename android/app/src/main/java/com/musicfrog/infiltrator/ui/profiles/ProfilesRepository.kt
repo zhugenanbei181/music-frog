@@ -97,6 +97,7 @@ private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
     }
     return when (status.code) {
         FfiErrorCode.OK -> operation.toCompletedObservation(this, latest)
+            ?.let { observation -> ProfilesRepositoryResult.Completed(observation) }
             ?: unconfirmedProfiles(latest)
         FfiErrorCode.CANCELED -> ProfilesRepositoryResult.Cancelled(status.toAppFailure(), latest)
         else -> ProfilesRepositoryResult.Failed(status.toAppFailure(), latest)

@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator.ui.settings.dns
 
+import com.musicfrog.infiltrator.testFfiStatus
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.AppFailureCode
@@ -111,11 +112,11 @@ class DnsRepositoryTest {
             snapshot = AndroidOwnerDataSnapshot(
                 domain = AndroidOwnerDataDomain.DNS_SETTINGS,
                 data = AndroidOwnerDataSnapshotData.DnsSettings(
-                    DnsSettingsResult(FfiStatus(FfiErrorCode.OK, null), settings),
+                    DnsSettingsResult(testFfiStatus(FfiErrorCode.OK), settings),
                 ),
             ),
             readback = AndroidOwnerOperationReadback.DnsSettings(
-                DnsSettingsResult(FfiStatus(FfiErrorCode.OK, null), settings),
+                DnsSettingsResult(testFfiStatus(FfiErrorCode.OK), settings),
             ),
         ),
     )

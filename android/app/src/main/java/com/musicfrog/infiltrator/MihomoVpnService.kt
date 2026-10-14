@@ -230,7 +230,7 @@ class MihomoVpnService : VpnService() {
         }
         if (serviceAdmission.phase() != VpnServiceAdmissionPhase.Accepting) return
         val status = try {
-            runBlocking { androidControl(AndroidControlIntent.StartProxy) }
+            runBlocking { androidControl(AndroidControlIntent.START_PROXY) }
         } catch (error: Exception) {
             showSystemManagedStartupFailure(
                 startId,
@@ -732,7 +732,7 @@ class MihomoVpnService : VpnService() {
                                     val publication = lifecycle.completeDataPlaneStart(
                                         generation,
                                         receipt,
-                                        ownerResources.routingLeaseState(),
+                                        ownerResources.routingLeaseState() ?: VpnRoutingLeaseState.Released,
                                     )
                                 ) {
                                     VpnDataPlaneStartPublication.Published -> Unit
@@ -760,7 +760,7 @@ class MihomoVpnService : VpnService() {
                                     val publication = lifecycle.completeDataPlaneStart(
                                         generation,
                                         receipt,
-                                        ownerResources.routingLeaseState(),
+                                        ownerResources.routingLeaseState() ?: VpnRoutingLeaseState.Released,
                                     )
                                 ) {
                                     VpnDataPlaneStartPublication.Published -> throw IOException(receipt.message)
@@ -876,7 +876,7 @@ class MihomoVpnService : VpnService() {
 
     private fun queueCleanup(plan: VpnCleanupPlan, stopId: Int?) {
         val request = when (plan) {
-            is VpnCleanupPlan.Dispatch,
+            is VpnCleanupPlan.Dispatch -> plan.request
             is VpnCleanupPlan.Retry -> plan.request
             is VpnCleanupPlan.Join,
             is VpnCleanupPlan.AlreadyClean,
@@ -1406,6 +1406,7 @@ class MihomoVpnService : VpnService() {
             val plan = lifecycle.requestStart(sharedOwnerResources.snapshot().presence())
             val generation = when (plan) {
                 VpnStartPlan.AlreadyRunning -> return VpnStartResult.Running
+                is VpnStartPlan.Dispatch -> plan.generation
                 is VpnStartPlan.Join -> plan.generation
                 VpnStartPlan.StopInProgress ->
                     return VpnStartResult.Failed("VPN is still stopping")
@@ -1524,7 +1525,7 @@ class MihomoVpnService : VpnService() {
                 sharedOwnerResources.snapshot().presence(),
             )
             val request = when (plan) {
-                is VpnCleanupPlan.Dispatch,
+                is VpnCleanupPlan.Dispatch -> plan.request
                 is VpnCleanupPlan.Retry -> plan.request
                 is VpnCleanupPlan.Join -> return
                 is VpnCleanupPlan.AlreadyClean,
@@ -1558,8 +1559,8 @@ class MihomoVpnService : VpnService() {
                 sharedOwnerResources.snapshot().presence(),
             )
             val request = when (plan) {
-                is VpnCleanupPlan.Dispatch,
-                is VpnCleanupPlan.Retry,
+                is VpnCleanupPlan.Dispatch -> plan.request
+                is VpnCleanupPlan.Retry -> plan.request
                 is VpnCleanupPlan.Join -> plan.request
                 is VpnCleanupPlan.AlreadyClean,
                 VpnCleanupPlan.Superseded -> return
@@ -1643,7 +1644,7 @@ class MihomoVpnService : VpnService() {
 
         @Synchronized
         @Suppress("UNUSED_PARAMETER")
-        fun setPendingConfiguration(
+        internal fun setPendingConfiguration(
             context: android.content.Context,
             configJson: String,
         ): VpnConfigurationApplyOutcomeWire {

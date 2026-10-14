@@ -796,6 +796,47 @@ mod tests {
     }
 
     #[test]
+    fn application_command_wire_preserves_unit_and_record_intent_variants() {
+        let scope = CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo").expect("engine"),
+                CoreInstanceId::new("android-active").expect("instance"),
+                None,
+            ),
+            generation: CoreGeneration::new(4),
+            session_token: None,
+        };
+        let cases = [
+            (CommandIntent::ClearLogs, serde_json::json!("ClearLogs")),
+            (
+                CommandIntent::CloseAllConnections,
+                serde_json::json!("CloseAllConnections"),
+            ),
+            (
+                CommandIntent::CloseConnection {
+                    id: "connection-1".to_owned(),
+                },
+                serde_json::json!({"CloseConnection": {"id": "connection-1"}}),
+            ),
+        ];
+
+        for (intent, expected_intent) in cases {
+            let request = AndroidProductCommandRequest {
+                scope: scope.clone(),
+                command: AndroidProductCommand::Application(Box::new(intent)),
+            };
+            let encoded = serde_json::to_value(request).expect("serialize application command");
+            assert_eq!(encoded["command"]["Application"], expected_intent);
+            assert_eq!(
+                serde_json::from_value::<AndroidProductCommandRequest>(encoded)
+                    .expect("deserialize application command")
+                    .scope,
+                scope,
+            );
+        }
+    }
+
+    #[test]
     fn typed_core_process_observations_round_trip_exact_child_facts() {
         let owned = AndroidOwnedCoreProcess {
             context: crate::core_process::CoreProcessStartContext::managed(

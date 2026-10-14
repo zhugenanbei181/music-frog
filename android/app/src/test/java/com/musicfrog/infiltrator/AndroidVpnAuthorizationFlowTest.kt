@@ -125,7 +125,7 @@ class AndroidVpnAuthorizationFlowTest {
     fun failedAuthorizationRecordingCannotStartTheService() {
         val host = FakeVpnAuthorizationHost().apply {
             authorization = VpnAuthorizationAvailability.Granted
-            authorizationReport = FfiStatus(FfiErrorCode.INVALID_STATE, "owner unavailable")
+            authorizationReport = testFfiStatus(FfiErrorCode.INVALID_STATE, "owner unavailable")
         }
         val flow = AndroidVpnAuthorizationFlow(host)
 
@@ -249,7 +249,7 @@ class AndroidVpnAuthorizationFlowTest {
         var notificationStatus: NotificationPermissionStatus = NotificationPermissionStatus.NotRequired
         var vpnConsentLaunch: VpnConsentPromptLaunch = VpnConsentPromptLaunch.Launched
         var notificationPromptLaunch: NotificationPromptLaunch = NotificationPromptLaunch.Launched
-        var authorizationReport: FfiStatus = FfiStatus(FfiErrorCode.OK, null)
+        var authorizationReport: FfiStatus = testFfiStatus(FfiErrorCode.OK)
         val authorizationReports = mutableListOf<VpnAuthorizationResult>()
         var vpnConsentLaunches = 0
         var notificationPermissionLaunches = 0

@@ -34,7 +34,7 @@ class TunSettingsStateTest {
 
     @Test
     fun olderRevisionFromTheSameOwnerCannotReplaceAcceptedSettings() {
-        val observed = TunSettingsReadState.Observed(point(revision = 9uL))
+        val observed = TunSettingsReadState.Observed(point(dataRevision = 9uL))
 
         assertFalse(acceptsTunRevision(observed, revision(dataRevision = 8uL)))
         assertTrue(acceptsTunRevision(observed, revision(dataRevision = 10uL)))
@@ -42,7 +42,7 @@ class TunSettingsStateTest {
 
     @Test
     fun newOwnerSessionOrCoreGenerationStartsANewRevisionDomain() {
-        val observed = TunSettingsReadState.Observed(point(revision = 20uL))
+        val observed = TunSettingsReadState.Observed(point(dataRevision = 20uL))
 
         assertTrue(acceptsTunRevision(observed, revision(session = "owner-b", dataRevision = 1uL)))
         assertTrue(acceptsTunRevision(observed, revision(generation = 5uL, dataRevision = 1uL)))

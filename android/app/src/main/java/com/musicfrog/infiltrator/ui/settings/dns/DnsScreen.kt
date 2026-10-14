@@ -34,8 +34,9 @@ import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
-fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
+internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val observation = state.observation
     val operationFailure = when (val operation = state.operation) {
         is DnsSettingsOperationState.Failed -> operation.failure
         is DnsSettingsOperationState.Unconfirmed -> operation.failure
@@ -209,11 +210,13 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 if (state.activity == DnsActivity.Busy) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
-                if (state.observation is DnsSettingsReadState.Unavailable) {
-                    LocalizedFailureText(
-                        failure = state.observation.failure.toLocalizedFailure(),
+                when (val read = observation) {
+                    is DnsSettingsReadState.Unavailable -> LocalizedFailureText(
+                        failure = read.failure.toLocalizedFailure(),
                         modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
                     )
+                    is DnsSettingsReadState.Loading,
+                    is DnsSettingsReadState.Observed -> Unit
                 }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {

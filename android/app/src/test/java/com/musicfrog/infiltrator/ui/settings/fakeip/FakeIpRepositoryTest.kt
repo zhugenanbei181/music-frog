@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator.ui.settings.fakeip
 
+import com.musicfrog.infiltrator.testFfiStatus
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.AppFailureCode
@@ -180,11 +181,11 @@ class FakeIpRepositoryTest {
         snapshot = AndroidOwnerDataSnapshot(
             domain = AndroidOwnerDataDomain.FAKE_IP_SETTINGS,
             data = AndroidOwnerDataSnapshotData.FakeIpSettings(
-                FakeIpSettingsResult(FfiStatus(FfiErrorCode.OK, null), settings),
+                FakeIpSettingsResult(testFfiStatus(FfiErrorCode.OK), settings),
             ),
         ),
         readback = AndroidOwnerOperationReadback.FakeIpSettings(
-            FakeIpSettingsResult(FfiStatus(FfiErrorCode.OK, null), readback),
+            FakeIpSettingsResult(testFfiStatus(FfiErrorCode.OK), readback),
         ),
     )
 
@@ -205,7 +206,7 @@ class FakeIpRepositoryTest {
         dataDomain = AndroidOwnerDataDomain.FAKE_IP_CACHE,
         snapshot = null,
         readback = AndroidOwnerOperationReadback.FakeIpCacheClear(
-            FfiBoolResult(FfiStatus(FfiErrorCode.OK, null), removedFile),
+            FfiBoolResult(testFfiStatus(FfiErrorCode.OK), removedFile),
         ),
     )
 
