@@ -38,9 +38,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::profile_edit_session::ProfileEditObservation;
-use infiltrator_application::subscription_filter_copy::status;
-use infiltrator_application::subscription_filter_editor::SubscriptionFilterEditor;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -57,7 +54,10 @@ use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservat
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_presentation::profile_edit_session::ProfileEditObservation;
 use infiltrator_presentation::profile_editor_projection;
+use infiltrator_presentation::subscription_filter_copy::status;
+use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
 
 /// Which document the editor card shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

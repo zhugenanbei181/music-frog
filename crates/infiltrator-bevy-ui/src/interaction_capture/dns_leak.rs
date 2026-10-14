@@ -19,11 +19,11 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_test_support::dns_leak_fixtures::IsolatedEcho;
 use std::sync::Arc;
 #[derive(Resource)]

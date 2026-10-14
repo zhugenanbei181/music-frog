@@ -5,7 +5,6 @@ use super::*;
 use crate::native_input::{click_entity, type_text};
 use bevy::ui::prelude::BackgroundColor;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::profiles_editor_transactions::EditorDiscardButton;
 use infiltrator_contract::command_output::CommandOutput;
@@ -18,6 +17,7 @@ use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, Profil
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, YAML_SNIPPETS, insert_at_caret};
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
@@ -811,7 +811,7 @@ fn test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits()
         app.world()
             .resource::<ProfileEditorOptionsState>()
             .filter
-            .pending
+            .pending()
             .is_none()
     );
     assert!(token > 0);
@@ -842,7 +842,7 @@ fn test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits()
         .world()
         .resource::<ProfileEditorOptionsState>()
         .filter
-        .failure
+        .failure()
         .as_ref()
         .unwrap()
         .message

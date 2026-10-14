@@ -145,7 +145,7 @@ fn native_filter_save_denial_retry_returns_actual_report_and_preserves_draft() {
     let mut save = native(&state, InteractionRegion::FilterSave, None);
     assert_eq!(save.len(), 1);
     let task = state.update(save.remove(0));
-    let token = state.editor.filter_editor.pending.as_ref().unwrap().token;
+    let token = state.editor.filter_editor.pending().unwrap().token;
     assert!(
         native(&state, InteractionRegion::FilterDiscard, None).is_empty(),
         "pending cancellation cannot pretend the write was cancelled"
@@ -153,7 +153,7 @@ fn native_filter_save_denial_retry_returns_actual_report_and_preserves_draft() {
     let message = terminal(task);
     let _ = state.update(message);
     assert_eq!(
-        state.editor.filter_editor.failure.as_ref().unwrap().code,
+        state.editor.filter_editor.failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(store.observed(), original);
@@ -166,16 +166,16 @@ fn native_filter_save_denial_retry_returns_actual_report_and_preserves_draft() {
     let mut save = native(&state, InteractionRegion::FilterSave, None);
     assert_eq!(save.len(), 1);
     let task = state.update(save.remove(0));
-    assert!(state.editor.filter_editor.pending.as_ref().unwrap().token > token);
+    assert!(state.editor.filter_editor.pending().unwrap().token > token);
     let message = terminal(task);
     let _ = state.update(message);
-    let report = state.editor.filter_editor.report.as_ref().unwrap();
+    let report = state.editor.filter_editor.report().unwrap();
     assert_eq!(
         (report.total_input, report.passed, report.excluded_by_server),
         (3, 1, 1)
     );
-    assert!(state.editor.filter_editor.applied);
-    assert!(state.editor.filter_editor.failure.is_none());
+    assert!(state.editor.filter_editor.applied());
+    assert!(state.editor.filter_editor.failure().is_none());
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     let observed = store.observed();
     let document = observed.document.utf8_text().unwrap();

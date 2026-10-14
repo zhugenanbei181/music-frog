@@ -3,15 +3,15 @@
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
-use crate::profile_edit_session::{
-    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase, ProfileEditSession,
-};
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_editor_read::ProfileEditStatusFact;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use infiltrator_presentation::profile_edit_session::{
+    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase, ProfileEditSession,
+};
 use std::sync::Arc;
 
 #[tokio::test]

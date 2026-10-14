@@ -250,10 +250,9 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
             editor.source_profile() == Some(FILTER_PROFILE)
                 && editor.draft.include == "HK"
                 && editor.draft.advanced_policy.as_deref() == Some(FILTER_POLICY)
-                && editor.pending.is_none()
+                && editor.pending().is_none()
                 && editor
-                    .failure
-                    .as_ref()
+                    .failure()
                     .is_some_and(|failure| failure.code == ErrorCode::Permission)
         }
         FeatureId::RulesStatisticsInspector => {
@@ -333,7 +332,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         FeatureId::DnsLeakAlert => {
             matches!(
                 state.diag.dns_leak_action.phase,
-                infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+                infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
             ) && state.editor.dns_leak.conclusion().is_divergent()
                 && state.editor.dns_leak.observations.len() == 2
         }

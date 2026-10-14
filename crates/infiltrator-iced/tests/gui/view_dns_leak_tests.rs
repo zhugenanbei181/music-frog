@@ -97,7 +97,7 @@ fn test_dns_leak_panel_renders_the_shared_cross_source_report() {
     let _ = leak_panel(&state, &zh);
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
     ));
 
     // The probe message reaches the shared handler; without a host runtime it
@@ -105,7 +105,7 @@ fn test_dns_leak_panel_renders_the_shared_cross_source_report() {
     let _ = state.update(Message::RunDnsLeakProbe);
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { .. }
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { .. }
     ));
 }
 

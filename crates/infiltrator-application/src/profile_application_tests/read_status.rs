@@ -2,11 +2,11 @@
 //! test-intent: behavior
 use super::*;
 use crate::profile_document_application::ProfileDocumentApplication;
-use crate::profile_edit_session::{ProfileEditReadTarget, ProfileEditSession};
 use crate::profile_editor_observations::EditorFacet;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::profile_editor_read::ProfileEditStatusFact;
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
+use infiltrator_presentation::profile_edit_session::{ProfileEditReadTarget, ProfileEditSession};
 
 #[tokio::test]
 async fn failed_document_read_retains_both_facts_and_a_successful_options_read_cannot_erase_its_failure()

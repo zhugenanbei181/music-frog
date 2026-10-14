@@ -138,7 +138,7 @@ fn native_document_filter_rejects_unit_receipt_then_retries_and_keeps_actual_sta
         app.world()
             .resource::<ProfileEditorOptionsState>()
             .filter
-            .pending
+            .pending()
             .as_ref()
             .unwrap()
             .token,
@@ -151,12 +151,9 @@ fn native_document_filter_rejects_unit_receipt_then_retries_and_keeps_actual_sta
     });
     app.update();
     let editor = &app.world().resource::<ProfileEditorOptionsState>().filter;
-    assert_eq!(
-        editor.failure.as_ref().unwrap().code,
-        ErrorCode::InvalidState
-    );
-    assert!(!editor.applied);
-    assert!(editor.report.is_none());
+    assert_eq!(editor.failure().unwrap().code, ErrorCode::InvalidState);
+    assert!(!editor.applied());
+    assert!(editor.report().is_none());
     assert_eq!(editor.draft.include, "HK");
     click_entity(&mut app, save);
     let (retry, next_token) = app
@@ -186,10 +183,10 @@ fn native_document_filter_rejects_unit_receipt_then_retries_and_keeps_actual_sta
     });
     app.update();
     let editor = &app.world().resource::<ProfileEditorOptionsState>().filter;
-    assert!(editor.applied);
-    assert!(editor.pending.is_none());
-    assert!(editor.failure.is_none());
-    assert_eq!(editor.report, Some(applied.report));
+    assert!(editor.applied());
+    assert!(editor.pending().is_none());
+    assert!(editor.failure().is_none());
+    assert_eq!(editor.report(), Some(&applied.report));
 }
 
 #[test]
@@ -203,10 +200,7 @@ fn native_document_advanced_filter_validates_keeps_user_input_and_discards_witho
     click_entity(&mut app, save);
     assert_eq!(sink.submitted().len(), before);
     let editor = &app.world().resource::<ProfileEditorOptionsState>().filter;
-    assert_eq!(
-        editor.failure.as_ref().unwrap().code,
-        ErrorCode::InvalidInput
-    );
+    assert_eq!(editor.failure().unwrap().code, ErrorCode::InvalidInput);
     assert_eq!(
         editor.draft.advanced_policy.as_deref(),
         Some("{drop-private-ips: true}")

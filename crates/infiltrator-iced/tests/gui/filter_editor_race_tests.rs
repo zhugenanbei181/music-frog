@@ -73,18 +73,18 @@ fn tea_filter_typed_failure_and_tokens_keep_error_in_place_and_discard_has_no_wr
     loaded(&mut state, read, "alpha", "base");
     let _ = state.update(Message::UpdateFilterExclude("draft".into()));
     assert_eq!(state.update(Message::SaveProfileFilter).units(), 1);
-    let token = state.editor.filter_editor.pending.as_ref().unwrap().token;
+    let token = state.editor.filter_editor.pending().unwrap().token;
     assert_eq!(state.update(Message::DiscardProfileFilter).units(), 0);
-    assert!(state.editor.filter_editor.pending.is_some());
+    assert!(state.editor.filter_editor.pending().is_some());
     let failure = Failure::new(ErrorCode::Storage, "write denied", true);
     let _ = state.update(Message::ProfileFilterSaved {
         token,
         result: Err(failure.clone()),
     });
-    assert_eq!(state.editor.filter_editor.failure, Some(failure));
+    assert_eq!(state.editor.filter_editor.failure(), Some(&failure));
     assert_eq!(state.editor.filter_editor.draft.exclude, "draft");
     assert_eq!(state.update(Message::SaveProfileFilter).units(), 1);
-    let second = state.editor.filter_editor.pending.as_ref().unwrap().token;
+    let second = state.editor.filter_editor.pending().unwrap().token;
     assert!(second > token);
     let _ = state.update(Message::ProfileFilterSaved {
         token,
@@ -95,18 +95,15 @@ fn tea_filter_typed_failure_and_tokens_keep_error_in_place_and_discard_has_no_wr
             report: FilterReport::default(),
         }),
     });
-    assert_eq!(
-        state.editor.filter_editor.pending.as_ref().unwrap().token,
-        second
-    );
+    assert_eq!(state.editor.filter_editor.pending().unwrap().token, second);
     let _ = state.update(Message::ProfileFilterSaved {
         token: second,
         result: Err(Failure::unsupported("host cannot apply")),
     });
     assert_eq!(state.update(Message::DiscardProfileFilter).units(), 0);
     assert_eq!(state.editor.filter_editor.draft.exclude, "");
-    assert!(state.editor.filter_editor.failure.is_none());
-    assert!(state.editor.filter_editor.pending.is_none());
+    assert!(state.editor.filter_editor.failure().is_none());
+    assert!(state.editor.filter_editor.pending().is_none());
 }
 
 #[test]
@@ -124,17 +121,14 @@ fn tea_filter_missing_command_service_returns_a_terminal_failure_without_host_fa
         panic!("missing command service must fail explicitly");
     };
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(
-        token,
-        state.editor.filter_editor.pending.as_ref().unwrap().token
-    );
+    assert_eq!(token, state.editor.filter_editor.pending().unwrap().token);
     let _ = state.update(Message::ProfileFilterSaved {
         token,
         result: Err(failure.clone()),
     });
-    assert!(state.editor.filter_editor.pending.is_none());
-    assert_eq!(state.editor.filter_editor.failure, Some(failure));
+    assert!(state.editor.filter_editor.pending().is_none());
+    assert_eq!(state.editor.filter_editor.failure(), Some(&failure));
     assert_eq!(state.editor.filter_editor.draft.exclude, "unsaved");
-    assert!(!state.editor.filter_editor.applied);
-    assert!(state.editor.filter_editor.report.is_none());
+    assert!(!state.editor.filter_editor.applied());
+    assert!(state.editor.filter_editor.report().is_none());
 }

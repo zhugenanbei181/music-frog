@@ -33,7 +33,6 @@ pub mod core_version_management_application;
 pub mod dialer_chain_application;
 pub mod dns_cache_application;
 pub mod dns_latency_application;
-pub mod dns_leak_actions;
 pub mod dns_leak_application;
 pub mod dns_query_application;
 pub mod dns_self_heal_application;
@@ -94,8 +93,6 @@ pub mod shortcut_application;
 pub mod snapshot_application;
 pub mod speedtest_application;
 pub mod stun_probe_application;
-pub mod subscription_filter_copy;
-pub mod subscription_filter_editor;
 pub mod subscription_import_application;
 pub mod subscription_quota_application;
 pub mod subscription_refresh_application;
@@ -155,8 +152,6 @@ mod log_stream_test_support;
 mod script_service_tests;
 
 mod profile_editor_observations;
-
-pub mod profile_edit_session;
 
 #[cfg(test)]
 #[path = "outbound_application_tests.rs"]

@@ -12,8 +12,8 @@ use iced::advanced::text::Renderer;
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
 use iced::{Alignment, Border, Element, Font, Length, Padding, Theme};
-use infiltrator_application::subscription_filter_copy::status;
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
+use infiltrator_presentation::subscription_filter_copy::status;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The per-profile subscription filter form, rendered inside the Editor
@@ -83,7 +83,7 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
         .align_y(Alignment::Center)
     };
 
-    let has_error = state.editor.filter_editor.failure.is_some()
+    let has_error = state.editor.filter_editor.failure().is_some()
         || state.editor.filter_editor.read_failure().is_some();
     let transaction = container(
         column![
@@ -112,7 +112,7 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
                             state
                                 .editor
                                 .filter_editor
-                                .pending
+                                .pending()
                                 .is_none()
                                 .then_some(Message::DiscardProfileFilter)
                         )

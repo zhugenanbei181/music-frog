@@ -15,9 +15,6 @@ use crate::types::profile_edit::{ProfileEditReply, ProfileOptionsReadReply};
 use crate::update::profile::editor::ViewportSync;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_application::profile_edit_session::{
-    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
-};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::InfiltratorError;
@@ -25,6 +22,9 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_presentation::failure_projection::failure_message;
+use infiltrator_presentation::profile_edit_session::{
+    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
+};
 
 impl AppState {
     pub(super) fn update_options(&mut self, message: Message) -> Task<Message> {
@@ -225,7 +225,7 @@ impl AppState {
                 let applied = result.is_ok();
                 if self.editor.filter_editor.finish(token, result)
                     && applied
-                    && self.editor.filter_editor.applied
+                    && self.editor.filter_editor.applied()
                 {
                     self.invalidate_rules_dns_views();
                 }

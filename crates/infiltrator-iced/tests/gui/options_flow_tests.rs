@@ -110,7 +110,7 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     let _ = state.update(Message::SaveMixin);
     assert!(!matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
         state

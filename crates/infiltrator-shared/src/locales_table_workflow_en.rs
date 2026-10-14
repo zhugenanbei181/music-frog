@@ -108,7 +108,6 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "filter_form_source_changed" => "The saved profile or filter changed. The draft for {source} is stale; the current profile is {current}. Discard changes to reload.".into(),
         "filter_form_failed" => "Filter settings were not applied: {reason}".into(),
         "filter_form_unobserved" => "Profile filter settings have not been read".into(),
-        "filter_form_applied" => "Filter settings applied".into(),
         "filter_form_dirty" => "Unsaved filter changes".into(),
         "filter_form_discard" => "Discard unsaved changes".into(),
 

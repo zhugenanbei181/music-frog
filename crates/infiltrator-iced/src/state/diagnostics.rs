@@ -1,8 +1,8 @@
 //! Diagnostics owner.
 
-use infiltrator_application::dns_leak_actions::DnsLeakActionState;
 use infiltrator_application::dns_leak_application::DnsLeakApplication;
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
+use infiltrator_presentation::dns_leak_actions::DnsLeakActionState;
 use infiltrator_presentation::dns_query_actions::DnsQueryActions;
 use infiltrator_presentation::log_export_actions::LogExportActions;
 use infiltrator_presentation::log_projection::page_from_log_records;

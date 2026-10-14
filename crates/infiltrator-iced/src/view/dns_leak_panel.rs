@@ -16,10 +16,10 @@ use crate::view::theme::{MONO, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 #[cfg(test)]
 use infiltrator_contract::dns_leak::DnsLeakReport;
+use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_presentation::dns_leak_projection::{LeakDisplay, LeakTone, project_leak};
 use infiltrator_shared::locales::{Lang, Localizer};
 

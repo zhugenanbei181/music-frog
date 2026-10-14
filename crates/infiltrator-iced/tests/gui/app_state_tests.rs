@@ -520,14 +520,14 @@ fn test_editor_actions() {
     }));
     assert_eq!(
         match &state.editor.document_session.operation {
-            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Failed(
+            infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Failed(
                 failure,
             ) => failure.code.clone(),
-            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Ready
-            | infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(
+            infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Ready
+            | infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(
                 _,
             )
-            | infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Saved => {
+            | infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Saved => {
                 panic!("mismatched terminal output must be a typed failure")
             }
         },
@@ -535,7 +535,7 @@ fn test_editor_actions() {
     );
     assert!(!matches!(
         &state.editor.document_session.operation,
-        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Saved
+        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Saved
     ));
     assert_eq!(state.shell.current_route, Route::Editor);
 }

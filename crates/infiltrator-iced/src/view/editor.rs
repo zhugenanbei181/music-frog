@@ -18,9 +18,9 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{editor_viewport, script_console, theme};
 use iced::widget::{Row, Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_presentation::profile_editor_projection::{protection_hint, protection_label};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
@@ -241,12 +241,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             mixin_saving,
         ),
         EditorPane::Filter => (
-            if state.editor.filter_editor.pending.is_some() {
+            if state.editor.filter_editor.pending().is_some() {
                 lang.tr("editor_applying").to_string()
             } else {
                 lang.tr("editor_apply_filter").to_string()
             },
-            state.editor.filter_editor.pending.is_some(),
+            state.editor.filter_editor.pending().is_some(),
         ),
         EditorPane::Script => (
             lang.tr("script_sandbox_run").to_string(),

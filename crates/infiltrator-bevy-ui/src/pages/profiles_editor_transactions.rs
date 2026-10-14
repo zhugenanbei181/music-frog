@@ -20,7 +20,6 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::{BackgroundColor, Node, UiRect, Val};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::profile_edit_session::{ProfileEditFinish, ProfileEditOperationPhase};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::LocalizedText;
@@ -29,6 +28,9 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::profile_edit_session::{
+    ProfileEditFinish, ProfileEditOperationPhase,
+};
 
 pub fn submit_document(state: &mut ProfileEditorState, handle: &CommandSinkHandle) {
     let pending = match state

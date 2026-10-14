@@ -108,7 +108,6 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "filter_form_source_changed" => "已保存配置或策略变化，{source} 的草稿已失效；当前配置为 {current}。丢弃更改后重新载入。".into(),
         "filter_form_failed" => "过滤策略未应用：{reason}".into(),
         "filter_form_unobserved" => "尚未读取配置的过滤策略".into(),
-        "filter_form_applied" => "过滤策略已应用".into(),
         "filter_form_dirty" => "有未提交的过滤更改".into(),
         "filter_form_discard" => "丢弃未提交更改".into(),
 

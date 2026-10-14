@@ -98,7 +98,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     );
     assert!(!matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
         state
@@ -123,7 +123,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let task = state.update(Message::SaveMixin);
     assert!(matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
     ));
     let before_wait = state.editor.mixin_content.text();
     feed(
@@ -139,7 +139,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let units = feed(&mut state, reply);
     assert!(matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Saved
+        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Saved
     ));
     assert_eq!(
         units, 1,
@@ -212,10 +212,10 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         "invalid filter remains in the inline form without a persistence task"
     );
     assert_eq!(
-        state.editor.filter_editor.failure.as_ref().unwrap().code,
+        state.editor.filter_editor.failure().unwrap().code,
         ErrorCode::InvalidInput
     );
-    assert!(!state.editor.filter_editor.pending.is_some());
+    assert!(state.editor.filter_editor.pending().is_none());
 
     // Valid draft → save arms the task; run its body for real.
     feed(&mut state, Message::UpdateFilterRenames(String::new()));
@@ -225,19 +225,19 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     );
     assert_eq!(feed(&mut state, Message::SaveProfileFilter), 0);
     assert_eq!(
-        state.editor.filter_editor.failure.as_ref().unwrap().code,
+        state.editor.filter_editor.failure().unwrap().code,
         ErrorCode::InvalidInput
     );
-    assert!(state.editor.filter_editor.pending.is_none());
+    assert!(state.editor.filter_editor.pending().is_none());
     feed(
         &mut state,
         Message::UpdateFilterAdvancedPolicy("{remove-emojis: true, sort-by: name-desc}".into()),
     );
     let task = state.update(Message::SaveProfileFilter);
-    assert!(state.editor.filter_editor.pending.is_some());
+    assert!(state.editor.filter_editor.pending().is_some());
     assert_eq!(task.units(), 1, "single persistence task armed");
 
-    let pending = state.editor.filter_editor.pending.clone().unwrap();
+    let pending = state.editor.filter_editor.pending().unwrap().clone();
     let terminal = filter_terminal(task);
     let Message::ProfileFilterSaved {
         token,
@@ -270,7 +270,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
             result: Ok(report),
         },
     );
-    assert!(state.editor.filter_editor.pending.is_none());
+    assert!(state.editor.filter_editor.pending().is_none());
 
     // Disk truth: the pipeline changes proxies, preserves the sidecar and can reopen.
     let on_disk = read_to_string(home.profile_config_dir().join("alpha.yaml")).unwrap();
@@ -339,7 +339,7 @@ fn filter_save_without_an_open_profile_is_an_inert_noop() {
     state.editor.filter_editor.draft.renames = String::new();
     let units = feed(&mut state, Message::SaveProfileFilter);
     assert_eq!(units, 0, "no editor_path → nothing to save");
-    assert!(state.editor.filter_editor.pending.is_none());
+    assert!(state.editor.filter_editor.pending().is_none());
     assert!(last_toast(&state).is_none());
 }
 
@@ -437,7 +437,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     assert_eq!(units, 1, "gate rejection arms only the error toast");
     assert!(!matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
         !home

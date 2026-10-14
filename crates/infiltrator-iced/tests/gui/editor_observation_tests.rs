@@ -72,7 +72,7 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
     assert!(
         matches!(
             &state.editor.document_session.operation,
-            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Ready
+            infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Ready
         ),
         "read failure remains separate from the save operation phase: {:?}",
         state.editor.document_session.operation
@@ -103,7 +103,7 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
     assert!(
         matches!(
             &state.editor.document_session.operation,
-            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Failed(failure)
+            infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Failed(failure)
                 if failure.code == ErrorCode::NotReady
         ),
         "the blocked save remains a typed NotReady result after read recovery: {:?}",

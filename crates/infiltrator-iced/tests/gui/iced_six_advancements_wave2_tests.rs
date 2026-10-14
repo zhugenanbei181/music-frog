@@ -30,7 +30,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     // Default state: no report, no readiness, no verdict.
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
     ));
     assert!(!state.editor.dns_leak.status.is_ready());
     assert_eq!(
@@ -41,7 +41,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     // Trigger without a host runtime: nothing is invented.
     let _ = state.update(Message::RunDnsLeakProbe);
     let first_token = match &state.diag.dns_leak_action.phase {
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
         phase => panic!("probe must enter its typed pending phase: {phase:?}"),
     };
     let _ = state.update(Message::DnsLeakProbed {
@@ -54,7 +54,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     });
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Failed { .. }
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Failed { .. }
     ));
     assert!(state.editor.dns_leak.observations.is_empty());
 
@@ -80,7 +80,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     );
     let _ = state.update(Message::RetryDnsLeakProbe);
     let report_token = match &state.diag.dns_leak_action.phase {
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
         phase => panic!("retry must enter its typed pending phase: {phase:?}"),
     };
     let _ = state.update(Message::DnsLeakProbed {
@@ -89,7 +89,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     });
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
     ));
     assert_eq!(state.editor.dns_leak, report);
     let conclusion = state.editor.dns_leak.conclusion();
@@ -103,7 +103,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     let unsupported = DnsLeakReport::unsupported("no echo authority is configured");
     let _ = state.update(Message::RunDnsLeakProbe);
     let unsupported_token = match &state.diag.dns_leak_action.phase {
-        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
         phase => panic!("probe must enter its typed pending phase: {phase:?}"),
     };
     let _ = state.update(Message::DnsLeakProbed {

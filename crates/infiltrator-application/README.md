@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；页面快照装配属于产品组合层，profile metadata、订阅状态/配额、Mixin Studio 文案与失败文案等跨表面投影由独立 presentation crate 统一提供。Profile display name 是独立于文件身份的共享元数据，只经 ProfileApplication 与 ProfileStore owner 更新；catalog reorder 使用完整 ProfileCatalogSnapshot 做 compare 并返回 typed owner readback；clear selection 使用预期 ActiveProfileReferenceState 与 owner 授权 CAS，返回精确 Unselected readback，不停止独立 Core/VPN service；ProfileEditSession 只输出 contract 定义的 typed 状态事实，不生成本地化文案。
+实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；页面快照装配属于产品组合层，profile metadata、订阅状态/配额、Mixin Studio 文案与失败文案等跨表面投影由独立 presentation crate 统一提供。Profile display name 是独立于文件身份的共享元数据，只经 ProfileApplication 与 ProfileStore owner 更新；catalog reorder 使用完整 ProfileCatalogSnapshot 做 compare 并返回 typed owner readback；clear selection 使用预期 ActiveProfileReferenceState 与 owner 授权 CAS，返回精确 Unselected readback，不停止独立 Core/VPN service。
 
 Age 私钥变更经 ProfileApplication 提交显式 target、当前选中引用与 owner 授权，回执只有配置状态和 revision。ProfileApplication 的普通 profile read model 不包含私钥；密钥值本身使用不可格式化、drop 时清零的 contract secret 类型。
 

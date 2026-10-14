@@ -52,7 +52,7 @@ fn all_fields_preserve_drafts_across_unchanged_reads_and_fence_every_changed_fie
         assert!(editor.cancel());
         assert_eq!(editor.draft, changed);
         assert!(editor.current());
-        assert_eq!(editor.pending, None);
+        assert_eq!(editor.pending(), None);
     }
 }
 #[test]
@@ -84,23 +84,23 @@ fn validation_failure_and_rejected_write_preserve_form_and_new_requests_have_uni
     let mut editor = SubscriptionFilterEditor::new(observation("alpha", &baseline).unwrap());
     editor.edit(FilterField::Renames, "broken rename".into());
     assert_eq!(editor.begin().unwrap_err().code, ErrorCode::InvalidInput);
-    assert!(editor.pending.is_none());
+    assert!(editor.pending().is_none());
     editor.edit(FilterField::Renames, "first=>second".into());
     editor.pick(SubscriptionFilterDedup::KeepLast);
     let first = editor.begin().unwrap();
     let failure = Failure::new(ErrorCode::Storage, "write denied", true);
     assert!(editor.finish(first.token, Err(failure.clone())));
     editor.observe(observation("alpha", &baseline));
-    assert_eq!(editor.failure, Some(failure));
+    assert_eq!(editor.failure(), Some(&failure));
     assert_eq!(editor.draft, first.draft);
     let second = editor.begin().unwrap();
     assert!(second.token > first.token);
     assert!(!editor.finish(first.token, Ok(applied(&first))));
-    assert_eq!(editor.pending, Some(second.clone()));
+    assert_eq!(editor.pending(), Some(&second));
     assert!(editor.finish(second.token, Ok(applied(&second))));
     assert!(!editor.dirty());
     assert_eq!(editor.selected(), Some(SubscriptionFilterDedup::KeepLast));
-    assert!(editor.applied);
+    assert!(editor.applied());
 }
 
 #[test]
@@ -138,9 +138,6 @@ fn context_and_document_changes_cannot_rebind_a_dirty_form_and_foreign_receipts_
     let mut wrong = applied(&pending);
     wrong.workspace_identity.document.profile_id = ProfileId::new("foreign").unwrap();
     assert!(editor.finish(pending.token, Ok(wrong)));
-    assert_eq!(
-        editor.failure.as_ref().unwrap().code,
-        ErrorCode::InvalidState
-    );
-    assert!(!editor.applied && editor.report.is_none());
+    assert_eq!(editor.failure().unwrap().code, ErrorCode::InvalidState);
+    assert!(!editor.applied() && editor.report().is_none());
 }

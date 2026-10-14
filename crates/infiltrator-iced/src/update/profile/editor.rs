@@ -11,9 +11,6 @@ use crate::types::snapshot_restore::RestoreAction;
 use crate::view::editor_viewport::window_lines_for_window_height;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_application::profile_edit_session::{
-    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
-};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::editor_viewport::EditorViewport;
@@ -24,6 +21,9 @@ use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_contract::yaml_snippets::{byte_offset_of_column, column_of_byte_offset};
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_presentation::failure_projection::failure_message;
+use infiltrator_presentation::profile_edit_session::{
+    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
+};
 
 /// Why the shared editor window is being re-synced (DUAL-09-02/13).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

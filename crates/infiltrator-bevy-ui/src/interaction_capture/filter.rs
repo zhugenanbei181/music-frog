@@ -349,13 +349,12 @@ pub fn observe(
         return;
     }
     let editor = &probe.options.filter;
-    if editor.pending.is_some()
+    if editor.pending().is_some()
         || editor.source_profile() != Some(FILTER_PROFILE)
         || editor.draft.include != "HK"
         || editor.draft.advanced_policy.as_deref() != Some(FILTER_POLICY)
         || !editor
-            .failure
-            .as_ref()
+            .failure()
             .is_some_and(|failure| failure.code == ErrorCode::Permission)
         || probe.capture.store.writes.load(Ordering::SeqCst) != 0
     {

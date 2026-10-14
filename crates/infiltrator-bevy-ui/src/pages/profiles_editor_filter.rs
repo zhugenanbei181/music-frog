@@ -17,12 +17,12 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::ui::BorderColor;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::subscription_filter_copy::status;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::subscription_filter_form::FilterField;
+use infiltrator_presentation::subscription_filter_copy::status;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct EditorFilterText(pub FilterField);
@@ -132,7 +132,7 @@ pub(super) fn controls(
     let composing = fields.iter().any(|field| !field.0.preedit().is_empty());
     for button in &mut buttons {
         let disabled = if button.discard {
-            options.filter.pending.is_some()
+            options.filter.pending().is_some()
         } else {
             !options.filter.can_edit() || composing
         };
@@ -172,7 +172,7 @@ pub(super) fn render_status(
     palette: Res<UiPalette>,
     mut borders: Query<&mut BorderColor, With<EditorFilterTransaction>>,
 ) {
-    let error = options.filter.failure.is_some() || options.filter.read_failure().is_some();
+    let error = options.filter.failure().is_some() || options.filter.read_failure().is_some();
     for mut border in &mut borders {
         *border = BorderColor::all(if error {
             palette.danger

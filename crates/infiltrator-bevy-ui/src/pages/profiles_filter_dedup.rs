@@ -172,7 +172,7 @@ fn sync(
         }
     }
     for mut disabled in &mut resets {
-        let blocked = state.editor.pending.is_some();
+        let blocked = state.editor.pending().is_some();
         if disabled.0 != blocked {
             disabled.0 = blocked;
         }

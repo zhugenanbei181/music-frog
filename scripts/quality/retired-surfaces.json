@@ -2297,7 +2297,7 @@
       "text": "subscription_filter_fixture",
       "rationale": "Subscription-filter fixture data and observations moved to infiltrator-test-support.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-application/src/subscription_filter_editor_tests.rs"
+        "crates/infiltrator-presentation/src/subscription_filter_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src/lib.rs"
@@ -2441,6 +2441,123 @@
       "rationale": "The old application-named shell fold type was replaced by the shared ShellReadoutProjection in infiltrator-presentation.",
       "replacement_behavior_tests": [
         "crates/infiltrator-presentation/src/shell_readout_fold_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-profile-edit-session-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_edit_session",
+      "rationale": "The pure profile editor session reducer moved to infiltrator-presentation; Application retains profile persistence use cases.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_application_tests/source_bound_edits.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-profile-edit-session-type",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProfileEditSession",
+      "rationale": "ProfileEditSession is presentation state, not an Application service; saves still submit typed intents to Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_application_tests/source_bound_edits.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-subscription-filter-editor-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "subscription_filter_editor",
+      "rationale": "The pure, typed subscription filter draft and receipt reducer is owned by infiltrator-presentation; Application keeps import and persistence effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/subscription_filter_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-subscription-filter-editor-type",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SubscriptionFilterEditor",
+      "rationale": "SubscriptionFilterEditor is shared presentation state with explicit read, draft, action, and source enums; it is no longer an Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/subscription_filter_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-subscription-filter-copy-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "subscription_filter_copy",
+      "rationale": "Localized subscription filter status copy moved with the shared Presentation editor.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/subscription_filter_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-leak-actions-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_leak_actions",
+      "rationale": "The pure correlated DNS leak action reducer moved to infiltrator-presentation; Application retains DNS probe execution.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-leak-action-phase",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DnsLeakActionPhase",
+      "rationale": "DNS leak command phases are owned by the shared Presentation reducer, not Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-leak-action-state",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DnsLeakActionState",
+      "rationale": "DNS leak command state is shared presentation behavior used by Iced and Bevy.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-leak-action-finish",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DnsLeakFinish",
+      "rationale": "DNS leak completion outcomes are shared typed Presentation results.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"

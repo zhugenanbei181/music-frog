@@ -76,7 +76,7 @@ fn wait_terminal(app: &mut App) {
         .world()
         .resource::<ProfileEditorOptionsState>()
         .filter
-        .pending
+        .pending()
         .is_some()
     {
         assert!(
@@ -171,10 +171,10 @@ fn native_filter_transaction_reads_actual_policy_cancels_then_denies_retries_and
     wait_terminal(&mut app);
     let editor = &app.world().resource::<ProfileEditorOptionsState>().filter;
     assert_eq!(
-        editor.failure.as_ref().unwrap().code,
+        editor.failure().unwrap().code,
         ErrorCode::Permission,
         "filter transaction failure: {:?}",
-        editor.failure
+        editor.failure()
     );
     assert_eq!(editor.draft.include, "HK");
     assert_eq!(editor.draft.advanced_policy.as_deref(), Some(FILTER_POLICY));
@@ -184,13 +184,13 @@ fn native_filter_transaction_reads_actual_policy_cancels_then_denies_retries_and
     click_entity(&mut app, save);
     wait_terminal(&mut app);
     let editor = &app.world().resource::<ProfileEditorOptionsState>().filter;
-    let report = editor.report.as_ref().unwrap();
+    let report = editor.report().unwrap();
     assert_eq!(
         (report.total_input, report.passed, report.excluded_by_server),
         (3, 1, 1)
     );
-    assert!(editor.applied);
-    assert!(editor.failure.is_none());
+    assert!(editor.applied());
+    assert!(editor.failure().is_none());
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     let saved = store.observed();
     let saved_document = saved.document.utf8_text().unwrap();

@@ -183,7 +183,7 @@ fn native_filter_pending_failure_retry_and_wrong_receipt_stay_in_the_same_form()
         app.world()
             .resource::<FilterFormState>()
             .editor
-            .pending
+            .pending()
             .is_some()
     );
     let failure = Failure::new(ErrorCode::Storage, "permission denied", true);
@@ -194,8 +194,8 @@ fn native_filter_pending_failure_retry_and_wrong_receipt_stay_in_the_same_form()
     });
     app.update();
     assert_eq!(
-        app.world().resource::<FilterFormState>().editor.failure,
-        Some(failure)
+        app.world().resource::<FilterFormState>().editor.failure(),
+        Some(&failure)
     );
     assert_eq!(
         app.world().get::<TextField>(field).unwrap().0.text(),
@@ -238,7 +238,7 @@ fn native_filter_pending_failure_retry_and_wrong_receipt_stay_in_the_same_form()
         app.world()
             .resource::<FilterFormState>()
             .editor
-            .pending
+            .pending()
             .is_some()
     );
 }

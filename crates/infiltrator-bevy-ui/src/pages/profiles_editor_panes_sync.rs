@@ -157,7 +157,7 @@ pub fn sync_profile_editor_panes(
     }
     options.mixin.session.observe_read_status(
         &projection.editor_read,
-        infiltrator_application::profile_edit_session::ProfileEditReadTarget::Options,
+        infiltrator_presentation::profile_edit_session::ProfileEditReadTarget::Options,
     );
     // The pane may have been opened before the document (and therefore the
     // sidecar profile) was known; ask the shared application once it is, so an
@@ -650,7 +650,7 @@ fn finish_editor_filter(
     let Some((id, token)) = options.filter_request else {
         return;
     };
-    let Some(pending) = &options.filter.pending else {
+    let Some(pending) = options.filter.pending() else {
         return;
     };
     if event.request_id != id

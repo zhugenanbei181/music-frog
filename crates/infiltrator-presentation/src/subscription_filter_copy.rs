@@ -4,7 +4,7 @@ use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::i18n_interpolator::localize;
 
 pub fn status(editor: &SubscriptionFilterEditor, code: &str) -> String {
-    if editor.pending.is_some() {
+    if editor.pending().is_some() {
         return localize(code, "filter_form_saving", &[]);
     }
     if let Some(failure) = editor.read_failure() {
@@ -24,7 +24,7 @@ pub fn status(editor: &SubscriptionFilterEditor, code: &str) -> String {
             ],
         );
     }
-    if let Some(failure) = &editor.failure {
+    if let Some(failure) = editor.failure() {
         return localize(
             code,
             "filter_form_failed",
@@ -33,7 +33,7 @@ pub fn status(editor: &SubscriptionFilterEditor, code: &str) -> String {
     }
     if editor.source_profile().is_none() {
         localize(code, "filter_form_unobserved", &[])
-    } else if let Some(report) = editor.report.as_ref().filter(|_| editor.applied) {
+    } else if let Some(report) = editor.report().filter(|_| editor.applied()) {
         localize(
             code,
             "filter_form_report",
@@ -44,8 +44,6 @@ pub fn status(editor: &SubscriptionFilterEditor, code: &str) -> String {
                 ("dedup", report.deduplicated.to_string()),
             ],
         )
-    } else if editor.applied {
-        localize(code, "filter_form_applied", &[])
     } else if editor.dirty() {
         localize(code, "filter_form_dirty", &[])
     } else {

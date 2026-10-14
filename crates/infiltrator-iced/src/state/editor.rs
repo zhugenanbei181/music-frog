@@ -8,8 +8,6 @@ use crate::types::editor::{EditorLazyState, GeoDataStatus};
 use crate::types::options::{EditorPane, MrsProviderDetail};
 use crate::types::rules::{ProviderUnpackState, RuleRenderItem};
 use iced::widget::text_editor;
-use infiltrator_application::profile_edit_session::ProfileEditSession;
-use infiltrator_application::subscription_filter_editor::SubscriptionFilterEditor;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::dns::FakeIpMappingPool;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
@@ -31,12 +29,14 @@ use infiltrator_contract::stun_probe::StunProbeReport;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::rules::RuleProviderDiff;
 use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
+use infiltrator_presentation::profile_edit_session::ProfileEditSession;
 use infiltrator_presentation::rule_form_binding::RuleFormBinding;
 use infiltrator_presentation::rule_list_editor::RuleListEditor;
 use infiltrator_presentation::rule_statistics_workbench::RuleStatisticsWorkbench;
 use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
 use infiltrator_presentation::script_workbench::ScriptWorkbench;
 use infiltrator_presentation::snapshot_restore_workbench::SnapshotRestoreWorkbench;
+use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
 use std::path::PathBuf;
 
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与

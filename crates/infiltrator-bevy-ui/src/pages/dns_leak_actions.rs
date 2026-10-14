@@ -12,14 +12,14 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::dns_leak_actions::{
-    DnsLeakActionPhase, DnsLeakActionState, DnsLeakFinish,
-};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::dns_leak_actions::{
+    DnsLeakActionPhase, DnsLeakActionState, DnsLeakFinish,
+};
 use infiltrator_presentation::dns_leak_projection::project_leak;
 
 #[derive(Resource, Default)]

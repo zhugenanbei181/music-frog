@@ -10,10 +10,10 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::dns_leak_commands::DnsLeakProbeAdmission;
 use iced::Task;
-use infiltrator_application::dns_leak_actions::{DnsLeakActionPhase, DnsLeakFinish};
 use infiltrator_application::dns_leak_application::NO_ECHO_PORT_REASON;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::error::Failure;
+use infiltrator_presentation::dns_leak_actions::{DnsLeakActionPhase, DnsLeakFinish};
 
 impl AppState {
     /// Publish the shared leak report into the render state. A probe in

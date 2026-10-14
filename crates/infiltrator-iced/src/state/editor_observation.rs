@@ -1,10 +1,10 @@
 //! Replay independent editor facts without navigating or replacing a dirty buffer.
 use crate::state::AppState;
 use iced::widget::text_editor;
-use infiltrator_application::profile_edit_session::{
+use infiltrator_contract::profile_editor_read::ProfileEditorSnapshot;
+use infiltrator_presentation::profile_edit_session::{
     ProfileEditObservation, ProfileEditReadTarget,
 };
-use infiltrator_contract::profile_editor_read::ProfileEditorSnapshot;
 impl AppState {
     pub(crate) fn observe_editor_surface(&mut self, snapshot: &ProfileEditorSnapshot) {
         if let Some(document) = &snapshot.document

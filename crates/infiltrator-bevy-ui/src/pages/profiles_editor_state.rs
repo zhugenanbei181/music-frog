@@ -9,7 +9,6 @@ use crate::pages::profiles::ProfilesProjection;
 use bevy::color::Color;
 use bevy::ecs::resource::Resource;
 use bevy::input::keyboard::Key;
-use infiltrator_application::profile_edit_session::{ProfileEditObservation, ProfileEditSession};
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
@@ -26,6 +25,7 @@ use infiltrator_contract::yaml_snippets::{
 };
 use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use infiltrator_presentation::profile_edit_session::{ProfileEditObservation, ProfileEditSession};
 use infiltrator_presentation::profile_edit_status_projection;
 use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
 
