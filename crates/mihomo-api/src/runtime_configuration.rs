@@ -50,6 +50,16 @@ pub struct MihomoRuntimeConfigurationAdapter {
     write_lock: Arc<Mutex<()>>,
 }
 
+struct MihomoConfigurationApplyRequest<T, U> {
+    scope: CoreScope,
+    expected_revision: ConfigurationRevision,
+    capability: Capability,
+    update: U,
+    patch: Value,
+    read: fn(&ConfigResponse) -> T,
+    update_value: fn(&T, &U) -> T,
+}
+
 impl MihomoRuntimeConfigurationAdapter {
     pub fn new(client: MihomoClient, scope_resolver: Option<RuntimeScopeResolver>) -> Self {
         let write_lock = client.configuration_write_lock();
@@ -117,17 +127,20 @@ impl MihomoRuntimeConfigurationAdapter {
 
     async fn apply_config<T, U>(
         &self,
-        scope: CoreScope,
-        expected_revision: ConfigurationRevision,
-        capability: Capability,
-        update: U,
-        patch: Value,
-        read: fn(&ConfigResponse) -> T,
-        update_value: fn(&T, &U) -> T,
+        request: MihomoConfigurationApplyRequest<T, U>,
     ) -> Result<ConfigurationObservation<T>, PortError>
     where
         T: Clone + PartialEq + Debug,
     {
+        let MihomoConfigurationApplyRequest {
+            scope,
+            expected_revision,
+            capability,
+            update,
+            patch,
+            read,
+            update_value,
+        } = request;
         let _guard = self.write_lock.lock().await;
         let before_response = self.read_config(&scope, capability).await?;
         let before = read(&before_response);
@@ -419,15 +432,15 @@ impl TunConfigurationPort for MihomoRuntimeConfigurationAdapter {
         request: ConfigurationApply<TunConfigurationUpdate>,
     ) -> Result<ConfigurationObservation<TunConfiguration>, PortError> {
         let patch = config_patch_for_tun(request.update)?;
-        self.apply_config(
-            request.scope,
-            request.expected_revision,
-            Capability::Tun,
-            request.update,
+        self.apply_config(MihomoConfigurationApplyRequest {
+            scope: request.scope,
+            expected_revision: request.expected_revision,
+            capability: Capability::Tun,
+            update: request.update,
             patch,
-            tun_configuration,
-            update_tun,
-        )
+            read: tun_configuration,
+            update_value: update_tun,
+        })
         .await
     }
 }
@@ -465,15 +478,15 @@ impl LanConfigurationPort for MihomoRuntimeConfigurationAdapter {
             "mixed-port": request.update.mixed_port,
             "bind-address": request.update.bind_address,
         });
-        self.apply_config(
-            request.scope,
-            request.expected_revision,
-            Capability::LanAccessControl,
-            request.update,
+        self.apply_config(MihomoConfigurationApplyRequest {
+            scope: request.scope,
+            expected_revision: request.expected_revision,
+            capability: Capability::LanAccessControl,
+            update: request.update,
             patch,
-            lan_sharing_configuration,
-            update_lan_sharing,
-        )
+            read: lan_sharing_configuration,
+            update_value: update_lan_sharing,
+        })
         .await
     }
 
@@ -512,15 +525,15 @@ impl LanConfigurationPort for MihomoRuntimeConfigurationAdapter {
             "skip-auth-prefixes": request.update.skip_auth_prefixes,
             "authentication": credentials,
         });
-        self.apply_config(
-            request.scope,
-            request.expected_revision,
-            Capability::LanAccessControl,
-            request.update,
+        self.apply_config(MihomoConfigurationApplyRequest {
+            scope: request.scope,
+            expected_revision: request.expected_revision,
+            capability: Capability::LanAccessControl,
+            update: request.update,
             patch,
-            lan_security_configuration,
-            update_lan_security,
-        )
+            read: lan_security_configuration,
+            update_value: update_lan_security,
+        })
         .await
     }
 }
@@ -545,15 +558,15 @@ impl Ipv6ConfigurationPort for MihomoRuntimeConfigurationAdapter {
         request: ConfigurationApply<Ipv6ConfigurationUpdate>,
     ) -> Result<ConfigurationObservation<Ipv6Configuration>, PortError> {
         let patch = json!({ "ipv6": request.update.enabled });
-        self.apply_config(
-            request.scope,
-            request.expected_revision,
-            Capability::Ipv6Routing,
-            request.update,
+        self.apply_config(MihomoConfigurationApplyRequest {
+            scope: request.scope,
+            expected_revision: request.expected_revision,
+            capability: Capability::Ipv6Routing,
+            update: request.update,
             patch,
-            ipv6_configuration,
-            update_ipv6,
-        )
+            read: ipv6_configuration,
+            update_value: update_ipv6,
+        })
         .await
     }
 }
@@ -578,15 +591,15 @@ impl SnifferConfigurationPort for MihomoRuntimeConfigurationAdapter {
         request: ConfigurationApply<SnifferConfigurationUpdate>,
     ) -> Result<ConfigurationObservation<SnifferConfiguration>, PortError> {
         let patch = json!({ "sniffer": { "enable": request.update.enabled } });
-        self.apply_config(
-            request.scope,
-            request.expected_revision,
-            Capability::Profiles,
-            request.update,
+        self.apply_config(MihomoConfigurationApplyRequest {
+            scope: request.scope,
+            expected_revision: request.expected_revision,
+            capability: Capability::Profiles,
+            update: request.update,
             patch,
-            sniffer_configuration,
-            update_sniffer,
-        )
+            read: sniffer_configuration,
+            update_value: update_sniffer,
+        })
         .await
     }
 }

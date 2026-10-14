@@ -10,7 +10,7 @@ use infiltrator_contract::resources::ResourceAvailability;
 #[test]
 fn resource_copy_uses_the_observed_limit_and_distinguishes_zero_missing_and_unsampled() {
     let snapshot = CoreResourceSnapshot::Observed {
-        scope: CoreScope {
+        scope: Box::new(CoreScope {
             identity: CoreIdentity::new(
                 EngineId::mihomo(),
                 CoreInstanceId::new("projection-test").expect("instance"),
@@ -18,14 +18,14 @@ fn resource_copy_uses_the_observed_limit_and_distinguishes_zero_missing_and_unsa
             ),
             generation: CoreGeneration::new(1),
             session_token: None,
-        },
+        }),
         memory: ResourceAvailability::Available(0),
         cpu_percent: ResourceAvailability::Available(0.0),
         memory_soft_limit_bytes: 128 * 1024 * 1024,
-        gc: CoreGcStatus::Collected {
+        gc: Box::new(CoreGcStatus::Collected {
             before_bytes: 1,
             after_bytes: 0,
-        },
+        }),
     };
     let en = format_core_resources(&snapshot, "en-US");
     let zh = format_core_resources(&snapshot, "zh-CN");

@@ -86,7 +86,7 @@ pub fn install(app: &mut App) {
                     &observed_workspace,
                     RuleTraceOperationId(1),
                     request,
-                    &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                    &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                         outbound_observation.clone(),
                     ),
                 )

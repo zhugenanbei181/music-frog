@@ -184,11 +184,11 @@ fn resource_snapshot(
     gc: CoreGcStatus,
 ) -> CoreResourceSnapshot {
     CoreResourceSnapshot::Observed {
-        scope,
+        scope: Box::new(scope),
         memory: observation.memory_bytes,
         cpu_percent: observation.cpu_percent,
         memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-        gc,
+        gc: Box::new(gc),
     }
 }
 
@@ -221,19 +221,19 @@ mod tests {
     fn soft_limit_is_exactly_512_mib_and_strictly_exceeded() {
         let scope = test_scope(1);
         let snapshot = CoreResourceSnapshot::Observed {
-            scope: scope.clone(),
+            scope: Box::new(scope.clone()),
             memory: ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES),
             cpu_percent: ResourceAvailability::Unsupported,
             memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-            gc: CoreGcStatus::NotNeeded,
+            gc: Box::new(CoreGcStatus::NotNeeded),
         };
         assert!(!snapshot.over_memory_limit());
         let snapshot = CoreResourceSnapshot::Observed {
-            scope,
+            scope: Box::new(scope),
             memory: ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES + 1),
             cpu_percent: ResourceAvailability::Unsupported,
             memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-            gc: CoreGcStatus::NotAttempted,
+            gc: Box::new(CoreGcStatus::NotAttempted),
         };
         assert!(snapshot.over_memory_limit());
     }

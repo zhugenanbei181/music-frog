@@ -366,11 +366,11 @@ pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
     snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
     snapshot.core.core_version = Some("1.19.32".to_owned());
     snapshot.resources = CoreResourceSnapshot::Observed {
-        scope,
+        scope: Box::new(scope),
         memory: ResourceAvailability::Available(96_468_992),
         cpu_percent: ResourceAvailability::Available(2.4),
         memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-        gc: CoreGcStatus::NotAttempted,
+        gc: Box::new(CoreGcStatus::NotAttempted),
     };
     snapshot.outbound_inventory = PageData::ready(inventory);
     snapshot.outbound_details = PageData::ready(details);

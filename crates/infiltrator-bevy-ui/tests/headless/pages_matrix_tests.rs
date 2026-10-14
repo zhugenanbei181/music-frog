@@ -503,7 +503,7 @@ fn settings_page_in_place_update() {
             }],
         },
         core_resources: CoreResourceSnapshot::Observed {
-            scope: CoreScope {
+            scope: Box::new(CoreScope {
                 identity: CoreIdentity::new(
                     EngineId::new("mihomo").unwrap(),
                     CoreInstanceId::new("bevy-settings-matrix").unwrap(),
@@ -511,11 +511,11 @@ fn settings_page_in_place_update() {
                 ),
                 generation: CoreGeneration::new(1),
                 session_token: None,
-            },
+            }),
             memory: ResourceAvailability::Available(400 * 1024 * 1024),
             cpu_percent: ResourceAvailability::Available(12.5),
             memory_soft_limit_bytes: 512 * 1024 * 1024,
-            gc: CoreGcStatus::NotNeeded,
+            gc: Box::new(CoreGcStatus::NotNeeded),
         },
         offline_startup: OfflineStartupSnapshot::ready(LocalAssetStatus::Available),
         mtu: Default::default(),

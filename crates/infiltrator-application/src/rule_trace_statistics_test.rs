@@ -37,7 +37,7 @@ async fn simulate_for_workspace(
             &observed_workspace,
             operation,
             request,
-            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                 outbound_observation.clone(),
             ),
         )

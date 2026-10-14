@@ -122,14 +122,21 @@ where
     F: FnMut(T) -> U + Send + 'static,
 {
     unfold(
-        (
+        ScopeStreamState {
             receiver,
             scope,
             resolver,
             map_item,
-            StreamMapProgress::Receiving,
-        ),
-        |(mut receiver, scope, resolver, mut map_item, progress)| async move {
+            progress: StreamMapProgress::Receiving,
+        },
+        |state| async move {
+            let ScopeStreamState {
+                mut receiver,
+                scope,
+                resolver,
+                mut map_item,
+                progress,
+            } = state;
             match progress {
                 StreamMapProgress::Terminated => None,
                 StreamMapProgress::Receiving => {
@@ -141,13 +148,13 @@ where
                                     RuntimeStreamTerminal::Cancelled,
                                 ),
                             },
-                            (
+                            ScopeStreamState {
                                 receiver,
                                 scope,
                                 resolver,
                                 map_item,
-                                StreamMapProgress::Terminated,
-                            ),
+                                progress: StreamMapProgress::Terminated,
+                            },
                         ));
                     };
 
@@ -165,7 +172,7 @@ where
                                     RuntimeStreamEvent::Terminal(terminal)
                                 }
                             };
-                            let next = if matches!(&event, RuntimeStreamEvent::Terminal(_)) {
+                            let progress = if matches!(&event, RuntimeStreamEvent::Terminal(_)) {
                                 StreamMapProgress::Terminated
                             } else {
                                 StreamMapProgress::Receiving
@@ -175,27 +182,45 @@ where
                                     scope: scope.clone(),
                                     event,
                                 },
-                                (receiver, scope, resolver, map_item, next),
+                                ScopeStreamState {
+                                    receiver,
+                                    scope,
+                                    resolver,
+                                    map_item,
+                                    progress,
+                                },
                             ))
                         }
-                        Ok(_) => Some(scope_failure_event(
-                            receiver,
-                            scope,
-                            resolver,
-                            map_item,
-                            Failure::new(
-                                ErrorCode::InvalidState,
-                                "Mihomo stream event arrived after its Core scope retired",
-                                false,
-                            ),
-                        )),
-                        Err(error) => Some(scope_failure_event(
-                            receiver,
-                            scope,
-                            resolver,
-                            map_item,
-                            Failure::from(error),
-                        )),
+                        Ok(_) => {
+                            let transition = scope_failure_event(
+                                ScopeStreamState {
+                                    receiver,
+                                    scope,
+                                    resolver,
+                                    map_item,
+                                    progress: StreamMapProgress::Terminated,
+                                },
+                                Failure::new(
+                                    ErrorCode::InvalidState,
+                                    "Mihomo stream event arrived after its Core scope retired",
+                                    false,
+                                ),
+                            );
+                            Some((transition.event, transition.next))
+                        }
+                        Err(error) => {
+                            let transition = scope_failure_event(
+                                ScopeStreamState {
+                                    receiver,
+                                    scope,
+                                    resolver,
+                                    map_item,
+                                    progress: StreamMapProgress::Terminated,
+                                },
+                                Failure::from(error),
+                            );
+                            Some((transition.event, transition.next))
+                        }
                     }
                 }
             }
@@ -205,37 +230,45 @@ where
 }
 
 fn scope_failure_event<T, U, F>(
-    receiver: UnboundedReceiver<StreamEvent<T>>,
-    scope: CoreScope,
-    resolver: RuntimeScopeResolver,
-    map_item: F,
+    state: ScopeStreamState<T, F>,
     failure: Failure,
-) -> (
-    ScopedRuntimeStreamEvent<U>,
-    (
-        UnboundedReceiver<StreamEvent<T>>,
-        CoreScope,
-        RuntimeScopeResolver,
-        F,
-        StreamMapProgress,
-    ),
-)
+) -> ScopeStreamTransition<T, U, F>
 where
     F: FnMut(T) -> U + Send + 'static,
 {
-    (
-        ScopedRuntimeStreamEvent {
+    let ScopeStreamState {
+        receiver,
+        scope,
+        resolver,
+        map_item,
+        ..
+    } = state;
+    ScopeStreamTransition {
+        event: ScopedRuntimeStreamEvent {
             scope: scope.clone(),
             event: RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(failure)),
         },
-        (
+        next: ScopeStreamState {
             receiver,
             scope,
             resolver,
             map_item,
-            StreamMapProgress::Terminated,
-        ),
-    )
+            progress: StreamMapProgress::Terminated,
+        },
+    }
+}
+
+struct ScopeStreamTransition<T, U, F> {
+    event: ScopedRuntimeStreamEvent<U>,
+    next: ScopeStreamState<T, F>,
+}
+
+struct ScopeStreamState<T, F> {
+    receiver: UnboundedReceiver<StreamEvent<T>>,
+    scope: CoreScope,
+    resolver: RuntimeScopeResolver,
+    map_item: F,
+    progress: StreamMapProgress,
 }
 
 #[derive(Clone, Copy)]

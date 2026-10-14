@@ -54,7 +54,7 @@ async fn rule_simulation_replay_does_not_recompute_or_rebind_to_another_document
     .unwrap();
     assert_eq!(
         execution.owner,
-        infiltrator_contract::rule_trace_run::RuleTraceOwnerObservation::Observed(owner)
+        infiltrator_contract::rule_trace_run::RuleTraceOwnerObservation::observed(owner)
     );
     let report = execution.report.expect("report");
     let source = report.source.expect("exact document source");
@@ -220,7 +220,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
             &active_workspace.profile_identity,
             RuleTraceOperationId(1),
             stale_scope_request,
-            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                 outbound_observation.clone(),
             ),
         )
@@ -251,7 +251,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
             &active_workspace.profile_identity,
             RuleTraceOperationId(1),
             stale_profile_request,
-            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                 outbound_observation.clone(),
             ),
         )
@@ -278,7 +278,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
             &active_workspace.profile_identity,
             RuleTraceOperationId(1),
             foreign_request,
-            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                 outbound_observation.clone(),
             ),
         )
@@ -311,7 +311,7 @@ async fn foreign_outbound_observation_is_rejected_before_rule_adapter_read() {
             &observed_workspace,
             RuleTraceOperationId(1),
             request,
-            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                 outbound_observation.clone(),
             ),
         )

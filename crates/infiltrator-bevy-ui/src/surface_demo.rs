@@ -379,15 +379,15 @@ fn demo_resource_snapshot(
     cpu_percent: ResourceAvailability<f32>,
 ) -> CoreResourceSnapshot {
     CoreResourceSnapshot::Observed {
-        scope: CoreScope {
+        scope: Box::new(CoreScope {
             identity: demo_core_identity(),
             generation: CoreGeneration::new(1),
             session_token: None,
-        },
+        }),
         memory,
         cpu_percent,
         memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-        gc: CoreGcStatus::NotAttempted,
+        gc: Box::new(CoreGcStatus::NotAttempted),
     }
 }
 

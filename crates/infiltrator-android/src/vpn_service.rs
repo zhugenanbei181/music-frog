@@ -372,7 +372,7 @@ impl VpnServicePort for AndroidVpnServicePort {
         {
             return match Self::bridge() {
                 Ok(bridge) => match bridge.vpn_owner_snapshot().await {
-                    Ok(snapshot) => VpnSurfaceObservation::AndroidOwner(snapshot),
+                    Ok(snapshot) => VpnSurfaceObservation::from_android_owner(snapshot),
                     Err(error) => VpnSurfaceObservation::Unavailable {
                         failure: Failure::new(ErrorCode::NotReady, error.to_string(), true),
                     },

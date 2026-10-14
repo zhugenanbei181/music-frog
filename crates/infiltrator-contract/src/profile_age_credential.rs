@@ -467,7 +467,7 @@ pub enum ProfileAgeCredentialMutation {
     },
 }
 
-fn scrub_string(value: &mut String) {
+fn scrub_string(value: &mut str) {
     let bytes = unsafe { value.as_bytes_mut() };
     for byte in bytes {
         unsafe { ptr::write_volatile(byte, 0) };

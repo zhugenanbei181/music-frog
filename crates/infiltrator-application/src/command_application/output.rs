@@ -134,7 +134,7 @@ impl CommandApplication {
                 let owner = RuleTraceOwnerBinding::new(scope.clone(), workspace_identity.clone())?;
                 let scoped_request = ScopedRuleTraceRequest::new(owner, request)?;
                 let outbound_facts = match scope.session_token.as_ref() {
-                    Some(_) => RuleTraceOutboundFacts::Observed(
+                    Some(_) => RuleTraceOutboundFacts::observed(
                         self.outbound()?.observation(scope.clone()).await?,
                     ),
                     None => RuleTraceOutboundFacts::Unavailable(Failure::new(

@@ -238,14 +238,14 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
     snapshot.generation = 5;
     snapshot.core.generation = 5;
     snapshot.resources = CoreResourceSnapshot::Observed {
-        scope,
+        scope: Box::new(scope),
         memory: ResourceAvailability::Available(512 * 1024 * 1024 + 1),
         cpu_percent: ResourceAvailability::Available(12.5),
         memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-        gc: CoreGcStatus::Collected {
+        gc: Box::new(CoreGcStatus::Collected {
             before_bytes: 512 * 1024 * 1024 + 1,
             after_bytes: 400 * 1024 * 1024,
-        },
+        }),
     };
     snapshot.versions = CoreVersionSnapshot {
         engine_id: EngineId::new("mihomo").unwrap(),

@@ -163,8 +163,14 @@ pub struct ScopedRuleTraceRequest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "state", content = "value", rename_all = "snake_case")]
 pub enum RuleTraceOutboundFacts {
-    Observed(OutboundObservationSnapshot),
+    Observed(Box<OutboundObservationSnapshot>),
     Unavailable(Failure),
+}
+
+impl RuleTraceOutboundFacts {
+    pub fn observed(observation: OutboundObservationSnapshot) -> Self {
+        Self::Observed(Box::new(observation))
+    }
 }
 
 impl ScopedRuleTraceRequest {
@@ -191,7 +197,13 @@ impl ScopedRuleTraceRequest {
 pub enum RuleTraceOwnerObservation {
     #[default]
     Unbound,
-    Observed(RuleTraceOwnerBinding),
+    Observed(Box<RuleTraceOwnerBinding>),
+}
+
+impl RuleTraceOwnerObservation {
+    pub fn observed(owner: RuleTraceOwnerBinding) -> Self {
+        Self::Observed(Box::new(owner))
+    }
 }
 fn invalid(message: &str) -> Failure {
     Failure::new(ErrorCode::InvalidInput, message, false)

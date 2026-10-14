@@ -89,7 +89,7 @@ impl RuleTracerApplication {
             state.operation = RuleTraceOperation::Running;
             state.failure = None;
             state.issue = None;
-            state.owner = RuleTraceOwnerObservation::Observed(owner.clone());
+            state.owner = RuleTraceOwnerObservation::observed(owner.clone());
             report_revision
         };
         let mut run = SimulationRun {

@@ -114,7 +114,7 @@ fn projection(
         &core,
         Ok(&core),
         &authorization,
-        &VpnSurfaceObservation::AndroidOwner(owner(owner_ready)),
+        &VpnSurfaceObservation::from_android_owner(owner(owner_ready)),
         &topology,
     )
 }
@@ -268,7 +268,7 @@ fn api_failure_is_not_reinterpreted_as_connected_or_proxy_effective() {
         &core,
         Err(&failure),
         &VpnAuthorizationObservation::Granted,
-        &VpnSurfaceObservation::AndroidOwner(owner(true)),
+        &VpnSurfaceObservation::from_android_owner(owner(true)),
         &topology(TrafficTopologyStatus::Ready, 1),
     );
 

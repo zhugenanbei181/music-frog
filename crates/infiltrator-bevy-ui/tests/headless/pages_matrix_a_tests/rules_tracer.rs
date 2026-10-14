@@ -278,7 +278,7 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
             &observed_workspace,
             RuleTraceOperationId(1),
             trace_request,
-            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
                 outbound_observation.clone(),
             ),
         ))

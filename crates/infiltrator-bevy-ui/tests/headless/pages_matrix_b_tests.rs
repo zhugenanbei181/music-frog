@@ -96,7 +96,7 @@ pub(crate) fn owner_vpn_observation(
 ) -> VpnSurfaceObservation {
     let active = matches!(&lifecycle, VpnOwnerLifecycle::Running);
     let generation = 3;
-    VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+    VpnSurfaceObservation::from_android_owner(VpnOwnerSnapshot {
         owner_session_id: "settings-test-owner".to_owned(),
         revision: 4,
         vpn_generation: VpnGeneration::new(generation),

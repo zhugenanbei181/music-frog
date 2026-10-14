@@ -207,7 +207,7 @@ async fn rule_trace_uses_the_live_profile_workspace_and_mihomo_outbound_observat
             &observed_workspace,
             RuleTraceOperationId(1),
             request,
-            &RuleTraceOutboundFacts::Observed(observation),
+            &RuleTraceOutboundFacts::observed(observation),
         )
         .await
         .expect("simulate the current profile against live Mihomo outbounds");

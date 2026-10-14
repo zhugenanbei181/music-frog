@@ -76,7 +76,7 @@ fn native_host_status_keeps_unknown_mtu_and_busy_controls_and_replays_opaque_fai
         .unwrap()
         .0;
     let mut projection = SettingsProjection::demo();
-    projection.vpn = VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+    projection.vpn = VpnSurfaceObservation::from_android_owner(VpnOwnerSnapshot {
         owner_session_id: "locale-test-owner".to_owned(),
         revision: 4,
         vpn_generation: VpnGeneration::new(3),

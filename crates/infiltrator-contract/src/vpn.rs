@@ -264,21 +264,24 @@ pub struct VpnSessionSnapshot {
 /// Android surfaces carry the exact immutable snapshot authored by the `:vpn`
 /// owner. Hosts without this service report an explicit typed disposition;
 /// they do not synthesize an Android-shaped lifecycle from local flags.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VpnSurfaceObservation {
-    AndroidOwner(VpnOwnerSnapshot),
-    Unsupported { reason: String },
+    AndroidOwner(Box<VpnOwnerSnapshot>),
+    Unsupported {
+        reason: String,
+    },
+    #[default]
     NotApplicable,
-    Unavailable { failure: Failure },
-}
-
-impl Default for VpnSurfaceObservation {
-    fn default() -> Self {
-        Self::NotApplicable
-    }
+    Unavailable {
+        failure: Failure,
+    },
 }
 
 impl VpnSurfaceObservation {
+    pub fn from_android_owner(snapshot: VpnOwnerSnapshot) -> Self {
+        Self::AndroidOwner(Box::new(snapshot))
+    }
+
     pub fn android_owner(&self) -> Result<&VpnOwnerSnapshot, &Self> {
         match self {
             Self::AndroidOwner(snapshot) => Ok(snapshot),

@@ -282,7 +282,7 @@ impl RuleTracerApplication {
             rules,
             None,
             query,
-            &RuleTraceOutboundFacts::Observed(observation),
+            &RuleTraceOutboundFacts::observed(observation),
         )
         .map(|(matched, chain, _)| (matched, chain))
     }
@@ -416,7 +416,7 @@ impl RuleTracerApplication {
     ) -> Result<RuleTracerSnapshot, RuleTraceIssue> {
         let outbound_facts = match core.scope() {
             Some(scope) => match scope.session_token.as_ref() {
-                Some(_) => RuleTraceOutboundFacts::Observed(unknown_rule_trace_observation(scope)),
+                Some(_) => RuleTraceOutboundFacts::observed(unknown_rule_trace_observation(scope)),
                 None => RuleTraceOutboundFacts::Unavailable(Failure::new(
                     ErrorCode::NotReady,
                     "Core session is unavailable; local AST simulation only",

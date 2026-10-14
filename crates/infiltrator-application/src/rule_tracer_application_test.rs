@@ -61,7 +61,7 @@ async fn simulate_for_test(
         &observed_workspace,
         operation,
         request,
-        &RuleTraceOutboundFacts::Observed(outbound_observation.clone()),
+        &RuleTraceOutboundFacts::observed(outbound_observation.clone()),
     )
     .await
 }
@@ -870,7 +870,7 @@ async fn typed_inventory_resolves_group_selection_and_details_by_outbound_id() {
         &observed_workspace,
         RuleTraceOperationId(1),
         request,
-        &RuleTraceOutboundFacts::Observed(observation),
+        &RuleTraceOutboundFacts::observed(observation),
     )
     .await
     .unwrap();
@@ -1049,7 +1049,7 @@ async fn no_session_rejects_live_outbound_observation_before_profile_adapter() {
             &observed_workspace,
             RuleTraceOperationId(1),
             request,
-            &RuleTraceOutboundFacts::Observed(observation),
+            &RuleTraceOutboundFacts::observed(observation),
         )
         .await
         .unwrap_err()
@@ -1115,7 +1115,7 @@ async fn ambiguous_typed_display_name_keeps_rule_trace_outbound_unknown() {
         &observed_workspace,
         RuleTraceOperationId(1),
         request,
-        &RuleTraceOutboundFacts::Observed(observation),
+        &RuleTraceOutboundFacts::observed(observation),
     )
     .await
     .unwrap();

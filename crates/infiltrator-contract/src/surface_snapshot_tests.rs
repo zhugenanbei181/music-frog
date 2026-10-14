@@ -4,9 +4,25 @@ use crate::android_control::{
     VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
 #[cfg(test)]
-use crate::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use crate::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 #[cfg(test)]
 use crate::offline_startup::StartupNetworkPolicy;
+use crate::outbound::details::{OutboundDetailsSnapshot, OutboundDetailsState};
+use crate::outbound::identity::SnapshotRevision;
+use crate::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+};
+use crate::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
+    ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+};
+use crate::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
+use crate::rule_trace_run::{
+    RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceOwnerObservation,
+};
 #[cfg(test)]
 use crate::session::SessionToken;
 use crate::snapshot::CoreLifecycleSnapshot;
@@ -112,6 +128,81 @@ fn proxy_page_status_is_derived_from_typed_inventory_state() {
         snapshot.page_status(PageId::Proxies),
         PageStatus::Unavailable { .. }
     ));
+}
+
+#[test]
+fn boxed_observation_payloads_keep_their_existing_json_shape() {
+    let scope = CoreScope {
+        identity: core_identity("mihomo", "wire-shape-owner"),
+        generation: CoreGeneration::new(3),
+        session_token: None,
+    };
+    let resource_value = CoreResourceSnapshot::Observed {
+        scope: Box::new(scope.clone()),
+        memory: ResourceAvailability::Available(42),
+        cpu_percent: ResourceAvailability::Available(2.5),
+        memory_soft_limit_bytes: 128,
+        gc: Box::new(CoreGcStatus::NotNeeded),
+    };
+    let resource_wire = serde_json::to_value(&resource_value).expect("serialize resources");
+    assert_eq!(resource_wire["observation"], "observed");
+    assert_eq!(resource_wire["scope"]["generation"], 3);
+    assert_eq!(resource_wire["memory"]["value"], 42);
+    assert_eq!(resource_wire["gc"]["state"], "not_needed");
+    assert!(resource_wire.get("value").is_none());
+    assert_eq!(
+        serde_json::from_value::<CoreResourceSnapshot>(resource_wire.clone())
+            .expect("round-trip resources"),
+        resource_value
+    );
+
+    let revision = SnapshotRevision::new(4);
+    let inventory =
+        OutboundInventorySnapshot::new(scope.clone(), revision, OutboundInventoryState::Empty)
+            .expect("empty inventory is valid");
+    let details =
+        OutboundDetailsSnapshot::new(scope.clone(), revision, OutboundDetailsState::Empty)
+            .expect("empty details are valid");
+    let outbound = OutboundObservationSnapshot::new(inventory, details)
+        .expect("empty snapshots form one observation");
+    let outbound_value = RuleTraceOutboundFacts::observed(outbound);
+    let outbound_wire =
+        serde_json::to_value(&outbound_value).expect("serialize outbound observation");
+    assert_eq!(outbound_wire["state"], "observed");
+    assert_eq!(outbound_wire["value"]["inventory"]["inventory"], "empty");
+    assert!(outbound_wire["value"].get("value").is_none());
+    assert_eq!(
+        serde_json::from_value::<RuleTraceOutboundFacts>(outbound_wire)
+            .expect("round-trip outbound facts"),
+        outbound_value
+    );
+
+    let document = ProfileDocumentIdentity::new(
+        ProfileId::new("wire-profile").expect("profile ID"),
+        scope.identity.engine.clone(),
+        ProfileDocumentSourceIdentity::new(
+            ProfileDocumentSourceKind::Local,
+            ProfileSourceId::new("wire-source").expect("source ID"),
+        ),
+        ProfileDocumentRevision::new("revision-1").expect("document revision"),
+        ProfileFormatId::new("mihomo-yaml").expect("format ID"),
+        ProfileSchemaVersion::new(1).expect("schema version"),
+    );
+    let workspace = ProfileWorkspaceIdentity::new(document, ProfileSidecarRevision::Absent);
+    let owner = RuleTraceOwnerBinding::new(scope, workspace).expect("matching owner");
+    let owner_value = RuleTraceOwnerObservation::observed(owner);
+    let owner_wire = serde_json::to_value(&owner_value).expect("serialize owner observation");
+    assert_eq!(owner_wire["Observed"]["scope"]["generation"], 3);
+    assert_eq!(
+        owner_wire["Observed"]["workspace"]["document"]["profile_id"],
+        "wire-profile"
+    );
+    assert!(owner_wire["Observed"].get("value").is_none());
+    assert_eq!(
+        serde_json::from_value::<RuleTraceOwnerObservation>(owner_wire)
+            .expect("round-trip owner observation"),
+        owner_value
+    );
 }
 
 #[test]
@@ -282,7 +373,7 @@ fn android_surface_snapshot_keeps_owner_facts_and_fences_the_embedded_core_scope
     surface.core.session_token = core_snapshot.session_token;
     surface.core.revision = core_snapshot.revision;
     surface.core.failure = core_snapshot.failure.clone();
-    surface.vpn = VpnSurfaceObservation::AndroidOwner(owner_snapshot.clone());
+    surface.vpn = VpnSurfaceObservation::from_android_owner(owner_snapshot.clone());
 
     assert_eq!(surface.validate_vpn_owner_core_binding(), Ok(()));
     let encoded = serde_json::to_value(&surface).expect("surface snapshot serializes");
@@ -294,6 +385,11 @@ fn android_surface_snapshot_keeps_owner_facts_and_fences_the_embedded_core_scope
     assert_eq!(
         encoded["vpn"]["AndroidOwner"]["core"]["Available"]["generation"],
         7,
+    );
+    assert_eq!(
+        serde_json::from_value::<VpnSurfaceObservation>(encoded["vpn"].clone())
+            .expect("boxed Android owner observation round-trips"),
+        surface.vpn
     );
 
     surface.core.generation = 8;

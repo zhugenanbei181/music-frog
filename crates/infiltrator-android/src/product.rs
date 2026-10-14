@@ -721,7 +721,7 @@ mod tests {
             HostKind::Android,
             Failure::new(ErrorCode::NotReady, "waiting", true),
         );
-        snapshot.vpn = VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+        snapshot.vpn = VpnSurfaceObservation::from_android_owner(VpnOwnerSnapshot {
             owner_session_id: "vpn-owner-a".to_owned(),
             revision: 1,
             vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),

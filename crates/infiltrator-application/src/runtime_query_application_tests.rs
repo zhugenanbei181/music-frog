@@ -204,20 +204,16 @@ async fn resource_poll_triggers_gc_once_when_memory_exceeds_soft_limit() {
     let first = application.poll().await.expect("first poll");
     assert!(matches!(
         first,
-        CoreResourceSnapshot::Observed {
-            gc: CoreGcStatus::Collected { after_bytes, .. },
-            ..
-        } if after_bytes == 400 * 1024 * 1024
+        CoreResourceSnapshot::Observed { gc, .. }
+            if matches!(gc.as_ref(), CoreGcStatus::Collected { after_bytes, .. } if *after_bytes == 400 * 1024 * 1024)
     ));
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 1);
 
     let second = application.poll().await.expect("second poll");
     assert!(matches!(
         second,
-        CoreResourceSnapshot::Observed {
-            gc: CoreGcStatus::Collected { .. },
-            ..
-        }
+        CoreResourceSnapshot::Observed { gc, .. }
+            if matches!(gc.as_ref(), CoreGcStatus::Collected { .. })
     ));
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 1);
 }
@@ -243,9 +239,9 @@ async fn resource_observation_preserves_unsupported_and_failed_values() {
         CoreResourceSnapshot::Observed {
             memory: ResourceAvailability::Failed(_),
             cpu_percent: ResourceAvailability::Unsupported,
-            gc: CoreGcStatus::NotAttempted,
+            gc,
             ..
-        }
+        } if matches!(gc.as_ref(), CoreGcStatus::NotAttempted)
     ));
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);
 }
@@ -266,9 +262,9 @@ async fn unsupported_memory_does_not_trigger_garbage_collection() {
         snapshot,
         CoreResourceSnapshot::Observed {
             memory: ResourceAvailability::Unsupported,
-            gc: CoreGcStatus::NotAttempted,
+            gc,
             ..
-        }
+        } if matches!(gc.as_ref(), CoreGcStatus::NotAttempted)
     ));
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);
 }
@@ -310,10 +306,8 @@ async fn failed_gc_is_typed_and_does_not_claim_memory_reclamation() {
         .expect("GC failure is a typed resource outcome");
     assert!(matches!(
         snapshot,
-        CoreResourceSnapshot::Observed {
-            gc: CoreGcStatus::Failed { .. },
-            ..
-        }
+        CoreResourceSnapshot::Observed { gc, .. }
+            if matches!(gc.as_ref(), CoreGcStatus::Failed { .. })
     ));
 }
 
@@ -331,10 +325,8 @@ async fn unsupported_gc_is_never_reported_as_collection() {
         .expect("unsupported GC is a typed outcome");
     assert!(matches!(
         snapshot,
-        CoreResourceSnapshot::Observed {
-            gc: CoreGcStatus::Unsupported,
-            ..
-        }
+        CoreResourceSnapshot::Observed { gc, .. }
+            if matches!(gc.as_ref(), CoreGcStatus::Unsupported)
     ));
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 1);
 }

@@ -8,19 +8,14 @@ pub const CORE_MEMORY_SOFT_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Availability of one resource fact. Missing support and failed reads stay
 /// distinct from a real zero value.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "availability", content = "value", rename_all = "snake_case")]
 pub enum ResourceAvailability<T> {
+    #[default]
     NotObserved,
     Available(T),
     Unsupported,
     Failed(Failure),
-}
-
-impl<T> Default for ResourceAvailability<T> {
-    fn default() -> Self {
-        Self::NotObserved
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -49,11 +44,11 @@ pub enum CoreResourceSnapshot {
     #[default]
     NotObserved,
     Observed {
-        scope: CoreScope,
+        scope: Box<CoreScope>,
         memory: ResourceAvailability<u64>,
         cpu_percent: ResourceAvailability<f32>,
         memory_soft_limit_bytes: u64,
-        gc: CoreGcStatus,
+        gc: Box<CoreGcStatus>,
     },
 }
 

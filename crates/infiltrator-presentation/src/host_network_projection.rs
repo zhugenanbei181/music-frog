@@ -281,7 +281,7 @@ mod tests {
     fn host_lifecycle_facts_keep_unknown_mtu_errors_and_inflight_actions_distinct() {
         let mut observation = running_owner();
         let absent = vpn(
-            &VpnSurfaceObservation::AndroidOwner(observation.clone()),
+            &VpnSurfaceObservation::from_android_owner(observation.clone()),
             "en-US",
         );
         assert!(absent.details.contains("MTU=Not observed"));
@@ -290,7 +290,7 @@ mod tests {
         observation.mtu = Some(0);
         assert!(
             vpn(
-                &VpnSurfaceObservation::AndroidOwner(observation.clone()),
+                &VpnSurfaceObservation::from_android_owner(observation.clone()),
                 "en-US"
             )
             .details
@@ -299,7 +299,7 @@ mod tests {
         observation.vpn_state = VpnOwnerLifecycle::Stopping;
         observation.readiness = VpnOwnerReadiness::Stopping;
         let stopping = vpn(
-            &VpnSurfaceObservation::AndroidOwner(observation.clone()),
+            &VpnSurfaceObservation::from_android_owner(observation.clone()),
             "en-US",
         );
         assert!(!stopping.start_enabled && !stopping.stop_enabled);

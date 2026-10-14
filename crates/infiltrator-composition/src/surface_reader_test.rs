@@ -310,7 +310,7 @@ impl VpnServicePort for TestVpn {
     }
 
     async fn owner_observation(&self) -> VpnSurfaceObservation {
-        VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+        VpnSurfaceObservation::from_android_owner(VpnOwnerSnapshot {
             owner_session_id: "test-vpn-owner".to_owned(),
             revision: 4,
             vpn_generation: VpnGeneration::new(3),
