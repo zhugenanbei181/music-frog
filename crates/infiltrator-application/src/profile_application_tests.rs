@@ -951,6 +951,8 @@ mod auto;
 mod batch;
 #[path = "profile_application_tests/catalog_order.rs"]
 mod catalog_order;
+#[path = "profile_application_tests/clear_active_selection.rs"]
+mod clear_active_selection;
 #[path = "profile_application_tests/conditional.rs"]
 mod conditional;
 #[path = "profile_application_tests/deletion.rs"]

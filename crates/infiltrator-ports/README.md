@@ -19,3 +19,5 @@ Rule provider 的 inventory/payload/refresh 使用 `RuleProviderPort`，并以 e
 Profile 展示名通过 `ProfileStore` 的 typed observation/mutation 与 `ProfileApplication` 访问；它独立于稳定 `ProfileId` 和文件名持久化，也不触发 Core/VPN 生命周期变化。
 
 Profile catalog 顺序使用完整 `ProfileCatalogSnapshot` 作为 compare 值，`set_profile_catalog_order` 只接受该快照的精确排列，并以 Applied/Unchanged/Stale 回执返回真实读回。
+
+活动 profile 清除在 `ProfileApplication` 使用 revisioned active-reference port CAS；成功结果要求精确的 `Unselected` readback，授权可来自无 owner 状态或匹配的 bound Core owner。清除选择本身不触发 Core/VPN 停止。

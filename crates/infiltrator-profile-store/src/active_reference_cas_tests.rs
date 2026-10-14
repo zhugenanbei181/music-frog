@@ -2,7 +2,8 @@ use crate::active_reference_cas::{
     ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
 };
 use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::error::ErrorCode;
@@ -13,6 +14,14 @@ fn unselected(revision: u64) -> ActiveProfileReferenceState {
     ActiveProfileReferenceState::Unselected {
         revision: ActiveProfileReferenceRevision::new(revision),
     }
+}
+
+fn selected(engine: &str, profile: &str, revision: u64) -> ActiveProfileReferenceState {
+    ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+        EngineId::new(engine).unwrap(),
+        ProfileId::new(profile).unwrap(),
+        ActiveProfileReferenceRevision::new(revision),
+    ))
 }
 
 fn identity(engine: &str) -> CoreIdentity {
@@ -59,13 +68,13 @@ fn stale_revision_fails_before_transition() {
 }
 
 #[test]
-fn bound_owner_can_reselect_within_its_engine_but_cannot_clear_or_switch_engines() {
+fn bound_owner_can_reselect_or_clear_its_engine_without_switching_owners() {
     let owner = ActiveProfileReferenceOwnerFence::Bound {
         identity: identity("mihomo"),
         generation: CoreGeneration::new(8),
     };
     let ready = ActiveProfileReferenceCasReady::compare(
-        &unselected(1),
+        &selected("mihomo", "main", 1),
         ActiveProfileReferenceRevision::new(1),
     )
     .unwrap();
@@ -81,11 +90,30 @@ fn bound_owner_can_reselect_within_its_engine_but_cannot_clear_or_switch_engines
             )
             .is_ok()
     );
-    assert!(
+    assert_eq!(
         ready
             .clone()
             .transition(ActiveProfileReferenceTarget::Unselected, owner.clone())
-            .is_err()
+            .unwrap(),
+        unselected(2)
+    );
+    assert!(
+        ActiveProfileReferenceCasReady::compare(
+            &unselected(1),
+            ActiveProfileReferenceRevision::new(1),
+        )
+        .unwrap()
+        .transition(ActiveProfileReferenceTarget::Unselected, owner.clone())
+        .is_err()
+    );
+    assert!(
+        ActiveProfileReferenceCasReady::compare(
+            &selected("sing-box", "main", 1),
+            ActiveProfileReferenceRevision::new(1),
+        )
+        .unwrap()
+        .transition(ActiveProfileReferenceTarget::Unselected, owner.clone())
+        .is_err()
     );
     assert!(
         ready

@@ -9,4 +9,5 @@
 - ProfileDocument codec 的 Mixin Studio 跨端观察由 [`profile_mixin_studio`](../src/profile_mixin_studio.rs) 定义；展示文案由 presentation 投影。
 - Profile 展示名由 [`profile_display_name`](../src/profile_display_name.rs) 用 typed Identity/Custom 读写结果表达，稳定 ProfileId 与文件名不变。
 - Profile catalog 顺序由 [`profile_catalog_order`](../src/profile_catalog_order.rs) 以完整引擎身份快照、精确目标排列和 Applied/Unchanged/Stale 回执表达。
+- 清除活动 profile 选择由 [`profile_selection_clear`](../src/profile_selection_clear.rs) 表达精确期望状态、owner 授权与 `Unselected` 读回；不会暗中停止独立 Core/VPN service。
 - 包职责见 [crate README](../README.md)。

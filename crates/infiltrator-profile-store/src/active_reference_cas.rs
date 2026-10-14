@@ -70,6 +70,14 @@ impl ActiveProfileReferenceCasReady {
             (ActiveProfileReferenceOwnerFence::Unowned, _) => {}
             (
                 ActiveProfileReferenceOwnerFence::Bound { identity, .. },
+                ActiveProfileReferenceTarget::Unselected,
+            ) if matches!(
+                &self.previous,
+                ActiveProfileReferenceState::Selected(reference)
+                    if reference.engine_id == identity.engine
+            ) => {}
+            (
+                ActiveProfileReferenceOwnerFence::Bound { identity, .. },
                 ActiveProfileReferenceTarget::Selected { engine_id, .. },
             ) if engine_id == &identity.engine => {}
             (

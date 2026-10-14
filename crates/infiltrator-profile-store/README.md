@@ -8,4 +8,6 @@ CORE-018.3 的 owner：实现 engine-neutral `ProfileStore` 持久化，包括 e
 
 Profile catalog 顺序也存于 `profile-state.toml`，compare 与 write 在 selection lease 和 profile-write fence 内完成；旧数据继续按 ProfileId 排序，新建项在显式顺序末尾出现，已删除 ID 只从读模型过滤。Stale 请求不写入，成功回执包含实际顺序读回。
 
+活动选择清除在 owner authorization 与 root CAS fence 内验证；无 owner 可清除当前引擎选择，精确匹配的 bound owner 也可清除自身引擎选择而保持 owner 绑定不变。foreign/stale/错误 owner 凭据不会写入；该 CAS 不调用 Core 或 VPN 生命周期接口。
+
 可移植 profile 名称由 `infiltrator-domain::profiles` 统一校验，文件路径、sidecar 与远端旧格式迁移共用同一规则；Mihomo 私有的重复校验和消毒入口已退役。
