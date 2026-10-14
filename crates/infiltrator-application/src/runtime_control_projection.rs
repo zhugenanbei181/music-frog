@@ -120,21 +120,12 @@ fn reported_optional<T: Clone>(value: &ObservedValue<T>) -> Option<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::routing_intent_application::RoutingIntentApplication;
     use crate::runtime_configuration_application::RuntimeConfigurationReadout;
-    use crate::system_toggle_application::SystemToggleApplication;
     use infiltrator_contract::command::CoreLogLevel;
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
-    use infiltrator_contract::routing_intent::{
-        RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
-    };
     use infiltrator_contract::session::SessionToken;
-    use infiltrator_contract::snapshot::CoreLifecycle;
-    use infiltrator_contract::surface::{HostKind, SurfaceKind};
-    use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
-    use infiltrator_contract::system_toggle::SystemToggleState;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration,
         Ipv6Configuration, LanAuthenticationState, LanSecurityConfiguration,
@@ -249,43 +240,6 @@ mod tests {
         assert_eq!(
             runtime_control(Some(&Ok(readout))).log_level.as_deref(),
             Some("warn")
-        );
-    }
-
-    #[test]
-    fn preference_page_success_and_overview_presence_do_not_invent_route_or_disabled_tun() {
-        let mut surface = SurfaceSnapshot::unavailable(
-            SurfaceKind::BevyDesktop,
-            HostKind::Desktop,
-            Failure::unsupported("uncomposed controller"),
-        );
-        surface.pages.settings.status = PageStatus::Ready;
-        surface.core.lifecycle = CoreLifecycle::Running;
-        assert_eq!(
-            surface.core.routing_intent.status,
-            RoutingIntentStatus::Unobserved
-        );
-        assert_eq!(surface.core.routing_intent.current, None);
-        assert_eq!(
-            SystemToggleApplication::from_surface(&surface).tun,
-            SystemToggleState::Unknown
-        );
-        surface.runtime_control = runtime_control(Some(&Ok(readout(false, 0))));
-        let routing_intent = RoutingIntentApplication::from_surface(&surface);
-        assert_eq!(routing_intent.current, None);
-        assert_eq!(
-            SystemToggleApplication::from_surface(&surface).tun,
-            SystemToggleState::Disabled
-        );
-        surface.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
-        surface.core.lifecycle = CoreLifecycle::Stopped;
-        assert_eq!(
-            RoutingIntentApplication::from_surface(&surface).status,
-            RoutingIntentStatus::Unobserved
-        );
-        assert_eq!(
-            RoutingIntentApplication::from_surface(&surface).current,
-            Some(RoutingIntent::FollowRules)
         );
     }
 }

@@ -4,7 +4,6 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::system_proxy::{
     SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
@@ -12,6 +11,7 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_contract::system_toggle::SystemToggle;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
+use infiltrator_presentation::system_toggle_projection;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -21,7 +21,7 @@ impl AppState {
         if self.runtime.system_proxy_pending {
             return Task::none();
         }
-        if let Err(failure) = SystemToggleApplication::intent(
+        if let Err(failure) = system_toggle_projection::intent(
             &self.runtime.system_toggles,
             SystemToggle::SystemProxy,
             enabled,

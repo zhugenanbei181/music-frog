@@ -6,6 +6,8 @@
 pub mod aggregation_preview_projection;
 pub mod command_palette_projection;
 pub mod connection_detail_projection;
+pub mod connection_grouping;
+pub mod connection_search;
 pub mod core_control_projection;
 pub mod core_status_projection;
 pub mod dns_cache_actions;
@@ -25,7 +27,9 @@ pub mod host_network_projection;
 pub mod latency_projection;
 pub mod log_export_actions;
 pub mod log_export_projection;
+pub mod log_follow;
 pub mod log_projection;
+pub mod log_search;
 pub mod logical_rule_projection;
 pub mod mixin_studio_projection;
 pub mod network_status_projection;
@@ -56,6 +60,8 @@ pub mod script_workbench;
 pub mod settings_preference_projection;
 pub mod settings_status_projection;
 pub mod shell_readout;
+pub mod shell_readout_fold;
+pub mod snapshot_presentation;
 pub mod snapshot_restore_projection;
 pub mod snapshot_restore_workbench;
 pub mod speedtest_detail_projection;
@@ -79,6 +85,9 @@ mod dns_query_actions_tests;
 
 #[cfg(test)]
 mod log_export_actions_tests;
+
+#[cfg(test)]
+mod log_search_tests;
 
 #[cfg(test)]
 mod script_workbench_tests;

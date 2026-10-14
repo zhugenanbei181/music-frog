@@ -5,7 +5,6 @@ use infiltrator_application::log_application::{
     LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
 };
 use infiltrator_application::rule_list_application::document_snapshot;
-use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -15,6 +14,7 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_test_support::log_capture_fixtures::LOG_RECORDS;
 use infiltrator_test_support::rule_list_fixtures::list_workspace;
@@ -33,7 +33,7 @@ pub fn grouping_surface(mut surface: SurfaceSnapshot) -> SurfaceSnapshot {
         overview.active_connections = surface.core.active_connections;
     }
     surface.pages.connections = PageData::ready(page);
-    surface.shell_readout = ShellReadoutApplication::default().project(&surface);
+    surface.shell_readout = ShellReadoutProjection::default().project(&surface);
     surface
 }
 

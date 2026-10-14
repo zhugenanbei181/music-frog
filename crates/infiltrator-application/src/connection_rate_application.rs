@@ -12,10 +12,9 @@
 //! A host without two successive observations publishes honest zeros; the
 //! mapper never invents a rate.
 
-use crate::connection_search::display_endpoint;
 use infiltrator_contract::surface_snapshot;
 use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRateDiffer, ConnectionRates};
-use infiltrator_domain::connection_view::ConnectionView;
+use infiltrator_domain::connection_view::{ConnectionView, display_endpoint};
 use infiltrator_domain::runtime::{Connection, ConnectionSnapshot};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

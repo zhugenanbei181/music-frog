@@ -12,11 +12,11 @@ use crate::view::theme::{FONT_SEMIBOLD, R_CHIP, R_CONTROL, tokens};
 use crate::view::topology::topology_flow_canvas;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
 };
+use infiltrator_presentation::traffic_topology_projection;
 use infiltrator_presentation::traffic_topology_projection::status_label;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -195,7 +195,7 @@ fn topology_stage_node<'a>(
 }
 
 pub fn topology_route_for_stage(stage: TrafficTopologyStage) -> Option<Route> {
-    match TrafficTopologyNavigationApplication::page_for_stage(stage)? {
+    match traffic_topology_projection::page_for_stage(stage)? {
         PageId::Settings => Some(Route::Settings),
         PageId::Rules => Some(Route::Rules),
         PageId::Proxies => Some(Route::Proxies),

@@ -19,8 +19,6 @@ use crate::pages::proxies::{ProxyGroup, ProxyNode};
 use crate::pages::rules::{RuleItem, RuleProviderItem};
 use crate::pages::sync::{ConflictingKey, SnapshotItem, SyncConflictInfo};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
-use infiltrator_application::routing_intent_application::RoutingIntentApplication;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::outbound::{
@@ -34,6 +32,8 @@ use infiltrator_contract::outbound::{
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_presentation::routing_intent_projection;
+use infiltrator_presentation::system_toggle_projection;
 use std::time;
 
 pub(super) fn overview_projection(
@@ -105,8 +105,8 @@ pub(super) fn overview_projection(
         reconnect_mask: snapshot.reconnect_mask.clone(),
         viewport: snapshot.viewport.clone(),
         subscription_quota: snapshot.subscription_quota.clone(),
-        system_toggles: SystemToggleApplication::from_surface(snapshot),
-        routing_intent: RoutingIntentApplication::from_surface(snapshot),
+        system_toggles: system_toggle_projection::from_surface(snapshot),
+        routing_intent: routing_intent_projection::from_surface(snapshot),
         speedtest: snapshot.speedtest.clone(),
         cpu_percent: match &snapshot.resources {
             CoreResourceSnapshot::NotObserved => ResourceAvailability::NotObserved,

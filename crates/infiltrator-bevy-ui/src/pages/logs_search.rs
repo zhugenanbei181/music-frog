@@ -15,7 +15,6 @@ use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, Display, FlexDirection, FlexWrap, Node, UiRect, Val, percent};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::log_search::LogSearchState;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -28,6 +27,7 @@ use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk, TextRunsSet};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData};
+use infiltrator_presentation::log_search::LogSearchState;
 
 #[derive(Resource, Default)]
 pub struct LogsViewState(pub LogSearchState);

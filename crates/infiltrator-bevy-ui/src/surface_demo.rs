@@ -9,7 +9,6 @@ use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
 use crate::projection::DemoOverviewSource;
-use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::core_identity::{
@@ -63,6 +62,7 @@ use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 
 #[path = "surface_demo/projections.rs"]
 mod projections;
@@ -262,7 +262,7 @@ fn snapshot_from_overview_fixture(
         speedtest: overview.speedtest.clone(),
     };
     fill_demo_runtime_fields(&mut snapshot);
-    snapshot.shell_readout = ShellReadoutApplication::default().project(&snapshot);
+    snapshot.shell_readout = ShellReadoutProjection::default().project(&snapshot);
     snapshot.shell_readout.upload_bps = overview.readout.upload_bps.clone();
     snapshot.shell_readout.download_bps = overview.readout.download_bps.clone();
     snapshot.shell_readout.rate_failure = overview.readout.rate_failure.clone();
@@ -351,7 +351,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         speedtest: overview.speedtest.clone(),
     };
     fill_demo_runtime_fields(&mut snapshot);
-    snapshot.shell_readout = ShellReadoutApplication::default().project(&snapshot);
+    snapshot.shell_readout = ShellReadoutProjection::default().project(&snapshot);
     snapshot
 }
 

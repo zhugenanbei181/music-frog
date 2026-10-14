@@ -132,7 +132,7 @@ impl AppState {
         self.runtime.routing_intent_actions.observe(
             snapshot.generation,
             snapshot.revision,
-            RoutingIntentApplication::from_surface(&snapshot),
+            routing_intent_projection::from_surface(&snapshot),
         );
         self.runtime.routing_intent_state = self.runtime.routing_intent_actions.render_snapshot();
         self.runtime.routing_intent = self.runtime.routing_intent_state.current.clone();
@@ -233,7 +233,7 @@ impl AppState {
             self.editor.rule_etag_support = rules_page.etag_support;
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
-        self.runtime.system_toggles = SystemToggleApplication::from_surface(&snapshot);
+        self.runtime.system_toggles = system_toggle_projection::from_surface(&snapshot);
         if matches!(
             &snapshot.system_proxy.status,
             SystemProxyStatus::Enabled | SystemProxyStatus::Disabled

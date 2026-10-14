@@ -12,13 +12,13 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexWrap, Node, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
-use infiltrator_application::connection_grouping::ConnectionGroupRow;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::connection_grouping::ConnectionGroupRow;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct ConnectionGroupsRoot;

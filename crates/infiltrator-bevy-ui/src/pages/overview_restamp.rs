@@ -33,7 +33,6 @@ use bevy::text::TextColor;
 use bevy::ui::prelude::{BackgroundColor, Display, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::chart::ChartSpec;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
@@ -47,6 +46,7 @@ use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_c
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_presentation::subscription_quota_projection::{QuotaPresentation, project_quota};
+use infiltrator_presentation::system_toggle_projection;
 use infiltrator_presentation::system_toggle_projection::{action_label, status_label};
 
 /// Marker on the high-fidelity active-exit card's mutable facts.
@@ -239,9 +239,9 @@ pub(crate) fn on_overview_master_switch_activated(
     if !button.can_toggle {
         return;
     }
-    let shared = SystemToggleApplication::from_surface(&latest.0);
+    let shared = system_toggle_projection::from_surface(&latest.0);
     let desired = !button.enabled;
-    let Ok(intent) = SystemToggleApplication::intent(&shared, button.toggle, desired) else {
+    let Ok(intent) = system_toggle_projection::intent(&shared, button.toggle, desired) else {
         return;
     };
     let command = match intent {

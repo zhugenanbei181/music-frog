@@ -12,10 +12,10 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+
 # Bevy surface is built and tested against Boa unless defaults are disabled.
 default = ["script-engine-boa", "ui-application-projections"]
 script-engine-boa = ["dep:infiltrator-application", "infiltrator-application/script-engine-boa"]
-# The existing page layer still consumes runtime-neutral presentation helpers
-# from infiltrator-application. This feature is deliberately distinct from the
-# desktop/capture host adapters so Android can compile the UI without linking
-# those runtime compositions.
+# Transitional product-page imports still reach pure state/projection helpers
+# in infiltrator-application. This feature adds that crate to the link closure;
+# Android removes it after the production consumers migrate to presentation/
+# contract. It is separate from the opt-in capture host adapters below.
 ui-application-projections = ["dep:infiltrator-application"]
 # Isolated screenshot/demo tooling. This feature is opt-in and is not part of
 # the product defaults or Android product driver closure.

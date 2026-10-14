@@ -5,8 +5,8 @@ use crate::pages::profiles_diff_history::{SnapshotEntryLabel, SnapshotHistorySum
 use bevy::ecs::query::{Has, Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
-use infiltrator_application::snapshot_presentation;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_presentation::snapshot_presentation;
 #[derive(QueryData)]
 #[query_data(mutable)]
 pub struct CopyTarget {

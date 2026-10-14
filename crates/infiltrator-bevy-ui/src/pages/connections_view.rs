@@ -26,7 +26,6 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexWrap, JustifyContent, Node, UiRect, Val,
 };
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::connection_grouping::{ConnectionGroupingState, sort_label_key};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -37,6 +36,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
+use infiltrator_presentation::connection_grouping::{ConnectionGroupingState, sort_label_key};
 use std::collections::HashMap;
 
 /// Marker on a single flat connection row root; the payload is the row index

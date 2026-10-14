@@ -3,7 +3,6 @@
 
 use super::*;
 use bevy::scene::{CommandsSceneExt, bsn};
-use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::routing_intent::RoutingIntent;
@@ -12,6 +11,7 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{OverviewPageSnapshot, PageData};
 use infiltrator_contract::traffic_waveform::TrafficSample;
 use infiltrator_domain::traffic_waveform::display_series;
+use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 
 /// A projection event restamps texts, inks, pill selection, the banner's
 /// stored state and the chip values in place — every restampable entity
@@ -53,7 +53,7 @@ fn projection_updates_restamp_in_place() {
         speedtest: Default::default(),
     };
     let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
-    let observations = ShellReadoutApplication::default();
+    let observations = ShellReadoutProjection::default();
     observations.project(&snapshot);
     snapshot.revision += 1;
     snapshot.core.lifecycle = CoreLifecycle::Stopped;

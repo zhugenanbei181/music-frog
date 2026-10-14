@@ -1,17 +1,8 @@
 //! One match and text presentation fold for live and projected connection facts.
 use infiltrator_contract::connection_search::ConnectionSearchRow;
+pub use infiltrator_domain::connection_view::display_endpoint;
 use infiltrator_domain::connection_view::{self, ConnectionView};
 use zhuge_ui_core::text::{CaseSensitivity, project_text_runs};
-
-pub fn display_endpoint(host: &str, port: &str) -> String {
-    if port.is_empty() {
-        host.into()
-    } else if host.contains(':') && !host.starts_with('[') {
-        format!("[{host}]:{port}")
-    } else {
-        format!("{host}:{port}")
-    }
-}
 pub fn project_search_row<C: ConnectionView>(row: &C, query: &str) -> ConnectionSearchRow {
     let query = query.trim();
     let endpoint = display_endpoint(
@@ -48,6 +39,3 @@ pub fn project_search_row<C: ConnectionView>(row: &C, query: &str) -> Connection
         matched_term,
     }
 }
-
-#[cfg(test)]
-mod tests;

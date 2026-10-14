@@ -137,13 +137,13 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::scene::{CommandsSceneExt, Scene};
 use bevy::ui::widget::Text;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::button::{sync_control_labels, sync_control_visuals};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
+use infiltrator_presentation::system_toggle_projection;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -619,7 +619,7 @@ impl Plugin for PagesPlugin {
         )));
         app.insert_resource(LatestSurfaceSnapshot(initial_snapshot.clone()));
         app.insert_resource(SidebarToggleProjection(
-            SystemToggleApplication::from_surface(&initial_snapshot),
+            system_toggle_projection::from_surface(&initial_snapshot),
         ));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);

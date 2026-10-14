@@ -26,7 +26,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_bevy_widgets::chart::topology::{
     NodeCategory, TopologyLink, TopologyNode, TopologyPlate, TopologySpec, topology_scene,
 };
@@ -41,6 +40,7 @@ use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
 };
+use infiltrator_presentation::traffic_topology_projection;
 use infiltrator_presentation::traffic_topology_projection::status_label;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
@@ -439,7 +439,7 @@ pub(crate) fn on_topology_stage_activated(
     if !button.enabled {
         return;
     }
-    let Some(page) = TrafficTopologyNavigationApplication::page_for_stage(button.stage) else {
+    let Some(page) = traffic_topology_projection::page_for_stage(button.stage) else {
         return;
     };
 

@@ -439,7 +439,7 @@
       "text": "shell_readout_projection",
       "rationale": "Pure cross-surface shell readout copy and status folding moved to infiltrator-presentation; application no longer owns this view-only module.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-application/src/shell_readout_application_test.rs"
+        "crates/infiltrator-presentation/src/shell_readout_fold_tests.rs"
       ]
     },
     {
@@ -2232,7 +2232,7 @@
       "text": "connection_grouping_fixtures",
       "rationale": "Shared connection facts moved to infiltrator-test-support; application-specific surface projection is private test-only composition.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-application/src/connection_grouping/tests.rs"
+        "crates/infiltrator-application/src/connection_grouping_presentation_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src/lib.rs"
@@ -2301,6 +2301,149 @@
       ],
       "source_roots": [
         "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-system-toggle-projection-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SystemToggleApplication",
+      "rationale": "System toggle snapshot projection and typed intent admission are owned by infiltrator-presentation; Application no longer exposes a UI projection owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/system_toggle_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-topology-navigation-projection-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "TrafficTopologyNavigationApplication",
+      "rationale": "Topology stage-to-page routing is a shared presentation projection, not an Application use case.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/traffic_topology_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-routing-intent-snapshot-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "from_surface",
+      "rationale": "Lifecycle-aware snapshot projection is now a pure infiltrator-presentation operation; Application retains only routing port I/O and capability checks.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/routing_intent_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/routing_intent_application.rs"
+      ]
+    },
+    {
+      "id": "application-routing-intent-verified-snapshot-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "with_verified_intent",
+      "rationale": "Verified intent snapshot reduction moved to infiltrator-presentation; Application does not mutate UI snapshots.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/routing_intent_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/routing_intent_application.rs"
+      ]
+    },
+    {
+      "id": "application-connection-grouping-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "connection_grouping",
+      "rationale": "The cross-surface connection grouping and search fold is owned by infiltrator-presentation; Application retains only its I/O and contract projection use cases.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/connection_grouping_presentation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-connection-search-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "connection_search",
+      "rationale": "Connection search formatting and matching moved to infiltrator-presentation and is consumed by both UI surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/connection_search_presentation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-log-search-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "log_search",
+      "rationale": "Shared log query, regex, and highlight state moved to infiltrator-presentation with an explicit query-state enum.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/log_search_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-log-follow-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "log_follow",
+      "rationale": "Shared log viewport follow policy moved to infiltrator-presentation with explicit Following, Paused, and Away states.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/log_follow_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-snapshot-presentation-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "snapshot_presentation",
+      "rationale": "Snapshot history and diff copy is presentation-owned; snapshot application remains responsible for persistence and use cases.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/snapshot_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-shell-readout-fold-owner",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "shell_readout_application",
+      "rationale": "The stateful but I/O-free shell readout fold moved to infiltrator-presentation and no longer belongs to Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/shell_readout_fold_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-shell-readout-application-type",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ShellReadoutApplication",
+      "rationale": "The old application-named shell fold type was replaced by the shared ShellReadoutProjection in infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/shell_readout_fold_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
       ]
     }
   ]

@@ -10,7 +10,10 @@ chrono = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-shared = { path = "../infiltrator-shared" }
+regex = { workspace = true }
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
+zhuge-ui-core.workspace = true
 
 [dev-dependencies]
+infiltrator-test-support = { path = "../infiltrator-test-support" }

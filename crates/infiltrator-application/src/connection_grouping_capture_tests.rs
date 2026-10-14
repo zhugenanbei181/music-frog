@@ -1,8 +1,8 @@
 //! Shared deterministic facts for native grouping scenarios and contract tests.
 use crate::connection_rate_application::connections_page_snapshot;
-use crate::shell_readout_application::ShellReadoutApplication;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 
 /// Publish fixture facts as one coherent surface, including shell and overview counts.
@@ -20,6 +20,6 @@ pub fn grouping_surface(mut surface: SurfaceSnapshot) -> SurfaceSnapshot {
         overview.active_connections = surface.core.active_connections;
     }
     surface.pages.connections = PageData::ready(page);
-    surface.shell_readout = ShellReadoutApplication::default().project(&surface);
+    surface.shell_readout = ShellReadoutProjection::default().project(&surface);
     surface
 }

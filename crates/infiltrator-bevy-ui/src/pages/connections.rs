@@ -51,7 +51,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::connection_grouping::grouping_label_key;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -70,6 +69,7 @@ use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_presentation::connection_grouping::grouping_label_key;
 use infiltrator_shared::byte_units::format_bytes;
 
 /// Root marker on the Connections page scene.

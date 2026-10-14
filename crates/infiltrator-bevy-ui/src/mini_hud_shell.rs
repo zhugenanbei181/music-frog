@@ -28,11 +28,11 @@ use bevy::image::Image;
 use bevy::scene::CommandsSceneExt;
 use bevy::ui::widget::ImageNode;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::chart::sparkline_image;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_presentation::system_toggle_projection;
 
 #[path = "mini_hud_pip.rs"]
 pub mod pip;
@@ -247,7 +247,7 @@ pub fn on_set_mini_hud_pinned(trigger: On<SetMiniHudPinned>, sink: Option<Res<Co
 }
 
 /// The HUD quick switch and the sidebar switch share one action rule
-/// (`SystemToggleApplication::intent`) and one command vocabulary; this maps
+/// (`system_toggle_projection::intent`) and one command vocabulary; this maps
 /// the desired state onto the UI command and the local pending projection.
 fn submit_toggle(
     toggle: SystemToggle,
@@ -256,7 +256,7 @@ fn submit_toggle(
     sink: &CommandSinkHandle,
     commands: &mut Commands,
 ) {
-    if SystemToggleApplication::intent(&projection.0, toggle, desired).is_err() {
+    if system_toggle_projection::intent(&projection.0, toggle, desired).is_err() {
         return;
     }
     let command = match toggle {

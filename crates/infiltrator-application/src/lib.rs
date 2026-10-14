@@ -15,11 +15,13 @@ pub mod command_application;
 pub mod command_capability;
 pub mod configuration_application;
 pub mod connection_application;
-pub mod connection_grouping;
 #[cfg(test)]
 mod connection_grouping_capture_tests;
+#[cfg(test)]
+mod connection_grouping_presentation_tests;
 pub mod connection_rate_application;
-pub mod connection_search;
+#[cfg(test)]
+mod connection_search_presentation_tests;
 pub mod core_application;
 pub mod core_capability_application;
 #[cfg(test)]
@@ -88,7 +90,6 @@ pub mod script_export_application;
 pub mod script_sandbox_matrix_application;
 pub mod service_mode_application;
 pub mod settings_application;
-pub mod shell_readout_application;
 pub mod shortcut_application;
 pub mod snapshot_application;
 pub mod speedtest_application;
@@ -101,10 +102,8 @@ pub mod subscription_refresh_application;
 pub mod surface_application;
 pub mod sync_application;
 pub mod system_proxy_application;
-pub mod system_toggle_application;
 pub mod traffic_scale_application;
 pub mod traffic_topology_application;
-pub mod traffic_topology_navigation_application;
 pub mod traffic_waveform_application;
 pub mod uwp_loopback_application;
 pub mod version_application;
@@ -141,12 +140,9 @@ pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
 
 pub mod protocol_form;
 
-pub mod log_search;
-
 pub mod log_application;
 pub mod log_export_application;
 pub mod log_export_capture;
-pub mod log_follow;
 mod log_stream;
 
 #[cfg(test)]
@@ -156,12 +152,7 @@ mod log_application_tests;
 mod log_stream_test_support;
 
 #[cfg(test)]
-mod log_search_tests;
-
-#[cfg(test)]
 mod script_service_tests;
-
-pub mod snapshot_presentation;
 
 mod profile_editor_observations;
 

@@ -6,7 +6,7 @@ impl ProductSurfaceReader {
         Self {
             scripts: None,
             script_exports: None,
-            shell_readout: ShellReadoutApplication::default(),
+            shell_readout: ShellReadoutProjection::default(),
             runtime_control: RuntimeControlApplication::default(),
             core,
             runtime_configuration_ports: None,

@@ -31,3 +31,20 @@ fn explicit_lock_survives_end_scroll_resize_and_invalid_geometry_until_user_resu
     assert!(follow.should_follow());
     assert_eq!(follow.label_key(), "logs_scroll_lock");
 }
+
+#[test]
+fn scrolling_back_to_the_end_restores_following_but_an_explicit_pause_stays_paused() {
+    let mut follow = LogFollowState::default();
+    follow.observe_viewport(400.0, 600.0, 200.0);
+    follow.observe_viewport(300.0, 600.0, 200.0);
+    assert!(!follow.should_follow());
+    follow.observe_viewport(400.0, 600.0, 200.0);
+    assert!(follow.should_follow());
+
+    follow.toggle_follow();
+    follow.observe_viewport(400.0, 600.0, 200.0);
+    assert!(!follow.should_follow());
+    follow.observe_viewport(300.0, 600.0, 200.0);
+    follow.observe_viewport(400.0, 600.0, 200.0);
+    assert!(!follow.should_follow());
+}

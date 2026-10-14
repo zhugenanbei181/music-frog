@@ -406,6 +406,17 @@ pub fn connection_host<C: ConnectionView>(conn: &C) -> &str {
     }
 }
 
+/// Format a destination host and port, adding IPv6 brackets only when needed.
+pub fn display_endpoint(host: &str, port: &str) -> String {
+    if port.is_empty() {
+        host.into()
+    } else if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
 /// Parse a connection's route chain into the shared hop model (DUAL-13-06).
 /// Falls back to parsing the joined snapshot form when no structured hops are
 /// available, so both surfaces render identical stages.
@@ -758,6 +769,17 @@ mod tests {
             "zed-editor"
         );
         assert_eq!(process_display_name("   "), "");
+    }
+
+    #[test]
+    fn endpoint_copy_brackets_unbracketed_ipv6_hosts_only_when_a_port_is_present() {
+        assert_eq!(display_endpoint("example.org", "443"), "example.org:443");
+        assert_eq!(display_endpoint("2001:db8::1", "443"), "[2001:db8::1]:443");
+        assert_eq!(
+            display_endpoint("[2001:db8::1]", "443"),
+            "[2001:db8::1]:443"
+        );
+        assert_eq!(display_endpoint("2001:db8::1", ""), "2001:db8::1");
     }
 
     #[test]

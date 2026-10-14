@@ -13,7 +13,6 @@ use infiltrator_application::runtime_control_projection::{
     ipv6_observation, lan_security_observation, runtime_control,
 };
 use infiltrator_application::service_mode_application::ServiceModeApplication;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::error::{Failure, InfiltratorError};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
@@ -22,6 +21,7 @@ use infiltrator_contract::tun::TunStack;
 use infiltrator_desktop::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use infiltrator_presentation::system_toggle_projection;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use tokio::task::spawn_blocking;
@@ -354,7 +354,7 @@ impl AppState {
                     .clone()
                     .with_legacy_tun(self.runtime.tun_enabled);
                 if let Err(failure) =
-                    SystemToggleApplication::intent(&toggle_snapshot, SystemToggle::Tun, enabled)
+                    system_toggle_projection::intent(&toggle_snapshot, SystemToggle::Tun, enabled)
                 {
                     let error = InfiltratorError::Privilege(failure.message);
                     self.set_error(&error);

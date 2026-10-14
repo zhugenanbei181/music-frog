@@ -20,7 +20,6 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Res, ResMut};
 use infiltrator_application::overview;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump};
-use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_application::traffic_scale_application::TrafficScaleApplication;
 use infiltrator_application::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
@@ -31,6 +30,7 @@ use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
+use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use std::env::var;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -86,7 +86,7 @@ pub fn controller_config_from_env() -> Option<ControllerConfig> {
 
 struct SourceShared {
     pump: OverviewPump,
-    readout: ShellReadoutApplication,
+    readout: ShellReadoutProjection,
     waveform: TrafficWaveformApplication,
 }
 
@@ -145,7 +145,7 @@ impl OverviewSource for MihomoOverviewSource {
 #[derive(Resource)]
 pub struct OverviewPumpBridge {
     application: overview::OverviewPumpBridge,
-    readout: ShellReadoutApplication,
+    readout: ShellReadoutProjection,
     waveform: TrafficWaveformApplication,
 }
 
@@ -235,7 +235,7 @@ fn drain_overview_pump(
 
 fn projection_from_snapshot(
     snapshot: CoreSnapshot,
-    readout: &ShellReadoutApplication,
+    readout: &ShellReadoutProjection,
     history: &TrafficWaveformApplication,
 ) -> OverviewProjection {
     let waveform = history.record(&snapshot);

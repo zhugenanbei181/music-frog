@@ -4,9 +4,56 @@ use crate::routing_intent_actions::RoutingIntentActions;
 use infiltrator_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+pub fn from_surface(snapshot: &SurfaceSnapshot) -> RoutingIntentSnapshot {
+    match snapshot.core.lifecycle {
+        CoreLifecycle::Starting | CoreLifecycle::Stopping => RoutingIntentSnapshot {
+            current: snapshot.core.routing_intent.current.clone(),
+            status: RoutingIntentStatus::Pending,
+            failure: snapshot.core.routing_intent.failure.clone(),
+        },
+        CoreLifecycle::Stopped => {
+            let mut routing_intent = snapshot.core.routing_intent.clone();
+            if routing_intent.status == RoutingIntentStatus::Ready {
+                routing_intent.status = RoutingIntentStatus::Unobserved;
+            }
+            routing_intent
+        }
+        CoreLifecycle::Failed => RoutingIntentSnapshot {
+            current: snapshot.core.routing_intent.current.clone(),
+            status: RoutingIntentStatus::Failed,
+            failure: snapshot
+                .core
+                .routing_intent
+                .failure
+                .clone()
+                .or_else(|| snapshot.core.failure.clone()),
+        },
+        CoreLifecycle::Ready | CoreLifecycle::Running => snapshot.core.routing_intent.clone(),
+    }
+}
+
+pub fn with_verified_intent(snapshot: &SurfaceSnapshot, actual: RoutingIntent) -> SurfaceSnapshot {
+    let mut snapshot = snapshot.clone();
+    snapshot.revision = snapshot
+        .revision
+        .checked_add(1)
+        .expect("surface revision exhausted");
+    snapshot.core.routing_intent = RoutingIntentSnapshot {
+        current: Some(actual),
+        status: RoutingIntentStatus::Ready,
+        failure: None,
+    };
+    if let Some(page) = &mut snapshot.pages.overview.data {
+        page.routing_intent = snapshot.core.routing_intent.clone();
+    }
+    snapshot
+}
 
 pub fn routing_intent_copy_key(intent: &RoutingIntent) -> &'static str {
     match intent {

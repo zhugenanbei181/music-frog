@@ -62,7 +62,7 @@ pub(crate) fn replay_surface_snapshot(snapshot: SurfaceSnapshot, commands: &mut 
     commands.insert_resource(LatestSurfaceSnapshot(snapshot.clone()));
     commands.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(&snapshot)));
     commands.insert_resource(SidebarToggleProjection(
-        SystemToggleApplication::from_surface(&snapshot),
+        system_toggle_projection::from_surface(&snapshot),
     ));
     trigger_page_projection_events(&snapshot, commands);
     commands.trigger(SurfaceStatusChanged(snapshot));

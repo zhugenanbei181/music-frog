@@ -35,7 +35,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::snapshot_presentation;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -48,6 +47,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_contract::yaml_ast_diff::{DiffKind, DiffLine, YamlAstDiffSnapshot};
+use infiltrator_presentation::snapshot_presentation;
 
 /// Marker for snapshot diff root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

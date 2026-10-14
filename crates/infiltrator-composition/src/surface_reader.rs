@@ -49,7 +49,6 @@ use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::settings_application::SettingsApplication;
-use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::subscription_quota_application::SubscriptionQuotaApplication;
@@ -94,6 +93,8 @@ use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_presentation::log_projection::project_log_facts;
+use infiltrator_presentation::routing_intent_projection;
+use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use outbound_observation::{
     SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,
     surface_read_scope_changed,
@@ -124,7 +125,7 @@ mod versions;
 pub struct ProductSurfaceReader {
     scripts: Option<ScriptApplication>,
     script_exports: Option<ScriptExportApplication>,
-    shell_readout: ShellReadoutApplication,
+    shell_readout: ShellReadoutProjection,
     runtime_control: RuntimeControlApplication,
     core: Arc<CoreApplication>,
     runtime_configuration_ports: Option<RuntimeConfigurationPorts>,
@@ -724,7 +725,7 @@ impl SurfaceReader for ProductSurfaceReader {
             },
         };
         snapshot.core.routing_intent = observed_routing_intent;
-        let routing_intent = RoutingIntentApplication::from_surface(&snapshot);
+        let routing_intent = routing_intent_projection::from_surface(&snapshot);
         snapshot.core.routing_intent = routing_intent.clone();
         if let Some(overview) = &mut snapshot.pages.overview.data {
             overview.routing_intent = routing_intent;

@@ -36,7 +36,6 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::CommandsSceneExt;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
@@ -44,6 +43,7 @@ use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandTarget, P
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_presentation::system_toggle_projection;
 
 /// The last mounted overlay signature: a remount happens only when the open
 /// flag, query, cursor or result set actually changed.
@@ -324,7 +324,7 @@ pub fn on_execute_selected_palette_action(
 fn desired_toggle(toggles: Option<&SidebarToggleProjection>, toggle: SystemToggle) -> Option<bool> {
     let toggles = toggles?;
     let desired = !toggles.0.state(toggle).is_enabled();
-    SystemToggleApplication::intent(&toggles.0, toggle, desired)
+    system_toggle_projection::intent(&toggles.0, toggle, desired)
         .ok()
         .map(|_| desired)
 }

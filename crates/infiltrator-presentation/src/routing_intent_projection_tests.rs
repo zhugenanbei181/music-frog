@@ -5,6 +5,9 @@ use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::EngineDefinedRoutingIntent;
 use infiltrator_contract::routing_intent::RoutingIntentExtensionId;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 
 #[test]
 fn captions_use_the_shared_typed_intent_and_status() {
@@ -69,4 +72,46 @@ fn failure_copy_uses_the_typed_requested_intent_and_redacted_reason() {
         routing_intent_failure_copy(&actions, "en"),
         "Switch to Bypass proxy failed: connection refused"
     );
+}
+
+#[test]
+fn lifecycle_projection_keeps_pending_stopped_and_failed_distinct() {
+    let mut surface = SurfaceSnapshot::unavailable(
+        SurfaceKind::BevyDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("surface unavailable"),
+    );
+    surface.core.routing_intent.current = Some(RoutingIntent::FollowRules);
+    surface.core.routing_intent.status = RoutingIntentStatus::Ready;
+    surface.core.lifecycle = CoreLifecycle::Starting;
+    assert_eq!(from_surface(&surface).status, RoutingIntentStatus::Pending);
+
+    surface.core.lifecycle = CoreLifecycle::Stopped;
+    assert_eq!(
+        from_surface(&surface).status,
+        RoutingIntentStatus::Unobserved
+    );
+
+    let failure = Failure::new(ErrorCode::Network, "owner read failed", true);
+    surface.core.lifecycle = CoreLifecycle::Failed;
+    surface.core.failure = Some(failure.clone());
+    let projected = from_surface(&surface);
+    assert_eq!(projected.status, RoutingIntentStatus::Failed);
+    assert_eq!(projected.failure, Some(failure));
+}
+
+#[test]
+fn verified_intent_updates_the_snapshot_with_a_new_revision() {
+    let surface = SurfaceSnapshot::unavailable(
+        SurfaceKind::BevyDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("surface unavailable"),
+    );
+    let next = with_verified_intent(&surface, RoutingIntent::BypassProxy);
+    assert_eq!(next.revision, surface.revision + 1);
+    assert_eq!(
+        next.core.routing_intent.current,
+        Some(RoutingIntent::BypassProxy)
+    );
+    assert_eq!(next.core.routing_intent.status, RoutingIntentStatus::Ready);
 }

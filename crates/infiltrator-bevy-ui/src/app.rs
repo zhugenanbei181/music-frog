@@ -61,7 +61,6 @@ use bevy::ui::prelude::{BackgroundColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::icon::status_dot_image;
@@ -80,6 +79,7 @@ use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use infiltrator_presentation::routing_intent_actions::{
     PendingRoutingIntentChange, RoutingIntentActions,
 };
+use infiltrator_presentation::system_toggle_projection;
 use infiltrator_presentation::system_toggle_projection::compact_label;
 
 /// Sidebar rail standard width (px).
@@ -407,7 +407,8 @@ fn on_sidebar_system_proxy_activated(
         return;
     }
     let desired = !projection.0.state(SystemToggle::SystemProxy).is_enabled();
-    if SystemToggleApplication::intent(&projection.0, SystemToggle::SystemProxy, desired).is_err() {
+    if system_toggle_projection::intent(&projection.0, SystemToggle::SystemProxy, desired).is_err()
+    {
         return;
     }
     let Some(handle) = handle else {
@@ -434,7 +435,7 @@ fn on_sidebar_tun_activated(
         return;
     }
     let desired = !projection.0.state(SystemToggle::Tun).is_enabled();
-    if SystemToggleApplication::intent(&projection.0, SystemToggle::Tun, desired).is_err() {
+    if system_toggle_projection::intent(&projection.0, SystemToggle::Tun, desired).is_err() {
         return;
     }
     let Some(handle) = handle else {

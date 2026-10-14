@@ -21,7 +21,14 @@ pub struct ConnectionGroupingState<C> {
     rows: Vec<ConnectionGroupRow>,
     search: HashMap<String, ConnectionSearchRow>,
     matches: usize,
-    source_current: bool,
+    source_state: ConnectionSourceState,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ConnectionSourceState {
+    Current,
+    #[default]
+    Unavailable,
 }
 impl<C> Default for ConnectionGroupingState<C> {
     fn default() -> Self {
@@ -32,13 +39,13 @@ impl<C> Default for ConnectionGroupingState<C> {
             rows: Vec::new(),
             search: HashMap::new(),
             matches: 0,
-            source_current: false,
+            source_state: ConnectionSourceState::Unavailable,
         }
     }
 }
 impl<C: ConnectionView + Clone> ConnectionGroupingState<C> {
     pub fn observe(&mut self, source: &[C]) {
-        self.source_current = true;
+        self.source_state = ConnectionSourceState::Current;
         self.source = source.to_vec();
         self.fold();
     }
@@ -55,18 +62,18 @@ impl<C: ConnectionView + Clone> ConnectionGroupingState<C> {
         }
     }
     pub fn source_current(&self) -> bool {
-        self.source_current
+        matches!(self.source_state, ConnectionSourceState::Current)
     }
     pub fn mark_unavailable(&mut self) {
-        self.source_current = false;
+        self.source_state = ConnectionSourceState::Unavailable;
     }
     pub fn clear_observation(&mut self) {
         self.source.clear();
-        self.source_current = false;
+        self.source_state = ConnectionSourceState::Unavailable;
         self.fold();
     }
     pub fn search_summary_key(&self) -> &'static str {
-        if self.source_current {
+        if matches!(self.source_state, ConnectionSourceState::Current) {
             "conn_search_results"
         } else {
             "conn_search_unavailable"
@@ -85,7 +92,9 @@ impl<C: ConnectionView + Clone> ConnectionGroupingState<C> {
         self.search.get(id)
     }
     pub fn summary_empty(&self) -> bool {
-        self.source_current && !self.query.trim().is_empty() && self.matches == 0
+        matches!(self.source_state, ConnectionSourceState::Current)
+            && !self.query.trim().is_empty()
+            && self.matches == 0
     }
     pub fn mode(&self) -> ConnectionGroupingMode {
         self.mode
@@ -152,6 +161,3 @@ pub fn sort_label_key(key: ConnectionSortKey) -> &'static str {
         ConnectionSortKey::HostAsc => "runtime_conn_sort_host_asc",
     }
 }
-
-#[cfg(test)]
-mod tests;

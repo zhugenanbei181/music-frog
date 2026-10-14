@@ -21,7 +21,6 @@ use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::routing_intent_application::RoutingIntentApplication;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -31,6 +30,7 @@ use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_actions::{
     RoutingIntentActions, RoutingIntentFinishOutcome,
 };
+use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 
 #[derive(QueryData)]
@@ -129,7 +129,7 @@ fn observe_actions(
         actions.observe(
             latest.0.generation,
             latest.0.revision,
-            RoutingIntentApplication::from_surface(&latest.0),
+            routing_intent_projection::from_surface(&latest.0),
         );
     } else if let Some(source) = source {
         let value = source.0.current();
@@ -251,7 +251,7 @@ pub fn completed(
     if let Some(observed) = verified {
         if let Some(latest) = latest {
             commands.trigger(SurfaceSnapshotUpdated(
-                RoutingIntentApplication::with_verified_intent(&latest.0, observed),
+                routing_intent_projection::with_verified_intent(&latest.0, observed),
             ));
         } else if let Some(source) = handle {
             commands.trigger(OverviewProjectionUpdated(source.0.current()));

@@ -12,8 +12,6 @@ use infiltrator_contract::routing_intent::EngineDefinedRoutingIntent;
 use infiltrator_contract::routing_intent::{
     RoutingIntent, RoutingIntentExtensionId, RoutingIntentSnapshot, RoutingIntentStatus,
 };
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use std::sync::Arc;
 
@@ -36,54 +34,6 @@ pub struct RoutingIntentApplication {
 impl RoutingIntentApplication {
     pub fn new(port: Arc<dyn RoutingIntentPort>, capabilities: CoreCapabilityApplication) -> Self {
         Self { port, capabilities }
-    }
-
-    pub fn with_verified_intent(
-        snapshot: &SurfaceSnapshot,
-        actual: RoutingIntent,
-    ) -> SurfaceSnapshot {
-        let mut snapshot = snapshot.clone();
-        snapshot.revision = snapshot
-            .revision
-            .checked_add(1)
-            .expect("surface revision exhausted");
-        snapshot.core.routing_intent = RoutingIntentSnapshot {
-            current: Some(actual.clone()),
-            status: RoutingIntentStatus::Ready,
-            failure: None,
-        };
-        if let Some(page) = &mut snapshot.pages.overview.data {
-            page.routing_intent = snapshot.core.routing_intent.clone();
-        }
-        snapshot
-    }
-
-    pub fn from_surface(snapshot: &SurfaceSnapshot) -> RoutingIntentSnapshot {
-        match snapshot.core.lifecycle {
-            CoreLifecycle::Starting | CoreLifecycle::Stopping => RoutingIntentSnapshot {
-                current: snapshot.core.routing_intent.current.clone(),
-                status: RoutingIntentStatus::Pending,
-                failure: snapshot.core.routing_intent.failure.clone(),
-            },
-            CoreLifecycle::Stopped => {
-                let mut routing_intent = snapshot.core.routing_intent.clone();
-                if routing_intent.status == RoutingIntentStatus::Ready {
-                    routing_intent.status = RoutingIntentStatus::Unobserved;
-                }
-                routing_intent
-            }
-            CoreLifecycle::Failed => RoutingIntentSnapshot {
-                current: snapshot.core.routing_intent.current.clone(),
-                status: RoutingIntentStatus::Failed,
-                failure: snapshot
-                    .core
-                    .routing_intent
-                    .failure
-                    .clone()
-                    .or_else(|| snapshot.core.failure.clone()),
-            },
-            CoreLifecycle::Ready | CoreLifecycle::Running => snapshot.core.routing_intent.clone(),
-        }
     }
 
     /// Read through the same engine adapter used for typed writes. Missing

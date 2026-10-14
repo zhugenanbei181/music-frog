@@ -6,8 +6,8 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
 use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Element, Font, Length, Theme};
-use infiltrator_application::connection_grouping::grouping_label_key;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_presentation::connection_grouping::grouping_label_key;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 

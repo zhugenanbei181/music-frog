@@ -17,17 +17,42 @@ pub struct LogSearchRow {
     pub tag: Vec<SearchTextRun>,
     pub message: Vec<SearchTextRun>,
 }
+
 #[derive(Clone, Debug, Default)]
 pub struct LogSearchState {
     pub follow: LogFollowState,
-    query: String,
-    compiled: Option<Regex>,
-    invalid_pattern: Option<String>,
-    scope: Option<(u64, Option<SessionToken>)>,
-    page: Option<PageData<LogsPageSnapshot>>,
+    query: LogQueryState,
+    source: LogSourceObservation,
     rows: Vec<LogSearchRow>,
     matched_count: usize,
 }
+
+#[derive(Clone, Debug)]
+enum LogQueryState {
+    Empty { source: String },
+    Valid { source: String, regex: Regex },
+    Invalid { source: String, error: String },
+}
+
+impl Default for LogQueryState {
+    fn default() -> Self {
+        Self::Empty {
+            source: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+enum LogSourceObservation {
+    #[default]
+    Unobserved,
+    Observed {
+        generation: u64,
+        token: Option<SessionToken>,
+        page: PageData<LogsPageSnapshot>,
+    },
+}
+
 impl LogSearchState {
     pub fn observe(
         &mut self,
@@ -35,57 +60,79 @@ impl LogSearchState {
         token: Option<SessionToken>,
         page: &PageData<LogsPageSnapshot>,
     ) {
-        if self.scope == Some((generation, token)) && self.page.as_ref() == Some(page) {
+        if matches!(
+            &self.source,
+            LogSourceObservation::Observed {
+                generation: previous_generation,
+                token: previous_token,
+                page: previous_page,
+            } if *previous_generation == generation
+                && previous_token == &token
+                && previous_page == page
+        ) {
             return;
         }
-        self.scope = Some((generation, token));
-        self.page = Some(page.clone());
+        self.source = LogSourceObservation::Observed {
+            generation,
+            token,
+            page: page.clone(),
+        };
         self.rebuild();
     }
+
     pub fn edit_query(&mut self, query: &str) {
-        if self.query == query {
+        if self.query.source() == query {
             return;
         }
-        self.query = query.into();
-        self.invalid_pattern = None;
-        self.compiled = if query.trim().is_empty() {
-            None
+        self.query = if query.trim().is_empty() {
+            LogQueryState::Empty {
+                source: query.into(),
+            }
         } else {
             match RegexBuilder::new(query)
                 .case_insensitive(true)
                 .size_limit(1024 * 1024)
                 .build()
             {
-                Ok(regex) => Some(regex),
-                Err(error) => {
-                    self.invalid_pattern = Some(error.to_string());
-                    None
-                }
+                Ok(regex) => LogQueryState::Valid {
+                    source: query.into(),
+                    regex,
+                },
+                Err(error) => LogQueryState::Invalid {
+                    source: query.into(),
+                    error: error.to_string(),
+                },
             }
         };
         self.rebuild();
     }
+
     fn rebuild(&mut self) {
-        self.rows = self
-            .page
-            .as_ref()
-            .and_then(|page| page.data.as_ref())
-            .into_iter()
-            .flat_map(|data| &data.entries)
+        let entries = match &self.source {
+            LogSourceObservation::Unobserved => &[][..],
+            LogSourceObservation::Observed { page, .. } => page
+                .data
+                .as_ref()
+                .map_or(&[][..], |data| data.entries.as_slice()),
+        };
+        self.rows = entries
+            .iter()
             .map(|entry| self.project_row(entry))
             .collect();
         self.matched_count = self.rows.iter().filter(|row| row.visible).count();
     }
+
     fn runs(&self, value: &str) -> Vec<SearchTextRun> {
         let ranges = self
-            .compiled
-            .as_ref()
+            .query
+            .regex()
             .into_iter()
             .flat_map(|regex| regex.find_iter(value))
             .filter(|matched| !matched.is_empty())
             .map(|matched| (matched.start(), matched.end()));
         project_match_ranges(value, ranges)
     }
+
     fn project_row(&self, entry: &LogSnapshot) -> LogSearchRow {
         let level = LogLevel::from_identifier(&entry.level);
         let label = format!("[{}]", level.label());
@@ -95,11 +142,11 @@ impl LogSearchState {
             format!("[{}]", entry.tag)
         };
         let values = [&entry.timestamp, &label, &tag, &entry.message];
-        let visible = self.invalid_pattern.is_none()
-            && self
-                .compiled
-                .as_ref()
-                .is_none_or(|regex| values.iter().any(|value| regex.is_match(value)));
+        let visible = match &self.query {
+            LogQueryState::Empty { .. } => true,
+            LogQueryState::Valid { regex, .. } => values.iter().any(|value| regex.is_match(value)),
+            LogQueryState::Invalid { .. } => false,
+        };
         LogSearchRow {
             id: entry.id,
             visible,
@@ -110,34 +157,46 @@ impl LogSearchState {
             message: self.runs(&entry.message),
         }
     }
+
     pub fn query(&self) -> &str {
-        &self.query
+        self.query.source()
     }
+
     pub fn invalid_pattern(&self) -> Option<&str> {
-        self.invalid_pattern.as_deref()
+        self.query.invalid_error()
     }
+
     pub fn rows(&self) -> &[LogSearchRow] {
         &self.rows
     }
+
     pub fn row(&self, id: u64) -> Option<&LogSearchRow> {
         self.rows.iter().find(|row| row.id == id)
     }
+
     pub fn matched_count(&self) -> usize {
         self.matched_count
     }
+
     pub fn source_count(&self) -> usize {
-        self.page
-            .as_ref()
-            .and_then(|page| page.data.as_ref())
-            .map_or(0, |data| data.total_entries)
+        match &self.source {
+            LogSourceObservation::Unobserved => 0,
+            LogSourceObservation::Observed { page, .. } => {
+                page.data.as_ref().map_or(0, |data| data.total_entries)
+            }
+        }
     }
+
     pub fn source_current(&self) -> bool {
-        self.page
-            .as_ref()
-            .is_some_and(|page| matches!(page.status, PageStatus::Ready | PageStatus::Empty))
+        matches!(
+            &self.source,
+            LogSourceObservation::Observed { page, .. }
+                if matches!(page.status, PageStatus::Ready | PageStatus::Empty)
+        )
     }
+
     pub fn status_key(&self) -> &'static str {
-        if self.invalid_pattern.is_some() {
+        if self.query.invalid_error().is_some() {
             "logs_search_invalid"
         } else if !self.source_current() {
             "logs_search_unavailable"
@@ -147,6 +206,30 @@ impl LogSearchState {
             "logs_search_no_matches"
         } else {
             "logs_search_results"
+        }
+    }
+}
+
+impl LogQueryState {
+    fn source(&self) -> &str {
+        match self {
+            Self::Empty { source } | Self::Valid { source, .. } | Self::Invalid { source, .. } => {
+                source
+            }
+        }
+    }
+
+    fn regex(&self) -> Option<&Regex> {
+        match self {
+            Self::Valid { regex, .. } => Some(regex),
+            Self::Empty { .. } | Self::Invalid { .. } => None,
+        }
+    }
+
+    fn invalid_error(&self) -> Option<&str> {
+        match self {
+            Self::Invalid { error, .. } => Some(error),
+            Self::Empty { .. } | Self::Valid { .. } => None,
         }
     }
 }

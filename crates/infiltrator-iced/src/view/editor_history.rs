@@ -16,8 +16,8 @@ use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::snapshot_presentation;
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
+use infiltrator_presentation::snapshot_presentation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
 

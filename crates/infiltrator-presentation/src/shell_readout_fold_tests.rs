@@ -1,5 +1,6 @@
 //! test-intent: behavior
 use super::*;
+use crate::shell_readout::{count_copy, profile_name, profile_percent, profile_usage, rate_copy};
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
@@ -15,9 +16,6 @@ use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     PageId, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
-};
-use infiltrator_presentation::shell_readout::{
-    count_copy, profile_name, profile_percent, profile_usage, rate_copy,
 };
 use serde_json::{from_value, json};
 
@@ -81,7 +79,7 @@ fn inventory(group_count: usize) -> OutboundInventorySnapshot {
 
 #[test]
 fn shell_proxy_count_uses_typed_inventory_and_retains_only_stale_observations() {
-    let owner = ShellReadoutApplication::default();
+    let owner = ShellReadoutProjection::default();
     let mut source = snapshot();
     source.outbound_inventory = PageData::ready(inventory(3));
     let observed = owner.project(&source);
@@ -104,7 +102,7 @@ fn shell_proxy_count_uses_typed_inventory_and_retains_only_stale_observations() 
 
 #[test]
 fn complete_rule_count_zero_and_stale_observations_do_not_follow_the_render_window_or_defaults() {
-    let owner = ShellReadoutApplication::default();
+    let owner = ShellReadoutProjection::default();
     let mut source = snapshot();
     let unknown = owner.project(&source);
     assert!(matches!(unknown.rules, ShellObservation::Unobserved));
@@ -132,7 +130,7 @@ fn complete_rule_count_zero_and_stale_observations_do_not_follow_the_render_wind
 
 #[test]
 fn quota_missing_fields_profile_switch_failed_read_and_locale_keep_only_the_matching_observation() {
-    let owner = ShellReadoutApplication::default();
+    let owner = ShellReadoutProjection::default();
     let mut source = snapshot();
     source.pages.profiles = profiles(profile("first"));
     source.subscription_quota.profile_name = Some("Home {count}".into());
@@ -172,7 +170,7 @@ fn quota_missing_fields_profile_switch_failed_read_and_locale_keep_only_the_matc
 
 #[test]
 fn observed_zero_rate_invalid_sample_and_new_generation_are_distinct() {
-    let owner = ShellReadoutApplication::default();
+    let owner = ShellReadoutProjection::default();
     let mut source = snapshot();
     assert_eq!(
         rate_copy(&owner.project(&source).upload_bps, "en-US"),
@@ -209,7 +207,7 @@ fn observed_zero_rate_invalid_sample_and_new_generation_are_distinct() {
 
 #[test]
 fn failed_reads_preserve_zero_as_stale_and_same_generation_new_tokens_retire_old_rates() {
-    let owner = ShellReadoutApplication::default();
+    let owner = ShellReadoutProjection::default();
     let mut source = snapshot();
     source.core.session_token = Some(SessionToken::new(12));
     source.core.sampled_at_epoch_ms = Some(10);

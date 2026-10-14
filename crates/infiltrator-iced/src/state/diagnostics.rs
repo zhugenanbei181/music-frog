@@ -2,17 +2,16 @@
 
 use infiltrator_application::dns_leak_actions::DnsLeakActionState;
 use infiltrator_application::dns_leak_application::DnsLeakApplication;
-use infiltrator_application::log_search::LogSearchState;
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
 use infiltrator_presentation::dns_query_actions::DnsQueryActions;
 use infiltrator_presentation::log_export_actions::LogExportActions;
 use infiltrator_presentation::log_projection::page_from_log_records;
+use infiltrator_presentation::log_search::LogSearchState;
 
 use crate::types::app::Route;
 use crate::types::doctor::{CrashWatchdogState, DoctorPanelState};
 use crate::types::perf::PerfSnapshot;
 use crate::types::runtime::{LogFilterState, PcapCaptureState, RuntimeStreamState};
-use infiltrator_application::connection_grouping::ConnectionGroupingState;
 use infiltrator_application::connection_rate_application::ConnectionRateApplication;
 use infiltrator_contract::dns_cache::DnsCacheFlushReport;
 use infiltrator_contract::error::Failure;
@@ -22,6 +21,7 @@ use infiltrator_domain::connection_activity::ConnectionActivityTracker;
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_domain::runtime::{ConnectionSnapshot, TrafficData};
+use infiltrator_presentation::connection_grouping::ConnectionGroupingState;
 use std::collections::VecDeque;
 use std::time::Instant;
 

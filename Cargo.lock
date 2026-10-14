@@ -6778,8 +6778,11 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-shared",
+ "infiltrator-test-support",
+ "regex",
  "serde_json",
  "serde_yaml_ng",
+ "zhuge-ui-core",
 ]
 
 [[package]]

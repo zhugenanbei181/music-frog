@@ -1,7 +1,77 @@
 //! Shared labels for system controls; failures retain their reported reason.
-use infiltrator_contract::system_toggle::SystemToggleState;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// Fold only verified host observations into the compact toggle read model.
+pub fn from_surface(snapshot: &SurfaceSnapshot) -> SystemToggleSnapshot {
+    let system_proxy = match &snapshot.system_proxy.status {
+        SystemProxyStatus::Unknown => SystemToggleState::Unknown,
+        SystemProxyStatus::Disabled => SystemToggleState::Disabled,
+        SystemProxyStatus::Enabled => SystemToggleState::Enabled,
+        SystemProxyStatus::Unsupported { failure } => SystemToggleState::Unsupported {
+            failure: failure.clone(),
+        },
+        SystemProxyStatus::Failed { failure } => SystemToggleState::Failed {
+            failure: failure.clone(),
+        },
+    };
+    let tun = match &snapshot.runtime_control.status {
+        RuntimeControlStatus::Ready => snapshot
+            .runtime_control
+            .tun_enabled
+            .map_or(SystemToggleState::Unknown, SystemToggleState::from_enabled),
+        RuntimeControlStatus::Unsupported { failure } => SystemToggleState::Unsupported {
+            failure: failure.clone(),
+        },
+        RuntimeControlStatus::Failed { failure } => SystemToggleState::Failed {
+            failure: failure.clone(),
+        },
+        RuntimeControlStatus::Unobserved => SystemToggleState::Unknown,
+    };
+    SystemToggleSnapshot {
+        system_proxy,
+        tun,
+        revision: snapshot.revision,
+    }
+}
+
+/// Build an intent only from an actionable owner readback state.
+pub fn intent(
+    snapshot: &SystemToggleSnapshot,
+    toggle: SystemToggle,
+    desired: bool,
+) -> Result<CommandIntent, Failure> {
+    match snapshot.state(toggle) {
+        SystemToggleState::Enabled | SystemToggleState::Disabled => {}
+        SystemToggleState::Pending { .. } => {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "system toggle action is already in flight",
+                false,
+            ));
+        }
+        SystemToggleState::Unknown => {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "system toggle has no authoritative host readback",
+                true,
+            ));
+        }
+        SystemToggleState::Unsupported { failure } | SystemToggleState::Failed { failure } => {
+            return Err(failure.clone());
+        }
+    }
+    Ok(match toggle {
+        SystemToggle::SystemProxy => CommandIntent::SetSystemProxy { enabled: desired },
+        SystemToggle::Tun => CommandIntent::ToggleTun { enabled: desired },
+    })
+}
 
 pub fn status_label(state: &SystemToggleState, locale: &str) -> String {
     let key = match state {
@@ -69,34 +139,5 @@ pub fn compact_status_line(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{compact_label, compact_status_line};
-    use infiltrator_contract::error::Failure;
-    use infiltrator_contract::system_toggle::SystemToggleState;
-    #[test]
-    fn compact_status_localizes_actual_states_and_never_fakes_failed_or_unknown_as_off() {
-        let enabled = SystemToggleState::Enabled;
-        let pending = SystemToggleState::Pending { desired: true };
-        assert_eq!(
-            compact_status_line(&enabled, &pending, "zh-CN"),
-            "系统代理: 开 · TUN: …"
-        );
-        assert_eq!(
-            compact_status_line(&enabled, &pending, "en-US"),
-            "Proxy: On · TUN: …"
-        );
-        assert_eq!(compact_label(&SystemToggleState::Disabled, "en-US"), "Off");
-        for state in [
-            SystemToggleState::Unknown,
-            SystemToggleState::Unsupported {
-                failure: Failure::unsupported("host absent"),
-            },
-            SystemToggleState::Failed {
-                failure: Failure::unsupported("read denied"),
-            },
-        ] {
-            assert_eq!(compact_label(&state, "zh-CN"), "—");
-            assert_eq!(compact_label(&state, "en-US"), "—");
-        }
-    }
-}
+#[path = "system_toggle_projection_tests.rs"]
+mod tests;

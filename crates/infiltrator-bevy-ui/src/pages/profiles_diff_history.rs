@@ -28,7 +28,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::snapshot_presentation;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -37,6 +36,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
+use infiltrator_presentation::snapshot_presentation;
 
 /// DUAL-09-06: store a manual snapshot of the active profile now.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

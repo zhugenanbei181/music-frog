@@ -1,4 +1,4 @@
-//! One application-owned fold for shell facts, including retained but stale observations.
+//! One shared fold for shell facts, including retained but stale observations.
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::outbound::inventory::{
@@ -12,10 +12,10 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Default)]
-pub struct ShellReadoutApplication {
+pub struct ShellReadoutProjection {
     state: Arc<Mutex<ShellReadoutSnapshot>>,
 }
-impl ShellReadoutApplication {
+impl ShellReadoutProjection {
     /// Overview-only adapters use the same rate fold without inventing page facts.
     pub fn project_core_rates(
         &self,
@@ -219,5 +219,5 @@ enum ProfileQuotaFacts {
 }
 
 #[cfg(test)]
-#[path = "shell_readout_application_test.rs"]
+#[path = "shell_readout_fold_tests.rs"]
 mod tests;

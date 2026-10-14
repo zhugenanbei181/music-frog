@@ -2,12 +2,12 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::routing_intent_application::RoutingIntentApplication;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_actions::RoutingIntentFinishOutcome;
+use infiltrator_presentation::routing_intent_projection;
 
 impl AppState {
     pub(super) fn update_routing_intent(&mut self, message: Message) -> Task<Message> {
@@ -37,7 +37,7 @@ impl AppState {
                 self.runtime.routing_intent = self.runtime.routing_intent_state.current.clone();
                 if let Some(actual) = actual {
                     if let Some(snapshot) = self.surface.latest() {
-                        let snapshot = RoutingIntentApplication::with_verified_intent(
+                        let snapshot = routing_intent_projection::with_verified_intent(
                             snapshot,
                             actual.clone(),
                         );
