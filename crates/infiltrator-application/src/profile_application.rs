@@ -48,6 +48,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 mod active_selection;
+mod age_credential;
 mod document_codec;
 mod workspace;
 pub use workspace::{ProfileWorkspaceEffect, ProfileWorkspaceStoreReason};

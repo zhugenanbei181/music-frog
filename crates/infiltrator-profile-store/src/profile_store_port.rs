@@ -14,6 +14,10 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::profile_age_credential::{
+    ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest,
+    ProfileAgeCredentialWriteRequest,
+};
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
 };
@@ -160,6 +164,20 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
         target: ProfileDisplayNameTarget,
     ) -> Result<ProfileDisplayNameMutation, PortError> {
         EngineProfileStore::set_profile_display_name(self, profile, target).await
+    }
+
+    async fn profile_age_credential(
+        &self,
+        request: ProfileAgeCredentialReadRequest,
+    ) -> Result<ProfileAgeCredentialReadOutcome, PortError> {
+        EngineProfileStore::profile_age_credential(self, request).await
+    }
+
+    async fn mutate_profile_age_credential(
+        &self,
+        request: ProfileAgeCredentialWriteRequest,
+    ) -> Result<ProfileAgeCredentialMutation, PortError> {
+        EngineProfileStore::mutate_profile_age_credential(self, request).await
     }
 
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError> {

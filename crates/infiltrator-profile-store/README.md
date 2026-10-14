@@ -10,4 +10,6 @@ Profile catalog 顺序也存于 `profile-state.toml`，compare 与 write 在 sel
 
 活动选择清除在 owner authorization 与 root CAS fence 内验证；无 owner 可清除当前引擎选择，精确匹配的 bound owner 也可清除自身引擎选择而保持 owner 绑定不变。foreign/stale/错误 owner 凭据不会写入；该 CAS 不调用 Core 或 VPN 生命周期接口。
 
+Age 私钥以 engine/profile 作用域存入注入的 `SecureStore`，不会进入 profile TOML、文档、metadata 或普通列表快照。owner 读写持有 root → owner-state → profile fence，并校验完整 selection、owner 授权与凭据 revision；每次变化都通过安全存储读回验证，失败文案不带 adapter 原始错误。保存的 secure envelope 内以 `NotConfigured` tombstone 保留 revision，避免删除后 revision 回退。
+
 可移植 profile 名称由 `infiltrator-domain::profiles` 统一校验，文件路径、sidecar 与远端旧格式迁移共用同一规则；Mihomo 私有的重复校验和消毒入口已退役。

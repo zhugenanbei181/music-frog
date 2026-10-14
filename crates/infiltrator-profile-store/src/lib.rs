@@ -16,6 +16,7 @@ pub mod document_store;
 pub mod file_lock;
 pub mod metadata;
 pub mod namespace;
+pub mod profile_age_credential;
 pub mod profile_catalog;
 pub mod profile_catalog_order;
 pub mod profile_display_name;

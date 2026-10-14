@@ -11,6 +11,10 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_age_credential::{
+    ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest,
+    ProfileAgeCredentialWriteRequest,
+};
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
 };
@@ -210,6 +214,28 @@ pub trait ProfileStore: Send + Sync {
         Err(PortError::unsupported(
             Capability::Profiles,
             "profile display-name mutation is unavailable",
+        ))
+    }
+    /// Read only whether an engine-scoped Age private key exists. The secret
+    /// itself is never part of the profile metadata or presentation snapshot.
+    async fn profile_age_credential(
+        &self,
+        _request: ProfileAgeCredentialReadRequest,
+    ) -> Result<ProfileAgeCredentialReadOutcome, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "owner-authorized Age credential observation is unavailable",
+        ))
+    }
+    /// Change one profile's Age key only against the expected credential
+    /// revision, selected-reference snapshot, and exact Core-owner proof.
+    async fn mutate_profile_age_credential(
+        &self,
+        _request: ProfileAgeCredentialWriteRequest,
+    ) -> Result<ProfileAgeCredentialMutation, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "owner-authorized Age credential mutation is unavailable",
         ))
     }
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError>;

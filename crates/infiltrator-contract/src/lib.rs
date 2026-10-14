@@ -57,6 +57,7 @@ pub mod pac;
 pub mod parity;
 pub mod port_conflict;
 pub mod privileged_network;
+pub mod profile_age_credential;
 pub mod profile_catalog_order;
 pub mod profile_configuration;
 pub mod profile_display_name;
