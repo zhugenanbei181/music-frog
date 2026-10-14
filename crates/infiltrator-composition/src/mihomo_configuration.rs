@@ -2,23 +2,34 @@
 
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_ports::profile_store::ProfileStore;
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use std::sync::Arc;
+
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_contract::core_identity::EngineId;
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
     ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
 };
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_domain::profile_options::ProfileOptions;
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_domain::profile_source::hash_document_bytes;
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_ports::error::PortError;
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::profile_store::ProfileStore;
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_ports::rule_tracer::RuleWorkspace;
+#[cfg(feature = "capture-fixtures")]
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+#[cfg(feature = "capture-fixtures")]
 use mihomo_config::profile_option_store::{delete_options, save_options};
+#[cfg(feature = "capture-fixtures")]
 use std::path::Path;
-use std::sync::Arc;
 
 /// Construct profile use cases with the Mihomo YAML document codec.
 pub fn profiles_for_mihomo(store: Arc<dyn ProfileStore>) -> ProfileApplication {
