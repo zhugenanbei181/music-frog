@@ -20,6 +20,8 @@ class MihomoControlService {
         const val STATUS_CODE = "status_code"
         const val STATUS_MESSAGE = "status_message"
         const val OWNER_OPERATION_JSON = "owner_operation_json"
+        const val PROFILE_AGE_CREDENTIAL_METADATA_JSON = "profile_age_credential_metadata_json"
+        const val PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES = "profile_age_credential_private_key_bytes"
         const val OWNER_DATA_REVISION = "owner_data_revision"
         const val OWNER_DATA_GENERATION = "owner_data_generation"
         const val OWNER_OPERATION_DATA_FACTS_KIND = "owner_operation_data_facts_kind"

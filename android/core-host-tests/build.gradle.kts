@@ -51,12 +51,14 @@ kotlin {
                 "com/musicfrog/infiltrator/VpnOwnerStopReceiptWire.kt",
                 "com/musicfrog/infiltrator/AndroidVpnAuthorizationFlow.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedger.kt",
+                "com/musicfrog/infiltrator/OwnerIpcRequestAdmission.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallWire.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallDispatcher.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallRouter.kt",
                 "com/musicfrog/infiltrator/MihomoControlClient.kt",
                 "com/musicfrog/infiltrator/MihomoOwnerIpcConnection.kt",
                 "com/musicfrog/infiltrator/OwnerIpcPayload.kt",
+                "com/musicfrog/infiltrator/OwnerIpcSensitivePayloadStore.kt",
                 "com/musicfrog/infiltrator/OwnerResponsePayload.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGate.kt",
                 "com/musicfrog/infiltrator/VpnCleanupContract.kt",
@@ -82,6 +84,7 @@ kotlin {
         test {
             kotlin.srcDir("../app/src/test/java")
             kotlin.include(
+                "com/musicfrog/infiltrator/TestFfiStatus.kt",
                 "com/musicfrog/infiltrator/AndroidCoreProcessRecordStoreTest.kt",
                 "com/musicfrog/infiltrator/AndroidControlIntentWireTest.kt",
                 "com/musicfrog/infiltrator/AndroidCoreSnapshotFenceTest.kt",
@@ -97,6 +100,8 @@ kotlin {
                 "com/musicfrog/infiltrator/AndroidBridgeCallDispatcherTest.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallWireTest.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallRouterTest.kt",
+                "com/musicfrog/infiltrator/OwnerIpcSensitivePayloadStoreTest.kt",
+                "com/musicfrog/infiltrator/OwnerIpcRequestAdmissionTest.kt",
                 "com/musicfrog/infiltrator/VpnCleanupRecoveryTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerRequestAdmissionTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerRequestDeadlineTest.kt",

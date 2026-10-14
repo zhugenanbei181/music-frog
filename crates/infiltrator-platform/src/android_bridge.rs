@@ -5,6 +5,9 @@ use infiltrator_contract::android_control::{
     VpnOwnerSnapshot,
 };
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_contract::profile_age_credential::{
+    ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerSubmission,
+};
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
@@ -270,6 +273,18 @@ pub trait AndroidBridge: Send + Sync {
         ))
     }
 
+    /// Execute a scope-bound Age credential request through the Android
+    /// `:vpn` owner. The key stays typed and is transported separately from
+    /// JSON metadata.
+    async fn execute_profile_age_credential_owner_operation(
+        &self,
+        _request: ProfileAgeCredentialOwnerSubmission,
+    ) -> AndroidBridgeResult<ProfileAgeCredentialOwnerReadback> {
+        Err(PortError::Failed(
+            "Android Age credential owner IPC is unavailable on this bridge".to_owned(),
+        ))
+    }
+
     async fn credential_get(&self, service: &str, key: &str)
     -> AndroidBridgeResult<Option<String>>;
     async fn credential_set(
@@ -373,6 +388,15 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
     ) -> AndroidBridgeResult<String> {
         self.as_ref()
             .execute_owner_operation_json(operation_json)
+            .await
+    }
+
+    async fn execute_profile_age_credential_owner_operation(
+        &self,
+        request: ProfileAgeCredentialOwnerSubmission,
+    ) -> AndroidBridgeResult<ProfileAgeCredentialOwnerReadback> {
+        self.as_ref()
+            .execute_profile_age_credential_owner_operation(request)
             .await
     }
 
@@ -496,6 +520,15 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
     ) -> AndroidBridgeResult<String> {
         self.as_ref()
             .execute_owner_operation_json(operation_json)
+            .await
+    }
+
+    async fn execute_profile_age_credential_owner_operation(
+        &self,
+        request: ProfileAgeCredentialOwnerSubmission,
+    ) -> AndroidBridgeResult<ProfileAgeCredentialOwnerReadback> {
+        self.as_ref()
+            .execute_profile_age_credential_owner_operation(request)
             .await
     }
 

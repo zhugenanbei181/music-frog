@@ -4,8 +4,44 @@ package infiltrator_android
 enum class FfiErrorCode(val value: UInt) {
     OK(0u),
     INVALID_STATE(1u),
+    INVALID_INPUT(2u),
     NOT_READY(3u),
+    NOT_SUPPORTED(4u),
+    IO(5u),
+    NETWORK(6u),
+    AUTH(7u),
+    SYNC(8u),
+    CONFIG(9u),
+    CANCELED(10u),
+    UNKNOWN(255u),
 }
+
+enum class FfiFailureLocalizationKey {
+    INVALID_INPUT,
+    INVALID_STATE,
+    NOT_READY,
+    UNSUPPORTED,
+    NETWORK,
+    AUTHENTICATION,
+    SYNC,
+    CONFIGURATION,
+    STORAGE,
+    PERMISSION,
+    CANCELED,
+    INTERNAL,
+    YAML_SYNTAX,
+    MIXIN_YAML,
+    ACTIVE_PROFILE_INCONSISTENT,
+    QUOTA_SOURCE_CHANGED,
+    CURRENT_TIME_UNAVAILABLE,
+    DOWNLOAD_CANCELED,
+}
+
+data class FfiFailureLocalization(
+    val key: FfiFailureLocalizationKey,
+    val line: ULong?,
+    val column: ULong?,
+)
 
 enum class VpnAuthorizationResult {
     GRANTED,
@@ -13,7 +49,11 @@ enum class VpnAuthorizationResult {
     REVOKED,
 }
 
-data class FfiStatus(val code: FfiErrorCode, val message: String?)
+data class FfiStatus(
+    val code: FfiErrorCode,
+    val message: String?,
+    val localization: FfiFailureLocalization?,
+)
 
 enum class AndroidAppRoutingMode {
     PROXY_ALL,
@@ -76,7 +116,7 @@ enum class AndroidHostReply {
 }
 
 enum class AndroidHostProtocolVersion {
-    V9,
+    V10,
 }
 
 enum class AndroidHostRequest {
@@ -84,6 +124,7 @@ enum class AndroidHostRequest {
     EXECUTE_PRODUCT_COMMAND,
     READ_SURFACE_SNAPSHOT,
     EXECUTE_OWNER_OPERATION,
+    EXECUTE_PROFILE_AGE_CREDENTIAL_OWNER_OPERATION,
     READ_OWNER_DATA_REVISION,
     START_VPN_SERVICE,
     STOP_VPN_SERVICE,
@@ -155,7 +196,11 @@ data class AndroidVpnRoutingSnapshot(
 
 fun androidVpnRoutingSnapshot(): AndroidVpnRoutingSnapshot = AndroidVpnRoutingSnapshot(
     result = AndroidVpnRoutingSnapshotResult(
-        status = FfiStatus(FfiErrorCode.NOT_READY, "isolated VPN tests do not call the owner bridge"),
+        status = FfiStatus(
+            FfiErrorCode.NOT_READY,
+            "isolated VPN tests do not call the owner bridge",
+            null,
+        ),
         snapshot = null,
     ),
     routingRevision = 0uL,

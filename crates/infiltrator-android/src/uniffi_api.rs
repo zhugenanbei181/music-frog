@@ -11,6 +11,7 @@ mod doctor;
 mod localization;
 mod owner_operation;
 mod product;
+mod profile_age_credential_owner;
 mod profiles;
 mod rules;
 mod settings;
@@ -57,6 +58,12 @@ pub use owner_operation::{
     AndroidVersionDownloadProgress, android_owner_data_revision,
 };
 pub use product::{android_execute_product_command_json, android_surface_snapshot_json};
+pub use profile_age_credential_owner::android_dispatch_profile_age_credential_owner_operation_wire_json;
+pub use profile_age_credential_owner::execute_profile_age_credential_owner_submission;
+pub(crate) use profile_age_credential_owner::{
+    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1, ProfileAgeCredentialOwnerWireOutcome,
+    ProfileAgeCredentialOwnerWireReply, ProfileAgeCredentialOwnerWireRequest,
+};
 pub use profiles::{ProfileSummary, ProfilesResult};
 pub use rules::{
     AndroidJsonEntry, AndroidJsonValue, AndroidRuleEntry, AndroidRuleProviderEntry,

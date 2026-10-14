@@ -32,13 +32,41 @@ internal class CoreHost(private val context: Context) : BridgeHost, AndroidBridg
                 return AndroidBridgeDispatchState.InvalidRequest.wireCode
             }
         }
+        return dispatchAndroidBridgeCall(requestId, call, timeoutMillis)
+    }
+
+    override fun dispatchProfileAgeCredentialOwnerOperation(
+        requestId: Long,
+        metadataJson: String,
+        privateKeyBytes: ByteArray,
+        timeoutMillis: Long,
+    ): Int {
+        if (requestId <= 0L || timeoutMillis <= 0L) {
+            privateKeyBytes.fill(0)
+            return AndroidBridgeDispatchState.InvalidRequest.wireCode
+        }
+        return dispatchAndroidBridgeCall(
+            requestId,
+            AndroidBridgeCall.ProfileAgeCredentialOwnerOperation(metadataJson, privateKeyBytes),
+            timeoutMillis,
+        )
+    }
+
+    private fun dispatchAndroidBridgeCall(
+        requestId: Long,
+        call: AndroidBridgeCall,
+        timeoutMillis: Long,
+    ): Int {
         val deadline = VpnOwnerRequestDeadline.after(
             SystemClock.elapsedRealtime(),
             timeoutMillis,
         )
         val application = context.applicationContext as? MihomoApplication
-            ?: return AndroidBridgeDispatchState.HostUnavailable.wireCode
-        return application.bridgeCallDispatcher.submit(
+            ?: run {
+                wipeSensitiveBridgePayload(call)
+                return AndroidBridgeDispatchState.HostUnavailable.wireCode
+            }
+        val acceptance = application.bridgeCallDispatcher.submit(
             requestId = requestId,
             call = call,
             execute = { admittedCall ->
@@ -59,7 +87,15 @@ internal class CoreHost(private val context: Context) : BridgeHost, AndroidBridg
                     AndroidBridgeCallWire.encodeFailure(reason),
                 )
             },
-        ).wireCode
+        )
+        if (acceptance != AndroidBridgeDispatchState.Accepted) wipeSensitiveBridgePayload(call)
+        return acceptance.wireCode
+    }
+
+    private fun wipeSensitiveBridgePayload(call: AndroidBridgeCall) {
+        if (call is AndroidBridgeCall.ProfileAgeCredentialOwnerOperation) {
+            call.privateKeyBytes.fill(0)
+        }
     }
 
     override fun cancelAndroidBridgeCall(requestId: Long): Int {
@@ -174,6 +210,23 @@ internal class CoreHost(private val context: Context) : BridgeHost, AndroidBridg
         AndroidProcessRole.Ui -> controlClient.executeOwnerOperationJson(operationJson, deadline)
         AndroidProcessRole.VpnOwner,
         is AndroidProcessRole.Unsupported -> null
+    }
+
+    override fun executeProfileAgeCredentialOwnerOperation(
+        metadataJson: String,
+        privateKeyBytes: ByteArray,
+        deadline: VpnOwnerRequestDeadline,
+    ): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.executeProfileAgeCredentialOwnerOperation(
+            metadataJson,
+            privateKeyBytes,
+            deadline,
+        )
+        AndroidProcessRole.VpnOwner,
+        is AndroidProcessRole.Unsupported -> {
+            privateKeyBytes.fill(0)
+            null
+        }
     }
 
     override fun credentialGet(service: String, key: String): String? {

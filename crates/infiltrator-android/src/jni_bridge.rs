@@ -15,10 +15,17 @@ use crate::native_host::lifecycle::WindowFocus;
 use crate::native_host::push_lifecycle_fact;
 use crate::native_host::push_raw_insets;
 use crate::service_init::init_android_process;
+use crate::uniffi_api::{
+    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1, ProfileAgeCredentialOwnerWireOutcome,
+    ProfileAgeCredentialOwnerWireReply, ProfileAgeCredentialOwnerWireRequest,
+};
 use crate::{FfiErrorCode, FfiStatus};
 use infiltrator_contract::android_control::{
     AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
     AndroidHostProcessRole, VpnAuthorizationState, VpnOwnerSnapshot,
+};
+use infiltrator_contract::profile_age_credential::{
+    ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerSubmission,
 };
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
@@ -44,6 +51,7 @@ use std::time::Duration;
 const SIG_NOARGS_INT: &str = "()I";
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
 const SIG_BRIDGE_DISPATCH: &str = "(JLjava/lang/String;J)I";
+const SIG_BRIDGE_AGE_CREDENTIAL_DISPATCH: &str = "(JLjava/lang/String;[BJ)I";
 const SIG_BRIDGE_CANCEL: &str = "(J)I";
 const BRIDGE_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -129,6 +137,147 @@ impl JniBridge {
                     .i()
             })
             .map_err(|error| map_jni_error(method, error))
+    }
+
+    fn dispatch_profile_age_credential_operation(
+        &self,
+        request_id: AndroidBridgeRequestId,
+        metadata_json: &str,
+        private_key_bytes: &[u8],
+        timeout: Duration,
+    ) -> Result<i32> {
+        let method = "dispatchProfileAgeCredentialOwnerOperation";
+        let name = JNIString::new(method);
+        let signature = parse_method_signature(method, SIG_BRIDGE_AGE_CREDENTIAL_DISPATCH)?;
+        let timeout_millis = i64::try_from(timeout.as_millis()).map_err(|_| {
+            PortError::Failed("Android host-call timeout exceeds the JNI Long range".to_owned())
+        })?;
+        self.vm
+            .attach_current_thread(|env| -> errors::Result<i32> {
+                let metadata = env.new_string(metadata_json)?;
+                let private_key = env.byte_array_from_slice(private_key_bytes)?;
+                let zeroed = vec![0_i8; private_key_bytes.len()];
+                let arguments = [
+                    JValue::Long(request_id.value() as jlong),
+                    JValue::Object(metadata.as_ref()),
+                    JValue::Object(private_key.as_ref()),
+                    JValue::Long(timeout_millis as jlong),
+                ];
+                let admission = match env.call_method(
+                    self.host.as_obj(),
+                    &name,
+                    &signature.method_signature(),
+                    &arguments,
+                ) {
+                    Ok(value) => value.i(),
+                    Err(error) => {
+                        if env.exception_check() {
+                            env.exception_clear();
+                        }
+                        #[allow(deprecated)]
+                        env.set_byte_array_region(&private_key, 0, &zeroed)?;
+                        return Err(error);
+                    }
+                };
+                match admission {
+                    Ok(code) if code == 0 => Ok(code),
+                    Ok(code) => {
+                        #[allow(deprecated)]
+                        env.set_byte_array_region(&private_key, 0, &zeroed)?;
+                        Ok(code)
+                    }
+                    Err(error) => {
+                        if env.exception_check() {
+                            env.exception_clear();
+                        }
+                        #[allow(deprecated)]
+                        env.set_byte_array_region(&private_key, 0, &zeroed)?;
+                        Err(error)
+                    }
+                }
+            })
+            .map_err(|error| map_jni_error(method, error))
+    }
+
+    async fn invoke_profile_age_credential_owner_operation(
+        &self,
+        metadata_json: &str,
+        private_key_bytes: &[u8],
+    ) -> Result<String> {
+        let request_id = next_android_bridge_request_id().ok_or_else(|| {
+            PortError::Failed("Android host-call request ID space is exhausted".to_owned())
+        })?;
+        let receiver = pending_android_bridge_calls()
+            .admit(request_id)
+            .map_err(|admission| {
+                PortError::Failed(format!(
+                    "Android host-call request admission failed: {admission:?}"
+                ))
+            })?;
+        let mut guard = AndroidBridgeCallGuard::new(self, request_id);
+        let admission_code = self.dispatch_profile_age_credential_operation(
+            request_id,
+            metadata_json,
+            private_key_bytes,
+            BRIDGE_CALL_TIMEOUT,
+        )?;
+        match AndroidBridgeDispatchAcceptance::from_wire_code(admission_code) {
+            Some(AndroidBridgeDispatchAcceptance::Accepted) => {}
+            Some(AndroidBridgeDispatchAcceptance::QueueFull) => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host-call executor is at capacity".to_owned(),
+                ));
+            }
+            Some(AndroidBridgeDispatchAcceptance::DuplicateRequestId) => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host-call request ID is already pending".to_owned(),
+                ));
+            }
+            Some(AndroidBridgeDispatchAcceptance::HostUnavailable) => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host-call dispatcher is unavailable".to_owned(),
+                ));
+            }
+            Some(AndroidBridgeDispatchAcceptance::InvalidRequest) | None => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host rejected the Age credential request".to_owned(),
+                ));
+            }
+        }
+        let completion = match tokio::time::timeout(BRIDGE_CALL_TIMEOUT, receiver).await {
+            Ok(Ok(completion)) => completion,
+            Ok(Err(_)) => {
+                guard.retire();
+                return Err(PortError::Failed(
+                    "Android host-call completion channel closed".to_owned(),
+                ));
+            }
+            Err(_) => {
+                return Err(PortError::Failed(
+                    "Android Age credential request exceeded its deadline".to_owned(),
+                ));
+            }
+        };
+        guard.retire();
+        match completion {
+            AndroidBridgeCallCompletion::Reply(
+                AndroidBridgeCallReply::ProfileAgeCredentialOwnerOperation(reply),
+            ) => Ok(reply),
+            AndroidBridgeCallCompletion::Reply(_) => Err(unexpected_bridge_reply(
+                "ProfileAgeCredentialOwnerOperation",
+            )),
+            AndroidBridgeCallCompletion::Failed(AndroidBridgeCallFailure::Host(message)) => {
+                Err(PortError::Failed(message))
+            }
+        }
     }
 
     fn cancel_android_bridge_call(&self, request_id: AndroidBridgeRequestId) {
@@ -421,6 +570,53 @@ impl AndroidBridge for JniBridge {
         {
             AndroidBridgeCallReply::ExecuteOwnerOperation(result) => Ok(result),
             _ => Err(unexpected_bridge_reply("ExecuteOwnerOperation")),
+        }
+    }
+
+    async fn execute_profile_age_credential_owner_operation(
+        &self,
+        submission: ProfileAgeCredentialOwnerSubmission,
+    ) -> Result<ProfileAgeCredentialOwnerReadback> {
+        let metadata = submission.metadata;
+        let expected_metadata = metadata.clone();
+        let request_json = serde_json::to_string(&ProfileAgeCredentialOwnerWireRequest {
+            protocol: PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1,
+            metadata,
+        })
+        .map_err(|error| {
+            PortError::Failed(format!(
+                "Age credential metadata serialization failed: {error}"
+            ))
+        })?;
+        let reply_json = self
+            .invoke_profile_age_credential_owner_operation(
+                &request_json,
+                submission.secret.as_bytes(),
+            )
+            .await?;
+        let reply = serde_json::from_str::<ProfileAgeCredentialOwnerWireReply>(&reply_json)
+            .map_err(|error| {
+                PortError::Failed(format!(
+                    "Android Age credential owner reply is invalid: {error}"
+                ))
+            })?;
+        if reply.protocol != PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V1
+            || reply.metadata != expected_metadata
+        {
+            return Err(PortError::Failed(
+                "Android Age credential owner reply did not match its request".to_owned(),
+            ));
+        }
+        match reply.outcome {
+            ProfileAgeCredentialOwnerWireOutcome::Completed { readback } => Ok(readback),
+            ProfileAgeCredentialOwnerWireOutcome::Rejected { status } => {
+                Err(PortError::Failed(status.message.unwrap_or_else(|| {
+                    format!(
+                        "Android Age credential owner rejected the request: {:?}",
+                        status.code
+                    )
+                })))
+            }
         }
     }
 

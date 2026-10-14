@@ -13,6 +13,7 @@ class AndroidBridgeCallDispatcherTest {
         val dispatcher = AndroidBridgeCallDispatcher(workerCount = 1, queueCapacity = 1)
         val firstStarted = CountDownLatch(1)
         val releaseFirst = CountDownLatch(1)
+        val queuedAgeSecret = "AGE-SECRET-KEY-queued".toByteArray()
         val executions = AtomicInteger()
         val completed = mutableListOf<Long>()
         val completionLock = Any()
@@ -37,7 +38,10 @@ class AndroidBridgeCallDispatcherTest {
                 AndroidBridgeDispatchState.Accepted,
                 dispatcher.submit(
                     requestId = 2L,
-                    call = AndroidBridgeCall.SurfaceSnapshot,
+                    call = AndroidBridgeCall.ProfileAgeCredentialOwnerOperation(
+                        "metadata",
+                        queuedAgeSecret,
+                    ),
                     execute = {
                         executions.incrementAndGet()
                         AndroidBridgeCallReply.SurfaceSnapshot("must not execute")
@@ -57,6 +61,7 @@ class AndroidBridgeCallDispatcherTest {
                 ),
             )
             assertEquals(AndroidBridgeCallCancellation.Canceled, dispatcher.cancel(2L))
+            assertTrue(queuedAgeSecret.all { it == 0.toByte() })
             releaseFirst.countDown()
             assertTrue(waitUntil { synchronized(completionLock) { completed == listOf(1L) } })
             assertEquals(1, executions.get())

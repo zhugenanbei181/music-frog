@@ -3,7 +3,7 @@
 use crate::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use crate::core_identity::EngineId;
+use crate::core_identity::{CoreScope, EngineId};
 use crate::profile_document_identity::ProfileId;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -22,6 +22,8 @@ const AGE_ENCRYPTED_FILE_HEADER: &str = "-----BEGIN AGE ENCRYPTED FILE-----";
 pub struct AgePrivateKey(String);
 
 impl AgePrivateKey {
+    pub const MAX_BYTES: usize = MAX_AGE_PRIVATE_KEY_BYTES;
+
     pub fn new(mut value: String) -> Result<Self, AgePrivateKeyError> {
         let error = if value.is_empty() || value.trim().is_empty() {
             Some(AgePrivateKeyError::Empty)
@@ -45,6 +47,25 @@ impl AgePrivateKey {
         &self.0
     }
 
+    /// Construct a private key from a one-shot byte payload and erase the
+    /// source bytes on both valid and invalid UTF-8 paths.
+    pub fn from_bytes(value: Vec<u8>) -> Result<Self, AgePrivateKeyError> {
+        if value.len() > MAX_AGE_PRIVATE_KEY_BYTES {
+            let mut bytes = value;
+            scrub_bytes(&mut bytes);
+            return Err(AgePrivateKeyError::TooLong);
+        }
+        let text = match String::from_utf8(value) {
+            Ok(text) => text,
+            Err(error) => {
+                let mut bytes = error.into_bytes();
+                scrub_bytes(&mut bytes);
+                return Err(AgePrivateKeyError::InvalidEncoding);
+            }
+        };
+        Self::new(text)
+    }
+
     pub fn matches(&self, other: &Self) -> bool {
         let left = self.0.as_bytes();
         let right = other.0.as_bytes();
@@ -56,6 +77,41 @@ impl AgePrivateKey {
             );
         }
         difference == 0
+    }
+}
+
+/// Raw one-shot bytes for the Android owner IPC path. The UI process may hold
+/// this while submitting a credential, but it is never serialized, formatted,
+/// or converted to `AgePrivateKey` before arriving in the owner process.
+pub struct ProfileAgeCredentialSecret(Vec<u8>);
+
+impl ProfileAgeCredentialSecret {
+    pub fn new(mut value: Vec<u8>) -> Result<Self, AgePrivateKeyError> {
+        if value.len() > MAX_AGE_PRIVATE_KEY_BYTES {
+            scrub_bytes(&mut value);
+            return Err(AgePrivateKeyError::TooLong);
+        }
+        Ok(Self(value))
+    }
+
+    pub fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Debug for ProfileAgeCredentialSecret {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ProfileAgeCredentialSecret([REDACTED])")
+    }
+}
+
+impl Drop for ProfileAgeCredentialSecret {
+    fn drop(&mut self) {
+        scrub_bytes(&mut self.0);
     }
 }
 
@@ -190,6 +246,7 @@ pub enum AgePrivateKeyError {
     Empty,
     TooLong,
     InvalidWhitespace,
+    InvalidEncoding,
 }
 
 impl Display for AgePrivateKeyError {
@@ -198,6 +255,7 @@ impl Display for AgePrivateKeyError {
             Self::Empty => "Age private key must not be empty",
             Self::TooLong => "Age private key exceeds the supported size",
             Self::InvalidWhitespace => "Age private key must be a single trimmed line",
+            Self::InvalidEncoding => "Age private key must use valid UTF-8 encoding",
         })
     }
 }
@@ -291,6 +349,104 @@ pub struct ProfileAgeCredentialWriteRequest {
     pub target: ProfileAgeCredentialTarget,
 }
 
+/// Cross-process owner request. The credential value is intentionally kept
+/// outside this serializable metadata; Android transports it as a one-shot
+/// sensitive payload and reconstructs [`AgePrivateKey`] only in the owner.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "operation", content = "request", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum ProfileAgeCredentialOwnerMetadata {
+    Read {
+        scope: CoreScope,
+        profile_id: ProfileId,
+        expected_selection: ActiveProfileReferenceState,
+    },
+    Set {
+        scope: CoreScope,
+        expected: ProfileAgeCredentialObservation,
+        expected_selection: ActiveProfileReferenceState,
+    },
+    Clear {
+        scope: CoreScope,
+        expected: ProfileAgeCredentialObservation,
+        expected_selection: ActiveProfileReferenceState,
+    },
+}
+
+/// In-process typed request used by frontends and the Android adapter. Unlike
+/// the metadata wire enum, `Set` carries the non-serializable zeroizing key.
+#[derive(Debug)]
+pub enum ProfileAgeCredentialOwnerRequest {
+    Read {
+        scope: CoreScope,
+        profile_id: ProfileId,
+        expected_selection: ActiveProfileReferenceState,
+    },
+    Set {
+        scope: CoreScope,
+        expected: ProfileAgeCredentialObservation,
+        expected_selection: ActiveProfileReferenceState,
+        private_key: AgePrivateKey,
+    },
+    Clear {
+        scope: CoreScope,
+        expected: ProfileAgeCredentialObservation,
+        expected_selection: ActiveProfileReferenceState,
+    },
+}
+
+/// Typed request for a platform bridge that carries private bytes separately
+/// from the serializable scope and selection metadata.
+#[derive(Debug)]
+pub struct ProfileAgeCredentialOwnerSubmission {
+    pub metadata: ProfileAgeCredentialOwnerMetadata,
+    pub secret: ProfileAgeCredentialSecret,
+}
+
+impl ProfileAgeCredentialOwnerRequest {
+    pub fn metadata(&self) -> ProfileAgeCredentialOwnerMetadata {
+        match self {
+            Self::Read {
+                scope,
+                profile_id,
+                expected_selection,
+            } => ProfileAgeCredentialOwnerMetadata::Read {
+                scope: scope.clone(),
+                profile_id: profile_id.clone(),
+                expected_selection: expected_selection.clone(),
+            },
+            Self::Set {
+                scope,
+                expected,
+                expected_selection,
+                ..
+            } => ProfileAgeCredentialOwnerMetadata::Set {
+                scope: scope.clone(),
+                expected: expected.clone(),
+                expected_selection: expected_selection.clone(),
+            },
+            Self::Clear {
+                scope,
+                expected,
+                expected_selection,
+            } => ProfileAgeCredentialOwnerMetadata::Clear {
+                scope: scope.clone(),
+                expected: expected.clone(),
+                expected_selection: expected_selection.clone(),
+            },
+        }
+    }
+}
+
+/// Non-secret owner reply for a read or mutation request.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "result", content = "readback", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum ProfileAgeCredentialOwnerReadback {
+    Read(ProfileAgeCredentialReadOutcome),
+    Mutation(ProfileAgeCredentialMutation),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum ProfileAgeCredentialMutation {
@@ -323,13 +479,26 @@ fn scrub_string(value: &mut String) {
     compiler_fence(Ordering::SeqCst);
 }
 
+fn scrub_bytes(value: &mut [u8]) {
+    for byte in value {
+        // SAFETY: the pointer is valid for the duration of this write, and the
+        // volatile store prevents the compiler from eliding secret erasure.
+        unsafe { ptr::write_volatile(byte, 0) };
+    }
+    compiler_fence(Ordering::SeqCst);
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        AgePrivateKey, ProfileAgeCredentialObservation, ProfileAgeDecryptedContent,
-        ProfileAgeEncryptedContent,
+        AgePrivateKey, ProfileAgeCredentialObservation, ProfileAgeCredentialOwnerMetadata,
+        ProfileAgeCredentialOwnerRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialSecret,
+        ProfileAgeCredentialState, ProfileAgeDecryptedContent, ProfileAgeEncryptedContent,
     };
-    use crate::core_identity::EngineId;
+    use crate::active_profile_reference::{
+        ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    };
+    use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId};
     use crate::profile_document_identity::ProfileId;
 
     #[test]
@@ -337,6 +506,37 @@ mod tests {
         let secret = AgePrivateKey::new("AGE-SECRET-KEY-example".to_owned()).unwrap();
         assert_eq!(format!("{secret:?}"), "AgePrivateKey([REDACTED])");
         assert!(!format!("{secret:?}").contains("AGE-SECRET-KEY-example"));
+    }
+
+    #[test]
+    fn one_shot_owner_secret_is_redacted_and_size_bounded() {
+        let secret = ProfileAgeCredentialSecret::new(b"AGE-SECRET-KEY-example".to_vec()).unwrap();
+        assert_eq!(
+            format!("{secret:?}"),
+            "ProfileAgeCredentialSecret([REDACTED])"
+        );
+        assert!(!format!("{secret:?}").contains("AGE-SECRET-KEY-example"));
+        assert!(matches!(
+            ProfileAgeCredentialSecret::new(vec![b'a'; AgePrivateKey::MAX_BYTES + 1]),
+            Err(super::AgePrivateKeyError::TooLong)
+        ));
+    }
+
+    #[test]
+    fn private_key_one_shot_bytes_are_validated_before_use() {
+        assert_eq!(
+            AgePrivateKey::from_bytes(vec![0xff]),
+            Err(super::AgePrivateKeyError::InvalidEncoding)
+        );
+        assert_eq!(
+            AgePrivateKey::from_bytes(Vec::new()),
+            Err(super::AgePrivateKeyError::Empty)
+        );
+        assert_eq!(
+            AgePrivateKey::from_bytes(vec![b'a'; AgePrivateKey::MAX_BYTES + 1]),
+            Err(super::AgePrivateKeyError::TooLong)
+        );
+        assert!(AgePrivateKey::from_bytes(b"AGE-SECRET-KEY".to_vec()).is_ok());
     }
 
     #[test]
@@ -350,6 +550,51 @@ mod tests {
         let encoded = serde_json::to_string(&observation).unwrap();
         assert!(!encoded.contains("AGE-SECRET"));
         assert!(encoded.contains("configured"));
+    }
+
+    #[test]
+    fn owner_request_metadata_is_scope_fenced_and_never_serializes_the_private_key() {
+        let engine = EngineId::mihomo();
+        let profile_id = ProfileId::new("primary").unwrap();
+        let selection = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            engine.clone(),
+            profile_id.clone(),
+            ActiveProfileReferenceRevision::new(8),
+        ));
+        let scope = CoreScope {
+            identity: CoreIdentity::new(
+                engine.clone(),
+                CoreInstanceId::new("android-vpn").unwrap(),
+                None,
+            ),
+            generation: CoreGeneration::new(12),
+            session_token: None,
+        };
+        let expected = ProfileAgeCredentialObservation::new(
+            engine,
+            profile_id,
+            ProfileAgeCredentialRevision::new(4),
+            ProfileAgeCredentialState::NotConfigured,
+        );
+        let request = ProfileAgeCredentialOwnerRequest::Set {
+            scope: scope.clone(),
+            expected: expected.clone(),
+            expected_selection: selection.clone(),
+            private_key: AgePrivateKey::new("AGE-SECRET-KEY-never-wire".to_owned()).unwrap(),
+        };
+
+        let encoded = serde_json::to_string(&request.metadata()).unwrap();
+
+        assert!(!encoded.contains("AGE-SECRET-KEY-never-wire"));
+        assert!(matches!(
+            serde_json::from_str::<ProfileAgeCredentialOwnerMetadata>(&encoded).unwrap(),
+            ProfileAgeCredentialOwnerMetadata::Set {
+                scope: observed_scope,
+                expected: observed,
+                expected_selection,
+            } if observed_scope == scope && observed == expected && expected_selection == selection
+        ));
+        assert!(!format!("{request:?}").contains("AGE-SECRET-KEY-never-wire"));
     }
 
     #[test]

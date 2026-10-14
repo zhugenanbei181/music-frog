@@ -66,12 +66,14 @@ pub use uniffi_api::{
     WebDavSettingsResult, WebDavSyncResult, android_begin_core_owner_session,
     android_begin_vpn_configuration_activation, android_begin_vpn_routing_activation,
     android_close_core_owner, android_control, android_core_lifecycle_status,
-    android_dispatch_owner_operation_wire_json, android_engine_defined_routing_intent_copy,
-    android_execute_owner_operation, android_execute_product_command_json,
-    android_finish_vpn_configuration_activation, android_finish_vpn_routing_activation,
-    android_owner_data_revision, android_routing_intent_copy, android_surface_snapshot_json,
-    android_vpn_routing_snapshot, cancel_vpn_preparation, prepare_vpn, start_vpn,
-    vpn_authorization_result,
+    android_dispatch_owner_operation_wire_json,
+    android_dispatch_profile_age_credential_owner_operation_wire_json,
+    android_engine_defined_routing_intent_copy, android_execute_owner_operation,
+    android_execute_product_command_json, android_finish_vpn_configuration_activation,
+    android_finish_vpn_routing_activation, android_owner_data_revision,
+    android_routing_intent_copy, android_surface_snapshot_json, android_vpn_routing_snapshot,
+    cancel_vpn_preparation, execute_profile_age_credential_owner_submission, prepare_vpn,
+    start_vpn, vpn_authorization_result,
 };
 pub use vpn_service::AndroidVpnServicePort;
 

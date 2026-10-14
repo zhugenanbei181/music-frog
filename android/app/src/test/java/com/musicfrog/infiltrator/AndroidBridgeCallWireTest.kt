@@ -31,6 +31,11 @@ class AndroidBridgeCallWireTest {
                 """{"operation":"launch_core","payload":null}""",
             ) is AndroidBridgeCallDecode.Rejected,
         )
+        assertTrue(
+            AndroidBridgeCallWire.decode(
+                """{"operation":"profile_age_credential_owner_operation","payload":{"private_key":"secret"}}""",
+            ) is AndroidBridgeCallDecode.Rejected,
+        )
         assertEquals(
             AndroidBridgeCallDecode.Accepted(AndroidBridgeCall.VpnStop(targetCode = 1, generation = 7L)),
             AndroidBridgeCallWire.decode(
@@ -45,6 +50,20 @@ class AndroidBridgeCallWireTest {
         assertEquals("reply", success.getString("state"))
         assertEquals("vpn_start", success.getJSONObject("value").getString("result"))
         assertEquals(0, success.getJSONObject("value").getJSONObject("value").getInt("wire_code"))
+
+        val ageCredential = JSONObject(
+            AndroidBridgeCallWire.encodeReply(
+                AndroidBridgeCallReply.ProfileAgeCredentialOwnerOperation("nonsecret-readback"),
+            ),
+        )
+        assertEquals(
+            "profile_age_credential_owner_operation",
+            ageCredential.getJSONObject("value").getString("result"),
+        )
+        assertEquals(
+            "nonsecret-readback",
+            ageCredential.getJSONObject("value").getString("value"),
+        )
 
         val credentialSet = JSONObject(
             AndroidBridgeCallWire.encodeReply(

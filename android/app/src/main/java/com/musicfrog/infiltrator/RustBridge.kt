@@ -7,6 +7,13 @@ interface BridgeHost {
     fun processRole(): Int
     /** Dispatches a serde-tagged Rust enum and returns before host work starts. */
     fun dispatchAndroidBridgeCall(requestId: Long, requestJson: String, timeoutMillis: Long): Int
+    /** Dispatches Age metadata as JSON and its private key as a one-shot byte array. */
+    fun dispatchProfileAgeCredentialOwnerOperation(
+        requestId: Long,
+        metadataJson: String,
+        privateKeyBytes: ByteArray,
+        timeoutMillis: Long,
+    ): Int
     /** Cancels the matching queued or running host request by correlation ID. */
     fun cancelAndroidBridgeCall(requestId: Long): Int
     fun dataDir(): String?

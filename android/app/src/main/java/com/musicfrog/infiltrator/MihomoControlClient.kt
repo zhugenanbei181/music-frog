@@ -122,6 +122,34 @@ internal class MihomoControlClient(context: Context) {
         }
     }
 
+    fun executeProfileAgeCredentialOwnerOperation(
+        metadataJson: String,
+        privateKeyBytes: ByteArray,
+        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
+    ): String? {
+        val stamp = ensureOwnerDataFence(deadline) ?: return null
+        val payload = OwnerIpcPayload.ExecuteProfileAgeCredentialOwnerOperation(
+            metadataJson = metadataJson,
+            privateKeyBytes = privateKeyBytes.copyOf(),
+            expectedCoreGeneration = stamp.coreGeneration,
+            expectedOwnerDataRevision = stamp.revision,
+        )
+        try {
+            val response = transact(payload, deadline)
+            val ownerReply = response.payload as? OwnerResponsePayload.OwnerOperation
+            return ownerReply?.outcomeJson?.takeIf {
+                response.reply in setOf(
+                    AndroidHostReply.OWNER_OPERATION_COMPLETED,
+                    AndroidHostReply.VPN_CONFIGURATION_BUSY,
+                    AndroidHostReply.STALE_OWNER_DATA,
+                    AndroidHostReply.FAILED,
+                )
+            }
+        } finally {
+            payload.privateKeyBytes.fill(0)
+        }
+    }
+
     private fun ensureOwnerDataFence(deadline: VpnOwnerRequestDeadline): OwnerDataStamp? {
         val ownerSession = ownerSessionFence.current()
         val current = ownerDataFence.current()
@@ -221,7 +249,7 @@ internal class MihomoControlClient(context: Context) {
             data = Bundle().apply {
                 putSerializable(
                     MihomoControlService.PROTOCOL_VERSION,
-                    AndroidHostProtocolVersion.V9,
+                    AndroidHostProtocolVersion.V10,
                 )
                 putString(MihomoControlService.CLIENT_SESSION_ID, clientSessionId)
                 putString(MihomoControlService.EXPECTED_OWNER_SESSION_ID, expectedOwnerSession)
@@ -257,6 +285,18 @@ internal class MihomoControlClient(context: Context) {
                         putString(MihomoControlService.PRODUCT_COMMAND_JSON, payload.commandJson)
                     is OwnerIpcPayload.ExecuteOwnerOperation -> {
                         putString(MihomoControlService.OWNER_OPERATION_JSON, payload.operationJson)
+                        putLong(MihomoControlService.CORE_GENERATION, payload.expectedCoreGeneration)
+                        putLong(
+                            MihomoControlService.OWNER_DATA_REVISION,
+                            payload.expectedOwnerDataRevision,
+                        )
+                    }
+                    is OwnerIpcPayload.ExecuteProfileAgeCredentialOwnerOperation -> {
+                        putString(MihomoControlService.PROFILE_AGE_CREDENTIAL_METADATA_JSON, payload.metadataJson)
+                        putByteArray(
+                            MihomoControlService.PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES,
+                            payload.privateKeyBytes,
+                        )
                         putLong(MihomoControlService.CORE_GENERATION, payload.expectedCoreGeneration)
                         putLong(
                             MihomoControlService.OWNER_DATA_REVISION,
@@ -339,7 +379,7 @@ internal class MihomoControlClient(context: Context) {
         val protocolVersion = readProtocolVersion(bundle)
         val echoedClientSession = bundle.getString(MihomoControlService.CLIENT_SESSION_ID)
         val ownerSession = bundle.getString(MihomoControlService.OWNER_SESSION_ID)
-        if (protocolVersion != AndroidHostProtocolVersion.V9 ||
+        if (protocolVersion != AndroidHostProtocolVersion.V10 ||
             echoedClientSession != clientSessionId || ownerSession.isNullOrBlank()
         ) {
             return OwnerResponse.unavailable(OwnerClientTerminal.InvalidReply)
@@ -716,7 +756,7 @@ internal class MihomoControlClient(context: Context) {
             data = Bundle().apply {
                 putSerializable(
                     MihomoControlService.PROTOCOL_VERSION,
-                    AndroidHostProtocolVersion.V9,
+                    AndroidHostProtocolVersion.V10,
                 )
                 putString(MihomoControlService.CLIENT_SESSION_ID, clientSessionId)
                 putLong(MihomoControlService.REQUEST_ID, requestId)
@@ -739,7 +779,7 @@ internal class MihomoControlClient(context: Context) {
             data = Bundle().apply {
                 putSerializable(
                     MihomoControlService.PROTOCOL_VERSION,
-                    AndroidHostProtocolVersion.V9,
+                    AndroidHostProtocolVersion.V10,
                 )
                 putString(MihomoControlService.CLIENT_SESSION_ID, clientSessionId)
                 putLong(MihomoControlService.REQUEST_ID, requestId)

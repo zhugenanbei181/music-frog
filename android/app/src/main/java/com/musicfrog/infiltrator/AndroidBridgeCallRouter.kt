@@ -11,6 +11,11 @@ internal interface AndroidBridgeCallHost {
     fun executeProductCommandJson(commandJson: String, deadline: VpnOwnerRequestDeadline): String?
     fun surfaceSnapshotJson(deadline: VpnOwnerRequestDeadline): String?
     fun executeOwnerOperationJson(operationJson: String, deadline: VpnOwnerRequestDeadline): String?
+    fun executeProfileAgeCredentialOwnerOperation(
+        metadataJson: String,
+        privateKeyBytes: ByteArray,
+        deadline: VpnOwnerRequestDeadline,
+    ): String?
     fun credentialGet(service: String, key: String): String?
     fun credentialSet(service: String, key: String, value: String): AndroidCredentialMutationOutcome
     fun credentialDelete(service: String, key: String): AndroidCredentialMutationOutcome
@@ -52,6 +57,17 @@ internal class AndroidBridgeCallRouter(private val host: AndroidBridgeCallHost) 
         is AndroidBridgeCall.ExecuteOwnerOperation -> AndroidBridgeCallReply.ExecuteOwnerOperation(
             host.executeOwnerOperationJson(call.operationJson, deadline).required("owner operation result"),
         )
+        is AndroidBridgeCall.ProfileAgeCredentialOwnerOperation -> try {
+            AndroidBridgeCallReply.ProfileAgeCredentialOwnerOperation(
+                host.executeProfileAgeCredentialOwnerOperation(
+                    call.metadataJson,
+                    call.privateKeyBytes,
+                    deadline,
+                ).required("Age credential owner result"),
+            )
+        } finally {
+            call.privateKeyBytes.fill(0)
+        }
         is AndroidBridgeCall.CredentialGet -> AndroidBridgeCallReply.CredentialGet(
             host.credentialGet(call.service, call.key),
         )

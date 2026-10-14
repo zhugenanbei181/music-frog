@@ -1,6 +1,7 @@
 package com.musicfrog.infiltrator
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AndroidBridgeCallRouterTest {
@@ -8,6 +9,7 @@ class AndroidBridgeCallRouterTest {
     fun eachRustCallRoutesToOneMatchingTypedHostReply() {
         val host = RecordingHost()
         val router = AndroidBridgeCallRouter(host)
+        val ageSecret = "AGE-SECRET-KEY-never-log".toByteArray()
         val cases = listOf(
             AndroidBridgeCall.CoreStart("start-request") to AndroidBridgeCallReply.CoreStart(1),
             AndroidBridgeCall.CoreStop to AndroidBridgeCallReply.CoreStop(2),
@@ -25,6 +27,8 @@ class AndroidBridgeCallRouterTest {
                 AndroidBridgeCallReply.SurfaceSnapshot("surface-snapshot"),
             AndroidBridgeCall.ExecuteOwnerOperation("operation") to
                 AndroidBridgeCallReply.ExecuteOwnerOperation("operation-result"),
+            AndroidBridgeCall.ProfileAgeCredentialOwnerOperation("age-metadata", ageSecret) to
+                AndroidBridgeCallReply.ProfileAgeCredentialOwnerOperation("age-result"),
             AndroidBridgeCall.CredentialGet("service", "key") to
                 AndroidBridgeCallReply.CredentialGet("secret"),
             AndroidBridgeCall.CredentialSet("service", "key", "value") to
@@ -41,8 +45,9 @@ class AndroidBridgeCallRouterTest {
 
         val deadline = VpnOwnerRequestDeadline.after(1L, 30_000L)
         cases.forEach { (call, expected) -> assertEquals(expected, router.execute(call, deadline)) }
+        assertTrue(ageSecret.all { it == 0.toByte() })
         assertEquals(cases.size, host.calls.size)
-        assertEquals(9, host.deadlines.size)
+        assertEquals(10, host.deadlines.size)
         assertEquals(setOf(deadline.elapsedRealtimeMillis), host.deadlines.toSet())
     }
 
@@ -68,6 +73,15 @@ class AndroidBridgeCallRouterTest {
             operationJson: String,
             deadline: VpnOwnerRequestDeadline,
         ): String? = recordDeadline(deadline, "operation:$operationJson", "operation-result")
+        override fun executeProfileAgeCredentialOwnerOperation(
+            metadataJson: String,
+            privateKeyBytes: ByteArray,
+            deadline: VpnOwnerRequestDeadline,
+        ): String? = recordDeadline(
+            deadline,
+            "age-credential:$metadataJson:${privateKeyBytes.size}",
+            "age-result",
+        )
         override fun credentialGet(service: String, key: String): String? =
             record("credential-get:$service:$key", "secret")
         override fun credentialSet(

@@ -22,6 +22,7 @@ import infiltrator_android.androidBeginCoreOwnerSession
 import infiltrator_android.androidCloseCoreOwner
 import infiltrator_android.androidCoreLifecycleStatus
 import infiltrator_android.androidDispatchOwnerOperationWireJson
+import infiltrator_android.androidDispatchProfileAgeCredentialOwnerOperationWireJson
 import infiltrator_android.androidOwnerDataRevision
 import infiltrator_android.androidExecuteProductCommandJson
 import infiltrator_android.androidSurfaceSnapshotJson
@@ -66,6 +67,7 @@ class MihomoControlService : Service() {
     private val ownerRequestLock = Any()
     private val ownerRequestReplies = mutableMapOf<OwnerIpcRequestKey, MutableList<Message>>()
     private val ownerRequestJobs = mutableMapOf<OwnerIpcRequestKey, Job>()
+    private val ownerRequestSensitivePayloads = OwnerIpcSensitivePayloadStore()
 
     override fun onCreate() {
         super.onCreate()
@@ -148,6 +150,7 @@ class MihomoControlService : Service() {
                     val (job, waiters) = synchronized(ownerRequestLock) {
                         ownerRequestJobs.remove(key) to ownerRequestReplies.remove(key).orEmpty().toList()
                     }
+                    wipeOwnerRequestSensitivePayload(key)
                     job?.cancel()
                     waiters.forEach { requestMessage ->
                         sendResponse(
@@ -201,6 +204,7 @@ class MihomoControlService : Service() {
         if (message.what != REQUEST) return false
         val arguments = runCatching { Bundle(message.data) }.getOrNull()
         if (arguments == null) {
+            runCatching { wipeSensitiveBundle(message.data) }
             sendResponse(
                 message,
                 Long.MIN_VALUE,
@@ -209,9 +213,12 @@ class MihomoControlService : Service() {
             )
             return true
         }
-        val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
-        val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
+        val requestId = runCatching { arguments.getLong(REQUEST_ID, Long.MIN_VALUE) }
+            .getOrDefault(Long.MIN_VALUE)
+        val clientSessionId = runCatching { arguments.getString(CLIENT_SESSION_ID) }
+            .getOrNull()
         if (ownerServicePhase != OwnerServicePhase.Accepting) {
+            wipeSensitiveRequest(message, arguments)
             sendResponse(
                 message,
                 requestId,
@@ -224,22 +231,30 @@ class MihomoControlService : Service() {
             )
             return true
         }
-        val protocolVersion = readProtocolVersion(arguments)
-        val expectedOwnerSession = arguments.getString(EXPECTED_OWNER_SESSION_ID)
-        val request = readRequest(arguments)
+        val protocolVersion = runCatching { readProtocolVersion(arguments) }.getOrNull()
+        val expectedOwnerSession = runCatching { arguments.getString(EXPECTED_OWNER_SESSION_ID) }
+            .getOrNull()
+        val request = runCatching { readRequest(arguments) }.getOrNull()
         val result = when {
-            protocolVersion != AndroidHostProtocolVersion.V9 || clientSessionId.isNullOrBlank() || requestId <= 0L ->
+            protocolVersion != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L -> {
+                wipeSensitiveRequest(message, arguments)
                 OwnerResponse(AndroidHostReply.SERVICE_UNAVAILABLE, FfiErrorCode.NOT_READY)
-            request == null -> OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
+            }
+            request == null -> {
+                wipeSensitiveRequest(message, arguments)
+                OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
+            }
             request == AndroidHostRequest.START_VPN_SERVICE -> {
-                val deadline = readRequestDeadline(arguments)
+                val deadline = runCatching { readRequestDeadline(arguments) }.getOrNull()
                 if (deadline == null) {
+                    wipeSensitiveRequest(message, arguments)
                     OwnerResponse(
                         AndroidHostReply.VPN_START_TIMED_OUT,
                         FfiErrorCode.NOT_READY,
                         "VPN start request omitted its absolute deadline",
                     )
                 } else {
+                    wipeSensitiveRequest(message, arguments)
                     enqueueVpnStart(message, requireNotNull(clientSessionId), requestId, deadline)
                     return true
                 }
@@ -358,8 +373,9 @@ class MihomoControlService : Service() {
         requestId: Long,
         expectedOwnerSession: String?,
     ) {
-        val deadline = readRequestDeadline(arguments)
+        val deadline = runCatching { readRequestDeadline(arguments) }.getOrNull()
         if (deadline == null) {
+            wipeSensitiveRequest(message, arguments)
             sendResponse(
                 message,
                 requestId,
@@ -373,16 +389,30 @@ class MihomoControlService : Service() {
             return
         }
         val key = OwnerIpcRequestKey(clientSessionId, requestId)
-        val fingerprint = requestFingerprint(request, arguments)
-        when (
-            val admission = ownerRequestAdmission.admit(
-                key = key,
-                fingerprint = fingerprint,
-                deadline = deadline,
-                nowElapsedRealtimeMillis = SystemClock.elapsedRealtime(),
+        val fingerprint = runCatching { requestFingerprint(request, arguments) }.getOrElse {
+            wipeSensitiveRequest(message, arguments)
+            sendResponse(
+                message,
+                requestId,
+                clientSessionId,
+                OwnerResponse(
+                    AndroidHostReply.FAILED,
+                    FfiErrorCode.INVALID_INPUT,
+                    "owner request payload is malformed",
+                ),
             )
-        ) {
+            return
+        }
+        val admission = ownerRequestAdmission.admit(
+            key = key,
+            fingerprint = fingerprint,
+            deadline = deadline,
+            nowElapsedRealtimeMillis = SystemClock.elapsedRealtime(),
+        )
+        if (admission != OwnerIpcAdmission.Admitted) wipeSensitiveRequest(message, arguments)
+        when (admission) {
             OwnerIpcAdmission.Admitted -> {
+                retainOwnerRequestSensitivePayload(key, request, message, arguments)
                 synchronized(ownerRequestLock) {
                     ownerRequestReplies[key] = mutableListOf(message)
                 }
@@ -392,6 +422,7 @@ class MihomoControlService : Service() {
                     val execution = ownerRequestAdmission.begin(key, SystemClock.elapsedRealtime())
                     val response = when (execution) {
                         OwnerIpcExecutionStart.Started -> executeAdmitted(
+                            key,
                             request,
                             arguments,
                             expectedOwnerSession,
@@ -436,6 +467,7 @@ class MihomoControlService : Service() {
                         publishOwnerRequest(key, execution.response)
                     }
                 }
+                job.invokeOnCompletion { wipeOwnerRequestSensitivePayload(key) }
                 synchronized(ownerRequestLock) {
                     ownerRequestJobs[key] = job
                 }
@@ -543,12 +575,49 @@ class MihomoControlService : Service() {
 
     private fun requestFingerprint(request: AndroidHostRequest, arguments: Bundle): String {
         val values = arguments.keySet()
-            .filterNot { it == REQUEST_DEADLINE_ELAPSED_REALTIME }
+            .filterNot {
+                it == REQUEST_DEADLINE_ELAPSED_REALTIME ||
+                    it == PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES
+            }
             .sorted()
             .joinToString("\u0000") { key ->
                 "$key=${arguments.get(key)}"
             }
         return "$request\u0000$values"
+    }
+
+    private fun wipeSensitiveBundle(arguments: Bundle) {
+        runCatching {
+            arguments.getByteArray(PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES)
+        }.getOrNull()?.fill(0)
+        arguments.remove(PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES)
+    }
+
+    private fun wipeSensitiveRequest(message: Message, arguments: Bundle) {
+        wipeSensitiveBundle(arguments)
+        runCatching { wipeSensitiveBundle(message.data) }
+    }
+
+    private fun retainOwnerRequestSensitivePayload(
+        key: OwnerIpcRequestKey,
+        request: AndroidHostRequest,
+        message: Message,
+        arguments: Bundle,
+    ) {
+        if (request == AndroidHostRequest.EXECUTE_PROFILE_AGE_CREDENTIAL_OWNER_OPERATION) {
+            val payload = runCatching {
+                arguments.getByteArray(PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES)?.copyOf()
+            }.getOrNull() ?: ByteArray(0)
+            ownerRequestSensitivePayloads.retain(key, payload)
+        }
+        wipeSensitiveRequest(message, arguments)
+    }
+
+    private fun wipeOwnerRequestSensitivePayload(key: OwnerIpcRequestKey) {
+        when (ownerRequestSensitivePayloads.removeAndWipe(key)) {
+            OwnerIpcSensitivePayloadRemoval.Wiped,
+            OwnerIpcSensitivePayloadRemoval.Missing -> Unit
+        }
     }
 
     private fun cancelOwnerRequest(message: Message) {
@@ -558,7 +627,7 @@ class MihomoControlService : Service() {
             clientSessionId = arguments.getString(CLIENT_SESSION_ID).orEmpty(),
             requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE),
         )
-        if (readProtocolVersion(arguments) != AndroidHostProtocolVersion.V9 ||
+        if (readProtocolVersion(arguments) != AndroidHostProtocolVersion.V10 ||
             key.clientSessionId.isBlank() || key.requestId <= 0L
         ) {
             Log.w(TAG, "ignored malformed owner IPC cancellation")
@@ -569,6 +638,7 @@ class MihomoControlService : Service() {
                 val (job, waiters) = synchronized(ownerRequestLock) {
                     ownerRequestJobs.remove(key) to ownerRequestReplies.remove(key).orEmpty().toList()
                 }
+                wipeOwnerRequestSensitivePayload(key)
                 job?.cancel()
                 waiters.forEach { requestMessage ->
                     sendResponse(
@@ -674,7 +744,7 @@ class MihomoControlService : Service() {
         val protocol = readProtocolVersion(arguments)
         val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
         val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
-        if (protocol != AndroidHostProtocolVersion.V9 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
+        if (protocol != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
             Log.w(TAG, "ignored malformed VPN start cancellation")
             return
         }
@@ -717,7 +787,7 @@ class MihomoControlService : Service() {
         val protocol = readProtocolVersion(arguments)
         val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
         val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
-        if (protocol != AndroidHostProtocolVersion.V9 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
+        if (protocol != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
             Log.w(TAG, "ignored malformed VPN start acknowledgment")
             return
         }
@@ -746,7 +816,7 @@ class MihomoControlService : Service() {
     ) {
         val response = Message.obtain(null, RESPONSE).apply {
             data = Bundle().apply {
-                putSerializable(PROTOCOL_VERSION, AndroidHostProtocolVersion.V9)
+                putSerializable(PROTOCOL_VERSION, AndroidHostProtocolVersion.V10)
                 putString(CLIENT_SESSION_ID, clientSessionId)
                 putString(OWNER_SESSION_ID, ownerSessionId)
                 putLong(REQUEST_ID, requestId)
@@ -852,22 +922,28 @@ class MihomoControlService : Service() {
     }
 
     private suspend fun executeAdmitted(
+        key: OwnerIpcRequestKey,
         request: AndroidHostRequest,
         arguments: Bundle,
         expectedOwnerSession: String?,
     ): OwnerResponse {
-        if (expectedOwnerSession != null && expectedOwnerSession != ownerSessionId &&
-            request != AndroidHostRequest.STOP_VPN_SERVICE &&
-            request != AndroidHostRequest.READ_VPN_OWNER_SNAPSHOT
-        ) {
-            return recoverOwnerSession()
+        try {
+            if (expectedOwnerSession != null && expectedOwnerSession != ownerSessionId &&
+                request != AndroidHostRequest.STOP_VPN_SERVICE &&
+                request != AndroidHostRequest.READ_VPN_OWNER_SNAPSHOT
+            ) {
+                return recoverOwnerSession()
+            }
+            return execute(request, arguments, key)
+        } finally {
+            wipeOwnerRequestSensitivePayload(key)
         }
-        return execute(request, arguments)
     }
 
     private suspend fun execute(
         request: AndroidHostRequest,
         arguments: Bundle,
+        requestKey: OwnerIpcRequestKey,
     ): OwnerResponse {
         val host = (application as? MihomoApplication)?.coreHost
             ?: return OwnerResponse(
@@ -932,6 +1008,81 @@ class MihomoControlService : Service() {
                     arguments.getLong(CORE_GENERATION).toULong(),
                     arguments.getLong(OWNER_DATA_REVISION).toULong(),
                 )
+                val reply = when (result.state) {
+                    AndroidOwnerOperationIpcState.COMPLETED -> AndroidHostReply.OWNER_OPERATION_COMPLETED
+                    AndroidOwnerOperationIpcState.STALE_OWNER_DATA -> AndroidHostReply.STALE_OWNER_DATA
+                    AndroidOwnerOperationIpcState.VPN_CONFIGURATION_BUSY -> AndroidHostReply.VPN_CONFIGURATION_BUSY
+                    AndroidOwnerOperationIpcState.FAILED -> AndroidHostReply.FAILED
+                }
+                val dataDomain = result.dataDomain
+                val snapshotJson = result.snapshotJson
+                OwnerResponse(
+                    reply = reply,
+                    statusCode = result.statusCode,
+                    statusMessage = result.statusMessage,
+                    payload = OwnerResponsePayload.OwnerOperation(
+                        outcomeJson = result.outcomeJson,
+                        revision = result.dataRevision.toLong(),
+                        generation = result.coreGeneration.toLong(),
+                        dataFacts = when {
+                            dataDomain == null -> OwnerOperationDataFacts.RevisionOnly
+                            snapshotJson == null -> OwnerOperationDataFacts.Domain(dataDomain)
+                            else -> OwnerOperationDataFacts.Snapshot(dataDomain, snapshotJson)
+                        },
+                        coreReadback = OwnerCoreReadback.Unavailable,
+                    ),
+                ).withCurrentCoreSnapshot()
+            }
+            AndroidHostRequest.EXECUTE_PROFILE_AGE_CREDENTIAL_OWNER_OPERATION -> {
+                val metadataJson = runCatching {
+                    arguments.getString(PROFILE_AGE_CREDENTIAL_METADATA_JSON)
+                }.getOrNull()
+                    ?: return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
+                val privateKeyBytes = when (
+                    val payload = ownerRequestSensitivePayloads.lookup(requestKey)
+                ) {
+                    OwnerIpcSensitivePayloadLookup.Missing -> return OwnerResponse(
+                        AndroidHostReply.FAILED,
+                        FfiErrorCode.INVALID_INPUT,
+                        "Age credential request has no one-shot secret payload",
+                    )
+                    is OwnerIpcSensitivePayloadLookup.Present -> payload.bytes
+                }
+                val expectedOwnerSession = runCatching {
+                    arguments.getString(EXPECTED_OWNER_SESSION_ID)
+                }.getOrNull()
+                    ?: run {
+                        privateKeyBytes.fill(0)
+                        return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.NOT_READY)
+                    }
+                val expectedCoreGeneration = runCatching {
+                    arguments.getLong(CORE_GENERATION, -1L)
+                }.getOrDefault(-1L)
+                val expectedOwnerDataRevision = runCatching {
+                    arguments.getLong(OWNER_DATA_REVISION, -1L)
+                }.getOrDefault(-1L)
+                if (expectedCoreGeneration < 0L || expectedOwnerDataRevision < 0L) {
+                    privateKeyBytes.fill(0)
+                    return OwnerResponse(
+                        AndroidHostReply.FAILED,
+                        FfiErrorCode.INVALID_INPUT,
+                        "Age credential request omitted its owner revision fence",
+                    )
+                }
+                val result = try {
+                    androidDispatchProfileAgeCredentialOwnerOperationWireJson(
+                        metadataJson,
+                        privateKeyBytes,
+                        runCatching { arguments.getString(CLIENT_SESSION_ID) }
+                            .getOrNull().orEmpty(),
+                        expectedOwnerSession,
+                        ownerSessionId,
+                        expectedCoreGeneration.toULong(),
+                        expectedOwnerDataRevision.toULong(),
+                    )
+                } finally {
+                    privateKeyBytes.fill(0)
+                }
                 val reply = when (result.state) {
                     AndroidOwnerOperationIpcState.COMPLETED -> AndroidHostReply.OWNER_OPERATION_COMPLETED
                     AndroidOwnerOperationIpcState.STALE_OWNER_DATA -> AndroidHostReply.STALE_OWNER_DATA
@@ -1352,6 +1503,8 @@ class MihomoControlService : Service() {
         internal const val STATUS_CODE = "status_code"
         internal const val STATUS_MESSAGE = "status_message"
         internal const val OWNER_OPERATION_JSON = "owner_operation_json"
+        internal const val PROFILE_AGE_CREDENTIAL_METADATA_JSON = "profile_age_credential_metadata_json"
+        internal const val PROFILE_AGE_CREDENTIAL_PRIVATE_KEY_BYTES = "profile_age_credential_private_key_bytes"
         internal const val OWNER_DATA_REVISION = "owner_data_revision"
         internal const val OWNER_DATA_GENERATION = "owner_data_generation"
         internal const val OWNER_OPERATION_DATA_FACTS_KIND = "owner_operation_data_facts_kind"

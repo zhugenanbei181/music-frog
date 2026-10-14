@@ -21,6 +21,11 @@ internal sealed interface AndroidBridgeCall {
 
     data class ExecuteOwnerOperation(val operationJson: String) : AndroidBridgeCall
 
+    data class ProfileAgeCredentialOwnerOperation(
+        val metadataJson: String,
+        val privateKeyBytes: ByteArray,
+    ) : AndroidBridgeCall
+
     data class CredentialGet(val service: String, val key: String) : AndroidBridgeCall
 
     data class CredentialSet(val service: String, val key: String, val value: String) : AndroidBridgeCall
@@ -62,6 +67,8 @@ internal sealed interface AndroidBridgeCallReply {
     data class SurfaceSnapshot(val json: String) : AndroidBridgeCallReply
 
     data class ExecuteOwnerOperation(val json: String) : AndroidBridgeCallReply
+
+    data class ProfileAgeCredentialOwnerOperation(val json: String) : AndroidBridgeCallReply
 
     data class CredentialGet(val value: String?) : AndroidBridgeCallReply
 
@@ -205,6 +212,8 @@ internal object AndroidBridgeCallWire {
             is AndroidBridgeCallReply.ExecuteProductCommand -> tagged("execute_product_command", reply.json)
             is AndroidBridgeCallReply.SurfaceSnapshot -> tagged("surface_snapshot", reply.json)
             is AndroidBridgeCallReply.ExecuteOwnerOperation -> tagged("execute_owner_operation", reply.json)
+            is AndroidBridgeCallReply.ProfileAgeCredentialOwnerOperation ->
+                tagged("profile_age_credential_owner_operation", reply.json)
             is AndroidBridgeCallReply.CredentialGet -> tagged("credential_get", reply.value ?: JSONObject.NULL)
             is AndroidBridgeCallReply.CredentialSet -> tagged(
                 "credential_set",

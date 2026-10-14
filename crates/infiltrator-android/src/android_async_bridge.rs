@@ -135,6 +135,7 @@ pub(crate) enum AndroidBridgeCallReply {
     ExecuteProductCommand(String),
     SurfaceSnapshot(String),
     ExecuteOwnerOperation(String),
+    ProfileAgeCredentialOwnerOperation(String),
     CredentialGet(Option<String>),
     CredentialSet {
         outcome: AndroidCredentialMutationOutcome,
@@ -314,6 +315,20 @@ mod tests {
         let decoded: AndroidBridgeCallCompletion =
             serde_json::from_str(&encoded).expect("reply decodes exhaustively");
         assert_eq!(decoded, reply);
+
+        let age_credential_reply = AndroidBridgeCallCompletion::Reply(
+            AndroidBridgeCallReply::ProfileAgeCredentialOwnerOperation(
+                "nonsecret-readback".to_owned(),
+            ),
+        );
+        let encoded = serde_json::to_string(&age_credential_reply)
+            .expect("Age credential readback reply serializes");
+        assert!(!encoded.contains("private_key"));
+        assert_eq!(
+            serde_json::from_str::<AndroidBridgeCallCompletion>(&encoded)
+                .expect("Age credential readback reply decodes"),
+            age_credential_reply,
+        );
 
         let unit_request = serde_json::to_value(AndroidBridgeCall::CoreStop)
             .expect("unit request serializes with an explicit payload");

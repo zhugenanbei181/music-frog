@@ -75,7 +75,7 @@ pub enum VpnAuthorizationResult {
 /// use the same version; incompatible request/reply changes require a bump.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum AndroidHostProtocolVersion {
-    V9,
+    V10,
 }
 
 /// Host IPC operations performed only by the `:vpn` process owner.
@@ -85,6 +85,7 @@ pub enum AndroidHostRequest {
     ExecuteProductCommand,
     ReadSurfaceSnapshot,
     ExecuteOwnerOperation,
+    ExecuteProfileAgeCredentialOwnerOperation,
     ReadOwnerDataRevision,
     StartVpnService,
     StopVpnService,

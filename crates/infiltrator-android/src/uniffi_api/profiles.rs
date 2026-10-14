@@ -478,7 +478,7 @@ pub(super) async fn clear_owner_profile_subscription(name: String) -> FfiStatus 
         })
 }
 
-async fn build_profile_application() -> Result<ProfileApplication, FfiStatus> {
+pub(super) async fn build_profile_application() -> Result<ProfileApplication, FfiStatus> {
     let manager = build_config_manager().await?;
     Ok(ProfileApplication::new(
         manager.shared_engine_profile_store(),

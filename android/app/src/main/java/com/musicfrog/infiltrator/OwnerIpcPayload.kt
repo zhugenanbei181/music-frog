@@ -67,4 +67,14 @@ internal sealed interface OwnerIpcPayload {
         override val request = AndroidHostRequest.EXECUTE_OWNER_OPERATION
         override val role = OwnerIpcRequestRole.Operation
     }
+
+    data class ExecuteProfileAgeCredentialOwnerOperation(
+        val metadataJson: String,
+        val privateKeyBytes: ByteArray,
+        val expectedCoreGeneration: Long,
+        val expectedOwnerDataRevision: Long,
+    ) : OwnerIpcPayload {
+        override val request = AndroidHostRequest.EXECUTE_PROFILE_AGE_CREDENTIAL_OWNER_OPERATION
+        override val role = OwnerIpcRequestRole.Operation
+    }
 }
