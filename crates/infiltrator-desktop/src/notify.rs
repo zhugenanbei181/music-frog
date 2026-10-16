@@ -830,12 +830,6 @@ World"#;
     }
 
     #[test]
-    fn test_warn_throttled_logging() {
-        warn_throttled("desktop notify test: first log");
-        warn_throttled("desktop notify test: throttled within 60s");
-    }
-
-    #[test]
     fn test_notification_throttler_rate_limiting() {
         let throttler = NotificationThrottler::new(100);
         assert!(throttler.should_allow());

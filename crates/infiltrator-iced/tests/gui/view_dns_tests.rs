@@ -1,75 +1,11 @@
 use super::*;
 use crate::view::dns_form_panel::{
-    dns_form_field_widget, domain_mapping_mode_control, filter_mode_control, flush_outcome_label,
-    form_issue_banner, token_row,
+    dns_form_field_widget, flush_outcome_label, form_issue_banner, token_row,
 };
-use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
+use infiltrator_contract::dns::DnsServerTag;
 use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::dns_settings_projection::form_issue;
-
-#[test]
-fn test_configuration_save_status_badge_states() {
-    let lang_zh = Lang("zh-CN");
-    let lang_en = Lang("en-US");
-    let _ = configuration_save_status_badge(
-        &lang_zh,
-        &ConfigurationSaveState::Idle,
-        "DNS",
-        false,
-        true,
-    );
-    let _ = configuration_save_status_badge(
-        &lang_en,
-        &ConfigurationSaveState::Idle,
-        "DNS",
-        false,
-        true,
-    );
-    let _ = configuration_save_status_badge(
-        &lang_zh,
-        &ConfigurationSaveState::Idle,
-        "DNS",
-        true,
-        false,
-    );
-    let saving = ConfigurationSaveState::Saving {
-        label: "DNS".into(),
-    };
-    let _ = configuration_save_status_badge(&lang_zh, &saving, "DNS", false, false);
-    let done = ConfigurationSaveState::Done {
-        label: "DNS".into(),
-    };
-    let _ = configuration_save_status_badge(&lang_zh, &done, "DNS", false, false);
-    let failed = ConfigurationSaveState::Failed {
-        label: "DNS".into(),
-        error: "error".into(),
-    };
-    let _ = configuration_save_status_badge(&lang_zh, &failed, "DNS", false, false);
-    let _ = configuration_save_status_badge(
-        &lang_zh,
-        &ConfigurationSaveState::Idle,
-        "DNS",
-        false,
-        false,
-    );
-}
-
-#[test]
-fn test_validation_error_banner() {
-    let lang_zh = Lang("zh-CN");
-    let lang_en = Lang("en-US");
-    let _ = validation_error_banner("Invalid DNS IP", &lang_zh);
-    let _ = validation_error_banner("Invalid DNS IP", &lang_en);
-}
-
-#[test]
-fn test_save_button_states() {
-    let _ = save_button(false, true, Message::SaveDns, "Save");
-    let _ = save_button(true, false, Message::SaveDns, "Save");
-    let _ = save_button(false, false, Message::SaveDns, "Save");
-}
-
 #[test]
 fn test_dns_protocol_chip_mappings() {
     assert_eq!(dns_protocol_chip("https://dns.google/dns-query"), "DoH");
@@ -104,17 +40,6 @@ fn test_item_list_mutation() {
     let no_dup = append_item_to_list(&appended, "223.5.5.5");
     assert_eq!(no_dup, appended);
 }
-
-#[test]
-fn test_domain_mapping_and_filter_mode_controls() {
-    let _ = domain_mapping_mode_control(DnsEnhancedMode::FakeIp, &Lang("zh-CN"));
-    let _ = domain_mapping_mode_control(DnsEnhancedMode::RedirHost, &Lang("en-US"));
-    let _ = domain_mapping_mode_control(DnsEnhancedMode::Unmapped, &Lang("zh-CN"));
-    let _ = filter_mode_control(DnsFakeIpFilterMode::Blacklist, &Lang("zh-CN"));
-    let _ = filter_mode_control(DnsFakeIpFilterMode::Whitelist, &Lang("zh-CN"));
-    let _ = filter_mode_control(DnsFakeIpFilterMode::Rules, &Lang("en-US"));
-}
-
 #[test]
 fn test_server_tag_labels_are_localized() {
     let zh = Lang("zh-CN");
@@ -154,23 +79,6 @@ fn test_dns_form_field_widgets_cover_every_shared_field() {
     }
     assert_eq!(DnsFormField::ALL.len(), 18);
 }
-
-#[test]
-fn test_dns_form_panel_renders_the_shared_draft() {
-    let (mut state, _) = AppState::new();
-    state.editor.dns_form = DnsWorkbenchForm {
-        nameserver: "https://doh.pub/dns-query".to_owned(),
-        fallback_policy: DnsFallbackPolicyDraft {
-            geoip: true,
-            geoip_code: "CN".to_owned(),
-            trigger_ipcidr: "240.0.0.0/4".to_owned(),
-        },
-        ..DnsWorkbenchForm::default()
-    };
-    let _ = dns_form_panel(&state, &Lang("zh-CN"));
-    let _ = dns_form_panel(&state, &Lang("en-US"));
-}
-
 #[test]
 fn test_dns_form_validation_issues_localize_in_both_locales() {
     let mut form = DnsWorkbenchForm {

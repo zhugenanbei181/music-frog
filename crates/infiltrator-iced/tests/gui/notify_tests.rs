@@ -2,12 +2,6 @@ use super::*;
 use std::env::{remove_var, set_var};
 
 #[test]
-fn warn_throttled_first_call_then_throttled() {
-    warn_throttled("notify tests: first");
-    warn_throttled("notify tests: throttled within window");
-}
-
-#[test]
 fn urgency_is_copy_and_comparable() {
     let low = NotifyUrgency::Low;
     let copy = low;

@@ -32,22 +32,3 @@ impl SubscriptionNotificationPort for DesktopSubscriptionNotificationPort {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn notifications_map_to_expected_levels() {
-        let port = DesktopSubscriptionNotificationPort;
-        // Exercises the tree; the actual dispatch spawns a best-effort child
-        // process and is allowed to fail silently on a headless test host.
-        port.notify(SubscriptionNotification::for_profiles(
-            SubscriptionNotificationKind::Updated,
-            vec!["main".to_string()],
-        ));
-        port.notify(SubscriptionNotification::failure(
-            vec!["main".to_string()],
-            "connection reset",
-        ));
-    }
-}

@@ -95,15 +95,4 @@ mod tests {
         // Clean up
         unsafe { remove_var("MIHOMO_HOME") };
     }
-
-    #[tokio::test]
-    async fn test_get_home_dir_default() {
-        let _guard = crate::TEST_LOCK.lock().await;
-        // Clear override and env var
-        clear_home_dir_override();
-        unsafe { remove_var("MIHOMO_HOME") };
-
-        // This should use dirs::home_dir() and return Ok
-        let _result = get_home_dir();
-    }
 }

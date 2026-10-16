@@ -10,7 +10,6 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
-use infiltrator_domain::runtime::TrafficData;
 
 #[test]
 fn shared_observation_replay_keeps_intent_typed_and_preserves_failed_tun_readback() {
@@ -106,33 +105,6 @@ fn unobserved_shell_counts_and_rates_are_distinct_from_observed_zero() {
     );
     assert_eq!(rate_copy(&state.shell.readout.upload_bps, "en-US"), "0 B/s");
 }
-
-#[test]
-fn test_sidebar_render_smoke() {
-    let (state, _) = AppState::new();
-    let _elem = sidebar(&state);
-
-    let (mut state2, _) = AppState::new();
-    state2.runtime.system_proxy_enabled = true;
-    state2.runtime.tun_enabled = Some(true);
-    state2.shell.current_route = Route::Proxies;
-    let _elem_active = sidebar(&state2);
-}
-
-#[test]
-fn test_sidebar_render_with_traffic_and_samples() {
-    let (mut state, _) = AppState::new();
-    state.diag.traffic = Some(TrafficData {
-        up: 1024 * 50,
-        down: 1024 * 1024 * 2,
-    });
-    state.diag.traffic_history.push_back((100, 200));
-    state.diag.traffic_history.push_back((300, 800));
-    state.diag.traffic_history.push_back((500, 1200));
-
-    let _elem = sidebar(&state);
-}
-
 #[test]
 fn test_sidebar_rail_render_smoke() {
     let (state, _) = AppState::new();

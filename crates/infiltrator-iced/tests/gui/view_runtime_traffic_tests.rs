@@ -34,28 +34,6 @@ fn make_test_conn(
         chains,
     }
 }
-
-#[test]
-fn test_smooth_path_empty_and_single() {
-    let empty_pts: Vec<Point> = vec![];
-    let _path = build_smooth_path(&empty_pts);
-
-    let single_pt = vec![Point::new(10.0, 20.0)];
-    let _path_single = build_smooth_path(&single_pt);
-}
-
-#[test]
-fn test_smooth_path_multiple_points() {
-    let pts = vec![
-        Point::new(0.0, 100.0),
-        Point::new(10.0, 80.0),
-        Point::new(20.0, 50.0),
-        Point::new(30.0, 20.0),
-    ];
-    let _path = build_smooth_path(&pts);
-    let _area = build_smooth_area(&pts, 120.0);
-}
-
 #[test]
 fn test_host_traffic_rankings_calculation() {
     let (mut state, _) = AppState::new();

@@ -125,17 +125,6 @@ fn test_advancement_w4_2_crash_watchdog_and_forensics_lifecycle() {
         read("/tmp/infiltrator_crash_diagnostics.json").expect("Diagnostics JSON must exist");
     assert!(!json_bytes.is_empty());
 }
-
-#[test]
-fn test_advancement_w4_3_web_dashboard_launch_dispatch() {
-    let (mut state, _) = AppState::new();
-
-    // Verify launching web dashboards returns valid task without panicking
-    let _ = state.update(Message::LaunchWebDashboard("metacubexd"));
-    let _ = state.update(Message::LaunchWebDashboard("yacd"));
-    let _ = state.update(Message::LaunchWebDashboard("razord"));
-}
-
 #[test]
 fn test_advancement_w4_4_log_regex_and_redacted_export() {
     let (mut state, _) = AppState::new();

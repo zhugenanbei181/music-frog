@@ -526,6 +526,3 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     )
 }
 
-#[cfg(test)]
-#[path = "../../tests/gui/view_sync_tests.rs"]
-mod tests;

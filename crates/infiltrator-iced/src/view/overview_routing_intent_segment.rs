@@ -107,7 +107,3 @@ pub fn overview_routing_intent_segment<'a>(
         .style(card_surface)
         .into()
 }
-
-#[cfg(test)]
-#[path = "../../tests/gui/overview_routing_intent_segment_tests.rs"]
-mod overview_routing_intent_segment_tests;

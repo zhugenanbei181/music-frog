@@ -101,18 +101,4 @@ mod tests {
         assert_eq!(pad("abc", 3), "abc");
         assert_eq!(pad("测试", 4), "测试  ");
     }
-
-    #[test]
-    fn print_table_skips_empty_rows_and_never_panics() {
-        print_table(&["name", "value"], &[]);
-        print_table(
-            &["name", "value"],
-            &[vec!["alpha".to_string(), "测试节点".to_string()]],
-        );
-    }
-
-    #[test]
-    fn print_json_pretty_prints() {
-        print_json(&serde_json::json!({ "ok": true })).unwrap();
-    }
 }

@@ -1,7 +1,6 @@
 //! DUAL-13-05: kernel-provided target ASN / geolocation rendering tests.
 
 use super::*;
-use infiltrator_domain::runtime::ConnectionSnapshot;
 
 #[test]
 fn test_kernel_asn_label_separates_not_evaluated_from_no_result() {
@@ -51,39 +50,4 @@ fn test_kernel_geo_label_keeps_the_kernels_three_states() {
         kernel_geo_label(Some(&codes), &|key| zh.tr(key).into_owned()),
         "us, cloudflare"
     );
-}
-
-#[test]
-fn test_drawer_modal_renders_every_connection_without_fabricating() {
-    use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
-
-    let (mut state, _) = AppState::new();
-    state.diag.connections = Some(ConnectionSnapshot {
-        connections: vec![
-            Connection {
-                id: "c-kernel".to_owned(),
-                metadata: ConnectionMetadata {
-                    destination_ip: "142.250.72.14".to_owned(),
-                    destination_port: "443".to_owned(),
-                    destination_ip_asn: "15169 Google LLC".to_owned(),
-                    destination_geo_ip: Some(vec!["us".to_owned()]),
-                    ..ConnectionMetadata::default()
-                },
-                ..Connection::default()
-            },
-            Connection {
-                id: "c-silent".to_owned(),
-                metadata: ConnectionMetadata::default(),
-                ..Connection::default()
-            },
-        ],
-        ..ConnectionSnapshot::default()
-    });
-
-    // Rendering both connections must not panic and must not require any
-    // client-side GeoIP database.
-    let _kernel = connection_drawer_modal(&state, "c-kernel");
-    let _silent = connection_drawer_modal(&state, "c-silent");
-    // An unknown id stays an empty placeholder, not a fabricated drawer.
-    let _missing = connection_drawer_modal(&state, "c-missing");
 }

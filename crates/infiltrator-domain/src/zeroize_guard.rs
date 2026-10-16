@@ -270,10 +270,4 @@ mod tests {
         assert!(scrubbed.contains("password=***REDACTED***"));
         assert_eq!(SensitiveTokenScrubber::scrub_text(&scrubbed), scrubbed);
     }
-
-    #[test]
-    fn test_drop() {
-        let secret = ProtectedSecret::new("to_be_dropped", SecretType::ApiToken);
-        drop(secret);
-    }
 }

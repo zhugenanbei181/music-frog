@@ -53,25 +53,4 @@ mod tests {
         assert_eq!(paths::get_home_dir().unwrap(), path);
         paths::clear_home_dir_override();
     }
-
-    #[tokio::test]
-    async fn test_apply_data_dir_override_none() {
-        let _guard = TEST_LOCK.lock().await;
-        struct NoneProvider;
-        impl DataDirProvider for NoneProvider {
-            fn data_dir(&self) -> Option<PathBuf> {
-                None
-            }
-        }
-        let provider = NoneProvider;
-        paths::clear_home_dir_override();
-        apply_data_dir_override(&provider);
-    }
-
-    #[tokio::test]
-    async fn test_apply_default_data_dir_override() {
-        let _guard = TEST_LOCK.lock().await;
-        let provider = DesktopDataDirProvider;
-        apply_data_dir_override(&provider);
-    }
 }

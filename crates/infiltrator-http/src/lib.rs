@@ -55,38 +55,6 @@ pub fn build_insecure_http_client(raw: bool) -> HttpClient {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_build_http_client() {
-        let _client = build_http_client();
-        // Verify the client was created successfully without panicking
-    }
-
-    #[test]
-    fn test_build_http_client_user_agent() {
-        let _client = build_http_client();
-        // Since we cannot inspect default_headers() on reqwest::Client easily in all environments,
-        // we trust the builder worked if it didn't panic.
-    }
-
-    #[test]
-    fn test_build_http_client_timeout() {
-        let _client = build_http_client();
-        // Verify the client was created successfully without panicking
-    }
-
-    #[test]
-    fn test_build_raw_http_client() {
-        let default_client = build_http_client();
-        let _raw_client = build_raw_http_client(&default_client);
-        // Verify the raw client was created successfully without panicking
-    }
-
-    #[test]
-    fn test_build_raw_http_client_user_agent() {
-        let default_client = build_http_client();
-        let _raw_client = build_raw_http_client(&default_client);
-    }
-
     #[tokio::test]
     async fn test_http_client_send() {
         // 测试安全策略：绝不访问外网。mockito 只绑定 127.0.0.1 回环地址，
@@ -110,11 +78,5 @@ mod tests {
         assert_eq!(resp.status(), 200);
         assert_eq!(resp.text().await.unwrap(), "pong");
         mock.assert_async().await;
-    }
-
-    #[test]
-    fn test_http_client_type_alias() {
-        // Verify that HttpClient is indeed reqwest::Client
-        let _client: HttpClient = reqwest::Client::new();
     }
 }

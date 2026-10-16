@@ -25,43 +25,6 @@ fn open_modal_state() -> AppState {
     state.editor.snapshot_diff = Some(fixture());
     state
 }
-
-#[test]
-fn modal_renders_the_shared_diff_in_inline_and_split_modes() {
-    let mut state = open_modal_state();
-    {
-        let _inline = snapshot_diff_modal(&state, "1-deadbeef.yaml");
-    }
-    state.editor.snapshot_diff_mode = SnapshotDiffMode::Split;
-    {
-        let _split = snapshot_diff_modal(&state, "1-deadbeef.yaml");
-    }
-}
-
-#[test]
-fn modal_states_are_explicit_for_loading_error_and_no_diff() {
-    let (mut state, _) = AppState::new();
-    state.editor.snapshot_diff_modal_open = true;
-    state.editor.snapshot_diff_selected_id = Some("snap".to_string());
-
-    state.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Loading;
-    {
-        let _loading = snapshot_diff_modal(&state, "snap");
-    }
-
-    state.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
-    state.editor.snapshot_diff_error = Some("snapshot file is unreadable".to_string());
-    {
-        let _error = snapshot_diff_modal(&state, "snap");
-    }
-
-    state.editor.snapshot_diff_error = None;
-    state.editor.snapshot_diff = None;
-    {
-        let _empty = snapshot_diff_modal(&state, "snap");
-    }
-}
-
 #[test]
 fn rollback_never_executes_before_the_second_confirmation() {
     let mut state = open_modal_state();

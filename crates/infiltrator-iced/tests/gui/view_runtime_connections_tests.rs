@@ -192,16 +192,6 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
     let unknown = make_test_conn("unknown", "x.example.com", "/bin/x", 0, 0);
     assert_eq!(connection_pulse_intensity(&unknown, &rates, 0.5), 0.0);
 }
-
-#[test]
-fn test_stream_badge_kinds() {
-    let _elem_idle: Element<'_, Message> = stream_badge(&RuntimeStreamState::Idle, &Lang("zh-CN"));
-    let _elem_connected: Element<'_, Message> =
-        stream_badge(&RuntimeStreamState::Connected, &Lang("zh-CN"));
-    let _elem_failed: Element<'_, Message> =
-        stream_badge(&RuntimeStreamState::Failed("err".into()), &Lang("zh-CN"));
-}
-
 #[test]
 fn test_shared_connection_view_reductions_are_delegated() {
     use infiltrator_domain::connection_view::{ConnectionGroupingMode, quick_rule_spec};

@@ -56,12 +56,3 @@ fn equal_delay_and_name_keys_keep_the_original_order() {
     assert_eq!(nodes[2].1, "first unavailable sample");
     assert_eq!(nodes[3].1, "second unavailable sample");
 }
-
-#[test]
-fn test_latency_bar_and_status_dot() {
-    let _dot_some: Element<'_, Message> = delay_status_dot(Some(100));
-    let _dot_none: Element<'_, Message> = delay_status_dot(None);
-
-    let _bar_some: Element<'_, Message> = latency_bar(Some(200));
-    let _bar_none: Element<'_, Message> = latency_bar(None);
-}

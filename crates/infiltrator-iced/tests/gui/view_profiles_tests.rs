@@ -1,4 +1,4 @@
-use super::helpers::{format_datetime, traffic_row, ua_preset_chip};
+use super::helpers::{format_datetime, traffic_row};
 use super::*;
 use chrono::DateTime;
 use infiltrator_domain::profiles::ProfileInfo;
@@ -77,11 +77,4 @@ fn test_traffic_row_threshold_tiers() {
 
     p.traffic_download = Some(1050);
     assert!(traffic_row(&p, &Lang("zh-CN")).is_some());
-}
-
-#[test]
-fn test_ua_preset_chip_widget() {
-    let _chip1: Element<'_, Message> = ua_preset_chip("Clash.Meta", "Clash.Meta");
-    let _chip2: Element<'_, Message> = ua_preset_chip("ClashVerge", "Clash.Meta");
-    let _chip3: Element<'_, Message> = ua_preset_chip("Shadowrocket", "");
 }

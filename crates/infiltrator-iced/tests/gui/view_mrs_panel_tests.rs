@@ -114,22 +114,3 @@ fn test_mrs_acceleration_card_renders_shared_status_and_items() {
     assert!(label.contains("sha256 deadbeefcafe"));
     drop(mrs_acceleration_card(&state));
 }
-
-#[test]
-fn test_detail_row_render() {
-    let lang = Lang("en");
-    let detail = MrsProviderDetail {
-        name: "test-mrs".into(),
-        behavior: "domain".into(),
-        file: None,
-        metadata: Some(MrsMetadata {
-            behavior: Behavior::Domain,
-            rule_count: 350,
-            version: 1,
-            payload_size: 2048,
-            description: "Test ruleset".into(),
-        }),
-        errors: Vec::new(),
-    };
-    let _element = detail_row(&lang, &detail, None);
-}

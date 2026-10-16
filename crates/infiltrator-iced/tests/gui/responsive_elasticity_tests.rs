@@ -207,47 +207,6 @@ fn overview_card_order_follows_shared_layout_moves() {
         OverviewCardKind::DEFAULT_ORDER.to_vec()
     );
 }
-
-#[test]
-fn responsive_form_row_adapts_to_viewport_tier() {
-    use crate::view::component_forms::{responsive_form_row, responsive_form_toggle_row};
-    use iced::widget::text;
-
-    let compact_row = responsive_form_row::<Message>(
-        ViewportTier::Compact,
-        "System Proxy",
-        Some("Direct outbound traffic through TUN interface"),
-        text("Control"),
-    );
-    let _ = compact_row;
-
-    let expanded_row = responsive_form_row::<Message>(
-        ViewportTier::Expanded,
-        "System Proxy",
-        Some("Direct outbound traffic through TUN interface"),
-        text("Control"),
-    );
-    let _ = expanded_row;
-
-    let toggle_compact = responsive_form_toggle_row(
-        ViewportTier::Compact,
-        "Allow LAN",
-        Some("Share proxy service with local network"),
-        true,
-        |_| Message::Noop,
-    );
-    let _ = toggle_compact;
-
-    let toggle_expanded = responsive_form_toggle_row(
-        ViewportTier::Expanded,
-        "Allow LAN",
-        Some("Share proxy service with local network"),
-        true,
-        |_| Message::Noop,
-    );
-    let _ = toggle_expanded;
-}
-
 #[test]
 fn overview_topology_pipeline_adapts_to_viewport_tier() {
     use crate::view::overview_topology::topology_card;

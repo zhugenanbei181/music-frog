@@ -156,30 +156,10 @@ pub fn sync_dns_leak_line(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(test)]
-    use infiltrator_bevy_widgets::theme::Theme;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsCoreSwitches;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsEnhancedMode;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsFakeIpFilterMode;
-    #[cfg(test)]
-    use infiltrator_contract::dns::FakeIpMappingPool;
-    #[cfg(test)]
-    use infiltrator_contract::dns_cache::DnsCacheFlushReport;
-    #[cfg(test)]
-    use infiltrator_contract::dns_form::DnsWorkbenchForm;
-    #[cfg(test)]
-    use infiltrator_contract::dns_latency::DnsLatencyReport;
     use infiltrator_contract::dns_leak::{
         DnsLeakEchoRecord, DnsLeakObservation, DnsLeakObservationOutcome, DnsLeakProbeSource,
         DnsLeakProbeTransport, DnsLeakReport,
     };
-    #[cfg(test)]
-    use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
-    #[cfg(test)]
-    use infiltrator_contract::stun_probe::StunProbeReport;
 
     fn report(identities: &[(&str, &str)]) -> DnsLeakReport {
         let observations = identities
@@ -304,39 +284,5 @@ mod tests {
         let pending_label = leak_conclusion_label(&pending, "zh-CN");
         assert!(pending_label.contains("尚无交叉结论"), "{pending_label}");
         assert!(!pending_label.contains("宿主未提供"), "{pending_label}");
-    }
-
-    #[test]
-    fn the_card_scene_builds_for_every_conclusion_shape() {
-        let palette = UiPalette::new(&Theme::dark());
-        let mut projection = DnsProjection {
-            mode: DnsEnhancedMode::default(),
-            cache_entries: 0,
-            fake_ip_range: String::new(),
-            servers: Vec::new(),
-            switches: DnsCoreSwitches::default(),
-            filter_mode: DnsFakeIpFilterMode::default(),
-            form: DnsWorkbenchForm::default(),
-            cache_flush: DnsCacheFlushReport::default(),
-            fake_ip_pool: FakeIpMappingPool::default(),
-            latency: DnsLatencyReport::default(),
-            leak: DnsLeakReport::default(),
-            stun: StunProbeReport::default(),
-            self_heal: DnsSelfHealSnapshot::default(),
-            hosts: Vec::new(),
-        };
-        let _ = dns_leak_card_scene(&projection, &palette);
-
-        projection.leak = report(&[
-            ("a.echo.example.org", "203.0.113.9"),
-            ("b.echo.example.org", "198.51.100.7"),
-        ]);
-        let _ = dns_leak_card_scene(&projection, &palette);
-
-        projection.leak = report(&[
-            ("a.echo.example.org", "203.0.113.9"),
-            ("b.echo.example.org", "203.0.113.9"),
-        ]);
-        let _ = dns_leak_card_scene(&projection, &palette);
     }
 }

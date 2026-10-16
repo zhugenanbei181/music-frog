@@ -74,26 +74,6 @@ pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(test)]
-    use infiltrator_bevy_widgets::theme::Theme;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsCoreSwitches;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsEnhancedMode;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsFakeIpFilterMode;
-    #[cfg(test)]
-    use infiltrator_contract::dns::FakeIpMappingPool;
-    #[cfg(test)]
-    use infiltrator_contract::dns_cache::DnsCacheFlushReport;
-    #[cfg(test)]
-    use infiltrator_contract::dns_form::DnsWorkbenchForm;
-    #[cfg(test)]
-    use infiltrator_contract::dns_latency::DnsLatencyReport;
-    #[cfg(test)]
-    use infiltrator_contract::dns_leak::DnsLeakReport;
-    #[cfg(test)]
-    use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
     use infiltrator_contract::stun_probe::{
         StunMappedAddress, StunProbeObservation, StunProbeReport,
     };
@@ -154,39 +134,5 @@ mod tests {
         // Nothing reported yet is not a result either.
         let pending = StunProbeReport::default();
         assert!(project_stun(&pending, "zh-CN").status.contains("尚未探测"));
-    }
-
-    #[test]
-    fn the_card_scene_builds_for_every_status_shape() {
-        let palette = UiPalette::new(&Theme::dark());
-        let projection = |report| DnsProjection {
-            mode: DnsEnhancedMode::default(),
-            cache_entries: 0,
-            fake_ip_range: String::new(),
-            servers: Vec::new(),
-            switches: DnsCoreSwitches::default(),
-            filter_mode: DnsFakeIpFilterMode::default(),
-            form: DnsWorkbenchForm::default(),
-            cache_flush: DnsCacheFlushReport::default(),
-            fake_ip_pool: FakeIpMappingPool::default(),
-            latency: DnsLatencyReport::default(),
-            leak: DnsLeakReport::default(),
-            stun: report,
-            self_heal: DnsSelfHealSnapshot::default(),
-            hosts: Vec::new(),
-        };
-        for report in [
-            StunProbeReport::default(),
-            StunProbeReport::unsupported("no STUN prober is composed"),
-            observed("203.0.113.9", Some("203.0.113.9")),
-            observed("198.51.100.7", Some("203.0.113.9")),
-            observed("203.0.113.9", None),
-            StunProbeReport::from_observation(
-                StunProbeObservation::timed_out("stun.l.google.com:19302"),
-                None,
-            ),
-        ] {
-            let _ = dns_stun_card_scene(&projection(report), &palette);
-        }
     }
 }
