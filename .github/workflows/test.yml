@@ -31,6 +31,26 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # 标准 GitHub 托管 runner 根分区仅约 14 GB 空闲，而本工作空间要在同一台机上
+      # 恢复 Rust 缓存、全量编译 iced + bevy + slint 的测试目标并运行 capture-tools，
+      # 会直接写爆磁盘（runner 自身 `_diag` 日志都写不进去，整条 gate 报废）。
+      # 构建前删除镜像里本 job 用不到的重型工具链（Android SDK/NDK、.NET、GHC、
+      # Swift、CodeQL、Boost、GHCup），回收约 25 GB。放在 setup-python 之前，避免
+      # 误删其工具缓存。
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/.ghcup \
+            /usr/share/swift
+          sudo apt-get clean
+          df -h /
+
       - name: Checkout
         uses: actions/checkout@v7
 
