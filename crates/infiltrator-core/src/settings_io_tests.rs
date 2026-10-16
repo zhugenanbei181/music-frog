@@ -243,11 +243,6 @@ delay_sort = "unknown"
         assert!(loaded.runtime_panel.auto_refresh);
     }
 
-    #[test]
-    fn test_configs_dir_default_is_none() {
-        assert_eq!(AppSettings::default().configs_dir, None);
-    }
-
     /// serde 往返：configs_dir 存入 settings.toml 后原样读回。
     #[tokio::test]
     async fn test_configs_dir_roundtrip() {

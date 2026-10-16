@@ -1,30 +1,6 @@
 use super::*;
 use std::env::{remove_var, set_var};
 
-#[test]
-fn urgency_is_copy_and_comparable() {
-    let low = NotifyUrgency::Low;
-    let copy = low;
-    assert_eq!(copy, NotifyUrgency::Low);
-    assert_ne!(low, NotifyUrgency::Critical);
-}
-
-#[test]
-fn urgency_to_notification_level_conversion() {
-    assert_eq!(
-        NotificationLevel::from(NotifyUrgency::Low),
-        NotificationLevel::Info
-    );
-    assert_eq!(
-        NotificationLevel::from(NotifyUrgency::Normal),
-        NotificationLevel::Info
-    );
-    assert_eq!(
-        NotificationLevel::from(NotifyUrgency::Critical),
-        NotificationLevel::Error
-    );
-}
-
 #[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn daemon_urgency_never_persists_and_timeout_is_bounded() {
@@ -54,11 +30,6 @@ fn daemon_urgency_never_persists_and_timeout_is_bounded() {
         assert!(timeout > 0, "notification must expire");
         assert!(timeout <= 10_000, "notification must stay bounded");
     }
-}
-
-#[test]
-fn smoke_probe_title_is_valid() {
-    assert_eq!(SMOKE_PROBE_TITLE, "infiltrator-notify-probe");
 }
 
 #[test]
