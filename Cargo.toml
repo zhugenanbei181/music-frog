@@ -46,11 +46,11 @@ version = "0.42.0"
 
 [workspace.dependencies]
 
-# Shared UI packages use one Git revision per product.
-zhuge-ui-core = { git = "https://github.com/YellowWhiteBlackCat/zhuge-ui-kit.git", rev = "7bd25ea87739c926ff230e0b0da4d0f107ce000d", version = "0.1" }
-zhuge-ui-tokens = { git = "https://github.com/YellowWhiteBlackCat/zhuge-ui-kit.git", rev = "7bd25ea87739c926ff230e0b0da4d0f107ce000d", version = "0.1" }
-zhuge-ui-kit-iced = { git = "https://github.com/YellowWhiteBlackCat/zhuge-ui-kit.git", rev = "7bd25ea87739c926ff230e0b0da4d0f107ce000d", version = "0.1" }
-zhuge-ui-kit-bevy = { git = "https://github.com/YellowWhiteBlackCat/zhuge-ui-kit.git", rev = "7bd25ea87739c926ff230e0b0da4d0f107ce000d", version = "0.1" }
+# Shared UI packages from crates.io.
+zhuge-ui-core = "0.1.3"
+zhuge-ui-tokens = "0.1.0"
+zhuge-ui-kit-iced = "0.1.0"
+zhuge-ui-kit-bevy = "0.1.0"
 
 # Slint is pinned because its Android activity backend and renderer feature
 # closure are part of the native product ABI. Update only after rebuilding
