@@ -966,19 +966,6 @@
       ]
     },
     {
-      "id": "android-local-profiles-list-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profilesList",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
       "id": "android-local-profile-create-rust",
       "kind": "public_symbol",
       "language": "rust",
@@ -989,19 +976,6 @@
       ],
       "source_roots": [
         "crates/infiltrator-android/src/uniffi_api"
-      ]
-    },
-    {
-      "id": "android-local-profile-create-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileCreate",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
       ]
     },
     {
@@ -1018,19 +992,6 @@
       ]
     },
     {
-      "id": "android-local-profile-select-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileSelect",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
       "id": "android-local-profile-update-rust",
       "kind": "public_symbol",
       "language": "rust",
@@ -1041,19 +1002,6 @@
       ],
       "source_roots": [
         "crates/infiltrator-android/src/uniffi_api"
-      ]
-    },
-    {
-      "id": "android-local-profile-update-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileUpdate",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
       ]
     },
     {
@@ -1070,19 +1018,6 @@
       ]
     },
     {
-      "id": "android-local-profile-detail-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileDetail",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
       "id": "android-local-profile-save-rust",
       "kind": "public_symbol",
       "language": "rust",
@@ -1093,19 +1028,6 @@
       ],
       "source_roots": [
         "crates/infiltrator-android/src/uniffi_api"
-      ]
-    },
-    {
-      "id": "android-local-profile-save-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileSave",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
       ]
     },
     {
@@ -1122,19 +1044,6 @@
       ]
     },
     {
-      "id": "android-local-profile-delete-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileDelete",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
       "id": "android-local-profile-subscription-save-rust",
       "kind": "public_symbol",
       "language": "rust",
@@ -1148,19 +1057,6 @@
       ]
     },
     {
-      "id": "android-local-profile-subscription-save-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileSubscriptionSave",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
       "id": "android-local-profile-subscription-clear-rust",
       "kind": "public_symbol",
       "language": "rust",
@@ -1171,19 +1067,6 @@
       ],
       "source_roots": [
         "crates/infiltrator-android/src/uniffi_api"
-      ]
-    },
-    {
-      "id": "android-local-profile-subscription-clear-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "profileSubscriptionClear",
-      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
       ]
     },
     {
@@ -1250,71 +1133,6 @@
       ],
       "source_roots": [
         "crates/infiltrator-android/src"
-      ]
-    },
-    {
-      "id": "android-local-dns-settings-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "dnsSettings",
-      "rationale": "The direct per-action UniFFI bindings were retired; DNS reads and writes now use the typed AndroidOwnerOperation gateway.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/dns/DnsRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
-      "id": "android-local-dns-settings-save-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "dnsSettingsSave",
-      "rationale": "The direct per-action UniFFI bindings were retired; DNS reads and writes now use the typed AndroidOwnerOperation gateway.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/dns/DnsRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
-      "id": "android-local-fake-ip-settings-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "fakeIpSettings",
-      "rationale": "The direct per-action UniFFI bindings were retired; Fake-IP reads and writes now use the typed AndroidOwnerOperation gateway.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
-      "id": "android-local-fake-ip-settings-save-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "fakeIpSettingsSave",
-      "rationale": "The direct per-action UniFFI bindings were retired; Fake-IP reads and writes now use the typed AndroidOwnerOperation gateway.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
-      ]
-    },
-    {
-      "id": "android-local-fake-ip-cache-clear-kotlin",
-      "kind": "public_symbol",
-      "language": "kotlin",
-      "text": "fakeIpCacheClear",
-      "rationale": "The direct per-action UniFFI binding was retired; cache clearing now uses the typed AndroidOwnerOperation gateway and revision-fenced readback.",
-      "replacement_behavior_tests": [
-        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt"
-      ],
-      "source_roots": [
-        "android/app/src/main/java/infiltrator_android"
       ]
     },
     {

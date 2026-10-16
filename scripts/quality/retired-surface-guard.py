@@ -12,9 +12,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import functools
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -75,6 +77,42 @@ def _is_ignored_path(path: Path) -> bool:
         or any(part.lower() in IGNORED_PARTS for part in path.parts)
         or _is_test_file(path)
     )
+
+
+@functools.lru_cache(maxsize=None)
+def _git_tracked_paths(root: str) -> frozenset[str] | None:
+    """Return the git-tracked paths under `root`, or None when it is not a work tree.
+
+    A retired-surface scope must point at source the repository actually owns.
+    Generated and ignored build output never exists in a clean checkout, so
+    guarding it would pass locally and fail in CI instead of catching anything.
+    """
+    if not (Path(root) / ".git").exists():
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "-C", root, "ls-files", "-z"],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return frozenset(
+        entry.decode("utf-8", errors="surrogateescape")
+        for entry in result.stdout.split(b"\0")
+        if entry
+    )
+
+
+def _is_tracked(root: Path, relative: Path) -> bool | None:
+    """Return whether `relative` is tracked by git, or None outside a work tree."""
+    tracked = _git_tracked_paths(str(root))
+    if tracked is None:
+        return None
+    posix = relative.as_posix()
+    return posix in tracked or any(path.startswith(f"{posix}/") for path in tracked)
 
 
 def _parse_registry(root: Path) -> tuple[list[RetiredSurface], list[str]]:
@@ -149,8 +187,16 @@ def _parse_registry(root: Path) -> tuple[list[RetiredSurface], list[str]]:
                 problems.append(
                     f"{prefix}: source root must stay inside the repository: {source_root}"
                 )
-            elif not (root / relative).is_dir() and not (root / relative).is_file():
+                continue
+            if not (root / relative).is_dir() and not (root / relative).is_file():
                 problems.append(f"{prefix}: source root is missing: {root / relative}")
+                continue
+            if _is_tracked(root, relative) is False:
+                problems.append(
+                    f"{prefix}: source root is not tracked by git: {source_root}"
+                    " (generated or ignored output cannot be guarded;"
+                    " scope the surface to tracked source)"
+                )
         surfaces.append(surface)
 
     if not surfaces and not problems:

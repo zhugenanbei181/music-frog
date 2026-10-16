@@ -3,6 +3,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -229,6 +230,24 @@ class RetiredSurfaceGuardTests(unittest.TestCase):
         problems = self.problems()
 
         self.assertTrue(any("source root must stay inside the repository" in item for item in problems))
+
+    def test_source_root_must_be_tracked_git_source_not_generated_output(self):
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        (self.root / ".gitignore").write_text(
+            "android/app/src/main/java/infiltrator_android/\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", ".gitignore"], cwd=self.root, check=True)
+        generated = self.root / "android/app/src/main/java/infiltrator_android/Bindings.kt"
+        generated.parent.mkdir(parents=True, exist_ok=True)
+        generated.write_text("fun VpnStateManager() {}\n", encoding="utf-8")
+        entry = self.registry["retired_surfaces"][0]
+        entry["source_roots"] = ["android/app/src/main/java/infiltrator_android"]
+        self.write_registry()
+
+        problems = self.problems()
+
+        self.assertTrue(any("source root is not tracked by git" in item for item in problems))
 
 
 if __name__ == "__main__":
