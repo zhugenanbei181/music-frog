@@ -1,3 +1,4 @@
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use bevy::MinimalPlugins;
 use bevy::app::{App, Plugin};
 use bevy::asset::{AssetApp, AssetPlugin};
@@ -174,5 +175,5 @@ pub fn allow_outbound_probe(snapshot: &mut SurfaceSnapshot) {
 
 /// Headless Bevy tests select the same engine codec as the product host.
 pub fn mihomo_profiles(store: Arc<dyn ProfileStore>) -> ProfileApplication {
-    infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store)
+    profiles_for_mihomo(store)
 }

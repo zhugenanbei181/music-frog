@@ -1,3 +1,8 @@
+use infiltrator_contract::capability::Capability;
+use tokio::runtime::Builder;
+use tokio::task::yield_now;
+use tokio::time::sleep;
+use tokio::time::timeout;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::version::{
@@ -93,7 +98,7 @@ impl VersionPort for TestVersionPort {
                         false,
                     )));
                 }
-                tokio::time::sleep(Duration::from_millis(1)).await;
+                sleep(Duration::from_millis(1)).await;
             },
         }
     }
@@ -143,7 +148,7 @@ struct AtCapacityRuntime;
 
 impl ApplicationRuntime for TokioTestRuntime {
     fn block_on(&self, future: ApplicationFuture) {
-        tokio::runtime::Builder::new_current_thread()
+        Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("test runtime")
@@ -163,13 +168,13 @@ impl ApplicationRuntime for TokioTestRuntime {
     }
 
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
-        Box::pin(tokio::time::sleep(duration))
+        Box::pin(sleep(duration))
     }
 }
 
 impl ApplicationRuntime for AtCapacityRuntime {
     fn block_on(&self, future: ApplicationFuture) {
-        tokio::runtime::Builder::new_current_thread()
+        Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("test runtime")
@@ -185,7 +190,7 @@ impl ApplicationRuntime for AtCapacityRuntime {
     }
 
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
-        Box::pin(tokio::time::sleep(duration))
+        Box::pin(sleep(duration))
     }
 }
 
@@ -197,7 +202,7 @@ impl EngineVersionBackendFactory for TestFactory {
             .map(|port| port as Arc<dyn VersionPort>)
             .ok_or_else(|| {
                 PortError::unsupported(
-                    infiltrator_contract::capability::Capability::CoreVersionInstall,
+                    Capability::CoreVersionInstall,
                     "no test version port for the requested engine",
                 )
             })
@@ -210,7 +215,7 @@ impl EngineVersionBackendFactory for TestFactory {
         self.binary_selection_requests
             .fetch_add(1, Ordering::SeqCst);
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            Capability::CoreVersionInstall,
             "version-management tests do not select a process binary",
         ))
     }
@@ -256,7 +261,7 @@ async fn wait_for_terminal(
     application: &CoreVersionManagementApplication,
     install_id: CoreVersionInstallId,
 ) -> CoreVersionInstallState {
-    tokio::time::timeout(Duration::from_secs(2), async {
+    timeout(Duration::from_secs(2), async {
         loop {
             if let CoreVersionInstallObservation::Found { state } =
                 application.read_install(install_id)
@@ -264,7 +269,7 @@ async fn wait_for_terminal(
             {
                 return state;
             }
-            tokio::task::yield_now().await;
+            yield_now().await;
         }
     })
     .await

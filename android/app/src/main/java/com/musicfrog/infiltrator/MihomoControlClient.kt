@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /** Typed synchronous client for the manifest-declared `:vpn` process owner. */
 internal class MihomoControlClient(context: Context) {
+    private typealias OwnerResponse = ClientOwnerResponse
     private val applicationContext = context.applicationContext
     private val clientSessionId = UUID.randomUUID().toString()
     private val ownerSessionFence = AndroidOwnerSessionFence()
@@ -811,59 +812,6 @@ internal class MihomoControlClient(context: Context) {
             @Suppress("DEPRECATION")
             bundle.getSerializable(MihomoControlService.PROTOCOL_VERSION)
                 as? AndroidHostProtocolVersion
-        }
-    }
-
-    private data class OwnerResponse(
-        val reply: AndroidHostReply,
-        val ownerSessionId: String?,
-        val statusCode: Int,
-        val statusMessage: String?,
-        val payload: OwnerResponsePayload = OwnerResponsePayload.Failure,
-        val terminal: OwnerClientTerminal = OwnerClientTerminal.ReplyReceived,
-    ) {
-        companion object {
-            fun unavailable(
-                terminal: OwnerClientTerminal = OwnerClientTerminal.OwnerUnavailable,
-            ) = OwnerResponse(
-                reply = AndroidHostReply.SERVICE_UNAVAILABLE,
-                ownerSessionId = null,
-                statusCode = FfiErrorCode.NOT_READY.value.toInt(),
-                statusMessage = "Android :vpn owner is unavailable",
-                terminal = terminal,
-            )
-
-            fun staleOwnerSession(sessionId: String) = OwnerResponse(
-                reply = AndroidHostReply.STALE_SNAPSHOT,
-                ownerSessionId = sessionId,
-                statusCode = FfiErrorCode.NOT_READY.value.toInt(),
-                statusMessage = "stale Android owner session reply was rejected",
-                terminal = OwnerClientTerminal.OwnerSessionStale,
-            )
-
-            fun staleCoreSnapshot(sessionId: String) = OwnerResponse(
-                reply = AndroidHostReply.STALE_SNAPSHOT,
-                ownerSessionId = sessionId,
-                statusCode = FfiErrorCode.NOT_READY.value.toInt(),
-                statusMessage = "stale Core snapshot was rejected",
-                terminal = OwnerClientTerminal.CoreSnapshotStale,
-            )
-
-            fun staleVpnSnapshot(sessionId: String) = OwnerResponse(
-                reply = AndroidHostReply.STALE_SNAPSHOT,
-                ownerSessionId = sessionId,
-                statusCode = FfiErrorCode.NOT_READY.value.toInt(),
-                statusMessage = "stale VPN generation readback was rejected",
-                terminal = OwnerClientTerminal.VpnSnapshotStale,
-            )
-
-            fun staleOwnerData(sessionId: String) = OwnerResponse(
-                reply = AndroidHostReply.STALE_OWNER_DATA,
-                ownerSessionId = sessionId,
-                statusCode = FfiErrorCode.NOT_READY.value.toInt(),
-                statusMessage = "stale Android owner data was rejected",
-                terminal = OwnerClientTerminal.OwnerDataStale,
-            )
         }
     }
 

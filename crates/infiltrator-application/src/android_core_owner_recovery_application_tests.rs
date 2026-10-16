@@ -1,4 +1,5 @@
 use super::{AndroidCoreOwnerRecoveryApplication, AndroidCoreOwnerRecoveryOutcome};
+use crate::vpn_application::VpnServiceApplication;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
@@ -6,12 +7,14 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
-    AndroidCoreProcessRecoveryReceipt, AndroidOwnedCoreProcess,
+    AndroidCoreProcessRecoveryReceipt, AndroidCoreProcessUnavailableReason,
+    AndroidOwnedCoreProcess,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
@@ -197,7 +200,7 @@ fn managed_context() -> CoreProcessStartContext {
     CoreProcessStartContext::managed(
         expected_identity(),
         CoreGeneration::new(11),
-        infiltrator_contract::session::SessionToken::new(73),
+        SessionToken::new(73),
     )
 }
 
@@ -224,7 +227,7 @@ fn application(
         evidence: Mutex::new(None),
         events: events.clone(),
     });
-    let vpn = crate::vpn_application::VpnServiceApplication::new(Arc::new(FakeVpnPort {
+    let vpn = VpnServiceApplication::new(Arc::new(FakeVpnPort {
         stop_result,
         events: events.clone(),
     }));
@@ -339,8 +342,7 @@ async fn live_or_unobservable_child_keeps_vpn_and_owner_proof_untouched() {
             },
         },
         AndroidCoreProcessObservation::Unavailable {
-            reason: infiltrator_contract::android_control::
-                AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
+            reason: AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
         },
     ] {
         let (application, _process, store, events) = application(

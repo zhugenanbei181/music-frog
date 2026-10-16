@@ -11,6 +11,7 @@ use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerLease, ActiveProfileReferenceLease,
@@ -18,6 +19,7 @@ use infiltrator_ports::active_profile_reference_store::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
+use tokio::task::spawn_blocking;
 
 impl<S: SecureStore> EngineProfileStore<S> {
     /// Project the selected profile for this engine while the caller retains
@@ -87,7 +89,7 @@ impl ActiveProfileReferenceLease for ActiveProfileSelectionLease {
         let owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
             .acquire_owner_state_lock()
             .await?;
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let selected_engine = match &state {
                 ActiveProfileReferenceState::Selected(reference) => reference.engine_id.clone(),
                 ActiveProfileReferenceState::Unselected { .. } => {
@@ -109,8 +111,8 @@ impl ActiveProfileReferenceLease for ActiveProfileSelectionLease {
                 .unwrap_or_else(ActiveProfileReferenceRecord::pending_legacy_migration);
             if record.selection != state {
                 return Err(PortError::Rejected(
-                    infiltrator_contract::error::Failure::new(
-                        infiltrator_contract::error::ErrorCode::NotReady,
+                    Failure::new(
+                        ErrorCode::NotReady,
                         "active profile changed before owner binding",
                         true,
                     ),
@@ -118,8 +120,8 @@ impl ActiveProfileReferenceLease for ActiveProfileSelectionLease {
             }
             let _owner_state_guard = owner_state_guard;
             let owner_guard = file.try_acquire_owner_lock()?.ok_or_else(|| {
-                PortError::Rejected(infiltrator_contract::error::Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
+                PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
                     "another process holds the active Core owner fence",
                     true,
                 ))
@@ -127,8 +129,8 @@ impl ActiveProfileReferenceLease for ActiveProfileSelectionLease {
             let mut registrations = lock_local_owner_registry()?;
             if registrations.contains(&config_root) {
                 return Err(PortError::Rejected(
-                    infiltrator_contract::error::Failure::new(
-                        infiltrator_contract::error::ErrorCode::NotReady,
+                    Failure::new(
+                        ErrorCode::NotReady,
                         "this process already has an active Core owner registration",
                         true,
                     ),

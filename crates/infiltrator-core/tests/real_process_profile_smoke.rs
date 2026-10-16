@@ -202,8 +202,10 @@ fn native_check_candidate(
     document_bytes: &[u8],
     controller_secret: &str,
 ) {
+    use std::fs;
+
     let candidate_path = data_dir.join(filename);
-    std::fs::write(&candidate_path, document_bytes)
+    fs::write(&candidate_path, document_bytes)
         .expect("write isolated profile candidate for native validation");
     let native_check = Command::new(binary)
         .arg("-t")
@@ -213,7 +215,7 @@ fn native_check_candidate(
         .arg(&candidate_path)
         .output()
         .expect("run the exact locked Mihomo native config check");
-    let _ = std::fs::remove_file(&candidate_path);
+    let _ = fs::remove_file(&candidate_path);
     let native_stdout = String::from_utf8_lossy(&native_check.stdout);
     let native_stderr = String::from_utf8_lossy(&native_check.stderr);
     assert!(

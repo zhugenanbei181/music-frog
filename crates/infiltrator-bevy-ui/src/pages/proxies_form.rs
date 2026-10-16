@@ -39,7 +39,10 @@ pub struct CustomNodeForm {
     pub operation: ProtocolEditorOperation,
 }
 impl CustomNodeForm {
-    pub fn begin(&mut self, studio: ProtocolStudioSnapshot) {
+    pub fn begin(&mut self, mut studio: ProtocolStudioSnapshot) {
+        if studio.draft.is_none() {
+            studio = project_draft(ProtocolDraft::new("vless"), None);
+        }
         self.studio = studio;
         self.inputs = ProtocolInputs::default();
         self.reset_fields = true;

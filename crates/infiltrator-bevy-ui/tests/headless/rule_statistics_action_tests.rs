@@ -1,5 +1,11 @@
 //! test-intent: behavior
 //! Actual SDK controls share source-qualified statistics and transactional cleanup.
+use crate::configuration_codec::mihomo_configuration;
+use crate::configuration_codec::mihomo_rule_trace_fixture;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
+use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
+use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use crate::command_harness::recording_application;
 use crate::native_input::{click_entity, press, type_text};
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
@@ -43,7 +49,7 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
 fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
-    let store = crate::configuration_codec::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     if trace {
@@ -54,7 +60,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
             .block_on(store.load_rule_workspace())
             .unwrap();
         let (scope, observed_workspace, request) =
-            infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request(
+            scoped_rule_trace_request(
                 RuleTraceRequest {
                     query: "special.com".into(),
                     context: TrafficContextSnapshot {
@@ -65,7 +71,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
                 workspace.profile_identity,
             );
         let outbound_observation =
-            infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation(
+            unknown_rule_trace_observation(
                 scope.clone(),
             );
         Builder::new_current_thread()
@@ -77,7 +83,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
                 &observed_workspace,
                 RuleTraceOperationId(1),
                 request,
-                &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
+                &RuleTraceOutboundFacts::observed(
                     outbound_observation.clone(),
                 ),
             ))
@@ -94,7 +100,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner)
-    .with_configuration(crate::configuration_codec::mihomo_configuration(
+    .with_configuration(mihomo_configuration(
         store.clone(),
     ));
     let mut app = App::new();
@@ -192,8 +198,8 @@ fn native_statistics_cleanup_cancel_restores_focus_and_confirm_changes_only_the_
         .world()
         .resource::<RulesStatisticsState>()
         .model
-        .confirmation
-        .clone()
+        .confirmation()
+        .cloned()
         .unwrap();
     assert!(!confirmation.targets.is_empty());
     let review = app
@@ -309,7 +315,7 @@ fn native_statistics_reset_failure_retry_waits_for_actual_readback_and_keeps_loc
     let state = &app.world().resource::<RulesStatisticsState>().model;
     assert!(matches!(
         state.reset_phase(),
-        infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+        StatisticsResetPhase::AwaitingReadback { .. }
     ));
     assert_eq!(state.audit.as_ref(), Some(&before));
     assert!(app.world().get::<ButtonDisabled>(reset).unwrap().0);
@@ -332,14 +338,14 @@ fn native_statistics_source_change_keeps_review_visible_and_rejects_confirmation
         .world()
         .resource::<RulesStatisticsState>()
         .model
-        .confirmation
-        .clone()
+        .confirmation()
+        .cloned()
         .unwrap();
     store.select_profile("other.yaml", "rules:\n  - MATCH,DIRECT\n");
     publish(&mut app, &reader);
     let state = &app.world().resource::<RulesStatisticsState>().model;
     assert_eq!(state.audit, None);
-    assert_eq!(state.confirmation, Some(confirmation));
+    assert_eq!(state.confirmation(), Some(&confirmation));
     let confirm = control(&mut app, StatisticsControl::ConfirmCleanup);
     assert!(app.world().get::<ButtonDisabled>(confirm).unwrap().0);
     assert!(app.world().get::<InteractionDisabled>(confirm).is_some());
@@ -348,7 +354,7 @@ fn native_statistics_source_change_keeps_review_visible_and_rejects_confirmation
         app.world()
             .resource::<RulesStatisticsState>()
             .model
-            .confirmation
+            .confirmation()
             .is_some()
     );
     assert!(!app.world().resource::<RulesDraftState>().model.dirty());
@@ -357,7 +363,7 @@ fn native_statistics_source_change_keeps_review_visible_and_rejects_confirmation
         app.world()
             .resource::<RulesStatisticsState>()
             .model
-            .confirmation
+            .confirmation()
             .is_none()
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);

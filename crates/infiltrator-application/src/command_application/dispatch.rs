@@ -4,6 +4,8 @@
 //! the application facade or host port that implements it. Split out of the
 //! application module so the composition/accessor surface stays readable.
 
+use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
+use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use super::vpn_start_result::confirmed;
 use super::*;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
@@ -11,13 +13,25 @@ use crate::profile_application::ProfileRuntimeAccess;
 use crate::protocol_codec_application::ProtocolCodecApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::subscription_import_application::SubscriptionImportApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::named_override::NamedOverrideId;
 use infiltrator_contract::network_roaming::NetworkRoamingStatus;
 use infiltrator_contract::pac::PacRequest;
 use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
+use infiltrator_contract::profile_catalog_order::{
+    ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
+};
+use infiltrator_contract::profile_display_name::{
+    ProfileDisplayName, ProfileDisplayNameTarget,
+};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use infiltrator_contract::profile_selection_clear::{
+    ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
+};
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::runtime_configuration::ObservedValue;
@@ -147,6 +161,101 @@ impl CommandApplication {
             }
             CommandIntent::DeleteProfile { profile_id } => {
                 self.profile()?.delete_profile(&profile_id).await
+            }
+            CommandIntent::RenameProfile { profile_id, name } => {
+                let profile = self.profile()?;
+                let target = if name.trim().is_empty() {
+                    ProfileDisplayNameTarget::Identity
+                } else {
+                    let display_name = ProfileDisplayName::new(name)
+                        .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
+                    ProfileDisplayNameTarget::Custom(display_name)
+                };
+                profile
+                    .set_profile_display_name(&profile_id, target)
+                    .await
+                    .map(|_| ())
+            }
+            CommandIntent::ReorderProfiles { order } => {
+                let profile = self.profile()?;
+                let snapshot = profile.profile_catalog_order_snapshot().await?;
+                let target_order = order
+                    .into_iter()
+                    .map(|id| {
+                        ProfileId::new(id).map_err(|err| {
+                            Failure::new(ErrorCode::InvalidInput, err.to_string(), false)
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let request = ProfileCatalogOrderRequest::new(snapshot, target_order);
+                match profile.set_profile_catalog_order(request).await? {
+                    ProfileCatalogOrderMutation::Applied { .. }
+                    | ProfileCatalogOrderMutation::Unchanged { .. } => Ok(()),
+                    ProfileCatalogOrderMutation::Stale { .. } => Err(Failure::new(
+                        ErrorCode::NotReady,
+                        "Profile catalog order was stale",
+                        true,
+                    )),
+                }
+            }
+            CommandIntent::ClearActiveProfile => {
+                let profile = self.profile()?;
+                let expected = profile.read_active_profile_reference().await?;
+                let authorization = match self.profile_access() {
+                    ProfileRuntimeAccess::Offline => {
+                        ActiveProfileReferenceWriteAuthorization::Unowned
+                    }
+                    ProfileRuntimeAccess::CoreOwner(applier) => {
+                        applier.write_authorization().map_err(Failure::from)?
+                    }
+                };
+                let request = ClearActiveProfileSelectionRequest::new(expected, authorization);
+                match profile.clear_active_profile_selection(request).await? {
+                    ClearActiveProfileSelectionOutcome::Cleared { .. }
+                    | ClearActiveProfileSelectionOutcome::AlreadyUnselected { .. } => Ok(()),
+                    ClearActiveProfileSelectionOutcome::Stale { .. } => Err(Failure::new(
+                        ErrorCode::NotReady,
+                        "Active profile selection was stale",
+                        true,
+                    )),
+                }
+            }
+            CommandIntent::CreateNamedOverride { name, content } => {
+                let profile = self.profile()?;
+                profile.create_named_override(name, content).await.map(|_| ())
+            }
+            CommandIntent::UpdateNamedOverride { id, name, content } => {
+                let profile = self.profile()?;
+                let override_id = NamedOverrideId::new(id)
+                    .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
+                profile.update_named_override(override_id, name, content).await
+            }
+            CommandIntent::DeleteNamedOverride { id } => {
+                let profile = self.profile()?;
+                let override_id = NamedOverrideId::new(id)
+                    .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
+                profile.delete_named_override(override_id).await
+            }
+            CommandIntent::SetProfileOverrideBinding {
+                profile_id,
+                override_id,
+                enabled,
+            } => {
+                let profile = self.profile()?;
+                let oid = NamedOverrideId::new(override_id)
+                    .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
+                profile.set_profile_override_binding(profile_id, oid, enabled).await
+            }
+            CommandIntent::ReorderProfileOverrides { profile_id, order } => {
+                let profile = self.profile()?;
+                let order_ids = order
+                    .into_iter()
+                    .map(|id| {
+                        NamedOverrideId::new(id)
+                            .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                profile.reorder_profile_overrides(profile_id, order_ids).await
             }
             CommandIntent::PreviewProfileAggregation { draft } => {
                 let application = ProfileAggregationApplication::new(self.profile()?);
@@ -310,6 +419,8 @@ impl CommandApplication {
                 })?;
                 self.connections()?.close_all_for_scope(scope).await
             }
+            CommandIntent::ClearClosedConnections => Ok(()),
+            CommandIntent::ClearTrafficHistory => Ok(()),
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
                 .apply_dns_settings_with_access(self.profile_access(), patch)
@@ -445,6 +556,16 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
+            CommandIntent::RecoverSystemProxy => {
+                let system_proxy = self.system_proxy()?;
+                let snapshot = system_proxy.recover_orphaned().await;
+                match snapshot.status {
+                    SystemProxyRecoveryStatus::Failed { failure } => {
+                        Err(failure)
+                    }
+                    _ => Ok(()),
+                }
+            }
             CommandIntent::SetLanSharing {
                 enabled,
                 mixed_port,
@@ -474,11 +595,11 @@ impl CommandApplication {
                                 false,
                             )
                         })?;
-                        infiltrator_ports::runtime_configuration::LanAuthenticationUpdate::Enabled(
+                        LanAuthenticationUpdate::Enabled(
                             credentials,
                         )
                     } else {
-                        infiltrator_ports::runtime_configuration::LanAuthenticationUpdate::Disabled
+                        LanAuthenticationUpdate::Disabled
                     },
                 )
                 .await

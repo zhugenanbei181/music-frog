@@ -3,6 +3,7 @@
 
 use crate::snapshot_commands::execute;
 use crate::state::AppState;
+use crate::state::editor::{SnapshotBackupPhase, SnapshotPrunePhase, SnapshotsLoadPhase};
 use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
@@ -410,7 +411,7 @@ impl AppState {
                     return Task::none();
                 };
                 let commands = self.command_ingress();
-                self.editor.is_loading_snapshots = true;
+                self.editor.snapshots_load_phase = SnapshotsLoadPhase::Loading;
                 Task::perform(
                     async move {
                         execute(
@@ -428,7 +429,7 @@ impl AppState {
                 )
             }
             Message::ProfileSnapshotsLoaded(result) => {
-                self.editor.is_loading_snapshots = false;
+                self.editor.snapshots_load_phase = SnapshotsLoadPhase::Idle;
                 match result {
                     Ok(history) => self.editor.snapshot_history = Some(history),
                     Err(error) => self.set_error(&error),
@@ -438,14 +439,14 @@ impl AppState {
             // DUAL-09-06: manual backup through the same snapshot application
             // the apply transaction uses.
             Message::BackupProfileSnapshot => {
-                if self.editor.is_backing_up_snapshot {
+                if self.editor.snapshot_backup_phase.is_backing_up() {
                     return Task::none();
                 }
                 let Some(profile) = self.edited_profile() else {
                     return Task::none();
                 };
                 let commands = self.command_ingress();
-                self.editor.is_backing_up_snapshot = true;
+                self.editor.snapshot_backup_phase = SnapshotBackupPhase::BackingUp;
                 Task::perform(
                     async move {
                         execute(
@@ -461,7 +462,7 @@ impl AppState {
                 )
             }
             Message::ProfileSnapshotBackedUp(result) => {
-                self.editor.is_backing_up_snapshot = false;
+                self.editor.snapshot_backup_phase = SnapshotBackupPhase::Idle;
                 match result {
                     Ok(()) => Task::batch(vec![
                         Task::done(Message::LoadProfileSnapshots),
@@ -482,7 +483,7 @@ impl AppState {
                 Task::none()
             }
             Message::PruneProfileSnapshots => {
-                if self.editor.is_pruning_snapshots {
+                if self.editor.snapshot_prune_phase.is_pruning() {
                     return Task::none();
                 }
                 let Some(profile) = self.edited_profile() else {
@@ -490,7 +491,7 @@ impl AppState {
                 };
                 let keep = self.editor.snapshot_prune_keep;
                 let commands = self.command_ingress();
-                self.editor.is_pruning_snapshots = true;
+                self.editor.snapshot_prune_phase = SnapshotPrunePhase::Pruning;
                 Task::perform(
                     async move {
                         execute(
@@ -508,7 +509,7 @@ impl AppState {
                 )
             }
             Message::ProfileSnapshotsPruned(result) => {
-                self.editor.is_pruning_snapshots = false;
+                self.editor.snapshot_prune_phase = SnapshotPrunePhase::Idle;
                 match result {
                     Ok(report) => Task::batch(vec![
                         Task::done(Message::LoadProfileSnapshots),

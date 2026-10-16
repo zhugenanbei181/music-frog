@@ -1,5 +1,6 @@
 //! Active-profile reference recovery and concurrency behavior.
 
+use tokio::sync::Barrier;
 use super::*;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileRecoveryOutcome, CoreApplyFailureKind,
@@ -9,7 +10,7 @@ use infiltrator_contract::error::FailureReason;
 #[tokio::test]
 async fn concurrent_switches_with_one_observed_revision_have_one_cas_winner() {
     let store = store_with_profiles("main", &["first", "second"]);
-    store.set_reference_read_barrier(Arc::new(tokio::sync::Barrier::new(2)));
+    store.set_reference_read_barrier(Arc::new(Barrier::new(2)));
     let application = ProfileApplication::new(store.clone());
     let runtime = Arc::new(ActivationRuntime::new(
         store.clone(),

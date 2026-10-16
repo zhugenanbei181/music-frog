@@ -39,6 +39,244 @@ use infiltrator_presentation::snapshot_restore_workbench::SnapshotRestoreWorkben
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
 use std::path::PathBuf;
 
+/// Loading phase for rule list editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RulesLoadPhase {
+    #[default]
+    Idle,
+    Loading,
+}
+
+impl RulesLoadPhase {
+    pub const fn is_loading(self) -> bool {
+        matches!(self, Self::Loading)
+    }
+}
+
+/// Save phase for rule list editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RulesSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl RulesSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Save phase for rule-providers JSON editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuleProvidersJsonSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl RuleProvidersJsonSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Save phase for proxy-providers JSON editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProxyProvidersJsonSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl ProxyProvidersJsonSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Save phase for sniffer JSON editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SnifferJsonSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl SnifferJsonSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Update phase for GeoIP and GeoSite databases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GeoDatabasesUpdatePhase {
+    #[default]
+    Idle,
+    Updating,
+}
+
+impl GeoDatabasesUpdatePhase {
+    pub const fn is_updating(self) -> bool {
+        matches!(self, Self::Updating)
+    }
+}
+
+/// Add rule submission phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuleAddPhase {
+    #[default]
+    Idle,
+    Adding,
+}
+
+impl RuleAddPhase {
+    pub const fn is_adding(self) -> bool {
+        matches!(self, Self::Adding)
+    }
+}
+
+/// Load phase for snapshot diff modal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SnapshotDiffLoadPhase {
+    #[default]
+    Idle,
+    Loading,
+}
+
+impl SnapshotDiffLoadPhase {
+    pub const fn is_loading(self) -> bool {
+        matches!(self, Self::Loading)
+    }
+}
+
+/// DNS server latency probing phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DnsLatencyProbePhase {
+    #[default]
+    Idle,
+    Probing,
+}
+
+impl DnsLatencyProbePhase {
+    pub const fn is_probing(self) -> bool {
+        matches!(self, Self::Probing)
+    }
+}
+
+/// Save phase for advanced DNS configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DnsSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl DnsSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Save phase for Fake-IP configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FakeIpSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl FakeIpSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Save phase for TUN configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TunSavePhase {
+    #[default]
+    Idle,
+    Saving,
+}
+
+impl TunSavePhase {
+    pub const fn is_saving(self) -> bool {
+        matches!(self, Self::Saving)
+    }
+}
+
+/// Load phase for profile snapshot history.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SnapshotsLoadPhase {
+    #[default]
+    Idle,
+    Loading,
+}
+
+impl SnapshotsLoadPhase {
+    pub const fn is_loading(self) -> bool {
+        matches!(self, Self::Loading)
+    }
+}
+
+/// Manual backup phase for profile snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SnapshotBackupPhase {
+    #[default]
+    Idle,
+    BackingUp,
+}
+
+impl SnapshotBackupPhase {
+    pub const fn is_backing_up(self) -> bool {
+        matches!(self, Self::BackingUp)
+    }
+}
+
+/// Manual prune phase for profile snapshots.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SnapshotPrunePhase {
+    #[default]
+    Idle,
+    Pruning,
+}
+
+impl SnapshotPrunePhase {
+    pub const fn is_pruning(self) -> bool {
+        matches!(self, Self::Pruning)
+    }
+}
+
+/// Scan phase for MRS binary rule-set files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MrsScanPhase {
+    #[default]
+    Idle,
+    Scanning,
+}
+
+impl MrsScanPhase {
+    pub const fn is_scanning(self) -> bool {
+        matches!(self, Self::Scanning)
+    }
+}
+
+/// Load phase for inspecting rule provider diff.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuleProviderDiffLoadPhase {
+    #[default]
+    Idle,
+    Loading,
+}
+
+impl RuleProviderDiffLoadPhase {
+    pub const fn is_loading(self) -> bool {
+        matches!(self, Self::Loading)
+    }
+}
+
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
 /// 表单双模式编辑状态、脏标记、懒加载与校验(UI-002)。
 pub struct ConfigEditorState {
@@ -48,9 +286,9 @@ pub struct ConfigEditorState {
     pub sniffer_enabled: bool,
     pub rule_list: RuleListEditor,
     pub rules_filter: String,
-    pub is_loading_rules: bool,
+    pub rules_load_phase: RulesLoadPhase,
     pub rules_loaded_once: bool,
-    pub is_saving_rules: bool,
+    pub rules_save_phase: RulesSavePhase,
     /// DUAL-11-14: the shared workspace partition vocabulary.
     pub rules_tab: RulesTab,
     pub rules_json_tab: RulesJsonSection,
@@ -115,10 +353,10 @@ pub struct ConfigEditorState {
     pub rule_providers_json_dirty: bool,
     pub proxy_providers_json_dirty: bool,
     pub sniffer_json_dirty: bool,
-    pub is_saving_rule_providers_json: bool,
-    pub is_saving_proxy_providers_json: bool,
-    pub is_saving_sniffer_json: bool,
-    pub is_updating_geo_databases: bool,
+    pub rule_providers_json_save_phase: RuleProvidersJsonSavePhase,
+    pub proxy_providers_json_save_phase: ProxyProvidersJsonSavePhase,
+    pub sniffer_json_save_phase: SnifferJsonSavePhase,
+    pub geo_databases_update_phase: GeoDatabasesUpdatePhase,
     pub dns_json_content: text_editor::Content,
     pub fake_ip_json_content: text_editor::Content,
     pub tun_json_content: text_editor::Content,
@@ -148,7 +386,7 @@ pub struct ConfigEditorState {
     pub rule_form_binding: RuleFormBinding,
     pub new_rule_payload: String,
     pub new_rule_target: String,
-    pub is_adding_rule: bool,
+    pub rule_add_phase: RuleAddPhase,
     pub rule_providers: Vec<RuleProviderSnapshot>,
     pub script_sandbox: ScriptWorkbench,
     pub snapshot_restore: SnapshotRestoreWorkbench,
@@ -160,7 +398,7 @@ pub struct ConfigEditorState {
     /// Computed through the shared `SnapshotApplication`, never fabricated.
     pub snapshot_diff: Option<YamlAstDiffSnapshot>,
     pub snapshot_diff_mode: SnapshotDiffMode,
-    pub snapshot_diff_loading: bool,
+    pub snapshot_diff_load_phase: SnapshotDiffLoadPhase,
     pub snapshot_diff_error: Option<String>,
     /// DUAL-09-09: two-step rollback confirmation; the first click arms.
     /// DUAL-09-12: session-local unlock for direct edits of a protected
@@ -186,11 +424,11 @@ pub struct ConfigEditorState {
     /// DUAL-14-13: the shared DNS self-heal observation.
     pub dns_self_heal: DnsSelfHealSnapshot,
     /// DUAL-14-10: a probe started from this surface is in flight.
-    pub is_probing_dns_latency: bool,
+    pub dns_latency_probe_phase: DnsLatencyProbePhase,
     pub dns_hosts_editor: DnsHostsEditor,
-    pub is_saving_dns: bool,
-    pub is_saving_fake_ip: bool,
-    pub is_saving_tun: bool,
+    pub dns_save_phase: DnsSavePhase,
+    pub fake_ip_save_phase: FakeIpSavePhase,
+    pub tun_save_phase: TunSavePhase,
     pub editor_content: text_editor::Content,
     pub document_session: ProfileEditSession,
     pub mixin_session: ProfileEditSession,
@@ -211,13 +449,13 @@ pub struct ConfigEditorState {
     /// view) for the profile being edited. The surface never re-derives the
     /// retention policy locally.
     pub snapshot_history: Option<SnapshotHistorySnapshot>,
-    pub is_loading_snapshots: bool,
+    pub snapshots_load_phase: SnapshotsLoadPhase,
     /// DUAL-09-06: manual "back up now" in flight.
-    pub is_backing_up_snapshot: bool,
+    pub snapshot_backup_phase: SnapshotBackupPhase,
     /// DUAL-09-07: requested retention for the manual prune control.
     pub snapshot_prune_keep: usize,
     /// DUAL-09-07: manual prune in flight.
-    pub is_pruning_snapshots: bool,
+    pub snapshot_prune_phase: SnapshotPrunePhase,
     /// DUAL-09-11: the last apply transaction the host core recorded.
     pub apply_transaction: Option<ApplyTransactionSnapshot>,
     pub editor_pane: EditorPane,
@@ -229,9 +467,9 @@ pub struct ConfigEditorState {
     pub filter_load: Option<(u64, String)>,
     pub next_filter_load: u64,
     pub mrs_details: Vec<MrsProviderDetail>,
-    pub is_scanning_mrs: bool,
+    pub mrs_scan_phase: MrsScanPhase,
     pub syntax_error: Option<String>,
     pub syntax_error_line: Option<usize>,
     pub inspecting_rule_provider_diff: Option<RuleProviderDiff>,
-    pub is_loading_rule_provider_diff: bool,
+    pub rule_provider_diff_load_phase: RuleProviderDiffLoadPhase,
 }

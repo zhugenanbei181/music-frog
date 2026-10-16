@@ -5,6 +5,8 @@
 //! command (`LoadProfileOptions`, `SaveMixinOverlay`, `SaveSubscriptionFilter`)
 //! and every rendered fact is restamped from the shared projection.
 
+use infiltrator_contract::yaml_snippets::column_of_byte_offset;
+use infiltrator_presentation::profile_edit_session::ProfileEditReadTarget;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::pages::profiles::{
@@ -157,7 +159,7 @@ pub fn sync_profile_editor_panes(
     }
     options.mixin.session.observe_read_status(
         &projection.editor_read,
-        infiltrator_presentation::profile_edit_session::ProfileEditReadTarget::Options,
+        ProfileEditReadTarget::Options,
     );
     // The pane may have been opened before the document (and therefore the
     // sidecar profile) was known; ask the shared application once it is, so an
@@ -341,7 +343,7 @@ pub fn on_mixin_editor_snippet_activated(
             .cursor_row
             .min(options.mixin.buffer.line_count() - 1);
         let line_text = options.mixin.buffer.lines[caret_line].as_str();
-        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
+        let caret_column = column_of_byte_offset(
             line_text,
             options.mixin.buffer.cursor_col,
         );

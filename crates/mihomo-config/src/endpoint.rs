@@ -2,6 +2,7 @@
 
 use crate::manager::ConfigManager;
 use async_trait::async_trait;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::error::PortError;
@@ -56,8 +57,8 @@ impl<S: SecureStore> EndpointSource for ProfileEndpointSource<S> {
     async fn resolve(&self) -> Result<ControllerEndpoint, PortError> {
         let profile = ProfileStore::get_current(self.config.engine_profile_store()).await?;
         let profile = ProfileId::new(profile).map_err(|error| {
-            PortError::Rejected(infiltrator_contract::error::Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidInput,
+            PortError::Rejected(Failure::new(
+                ErrorCode::InvalidInput,
                 error.to_string(),
                 false,
             ))

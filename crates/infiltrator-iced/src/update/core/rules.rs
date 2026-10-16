@@ -3,6 +3,7 @@
 //! providers, proxy providers and the sniffer config.
 
 use crate::state::AppState;
+use crate::state::editor::{GeoDatabasesUpdatePhase, RulesLoadPhase};
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::rule_trace::RuleTraceAction;
@@ -451,7 +452,7 @@ impl AppState {
                 Task::none()
             }
             Message::RulesLoaded(result) => {
-                self.editor.is_loading_rules = false;
+                self.editor.rules_load_phase = RulesLoadPhase::Idle;
                 match result {
                     Ok(document) => {
                         if self
@@ -535,7 +536,7 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 };
-                self.editor.is_updating_geo_databases = true;
+                self.editor.geo_databases_update_phase = GeoDatabasesUpdatePhase::Updating;
                 Task::perform(
                     async move {
                         application
@@ -548,7 +549,7 @@ impl AppState {
                 )
             }
             Message::GeoDatabasesUpdated(result) => {
-                self.editor.is_updating_geo_databases = false;
+                self.editor.geo_databases_update_phase = GeoDatabasesUpdatePhase::Idle;
                 match result {
                     Ok(()) => Task::done(Message::ShowToast(
                         "GeoIP & GeoSite database update request accepted; completion is asynchronous".to_string(),

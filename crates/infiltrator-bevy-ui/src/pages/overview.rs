@@ -32,6 +32,7 @@
 //!
 //! Remaining localized status folds are tracked by the shared-copy quality gate.
 
+use infiltrator_contract::system_toggle::SystemToggleState;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{ScrubberAction, TrafficHistory, TrafficReplay, chart_inputs};
 use crate::localized_widgets::localized_button_scene;
@@ -86,7 +87,10 @@ use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
-use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_copy, source_copy};
+use infiltrator_presentation::core_status_projection::{
+    banner_verdict_copy, failure_copy, project_banner_verdict, source_copy,
+    OverviewBannerVerdict,
+};
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
 use infiltrator_shared::byte_units::format_bytes;
@@ -381,23 +385,78 @@ pub fn stat_group_semantic_node(label: &str) -> AccessibilityNode {
     AccessibilityNode(node)
 }
 
+pub(crate) fn is_vpn_unauthorized(projection: &OverviewProjection) -> bool {
+    matches!(
+        projection.system_toggles.tun,
+        SystemToggleState::Failed { .. }
+            | SystemToggleState::Unsupported { .. }
+    ) || matches!(
+        projection.system_toggles.system_proxy,
+        SystemToggleState::Failed { .. }
+    )
+}
+
+pub(crate) fn is_proxy_or_vpn_active(projection: &OverviewProjection) -> bool {
+    projection.system_toggles.system_proxy.is_enabled()
+        || projection.system_toggles.tun.is_enabled()
+}
+
+pub fn banner_verdict(projection: &OverviewProjection) -> OverviewBannerVerdict {
+    let origin = match projection.origin {
+        #[cfg(any(feature = "capture-tools", test))]
+        OverviewOrigin::Demo => SurfaceOrigin::Demo,
+        OverviewOrigin::LiveCore => SurfaceOrigin::Live,
+    };
+    project_banner_verdict(
+        origin,
+        &projection.lifecycle,
+        is_proxy_or_vpn_active(projection),
+        is_vpn_unauthorized(projection),
+    )
+}
+
+pub fn banner_state_text(projection: &OverviewProjection, language: &str) -> String {
+    let verdict = banner_verdict(projection);
+    banner_verdict_copy(
+        verdict,
+        &projection.lifecycle,
+        language,
+        is_vpn_unauthorized(projection),
+    )
+}
+
 /// The state line's ink: readable on the accent container while
 /// running/stopped, `on_accent` on the danger fill while unavailable.
 /// Tokens only.
-pub(crate) fn state_ink(state: &CoreLifecycle, palette: &UiPalette) -> Color {
-    match state {
-        CoreLifecycle::Running | CoreLifecycle::Ready => palette.ink,
-        CoreLifecycle::Stopped => palette.ink_dim,
-        CoreLifecycle::Starting | CoreLifecycle::Stopping => palette.warning,
-        CoreLifecycle::Failed => palette.on_accent,
+pub fn state_ink(projection: Option<&OverviewProjection>, state: &CoreLifecycle, palette: &UiPalette) -> Color {
+    if let Some(projection) = projection {
+        match banner_verdict(projection) {
+            OverviewBannerVerdict::Demo => palette.ink,
+            OverviewBannerVerdict::RealRunning => palette.ink,
+            OverviewBannerVerdict::CoreStopped => palette.ink_dim,
+            OverviewBannerVerdict::VpnUnauthorized | OverviewBannerVerdict::Transitioning => palette.warning,
+            OverviewBannerVerdict::MissingHost => palette.on_accent,
+        }
+    } else {
+        match state {
+            CoreLifecycle::Running | CoreLifecycle::Ready => palette.ink,
+            CoreLifecycle::Stopped => palette.ink_dim,
+            CoreLifecycle::Starting | CoreLifecycle::Stopping => palette.warning,
+            CoreLifecycle::Failed => palette.on_accent,
+        }
     }
 }
-pub(crate) fn status_dot_color(state: Option<&CoreLifecycle>, palette: &UiPalette) -> Color {
-    match state {
-        Some(CoreLifecycle::Ready | CoreLifecycle::Running) => palette.success,
-        Some(CoreLifecycle::Starting | CoreLifecycle::Stopping) => palette.warning,
-        Some(CoreLifecycle::Failed) => palette.danger,
-        Some(CoreLifecycle::Stopped) | None => palette.ink_dim,
+
+pub fn status_dot_color(projection: Option<&OverviewProjection>, palette: &UiPalette) -> Color {
+    let Some(projection) = projection else {
+        return palette.ink_dim;
+    };
+    match banner_verdict(projection) {
+        OverviewBannerVerdict::Demo => palette.accent,
+        OverviewBannerVerdict::RealRunning => palette.success,
+        OverviewBannerVerdict::VpnUnauthorized | OverviewBannerVerdict::Transitioning => palette.warning,
+        OverviewBannerVerdict::MissingHost => palette.danger,
+        OverviewBannerVerdict::CoreStopped => palette.ink_dim,
     }
 }
 
@@ -405,7 +464,7 @@ pub(crate) fn status_dot_color(state: Option<&CoreLifecycle>, palette: &UiPalett
 /// core names the version it actually reported (an empty or unread
 /// version stays honest as 版本读取中 — the failure line, not this note,
 /// carries the failure verdict). Pure function.
-pub(crate) fn banner_note(projection: &OverviewProjection, language: &str) -> String {
+pub fn banner_note(projection: &OverviewProjection, language: &str) -> String {
     source_copy(
         match projection.origin {
             #[cfg(any(feature = "capture-tools", test))]
@@ -419,10 +478,17 @@ pub(crate) fn banner_note(projection: &OverviewProjection, language: &str) -> St
 
 /// The banner's fill: the accent container token, or the danger token
 /// while unavailable — the whole-banner failure projection.
-pub(crate) fn card_fill(state: &CoreLifecycle, palette: &UiPalette) -> Color {
-    match state {
-        CoreLifecycle::Failed => palette.danger,
-        _ => palette.accent_container,
+pub fn card_fill(projection: Option<&OverviewProjection>, state: &CoreLifecycle, palette: &UiPalette) -> Color {
+    if let Some(projection) = projection {
+        match banner_verdict(projection) {
+            OverviewBannerVerdict::MissingHost => palette.danger,
+            _ => palette.accent_container,
+        }
+    } else {
+        match state {
+            CoreLifecycle::Failed => palette.danger,
+            _ => palette.accent_container,
+        }
     }
 }
 
@@ -509,7 +575,7 @@ pub fn overview_page(
 /// The origin is fixed for a mounted source, so baking the branch at mount
 /// keeps every restamp in place.
 fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let state = lifecycle_copy(&projection.lifecycle, "en-US");
+    let state = banner_state_text(projection, "en-US");
     let state_node = status_semantic_node(&state);
     let chip = routing_intent_status_copy(&projection.routing_intent, "en-US");
     let failure = failure_copy(
@@ -529,7 +595,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                 flex_wrap: FlexWrap::Wrap,
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ card_fill(&projection.lifecycle, palette) })
+            BackgroundColor({ card_fill(Some(projection), &projection.lifecycle, palette) })
             OverviewStatusCard
             OverviewCardState({ Some(projection.lifecycle.clone()) })
             Children [
@@ -551,7 +617,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                             flex_shrink: 0.0,
                             border_radius: BorderRadius::all(Val::Px(5.0)),
                         }
-                        BackgroundColor({ status_dot_color(Some(&projection.lifecycle), palette) })
+                        BackgroundColor({ status_dot_color(Some(projection), palette) })
                         StatusDot
                         --
                         Text({ state }) OverviewLine(OverviewLineKind::State)

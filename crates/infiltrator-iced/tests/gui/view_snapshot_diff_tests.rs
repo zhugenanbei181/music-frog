@@ -5,6 +5,7 @@
 //! tests pin the state machine around it and the shared protection read model.
 
 use super::*;
+use crate::state::editor::SnapshotDiffLoadPhase;
 use crate::types::app::SnapshotDiffMode;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profiles::ProfileInfo;
@@ -43,12 +44,12 @@ fn modal_states_are_explicit_for_loading_error_and_no_diff() {
     state.editor.snapshot_diff_modal_open = true;
     state.editor.snapshot_diff_selected_id = Some("snap".to_string());
 
-    state.editor.snapshot_diff_loading = true;
+    state.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Loading;
     {
         let _loading = snapshot_diff_modal(&state, "snap");
     }
 
-    state.editor.snapshot_diff_loading = false;
+    state.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
     state.editor.snapshot_diff_error = Some("snapshot file is unreadable".to_string());
     {
         let _error = snapshot_diff_modal(&state, "snap");
@@ -103,7 +104,7 @@ fn opening_a_diff_without_an_open_profile_reports_an_honest_error() {
         state.editor.snapshot_diff_error.is_some(),
         "no open profile means a typed error, never a fabricated diff"
     );
-    assert!(!state.editor.snapshot_diff_loading);
+    assert!(!state.editor.snapshot_diff_load_phase.is_loading());
     assert!(state.editor.snapshot_diff.is_none());
 }
 
@@ -177,7 +178,7 @@ fn history_panel_restore_is_armed_before_it_executes() {
         state
             .editor
             .snapshot_restore
-            .target
+            .target()
             .as_ref()
             .unwrap()
             .snapshot_id,
@@ -195,16 +196,16 @@ fn refresh_recomputes_the_open_diff_through_the_shared_application() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RefreshSnapshotDiff);
     assert!(
-        !state.editor.snapshot_diff_loading,
+        !state.editor.snapshot_diff_load_phase.is_loading(),
         "nothing is open, so refresh is an inert no-op"
     );
 
     let mut state = open_modal_state();
     state.editor.editor_path = Some(PathBuf::from("/fake/configs/main.yaml"));
-    state.editor.snapshot_diff_loading = false;
+    state.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
     let _ = state.update(Message::RefreshSnapshotDiff);
     assert!(
-        state.editor.snapshot_diff_loading,
+        state.editor.snapshot_diff_load_phase.is_loading(),
         "refresh re-enters the shared loading path for the selected snapshot"
     );
     assert_eq!(

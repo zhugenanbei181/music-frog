@@ -1,5 +1,12 @@
 //! Engine selection for product composition roots.
 
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
+use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::CoreReadiness;
+use infiltrator_ports::outbound::OutboundPort;
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_scope::CoreScopeSource;
@@ -125,7 +132,7 @@ impl SingBoxEngineBackendProvider {
     ) -> Result<Self, PortError> {
         let engine_id = EngineId::sing_box();
         let operation_gate = Arc::new(SingBoxCoreOperationGate::new());
-        let process: Arc<dyn infiltrator_ports::core_process::CoreProcess> =
+        let process: Arc<dyn CoreProcess> =
             Arc::new(SingBoxProcess::new_with_operation_gate(
                 binary_path.clone(),
                 config_path.clone(),
@@ -135,9 +142,9 @@ impl SingBoxEngineBackendProvider {
                 Arc::clone(&operation_gate),
             )?);
         let api = SingBoxClashApiClient::new(controller.clone(), Arc::clone(&http))?;
-        let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> =
+        let readiness: Arc<dyn CoreReadiness> =
             Arc::new(SingBoxControllerReadiness::new(controller, http)?);
-        let codec: Arc<dyn infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort> =
+        let codec: Arc<dyn ProfileDocumentCodecPort> =
             Arc::new(SingBoxProfileDocumentCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
@@ -148,10 +155,10 @@ impl SingBoxEngineBackendProvider {
             command,
         ));
         let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(engine_id.clone()));
-        let outbound: Arc<dyn infiltrator_ports::outbound::OutboundPort> = Arc::new(
+        let outbound: Arc<dyn OutboundPort> = Arc::new(
             SingBoxOutboundAdapter::new(api.clone(), owner_scope.clone()),
         );
-        let routing_intent: Arc<dyn infiltrator_ports::routing_intent::RoutingIntentPort> =
+        let routing_intent: Arc<dyn RoutingIntentPort> =
             Arc::new(SingBoxRoutingIntentAdapter::new(api, owner_scope.clone()));
         let operations = EngineOperationPorts::available(
             outbound,
@@ -190,8 +197,8 @@ impl SingBoxEngineBackendProvider {
             PortError::Failed("sing-box process adapter has no Core identity".to_owned())
         })?;
         let session_identity = session.core_identity().ok_or_else(|| {
-            PortError::Rejected(infiltrator_contract::error::Failure::new(
-                infiltrator_contract::error::ErrorCode::NotReady,
+            PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
                 "sing-box configuration transaction requires an identified Core owner",
                 false,
             ))
@@ -262,7 +269,7 @@ mod tests {
     };
     use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
     use std::path::Path;
-    use std::sync::Mutex as StdMutex;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tempfile::TempDir;
@@ -336,7 +343,7 @@ mod tests {
         }
     }
 
-    struct MutableScope(StdMutex<CoreScope>);
+    struct MutableScope(Mutex<CoreScope>);
 
     impl MutableScope {
         fn set(&self, scope: CoreScope) {
@@ -473,12 +480,12 @@ mod tests {
             backend.operations(),
             EngineOperationPorts::Available { .. }
         ));
-        let wrong_source = Arc::new(MutableScope(StdMutex::new(foreign_scope.clone())));
+        let wrong_source = Arc::new(MutableScope(Mutex::new(foreign_scope.clone())));
         assert!(matches!(
             provider.bind_core_owner_scope(&backend, wrong_source),
             Err(PortError::Failed(_))
         ));
-        let owner_source = Arc::new(MutableScope(StdMutex::new(scope.clone())));
+        let owner_source = Arc::new(MutableScope(Mutex::new(scope.clone())));
         assert_eq!(
             provider
                 .bind_core_owner_scope(&backend, owner_source.clone())

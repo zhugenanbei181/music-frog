@@ -4,6 +4,8 @@
 //! async legs, verified against the temp-HOME filesystem.
 //!
 //! test-intent: behavior
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
 };
@@ -58,7 +60,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
 
     let store = block_on(config_manager()).unwrap();
     let profiles =
-        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone());
+        profiles_for_mihomo(store.clone());
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([
@@ -98,7 +100,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     );
     assert!(!matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
         state
@@ -123,7 +125,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let task = state.update(Message::SaveMixin);
     assert!(matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        ProfileEditOperationPhase::Pending(_)
     ));
     let before_wait = state.editor.mixin_content.text();
     feed(
@@ -139,7 +141,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let units = feed(&mut state, reply);
     assert!(matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Saved
+        ProfileEditOperationPhase::Saved
     ));
     assert_eq!(
         units, 1,
@@ -178,7 +180,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
             CoreOperation::Profile(ProfileOperation::Validate),
         ])
         .with_profile(
-            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(
+            profiles_for_mihomo(
                 block_on(config_manager()).unwrap(),
             ),
         ),
@@ -296,7 +298,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     );
     let reopened = block_on(async {
         ProfileOptionsApplication::new(
-            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(
+            profiles_for_mihomo(
                 config_manager().await.unwrap(),
             ),
         )
@@ -354,7 +356,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     let profile_path = home.profile_config_dir().join("alpha.yaml");
     let mut state = fresh_state();
     let manager = block_on(config_manager()).unwrap();
-    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager);
+    let profiles = profiles_for_mihomo(manager);
     let core = identified_core_application();
     core.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
     attach_product_application_with_accepted_owner_snapshot(&mut state, core);
@@ -437,7 +439,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     assert_eq!(units, 1, "gate rejection arms only the error toast");
     assert!(!matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
         !home
@@ -488,7 +490,7 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
         home.profile_config_dir(),
     ))));
     let store = block_on(config_manager()).unwrap();
-    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store);
+    let profiles = profiles_for_mihomo(store);
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([])

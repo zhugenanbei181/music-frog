@@ -10,9 +10,12 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use infiltrator_contract::profile_document_identity::{
+    ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
+};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profile_options::options_path;
@@ -35,10 +38,13 @@ use infiltrator_ports::profile_workspace::{
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tempfile::TempDir;
 use tokio::fs::{create_dir_all, read, write};
+use tokio::sync;
 
 #[derive(Clone, Copy)]
 enum NativeValidationResult {
@@ -75,13 +81,13 @@ impl ProfileConfigurationCandidateValidatorPort for FakeStoppedValidator {
 
     async fn validate_candidate(
         &self,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         _document_bytes: &[u8],
     ) -> Result<(), PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if !self.scope.supports(expected) {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "fake stopped validator received a foreign document scope",
             ));
         }
@@ -93,7 +99,7 @@ impl ProfileConfigurationCandidateValidatorPort for FakeStoppedValidator {
                 false,
             ))),
             NativeValidationResult::Unsupported => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "native stopped-state Mihomo validator is unavailable",
             )),
         }
@@ -143,13 +149,13 @@ async fn transaction_fixture_with_store_behavior(
     super::select_profile(&config, "main").await;
 
     let controller = Arc::new(MockController {
-        running: std::sync::atomic::AtomicBool::new(false),
-        fail_starts_left: std::sync::atomic::AtomicU64::new(0),
+        running: AtomicBool::new(false),
+        fail_starts_left: AtomicU64::new(0),
     });
     let lifecycle = Arc::new(TestLifecycle::new(Arc::clone(&controller), 0));
     let reloader = Arc::new(MockReloader {
         fail: false,
-        calls: std::sync::atomic::AtomicU64::new(0),
+        calls: AtomicU64::new(0),
     });
     let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(MihomoProfileDocumentCodec);
     let scope = ProfileConfigurationTransactionScope::new(codec.scope());
@@ -170,7 +176,7 @@ async fn transaction_fixture_with_store_behavior(
             Arc::clone(&config),
             profile_store_port,
             reloader_port,
-            Arc::new(tokio::sync::Mutex::new(())),
+            Arc::new(sync::Mutex::new(())),
         )
         .expect("compose matching Mihomo codec and validator scopes");
 
@@ -305,7 +311,7 @@ impl ProfileStore for FaultInjectingProfileStore {
         ProfileStore::engine_id(self.inner.engine_profile_store())
     }
 
-    fn config_dir(&self) -> std::path::PathBuf {
+    fn config_dir(&self) -> PathBuf {
         ProfileStore::config_dir(self.inner.engine_profile_store())
     }
 
@@ -347,21 +353,21 @@ impl ProfileStore for FaultInjectingProfileStore {
 
     async fn load_workspace(
         &self,
-        _profile: &infiltrator_contract::profile_document_identity::ProfileId,
-    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
+        _profile: &ProfileId,
+    ) -> Result<ProfileWorkspace, PortError> {
         Err(Self::unused_operation())
     }
 
     async fn load_active_workspace(
         &self,
-    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
+    ) -> Result<ProfileWorkspace, PortError> {
         ProfileStore::load_active_workspace(self.inner.engine_profile_store()).await
     }
 
     async fn acquire_active_workspace_write_lease(
         &self,
-        expected_reference: infiltrator_contract::active_profile_reference::ActiveProfileReference,
-        expected: infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        expected_reference: ActiveProfileReference,
+        expected: ProfileWorkspaceIdentity,
         authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
         let inner = self
@@ -385,7 +391,7 @@ impl ProfileStore for FaultInjectingProfileStore {
 }
 
 fn request(
-    expected: infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+    expected: ProfileWorkspaceIdentity,
     document_bytes: &[u8],
 ) -> ProfileConfigurationTransactionRequest {
     let expected_reference = ActiveProfileReference::new(
@@ -641,7 +647,7 @@ async fn running_transaction_applies_through_the_live_reload_seam() {
     let generation = fixture.lifecycle.start().await.expect("start fixture core");
     fixture
         .lifecycle
-        .wait_for_ready(generation, std::time::Duration::from_secs(1))
+        .wait_for_ready(generation, Duration::from_secs(1))
         .await
         .expect("fixture core becomes ready");
     fixture.lifecycle.set_status(CoreLifecycle::Running);

@@ -2,6 +2,7 @@
 mod tests {
     use super::super::run_sync_tick;
     use crate::admin_api::state::{AdminApiContext, CoreOwnerAction};
+    use infiltrator_application::resource_application::ResourceApplication;
     #[cfg(test)]
     use crate::support::cache_application;
     #[cfg(test)]
@@ -132,8 +133,7 @@ mod tests {
         }
         async fn resource_application(
             &self,
-        ) -> anyhow::Result<infiltrator_application::resource_application::ResourceApplication>
-        {
+        ) -> anyhow::Result<ResourceApplication> {
             Err(anyhow!(
                 "resource application is not available in sync tests"
             ))

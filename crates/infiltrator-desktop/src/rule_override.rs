@@ -8,7 +8,9 @@
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -54,7 +56,7 @@ impl DesktopRuleOverridePort {
     }
     async fn commit_updated(
         &self,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         profile: &str,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<(), PortError> {
@@ -67,7 +69,7 @@ impl DesktopRuleOverridePort {
         })?;
         let expected_reference =
             ProfileStore::read_active_profile_reference(self.config.engine_profile_store()).await?;
-        let infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
+        let ActiveProfileReferenceState::Selected(
             expected_reference,
         ) = expected_reference
         else {

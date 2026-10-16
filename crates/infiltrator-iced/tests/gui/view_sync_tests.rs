@@ -1,3 +1,4 @@
+use infiltrator_iced::state::profiles::WebDavSyncPhase;
 use super::*;
 use crate::types::app::{SyncConflict, SyncProgress};
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
@@ -29,7 +30,7 @@ fn test_sync_view_idle_en() {
 #[test]
 fn test_sync_view_syncing_with_progress() {
     let (mut state, _) = AppState::new();
-    state.profile.is_syncing = true;
+    state.profile.webdav_sync_phase = WebDavSyncPhase::Syncing;
     state.profile.sync_progress = Some(SyncProgress {
         phase: "Uploading".to_string(),
         current: 2,

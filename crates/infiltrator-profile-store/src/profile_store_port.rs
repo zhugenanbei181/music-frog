@@ -14,6 +14,7 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialWriteRequest, ProfileAgeEncryptedContent,
@@ -266,6 +267,21 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
         initialize_namespace_with_reset_fence(self).await?;
         let _guard = acquire_reset_fenced_profile_mutation_for_dir(self.config_dir()).await?;
         self.save_aggregation_templates_locked(templates).await
+    }
+
+    async fn load_named_override_catalog(&self) -> Result<NamedOverrideCatalog, PortError> {
+        initialize_namespace_with_reset_fence(self).await?;
+        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        self.load_named_override_catalog_locked().await
+    }
+
+    async fn save_named_override_catalog(
+        &self,
+        catalog: &NamedOverrideCatalog,
+    ) -> Result<(), PortError> {
+        initialize_namespace_with_reset_fence(self).await?;
+        let _guard = acquire_reset_fenced_profile_mutation_for_dir(self.config_dir()).await?;
+        self.save_named_override_catalog_locked(catalog).await
     }
 
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {

@@ -1,5 +1,8 @@
 //! Runtime observations that do not read or write engine configuration.
 
+use crate::runtime_scope::active_scope;
+use crate::runtime_stream_application::scope_checked;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::Failure;
 use infiltrator_domain::runtime::TrafficData;
@@ -44,7 +47,7 @@ impl RuntimeQueryApplication {
             .map_err(Failure::from)?;
         if observed != level {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "core log level readback mismatch: requested {}, observed {}",
                     level.as_key(),
@@ -60,13 +63,13 @@ impl RuntimeQueryApplication {
         &self,
         level: Option<String>,
     ) -> Result<ScopedRuntimeStream<String>, Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         let stream = self
             .stream_port
             .logs(scope.clone(), level)
             .await
             .map_err(Failure::from)?;
-        Ok(crate::runtime_stream_application::scope_checked(
+        Ok(scope_checked(
             self.scope_source.clone(),
             scope,
             stream,
@@ -74,13 +77,13 @@ impl RuntimeQueryApplication {
     }
 
     pub async fn traffic(&self) -> Result<ScopedRuntimeStream<TrafficData>, Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         let stream = self
             .stream_port
             .traffic(scope.clone())
             .await
             .map_err(Failure::from)?;
-        Ok(crate::runtime_stream_application::scope_checked(
+        Ok(scope_checked(
             self.scope_source.clone(),
             scope,
             stream,

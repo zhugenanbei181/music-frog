@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use infiltrator_iced::state::runtime::CustomNodeSaveState;
 use crate::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, rejecting_application,
 };
@@ -77,7 +78,7 @@ fn protocol_form_uses_typed_fields_and_retains_invalid_input_and_save_failure() 
     assert_eq!(task.units(), 1);
     assert_eq!(
         state.runtime.custom_node_save_state,
-        infiltrator_iced::state::runtime::CustomNodeSaveState::Saving
+        CustomNodeSaveState::Saving
     );
     assert_eq!(state.update(Message::SaveCustomNodeForm).units(), 0);
     let runtime = Builder::new_current_thread().enable_all().build().unwrap();
@@ -97,7 +98,7 @@ fn protocol_form_uses_typed_fields_and_retains_invalid_input_and_save_failure() 
     assert!(state.runtime.custom_node_modal_open);
     assert_eq!(
         state.runtime.custom_node_save_state,
-        infiltrator_iced::state::runtime::CustomNodeSaveState::Idle
+        CustomNodeSaveState::Idle
     );
     assert!(
         state

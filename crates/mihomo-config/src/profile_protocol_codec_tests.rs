@@ -1,4 +1,5 @@
 use super::*;
+use std::str;
 
 fn valid_vless() -> ProtocolDraft {
     let mut draft = ProtocolDraft::new("vless");
@@ -42,7 +43,7 @@ rules:
   - MATCH,PROXY
 "#;
     let mutation = upsert_protocol_node(input, valid_vless()).expect("typed upsert");
-    let yaml = std::str::from_utf8(&mutation.document_bytes).expect("UTF-8 output");
+    let yaml = str::from_utf8(&mutation.document_bytes).expect("UTF-8 output");
     let output: Value = serde_yaml_ng::from_slice(&mutation.document_bytes).unwrap();
     let ProfileConfigurationReadout::ProtocolNodeMutation(readback) = mutation.readback else {
         panic!("expected protocol-node mutation readback");
@@ -112,7 +113,7 @@ fn ca_path_operation_is_idempotent_and_keeps_the_other_tls_members() {
         panic!("expected CA path readback");
     };
     assert_eq!(readback.ca_path, "/etc/ssl/custom-ca.pem");
-    let yaml = std::str::from_utf8(&first.document_bytes).unwrap();
+    let yaml = str::from_utf8(&first.document_bytes).unwrap();
     assert!(yaml.contains("certificate: /etc/ssl/cert.pem"));
     assert!(yaml.contains("/etc/ssl/existing.pem"));
     assert!(yaml.contains("MATCH,DIRECT"));

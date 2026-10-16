@@ -1,25 +1,23 @@
 use async_trait::async_trait;
+use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
 use infiltrator_contract::android_control::{
-    AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt, CoreLaunchSpec,
+    AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
 };
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_platform::android_bridge::AndroidBridge;
 #[cfg(test)]
-use infiltrator_platform::android_bridge::AndroidBridgeResult as Result;
-#[cfg(test)]
 use infiltrator_platform::android_bridge::{CoreProcessStartReceipt, CoreProcessStopReceipt};
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::{
-    CoreProcess, CoreProcessStartAdmission, CoreProcessStartContext,
-};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;

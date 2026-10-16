@@ -1,3 +1,4 @@
+#![allow(clippy::large_enum_variant, clippy::single_match)]
 //! Runs the production Android owner IPC client without compiling Bevy UI.
 //!
 //! The test target supplies only the small UI command/source traits consumed by

@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use infiltrator_ports::error::PortError;
+use reqwest::header::CONTENT_TYPE;
 use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;
 use url::{Host, Url};
@@ -72,7 +73,7 @@ impl SingBoxClashHttpPort for ReqwestSingBoxClashHttpPort {
         };
         let request = match body {
             Some(body) => request
-                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .header(CONTENT_TYPE, "application/json")
                 .body(body),
             None => request,
         };

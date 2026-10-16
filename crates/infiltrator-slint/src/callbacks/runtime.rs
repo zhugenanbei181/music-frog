@@ -13,14 +13,10 @@ pub(super) fn register(
     let tx = requests.clone();
     let weak_for_start = weak.clone();
     window.on_start_runtime(move || {
-        queue_intent(
+        queue_action(
             &tx,
             &weak_for_start,
-            if cfg!(target_os = "android") {
-                CommandIntent::StartVpn
-            } else {
-                CommandIntent::StartProxy
-            },
+            Ok(SlintAction::StartRuntime),
         );
     });
     let tx = requests.clone();
@@ -71,16 +67,22 @@ pub(super) fn register(
     window.on_check_core(move || {
         queue_intent(&tx, &weak_for_check, CommandIntent::CheckUpdates);
     });
+    let tx_for_restore = requests.clone();
     let weak_for_restore = weak.clone();
     window.on_retry_proxy_restore(move || {
-        show_unsupported(&weak_for_restore, "The shared network owner does not expose system-proxy journal recovery as a user command");
+        queue_intent(&tx_for_restore, &weak_for_restore, CommandIntent::RecoverSystemProxy);
     });
 
-    let weak_for_override_actions = weak.clone();
-    window.on_add_override(move |_, _| {
-        show_unsupported(
-            &weak_for_override_actions,
-            "Named YAML overrides are not represented by the shared profile model",
+    let tx_for_add_override = requests.clone();
+    let weak_for_add_override = weak.clone();
+    window.on_add_override(move |name, content| {
+        queue_intent(
+            &tx_for_add_override,
+            &weak_for_add_override,
+            CommandIntent::CreateNamedOverride {
+                name: name.to_string(),
+                content: content.to_string(),
+            },
         );
     });
     let weak_for_override_import = weak.clone();
@@ -90,33 +92,81 @@ pub(super) fn register(
             "Named override imports have no shared owner",
         );
     });
+    let tx_for_override_file = requests.clone();
     let weak_for_override_file = weak.clone();
+    let latest_for_override_file = Arc::clone(&latest);
     window.on_choose_override_file(move || {
-        show_unsupported(
-            &weak_for_override_file,
-            "Override file selection needs a platform file-picker adapter",
+        #[cfg(not(target_os = "android"))]
+        {
+            let picked = rfd::FileDialog::new()
+                .add_filter("YAML Overrides", &["yaml", "yml", "txt"])
+                .pick_file();
+            if let Some(path) = picked {
+                let path_str = path.to_string_lossy().to_string();
+                queue_action(
+                    &tx_for_override_file,
+                    &weak_for_override_file,
+                    require_snapshot(&latest_for_override_file).map(|_| SlintAction::ImportOverrideFile {
+                        path: path_str,
+                    }),
+                );
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            show_unsupported(&weak_for_override_file, "Android SAF file selection is handled through Intent");
+        }
+    });
+    let tx_for_save_override = requests.clone();
+    let weak_for_save_override = weak.clone();
+    window.on_save_override(move |id, content| {
+        queue_intent(
+            &tx_for_save_override,
+            &weak_for_save_override,
+            CommandIntent::UpdateNamedOverride {
+                id: id.to_string(),
+                name: None,
+                content: Some(content.to_string()),
+            },
         );
     });
-    let weak_for_override_save = weak.clone();
-    window.on_save_override(move |_, _| {
-        show_unsupported(
-            &weak_for_override_save,
-            "Named YAML overrides are not represented by the shared profile model",
-        );
-    });
-    let weak_for_override_delete = weak.clone();
-    window.on_delete_override(move |_| {
-        show_unsupported(
-            &weak_for_override_delete,
-            "Named YAML overrides are not represented by the shared profile model",
+    let tx_for_delete_override = requests.clone();
+    let weak_for_delete_override = weak.clone();
+    window.on_delete_override(move |id| {
+        queue_intent(
+            &tx_for_delete_override,
+            &weak_for_delete_override,
+            CommandIntent::DeleteNamedOverride {
+                id: id.to_string(),
+            },
         );
     });
     let weak_for_override_export = weak.clone();
-    window.on_export_override(move |_| {
-        show_unsupported(
-            &weak_for_override_export,
-            "Override export needs a platform file-output adapter",
-        );
+    let latest_for_override_export = Arc::clone(&latest);
+    let tx_for_override_export = requests.clone();
+    window.on_export_override(move |override_id| {
+        let override_id = override_id.to_string();
+        #[cfg(not(target_os = "android"))]
+        {
+            let picked = rfd::FileDialog::new()
+                .set_file_name(&format!("{override_id}.yaml"))
+                .add_filter("YAML Override", &["yaml", "yml"])
+                .save_file();
+            if let Some(destination) = picked {
+                queue_action(
+                    &tx_for_override_export,
+                    &weak_for_override_export,
+                    require_snapshot(&latest_for_override_export).map(|_| SlintAction::ExportOverride {
+                        override_id,
+                        destination,
+                    }),
+                );
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            show_unsupported(&weak_for_override_export, "Android SAF file export is handled through Intent");
+        }
     });
     let weak_for_override_edit = weak.clone();
     window.on_edit_override(move |_| {

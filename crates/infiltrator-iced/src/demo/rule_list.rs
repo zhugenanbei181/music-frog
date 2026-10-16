@@ -1,4 +1,7 @@
 //! Capture a real source-bound staged edit and the actual denied commit terminal.
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -16,7 +19,7 @@ use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
-    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
     let core = CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
@@ -32,9 +35,9 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         HostKind::Desktop,
     )
     .with_profiles(
-        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+        profiles_for_mihomo(store.clone()),
     )
-    .with_configuration(infiltrator_composition::mihomo_configuration::for_mihomo_store(store));
+    .with_configuration(for_mihomo_store(store));
     attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;
     Task::perform(

@@ -7,12 +7,12 @@ use infiltrator_ports::error::PortError;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::fs::canonicalize;
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Duration;
-use tokio::fs::{canonicalize as canonicalize_async, create_dir_all};
-use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
+use tokio::fs;
+use tokio::sync::{self, OwnedMutexGuard};
 use tokio::task::spawn_blocking;
 use tokio::time::sleep;
 
@@ -46,23 +46,23 @@ pub async fn lock_profile_writes_for_dir(
     })
 }
 
-fn shared_boundary(root: &Path) -> std::io::Result<Arc<AsyncMutex<()>>> {
-    static STORES: OnceLock<Mutex<HashMap<PathBuf, Weak<AsyncMutex<()>>>>> = OnceLock::new();
+fn shared_boundary(root: &Path) -> io::Result<Arc<sync::Mutex<()>>> {
+    static STORES: OnceLock<Mutex<HashMap<PathBuf, Weak<sync::Mutex<()>>>>> = OnceLock::new();
     let root = canonical_root(root)?;
     let mut stores = STORES
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
-        .map_err(|_| std::io::Error::other("profile boundary registry poisoned"))?;
+        .map_err(|_| io::Error::other("profile boundary registry poisoned"))?;
     stores.retain(|_, boundary| boundary.strong_count() > 0);
     if let Some(boundary) = stores.get(&root).and_then(Weak::upgrade) {
         return Ok(boundary);
     }
-    let boundary = Arc::new(AsyncMutex::new(()));
+    let boundary = Arc::new(sync::Mutex::new(()));
     stores.insert(root, Arc::downgrade(&boundary));
     Ok(boundary)
 }
 
-fn canonical_root(root: &Path) -> std::io::Result<PathBuf> {
+fn canonical_root(root: &Path) -> io::Result<PathBuf> {
     let absolute = if root.is_absolute() {
         root.to_path_buf()
     } else {
@@ -99,12 +99,12 @@ async fn profile_write_lock_path(config_dir: &Path) -> Result<PathBuf, PortError
     let parent = config_dir
         .parent()
         .ok_or_else(|| PortError::Io("engine config directory has no parent".into()))?;
-    create_dir_all(parent).await.map_err(io_error)?;
-    let canonical_parent = canonicalize_async(parent).await.map_err(io_error)?;
+    fs::create_dir_all(parent).await.map_err(io_error)?;
+    let canonical_parent = fs::canonicalize(parent).await.map_err(io_error)?;
     Ok(canonical_parent.join(format!(".profile-write-{engine}.lock")))
 }
 
-fn io_error(error: std::io::Error) -> PortError {
+fn io_error(error: io::Error) -> PortError {
     match error.kind() {
         ErrorKind::PermissionDenied => PortError::PermissionDenied(error.to_string()),
         _ => PortError::Io(error.to_string()),

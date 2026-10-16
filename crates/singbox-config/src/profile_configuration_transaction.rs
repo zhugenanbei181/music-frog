@@ -2,10 +2,11 @@
 
 use crate::config::{SingBoxConfigFileState, SingBoxProfileConfigurationAdapter};
 use crate::profile_document_codec::SingBoxProfileDocumentCodec;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreIdentity, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -23,6 +24,7 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use singbox_process::process::SingBoxCoreOperationGate;
+use std::fmt::Display;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -135,7 +137,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             ));
         }
         if self.profile_store.read_active_profile_reference().await?
-            != infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
+            != ActiveProfileReferenceState::Selected(
                 request.expected_reference.clone(),
             )
         {
@@ -604,7 +606,7 @@ fn classify_native_readback(
 }
 
 fn invalid_candidate(
-    diagnostics: Vec<infiltrator_contract::profile_document::DocumentDiagnosticSnapshot>,
+    diagnostics: Vec<DocumentDiagnosticSnapshot>,
 ) -> PortError {
     let detail = diagnostics
         .into_iter()
@@ -642,7 +644,7 @@ fn terminal_outcome(
     }
 }
 
-fn result_description<T, E: std::fmt::Display>(result: Result<T, E>) -> String {
+fn result_description<T, E: Display>(result: Result<T, E>) -> String {
     match result {
         Ok(_) => "restored".to_owned(),
         Err(error) => error.to_string(),

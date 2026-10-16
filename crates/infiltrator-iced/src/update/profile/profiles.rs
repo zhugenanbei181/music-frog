@@ -1,9 +1,12 @@
 //! Profile catalog handlers: listing, filtering, reset-to-default,
 //! activation and deletion.
 
+use crate::update::core::profile_apply::runtime_access;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use crate::configs_dir::config_manager;
 use crate::host::storage::reset_profiles_to_default;
 use crate::state::AppState;
+use crate::state::profiles::ProfileListLoadPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
@@ -18,7 +21,7 @@ impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadProfiles => {
-                self.profile.is_loading_profiles = true;
+                self.profile.list_load_phase = ProfileListLoadPhase::Loading;
                 Task::perform(
                     async {
                         let store = config_manager().await?;
@@ -31,7 +34,7 @@ impl AppState {
                 )
             }
             Message::ProfilesLoaded(result) => {
-                self.profile.is_loading_profiles = false;
+                self.profile.list_load_phase = ProfileListLoadPhase::Idle;
                 self.refresh_tray();
                 match result {
                     Ok(profiles) => {
@@ -55,7 +58,7 @@ impl AppState {
                 let runtime = self.take_app_runtime();
                 self.profile.restart_after_profile_reset = runtime.is_some();
                 self.runtime.status = RuntimeStatus::Stopped;
-                self.profile.is_loading_profiles = true;
+                self.profile.list_load_phase = ProfileListLoadPhase::Loading;
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
@@ -74,7 +77,7 @@ impl AppState {
                 )
             }
             Message::ProfilesCleared(result) => {
-                self.profile.is_loading_profiles = false;
+                self.profile.list_load_phase = ProfileListLoadPhase::Idle;
                 match result {
                     Ok(_) => {
                         let restart = self.profile.restart_after_profile_reset;
@@ -107,7 +110,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         activate_profile(
-                            crate::update::core::profile_apply::runtime_access(runtime),
+                            runtime_access(runtime),
                             &name,
                         )
                         .await
@@ -139,13 +142,13 @@ impl AppState {
                 ) => Task::batch(vec![Task::done(Message::LoadProfiles)]),
                 Ok(
                     ProfileActivationOutcome::AlreadySelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                        CoreInactiveLifecycle::Stopped,
                     )
                     | ProfileActivationOutcome::SelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                        CoreInactiveLifecycle::Stopped,
                     )
                     | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                        CoreInactiveLifecycle::Stopped,
                     ),
                 ) => Task::batch(vec![
                     Task::done(Message::LoadProfiles),
@@ -158,13 +161,13 @@ impl AppState {
                 ]),
                 Ok(
                     ProfileActivationOutcome::AlreadySelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                        CoreInactiveLifecycle::Failed,
                     )
                     | ProfileActivationOutcome::SelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                        CoreInactiveLifecycle::Failed,
                     )
                     | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                        CoreInactiveLifecycle::Failed,
                     ),
                 ) => Task::batch(vec![
                     Task::done(Message::LoadProfiles),

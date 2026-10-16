@@ -4,10 +4,10 @@ use super::adapter_operation_declaration::{
     ValidatedAdapterOperationDeclarations,
 };
 use super::core_capabilities::{
-    AdapterRevision, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
-    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation, GeoOperation,
-    LogsOperation, OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation,
-    RulesOperation, SubscriptionOperation, TunOperation,
+    AdapterRevision, ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation,
+    CoreOperation, DnsOperation, EngineBinaryTarget, EngineCapabilityDecision,
+    FakeIpCacheOperation, GeoOperation, LogsOperation, OutboundOperation, ProfileOperation,
+    ProviderOperation, ProxyControlOperation, RulesOperation, SubscriptionOperation, TunOperation,
 };
 use super::core_identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
@@ -111,7 +111,7 @@ fn only_explicitly_supported_operations_resolve_to_verified_support() {
         CoreOperation::Subscription(SubscriptionOperation::Update),
         CoreOperation::Provider(ProviderOperation::ListRule),
         CoreOperation::Provider(ProviderOperation::UpdateRule),
-        CoreOperation::Connection(super::core_capabilities::ConnectionOperation::Close),
+        CoreOperation::Connection(ConnectionOperation::Close),
         CoreOperation::Geo(GeoOperation::UpdateDatabases),
         CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
         CoreOperation::Tun(TunOperation::Configure),

@@ -14,6 +14,7 @@ use infiltrator_ports::geo_database::GeoDatabasePort;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use std::env;
+use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
@@ -45,7 +46,7 @@ async fn geo_update_trigger_is_accepted_under_loopback_only_geox_configuration()
     assert!(
         parsed_origin
             .host_str()
-            .and_then(|host| host.parse::<std::net::IpAddr>().ok())
+            .and_then(|host| host.parse::<IpAddr>().ok())
             .is_some_and(|address| address.is_loopback())
     );
 

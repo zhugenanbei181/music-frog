@@ -30,7 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,15 +79,15 @@ import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 internal fun ProxiesScreen(viewModel: ProxiesViewModel = viewModel()) {
-    val inventory by viewModel.inventory.collectAsState()
-    val details by viewModel.details.collectAsState()
-    val preferences by viewModel.preferences.collectAsState()
-    val protocolStudio by viewModel.protocolStudio.collectAsState()
-    val probeCapability by viewModel.probeCapability.collectAsState()
-    val probeReadback by viewModel.probeReadback.collectAsState()
-    val commandInProgress by viewModel.commandInProgress.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val commandFailure by viewModel.commandFailure.collectAsState()
+    val inventory by viewModel.inventory.collectAsStateWithLifecycle()
+    val details by viewModel.details.collectAsStateWithLifecycle()
+    val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    val protocolStudio by viewModel.protocolStudio.collectAsStateWithLifecycle()
+    val probeCapability by viewModel.probeCapability.collectAsStateWithLifecycle()
+    val probeReadback by viewModel.probeReadback.collectAsStateWithLifecycle()
+    val commandInProgress by viewModel.commandInProgress.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val commandFailure by viewModel.commandFailure.collectAsStateWithLifecycle()
     val visibleError = commandFailure?.toLocalizedFailure() ?: error
 
     Box(modifier = Modifier.fillMaxSize()) {

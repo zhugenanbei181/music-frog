@@ -413,7 +413,7 @@ impl SyncConfigDirectory {
 
 fn scoped_conflict_root(
     configs_root_or_scoped: &Path,
-    engine: &infiltrator_contract::core_identity::EngineId,
+    engine: &EngineId,
 ) -> Result<PathBuf, PortError> {
     SyncConfigDirectory::classify(configs_root_or_scoped.to_path_buf(), engine)
         .map(|directory| directory.engine_directory(engine))
@@ -493,7 +493,7 @@ fn safe_remote_profile_name(remote_path: &str) -> Result<Option<String>, PortErr
 
 fn safe_remote_profile_name_in_engine(
     remote_path: &str,
-    engine: &infiltrator_contract::core_identity::EngineId,
+    engine: &EngineId,
 ) -> Result<Option<String>, PortError> {
     let trimmed = remote_path.trim_matches('/');
     let scoped = match trimmed.split_once('/') {

@@ -1,11 +1,15 @@
 use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_contract::profile_document_identity::{
+    ProfileFormatId, ProfileId, ProfileSchemaVersion,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -20,8 +24,8 @@ impl ProfileDocumentCodecPort for TestCodec {
     fn inspect(
         &self,
         _document: &[u8],
-    ) -> Result<infiltrator_contract::profile_document::DocumentValidation, PortError> {
-        Ok(infiltrator_contract::profile_document::DocumentValidation::Valid)
+    ) -> Result<DocumentValidation, PortError> {
+        Ok(DocumentValidation::Valid)
     }
 }
 
@@ -50,14 +54,8 @@ fn store(
     let engine_id = EngineId::new(engine).unwrap();
     let codec = Arc::new(TestCodec(ProfileDocumentCodecScope {
         engine_id: engine_id.clone(),
-        format_id: infiltrator_contract::profile_document_identity::ProfileFormatId::new(format!(
-            "{engine}-native"
-        ))
-        .unwrap(),
-        schema_version: infiltrator_contract::profile_document_identity::ProfileSchemaVersion::new(
-            1,
-        )
-        .unwrap(),
+        format_id: ProfileFormatId::new(format!("{engine}-native")).unwrap(),
+        schema_version: ProfileSchemaVersion::new(1).unwrap(),
     }));
     EngineProfileStore::new(engine_id, root, codec, extension, NoopSecureStore).unwrap()
 }
@@ -123,7 +121,7 @@ async fn existing_document_path_reports_missing_document_and_rejects_escape_syml
         use std::os::unix::fs::symlink;
         let document = store.profile_document_path(&profile).await.unwrap();
         let outside = root.path().join("outside.yaml");
-        std::fs::write(&outside, "external").unwrap();
+        fs::write(&outside, "external").unwrap();
         symlink(&outside, &document).unwrap();
         assert!(matches!(
             store.existing_profile_document_path(&profile).await,

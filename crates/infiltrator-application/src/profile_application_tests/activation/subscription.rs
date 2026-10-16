@@ -1,5 +1,9 @@
 //! Conditional subscription refresh behavior under active workspace leases.
 
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::subscription_import::StoreForNextStartReason;
+use std::thread;
+use std::time::Duration;
 use super::*;
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use async_trait::async_trait;
@@ -25,12 +29,12 @@ impl ApplicationRuntime for ImmediateApplicationRuntime {
         loop {
             match future.as_mut().poll(&mut context) {
                 Poll::Ready(()) => return,
-                Poll::Pending => std::thread::yield_now(),
+                Poll::Pending => thread::yield_now(),
             }
         }
     }
 
-    fn sleep(&self, _duration: std::time::Duration) -> ApplicationSleep<'_> {
+    fn sleep(&self, _duration: Duration) -> ApplicationSleep<'_> {
         Box::pin(ready(()))
     }
 }
@@ -147,17 +151,17 @@ async fn running_subscription_refresh_applies_inside_the_exact_workspace_lease()
 async fn stopped_and_failed_subscription_refreshes_store_with_distinct_effects() {
     for (lifecycle, expected_effect) in [
         (
-            infiltrator_contract::snapshot::CoreLifecycle::Stopped,
+            CoreLifecycle::Stopped,
             SubscriptionContentEffectOutcome::StoredForNextStart {
                 reason:
-                    infiltrator_contract::subscription_import::StoreForNextStartReason::CoreStopped,
+                    StoreForNextStartReason::CoreStopped,
             },
         ),
         (
-            infiltrator_contract::snapshot::CoreLifecycle::Failed,
+            CoreLifecycle::Failed,
             SubscriptionContentEffectOutcome::StoredForNextStart {
                 reason:
-                    infiltrator_contract::subscription_import::StoreForNextStartReason::CoreFailed,
+                    StoreForNextStartReason::CoreFailed,
             },
         ),
     ] {
@@ -185,8 +189,8 @@ async fn stopped_and_failed_subscription_refreshes_store_with_distinct_effects()
 #[tokio::test]
 async fn transitioning_subscription_refresh_has_no_fetch_store_or_apply_effect() {
     for lifecycle in [
-        infiltrator_contract::snapshot::CoreLifecycle::Starting,
-        infiltrator_contract::snapshot::CoreLifecycle::Stopping,
+        CoreLifecycle::Starting,
+        CoreLifecycle::Stopping,
     ] {
         let store = subscription_store();
         let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));

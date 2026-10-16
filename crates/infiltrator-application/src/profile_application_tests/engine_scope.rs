@@ -1,4 +1,9 @@
 //! Foreign requests fail before adapter reads; malformed adapter receipts are detected after return.
+use crate::core_capability_test_support::core_scope;
+use infiltrator_contract::active_profile_reference::ActiveProfileReference;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::profile_document_identity::ProfileSidecarRevision;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
@@ -43,7 +48,7 @@ impl NoCallRuntime {
 
 impl CoreScopeSource for NoCallRuntime {
     fn scope_observation(&self) -> CoreScopeObservation {
-        CoreScopeObservation::Observed(crate::core_capability_test_support::core_scope())
+        CoreScopeObservation::Observed(core_scope())
     }
 }
 
@@ -52,23 +57,23 @@ impl ActiveProfileReferenceApplier for NoCallRuntime {
     fn engine_id(&self) -> Option<EngineId> {
         self.unexpected()
     }
-    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+    fn core_lifecycle(&self) -> CoreLifecycle {
         self.unexpected()
     }
     fn write_authorization(
         &self,
     ) -> Result<
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        ActiveProfileReferenceWriteAuthorization,
         PortError,
     > {
         self.unexpected()
     }
     async fn apply_active_profile_workspace(
         &self,
-        _: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
+        _: &ActiveProfileReference,
         _: &ProfileWorkspaceIdentity,
         _: &ProfileWorkspaceUpdate,
-        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        _: ActiveProfileReferenceWriteAuthorization,
         _: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         self.unexpected()
@@ -192,7 +197,7 @@ async fn options_codec_rejects_foreign_document_format_and_schema_before_fake_co
     ] {
         let expected = ProfileWorkspaceIdentity::new(
             foreign,
-            infiltrator_contract::profile_document_identity::ProfileSidecarRevision::Absent,
+            ProfileSidecarRevision::Absent,
         );
         let mixin_failure = options
             .save_mixin(

@@ -17,7 +17,6 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::sync::Arc;
 use std::time::Instant;
 
 impl AppState {

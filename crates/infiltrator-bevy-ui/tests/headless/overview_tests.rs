@@ -468,6 +468,9 @@ fn fixture_readout(upload: f64, download: f64) -> ShellReadoutSnapshot {
 #[path = "overview_tests/copy.rs"]
 mod copy;
 
+#[path = "overview_tests/five_states.rs"]
+mod five_states;
+
 #[test]
 fn mounted_mode_toggle_emits_mapped_feedback_and_mute_blocks_it() {
     use bevy::ui_widgets::Activate;

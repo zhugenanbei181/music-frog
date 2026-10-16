@@ -4,7 +4,10 @@ use crate::outbound_application::OutboundApplication;
 use crate::settings_application::SettingsApplication;
 use futures_util::future::{AbortHandle, AbortRegistration};
 use futures_util::stream::{self, StreamExt};
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::inventory::OutboundObservationSnapshot;
+use std::mem::replace;
 use infiltrator_contract::outbound::details::{
     OutboundDetailsState, OutboundObservation, OutboundProbeAvailability,
 };
@@ -111,84 +114,9 @@ impl Default for SpeedtestOwnerState {
     }
 }
 
-impl SpeedtestOwnerState {
-    fn run_id(&self) -> Option<SpeedtestRunId> {
-        match &self.execution {
-            SpeedtestExecution::Idle => None,
-            SpeedtestExecution::Probing { run_id, .. }
-            | SpeedtestExecution::CancelRequested { run_id, .. }
-            | SpeedtestExecution::Completed { run_id, .. }
-            | SpeedtestExecution::Cancelled { run_id, .. }
-            | SpeedtestExecution::Failed { run_id, .. } => Some(*run_id),
-        }
-    }
+#[path = "speedtest_application/owner_state.rs"]
+mod owner_state;
 
-    fn is_active(&self) -> bool {
-        matches!(
-            &self.execution,
-            SpeedtestExecution::Probing { .. } | SpeedtestExecution::CancelRequested { .. }
-        )
-    }
-
-    fn snapshot(&self) -> SpeedtestSnapshot {
-        let state = match &self.execution {
-            SpeedtestExecution::Idle => SpeedtestRunState::Idle,
-            SpeedtestExecution::Probing {
-                run_id,
-                target,
-                progress,
-                ..
-            } => SpeedtestRunState::Probing {
-                run_id: *run_id,
-                target: target.clone(),
-                progress: progress.clone(),
-            },
-            SpeedtestExecution::CancelRequested {
-                run_id,
-                target,
-                progress,
-            } => SpeedtestRunState::CancelRequested {
-                run_id: *run_id,
-                target: target.clone(),
-                progress: progress.clone(),
-            },
-            SpeedtestExecution::Completed {
-                run_id,
-                target,
-                progress,
-            } => SpeedtestRunState::Completed {
-                run_id: *run_id,
-                target: target.clone(),
-                progress: progress.clone(),
-            },
-            SpeedtestExecution::Cancelled {
-                run_id,
-                target,
-                progress,
-            } => SpeedtestRunState::Cancelled {
-                run_id: *run_id,
-                target: target.clone(),
-                progress: progress.clone(),
-            },
-            SpeedtestExecution::Failed {
-                run_id,
-                target,
-                failure,
-            } => SpeedtestRunState::Failed {
-                run_id: *run_id,
-                target: target.clone(),
-                failure: failure.clone(),
-            },
-        };
-        SpeedtestSnapshot {
-            revision: self.revision,
-            state,
-            concurrency: self.concurrency,
-            results: self.results.clone(),
-            recent_history: self.recent_history.clone(),
-        }
-    }
-}
 
 /// Shared application service that validates one accepted inventory before
 /// probing, then records multiple samples through the typed outbound port.
@@ -461,8 +389,8 @@ impl SpeedtestApplication {
     pub(crate) fn finish(
         &self,
         run_id: SpeedtestRunId,
-        request_scope: &infiltrator_contract::core_identity::CoreScope,
-        current_scope: Option<&infiltrator_contract::core_identity::CoreScope>,
+        request_scope: &CoreScope,
+        current_scope: Option<&CoreScope>,
         outcome: SpeedtestTaskOutcome,
     ) -> SpeedtestCompletionAdmission {
         let mut state = self.state.lock().expect("speedtest state lock");
@@ -529,7 +457,7 @@ impl SpeedtestApplication {
     pub(crate) fn fail_admission(
         &self,
         run_id: SpeedtestRunId,
-        scope: infiltrator_contract::core_identity::CoreScope,
+        scope: CoreScope,
         failure: Failure,
     ) {
         let mut state = self.state.lock().expect("speedtest state lock");
@@ -553,10 +481,10 @@ impl SpeedtestApplication {
 
     pub(crate) fn invalidate_scope(
         &self,
-        current_scope: Option<&infiltrator_contract::core_identity::CoreScope>,
+        current_scope: Option<&CoreScope>,
     ) {
         let mut state = self.state.lock().expect("speedtest state lock");
-        let execution = std::mem::replace(&mut state.execution, SpeedtestExecution::Idle);
+        let execution = replace(&mut state.execution, SpeedtestExecution::Idle);
         match execution {
             SpeedtestExecution::Probing {
                 run_id,
@@ -590,7 +518,7 @@ impl SpeedtestApplication {
 
     pub(crate) fn cancel_for_shutdown(&self) {
         let mut state = self.state.lock().expect("speedtest state lock");
-        let execution = std::mem::replace(&mut state.execution, SpeedtestExecution::Idle);
+        let execution = replace(&mut state.execution, SpeedtestExecution::Idle);
         match execution {
             SpeedtestExecution::Probing {
                 run_id,
@@ -722,7 +650,7 @@ impl ProbeCandidate {
 }
 
 fn resolve_candidates(
-    observation: &infiltrator_contract::outbound::inventory::OutboundObservationSnapshot,
+    observation: &OutboundObservationSnapshot,
     target_scope: &OutboundProbeBatchScope,
 ) -> Result<Vec<ProbeCandidate>, Failure> {
     let inventory = observation.inventory();
@@ -842,75 +770,9 @@ fn resolve_candidates(
     Ok(candidates)
 }
 
-fn build_history_record(
-    run_id: SpeedtestRunId,
-    results: &[SpeedtestOutboundResult],
-    target: &SpeedtestTarget,
-) -> HistoricalSpeedtestRecord {
-    let calculations = results
-        .iter()
-        .filter_map(|result| result.calculation())
-        .collect::<Vec<_>>();
-    let latencies = calculations
-        .iter()
-        .filter(|calculation| calculation.successful_probes > 0)
-        .map(|calculation| calculation.mean_rtt_ms)
-        .collect::<Vec<_>>();
-    let jitters = calculations
-        .iter()
-        .filter(|calculation| calculation.successful_probes > 1)
-        .map(|calculation| calculation.jitter_ms)
-        .collect::<Vec<_>>();
-    HistoricalSpeedtestRecord {
-        run_id,
-        timestamp_epoch_ms: current_epoch_ms(),
-        target: Some(target.clone()),
-        total_targets: results.len(),
-        completed_targets: results
-            .iter()
-            .filter(|result| {
-                matches!(
-                    &result.state,
-                    SpeedtestResultState::Completed | SpeedtestResultState::TimedOut
-                )
-            })
-            .count(),
-        avg_latency_ms: average(&latencies),
-        avg_jitter_ms: average(&jitters),
-    }
-}
-
-fn average(values: &[f64]) -> Option<f64> {
-    (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
-}
-
-fn push_history_record(
-    history: &mut Vec<HistoricalSpeedtestRecord>,
-    record: HistoricalSpeedtestRecord,
-) {
-    history.push(record);
-    if history.len() > MAX_HISTORY_ENTRIES {
-        history.remove(0);
-    }
-}
-
-fn bounded_history(mut history: Vec<HistoricalSpeedtestRecord>) -> Vec<HistoricalSpeedtestRecord> {
-    if history.len() > MAX_HISTORY_ENTRIES {
-        history.drain(0..history.len() - MAX_HISTORY_ENTRIES);
-    }
-    history
-}
-
-fn invalid_target(message: impl Into<String>) -> Failure {
-    Failure::new(ErrorCode::InvalidInput, message, false)
-}
-
-fn current_epoch_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
+#[path = "speedtest_application/history.rs"]
+mod history;
+use history::*;
 
 #[cfg(test)]
 #[path = "speedtest_application_tests.rs"]

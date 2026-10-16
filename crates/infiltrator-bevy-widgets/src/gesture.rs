@@ -151,12 +151,28 @@ impl GestureRecognizer {
     }
 }
 
+/// Lifecycle phase of a pull-to-refresh interaction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PullToRefreshPhase {
+    #[default]
+    Idle,
+    Pulling,
+    Armed,
+    Refreshing,
+}
+
+impl PullToRefreshPhase {
+    pub const fn is_refreshing(self) -> bool {
+        matches!(self, Self::Refreshing)
+    }
+}
+
 /// Pull-to-refresh pull state machine.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PullToRefreshState {
     pub pull_offset: f32,
     pub threshold: f32,
-    pub is_refreshing: bool,
+    pub phase: PullToRefreshPhase,
 }
 
 impl PullToRefreshState {
@@ -164,32 +180,40 @@ impl PullToRefreshState {
         Self {
             pull_offset: 0.0,
             threshold,
-            is_refreshing: false,
+            phase: PullToRefreshPhase::Idle,
         }
     }
 
     pub fn pull(&mut self, dy: f32) {
-        if self.is_refreshing {
+        if self.phase == PullToRefreshPhase::Refreshing {
             return;
         }
         // Quadratic resistance dampening
         let factor = (1.0 - (self.pull_offset / (self.threshold * 2.5)).min(0.8)).max(0.2);
         self.pull_offset = (self.pull_offset + dy * factor).max(0.0);
+        self.phase = if self.pull_offset >= self.threshold {
+            PullToRefreshPhase::Armed
+        } else if self.pull_offset > 0.0 {
+            PullToRefreshPhase::Pulling
+        } else {
+            PullToRefreshPhase::Idle
+        };
     }
 
     pub fn release(&mut self) -> bool {
         if self.pull_offset >= self.threshold {
-            self.is_refreshing = true;
+            self.phase = PullToRefreshPhase::Refreshing;
             self.pull_offset = self.threshold;
             true
         } else {
+            self.phase = PullToRefreshPhase::Idle;
             self.pull_offset = 0.0;
             false
         }
     }
 
     pub fn finish_refresh(&mut self) {
-        self.is_refreshing = false;
+        self.phase = PullToRefreshPhase::Idle;
         self.pull_offset = 0.0;
     }
 
@@ -198,12 +222,10 @@ impl PullToRefreshState {
     }
 
     pub fn label_key(&self) -> &'static str {
-        if self.is_refreshing {
-            "gesture_pull_refreshing"
-        } else if self.pull_offset >= self.threshold {
-            "gesture_pull_release"
-        } else {
-            "gesture_pull_idle"
+        match self.phase {
+            PullToRefreshPhase::Refreshing => "gesture_pull_refreshing",
+            PullToRefreshPhase::Armed => "gesture_pull_release",
+            PullToRefreshPhase::Pulling | PullToRefreshPhase::Idle => "gesture_pull_idle",
         }
     }
 }

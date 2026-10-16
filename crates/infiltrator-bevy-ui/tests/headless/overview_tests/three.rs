@@ -23,7 +23,7 @@ fn three_state_projections_are_visible() {
         assert_eq!(
             state_text,
             match state {
-                OverviewState::Running => "运行中",
+                OverviewState::Running => "演示模式",
                 OverviewState::Stopped => "已停止",
                 OverviewState::Unavailable => "运行出错",
             }

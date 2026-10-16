@@ -205,6 +205,43 @@ pub enum CommandIntent {
     DeleteProfile {
         profile_id: String,
     },
+    /// Rename a profile's display name using the shared owner.
+    RenameProfile {
+        profile_id: String,
+        name: String,
+    },
+    /// Reorder profiles in the catalog using snapshot-fenced order.
+    ReorderProfiles {
+        order: Vec<String>,
+    },
+    /// Clear the active profile selection through the shared owner.
+    ClearActiveProfile,
+    /// Create a new named YAML override.
+    CreateNamedOverride {
+        name: String,
+        content: String,
+    },
+    /// Update an existing named YAML override.
+    UpdateNamedOverride {
+        id: String,
+        name: Option<String>,
+        content: Option<String>,
+    },
+    /// Delete an existing named YAML override.
+    DeleteNamedOverride {
+        id: String,
+    },
+    /// Bind or toggle an override for a profile.
+    SetProfileOverrideBinding {
+        profile_id: String,
+        override_id: String,
+        enabled: bool,
+    },
+    /// Reorder overrides bound to a profile.
+    ReorderProfileOverrides {
+        profile_id: String,
+        order: Vec<String>,
+    },
     /// DUAL-08-01/08-11: persist the aggregation draft and recompute the
     /// shared preview from the real source contents. Both surfaces render the
     /// resulting `AggregationReport`; neither clusters or dedups locally.
@@ -294,6 +331,10 @@ pub enum CommandIntent {
         id: String,
     },
     CloseAllConnections,
+    /// Clear closed connection history records (SLINT-007).
+    ClearClosedConnections,
+    /// Clear hourly traffic usage history buckets (SLINT-007).
+    ClearTrafficHistory,
     ClearLogs,
     PrepareLogExport,
     SaveLogExport {
@@ -344,6 +385,8 @@ pub enum CommandIntent {
     SetSystemProxy {
         enabled: bool,
     },
+    /// Recover orphaned system proxy state from journal.
+    RecoverSystemProxy,
     SetLanSharing {
         enabled: bool,
         mixed_port: u16,
@@ -556,6 +599,14 @@ impl CommandIntent {
             | Self::SaveSubscriptionFilter { .. }
             | Self::ImportSubscription { .. }
             | Self::DeleteProfile { .. }
+            | Self::RenameProfile { .. }
+            | Self::ReorderProfiles { .. }
+            | Self::ClearActiveProfile
+            | Self::CreateNamedOverride { .. }
+            | Self::UpdateNamedOverride { .. }
+            | Self::DeleteNamedOverride { .. }
+            | Self::SetProfileOverrideBinding { .. }
+            | Self::ReorderProfileOverrides { .. }
             | Self::PreviewProfileAggregation { .. }
             | Self::CreateAggregatedProfile { .. }
             | Self::SaveAggregationTemplate { .. }
@@ -596,6 +647,8 @@ impl CommandIntent {
             | Self::SetRuntimeProbeSettings { .. } => CommandKind::Proxy,
             Self::CloseConnection { .. }
             | Self::CloseAllConnections
+            | Self::ClearClosedConnections
+            | Self::ClearTrafficHistory
             | Self::ClearDnsCache { .. } => CommandKind::Runtime,
             Self::ClearLogs
             | Self::PrepareLogExport
@@ -617,6 +670,7 @@ impl CommandIntent {
             | Self::ProbeTunMtu
             | Self::RefreshPublicIpProbe
             | Self::SetSystemProxy { .. }
+            | Self::RecoverSystemProxy
             | Self::SetLanSharing { .. }
             | Self::SetLanSecurity { .. }
             | Self::SetIpv6Routing { .. }

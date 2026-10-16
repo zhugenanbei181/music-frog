@@ -25,6 +25,7 @@ use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::outbound::{identity, inventory, preferences, probe};
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
@@ -569,7 +570,7 @@ pub enum Message {
     CancelDnsCacheFlush,
     RetryDnsCacheFlush,
     DnsCacheCommandFinished {
-        token: u64,
+        token: DnsCacheOperationId,
         result: Result<(), error::Failure>,
     },
     WindowClosed(window::Id),

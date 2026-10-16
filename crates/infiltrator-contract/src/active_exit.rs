@@ -1,5 +1,6 @@
 //! Shared read model for the currently selected Mihomo outbound node.
 
+use crate::core_identity::EngineId;
 use crate::outbound::identity::OutboundId;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +39,7 @@ impl ActiveExitSnapshot {
     /// Explicit fixture for demo/screenshot hosts only.
     pub fn demo_fixture() -> Self {
         let engine =
-            crate::core_identity::EngineId::new("mihomo").expect("demo engine identity is valid");
+            EngineId::new("mihomo").expect("demo engine identity is valid");
         Self {
             generation: 1,
             revision: 1,

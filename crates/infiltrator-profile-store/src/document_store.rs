@@ -2,7 +2,6 @@
 
 use infiltrator_platform::durable_replace::{DurableReplaceError, remove_durable, replace_durable};
 use infiltrator_ports::error::PortError;
-use std::fs::OpenOptions as StdOpenOptions;
 use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::id;
@@ -22,7 +21,8 @@ struct TemporaryDocumentCleanup(PathBuf);
 
 impl Drop for TemporaryDocumentCleanup {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
+        use std::fs;
+        let _ = fs::remove_file(&self.0);
     }
 }
 
@@ -127,10 +127,12 @@ pub async fn write_document_bytes_durable(path: &Path, content: &[u8]) -> Result
 /// Synchronous equivalent for product-owner protocols that hold blocking OS
 /// locks across their complete read/modify/write transition.
 pub fn write_document_bytes_durable_sync(path: &Path, content: &[u8]) -> Result<(), PortError> {
+    use std::fs::{self, OpenOptions};
+
     let parent = path
         .parent()
         .ok_or_else(|| PortError::Io("document path has no parent".into()))?;
-    std::fs::create_dir_all(parent).map_err(io_error)?;
+    fs::create_dir_all(parent).map_err(io_error)?;
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
@@ -138,7 +140,7 @@ pub fn write_document_bytes_durable_sync(path: &Path, content: &[u8]) -> Result<
     let (temporary, mut file) = loop {
         let sequence = NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed);
         let temporary = parent.join(format!(".{name}.tmp-{}-{sequence}", id()));
-        match StdOpenOptions::new()
+        match OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&temporary)
@@ -151,14 +153,14 @@ pub fn write_document_bytes_durable_sync(path: &Path, content: &[u8]) -> Result<
     let staged = file.write_all(content).and_then(|()| file.sync_all());
     drop(file);
     if let Err(error) = staged {
-        let _ = std::fs::remove_file(&temporary);
+        let _ = fs::remove_file(&temporary);
         return Err(io_error(error));
     }
 
     match replace_durable(&temporary, path) {
         Ok(()) => Ok(()),
         Err(DurableReplaceError::NotCommitted(error)) => {
-            let _ = std::fs::remove_file(&temporary);
+            let _ = fs::remove_file(&temporary);
             Err(io_error(error))
         }
         Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(

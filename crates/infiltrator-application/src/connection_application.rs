@@ -1,5 +1,8 @@
 //! Active-connection use-cases over the scoped connection port.
 
+use crate::runtime_scope::active_scope;
+use crate::runtime_stream_application::scope_checked;
+use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_contract::connection::ConnectionId;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -42,17 +45,17 @@ impl ConnectionApplication {
     }
 
     pub async fn snapshot(&self) -> Result<ConnectionObservationSnapshot, Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         self.snapshot_for_scope(scope).await
     }
 
     pub async fn close(&self, id: &str) -> Result<(), Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         self.close_for_scope(scope, id).await
     }
 
     pub async fn close_all(&self) -> Result<(), Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         self.close_all_for_scope(scope).await
     }
 
@@ -128,13 +131,13 @@ impl ConnectionApplication {
     pub async fn stream(
         &self,
     ) -> Result<ScopedRuntimeStream<ConnectionObservationSnapshot>, Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         let stream = self
             .port
             .stream(scope.clone())
             .await
             .map_err(Failure::from)?;
-        Ok(crate::runtime_stream_application::scope_checked(
+        Ok(scope_checked(
             self.scope_source.clone(),
             scope,
             stream,
@@ -205,7 +208,7 @@ impl ConnectionApplication {
 
 fn validate_receipt(
     scope: &CoreScope,
-    expected_revision: infiltrator_contract::outbound::identity::SnapshotRevision,
+    expected_revision: SnapshotRevision,
     receipt: &ConnectionControlReceipt,
     expected_ids: &[ConnectionId],
 ) -> Result<(), Failure> {
@@ -241,6 +244,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+    use infiltrator_ports::error::PortError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct UnavailableScope;
@@ -258,9 +262,9 @@ mod tests {
         async fn observe(
             &self,
             _scope: CoreScope,
-        ) -> Result<ConnectionObservationSnapshot, infiltrator_ports::error::PortError> {
+        ) -> Result<ConnectionObservationSnapshot, PortError> {
             self.0.fetch_add(1, Ordering::SeqCst);
-            Err(infiltrator_ports::error::PortError::Failed(
+            Err(PortError::Failed(
                 "unexpected observation".to_owned(),
             ))
         }
@@ -268,7 +272,7 @@ mod tests {
         async fn close(
             &self,
             _request: ConnectionControlRequest,
-        ) -> Result<ConnectionControlReceipt, infiltrator_ports::error::PortError> {
+        ) -> Result<ConnectionControlReceipt, PortError> {
             panic!("unavailable owner must fail before close")
         }
 
@@ -277,7 +281,7 @@ mod tests {
             _scope: CoreScope,
         ) -> Result<
             ScopedRuntimeStream<ConnectionObservationSnapshot>,
-            infiltrator_ports::error::PortError,
+            PortError,
         > {
             panic!("unavailable owner must fail before stream")
         }

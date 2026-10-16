@@ -1,3 +1,4 @@
+use infiltrator_ports::core_process::CoreProcessStartAdmission;
 use self::execution::closed_failure;
 use crate::command_application::handler::CommandHandler;
 use crate::command_capability::validate_terminal_scope;
@@ -16,27 +17,22 @@ use infiltrator_contract::core_identity::{
     CoreCommandOutcome, CoreCommandRequest, CoreGeneration, CoreIdentity, CoreScope,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document::DocumentInspection;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
-use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
-use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{
-    CoreEvent, CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot,
+    CoreEvent, CoreLifecycle, CoreSnapshot,
 };
 use infiltrator_contract::speedtest::{SpeedtestRunId, SpeedtestSnapshot};
 use infiltrator_domain::core_state;
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::overview::OverviewReader;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 use std::collections::VecDeque;
@@ -390,91 +386,6 @@ impl CoreApplication {
         *slot = Some(handler);
     }
 
-    /// Inspect an editor-owned buffer through the configured engine codec.
-    /// This synchronous path is reserved for pure format operations and does
-    /// not enter the Core command queue or contact a running engine.
-    pub fn inspect_profile_buffer(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        content: &str,
-    ) -> Result<DocumentInspection, Failure> {
-        self.editor_command_handler()?
-            .inspect_profile_buffer(identity, content)
-    }
-
-    /// Insert a codec-owned snippet into an editor buffer without mutating
-    /// storage or runtime state.
-    pub fn insert_profile_snippet(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        content: &str,
-        snippet_id: &str,
-        line: usize,
-        column: usize,
-    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
-        self.editor_command_handler()?
-            .insert_profile_snippet(identity, content, snippet_id, line, column)
-    }
-
-    /// Run the composed document and Mixin codec preflight without applying
-    /// the returned mutation to storage or a running engine.
-    pub fn inspect_mixin_draft(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        document_content: &str,
-        mixin_yaml: &str,
-    ) -> Result<(), Failure> {
-        self.editor_command_handler()?
-            .inspect_mixin_draft(identity, document_content, mixin_yaml)
-    }
-
-    pub fn inspect_mixin_toggle(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        mixin_yaml: &str,
-        toggle_id: ProfileMixinToggleId,
-    ) -> Result<bool, Failure> {
-        self.editor_command_handler()?
-            .inspect_mixin_toggle(identity, mixin_yaml, toggle_id)
-    }
-
-    pub fn set_mixin_toggle(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        mixin_yaml: &str,
-        toggle_id: ProfileMixinToggleId,
-        enabled: bool,
-    ) -> Result<String, Failure> {
-        self.editor_command_handler()?
-            .set_mixin_toggle(identity, mixin_yaml, toggle_id, enabled)
-    }
-
-    pub fn inspect_mixin_studio(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        document_content: &str,
-        mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioObservation, Failure> {
-        self.editor_command_handler()?
-            .inspect_mixin_studio(identity, document_content, mixin_yaml)
-    }
-
-    fn editor_command_handler(&self) -> Result<Arc<dyn CommandHandler>, Failure> {
-        if self.inner.closed.load(Ordering::Acquire) {
-            return Err(Failure::new(
-                ErrorCode::InvalidState,
-                "application is closed",
-                false,
-            ));
-        }
-        self.inner
-            .command_handler
-            .read()
-            .expect("command handler lock")
-            .clone()
-            .ok_or_else(|| Failure::unsupported("profile editor codec is not composed"))
-    }
-
     /// Register the owner-scoped outbound port shared by command dispatch and
     /// surface observation. The port is installed once so its adapter-local
     /// inventory revision cannot fork between consumers.
@@ -754,136 +665,6 @@ impl CoreApplication {
         SessionToken::new((u128::from(self.inner.session_namespace) << 64) | u128::from(sequence))
     }
 
-    async fn start_locked(&self) -> Result<(), Failure> {
-        if !matches!(
-            self.current_state(),
-            CoreState::Idle { .. } | CoreState::Failed { .. }
-        ) {
-            return Err(runtime_projection::invalid_state_failure("start"));
-        }
-
-        self.clear_active_core_version();
-
-        // A manual start begins a fresh watchdog window. The recovery path
-        // marks itself `Restarting` before calling this method, so its retry
-        // counters remain intact until the new session is proven ready.
-        self.reset_watchdog_for_start();
-
-        let session_token = self.allocate_session_token();
-        self.apply_domain_event(core_state::CoreEvent::StartRequested { session_token });
-        let Some(identity) = self.inner.process.core_identity() else {
-            let failure = Failure::new(
-                ErrorCode::InvalidState,
-                "Core process launch requires a stable Core identity",
-                false,
-            );
-            self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                session_token,
-                error: failure.message.clone(),
-            });
-            return Err(failure);
-        };
-        let start_context = CoreProcessStartContext::Managed {
-            identity,
-            generation: CoreGeneration::new(self.generation()),
-            session_token,
-        };
-        let admission = match self.inner.process.prepare_start(&start_context).await {
-            Ok(admission) => admission,
-            Err(error) => {
-                let failure = Failure::from(error);
-                self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                    session_token,
-                    error: failure.message.clone(),
-                });
-                return Err(failure);
-            }
-        };
-        let owner_binding = {
-            let state = self
-                .inner
-                .active_profile_owner_binding
-                .lock()
-                .expect("active profile owner binding lock");
-            match &*state {
-                ActiveProfileOwnerBindingState::Bound(binding) => Some(Arc::clone(binding)),
-                ActiveProfileOwnerBindingState::Unbound
-                | ActiveProfileOwnerBindingState::Releasing
-                | ActiveProfileOwnerBindingState::Released => None,
-            }
-        };
-        if let Some(binding) = owner_binding {
-            if let Err(error) = binding.record_start_context(&start_context).await {
-                let failure = Failure::from(error);
-                self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                    session_token,
-                    error: failure.message.clone(),
-                });
-                return Err(failure);
-            }
-        }
-        if admission == infiltrator_ports::core_process::CoreProcessStartAdmission::LaunchNewProcess
-        {
-            if let Err(error) = self.inner.process.start(start_context).await {
-                let message = error.to_string();
-                self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                    session_token,
-                    error: message,
-                });
-                return Err(Failure::from(error));
-            }
-        }
-        match self
-            .wait_for_readiness(session_token, self.inner.readiness_policy.timeout)
-            .await
-        {
-            Ok(endpoint) => {
-                self.refresh_active_core_version().await;
-                self.apply_domain_event(core_state::CoreEvent::ReadinessSuccess {
-                    session_token,
-                    endpoint,
-                });
-                Ok(())
-            }
-            Err(error) => {
-                let failure = self.stop_after_readiness_failure(error).await;
-                self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                    session_token,
-                    error: failure.message.clone(),
-                });
-                Err(failure)
-            }
-        }
-    }
-
-    async fn stop_locked(&self) -> Result<(), Failure> {
-        if matches!(self.current_state(), CoreState::Idle { .. }) {
-            return self.inner.process.stop().await.map_err(Failure::from);
-        }
-
-        let Some(session_token) = self.session_token() else {
-            return Err(runtime_projection::invalid_state_failure("stop"));
-        };
-        self.apply_domain_event(core_state::CoreEvent::StopRequested { session_token });
-        if let Err(error) = self.inner.process.stop().await {
-            let message = error.to_string();
-            self.apply_domain_event(core_state::CoreEvent::StopFailed {
-                session_token,
-                error: message,
-            });
-            return Err(Failure::from(error));
-        }
-
-        self.apply_domain_event(core_state::CoreEvent::StopCompleted { session_token });
-        self.reset_watchdog_after_stop();
-        Ok(())
-    }
-
-    async fn restart_locked(&self) -> Result<(), Failure> {
-        self.stop_locked().await?;
-        self.start_locked().await
-    }
-
     fn current_state(&self) -> CoreState {
         self.inner
             .state
@@ -931,53 +712,6 @@ impl CoreApplication {
         events.push_back(event);
     }
 
-    async fn stop_after_readiness_failure(&self, error: PortError) -> Failure {
-        let mut failure = Failure::from(error);
-        if let Err(cleanup_error) = self.inner.process.stop().await {
-            failure.message.push_str(&format!(
-                "; stopping the core after readiness failure also failed: {cleanup_error}"
-            ));
-        }
-        failure
-    }
-
-    async fn wait_for_readiness(
-        &self,
-        session_token: SessionToken,
-        timeout: time::Duration,
-    ) -> Result<String, PortError> {
-        let deadline = time::Instant::now() + timeout;
-        loop {
-            if self.session_token() != Some(session_token) {
-                return Err(PortError::Failed("stale core session token".to_string()));
-            }
-            match self.inner.process.status().await {
-                Ok(CoreLifecycle::Starting)
-                | Ok(CoreLifecycle::Ready)
-                | Ok(CoreLifecycle::Running) => {}
-                Ok(_) => {
-                    return Err(PortError::Failed(
-                        "core process exited before readiness".to_string(),
-                    ));
-                }
-                Err(error) => return Err(error),
-            }
-
-            let probe_error = match self.inner.readiness.probe().await {
-                Ok(endpoint) => return Ok(endpoint),
-                Err(error) => error,
-            };
-
-            if time::Instant::now() >= deadline {
-                return Err(probe_error);
-            }
-            self.inner
-                .runtime
-                .sleep(self.inner.readiness_policy.poll_interval)
-                .await;
-        }
-    }
-
     /// Produce a typed fail-closed result when a surface has no observed Core
     /// scope. This does not inspect the current owner scope and performs no
     /// command work.
@@ -1002,48 +736,6 @@ impl CoreApplication {
             },
         }
     }
-}
-
-#[cfg(test)]
-pub(crate) fn test_request_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> CoreCommandRequest {
-    CoreCommandRequest {
-        scope: application
-            .snapshot()
-            .scope()
-            .expect("Core application test fixture must expose its owner identity"),
-        intent,
-    }
-}
-
-#[cfg(test)]
-pub(crate) async fn test_execute_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> CoreCommandOutcome {
-    application
-        .execute_scoped(test_request_at_current_scope(application, intent))
-        .await
-}
-
-#[cfg(test)]
-pub(crate) async fn test_execute_result_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> CommandResult {
-    test_execute_at_current_scope(application, intent)
-        .await
-        .result
-}
-
-#[cfg(test)]
-pub(crate) fn test_dispatch_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> (RequestId, Receiver<CoreCommandOutcome>) {
-    application.dispatch_scoped_tracked(test_request_at_current_scope(application, intent))
 }
 
 /// Inbound command client bound to one immutable scope observed by a UI
@@ -1104,154 +796,56 @@ impl ScopedCoreCommandClient {
     }
 }
 
-#[async_trait::async_trait]
-impl CoreLifecyclePort for CoreApplication {
-    fn core_identity(&self) -> Option<CoreIdentity> {
-        self.current_core_identity()
-    }
 
-    fn lifecycle(&self) -> CoreLifecycle {
-        self.snapshot().lifecycle
-    }
+#[path = "core_application/editor.rs"]
+mod editor;
 
-    fn generation(&self) -> u64 {
-        CoreApplication::generation(self)
-    }
 
-    fn session_token(&self) -> Option<SessionToken> {
-        CoreApplication::session_token(self)
-    }
+#[path = "core_application/lifecycle_port.rs"]
+mod lifecycle_port;
 
-    fn lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {
-        self.snapshot().lifecycle_snapshot()
-    }
-
-    async fn start(&self) -> Result<u64, PortError> {
-        match self
-            .execute_lifecycle_with_id(self.allocate_request_id(), CommandIntent::StartCore)
-            .await
-        {
-            CommandResult::Completed { .. } => Ok(self.generation()),
-            CommandResult::Rejected { failure, .. } => Err(PortError::Failed(failure.message)),
-            CommandResult::Produced { .. } => Err(PortError::Failed(
-                "Unexpected typed result for a lifecycle/control command".into(),
-            )),
-            CommandResult::Accepted { .. } => Err(PortError::Failed(
-                "application start unexpectedly returned Accepted".to_string(),
-            )),
-        }
-    }
-
-    async fn stop(&self) -> Result<(), PortError> {
-        match self
-            .execute_lifecycle_with_id(self.allocate_request_id(), CommandIntent::StopCore)
-            .await
-        {
-            CommandResult::Completed { .. } => Ok(()),
-            CommandResult::Rejected { failure, .. } => Err(PortError::Failed(failure.message)),
-            CommandResult::Produced { .. } => Err(PortError::Failed(
-                "Unexpected typed result for a lifecycle/control command".into(),
-            )),
-            CommandResult::Accepted { .. } => Err(PortError::Failed(
-                "application stop unexpectedly returned Accepted".to_string(),
-            )),
-        }
-    }
-
-    async fn restart(&self) -> Result<u64, PortError> {
-        match self
-            .execute_lifecycle_with_id(self.allocate_request_id(), CommandIntent::RestartCore)
-            .await
-        {
-            CommandResult::Completed { .. } => Ok(self.generation()),
-            CommandResult::Rejected { failure, .. } => Err(PortError::Failed(failure.message)),
-            CommandResult::Produced { .. } => Err(PortError::Failed(
-                "Unexpected typed result for a lifecycle/control command".into(),
-            )),
-            CommandResult::Accepted { .. } => Err(PortError::Failed(
-                "application restart unexpectedly returned Accepted".to_string(),
-            )),
-        }
-    }
-
-    fn begin_reload(&self) -> Result<SessionToken, PortError> {
-        let CoreState::Running { session_token, .. } = self.current_state() else {
-            return Err(PortError::Failed(
-                "core is not running for hot reload".to_string(),
-            ));
-        };
-        self.apply_domain_event(core_state::CoreEvent::ReloadRequested { session_token });
-        Ok(session_token)
-    }
-
-    fn complete_reload(&self, session_token: SessionToken) -> Result<(), PortError> {
-        self.check_session(session_token)
-            .map_err(|failure| PortError::Failed(failure.message))?;
-        self.apply_domain_event(core_state::CoreEvent::ReloadSuccess { session_token });
-        Ok(())
-    }
-
-    fn fail_reload(&self, session_token: SessionToken, error: String) -> Result<(), PortError> {
-        self.check_session(session_token)
-            .map_err(|failure| PortError::Failed(failure.message))?;
-        self.apply_domain_event(core_state::CoreEvent::ReloadFailed {
-            session_token,
-            error,
-        });
-        Ok(())
-    }
-
-    async fn wait_for_ready(
-        &self,
-        generation: u64,
-        timeout: time::Duration,
-    ) -> Result<(), PortError> {
-        if self.generation() != generation {
-            return Err(PortError::Failed(
-                "stale application generation".to_string(),
-            ));
-        }
-        let Some(session_token) = self.session_token() else {
-            return Err(PortError::Failed("core session is not active".to_string()));
-        };
-        self.wait_for_readiness(session_token, timeout)
-            .await
-            .map(|_| ())
-    }
-
-    async fn wait_for_ready_session(
-        &self,
-        generation: u64,
-        session_token: SessionToken,
-        timeout: time::Duration,
-    ) -> Result<(), PortError> {
-        if self.generation() != generation {
-            return Err(PortError::Failed(
-                "stale application generation".to_string(),
-            ));
-        }
-        self.check_session(session_token)
-            .map_err(|failure| PortError::Failed(failure.message))?;
-        self.wait_for_readiness(session_token, timeout)
-            .await
-            .map(|_| ())
+#[cfg(test)]
+pub(crate) fn test_request_at_current_scope(
+    application: &CoreApplication,
+    intent: CommandIntent,
+) -> CoreCommandRequest {
+    CoreCommandRequest {
+        scope: application
+            .snapshot()
+            .scope()
+            .expect("Core application test fixture must expose its owner identity"),
+        intent,
     }
 }
 
-#[async_trait::async_trait]
-impl CoreOwnerTerminationPort for CoreApplication {
-    fn active_profile_reference_write_authorization(
-        &self,
-    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
-        CoreApplication::active_profile_reference_write_authorization(self)
-            .map_err(PortError::Rejected)
-    }
-
-    async fn terminate_owner(&self) -> Result<CoreLifecycleSnapshot, PortError> {
-        self.close().await.map_err(PortError::Rejected)?;
-        Ok(self.snapshot().lifecycle_snapshot())
-    }
+#[cfg(test)]
+pub(crate) async fn test_execute_at_current_scope(
+    application: &CoreApplication,
+    intent: CommandIntent,
+) -> CoreCommandOutcome {
+    application
+        .execute_scoped(test_request_at_current_scope(application, intent))
+        .await
 }
+
+#[cfg(test)]
+pub(crate) async fn test_execute_result_at_current_scope(
+    application: &CoreApplication,
+    intent: CommandIntent,
+) -> CommandResult {
+    test_execute_at_current_scope(application, intent)
+        .await
+        .result
+}
+
+#[cfg(test)]
+pub(crate) fn test_dispatch_at_current_scope(
+    application: &CoreApplication,
+    intent: CommandIntent,
+) -> (RequestId, Receiver<CoreCommandOutcome>) {
+    application.dispatch_scoped_tracked(test_request_at_current_scope(application, intent))
+}
+
 
 #[path = "core_telemetry.rs"]
 mod telemetry;

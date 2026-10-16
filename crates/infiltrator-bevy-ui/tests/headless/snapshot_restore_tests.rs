@@ -50,7 +50,7 @@ fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(3);
     loop {
         app.update();
-        if !app.world().resource::<RestoreState>().model.busy() {
+        if !app.world().resource::<RestoreState>().model.is_busy() {
             break;
         }
         assert!(

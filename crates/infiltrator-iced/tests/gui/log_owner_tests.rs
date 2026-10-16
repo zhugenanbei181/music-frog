@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! TEA consumes the application buffer and executes clear/filter on that same owner.
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use crate::state::AppState;
 use crate::test_mounts::command_harness::test_command_application_for;
 use crate::test_mounts::execute_at_observed_scope;
@@ -39,7 +40,7 @@ impl CoreProcess for RunningIdentifiedProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         Ok(())
     }
@@ -137,8 +138,7 @@ fn shared_logs_ignore_private_stream_and_clear_only_after_actual_command_executi
     assert_eq!(state.diag.logs.len(), 1);
     let task = state.update(Message::ClearRuntimeLogs);
     assert_eq!(
-        core.log_application()
-            .page(&core.snapshot())
+        project_log_facts(&core.snapshot(), &core.log_application().facts())
             .data
             .unwrap()
             .entries
@@ -149,8 +149,7 @@ fn shared_logs_ignore_private_stream_and_clear_only_after_actual_command_executi
     observe(&mut state, &core, 2);
     assert!(state.diag.logs.is_empty());
     assert!(
-        core.log_application()
-            .page(&core.snapshot())
+        project_log_facts(&core.snapshot(), &core.log_application().facts())
             .data
             .unwrap()
             .entries

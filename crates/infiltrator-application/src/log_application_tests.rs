@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use infiltrator_contract::logs::LogLevel;
 use crate::command_application::CommandApplication;
 use crate::command_application::handler::CommandHandler;
 use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
@@ -256,7 +257,7 @@ async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics
     let facts = logs.facts();
     assert_eq!(
         facts.active_level,
-        Some(infiltrator_contract::logs::LogLevel::Warn)
+        Some(LogLevel::Warn)
     );
     assert!(
         matches!(facts.observation, LogObservationSnapshot::Observed { records, .. } if records.len() == 2)
@@ -271,7 +272,7 @@ async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics
     assert_eq!(failure.code, ErrorCode::InvalidInput);
     assert_eq!(
         logs.facts().active_level,
-        Some(infiltrator_contract::logs::LogLevel::Warn)
+        Some(LogLevel::Warn)
     );
 
     execute_core_command(&commands, CommandIntent::ClearLogs)
@@ -282,6 +283,6 @@ async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics
     );
     assert_eq!(
         logs.facts().active_level,
-        Some(infiltrator_contract::logs::LogLevel::Warn)
+        Some(LogLevel::Warn)
     );
 }

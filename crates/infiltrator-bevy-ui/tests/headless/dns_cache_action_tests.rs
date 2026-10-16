@@ -29,7 +29,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::dns_cache::{DnsCacheOperationId, DnsFlushOutcome};
+use infiltrator_contract::dns_cache::DnsFlushOutcome;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
@@ -191,14 +191,14 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
     app.world_mut().trigger(CommandExecutedEvent {
         request_id: RequestId(u64::MAX),
         command: UiCommand::ClearDnsCache {
-            operation: DnsCacheOperationId(token),
+            operation: token,
         },
         result: Ok(CommandOutput::Unit),
     });
     app.world_mut().trigger(CommandExecutedEvent {
         request_id: request,
         command: UiCommand::ClearDnsCache {
-            operation: DnsCacheOperationId(token + 1),
+            operation: token + 1,
         },
         result: Ok(CommandOutput::Unit),
     });

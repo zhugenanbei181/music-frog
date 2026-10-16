@@ -8,6 +8,7 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::{ProfileInfo, validate_profile_name};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use std::io::{self, ErrorKind};
 use tokio::fs;
 
 impl<S: SecureStore> EngineProfileStore<S> {
@@ -94,8 +95,8 @@ impl<S: SecureStore> EngineProfileStore<S> {
     }
 }
 
-fn map_io_error(error: std::io::Error) -> PortError {
-    if error.kind() == std::io::ErrorKind::PermissionDenied {
+fn map_io_error(error: io::Error) -> PortError {
+    if error.kind() == ErrorKind::PermissionDenied {
         PortError::PermissionDenied(error.to_string())
     } else {
         PortError::Io(error.to_string())

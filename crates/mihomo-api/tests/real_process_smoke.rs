@@ -9,8 +9,11 @@ use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::rule_provider_runtime::{RuleProviderId, RuleProviderPayload};
+use infiltrator_contract::rule_provider_runtime::{
+    RuleProviderId, RuleProviderPayload, RuleProviderPayloadSnapshot,
+};
 use infiltrator_ports::connection::{
     ConnectionControlRequest, ConnectionControlTarget, ConnectionPort,
 };
@@ -35,8 +38,10 @@ use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use std::env;
+use std::fs;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::{sleep, timeout};
 
 struct FixedScope(CoreScope);
 
@@ -114,7 +119,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         .close(close_request)
         .await
         .expect("typed Connection.Close reaches the live Mihomo controller");
-    tokio::time::timeout(Duration::from_secs(5), async {
+    timeout(Duration::from_secs(5), async {
         loop {
             let snapshot = connection_port
                 .observe(connection_scope.clone())
@@ -123,18 +128,18 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
             if !snapshot.connection_ids().contains(&active_connection_id) {
                 break;
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(50)).await;
         }
     })
     .await
     .expect("Mihomo removes the exact connection after Connection.Close");
 
-    let stream_port = MihomoRuntimeStreamPort::new(client.clone(), Some(scope_resolver.clone()));
+    let stream_port = MihomoRuntimeStreamPort::new(client.clone(), Some(scope_resolver.clone())); // runtime_stream_port()
     let mut log_events = stream_port
         .logs(connection_scope.clone(), None)
         .await
         .expect("open Core-scoped Mihomo log stream");
-    tokio::time::timeout(Duration::from_secs(5), async {
+    timeout(Duration::from_secs(5), async {
         loop {
             let event = log_events.next().await.expect("log stream remains open");
             assert_eq!(event.scope, connection_scope);
@@ -198,7 +203,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         .await
         .expect("typed scoped resource observation");
     let before_bytes = match resource_before.memory_bytes {
-        infiltrator_contract::resources::ResourceAvailability::Available(value) => value,
+        ResourceAvailability::Available(value) => value,
         outcome => panic!("live Mihomo memory must be available: {outcome:?}"),
     };
     let gc_receipt = resource_port
@@ -250,7 +255,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         Arc::new(FixedScope(scope.clone())),
     );
     let update_signal_path = required_environment("MIHOMO_REAL_RULE_PROVIDER_UPDATE_SIGNAL");
-    let initial_inventory = tokio::time::timeout(Duration::from_secs(5), async {
+    let initial_inventory = timeout(Duration::from_secs(5), async {
         loop {
             let inventory = RuleProviderPort::inventory(&rule_providers, scope.clone())
                 .await
@@ -260,7 +265,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
             {
                 break inventory;
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(50)).await;
         }
     })
     .await
@@ -281,7 +286,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         )
         .await
         .expect("HTTP providers do not publish inline payloads"),
-        infiltrator_contract::rule_provider_runtime::RuleProviderPayloadSnapshot::new(
+        RuleProviderPayloadSnapshot::new(
             scope.clone(),
             initial_inventory.revision(),
             rule_provider_id.clone(),
@@ -289,7 +294,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         )
         .expect("valid not-published payload snapshot")
     );
-    std::fs::write(&update_signal_path, b"update")
+    fs::write(&update_signal_path, b"update")
         .expect("enable the second local fixture payload");
     let receipt = RuleProviderPort::refresh(
         &rule_providers,
@@ -301,7 +306,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     .expect("typed rule-provider update reaches the live Mihomo controller");
     assert_eq!(receipt.scope(), &scope);
     assert_eq!(receipt.provider_id(), &rule_provider_id);
-    let updated_rule_provider = tokio::time::timeout(Duration::from_secs(5), async {
+    let updated_rule_provider = timeout(Duration::from_secs(5), async {
         loop {
             let inventory = RuleProviderPort::inventory(&rule_providers, scope.clone())
                 .await
@@ -311,7 +316,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
             {
                 break provider.rule_count;
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(50)).await;
         }
     })
     .await

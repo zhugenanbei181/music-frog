@@ -1,3 +1,8 @@
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_platform::android_bridge::AndroidBridge;
+use infiltrator_ports::core_process::CoreReadiness;
+use std::path::Path;
 use super::{SharedCore, SharedCoreEngine, authorize_android_core_start};
 use crate::composition::singbox::core_application_for_singbox;
 use crate::core_version_owner::{core_binary_selection_port, core_version_application};
@@ -5,6 +10,7 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_settings_application, map_mihomo_error};
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
+use infiltrator_contract::android_control::core_launch::AndroidCoreBinaryTarget;
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
@@ -30,7 +36,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub(super) async fn build_shared_core(
-    bridge: Arc<dyn infiltrator_platform::android_bridge::AndroidBridge>,
+    bridge: Arc<dyn AndroidBridge>,
     reference_store: Arc<ConfigManager<DefaultCredentialStore>>,
     reference: ActiveProfileReference,
     selection_lease: Box<dyn ActiveProfileReferenceLease>,
@@ -109,7 +115,7 @@ pub(super) async fn build_shared_core(
             format!("Android sing-box controller endpoint is invalid: {error}"),
         )
     })?;
-    let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> = Arc::new(
+    let readiness: Arc<dyn CoreReadiness> = Arc::new(
         SingBoxControllerReadiness::with_reqwest(controller).map_err(|error| {
             FfiStatus::err(
                 FfiErrorCode::Config,
@@ -165,7 +171,7 @@ pub(super) async fn build_shared_core(
     application
         .install_active_profile_owner_binding(owner_binding)
         .map_err(|failure| {
-            FfiStatus::from(infiltrator_contract::error::InfiltratorError::Backend(
+            FfiStatus::from(InfiltratorError::Backend(
                 failure.message,
             ))
         })?;
@@ -201,9 +207,9 @@ pub(super) async fn profile_store_at_root(
 
 pub(super) fn validate_binary_selection(
     selection: &CoreBinarySelection,
-    engine_id: &infiltrator_contract::core_identity::EngineId,
+    engine_id: &EngineId,
     expected_target: EngineBinaryTarget,
-    working_directory: &std::path::Path,
+    working_directory: &Path,
 ) -> Result<(), FfiStatus> {
     selection
         .validate_for(engine_id, expected_target)
@@ -219,7 +225,7 @@ pub(super) fn validate_binary_selection(
             if verified_engine == engine_id && version == selection.version.raw()
     );
     let android_target = expected_target.target_triple().is_some_and(|target| {
-        infiltrator_contract::android_control::AndroidCoreBinaryTarget::from_target_triple(target)
+        AndroidCoreBinaryTarget::from_target_triple(target)
             .is_some()
     });
     let expected_path = expected_target.target_triple().map(|target| {

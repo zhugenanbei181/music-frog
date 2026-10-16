@@ -2,7 +2,10 @@
 
 use async_trait::async_trait;
 use infiltrator_ports::error::PortError;
+use std::io::{self, ErrorKind};
 use std::path::Path;
+use std::process::Stdio;
+use tokio::process::{Child, Command};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeConfigCheck {
@@ -48,13 +51,13 @@ impl SingBoxCommandPort for TokioSingBoxCommandPort {
         binary_path: &Path,
         config_path: &Path,
     ) -> Result<NativeConfigCheck, PortError> {
-        let output = tokio::process::Command::new(binary_path)
+        let output = Command::new(binary_path)
             .arg("check")
             .arg("-c")
             .arg(config_path)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .kill_on_drop(true)
             .output()
             .await
@@ -71,13 +74,13 @@ impl SingBoxCommandPort for TokioSingBoxCommandPort {
         binary_path: &Path,
         config_path: &Path,
     ) -> Result<Box<dyn SingBoxChildProcess>, PortError> {
-        let mut child = tokio::process::Command::new(binary_path)
+        let mut child = Command::new(binary_path)
             .arg("run")
             .arg("-c")
             .arg(config_path)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .kill_on_drop(true)
             .spawn()
             .map_err(|error| map_command_error(binary_path, error))?;
@@ -97,7 +100,7 @@ impl SingBoxCommandPort for TokioSingBoxCommandPort {
 }
 
 struct TokioSingBoxChildProcess {
-    child: tokio::process::Child,
+    child: Child,
     pid: u32,
 }
 
@@ -136,13 +139,13 @@ impl SingBoxChildProcess for TokioSingBoxChildProcess {
     }
 }
 
-fn map_command_error(binary_path: &Path, error: std::io::Error) -> PortError {
+fn map_command_error(binary_path: &Path, error: io::Error) -> PortError {
     match error.kind() {
-        std::io::ErrorKind::NotFound => PortError::NotFound(format!(
+        ErrorKind::NotFound => PortError::NotFound(format!(
             "sing-box executable is unavailable at {}",
             binary_path.display()
         )),
-        std::io::ErrorKind::PermissionDenied => {
+        ErrorKind::PermissionDenied => {
             PortError::PermissionDenied("sing-box executable cannot be started".to_owned())
         }
         _ => PortError::Io(format!("sing-box command failed to start: {error}")),

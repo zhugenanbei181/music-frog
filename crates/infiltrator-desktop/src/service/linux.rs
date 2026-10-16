@@ -234,7 +234,7 @@ impl LinuxPrivilegeWizard {
 "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <vendor>MusicFrog Infiltrator</vendor>
-  <vendor_url>https://github.com/musicfrog/infiltrator</vendor_url>
+  <vendor_url>https://github.com/zhugenanbei181/music-frog</vendor_url>
   <icon_name>network-vpn</icon_name>
   <action id="{POLKIT_ACTION_ID}">
     <description>Grant network administration capabilities to Infiltrator core</description>

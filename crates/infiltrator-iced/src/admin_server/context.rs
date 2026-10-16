@@ -1,3 +1,6 @@
+use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use tokio::task::spawn_blocking;
 use super::*;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -29,12 +32,12 @@ impl IcedAdminContext {
 impl AdminApiContext for IcedAdminContext {
     async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
         let store = profile_store().await?;
-        Ok(infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store))
+        Ok(profiles_for_mihomo(store))
     }
 
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
         Ok(
-            infiltrator_composition::mihomo_configuration::for_mihomo_profiles(
+            for_mihomo_profiles(
                 self.profile_application().await?,
             ),
         )
@@ -204,7 +207,7 @@ impl AdminApiContext for IcedAdminContext {
             }
             CoreOwnerAction::RetryOwnerSwitch => DesktopProductSessionAction::RetryOwnerSwitch,
         };
-        let result = tokio::task::spawn_blocking(move || session.apply(desktop_action)).await;
+        let result = spawn_blocking(move || session.apply(desktop_action)).await;
         let binding = match result {
             Ok(Ok(binding)) => binding,
             Ok(Err(error)) => {

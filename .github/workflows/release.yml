@@ -90,9 +90,27 @@ jobs:
             bevy_binary_name: infiltrator-bevy-ui
             slint_binary_name: infiltrator-slint
             pkg_format: linux-all
+            deb_arch: amd64
+            appimage_arch: x86_64
             artifact_name: Infiltrator-Linux-x86_64
             bevy_artifact_name: Infiltrator-Bevy-Linux-x86_64
             slint_artifact_name: Infiltrator-Slint-Linux-x86_64
+          # Linux arm64 —— 原生 ARM64 runner（避免在 x86_64 上交叉链接 GTK/wayland
+          # 系统库），同一 zigbuild glibc 2.17 定桩与 static-openssl。三个产品各自
+          # 出 AppImage / deb(arm64) / tarball。
+          - os: ubuntu-26.04-arm
+            target: aarch64-unknown-linux-gnu
+            zig_target: aarch64-unknown-linux-gnu.2.17
+            tool: zigbuild
+            binary_name: infiltrator-iced
+            bevy_binary_name: infiltrator-bevy-ui
+            slint_binary_name: infiltrator-slint
+            pkg_format: linux-all
+            deb_arch: arm64
+            appimage_arch: aarch64
+            artifact_name: Infiltrator-Linux-aarch64
+            bevy_artifact_name: Infiltrator-Bevy-Linux-aarch64
+            slint_artifact_name: Infiltrator-Slint-Linux-aarch64
 
     steps:
       - name: Checkout repository
@@ -283,11 +301,11 @@ jobs:
           test -s "dist/${{ matrix.artifact_name }}.tar.gz"
 
           bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
-            "${GITHUB_REF_NAME#v}" "amd64" "dist"
-          test -s "dist/${ICED_PACKAGE}_${GITHUB_REF_NAME#v}_amd64.deb"
+            "${GITHUB_REF_NAME#v}" "${{ matrix.deb_arch }}" "dist"
+          test -s "dist/${ICED_PACKAGE}_${GITHUB_REF_NAME#v}_${{ matrix.deb_arch }}.deb"
 
-          bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
-          test -s "dist/${ICED_ARTIFACT_PREFIX}-Linux-x86_64.AppImage"
+          APPIMAGE_ARCH="${{ matrix.appimage_arch }}" bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
+          test -s "dist/${ICED_ARTIFACT_PREFIX}-Linux-${{ matrix.appimage_arch }}.AppImage"
 
           find dist -maxdepth 1 -type f -size +0c -print
 
@@ -312,11 +330,11 @@ jobs:
 
           APP_PRODUCT=bevy \
             bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
-              "${GITHUB_REF_NAME#v}" "amd64" "dist"
-          test -s "dist/${BEVY_PACKAGE}_${GITHUB_REF_NAME#v}_amd64.deb"
+              "${GITHUB_REF_NAME#v}" "${{ matrix.deb_arch }}" "dist"
+          test -s "dist/${BEVY_PACKAGE}_${GITHUB_REF_NAME#v}_${{ matrix.deb_arch }}.deb"
 
-          APP_PRODUCT=bevy bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
-          test -s "dist/${BEVY_ARTIFACT_PREFIX}-Linux-x86_64.AppImage"
+          APP_PRODUCT=bevy APPIMAGE_ARCH="${{ matrix.appimage_arch }}" bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
+          test -s "dist/${BEVY_ARTIFACT_PREFIX}-Linux-${{ matrix.appimage_arch }}.AppImage"
 
           find dist -maxdepth 1 -type f -size +0c -print
 
@@ -341,11 +359,11 @@ jobs:
 
           APP_PRODUCT=slint \
             bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
-              "${GITHUB_REF_NAME#v}" "amd64" "dist"
-          test -s "dist/${SLINT_PACKAGE}_${GITHUB_REF_NAME#v}_amd64.deb"
+              "${GITHUB_REF_NAME#v}" "${{ matrix.deb_arch }}" "dist"
+          test -s "dist/${SLINT_PACKAGE}_${GITHUB_REF_NAME#v}_${{ matrix.deb_arch }}.deb"
 
-          APP_PRODUCT=slint bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
-          test -s "dist/${SLINT_ARTIFACT_PREFIX}-Linux-x86_64.AppImage"
+          APP_PRODUCT=slint APPIMAGE_ARCH="${{ matrix.appimage_arch }}" bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
+          test -s "dist/${SLINT_ARTIFACT_PREFIX}-Linux-${{ matrix.appimage_arch }}.AppImage"
 
           find dist -maxdepth 1 -type f -size +0c -print
 
@@ -531,18 +549,20 @@ jobs:
       - name: Consolidate & Generate Checksums / Manifests
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p release-dist
           # Only consolidate official end-user packages (installers, packages, archives and APKs).
           # Filter out intermediate build artifacts (bare core binaries, internal plists, license txts, build json metadata).
-          find all-artifacts/ -type f \( \
-            -name 'Infiltrator*.exe' -o \
-            -name 'Infiltrator*.dmg' -o \
-            -name 'Infiltrator*.AppImage' -o \
-            -name '*.deb' -o \
-            -name 'Infiltrator*.tar.gz' -o \
-            -name 'Infiltrator*.zip' -o \
-            -name 'Infiltrator*.apk' \
-          \) -exec cp {} release-dist/ \;
+          # Registered artifact prefixes come from product-identity.properties so a
+          # renamed product flows through automatically; .deb keeps the Debian
+          # package naming convention (infiltrator_<version>_<arch>.deb).
+          name_expr=()
+          for key in desktop.iced desktop.bevy desktop.slint compose bevy slint; do
+            prefix="$(python3 scripts/product_identity.py --get "${key}.release_artifact_prefix")"
+            name_expr+=(-name "${prefix}*" -o)
+          done
+          name_expr+=(-name '*.deb')
+          find all-artifacts/ -type f \( "${name_expr[@]}" \) -exec cp {} release-dist/ \;
           cd release-dist
 
           # Generate SHA256SUMS.txt

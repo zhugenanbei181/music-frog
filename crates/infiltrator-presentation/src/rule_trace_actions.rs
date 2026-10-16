@@ -92,6 +92,12 @@ impl RuleTraceActions {
             | RuleTraceRunPhase::Failed { .. } => None,
         }
     }
+    pub fn is_pending(&self) -> bool {
+        self.pending_operation().is_some() || self.override_pending_operation().is_some()
+    }
+    pub fn is_awaiting_readback(&self) -> bool {
+        matches!(&self.run, RuleTraceRunPhase::AwaitingReadback { .. })
+    }
     pub fn confirmation(&self) -> Option<&TracerRuleOverride> {
         match &self.override_phase {
             RuleOverridePhase::Confirming(request)

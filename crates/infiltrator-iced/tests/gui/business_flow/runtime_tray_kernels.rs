@@ -487,7 +487,7 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert_eq!(units, 1, "intent resolves and forwards…");
     let units = feed(&mut state, Message::UpdateAllSubscriptionsNow);
     assert!(units >= 1, "…into the live update-all handler");
-    assert!(state.profile.is_updating_subscription_now);
+    assert!(state.profile.subscription_update_phase.is_updating());
 }
 
 /// Kernel entries surface in the tray spec: one nested submenu per version,

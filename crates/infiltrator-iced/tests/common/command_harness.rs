@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Hostless command application shared by UI behavior tests.
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::command_application::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
@@ -52,7 +53,7 @@ impl CoreProcess for HostlessProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         Err(PortError::Failed("unexpected lifecycle command".into()))
     }

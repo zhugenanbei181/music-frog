@@ -10,7 +10,7 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope;
-use std::fs::{read, write};
+use std::fs::{create_dir, read, write};
 use tempfile::TempDir;
 
 fn scope(engine: &str) -> ProfileDocumentCodecScope {
@@ -92,7 +92,7 @@ fn source_identity_hashes_subscription_urls_without_retaining_the_secret() {
 async fn failed_document_publication_restores_exact_previous_sidecar_bytes() {
     let directory = TempDir::new().unwrap();
     let sidecar = directory.path().join("options/main.json");
-    std::fs::create_dir(sidecar.parent().unwrap()).unwrap();
+    create_dir(sidecar.parent().unwrap()).unwrap();
     write(&sidecar, b"previous exact bytes").unwrap();
 
     let result = publish_document_pair(

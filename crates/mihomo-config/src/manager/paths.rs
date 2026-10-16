@@ -118,6 +118,7 @@ fn profile_path_error(error: PortError) -> MihomoError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_profile_store::namespace::ProfileNamespaceInitialization;
     #[cfg(test)]
     use crate::manager;
     #[cfg(test)]
@@ -293,13 +294,13 @@ mod tests {
             manager.config_dir().join("profile-state.toml")
         );
         match manager.profile_store.namespace_initialization() {
-            infiltrator_profile_store::namespace::ProfileNamespaceInitialization::LegacyV1(
+            ProfileNamespaceInitialization::LegacyV1(
                 migration,
             ) => assert_eq!(
                 migration.settings_file(),
                 home.join("config.toml").as_path()
             ),
-            infiltrator_profile_store::namespace::ProfileNamespaceInitialization::EngineScoped => {
+            ProfileNamespaceInitialization::EngineScoped => {
                 panic!("Mihomo store must carry the explicit legacy namespace migration")
             }
         }

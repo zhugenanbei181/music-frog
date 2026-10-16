@@ -285,6 +285,10 @@ pub mod space {
     pub const S20: f32 = 20.0;
     pub const S24: f32 = 24.0;
     pub const S32: f32 = 32.0;
+    /// Mobile screen edge margin (compact smartphones: 16px).
+    pub const SCREEN_MARGIN_MOBILE: f32 = 16.0;
+    /// Tablet screen edge margin (medium viewports: 24px).
+    pub const SCREEN_MARGIN_TABLET: f32 = 24.0;
 }
 
 /// Corner radius scale (px), mirroring `design_tokens::radius`.
@@ -295,6 +299,10 @@ pub mod radius {
     pub const CONTROL: f32 = 10.0;
     pub const CARD: f32 = 16.0;
     pub const MODAL: f32 = 24.0;
+    /// Mobile bottom sheet top edge radius (28px).
+    pub const BOTTOM_SHEET: f32 = 28.0;
+    /// Dialog corner radius (28px).
+    pub const DIALOG: f32 = 28.0;
     pub const PILL: f32 = 999.0;
     pub const SHEET_TOP: f32 = 16.0;
 }
@@ -336,7 +344,13 @@ pub mod type_scale {
     pub const TITLE: f32 = 20.0;
     pub const HEADING: f32 = 20.0;
     pub const BODY: f32 = 15.0;
+    /// Large reading / prominent body text (16px).
+    pub const BODY_LARGE: f32 = 16.0;
+    /// Standard mobile label / button caption (14px).
+    pub const LABEL_LARGE: f32 = 14.0;
     pub const CAPTION: f32 = 12.0;
+    /// Small mobile auxiliary label (11px).
+    pub const LABEL_SMALL: f32 = 11.0;
     pub const TAG: f32 = 10.0;
     pub const MONO: f32 = 13.0;
 }
@@ -392,6 +406,57 @@ pub mod metrics {
     pub const CARET_WIDTH: f32 = 2.0;
     /// Minimum mobile touch target dimension (px) for touch accessibility.
     pub const MIN_TOUCH_TARGET: f32 = 48.0;
+    /// Compact mobile touch target (Apple HIG minimum: 44px).
+    pub const TOUCH_TARGET_COMPACT: f32 = 44.0;
+    /// Comfortable mobile touch target (Android HIG standard: 48px).
+    pub const TOUCH_TARGET_COMFORTABLE: f32 = 48.0;
+    /// Standard mobile bottom navigation bar height (56px).
+    pub const BOTTOM_NAV_HEIGHT: f32 = 56.0;
+    /// Standard mobile top app bar / header height (64px).
+    pub const TOP_APP_BAR_HEIGHT: f32 = 64.0;
+}
+
+/// Mobile navigation and interaction tokens for each skin (BANDROID-027.1).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MobileThemeTokens {
+    pub bottom_nav_bg: TokenColor,
+    pub bottom_nav_indicator: TokenColor,
+    pub touch_ripple: TokenColor,
+    pub swipe_action: TokenColor,
+    pub swipe_destructive: TokenColor,
+}
+
+pub const fn mobile_theme_tokens(skin: ThemeSkin) -> MobileThemeTokens {
+    match skin {
+        ThemeSkin::Dark => MobileThemeTokens {
+            bottom_nav_bg: TokenColor::rgb(0.106, 0.118, 0.125),
+            bottom_nav_indicator: TokenColor::rgba(0.12, 0.56, 0.96, 0.24),
+            touch_ripple: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
+            swipe_action: TokenColor::rgb(0.12, 0.56, 0.96),
+            swipe_destructive: TokenColor::rgb(0.96, 0.35, 0.32),
+        },
+        ThemeSkin::Light => MobileThemeTokens {
+            bottom_nav_bg: TokenColor::rgb(0.965, 0.969, 0.969),
+            bottom_nav_indicator: TokenColor::rgba(0.04, 0.44, 0.88, 0.16),
+            touch_ripple: TokenColor::rgba(0.0, 0.0, 0.0, 0.12),
+            swipe_action: TokenColor::rgb(0.04, 0.44, 0.88),
+            swipe_destructive: TokenColor::rgb(0.88, 0.24, 0.22),
+        },
+        ThemeSkin::Forest => MobileThemeTokens {
+            bottom_nav_bg: TokenColor::rgb(0.851, 0.910, 0.843),
+            bottom_nav_indicator: TokenColor::rgba(0.188, 0.435, 0.306, 0.20),
+            touch_ripple: TokenColor::rgba(0.122, 0.208, 0.145, 0.12),
+            swipe_action: TokenColor::rgb(0.188, 0.435, 0.306),
+            swipe_destructive: TokenColor::rgb(0.702, 0.231, 0.275),
+        },
+        ThemeSkin::Amoled => MobileThemeTokens {
+            bottom_nav_bg: TokenColor::rgb(0.051, 0.059, 0.067),
+            bottom_nav_indicator: TokenColor::rgba(0.12, 0.56, 0.96, 0.28),
+            touch_ripple: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
+            swipe_action: TokenColor::rgb(0.12, 0.56, 0.96),
+            swipe_destructive: TokenColor::rgb(0.96, 0.35, 0.32),
+        },
+    }
 }
 
 /// Responsive layout breakpoints (px).

@@ -6,6 +6,8 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -82,8 +84,8 @@ pub enum ProfileNameError {
     TrailingWindowsCharacter,
 }
 
-impl std::fmt::Display for ProfileNameError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ProfileNameError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => formatter.write_str("配置名称不能为空"),
             Self::TooLong => formatter.write_str("配置名称不能超过 128 个字符"),
@@ -97,7 +99,7 @@ impl std::fmt::Display for ProfileNameError {
     }
 }
 
-impl std::error::Error for ProfileNameError {}
+impl Error for ProfileNameError {}
 
 /// Validate one portable profile name before using it as a storage key or
 /// filesystem component.

@@ -44,6 +44,7 @@ use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
 #[cfg(test)]
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
@@ -55,7 +56,7 @@ use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 #[cfg(test)]
 pub(crate) async fn select_test_profile<S>(manager: &ConfigManager<S>, profile: &str)
 where
-    S: infiltrator_ports::secure_store::SecureStore,
+    S: SecureStore,
 {
     use infiltrator_contract::active_profile_reference::{
         ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,

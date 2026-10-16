@@ -1,6 +1,7 @@
 use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::CoreIdentity;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
@@ -99,7 +100,7 @@ pub trait CoreOwnerTerminationPort: CoreLifecyclePort {
         &self,
     ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "exact active-profile owner binding is unavailable",
         ))
     }

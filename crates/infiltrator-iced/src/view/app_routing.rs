@@ -84,7 +84,8 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     .padding([8, 16])
     .style(style_accent)
     .on_press_maybe(
-        (!state.app_routing.is_refreshing).then_some(Message::RefreshAppRoutingProcesses),
+        (!state.app_routing.refresh_phase.is_refreshing())
+            .then_some(Message::RefreshAppRoutingProcesses),
     );
 
     let search_bar = search_input(

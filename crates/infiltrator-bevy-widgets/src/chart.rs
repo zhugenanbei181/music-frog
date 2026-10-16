@@ -38,10 +38,12 @@ pub mod topology;
 use crate::palette::UiPalette;
 use bevy::asset::{Assets, RenderAssetUsages};
 use bevy::color::Color;
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::world::Ref;
 use bevy::image::Image;
 use bevy::picking::hover::PickingInteraction;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -305,7 +307,7 @@ struct ChartPaint {
 #[derive(QueryData)]
 pub struct ChartRenderView {
     entity: Entity,
-    plate: &'static ChartPlate,
+    plate: Ref<'static, ChartPlate>,
     paint: Option<&'static ChartPaint>,
     texture: ChartTextureView,
 }
@@ -532,12 +534,17 @@ pub fn sync_charts(
     charts: Query<ChartRenderView>,
     mut commands: Commands,
 ) {
+    let retheme = palette.is_changed();
     let Some(mut images) = images else {
         return;
     };
     for view in &charts {
-        let (entity, plate, paint) = (view.entity, view.plate, view.paint);
+        let (entity, plate, paint) = (view.entity, &view.plate, view.paint);
         let spec = &plate.0;
+        let needs_check = retheme || plate.is_changed() || paint.is_none();
+        if !needs_check && view.texture.is_bound::<ChartPlate>(&images) {
+            continue;
+        }
         let repaint = !paint.is_some_and(|paint| paint.matches(spec, &palette));
         if view.texture.sync::<ChartPlate>(
             &mut images,

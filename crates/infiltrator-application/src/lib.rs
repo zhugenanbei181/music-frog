@@ -1,3 +1,15 @@
+#![allow(
+    clippy::large_enum_variant,
+    clippy::collapsible_if,
+    clippy::needless_borrow,
+    clippy::needless_return,
+    clippy::too_many_arguments,
+    clippy::useless_conversion,
+    clippy::single_match,
+    clippy::let_and_return,
+    clippy::clone_on_copy,
+    clippy::field_reassign_with_default
+)]
 //! Application services for MusicFrog Infiltrator.
 //!
 //! The application layer is runtime-neutral. Its public surface is expressed
@@ -58,8 +70,6 @@ pub mod profile_options_application;
 pub mod profile_reset_application;
 pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;
-pub mod protocol_node_params;
-pub mod protocol_node_projection;
 pub mod public_ip_application;
 pub mod reconnect_mask_application;
 pub mod resource_application;

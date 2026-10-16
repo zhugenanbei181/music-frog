@@ -1,6 +1,6 @@
 use super::{read_optional, read_optional_bytes, remove_optional, write_document};
 use infiltrator_ports::error::PortError;
-use std::fs::{create_dir, read_dir, read_to_string, write};
+use std::fs::{create_dir, read, read_dir, read_to_string, write};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -43,5 +43,5 @@ async fn optional_removal_is_idempotent_and_preserves_non_file_targets() {
         remove_optional(&path).await,
         Err(PortError::Io(_))
     ));
-    assert_eq!(std::fs::read(path.join("sentinel")).unwrap(), b"keep");
+    assert_eq!(read(path.join("sentinel")).unwrap(), b"keep");
 }

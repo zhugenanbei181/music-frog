@@ -1,3 +1,5 @@
+use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_composition::capture_fixtures::list_document;
@@ -105,7 +107,7 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
+        RuleListReadback::Observed(document),
     );
     // The shared application service is exactly what the handler drives;
     // the async result then lands in `finish_rule_provider_unpack`.
@@ -114,7 +116,7 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
         .deconstruct(
             &declaration,
             "PROXY",
-            infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess::Unavailable,
+            RuleProviderRuntimeAccess::Unavailable,
         )
         .await
         .expect("plan");

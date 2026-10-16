@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AppRun entrypoint for Infiltrator AppImage
+# AppRun entrypoint for MusicFrog Infiltrator AppImage
 set -e
 
 # Determine the directory where AppRun is located
@@ -7,12 +7,13 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 
 export APPDIR="${HERE}"
 export PATH="${APPDIR}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${APPDIR}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${APPDIR}/usr/lib/@MULTIARCH@:${LD_LIBRARY_PATH:-}"
 export XDG_DATA_DIRS="${APPDIR}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
 # Ensure fontconfig and icons resolve inside AppImage
 export FONTCONFIG_PATH="${APPDIR}/etc/fonts:${FONTCONFIG_PATH:-}"
 
 # Execute application. @APP_BIN@ is substituted by build-appimage.sh so the
-# same tested entrypoint serves both the iced and bevy packages.
+# same tested entrypoint serves every desktop product package (iced, bevy,
+# slint).
 exec "${APPDIR}/usr/bin/@APP_BIN@" "$@"

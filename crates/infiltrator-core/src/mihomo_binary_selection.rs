@@ -11,9 +11,10 @@ use infiltrator_ports::core_binary_selection::{
 use infiltrator_ports::error::PortError;
 use mihomo_api::error::MihomoError;
 use mihomo_version::bundled_kernel::{bundled_binary_sha256, copy_bundled_binary};
-use mihomo_version::engine::engine_id as mihomo_engine_id;
+use mihomo_version::engine;
 use mihomo_version::manager::{VersionInfo, VersionManager};
-use std::path::Path;
+use std::cmp::Ordering;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::process::Command;
 
@@ -29,7 +30,7 @@ impl MihomoBinarySelectionAdapter {
         manager: VersionManager,
         verification: Arc<Mutex<CoreArtifactVerification>>,
     ) -> Result<Self, PortError> {
-        if engine_id != mihomo_engine_id() || manager.engine_id() != &engine_id {
+        if engine_id != engine::engine_id() || manager.engine_id() != &engine_id {
             return Err(unsupported_engine(&engine_id));
         }
         Ok(Self {
@@ -86,7 +87,7 @@ impl MihomoBinarySelectionAdapter {
 
     async fn bundled_selection(
         &self,
-        candidates: &[std::path::PathBuf],
+        candidates: &[PathBuf],
         data_directory: &Path,
     ) -> Result<Option<CoreBinarySelection>, PortError> {
         let path = copy_bundled_binary(candidates, data_directory)
@@ -214,13 +215,13 @@ fn sort_versions_desc(versions: &mut [VersionInfo]) {
     versions.sort_by(|left, right| compare_versions_desc(&left.version, &right.version));
 }
 
-fn compare_versions_desc(left: &str, right: &str) -> std::cmp::Ordering {
+fn compare_versions_desc(left: &str, right: &str) -> Ordering {
     let left_parts = version_parts(left);
     let right_parts = version_parts(right);
     match (left_parts, right_parts) {
         (Some(left), Some(right)) => right.cmp(&left),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
         (None, None) => right.cmp(left),
     }
 }
@@ -288,7 +289,7 @@ mod tests {
     use tokio::fs;
 
     fn engine() -> EngineId {
-        mihomo_engine_id()
+        engine::engine_id()
     }
 
     async fn write_version_script(path: &Path, output: &str) {

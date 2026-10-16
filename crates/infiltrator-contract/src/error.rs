@@ -1,3 +1,4 @@
+use crate::active_profile_reference::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::{error, fmt, io};
@@ -132,8 +133,8 @@ pub enum FailureReason {
         expected_revision: u64,
         observed_revision: u64,
     },
-    CoreApplyFailure(crate::active_profile_reference::CoreApplyFailureKind),
-    ActiveProfileRecovery(crate::active_profile_reference::ActiveProfileRecoveryOutcome),
+    CoreApplyFailure(CoreApplyFailureKind),
+    ActiveProfileRecovery(ActiveProfileRecoveryOutcome),
 }
 
 impl Failure {

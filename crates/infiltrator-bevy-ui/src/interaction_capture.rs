@@ -24,7 +24,6 @@ use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_contract::parity::FeatureId;
 use std::env;
-use std::sync::Arc;
 
 mod connections;
 mod dns_cache;

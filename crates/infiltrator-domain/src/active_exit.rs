@@ -141,7 +141,7 @@ mod tests {
     use infiltrator_contract::outbound::details::{
         OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
         OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation,
-        OutboundRttStatistics, OutboundUdpSupport,
+        OutboundRttStatistics, OutboundSnapshot, OutboundUdpSupport,
     };
     use infiltrator_contract::outbound::identity::{
         OutboundId, OutboundProtocolId, SnapshotRevision,
@@ -168,7 +168,7 @@ mod tests {
             scope.clone(),
             SnapshotRevision::new(4),
             OutboundInventoryState::Ready {
-                entries: vec![infiltrator_contract::outbound::details::OutboundSnapshot {
+                entries: vec![OutboundSnapshot {
                     id: outbound_id.clone(),
                     display_name: Some("香港 01".to_owned()),
                 }],

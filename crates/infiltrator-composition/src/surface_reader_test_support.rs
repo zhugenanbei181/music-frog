@@ -1,3 +1,4 @@
+use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
@@ -19,7 +20,7 @@ impl CoreCapabilityProvider for TestLifecycleCapabilityProvider {
     fn matrix_for(
         &self,
         engine_id: &EngineId,
-        core_version: Option<&infiltrator_contract::core_identity::CoreVersion>,
+        core_version: Option<&CoreVersion>,
     ) -> Result<CoreCapabilityMatrix, CoreCapabilityProviderError> {
         let scope = CoreCapabilityScope::new(
             engine_id.clone(),

@@ -22,17 +22,53 @@ pub(super) fn register(
         );
     });
     let weak_for_export_profile = weak.clone();
-    window.on_export_profile(move |_| {
-        show_unsupported(
-            &weak_for_export_profile,
-            "Profile export needs the shared export review and a platform file-output adapter",
-        );
+    let latest_for_export_profile = Arc::clone(&latest);
+    let tx_for_export_profile = requests.clone();
+    window.on_export_profile(move |profile_id| {
+        let profile_id = profile_id.to_string();
+        #[cfg(not(target_os = "android"))]
+        {
+            let picked = rfd::FileDialog::new()
+                .set_file_name(&format!("{profile_id}.yaml"))
+                .add_filter("YAML Config", &["yaml", "yml"])
+                .save_file();
+            if let Some(destination) = picked {
+                queue_action(
+                    &tx_for_export_profile,
+                    &weak_for_export_profile,
+                    require_snapshot(&latest_for_export_profile).map(|_| SlintAction::ExportProfile {
+                        profile_id,
+                        destination,
+                    }),
+                );
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            show_unsupported(&weak_for_export_profile, "Android SAF file export is handled through Intent");
+        }
     });
+    let tx_for_clear_traffic = requests.clone();
     let weak_for_clear_traffic = weak.clone();
     window.on_clear_traffic_history(move || {
-        show_unsupported(
+        let _ = weak_for_clear_traffic
+            .clone()
+            .upgrade_in_event_loop(|window| {
+                window.set_traffic_today_bars(slint_model(Vec::<TrafficBar>::new()));
+                window.set_traffic_week_bars(slint_model(Vec::<TrafficBar>::new()));
+                window.set_traffic_today_has_data(false);
+                window.set_traffic_week_has_data(false);
+                window.set_traffic_today_down("0 B".into());
+                window.set_traffic_today_up("0 B".into());
+                window.set_traffic_week_down("0 B".into());
+                window.set_traffic_week_up("0 B".into());
+                window.set_traffic_week_average_down("0 B".into());
+                window.set_traffic_week_average_up("0 B".into());
+            });
+        queue_intent(
+            &tx_for_clear_traffic,
             &weak_for_clear_traffic,
-            "The shared owner publishes live traffic samples but no historical traffic store",
+            CommandIntent::ClearTrafficHistory,
         );
     });
     let weak_for_license_search = weak.clone();

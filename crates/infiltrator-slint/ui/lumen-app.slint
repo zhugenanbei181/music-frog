@@ -1412,6 +1412,7 @@ export component AppWindow inherits MaterialWindow {
     in-out property <string> profile-settings-kind: "";
     in-out property <string> profile-settings-url: "";
     in-out property <string> profile-settings-age-key: "";
+    in-out property <bool> profile-settings-age-configured: false;
     in-out property <int> profile-settings-type-index: 0;
     in-out property <bool> profile-settings-type-menu-open: false;
     in-out property <[ProfileCard]> profiles: [];
@@ -1448,6 +1449,7 @@ export component AppWindow inherits MaterialWindow {
     callback open-profile-settings(string);
     callback show-profile-preview(string);
     callback save-profile-settings(string, string, string, string);
+    callback clear-profile-age-key(string);
     callback cancel-profile-settings();
     callback toggle-profile-override(string, bool);
     callback move-profile-override(string, bool);
@@ -1503,6 +1505,7 @@ export component AppWindow inherits MaterialWindow {
     callback commit-back-preview();
     callback confirm-delete-profile(string);
     callback export-profile(string);
+    callback scan-profile-qr();
     callback clear-traffic-history();
     callback search-licenses(string);
     callback open-license(string);
@@ -2217,7 +2220,20 @@ export component AppWindow inherits MaterialWindow {
                                 Text { text: @tr("配置名称"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; }
                                 LineEdit { text <=> root.profile-settings-name; placeholder-text: @tr("配置名称"); }
                                 if root.profile-settings-kind == "remote_subscription": LineEdit { text <=> root.profile-settings-url; input-type: password; placeholder-text: @tr("输入新订阅链接；留空不更改"); }
-                                if root.profile-settings-kind == "remote_subscription": TextField { label: @tr("Age 私钥（可选）"); input-type: password; text <=> root.profile-settings-age-key; supporting-text: @tr("输入新私钥以添加或替换；留空保留已保存的私钥。"); }
+                                if root.profile-settings-kind == "remote_subscription": HorizontalLayout {
+                                    spacing: 8px * LumenUiScale.factor;
+                                    TextField {
+                                        horizontal-stretch: 1;
+                                        label: @tr("Age 私钥（可选）");
+                                        input-type: password;
+                                        text <=> root.profile-settings-age-key;
+                                        supporting-text: root.profile-settings-age-configured ? @tr("当前已配置 Age 私钥；输入新私钥替换。") : @tr("输入新私钥以支持加密订阅；留空保留当前设置。");
+                                    }
+                                    if root.profile-settings-age-configured: Button {
+                                        text: @tr("清除私钥");
+                                        clicked => { root.clear-profile-age-key(root.profile-settings-id); }
+                                    }
+                                }
                                 if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
                             }
                             SectionCard { heading: @tr("覆写配置"); detail: @tr("选中项按列表顺序应用。修改暂存到草稿，保存后生效。");
@@ -2951,13 +2967,14 @@ export component AppWindow inherits MaterialWindow {
             }
             if root.profile-add-kind-index == 2: Rectangle {
                 width: root.profile-sheet-content-width;
-                height: 120px * LumenUiScale.factor;
+                height: 130px * LumenUiScale.factor;
                 border-radius: 28px * LumenUiScale.factor;
                 background: LumenTheme.surface;
                 VerticalLayout {
                     x: 18px * LumenUiScale.factor; width: root.profile-sheet-content-width - 36px * LumenUiScale.factor; height: parent.height; spacing: 6px * LumenUiScale.factor; alignment: center;
                     Text { text: @tr("扫码添加"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 550; }
-                    Text { text: @tr("二维码扫描尚未接入。请先使用订阅链接或本地文件。"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; wrap: word-wrap; horizontal-alignment: center; }
+                    Text { text: @tr("扫描二维码以导入配置订阅地址"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; wrap: word-wrap; horizontal-alignment: center; }
+                    Button { text: @tr("开始扫描"); clicked => { root.scan-profile-qr(); root.close-profile-add(); } }
                 }
             }
             if root.notice != "": Text {
@@ -3226,7 +3243,20 @@ export component AppWindow inherits MaterialWindow {
                             width: parent.width; spacing: 8px * LumenUiScale.factor;
                             LightRoundedInput { width: parent.width; label: @tr("配置名称"); text <=> root.profile-settings-name; }
                             if root.profile-settings-kind == "remote_subscription": LightRoundedInput { width: parent.width; label: @tr("订阅链接"); text <=> root.profile-settings-url; }
-                            if root.profile-settings-kind == "remote_subscription": LightRoundedInput { width: parent.width; label: @tr("Age 私钥（可选）"); password: true; text <=> root.profile-settings-age-key; }
+                            if root.profile-settings-kind == "remote_subscription": HorizontalLayout {
+                                width: parent.width;
+                                spacing: 8px * LumenUiScale.factor;
+                                LightRoundedInput {
+                                    horizontal-stretch: 1;
+                                    label: @tr("Age 私钥（可选）");
+                                    password: true;
+                                    text <=> root.profile-settings-age-key;
+                                }
+                                if root.profile-settings-age-configured: Button {
+                                    text: @tr("清除");
+                                    clicked => { root.clear-profile-age-key(root.profile-settings-id); }
+                                }
+                            }
                             if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地来源配置保持只读；名称可在此修改。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
                         }
                         if root.profile-settings-type-index == 1: VerticalLayout {

@@ -12,6 +12,9 @@ use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::ConfigManager;
+use std::time::Duration;
+use tokio::task::yield_now;
+use tokio::time::timeout;
 
 #[tokio::test]
 async fn test_switch_nonexistent_profile_returns_error() {
@@ -78,7 +81,7 @@ async fn profile_switch_submits_a_typed_owner_target_without_mutating_the_refere
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    tokio::time::timeout(std::time::Duration::from_secs(1), async {
+    timeout(Duration::from_secs(1), async {
         loop {
             if !actions
                 .lock()
@@ -87,7 +90,7 @@ async fn profile_switch_submits_a_typed_owner_target_without_mutating_the_refere
             {
                 break;
             }
-            tokio::task::yield_now().await;
+            yield_now().await;
         }
     })
     .await

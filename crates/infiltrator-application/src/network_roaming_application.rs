@@ -1,5 +1,7 @@
 //! Runtime-neutral physical-link roaming and TUN route recovery use-case.
 
+use crate::runtime_configuration_application::RuntimeConfigurationApplication;
+use crate::runtime_scope::active_scope;
 use futures_util::lock::Mutex;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::network_roaming::{
@@ -139,9 +141,8 @@ impl NetworkRoamingApplication {
         let tun_configuration = match &self.core_configuration {
             CoreConfigurationOwner::NotComposed => TunConfigurationObservation::NotComposed,
             CoreConfigurationOwner::Composed { scope_source, ports } => {
-                match crate::runtime_scope::active_scope(scope_source.as_ref()) {
-                    Ok(scope) => match crate::runtime_configuration_application::
-                        RuntimeConfigurationApplication::new(scope, ports.clone())
+                match active_scope(scope_source.as_ref()) {
+                    Ok(scope) => match RuntimeConfigurationApplication::new(scope, ports.clone())
                         .observe_tun()
                         .await
                     {
@@ -294,6 +295,8 @@ impl NetworkRoamingApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use infiltrator_contract::capability::Capability;
+    use infiltrator_ports::runtime_configuration::TunConfigurationUpdate;
     #[cfg(test)]
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -386,11 +389,11 @@ mod tests {
         async fn apply(
             &self,
             _request: ConfigurationApply<
-                infiltrator_ports::runtime_configuration::TunConfigurationUpdate,
+                TunConfigurationUpdate,
             >,
         ) -> Result<ConfigurationObservation<TunConfiguration>, PortError> {
             Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Tun,
+                Capability::Tun,
                 "roaming fake is read-only",
             ))
         }

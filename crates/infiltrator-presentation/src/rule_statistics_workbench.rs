@@ -1,4 +1,5 @@
 //! One native statistics inspector, cleanup confirmation and reset-readback state machine.
+use std::mem;
 use crate::rule_list_editor::RuleListEditor;
 use crate::rule_statistics_projection::{
     can_audit_rows, clear_source, disable_zero_hit_rows, zero_hit_rows,
@@ -376,7 +377,7 @@ impl RuleStatisticsWorkbench {
             })
     }
     pub fn cancel_cleanup(&mut self) -> bool {
-        match std::mem::take(&mut self.inspection) {
+        match mem::take(&mut self.inspection) {
             StatisticsInspectionPhase::Confirming { zero_hit_rows, .. } => {
                 self.inspection = StatisticsInspectionPhase::Inspected { zero_hit_rows };
                 true

@@ -178,6 +178,12 @@ pub(crate) fn publish_window_insets(
 struct WindowInsetsWire {
     activity_generation: u64,
     density: f32,
+    #[serde(default)]
+    width_dp: Option<f32>,
+    #[serde(default)]
+    height_dp: Option<f32>,
+    #[serde(default)]
+    font_scale: Option<f32>,
     status_bar: EdgeInsetsWire,
     nav_bar: EdgeInsetsWire,
     cutout: EdgeInsetsWire,
@@ -217,16 +223,20 @@ pub(crate) fn decode_window_insets(raw: &str) -> Result<ActivityWindowInsetsObse
             false,
         )
     })?;
+    let mut insets = WindowInsets::physical(
+        wire.density,
+        wire.status_bar.into(),
+        wire.nav_bar.into(),
+        wire.cutout.into(),
+        wire.system_gestures.into(),
+        wire.ime.into(),
+    );
+    if let (Some(w), Some(h)) = (wire.width_dp, wire.height_dp) {
+        insets = insets.with_metrics(w, h, wire.font_scale.unwrap_or(1.0));
+    }
     Ok(ActivityWindowInsetsObservation {
         activity_generation: wire.activity_generation,
-        insets: WindowInsets::physical(
-            wire.density,
-            wire.status_bar.into(),
-            wire.nav_bar.into(),
-            wire.cutout.into(),
-            wire.system_gestures.into(),
-            wire.ime.into(),
-        ),
+        insets,
     })
 }
 
@@ -268,6 +278,32 @@ mod tests {
             )
         );
         assert_eq!(report.insets.permanent_safe_area().bottom_px, 32.0);
+    }
+
+    #[test]
+    fn activity_wire_decodes_window_metrics_and_font_scale() {
+        let report = decode_window_insets(
+            r#"{
+                "activity_generation": 8,
+                "density": 2.5,
+                "width_dp": 412.0,
+                "height_dp": 915.0,
+                "font_scale": 1.15,
+                "status_bar": {"top": 60, "right": 0, "bottom": 0, "left": 0},
+                "nav_bar": {"top": 0, "right": 0, "bottom": 40, "left": 0},
+                "cutout": {"top": 0, "right": 0, "bottom": 0, "left": 0},
+                "system_gestures": {"top": 0, "right": 0, "bottom": 80, "left": 0},
+                "ime": {"top": 0, "right": 0, "bottom": 0, "left": 0}
+            }"#,
+        )
+        .expect("valid Activity insets with window metrics");
+
+        assert_eq!(report.activity_generation, 8);
+        let metrics = report.insets.metrics().expect("metrics must be present");
+        assert_eq!(metrics.width_dp, 412.0);
+        assert_eq!(metrics.height_dp, 915.0);
+        assert_eq!(metrics.density, 2.5);
+        assert_eq!(metrics.font_scale, 1.15);
     }
 
     #[test]

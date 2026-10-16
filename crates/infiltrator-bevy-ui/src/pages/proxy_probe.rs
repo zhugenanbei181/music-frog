@@ -1,4 +1,5 @@
 //! Inspector latency actions use the shared leaf-probe intent and tracked terminal results.
+use crate::pages::proxy_inspection::ProxyInspectionReadPhase;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::pages::proxy_inspection::{
@@ -60,10 +61,10 @@ pub fn probe(
                 ProxyProbePhase::Idle | ProxyProbePhase::Failed(_) => {}
             }
             match &session.read.phase {
-                crate::pages::proxy_inspection::ProxyInspectionReadPhase::Ready => {}
-                crate::pages::proxy_inspection::ProxyInspectionReadPhase::Loading
-                | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Failed(_)
-                | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Unsupported(_) => {
+                ProxyInspectionReadPhase::Ready => {}
+                ProxyInspectionReadPhase::Loading
+                | ProxyInspectionReadPhase::Failed(_)
+                | ProxyInspectionReadPhase::Unsupported(_) => {
                     return;
                 }
             }
@@ -268,20 +269,20 @@ pub fn sync_probe_controls(
             let probe_ready = match (&session.probe, &session.read.phase) {
                 (
                     ProxyProbePhase::Idle | ProxyProbePhase::Failed(_),
-                    crate::pages::proxy_inspection::ProxyInspectionReadPhase::Ready,
+                    ProxyInspectionReadPhase::Ready,
                 ) => true,
                 (
                     ProxyProbePhase::Pending(_),
-                    crate::pages::proxy_inspection::ProxyInspectionReadPhase::Loading
-                    | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Ready
-                    | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Failed(_)
-                    | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Unsupported(_),
+                    ProxyInspectionReadPhase::Loading
+                    | ProxyInspectionReadPhase::Ready
+                    | ProxyInspectionReadPhase::Failed(_)
+                    | ProxyInspectionReadPhase::Unsupported(_),
                 )
                 | (
                     ProxyProbePhase::Idle | ProxyProbePhase::Failed(_),
-                    crate::pages::proxy_inspection::ProxyInspectionReadPhase::Loading
-                    | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Failed(_)
-                    | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Unsupported(_),
+                    ProxyInspectionReadPhase::Loading
+                    | ProxyInspectionReadPhase::Failed(_)
+                    | ProxyInspectionReadPhase::Unsupported(_),
                 ) => false,
             };
             let scope_matches = match &session.scope {
@@ -337,12 +338,12 @@ pub fn sync_probe_controls(
         ProxyInspectionPhase::Open(session) => match &session.probe {
             ProxyProbePhase::Failed(failure) => failure.message.clone(),
             ProxyProbePhase::Idle | ProxyProbePhase::Pending(_) => match &session.read.phase {
-                crate::pages::proxy_inspection::ProxyInspectionReadPhase::Loading => {
+                ProxyInspectionReadPhase::Loading => {
                     LocalizedText::plain("proxy_inspection_refreshing").render(&locale)
                 }
-                crate::pages::proxy_inspection::ProxyInspectionReadPhase::Ready => String::new(),
-                crate::pages::proxy_inspection::ProxyInspectionReadPhase::Failed(failure)
-                | crate::pages::proxy_inspection::ProxyInspectionReadPhase::Unsupported(failure) => {
+                ProxyInspectionReadPhase::Ready => String::new(),
+                ProxyInspectionReadPhase::Failed(failure)
+                | ProxyInspectionReadPhase::Unsupported(failure) => {
                     failure.message.clone()
                 }
             },

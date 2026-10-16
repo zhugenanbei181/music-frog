@@ -1,4 +1,6 @@
 //! test-intent: behavior
+use crate::command_harness::StoppedTestCoreProfileOwner;
+use crate::support::mihomo_profiles;
 use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::support::{headless_plugins, observed_scope_for_snapshot};
 use bevy::app::App;
@@ -79,9 +81,9 @@ fn production_profile_application(store: Arc<HostsCaptureStore>) -> CoreApplicat
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
         test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])
-            .with_profile(crate::support::mihomo_profiles(store))
+            .with_profile(mihomo_profiles(store))
             .with_profile_reference_applier(Arc::new(
-                crate::command_harness::StoppedTestCoreProfileOwner,
+                StoppedTestCoreProfileOwner,
             )),
     ));
     application

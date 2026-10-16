@@ -1,6 +1,7 @@
 //! Demo-mode [`AppState`] constructor: seeds every page with the fixture
 //! tables so the full UI renders without any runtime or side effects.
 
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::DemoEnv;
 use super::dns_hosts;
 use super::dns_leak;
@@ -140,7 +141,7 @@ impl AppState {
         // ---- rules page ---------------------------------------------------
         let document = list_document(demo_rules());
         state.editor.rule_list.observe_readback(
-            infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
+            RuleListReadback::Observed(document),
         );
         state
             .editor

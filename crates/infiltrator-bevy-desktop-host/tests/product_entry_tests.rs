@@ -1,7 +1,7 @@
 //! test-intent: behavior
 //! The product entry starts the host; capture requires explicit opt-in.
 
-use infiltrator_bevy_desktop_host::{DesktopEntry, parse_entry};
+use infiltrator_bevy_desktop_host::entry::{DesktopEntry, parse_entry};
 
 #[test]
 fn desktop_entry_selects_product_or_explicit_capture() {

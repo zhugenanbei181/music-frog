@@ -12,6 +12,7 @@ use infiltrator_contract::traffic_topology::{
     RttJitterHistogram, TrafficTopologyNodeSnapshot, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus, adjacent_links,
 };
+use std::collections::BTreeSet;
 
 /// The transport-neutral input to topology derivation.
 pub struct TrafficTopologyInput<'a> {
@@ -264,7 +265,7 @@ fn active_topology(
         .iter()
         .map(|connection| connection.rule.trim())
         .filter(|rule| !rule.is_empty())
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     let rule_detail = match rule_details.iter().copied().collect::<Vec<_>>().as_slice() {
         [] => "rule not reported".to_owned(),
         [rule] => (*rule).to_owned(),

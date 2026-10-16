@@ -13,6 +13,8 @@
 //!
 //! test-intent: behavior
 
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::tray::spec::{TrayController, TraySpec};
@@ -61,7 +63,7 @@ pub fn fresh_state() -> AppState {
 pub fn list_profiles() -> Vec<ProfileInfo> {
     block_on(async {
         let store = config_manager().await.unwrap();
-        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store)
+        profiles_for_mihomo(store)
             .list_profiles()
             .await
             .unwrap()
@@ -136,7 +138,7 @@ impl TempHome {
                 .compare_and_set_active_profile_reference(
                     expected,
                     target,
-                    infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
                 )
                 .await
                 .expect("revisioned test selection CAS")

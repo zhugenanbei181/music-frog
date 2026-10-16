@@ -2,13 +2,18 @@
 
 use crate::profile_document_codec::SingBoxProfileDocumentCodec;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use singbox_process::command::{NativeConfigCheck, SingBoxCommandPort, TokioSingBoxCommandPort};
+#[cfg(test)]
+use std::ffi::OsStr;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
+use std::process;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tokio::fs::{self, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 
@@ -77,7 +82,7 @@ impl SingBoxProfileConfigurationAdapter {
                     NativeConfigCheck::Accepted => Ok(DocumentValidation::Valid),
                     NativeConfigCheck::Rejected => Ok(DocumentValidation::Invalid {
                         diagnostics: vec![
-                            infiltrator_contract::profile_document::DocumentDiagnosticSnapshot {
+                            DocumentDiagnosticSnapshot {
                                 line: None,
                                 column: None,
                                 message: "sing-box native config check rejected this document"
@@ -110,7 +115,7 @@ impl SingBoxProfileConfigurationAdapter {
     }
 
     pub async fn readback(&self) -> Result<Vec<u8>, PortError> {
-        tokio::fs::read(&self.config_path)
+        fs::read(&self.config_path)
             .await
             .map_err(|error| map_storage_error(&self.config_path, error))
     }
@@ -210,7 +215,7 @@ impl InstalledConfig {
         self,
         config_path: &Path,
     ) -> Result<SingBoxConfigApplyReceipt, FailedConfigReadback> {
-        match tokio::fs::read(config_path).await {
+        match fs::read(config_path).await {
             Ok(readback) => match classify_exact_readback(readback, &self.raw_bytes) {
                 ExactReadback::Exact(readback) => Ok(SingBoxConfigApplyReceipt {
                     persisted_byte_count: readback.len(),
@@ -248,7 +253,8 @@ impl TemporaryConfigFile {
 
 impl Drop for TemporaryConfigFile {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        use std::fs;
+        let _ = fs::remove_file(&self.path);
     }
 }
 
@@ -269,9 +275,9 @@ async fn create_temporary_config(
         let sequence = TEMP_CONFIG_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let candidate = parent.join(format!(
             ".{file_name}.candidate-{}-{sequence}.json",
-            std::process::id()
+            process::id()
         ));
-        let open = tokio::fs::OpenOptions::new()
+        let open = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&candidate)
@@ -284,12 +290,12 @@ async fn create_temporary_config(
                 }
                 .await;
                 if let Err(error) = write_result {
-                    let _ = tokio::fs::remove_file(&candidate).await;
+                    let _ = fs::remove_file(&candidate).await;
                     return Err(map_storage_error(&candidate, error));
                 }
                 return Ok(TemporaryConfigFile { path: candidate });
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
             Err(error) => return Err(map_storage_error(&candidate, error)),
         }
     }
@@ -301,16 +307,16 @@ async fn create_temporary_config(
 
 async fn atomic_write(active_path: &Path, raw_bytes: &[u8]) -> Result<(), PortError> {
     let staged = create_temporary_config(active_path, raw_bytes).await?;
-    tokio::fs::rename(staged.path(), active_path)
+    fs::rename(staged.path(), active_path)
         .await
         .map_err(|error| map_storage_error(active_path, error))?;
     Ok(())
 }
 
 async fn read_previous_config(path: &Path) -> Result<SingBoxConfigFileState, PortError> {
-    match tokio::fs::read(path).await {
+    match fs::read(path).await {
         Ok(bytes) => Ok(SingBoxConfigFileState::Present(bytes)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(error) if error.kind() == ErrorKind::NotFound => {
             Ok(SingBoxConfigFileState::Missing)
         }
         Err(error) => Err(map_storage_error(path, error)),
@@ -322,9 +328,9 @@ async fn restore_previous_config(
     previous: SingBoxConfigFileState,
 ) -> Result<(), PortError> {
     match previous {
-        SingBoxConfigFileState::Missing => match tokio::fs::remove_file(active_path).await {
+        SingBoxConfigFileState::Missing => match fs::remove_file(active_path).await {
             Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
             Err(error) => Err(map_storage_error(active_path, error)),
         },
         SingBoxConfigFileState::Present(bytes) => atomic_write(active_path, &bytes).await,
@@ -332,7 +338,7 @@ async fn restore_previous_config(
 }
 
 async fn ensure_directory(path: &Path) -> Result<(), PortError> {
-    match tokio::fs::metadata(path).await {
+    match fs::metadata(path).await {
         Ok(metadata) if metadata.is_dir() => Ok(()),
         Ok(_) => Err(PortError::Io(
             "sing-box config parent is not a directory".to_owned(),
@@ -364,13 +370,13 @@ fn readback_cause(cause: &ConfigReadbackFailure) -> &'static str {
     }
 }
 
-fn map_storage_error(path: &Path, error: std::io::Error) -> PortError {
+fn map_storage_error(path: &Path, error: io::Error) -> PortError {
     match error.kind() {
-        std::io::ErrorKind::NotFound => PortError::NotFound(format!(
+        ErrorKind::NotFound => PortError::NotFound(format!(
             "sing-box config file is unavailable: {}",
             path.display()
         )),
-        std::io::ErrorKind::PermissionDenied => {
+        ErrorKind::PermissionDenied => {
             PortError::PermissionDenied("sing-box config file cannot be accessed".to_owned())
         }
         _ => PortError::Io(format!("sing-box config file operation failed: {error}")),
@@ -409,7 +415,8 @@ mod transaction_recovery_tests {
                     "failed transaction must remove a newly-created config"
                 ),
                 Self::Present(expected) => {
-                    assert_eq!(std::fs::read(path).unwrap(), expected);
+                    use std::fs;
+                    assert_eq!(fs::read(path).unwrap(), expected);
                 }
             }
         }
@@ -425,15 +432,15 @@ mod transaction_recovery_tests {
                 let home = TempDir::new().unwrap();
                 let config_path = home.path().join("config.json");
                 let proposed = b"submitted-config";
-                tokio::fs::write(&config_path, proposed).await.unwrap();
+                fs::write(&config_path, proposed).await.unwrap();
                 match fault {
                     ReadbackFault::DifferentBytes => {
-                        tokio::fs::write(&config_path, b"externally-changed")
+                        fs::write(&config_path, b"externally-changed")
                             .await
                             .unwrap();
                     }
                     ReadbackFault::MissingFile => {
-                        tokio::fs::remove_file(&config_path).await.unwrap();
+                        fs::remove_file(&config_path).await.unwrap();
                     }
                 }
 
@@ -452,14 +459,14 @@ mod transaction_recovery_tests {
 
                 assert!(matches!(reported, PortError::Io(_)));
                 previous.assert_restored(&config_path);
-                let mut entries = tokio::fs::read_dir(home.path()).await.unwrap();
+                let mut entries = fs::read_dir(home.path()).await.unwrap();
                 let first = entries.next_entry().await.unwrap();
                 match previous {
                     PreviousFile::Missing => assert!(first.is_none()),
                     PreviousFile::Present(_) => {
                         assert_eq!(
                             first.unwrap().file_name(),
-                            std::ffi::OsStr::new("config.json")
+                            OsStr::new("config.json")
                         );
                         assert!(entries.next_entry().await.unwrap().is_none());
                     }

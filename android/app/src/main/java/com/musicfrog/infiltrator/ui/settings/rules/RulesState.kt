@@ -104,7 +104,7 @@ internal data class RulesUiState(
     val rulesDraft: List<AndroidRuleEntry> = emptyList(),
     val providersDraft: String = "",
     val newRule: String = "",
-    val operation: RulesOperationState = RulesOperationState.Loading,
+    val operation: RulesOperationState = RulesOperationState.Ready,
 ) {
     val activity: RulesActivity
         get() = when (operation) {

@@ -401,6 +401,8 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         log_level: Some("info".to_owned()),
         core_channel: "stable".to_owned(),
         mini_hud: Default::default(),
+        refresh_current_profile_on_start: false,
+        custom_accent_color: None,
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
@@ -661,6 +663,8 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         log_level: Some("info".to_owned()),
         core_channel: "stable".to_owned(),
         mini_hud: Default::default(),
+        refresh_current_profile_on_start: false,
+        custom_accent_color: None,
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));

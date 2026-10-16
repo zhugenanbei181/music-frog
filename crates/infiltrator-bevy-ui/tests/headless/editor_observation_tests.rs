@@ -1,5 +1,6 @@
 //! Actual product read failures, source verification and native retained editor surface.
 //! test-intent: behavior
+use crate::support::mihomo_profiles;
 use crate::command_harness::{
     HostlessProcess, IdentifiedHostlessProcess, test_command_application,
 };
@@ -48,7 +49,7 @@ fn publish(app: &mut App, reader: &ProductSurfaceReader) {
 fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save_and_replays_locale_until_actual_recovery()
  {
     let store = Arc::new(FilterCaptureStore::default());
-    let profiles = crate::support::mihomo_profiles(store.clone());
+    let profiles = mihomo_profiles(store.clone());
     let core = Arc::new(CoreApplication::new(
         Arc::new(IdentifiedHostlessProcess),
         Arc::new(HostlessProcess),

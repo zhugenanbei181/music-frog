@@ -486,6 +486,7 @@ mod tests {
     use crate::profile_document_codec::ProfileDocumentCodecScope;
     use async_trait::async_trait;
     use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
+    use infiltrator_contract::core_process::CoreProcessStartContext;
     use infiltrator_contract::profile_document::DocumentValidation;
     use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use infiltrator_contract::snapshot::CoreLifecycle;
@@ -502,7 +503,7 @@ mod tests {
 
         async fn start(
             &self,
-            _context: crate::core_process::CoreProcessStartContext,
+            _context: CoreProcessStartContext,
         ) -> Result<(), PortError> {
             Ok(())
         }

@@ -1,5 +1,10 @@
 //! Typed lifecycle and readiness signaling for the Android tun2proxy worker.
 
+use futures_util::future::poll_fn;
+use std::fmt::{self, Display, Formatter};
+use std::mem;
+use std::pin::Pin;
+use std::sync::{Mutex, OnceLock};
 use std::{
     future::Future,
     task::Poll,
@@ -28,8 +33,8 @@ pub(super) fn report_start_failure(
     let _ = receipt_sender.send(WorkerStartReceipt::Failed(failure));
 }
 
-impl std::fmt::Display for WorkerStartFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for WorkerStartFailure {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::TunnelDeviceCreation(message) => {
                 write!(formatter, "failed to create Android TUN device: {message}")
@@ -59,7 +64,7 @@ where
     let mut future = Box::pin(future);
     let mut receipt_sender = Some(receipt_sender);
 
-    futures_util::future::poll_fn(move |context| match future.as_mut().poll(context) {
+    poll_fn(move |context| match future.as_mut().poll(context) {
         Poll::Pending => {
             if let Some(sender) = receipt_sender.take() {
                 let _ = sender.send(WorkerStartReceipt::Started);
@@ -192,7 +197,7 @@ impl WorkerLifecycle {
     }
 
     pub(super) fn publish_ready(&mut self, generation: u64) -> WorkerReadyOutcome {
-        let state = std::mem::replace(&mut self.state, WorkerState::Stopped { generation: 0 });
+        let state = mem::replace(&mut self.state, WorkerState::Stopped { generation: 0 });
         match state {
             WorkerState::Starting {
                 generation: current,
@@ -220,7 +225,7 @@ impl WorkerLifecycle {
     }
 
     pub(super) fn request_stop(&mut self) -> WorkerStopRequest {
-        let state = std::mem::replace(&mut self.state, WorkerState::Stopped { generation: 0 });
+        let state = mem::replace(&mut self.state, WorkerState::Stopped { generation: 0 });
         match state {
             WorkerState::Starting {
                 generation,
@@ -245,7 +250,7 @@ impl WorkerLifecycle {
     }
 
     pub(super) fn finish(&mut self, generation: u64) {
-        let state = std::mem::replace(&mut self.state, WorkerState::Stopped { generation: 0 });
+        let state = mem::replace(&mut self.state, WorkerState::Stopped { generation: 0 });
         self.state = match state {
             WorkerState::Starting {
                 generation: current,
@@ -281,12 +286,12 @@ impl WorkerLifecycle {
 }
 
 #[cfg(any(target_os = "android", test))]
-static WORKER_LIFECYCLE: std::sync::OnceLock<std::sync::Mutex<WorkerLifecycle>> =
-    std::sync::OnceLock::new();
+static WORKER_LIFECYCLE: OnceLock<Mutex<WorkerLifecycle>> =
+    OnceLock::new();
 
 #[cfg(any(target_os = "android", test))]
-fn shared_lifecycle() -> &'static std::sync::Mutex<WorkerLifecycle> {
-    WORKER_LIFECYCLE.get_or_init(|| std::sync::Mutex::new(WorkerLifecycle::default()))
+fn shared_lifecycle() -> &'static Mutex<WorkerLifecycle> {
+    WORKER_LIFECYCLE.get_or_init(|| Mutex::new(WorkerLifecycle::default()))
 }
 
 #[cfg(target_os = "android")]
@@ -382,7 +387,7 @@ mod tests {
         let (finish_sender, mut finish_receiver) = oneshot::channel();
         let worker = tokio::spawn(report_first_pending(
             poll_fn(
-                move |context| match std::pin::Pin::new(&mut finish_receiver).poll(context) {
+                move |context| match Pin::new(&mut finish_receiver).poll(context) {
                     Poll::Pending => Poll::Pending,
                     Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
                     Poll::Ready(Err(_)) => Poll::Ready(Err("finish signal dropped".to_owned())),

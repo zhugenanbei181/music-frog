@@ -3,6 +3,7 @@ use crate::error::{MihomoError, Result};
 use crate::types::*;
 use infiltrator_contract::error::Failure;
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_ports::runtime_stream::RuntimeStreamTerminal;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -32,7 +33,7 @@ pub(crate) enum StreamEvent<T> {
     Connected,
     Item(T),
     Reconnecting(Failure),
-    Terminal(infiltrator_ports::runtime_stream::RuntimeStreamTerminal),
+    Terminal(RuntimeStreamTerminal),
 }
 
 #[derive(Clone)]

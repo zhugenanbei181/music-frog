@@ -82,6 +82,14 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::UpdateSubscriptionSchedule { .. }
         | CommandIntent::ImportSubscription { .. }
         | CommandIntent::DeleteProfile { .. }
+        | CommandIntent::RenameProfile { .. }
+        | CommandIntent::ReorderProfiles { .. }
+        | CommandIntent::ClearActiveProfile
+        | CommandIntent::CreateNamedOverride { .. }
+        | CommandIntent::UpdateNamedOverride { .. }
+        | CommandIntent::DeleteNamedOverride { .. }
+        | CommandIntent::SetProfileOverrideBinding { .. }
+        | CommandIntent::ReorderProfileOverrides { .. }
         | CommandIntent::PreviewProfileAggregation { .. }
         | CommandIntent::SaveAggregationTemplate { .. }
         | CommandIntent::DeleteAggregationTemplate { .. }
@@ -101,6 +109,8 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::ApplyProfileConfiguration { .. }
         | CommandIntent::CloseConnection { .. }
         | CommandIntent::CloseAllConnections
+        | CommandIntent::ClearClosedConnections
+        | CommandIntent::ClearTrafficHistory
         | CommandIntent::ClearLogs
         | CommandIntent::PrepareLogExport
         | CommandIntent::SaveLogExport { .. }
@@ -121,6 +131,7 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::ProbeTunMtu
         | CommandIntent::RefreshPublicIpProbe
         | CommandIntent::SetSystemProxy { .. }
+        | CommandIntent::RecoverSystemProxy
         | CommandIntent::SetLanSharing { .. }
         | CommandIntent::SetLanSecurity { .. }
         | CommandIntent::SetIpv6Routing { .. }
@@ -332,7 +343,10 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
             Geo(GeoOperation::UpdateDatabases),
             Write,
         )),
-        CommandIntent::CloseConnection { .. } | CommandIntent::CloseAllConnections => CoreBackend(
+        CommandIntent::CloseConnection { .. }
+        | CommandIntent::CloseAllConnections
+        | CommandIntent::ClearClosedConnections
+        | CommandIntent::ClearTrafficHistory => CoreBackend(
             CoreCapabilityRequirement::new(Connection(ConnectionOperation::Close), Write),
         ),
         CommandIntent::ClearDnsCache { .. } => CoreBackend(CoreCapabilityRequirement::new(
@@ -366,6 +380,14 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
             Write,
         )),
         CommandIntent::DeleteProfile { .. }
+        | CommandIntent::RenameProfile { .. }
+        | CommandIntent::ReorderProfiles { .. }
+        | CommandIntent::ClearActiveProfile
+        | CommandIntent::CreateNamedOverride { .. }
+        | CommandIntent::UpdateNamedOverride { .. }
+        | CommandIntent::DeleteNamedOverride { .. }
+        | CommandIntent::SetProfileOverrideBinding { .. }
+        | CommandIntent::ReorderProfileOverrides { .. }
         | CommandIntent::RestoreSubscriptionBackup { .. }
         | CommandIntent::UpdateSubscriptionFetchSettings { .. }
         | CommandIntent::SetSubscriptionAutoReload { .. }
@@ -408,7 +430,9 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         | CommandIntent::RunPrivilegedNetworkRegression => HostOnly(Capability::CoreLifecycle),
         CommandIntent::ProbeTunMtu => HostOnly(Capability::Tun),
         CommandIntent::RefreshPublicIpProbe => HostOnly(Capability::Speedtest),
-        CommandIntent::SetSystemProxy { .. } => HostOnly(Capability::SystemProxy),
+        CommandIntent::SetSystemProxy { .. } | CommandIntent::RecoverSystemProxy => {
+            HostOnly(Capability::SystemProxy)
+        }
         CommandIntent::ScanUwpApps
         | CommandIntent::SetUwpAppExemption { .. }
         | CommandIntent::SetAllUwpExemptions { .. } => HostOnly(Capability::UwpLoopback),

@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::core_process::{
-    CoreProcess, CoreProcessStartAdmission, CoreProcessStartContext,
-};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
 use infiltrator_ports::error::PortError;
 use std::path::PathBuf;
 use std::result;
@@ -390,8 +389,9 @@ mod process {
     use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
     use infiltrator_platform::paths::get_home_dir;
+    use std::result;
 
-    type Result<T> = std::result::Result<T, PortError>;
+    type Result<T> = result::Result<T, PortError>;
 
     /// A successfully spawned core process.
     pub struct SpawnedCore {

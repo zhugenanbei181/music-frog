@@ -12,6 +12,7 @@
 //! Red line: everything in this module is pure data plus pure functions —
 //! no app-state access, no I/O, no backend calls.
 
+use infiltrator_shared::assets::product_icon_png;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::tray_status::TrayRateBadge;
 use infiltrator_contract::version::InstalledCoreVersion;
@@ -496,7 +497,7 @@ pub fn load_icon_rgba() -> Option<TrayIconData> {
             return Some(data);
         }
     }
-    let image = image::load_from_memory(infiltrator_shared::assets::product_icon_png())
+    let image = image::load_from_memory(product_icon_png())
         .ok()?
         .into_rgba8();
     let (width, height) = image.dimensions();

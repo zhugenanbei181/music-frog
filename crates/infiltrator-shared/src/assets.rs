@@ -5,6 +5,7 @@
 //! surfaces with compile-time embedding use the small typed helpers below.
 
 use serde::Deserialize;
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -93,7 +94,7 @@ impl AssetCatalog {
     /// Read one canonical resource file. Product binaries should prefer the
     /// embedded helpers for common UI icons and launcher art.
     pub fn read(id: &str, format: AssetFormat, variant: &str) -> io::Result<Option<Vec<u8>>> {
-        Self::path(id, format, variant).map_or(Ok(None), |path| std::fs::read(path).map(Some))
+        Self::path(id, format, variant).map_or(Ok(None), |path| fs::read(path).map(Some))
     }
 }
 
@@ -171,6 +172,7 @@ pub fn harmonyos_font_license_text() -> &'static str {
 mod tests {
     use super::{AssetCatalog, AssetFormat, harmonyos_font_license_text};
     use std::collections::HashSet;
+    use std::fs;
     use std::path::Path;
 
     #[test]
@@ -203,7 +205,7 @@ mod tests {
                     "catalog license is missing: {license_path}"
                 );
                 assert!(
-                    std::fs::metadata(license).expect("license metadata").len() > 0,
+                    fs::metadata(license).expect("license metadata").len() > 0,
                     "catalog license is empty: {license_path}"
                 );
             }

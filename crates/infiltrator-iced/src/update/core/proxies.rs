@@ -1,6 +1,8 @@
 //! Outbound inventory and typed selection/probe actions, plus the runtime
 //! panel's outbound preferences and connection filter/sort controls.
 
+use infiltrator_contract::speedtest::SpeedtestConcurrency;
+use super::profile_apply::runtime_access;
 use crate::settings_store::update;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
@@ -573,7 +575,7 @@ impl AppState {
                     ..Default::default()
                 };
 
-                let runtime = super::profile_apply::runtime_access(self.runtime.runtime.clone());
+                let runtime = runtime_access(self.runtime.runtime.clone());
                 save_task(
                     runtime,
                     move |content| {
@@ -774,7 +776,7 @@ impl AppState {
                 let current = ingress.speedtest_snapshot().concurrency.get();
                 let next = Self::stepped_speedtest_concurrency(usize::from(current), delta);
                 let Ok(concurrency) =
-                    infiltrator_contract::speedtest::SpeedtestConcurrency::new(next as u8)
+                    SpeedtestConcurrency::new(next as u8)
                 else {
                     return Task::done(Message::ShowToast(
                         "Speedtest concurrency is outside its supported range".to_owned(),

@@ -3,7 +3,7 @@
 
 Validates syntax, structure, metadata, and specification compliance across all
 platform packaging configurations:
-- Windows: NSIS script (.nsi), WiX installer (.wxs)
+- Windows: NSIS scripts (.nsi), one per desktop product
 - Linux: AppImage (build script, AppRun, .desktop entry), Debian package (control, maintainer scripts)
 - macOS: DMG creation script, Info.plist, entitlements.plist
 - Release tooling: generate-release-manifest.py
@@ -22,7 +22,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -112,44 +111,14 @@ def validate_nsis_script(nsi_path: pathlib.Path) -> ValidationResult:
     if not re.search(r'Section\s+"Uninstall"', content):
         res.error('Missing Section "Uninstall"')
 
-    # 5. URL Scheme & Uninstall Registry Keys
+    # 5. URL Scheme & Uninstall Registry Keys. The product name inside the
+    # ARP key differs per desktop product, so accept any Uninstall\<Product>
+    # key rather than a single hard-coded product.
     if "HKCR" not in content or "infiltrator" not in content:
-        res.error("Missing infiltrator:// URL protocol registration in HKCR")
+        res.error("Missing infiltrator URL protocol registration in HKCR")
 
-    if "Uninstall\\Infiltrator" not in content:
+    if re.search(r"Uninstall\\[A-Za-z]", content) is None:
         res.error("Missing Windows Add/Remove Programs registry key setup")
-
-    return res
-
-
-def validate_wix_package(wxs_path: pathlib.Path) -> ValidationResult:
-    """Validates WiX installer XML configuration."""
-    res = ValidationResult(str(wxs_path.relative_to(REPO_ROOT)))
-    if not wxs_path.is_file():
-        res.error("File does not exist")
-        return res
-
-    try:
-        tree = ET.parse(wxs_path)
-        root = tree.getroot()
-        if not root.tag.endswith("Wix"):
-            res.error(f"Root tag is not Wix (found {root.tag})")
-
-        ns = {"wix": "http://wixtoolset.org/schemas/v4/wxs"}
-        package = root.find("wix:Package", ns)
-        if package is None:
-            package = root.find("Package")
-        if package is None:
-            res.error("Missing <Package> element in WiX manifest")
-        else:
-            for attr in ["Name", "Manufacturer", "Version", "UpgradeCode"]:
-                if attr not in package.attrib:
-                    res.error(f"Missing required Package attribute: {attr}")
-
-    except ET.ParseError as e:
-        res.error(f"XML Parse Error in WiX file: {e}")
-    except Exception as e:
-        res.error(f"Error validating WiX file: {e}")
 
     return res
 
@@ -201,7 +170,7 @@ def validate_appimage_files(appimage_dir: pathlib.Path) -> list[ValidationResult
         res_build.error(err)
     if build_script.exists():
         content = build_script.read_text(encoding="utf-8", errors="replace")
-        for expected in ["AppRun", "infiltrator.desktop", "appimagetool", "usr/bin", "usr/share/applications"]:
+        for expected in ["AppRun", "render-product-template.py", "appimagetool", "usr/bin", "usr/share/applications"]:
             if expected not in content:
                 res_build.error(f"build-appimage.sh missing expected reference: {expected}")
     results.append(res_build)
@@ -223,6 +192,7 @@ def validate_appimage_files(appimage_dir: pathlib.Path) -> list[ValidationResult
     # 3. .desktop — one per UI surface, equal treatment.
     results.append(validate_desktop_file(appimage_dir / "infiltrator.desktop"))
     results.append(validate_desktop_file(appimage_dir / "infiltrator-bevy.desktop"))
+    results.append(validate_desktop_file(appimage_dir / "infiltrator-slint.desktop"))
 
     return results
 
@@ -448,10 +418,10 @@ def main() -> int:
 
     results: list[ValidationResult] = []
 
-    # 1. Windows NSIS & WiX — one NSIS installer per UI surface.
+    # 1. Windows NSIS — one installer per desktop product.
     results.append(validate_nsis_script(REPO_ROOT / "packaging/windows/nsis/infiltrator.nsi"))
     results.append(validate_nsis_script(REPO_ROOT / "packaging/windows/nsis/infiltrator-bevy.nsi"))
-    results.append(validate_wix_package(REPO_ROOT / "packaging/windows/wix/Package.wxs"))
+    results.append(validate_nsis_script(REPO_ROOT / "packaging/windows/nsis/infiltrator-slint.nsi"))
 
     # 2. Linux AppImage
     results.extend(validate_appimage_files(REPO_ROOT / "packaging/linux/appimage"))

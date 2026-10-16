@@ -1,7 +1,7 @@
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use std::fmt::{Display, Formatter};
-use std::{error, fmt};
+use std::{error, fmt, io};
 
 /// Adapter failure without coupling the application boundary to a concrete
 /// transport, OS, or runtime error type.
@@ -29,8 +29,8 @@ impl PortError {
     }
 }
 
-impl From<std::io::Error> for PortError {
-    fn from(error: std::io::Error) -> Self {
+impl From<io::Error> for PortError {
+    fn from(error: io::Error) -> Self {
         Self::Io(error.to_string())
     }
 }

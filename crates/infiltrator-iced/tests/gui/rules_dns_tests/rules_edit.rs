@@ -1,6 +1,8 @@
 //! Behavior cases for rules edit.
 //! test-intent: behavior
 
+use infiltrator_iced::state::editor::RuleAddPhase;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::rule_document::RuleRowId;
@@ -22,7 +24,7 @@ fn test_rules_edit_operations_delegate_to_shared_module() {
     ];
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
+        RuleListReadback::Observed(document),
     );
     state.rebuild_rules_render_cache();
 
@@ -67,7 +69,7 @@ fn test_rules_edit_operations_delegate_to_shared_module() {
     // DUAL-11-11: the wizard and the shared builder agree on the type list and
     // reject an empty payload before any async save is scheduled.
     assert_eq!(CUSTOM_RULE_TYPE_CHOICES.len(), 12);
-    state.editor.is_adding_rule = false;
+    state.editor.rule_add_phase = RuleAddPhase::Idle;
     let rule = build_custom_rule(&RuleDraft {
         rule_type: "AND".into(),
         payload: "(DOMAIN,a.com),(DST-PORT,443)".into(),

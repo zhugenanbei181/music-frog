@@ -1,3 +1,4 @@
+use tokio::sync::oneshot::channel;
 use super::*;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -6,7 +7,7 @@ use std::time::{Duration, Instant};
 fn background_scheduler_has_one_slot_and_closes_after_its_task_leaves() {
     let runtime = Arc::new(TokioApplicationRuntime::new().expect("host runtime builds"));
     let (entered_tx, entered_rx) = mpsc::channel();
-    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = channel();
     let scheduled = runtime.spawn_background(Box::pin(async move {
         let _ = entered_tx.send(());
         let _ = release_rx.await;

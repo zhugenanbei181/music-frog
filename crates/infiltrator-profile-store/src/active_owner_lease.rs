@@ -11,10 +11,12 @@ use crate::active_reference_owner::{
 use crate::active_reference_owner_coordinator::validate_terminal_for_owner;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
 use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::error::PortError;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tokio::task::spawn_blocking;
 
 pub struct ActiveCoreOwnerLease {
     identity: CoreIdentity,
@@ -61,7 +63,7 @@ impl ActiveProfileOwnerLease for ActiveCoreOwnerLease {
         let owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
             .acquire_owner_state_lock()
             .await?;
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             let _owner_state_guard = owner_state_guard;
             let (context_identity, context_generation, session_token) = match &context {
                 CoreProcessStartContext::Managed {
@@ -146,7 +148,7 @@ impl ActiveProfileOwnerLease for ActiveCoreOwnerLease {
 
     async fn release_after_terminal(
         &self,
-        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+        terminal: &CoreLifecycleSnapshot,
     ) -> Result<(), PortError> {
         let identity = self.identity.clone();
         let generation = self.generation;
@@ -156,7 +158,7 @@ impl ActiveProfileOwnerLease for ActiveCoreOwnerLease {
         let owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
             .acquire_owner_state_lock()
             .await?;
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             release_owner_after_terminal(
                 &identity,
                 generation,
@@ -175,8 +177,8 @@ fn release_owner_after_terminal(
     identity: &CoreIdentity,
     generation: CoreGeneration,
     token: &ActiveOwnerToken,
-    config_root: &std::path::Path,
-    terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    config_root: &Path,
+    terminal: &CoreLifecycleSnapshot,
     _owner_state_guard: ThreadedInstanceLockGuard,
 ) -> Result<(), PortError> {
     let terminal_generation = validate_terminal_for_owner(terminal, identity, generation)?;

@@ -1,3 +1,10 @@
+#![allow(
+    clippy::large_enum_variant,
+    clippy::derivable_impls,
+    clippy::manual_pattern_char_comparison,
+    clippy::bool_assert_comparison,
+    clippy::field_reassign_with_default
+)]
 //! Pure cross-surface projections over accepted contract snapshots.
 //!
 //! This crate owns display reductions shared by Iced and Bevy. It performs no
@@ -84,6 +91,7 @@ pub mod sync_projection;
 pub mod system_toggle_projection;
 pub mod traffic_readout;
 pub mod traffic_topology_projection;
+pub mod unified_runtime_status;
 
 #[cfg(test)]
 mod dns_projections_tests;

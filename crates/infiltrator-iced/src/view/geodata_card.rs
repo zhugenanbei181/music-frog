@@ -29,13 +29,13 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
     )
     .padding([4, 10])
     .style(style_ghost)
-    .on_press_maybe((!geo.is_updating).then_some(Message::CheckGeoDataUpdates));
+    .on_press_maybe((!geo.phase.is_updating()).then_some(Message::CheckGeoDataUpdates));
 
     let update_btn = button(
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(if geo.is_updating {
+            text(if geo.phase.is_updating() {
                 lang.tr("geodata_updating").to_string()
             } else {
                 lang.tr("geodata_btn_update").to_string()
@@ -47,7 +47,7 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
     )
     .padding([4, 12])
     .style(style_accent)
-    .on_press_maybe((!geo.is_updating).then_some(Message::TriggerGeoDataUpdate));
+    .on_press_maybe((!geo.phase.is_updating()).then_some(Message::TriggerGeoDataUpdate));
 
     // mihomo's controller exposes no geo version/size query, so an empty
     // status renders the honest unknown state — never fabricated values.

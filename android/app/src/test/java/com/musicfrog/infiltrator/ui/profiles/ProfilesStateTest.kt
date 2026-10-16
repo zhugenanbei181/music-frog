@@ -37,7 +37,7 @@ class ProfilesStateTest {
 
     @Test
     fun lowerGenerationAndDataRevisionAreRejected() {
-        val current = point(revision = revision(dataRevision = 9uL), requestSequence = 9uL)
+        val current = point(revision = revision(generation = 4uL, dataRevision = 9uL), requestSequence = 9uL)
 
         assertEquals(
             ProfilesSnapshotAdmission.Stale,

@@ -107,6 +107,45 @@ fn unchanged_charts_do_not_upload_and_equal_length_updates_repaint() {
 }
 
 #[test]
+fn retheme_updates_chart_in_place_and_subsequent_resting_frames_produce_zero_uploads() {
+    let mut app = app();
+    app.add_systems(Startup, |mut commands: Commands| {
+        commands.spawn_scene(chart_scene(
+            vec![0.1, 0.5, 0.9],
+            vec![0.2, 0.4, 0.8],
+            180.0,
+            50.0,
+        ));
+    });
+    app.update();
+    let entity = app
+        .world_mut()
+        .query::<(Entity, &ChartPlate)>()
+        .single(app.world())
+        .unwrap()
+        .0;
+    let handle = image_handle(&app, entity);
+    let mut cursor = MessageCursor::default();
+    modifications(&app, &mut cursor, handle.id());
+
+    // Switch theme
+    app.world_mut().trigger(ThemeSwitch(ThemeSkin::Light));
+    app.update();
+    app.update();
+
+    // Must have modified on theme switch
+    assert_eq!(modifications(&app, &mut cursor, handle.id()), 1);
+    // Texture identity MUST remain unchanged
+    assert_eq!(image_handle(&app, entity).id(), handle.id());
+
+    // Subsequent resting frames must produce 0 uploads
+    for _ in 0..10 {
+        app.update();
+        assert_eq!(modifications(&app, &mut cursor, handle.id()), 0);
+    }
+}
+
+#[test]
 fn a_missing_chart_texture_is_rebuilt_without_replacing_the_control() {
     let mut app = app();
     app.add_systems(Startup, |mut commands: Commands| {
@@ -369,4 +408,57 @@ fn topology_static_frames_skip_repaint_while_flow_phase_advances() {
     app.update();
     app.update();
     assert_eq!(modifications(&app, &mut cursor, handle.id()), 1);
+}
+
+#[test]
+fn hundred_times_recycling_and_material_reuse_releases_retired_assets() {
+    let mut app = app();
+    app.add_plugins(ModernSurfacePlugin);
+
+    let palette = *app.world().resource::<UiPalette>();
+    for cycle in 0..100 {
+        // Spawn a card
+        let entity = app
+            .world_mut()
+            .commands()
+            .spawn_scene(surface_scene(
+                vec![Box::new(bsn! { Text("recycling card") })],
+                &palette,
+            ))
+            .id();
+        app.update();
+
+        // Give it layout dimensions so squircle material is created
+        {
+            let mut computed = app.world_mut().get_mut::<ComputedNode>(entity).unwrap();
+            computed.size = Vec2::new(400.0, 200.0);
+            computed.inverse_scale_factor = 1.0;
+            computed.border_radius = ResolvedBorderRadius {
+                top_left: Vec2::splat(12.0),
+                top_right: Vec2::splat(12.0),
+                bottom_right: Vec2::splat(12.0),
+                bottom_left: Vec2::splat(12.0),
+            };
+        }
+        app.update();
+
+        // Must have created exactly 1 material
+        assert_eq!(
+            app.world().resource::<Assets<ModernSurfaceMaterial>>().len(),
+            1,
+            "Cycle {cycle}: exactly one active material"
+        );
+
+        // Despawn the entity
+        app.world_mut().commands().entity(entity).despawn();
+        app.update();
+        app.update(); // AssetPlugin drops unreferenced handle in PreUpdate
+
+        // Material asset MUST be completely released and dropped (no leak)
+        assert_eq!(
+            app.world().resource::<Assets<ModernSurfaceMaterial>>().len(),
+            0,
+            "Cycle {cycle}: material asset must be completely released on despawn"
+        );
+    }
 }

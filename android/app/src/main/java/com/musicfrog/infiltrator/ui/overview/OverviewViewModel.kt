@@ -144,107 +144,114 @@ internal class OverviewViewModel(
     init {
         refreshRoutingIntent()
         startCoreLifecyclePolling()
-        startVpnSessionPolling()
-        startTrafficPolling()
-        startLogStreaming()
+        startSurfacePolling()
         refreshIpCheck()
     }
 
     private fun startCoreLifecyclePolling() {
         viewModelScope.launch {
-            while (true) {
-                when (val call = runCall(timeoutMs = LONG_FFI_TIMEOUT_MS) {
-                    repository.readCoreLifecycle()
-                }) {
-                    is CallResult.Failure -> {
-                        val current = _state.value
-                        _state.value = current.copy(
-                            coreLifecycle = unavailableObservation(current.coreLifecycle, call.failure),
-                            coreLifecycleError = call.failure.toLocalizedFailure(),
-                        )
-                    }
-                    is CallResult.Success -> {
-                        val result = call.value
-                        val current = _state.value
-                        val lifecycle = result.lifecycle
-                        val failure = if (result.status.code != FfiErrorCode.OK) {
-                            result.status.toAppFailure()
-                        } else {
-                            null
-                        }
-                        val nextState = when {
-                            failure != null -> unavailableObservation(current.coreLifecycle, failure)
-                            lifecycle == null -> ObservationState.Empty
-                            else -> ObservationState.Observed(
-                                lifecycle,
-                                ObservationRevision.Owner(result.generation, result.revision),
-                            )
-                        }
-                        _state.value = current.copy(
-                            coreLifecycle = nextState,
-                            coreLifecycleError = failure?.toLocalizedFailure(),
-                        )
-                    }
+            repository.coreLifecycleFlow(1500L).collect { result ->
+                val current = _state.value
+                val lifecycle = result.lifecycle
+                val failure = if (result.status.code != FfiErrorCode.OK) {
+                    result.status.toAppFailure()
+                } else {
+                    null
                 }
-                delay(1500)
+                val nextState = when {
+                    failure != null -> unavailableObservation(current.coreLifecycle, failure)
+                    lifecycle == null -> ObservationState.Empty
+                    else -> ObservationState.Observed(
+                        lifecycle,
+                        ObservationRevision.Owner(result.generation, result.revision),
+                    )
+                }
+                _state.value = current.copy(
+                    coreLifecycle = nextState,
+                    coreLifecycleError = failure?.toLocalizedFailure(),
+                )
             }
         }
     }
 
-    private fun startVpnSessionPolling() {
+    private fun startSurfacePolling() {
         viewModelScope.launch {
-            while (true) {
-                when (val call = runCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
-                    repository.readOwnerSurface()
-                }) {
-                    is CallResult.Failure -> {
-                        val current = _state.value
+            repository.ownerSurfaceFlow(2000L).collect { read ->
+                val epoch = routingIntentObservationFence.beginRead()
+                val current = _state.value
+                when (read) {
+                    is OwnerSurfaceRead.Unavailable -> {
+                        val failure = read.failure.toAppFailure()
                         _state.value = current.copy(
-                            vpnOwnerObservation = unavailableObservation(current.vpnOwnerObservation, call.failure),
-                            vpnStateError = call.failure.toLocalizedFailure(),
+                            vpnOwnerObservation = unavailableObservation(current.vpnOwnerObservation, failure),
+                            vpnStateError = failure.toLocalizedFailure(),
+                            traffic = unavailableObservation(current.traffic, failure),
+                            logs = unavailableObservation(current.logs, failure),
                         )
                     }
-                    is CallResult.Success -> {
-                        val current = _state.value
-                        when (val surface = call.value) {
-                            is OwnerSurfaceRead.Unavailable -> {
-                                val failure = surface.failure.toAppFailure()
-                                _state.value = current.copy(
-                                    vpnOwnerObservation = unavailableObservation(
-                                        current.vpnOwnerObservation,
-                                        failure,
-                                    ),
-                                    vpnStateError = failure.toLocalizedFailure(),
-                                )
-                            }
-                            is OwnerSurfaceRead.Available -> {
-                                val snapshot = surface.snapshot
-                                val revision = when (val vpn = snapshot.vpn) {
-                                    is OwnerVpnObservation.AndroidOwner -> ObservationRevision.VpnService(
-                                        vpn.snapshot.ownerSessionId,
-                                        vpn.snapshot.vpnGeneration,
-                                        vpn.snapshot.revision,
-                                    )
-                                    is OwnerVpnObservation.Unsupported,
-                                    OwnerVpnObservation.NotApplicable,
-                                    is OwnerVpnObservation.Unavailable -> ObservationRevision.Owner(
-                                        snapshot.generation,
-                                        snapshot.revision,
-                                    )
-                                }
-                                val failure = (snapshot.vpn as? OwnerVpnObservation.Unavailable)
-                                    ?.failure
-                                    ?.toAppFailure()
-                                val nextState = ObservationState.Observed(snapshot.vpn, revision)
-                                _state.value = current.copy(
-                                    vpnOwnerObservation = nextState,
-                                    vpnStateError = failure?.toLocalizedFailure(),
-                                )
-                            }
+                    is OwnerSurfaceRead.Available -> {
+                        val snapshot = read.snapshot
+
+                        // 1. VPN observation
+                        val vpnRevision = when (val vpn = snapshot.vpn) {
+                            is OwnerVpnObservation.AndroidOwner -> ObservationRevision.VpnService(
+                                vpn.snapshot.ownerSessionId,
+                                vpn.snapshot.vpnGeneration,
+                                vpn.snapshot.revision,
+                            )
+                            is OwnerVpnObservation.Unsupported,
+                            OwnerVpnObservation.NotApplicable,
+                            is OwnerVpnObservation.Unavailable -> ObservationRevision.Owner(
+                                snapshot.generation,
+                                snapshot.revision,
+                            )
                         }
+                        val vpnFailure = (snapshot.vpn as? OwnerVpnObservation.Unavailable)
+                            ?.failure
+                            ?.toAppFailure()
+                        val nextVpn = ObservationState.Observed(snapshot.vpn, vpnRevision)
+
+                        // 2. Traffic observation
+                        val trafficSnapshot = snapshot.trafficSnapshot()
+                        val pageFailure = snapshot.overview.failure?.toAppFailure()
+                        val nextTraffic = when {
+                            trafficSnapshot != null -> ObservationState.Observed(
+                                trafficSnapshot,
+                                ObservationRevision.Owner(snapshot.generation, snapshot.revision),
+                            )
+                            else -> unavailableObservation(current.traffic, pageFailure ?: notReadyFailure())
+                        }
+
+                        // 3. Logs observation
+                        val logData = snapshot.logs.currentData()
+                        val nextLogs = when {
+                            logData == null -> unavailableObservation(
+                                current.logs,
+                                snapshot.logs.failure?.toAppFailure() ?: notReadyFailure(),
+                            )
+                            logData.entries.isEmpty() -> ObservationState.Empty
+                            else -> ObservationState.Observed(
+                                logData.entries.takeLast(5),
+                                ObservationRevision.Owner(snapshot.generation, snapshot.revision),
+                            )
+                        }
+
+                        // 4. Routing intent preservation
+                        val nextRoutingIntent = if (routingIntentObservationFence.accepts(epoch)) {
+                            preservePendingRoutingIntent(current.routingIntent, snapshot)
+                        } else {
+                            current.routingIntent
+                        }
+
+                        _state.value = current.copy(
+                            vpnOwnerObservation = nextVpn,
+                            vpnStateError = vpnFailure?.toLocalizedFailure(),
+                            traffic = nextTraffic,
+                            logs = nextLogs,
+                            routingIntent = nextRoutingIntent,
+                        )
                     }
                 }
-                delay(1500)
             }
         }
     }
@@ -278,97 +285,6 @@ internal class OverviewViewModel(
                         )
                     }
                 }
-            }
-        }
-    }
-
-    private fun startTrafficPolling() {
-        viewModelScope.launch {
-            while (true) {
-                val epoch = routingIntentObservationFence.beginRead()
-                val currentState = _state.value
-                when (val call = runCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
-                    repository.readOwnerSurface()
-                }) {
-                    is CallResult.Failure -> _state.value = currentState.copy(
-                        traffic = unavailableObservation(currentState.traffic, call.failure),
-                    )
-                    is CallResult.Success -> {
-                        when (val read = call.value) {
-                            is OwnerSurfaceRead.Unavailable -> _state.value = currentState.copy(
-                                traffic = unavailableObservation(
-                                    currentState.traffic,
-                                    read.failure.toAppFailure(),
-                                ),
-                            )
-                            is OwnerSurfaceRead.Available -> {
-                                val ownerSnapshot = read.snapshot
-                                val snapshot = ownerSnapshot.trafficSnapshot()
-                                val pageFailure = ownerSnapshot.overview.failure
-                                    ?.toAppFailure()
-                                val next = when {
-                                    snapshot != null -> ObservationState.Observed(
-                                        snapshot,
-                                        ObservationRevision.Owner(
-                                            ownerSnapshot.generation,
-                                            ownerSnapshot.revision,
-                                        ),
-                                    )
-                                    else -> unavailableObservation(
-                                        currentState.traffic,
-                                        pageFailure ?: notReadyFailure(),
-                                    )
-                                }
-                                _state.value = _state.value.copy(
-                                    traffic = next,
-                                    routingIntent = if (routingIntentObservationFence.accepts(epoch)) {
-                                        preservePendingRoutingIntent(_state.value.routingIntent, ownerSnapshot)
-                                    } else {
-                                        _state.value.routingIntent
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-                delay(2000)
-            }
-        }
-    }
-
-    private fun startLogStreaming() {
-        viewModelScope.launch {
-            while (true) {
-                val current = _state.value
-                val next = when (val call = runCall { repository.readOwnerSurface() }) {
-                    is CallResult.Failure -> unavailableObservation(current.logs, call.failure)
-                    is CallResult.Success -> when (val read = call.value) {
-                        is OwnerSurfaceRead.Unavailable -> unavailableObservation(
-                            current.logs,
-                            read.failure.toAppFailure(),
-                        )
-                        is OwnerSurfaceRead.Available -> {
-                            val ownerSnapshot = read.snapshot
-                            val data = ownerSnapshot.logs.currentData()
-                            when {
-                                data == null -> unavailableObservation(
-                                    current.logs,
-                                    ownerSnapshot.logs.failure?.toAppFailure() ?: notReadyFailure(),
-                                )
-                                data.entries.isEmpty() -> ObservationState.Empty
-                                else -> ObservationState.Observed(
-                                    data.entries.takeLast(5),
-                                    ObservationRevision.Owner(
-                                        ownerSnapshot.generation,
-                                        ownerSnapshot.revision,
-                                    ),
-                                )
-                            }
-                        }
-                    }
-                }
-                _state.value = _state.value.copy(logs = next)
-                delay(3000)
             }
         }
     }

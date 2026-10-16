@@ -15,8 +15,12 @@ use infiltrator_platform::instance_lock::{
 use infiltrator_ports::error::PortError;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::path::PathBuf;
+use std::fs;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tokio::task::spawn_blocking;
+use tokio::time::sleep;
 
 pub const ACTIVE_PROFILE_REFERENCE_FILE: &str = "active-profile-reference.json";
 const ACTIVE_PROFILE_REFERENCE_LOCK_FILE: &str = "active-profile-reference.lock";
@@ -46,10 +50,12 @@ impl ActiveProfileReferenceFile {
     pub async fn acquire_root_lock(
         &self,
     ) -> Result<(PathBuf, ThreadedInstanceLockGuard), PortError> {
-        tokio::fs::create_dir_all(&self.config_root)
+        use tokio::fs;
+
+        fs::create_dir_all(&self.config_root)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
-        let config_root = tokio::fs::canonicalize(&self.config_root)
+        let config_root = fs::canonicalize(&self.config_root)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         let lock_path = config_root.join(ACTIVE_PROFILE_REFERENCE_LOCK_FILE);
@@ -131,9 +137,9 @@ impl ActiveProfileReferenceFile {
 
     pub fn read_owner_proof_sync(&self) -> Result<ActiveCoreOwnerProofRecord, PortError> {
         let path = self.config_root.join(ACTIVE_CORE_OWNER_STATE_FILE);
-        let text = match std::fs::read_to_string(path) {
+        let text = match fs::read_to_string(path) {
             Ok(text) => text,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Err(error) if error.kind() == ErrorKind::NotFound => {
                 return Ok(ActiveCoreOwnerProofRecord::unowned());
             }
             Err(error) => return Err(PortError::Io(error.to_string())),
@@ -186,9 +192,9 @@ impl ActiveProfileReferenceFile {
     }
 
     pub fn read_sync<T: DeserializeOwned>(&self) -> Result<Option<T>, PortError> {
-        let text = match std::fs::read_to_string(self.path()) {
+        let text = match fs::read_to_string(self.path()) {
             Ok(text) => text,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(PortError::Io(error.to_string())),
         };
         serde_json::from_str(&text)
@@ -245,7 +251,7 @@ pub fn is_durability_uncertain(error: &PortError) -> bool {
     matches!(error, PortError::Failed(message) if message.starts_with(RECORD_DURABILITY_UNCERTAIN_PREFIX))
 }
 
-fn active_profile_reference_path(config_root: &std::path::Path) -> PathBuf {
+fn active_profile_reference_path(config_root: &Path) -> PathBuf {
     config_root.join(ACTIVE_PROFILE_REFERENCE_FILE)
 }
 
@@ -254,7 +260,7 @@ async fn acquire_instance_lock_async(
 ) -> Result<ThreadedInstanceLockGuard, PortError> {
     loop {
         let attempt_path = lock_path.clone();
-        let attempt = tokio::task::spawn_blocking(move || {
+        let attempt = spawn_blocking(move || {
             try_acquire_threaded_instance_lock(&attempt_path)
                 .map_err(|error| PortError::Io(error.to_string()))
         })
@@ -263,7 +269,7 @@ async fn acquire_instance_lock_async(
         if let Some(guard) = attempt {
             return Ok(guard);
         }
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        sleep(Duration::from_millis(10)).await;
     }
 }
 

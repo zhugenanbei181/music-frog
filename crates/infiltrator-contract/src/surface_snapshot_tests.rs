@@ -7,7 +7,7 @@ use crate::android_control::{
 use crate::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
-#[cfg(test)]
+use crate::error::FailureReason;
 use crate::offline_startup::StartupNetworkPolicy;
 use crate::outbound::details::{OutboundDetailsSnapshot, OutboundDetailsState};
 use crate::outbound::identity::SnapshotRevision;
@@ -23,9 +23,11 @@ use crate::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability}
 use crate::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceOwnerObservation,
 };
+use crate::runtime_status::{CoreProcessObservation, ProxyEffectivenessObservation};
 #[cfg(test)]
 use crate::session::SessionToken;
 use crate::snapshot::CoreLifecycleSnapshot;
+use crate::vpn::VpnGeneration;
 
 #[test]
 fn page_vocabulary_has_exactly_eleven_entries() {
@@ -86,11 +88,11 @@ fn surface_snapshot_without_runtime_status_defaults_to_unknown_axes() {
     assert_eq!(decoded.runtime_status, RuntimeStatusSnapshot::default());
     assert_eq!(
         decoded.runtime_status.core_process,
-        crate::runtime_status::CoreProcessObservation::Unknown
+        CoreProcessObservation::Unknown
     );
     assert_eq!(
         decoded.runtime_status.proxy_effectiveness,
-        crate::runtime_status::ProxyEffectivenessObservation::Unknown
+        ProxyEffectivenessObservation::Unknown
     );
 }
 
@@ -101,26 +103,26 @@ fn proxy_page_status_is_derived_from_typed_inventory_state() {
         HostKind::Desktop,
         Failure::unsupported("not composed"),
     );
-    let scope = crate::core_identity::CoreScope {
+    let scope = CoreScope {
         identity: core_identity("mihomo", "owner-a"),
-        generation: crate::core_identity::CoreGeneration::new(1),
+        generation: CoreGeneration::new(1),
         session_token: None,
     };
     snapshot.outbound_inventory = PageData::ready(
-        crate::outbound::inventory::OutboundInventorySnapshot::new(
+        OutboundInventorySnapshot::new(
             scope.clone(),
-            crate::outbound::identity::SnapshotRevision::new(4),
-            crate::outbound::inventory::OutboundInventoryState::Empty,
+            SnapshotRevision::new(4),
+            OutboundInventoryState::Empty,
         )
         .expect("empty typed inventory is valid"),
     );
     assert_eq!(snapshot.page_status(PageId::Proxies), PageStatus::Empty);
 
     snapshot.outbound_inventory = PageData::ready(
-        crate::outbound::inventory::OutboundInventorySnapshot::new(
+        OutboundInventorySnapshot::new(
             scope,
-            crate::outbound::identity::SnapshotRevision::new(5),
-            crate::outbound::inventory::OutboundInventoryState::Unsupported,
+            SnapshotRevision::new(5),
+            OutboundInventoryState::Unsupported,
         )
         .expect("unsupported typed inventory is valid"),
     );
@@ -334,7 +336,7 @@ fn android_surface_snapshot_keeps_owner_facts_and_fences_the_embedded_core_scope
     let owner_snapshot = VpnOwnerSnapshot {
         owner_session_id: "vpn-owner-a".to_owned(),
         revision: 11,
-        vpn_generation: crate::vpn::VpnGeneration::new(5),
+        vpn_generation: VpnGeneration::new(5),
         vpn_state: VpnOwnerLifecycle::Running,
         readiness: VpnOwnerReadiness::Ready,
         resources: [
@@ -416,7 +418,7 @@ fn android_surface_snapshot_keeps_owner_facts_and_fences_the_embedded_core_scope
         "profile YAML could not be parsed",
         true,
     )
-    .with_reason(crate::error::FailureReason::YamlSyntax {
+    .with_reason(FailureReason::YamlSyntax {
         line: 23,
         column: 6,
     });
@@ -434,7 +436,7 @@ fn android_surface_snapshot_keeps_owner_facts_and_fences_the_embedded_core_scope
 
     failed_surface.core.failure = Some(
         Failure::new(ErrorCode::Network, "profile YAML could not be parsed", true).with_reason(
-            crate::error::FailureReason::YamlSyntax {
+            FailureReason::YamlSyntax {
                 line: 23,
                 column: 6,
             },
@@ -451,7 +453,7 @@ fn android_surface_snapshot_keeps_owner_facts_and_fences_the_embedded_core_scope
             "profile YAML could not be parsed",
             false,
         )
-        .with_reason(crate::error::FailureReason::YamlSyntax {
+        .with_reason(FailureReason::YamlSyntax {
             line: 23,
             column: 6,
         }),

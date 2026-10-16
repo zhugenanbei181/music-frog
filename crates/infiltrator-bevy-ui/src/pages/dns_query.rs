@@ -29,7 +29,7 @@ use infiltrator_presentation::dns_query_projection::project_query;
 #[derive(Resource, Default)]
 pub struct QueryPanel {
     pub model: DnsQueryActions,
-    pub request: Option<(RequestId, u64)>,
+    pub request: Option<(RequestId, DnsQueryOperationId)>,
     pub kind_open: bool,
     pub restore_focus: Vec<Entity>,
 }
@@ -163,7 +163,7 @@ pub fn activate(
     };
     if let Some(id) = sink.and_then(|sink| {
         sink.submit_tracked(UiCommand::QueryDns {
-            operation: DnsQueryOperationId(token),
+            operation: token,
             request,
         })
     }) {
@@ -187,7 +187,7 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<QueryPanel>) {
         return;
     };
     if event.request_id == id
-        && *operation == DnsQueryOperationId(token)
+        && *operation == token
         && state.model.finish(token, event.unit_result())
     {
         state.request = None;

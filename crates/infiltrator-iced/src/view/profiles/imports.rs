@@ -19,7 +19,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-    let clear_profiles_btn: Element<'_, Message> = if state.profile.is_loading_profiles {
+    let clear_profiles_btn: Element<'_, Message> = if state.profile.list_load_phase.is_loading() {
         text_btn(lang.tr("profiles_clearing").to_string(), style_danger, None)
     } else {
         text_btn(
@@ -39,19 +39,20 @@ pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
     .max_width(360.0);
 
     // DUAL-07-11: toolbar entry that refreshes every subscription at once.
-    let update_all_btn: Element<'_, Message> = if state.profile.is_updating_subscription_now {
-        text_btn(
-            lang.tr("profiles_updating_subscription").to_string(),
-            style_ghost,
-            None,
-        )
-    } else {
-        text_btn(
-            lang.tr("profiles_update_all").to_string(),
-            style_ghost,
-            Some(Message::UpdateAllSubscriptionsNow),
-        )
-    };
+    let update_all_btn: Element<'_, Message> =
+        if state.profile.subscription_update_phase.is_updating() {
+            text_btn(
+                lang.tr("profiles_updating_subscription").to_string(),
+                style_ghost,
+                None,
+            )
+        } else {
+            text_btn(
+                lang.tr("profiles_update_all").to_string(),
+                style_ghost,
+                Some(Message::UpdateAllSubscriptionsNow),
+            )
+        };
 
     let header = row![
         text(lang.tr("profiles_title").to_string())
@@ -182,7 +183,7 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     .style(style_ghost)
     .on_press(paste_msg);
 
-    let import_actions: Element<'_, Message> = if state.profile.is_importing {
+    let import_actions: Element<'_, Message> = if state.profile.url_import_phase.is_importing() {
         text_btn(
             lang.tr("profiles_importing").to_string(),
             style_accent,
@@ -260,27 +261,28 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
 
 pub(super) fn local_import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-    let local_import_action: Element<'_, Message> = if state.profile.is_importing_local {
-        text_btn(
-            lang.tr("profiles_importing").to_string(),
-            style_accent,
-            None,
-        )
-    } else {
-        button(
-            row![
-                svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
-                text(lang.tr("profiles_import_local_btn").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM)
-            ]
-            .spacing(theme::SP_SM),
-        )
-        .padding([7, 14])
-        .style(style_accent)
-        .on_press(Message::ImportLocalProfile)
-        .into()
-    };
+    let local_import_action: Element<'_, Message> =
+        if state.profile.local_import_phase.is_importing() {
+            text_btn(
+                lang.tr("profiles_importing").to_string(),
+                style_accent,
+                None,
+            )
+        } else {
+            button(
+                row![
+                    svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
+                    text(lang.tr("profiles_import_local_btn").to_string())
+                        .size(12)
+                        .font(FONT_MEDIUM)
+                ]
+                .spacing(theme::SP_SM),
+            )
+            .padding([7, 14])
+            .style(style_accent)
+            .on_press(Message::ImportLocalProfile)
+            .into()
+        };
 
     card(
         Some(lang.tr("profiles_local_import_title").to_string()),

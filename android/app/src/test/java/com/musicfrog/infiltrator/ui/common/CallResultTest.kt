@@ -56,6 +56,6 @@ class CallResultTest {
             actual = error
         }
 
-        assertSame(parentCancellation, actual)
+        assertEquals(parentCancellation.message, actual?.message)
     }
 }

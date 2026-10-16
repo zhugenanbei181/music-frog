@@ -405,6 +405,19 @@ pub struct ProfileAgeCredentialOwnerSubmission {
 }
 
 impl ProfileAgeCredentialOwnerRequest {
+    pub fn scope(&self) -> &CoreScope {
+        match self {
+            Self::Read { scope, .. } | Self::Set { scope, .. } | Self::Clear { scope, .. } => scope,
+        }
+    }
+
+    pub fn profile_id(&self) -> &ProfileId {
+        match self {
+            Self::Read { profile_id, .. } => profile_id,
+            Self::Set { expected, .. } | Self::Clear { expected, .. } => &expected.profile_id,
+        }
+    }
+
     pub fn metadata(&self) -> ProfileAgeCredentialOwnerMetadata {
         match self {
             Self::Read { scope, profile_id } => ProfileAgeCredentialOwnerMetadata::Read {

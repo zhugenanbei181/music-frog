@@ -1,5 +1,6 @@
 //! Ordered restart recovery for the Android Core/VPN owner.
 
+use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
@@ -39,7 +40,7 @@ enum RecoveryCandidate {
 pub struct AndroidCoreOwnerRecoveryApplication {
     process: Arc<dyn AndroidCoreProcessRecoveryPort>,
     owner_store: Arc<dyn ActiveProfileReferenceStore>,
-    vpn: crate::vpn_application::VpnServiceApplication,
+    vpn: VpnServiceApplication,
     identity: CoreIdentity,
 }
 
@@ -47,7 +48,7 @@ impl AndroidCoreOwnerRecoveryApplication {
     pub fn new(
         process: Arc<dyn AndroidCoreProcessRecoveryPort>,
         owner_store: Arc<dyn ActiveProfileReferenceStore>,
-        vpn: crate::vpn_application::VpnServiceApplication,
+        vpn: VpnServiceApplication,
         identity: CoreIdentity,
     ) -> Self {
         Self {

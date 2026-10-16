@@ -220,7 +220,7 @@ fn native_export_cancel_is_side_effect_free_and_retry_writes_only_reviewed_bytes
         app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .export_visible
+            .is_export_visible()
     );
     assert!(app.world().get::<InteractionDisabled>(field).is_some());
     assert!(
@@ -236,7 +236,7 @@ fn native_export_cancel_is_side_effect_free_and_retry_writes_only_reviewed_bytes
         !app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .export_visible
+            .is_export_visible()
     );
     assert!(host.writes.lock().unwrap().is_empty());
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(field));
@@ -251,7 +251,7 @@ fn native_export_cancel_is_side_effect_free_and_retry_writes_only_reviewed_bytes
         .resource::<ScriptWorkbenchState>()
         .model
         .review()
-        .clone()
+        .cloned()
         .unwrap();
     *host.failure.lock().unwrap() = true;
     click(&mut app, ScriptControl::Confirm, true);
@@ -298,7 +298,7 @@ fn native_ime_preedit_disables_actions_and_commits_once_to_the_actual_buffer() {
         app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .script_code
+            .script_code()
             .is_empty()
     );
     let run = control(&mut app, ScriptControl::Run, false);
@@ -324,7 +324,7 @@ fn native_ime_preedit_disables_actions_and_commits_once_to_the_actual_buffer() {
         app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .script_code
+            .script_code()
             .is_empty()
     );
     press(&mut app, entity);
@@ -359,7 +359,7 @@ fn native_ime_preedit_disables_actions_and_commits_once_to_the_actual_buffer() {
         app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .script_code,
+            .script_code(),
         "中🙂"
     );
 }

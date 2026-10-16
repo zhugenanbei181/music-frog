@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Native SDK gestures and ordinary keyboard input execute real Core exports in isolated host files.
+use std::path::PathBuf;
 use crate::command_harness::install_test_core_capability_application;
 use crate::native_input::{click_entity, press, type_text};
 use crate::support::{
@@ -56,7 +57,7 @@ use tokio::runtime::Builder;
 
 #[derive(Clone)]
 struct TestLogExportPort {
-    directory: std::path::PathBuf,
+    directory: PathBuf,
 }
 
 impl TestLogExportPort {
@@ -275,7 +276,7 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
         .resource::<LogsExportState>()
         .model
         .receipt()
-        .clone()
+        .cloned()
         .unwrap();
     assert!(Path::new(&receipt.path).starts_with(directory.path().join("exports")));
     let bytes = fs::read_to_string(&receipt.path).unwrap();
@@ -283,15 +284,17 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
     assert_eq!(receipt.bytes_written, bytes.len());
     assert!(!bytes.contains("private-subscription-token") && bytes.contains("token=***"));
     assert!(!bytes.contains("continued controller record"));
-    let visible_path = app
-        .world_mut()
-        .query::<(&LogsExportLine, &Text)>()
-        .iter(app.world())
-        .find(|(marker, _)| matches!(marker, LogsExportLine::Path))
-        .unwrap()
-        .1
-        .0
-        .clone();
+    let visible_path = {
+        let world = app.world_mut();
+        let mut query = world.query::<(&LogsExportLine, &Text)>();
+        query
+            .iter(world)
+            .find(|(marker, _)| matches!(marker, LogsExportLine::Path))
+            .unwrap()
+            .1
+            .0
+            .clone()
+    };
     assert_eq!(visible_path, receipt.path);
     click(&mut app, LogsExportAction::Cancel);
     terminal(&mut app);
@@ -347,7 +350,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         .resource::<LogsExportState>()
         .model
         .summary()
-        .clone()
+        .cloned()
         .unwrap();
     click(&mut app, LogsExportAction::Confirm);
     terminal(&mut app);
@@ -400,7 +403,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
             .as_ref()
             .unwrap()
             .summary,
-        summary
+        summary.clone()
     );
     writer.pause.store(false, Ordering::Release);
     click(&mut app, LogsExportAction::Cancel);

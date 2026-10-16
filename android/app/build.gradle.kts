@@ -281,6 +281,7 @@ val fetchMihomoX86_64Asset = fetchMihomoAsset(
 )
 
 tasks.register<Copy>("prepareMihomoAsset") {
+    mustRunAfter("cargoBuild")
     dependsOn(fetchMihomoArm64Asset, fetchMihomoX86_64Asset)
     from(mihomoStagingDirectory.get().dir("arm64-v8a")) {
         include("libmihomo.so")

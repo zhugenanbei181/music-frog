@@ -72,21 +72,35 @@ impl FramelessWindowConfig {
 }
 
 /// System tray badge display state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TrayBadgePhase {
+    #[default]
+    Stopped,
+    Running,
+}
+
+impl TrayBadgePhase {
+    pub const fn is_running(self) -> bool {
+        matches!(self, Self::Running)
+    }
+}
+
+/// System tray badge display state.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct TrayBadgeState {
     pub upload_rate_str: String,
     pub download_rate_str: String,
-    pub is_running: bool,
+    pub phase: TrayBadgePhase,
 }
 
 impl TrayBadgeState {
     pub fn update(
         &mut self,
-        is_running: bool,
+        phase: TrayBadgePhase,
         up_str: impl Into<String>,
         down_str: impl Into<String>,
     ) {
-        self.is_running = is_running;
+        self.phase = phase;
         self.upload_rate_str = up_str.into();
         self.download_rate_str = down_str.into();
     }

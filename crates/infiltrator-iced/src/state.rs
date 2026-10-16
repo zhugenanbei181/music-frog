@@ -7,6 +7,11 @@
 //!
 //! 视图层只读这些域做纯渲染投影;update 层按域定位字段。
 
+use crate::state::proxy_search::ProxySearchPhase::Dirty;
+use crate::state::proxy_search::ProxySearchPhase::Failed;
+use crate::state::proxy_search::ProxySearchPhase::Pending;
+use crate::state::proxy_search::ProxySearchPhase::Uninitialized;
+use crate::state::proxy_search::ProxySearchPhase;
 use crate::command_ingress::{CoreCommandIngress, ObservedCoreScope};
 use crate::state::diagnostics::DiagnosticsState;
 use crate::state::editor::ConfigEditorState;
@@ -317,15 +322,15 @@ impl AppState {
             return;
         };
         match &self.runtime.proxy_search.phase {
-            crate::state::proxy_search::ProxySearchPhase::Uninitialized
-            | crate::state::proxy_search::ProxySearchPhase::Synchronized { .. } => {
+            Uninitialized
+            | ProxySearchPhase::Synchronized { .. } => {
                 self.runtime
                     .proxy_filter
                     .clone_from(&preferences.search_query);
             }
-            crate::state::proxy_search::ProxySearchPhase::Dirty { .. }
-            | crate::state::proxy_search::ProxySearchPhase::Pending { .. }
-            | crate::state::proxy_search::ProxySearchPhase::Failed { .. } => {}
+            Dirty { .. }
+            | Pending { .. }
+            | Failed { .. } => {}
         }
         self.runtime.favorite_proxies = preferences
             .favorite_outbound_ids
@@ -416,7 +421,7 @@ impl AppState {
             OutboundUiPreferenceIntent::SetSearchQuery(query) => {
                 search_query = query;
                 self.runtime.proxy_search.phase =
-                    crate::state::proxy_search::ProxySearchPhase::Synchronized {
+                    ProxySearchPhase::Synchronized {
                         query: search_query.clone(),
                     };
             }

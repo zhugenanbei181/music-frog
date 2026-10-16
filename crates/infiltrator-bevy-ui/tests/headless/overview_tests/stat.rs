@@ -33,7 +33,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         .find(|(line, _)| line.0 == OverviewLineKind::State)
         .expect("the state line carries semantics");
     assert_eq!(status.role(), accesskit::Role::Status);
-    assert_eq!(status.label(), Some("运行中"));
+    assert_eq!(status.label(), Some("演示模式"));
 
     // A refresh restamps the semantics alongside the visible texts.
     let stopped = OverviewProjection {

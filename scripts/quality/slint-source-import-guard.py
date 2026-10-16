@@ -57,6 +57,11 @@ def main() -> int:
             errors.append(f"{original}: missing preserved file {destination}")
             continue
         total_bytes += len(data)
+        if record.get("patched"):
+            if not record.get("patch_source"):
+                errors.append(f"{original}: patched file missing patch_source provenance")
+            if not record.get("original_sha256") or not record.get("original_bytes"):
+                errors.append(f"{original}: patched file missing original archive hashes")
         if len(data) != record.get("bytes") or sha256(data) != record.get("sha256"):
             errors.append(f"{original}: preserved bytes do not match the manifest")
 
@@ -79,7 +84,9 @@ def main() -> int:
                 for original, record in files.items():
                     if original in archive_files:
                         data = archive.read(original)
-                        if len(data) != record.get("bytes") or sha256(data) != record.get("sha256"):
+                        expected_bytes = record.get("original_bytes", record.get("bytes"))
+                        expected_sha = record.get("original_sha256", record.get("sha256"))
+                        if len(data) != expected_bytes or sha256(data) != expected_sha:
                             errors.append(f"{original}: source ZIP bytes do not match the manifest")
         except (OSError, zipfile.BadZipFile) as error:
             errors.append(f"cannot read supplied source ZIP: {error}")
@@ -90,9 +97,10 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
         return 1
 
+    patched_count = sum(1 for r in files.values() if r.get("patched"))
     print(
         "Slint source import integrity passed: "
-        f"{len(files)} files, {total_bytes} bytes"
+        f"{len(files)} files ({patched_count} patched with provenance), {total_bytes} bytes"
         + ("; supplied ZIP matches" if args.archive is not None else "")
     )
     return 0

@@ -2,6 +2,7 @@
 use crate::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::ops::Add;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DnsRecordType {
@@ -155,6 +156,14 @@ impl DnsQueryResponse {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsQueryOperationId(pub u64);
+
+impl Add<u64> for DnsQueryOperationId {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self {
+        Self(self.0 + rhs)
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DnsQueryOperation {
     #[default]

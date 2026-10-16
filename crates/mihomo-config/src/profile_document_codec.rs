@@ -1,11 +1,15 @@
 //! Mihomo YAML document inspection adapter.
 
+use crate::{profile_configuration_codec, profile_options_codec};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
-use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
+};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
@@ -53,37 +57,37 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
 
     fn read_configuration(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         raw_bytes: &[u8],
         query: ProfileConfigurationQuery,
     ) -> Result<ProfileConfigurationReadout, PortError> {
-        crate::profile_configuration_codec::read(identity, raw_bytes, query)
+        profile_configuration_codec::read(identity, raw_bytes, query)
     }
 
     fn apply_configuration(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         raw_bytes: &[u8],
         update: ProfileConfigurationUpdate,
     ) -> Result<ProfileConfigurationMutation, PortError> {
-        crate::profile_configuration_codec::apply(identity, raw_bytes, update)
+        profile_configuration_codec::apply(identity, raw_bytes, update)
     }
 
     fn read_rule_workspace(
         &self,
-        workspace: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        workspace: &ProfileWorkspaceIdentity,
         raw_bytes: &[u8],
     ) -> Result<ProfileRuleWorkspaceProjection, PortError> {
-        crate::profile_configuration_codec::read_rule_workspace(workspace, raw_bytes)
+        profile_configuration_codec::read_rule_workspace(workspace, raw_bytes)
     }
 
     fn apply_rule_workspace(
         &self,
-        workspace: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        workspace: &ProfileWorkspaceIdentity,
         raw_bytes: &[u8],
         update: ProfileRuleWorkspaceUpdate,
     ) -> Result<ProfileRuleWorkspaceMutation, PortError> {
-        crate::profile_configuration_codec::apply_rule_workspace(workspace, raw_bytes, update)
+        profile_configuration_codec::apply_rule_workspace(workspace, raw_bytes, update)
     }
 
     fn insert_snippet(
@@ -126,25 +130,25 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
     }
 
     fn options_scope(&self) -> Result<ProfileOptionsCodecScope, PortError> {
-        Ok(crate::profile_options_codec::scope(self.scope()))
+        Ok(profile_options_codec::scope(self.scope()))
     }
 
     fn inspect_options(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         sidecar_bytes: Option<&[u8]>,
     ) -> Result<ProfileOptionsProjection, PortError> {
-        crate::profile_options_codec::inspect(identity, sidecar_bytes)
+        profile_options_codec::inspect(identity, sidecar_bytes)
     }
 
     fn apply_mixin(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_bytes: &[u8],
         sidecar_bytes: Option<&[u8]>,
         mixin_yaml: &str,
     ) -> Result<ProfileMixinMutation, PortError> {
-        crate::profile_options_codec::apply_mixin(
+        profile_options_codec::apply_mixin(
             identity,
             document_bytes,
             sidecar_bytes,
@@ -154,40 +158,40 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
 
     fn inspect_mixin_toggle(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         mixin_yaml: &str,
         toggle_id: ProfileMixinToggleId,
     ) -> Result<bool, PortError> {
-        crate::profile_options_codec::inspect_mixin_toggle(identity, mixin_yaml, toggle_id)
+        profile_options_codec::inspect_mixin_toggle(identity, mixin_yaml, toggle_id)
     }
 
     fn set_mixin_toggle(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         mixin_yaml: &str,
         toggle_id: ProfileMixinToggleId,
         enabled: bool,
     ) -> Result<String, PortError> {
-        crate::profile_options_codec::set_mixin_toggle(identity, mixin_yaml, toggle_id, enabled)
+        profile_options_codec::set_mixin_toggle(identity, mixin_yaml, toggle_id, enabled)
     }
 
     fn inspect_mixin_studio(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_bytes: &[u8],
         mixin_yaml: &str,
     ) -> Result<ProfileMixinStudioObservation, PortError> {
-        crate::profile_options_codec::inspect_mixin_studio(identity, document_bytes, mixin_yaml)
+        profile_options_codec::inspect_mixin_studio(identity, document_bytes, mixin_yaml)
     }
 
     fn apply_filter(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_bytes: &[u8],
         sidecar_bytes: Option<&[u8]>,
-        draft: &infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+        draft: &SubscriptionFilterDraft,
     ) -> Result<ProfileFilterMutation, PortError> {
-        crate::profile_options_codec::apply_filter(identity, document_bytes, sidecar_bytes, draft)
+        profile_options_codec::apply_filter(identity, document_bytes, sidecar_bytes, draft)
     }
 }
 

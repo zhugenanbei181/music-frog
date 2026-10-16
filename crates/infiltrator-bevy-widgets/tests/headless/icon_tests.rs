@@ -13,6 +13,7 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::icon::{IconId, IconPlate, IconSources, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
+use infiltrator_shared::assets::{AssetCatalog, AssetFormat};
 use std::collections::HashSet;
 
 fn headless_app() -> App {
@@ -31,9 +32,9 @@ fn every_id_resolves_to_a_distinct_shared_png_asset() {
     let records: Vec<_> = IconId::ALL
         .iter()
         .map(|icon| {
-            infiltrator_shared::assets::AssetCatalog::find(
+            AssetCatalog::find(
                 &format!("icon.{}", icon.asset_name()),
-                infiltrator_shared::assets::AssetFormat::Png,
+                AssetFormat::Png,
                 "white-plate-64",
             )
             .expect("every Bevy icon is registered in the shared catalog")

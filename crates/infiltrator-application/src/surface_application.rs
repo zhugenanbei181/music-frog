@@ -634,4 +634,70 @@ mod tests {
         producer.join().expect("producer thread must finish");
         assert!(notified.load(Ordering::Acquire) >= 1);
     }
+
+    #[test]
+    fn stale_generation_and_disconnection_do_not_regress_mirror() {
+        let (tx, rx) = sync_channel(SNAPSHOT_CAPACITY);
+        let rx = Mutex::new(rx);
+        let last = Mutex::new(surface_snapshot(10, CoreLifecycle::Running));
+        let wake = SurfaceWake::new();
+
+        // Stale generation 5 arriving after generation 10
+        let mut stale = surface_snapshot(5, CoreLifecycle::Stopped);
+        stale.generation = 5;
+        assert!(publish_snapshot(&tx, &rx, &last, stale, &wake));
+
+        // When a disconnection happens, failure is reported with current generation
+        let mut disconnected = surface_snapshot(11, CoreLifecycle::Failed);
+        disconnected.failure = Some(Failure::new(ErrorCode::Network, "connection dropped", true));
+        assert!(publish_snapshot(&tx, &rx, &last, disconnected, &wake));
+
+        let current = last.lock().expect("mirror lock").clone();
+        assert_eq!(current.core.generation, 11);
+        assert_eq!(current.core.lifecycle, CoreLifecycle::Failed);
+        assert!(current.failure.is_some());
+    }
+
+    struct TestRunningReader;
+
+    #[async_trait]
+    impl SurfaceReader for TestRunningReader {
+        async fn read(&self) -> Result<SurfaceSnapshot, PortError> {
+            Ok(surface_snapshot(1, CoreLifecycle::Running))
+        }
+    }
+
+    #[test]
+    fn background_wake_and_recovery_restores_complete_snapshot() {
+        let wake = SurfaceWake::new();
+        let notified = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&notified);
+        wake.set_waker(move || {
+            counter.fetch_add(1, Ordering::AcqRel);
+        });
+
+        let pump = SurfacePump::spawn_with_wake(
+            Arc::new(TestRunningReader),
+            Duration::from_millis(50),
+            test_runtime(),
+            surface_snapshot(1, CoreLifecycle::Running),
+            wake.clone(),
+        );
+
+        // Sleep / wait for observation
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while notified.load(Ordering::Acquire) == 0 {
+            assert!(Instant::now() < deadline, "pump must wake the event loop");
+            yield_now();
+        }
+
+        // Host drains snapshots on wake
+        let bridge = pump.bridge();
+        let snapshots = bridge.drain();
+        assert!(!snapshots.is_empty(), "draining after wake must yield snapshots");
+
+        // The current mirror retains the complete snapshot
+        let current = pump.current();
+        assert_eq!(current.core.lifecycle, CoreLifecycle::Running);
+    }
 }

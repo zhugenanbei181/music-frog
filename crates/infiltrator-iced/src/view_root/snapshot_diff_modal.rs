@@ -54,7 +54,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     });
 
     let body = match &state.editor.snapshot_diff {
-        _ if state.editor.snapshot_diff_loading => {
+        _ if state.editor.snapshot_diff_load_phase.is_loading() => {
             message_block(lang.tr("snapshot_diff_loading").to_string(), |t: &Theme| {
                 tokens(t).text_tertiary
             })

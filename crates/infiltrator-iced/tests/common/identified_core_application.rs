@@ -1,4 +1,5 @@
 //! Identified, hostless lifecycle fixture for capability-gated UI tests.
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
@@ -22,7 +23,7 @@ impl CoreProcess for IdentifiedLanguageCaptureProcess {
 
     async fn start(
         &self,
-        context: infiltrator_ports::core_process::CoreProcessStartContext,
+        context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         LanguageCaptureProcess.start(context).await
     }

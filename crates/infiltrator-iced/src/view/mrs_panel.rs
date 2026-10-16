@@ -2,6 +2,7 @@
 //! header metadata (behavior / rule count / version) per provider, with the
 //! failure reason when a cache file is missing or not MRS.
 
+use std::fmt::Display;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
@@ -44,7 +45,7 @@ pub fn format_vehicle_behavior(vehicle: Option<&str>, behavior: &str) -> String 
 }
 
 /// Format rule count badge label (e.g. `179 rules`).
-pub fn format_rule_count(count: impl std::fmt::Display) -> String {
+pub fn format_rule_count(count: impl Display) -> String {
     format!("{count} rules")
 }
 
@@ -77,7 +78,7 @@ fn detail_row<'a>(
     let rule_count_opt = detail
         .metadata
         .as_ref()
-        .map(|m| m.rule_count)
+        .map(|m| m.rule_count as usize)
         .or_else(|| rule_provider.map(|rp| rp.rule_count));
 
     let count_badge = match rule_count_opt {
@@ -144,11 +145,7 @@ fn detail_row<'a>(
     .padding([4, 10])
     .style(style_ghost)
     .on_press_maybe(
-        state
-            .editor
-            .rule_providers
-            .iter()
-            .find(|provider| provider.name == detail.name)
+        rule_provider
             .and_then(|provider| provider.controller.clone())
             .map(Message::UpdateRuleProvider),
     );
@@ -194,12 +191,12 @@ fn detail_row<'a>(
 /// Rendered inside the providers tab, below the provider lists. Scan results
 /// refresh whenever the accepted shared rules-page observation changes.
 pub fn mrs_card(state: &AppState) -> Option<Element<'_, Message>> {
-    if state.editor.mrs_details.is_empty() && !state.editor.is_scanning_mrs {
+    if state.editor.mrs_details.is_empty() && !state.editor.mrs_scan_phase.is_scanning() {
         return None;
     }
     let lang = Lang(&state.shell.lang);
     let mut body = column![].spacing(theme::SP_SM);
-    if state.editor.is_scanning_mrs {
+    if state.editor.mrs_scan_phase.is_scanning() {
         body = body.push(
             text(lang.tr("mrs_scanning").to_string())
                 .size(11)

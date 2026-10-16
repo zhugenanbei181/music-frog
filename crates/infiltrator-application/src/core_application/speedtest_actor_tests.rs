@@ -1,3 +1,11 @@
+use infiltrator_contract::core_identity::CoreVersion;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::speedtest::SpeedtestConcurrency;
+use infiltrator_contract::speedtest::SpeedtestRunId;
+use infiltrator_ports::application_runtime::ApplicationSleep;
+use std::thread;
+use tokio::task::yield_now;
+use tokio::time::timeout;
 use super::*;
 use crate::outbound_application::OutboundApplication;
 use crate::speedtest_application::tests::{
@@ -34,8 +42,8 @@ struct SpeedtestCapabilityProvider;
 impl CoreCapabilityProvider for SpeedtestCapabilityProvider {
     fn matrix_for(
         &self,
-        engine_id: &infiltrator_contract::core_identity::EngineId,
-        core_version: Option<&infiltrator_contract::core_identity::CoreVersion>,
+        engine_id: &EngineId,
+        core_version: Option<&CoreVersion>,
     ) -> Result<CoreCapabilityMatrix, CoreCapabilityProviderError> {
         let scope = CoreCapabilityScope::new(
             engine_id.clone(),
@@ -83,7 +91,7 @@ impl ApplicationRuntime for ActorTestRuntime {
             return ApplicationTaskAdmission::IdExhausted;
         };
         let task_id = ApplicationTaskId::new(value);
-        match std::thread::Builder::new()
+        match thread::Builder::new()
             .name("speedtest-actor-test-task".to_owned())
             .spawn(move || {
                 Builder::new_current_thread()
@@ -104,17 +112,17 @@ impl ApplicationRuntime for ActorTestRuntime {
     fn sleep(
         &self,
         duration: Duration,
-    ) -> infiltrator_ports::application_runtime::ApplicationSleep<'_> {
+    ) -> ApplicationSleep<'_> {
         Box::pin(sleep(duration))
     }
 }
 
 async fn receive(receiver: Receiver<CoreCommandOutcome>) -> CoreCommandOutcome {
-    tokio::time::timeout(Duration::from_secs(3), async move {
+    timeout(Duration::from_secs(3), async move {
         loop {
             match receiver.try_recv() {
                 Ok(outcome) => return outcome,
-                Err(TryRecvError::Empty) => tokio::task::yield_now().await,
+                Err(TryRecvError::Empty) => yield_now().await,
                 Err(TryRecvError::Disconnected) => panic!("Core actor dropped command reply"),
             }
         }
@@ -125,9 +133,9 @@ async fn receive(receiver: Receiver<CoreCommandOutcome>) -> CoreCommandOutcome {
 
 async fn wait_for_cancelled(
     speedtest: &SpeedtestApplication,
-    run_id: infiltrator_contract::speedtest::SpeedtestRunId,
+    run_id: SpeedtestRunId,
 ) {
-    tokio::time::timeout(Duration::from_secs(3), async {
+    timeout(Duration::from_secs(3), async {
         loop {
             if matches!(
                 speedtest.snapshot().state,
@@ -135,7 +143,7 @@ async fn wait_for_cancelled(
             ) {
                 return;
             }
-            tokio::task::yield_now().await;
+            yield_now().await;
         }
     })
     .await
@@ -154,7 +162,7 @@ fn started_receipt(outcome: CoreCommandOutcome) -> SpeedtestStartReceipt {
 
 fn cancelled_outcome(
     outcome: CoreCommandOutcome,
-    expected: infiltrator_contract::speedtest::SpeedtestRunId,
+    expected: SpeedtestRunId,
 ) {
     match outcome.result {
         CommandResult::Produced { output, .. } => match *output {
@@ -169,8 +177,8 @@ fn cancelled_outcome(
 
 fn stale_cancel_outcome(
     outcome: CoreCommandOutcome,
-    requested: infiltrator_contract::speedtest::SpeedtestRunId,
-    current: infiltrator_contract::speedtest::SpeedtestRunId,
+    requested: SpeedtestRunId,
+    current: SpeedtestRunId,
 ) {
     match outcome.result {
         CommandResult::Produced { output, .. } => match *output {
@@ -245,7 +253,7 @@ async fn core_actor_cancels_while_probe_is_blocked_and_fences_old_completion() {
         target: request_target.clone(),
     });
     let receipt = started_receipt(receive(start_reply).await);
-    tokio::time::timeout(Duration::from_secs(3), gate.started.notified())
+    timeout(Duration::from_secs(3), gate.started.notified())
         .await
         .expect("probe reaches its blocked gate");
     assert!(matches!(
@@ -264,7 +272,7 @@ async fn core_actor_cancels_while_probe_is_blocked_and_fences_old_completion() {
     });
     let second_receipt = started_receipt(receive(second_start_reply).await);
     assert!(second_receipt.run_id > receipt.run_id);
-    tokio::time::timeout(Duration::from_secs(3), gate.started.notified())
+    timeout(Duration::from_secs(3), gate.started.notified())
         .await
         .expect("second probe reaches its blocked gate");
 
@@ -293,7 +301,7 @@ async fn core_actor_cancels_while_probe_is_blocked_and_fences_old_completion() {
             .is_ok()
     );
     let (_, barrier_reply) = client.dispatch_tracked(CommandIntent::SetSpeedtestConcurrency {
-        concurrency: infiltrator_contract::speedtest::SpeedtestConcurrency::new(2)
+        concurrency: SpeedtestConcurrency::new(2)
             .expect("valid test concurrency"),
     });
     assert!(matches!(

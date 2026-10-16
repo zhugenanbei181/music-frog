@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capture the Infiltrator Bevy frontend demo screenshot matrix in one fully
+# Capture the MusicFrog Infiltrator Bevy frontend demo screenshot matrix in one fully
 # backgrounded compositor stack (native bevy render evidence — the bevy
 # sibling of capture-iced-matrix.sh).
 #

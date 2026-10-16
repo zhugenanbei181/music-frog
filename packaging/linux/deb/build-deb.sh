@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Constructs a Debian .deb package from a release binary and desktop metadata.
 #
-# Product identity is env-overridable so the iced and bevy UIs each get their
-# own equal package from one tested template. The defaults reproduce the
-# original iced package byte-for-byte.
+# Product identity is env-overridable so each desktop product (iced, bevy,
+# slint) gets its own equal package from one tested template. The defaults
+# reproduce the iced package byte-for-byte.
 #
 #   APP_BIN           installed binary filename        (default infiltrator-iced)
 #   APP_PKG           deb package / icon basename      (default infiltrator)

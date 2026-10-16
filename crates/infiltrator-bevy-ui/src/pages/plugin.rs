@@ -21,6 +21,8 @@ pub mod chaos_console;
 #[path = "widget_sandbox.rs"]
 pub mod widget_sandbox;
 
+use super::acceptance_list;
+
 #[derive(Default)]
 pub struct PageBindingsPlugin;
 
@@ -41,6 +43,7 @@ impl Plugin for PageBindingsPlugin {
             feedback::FeedbackPlugin,
             chaos_console::ChaosConsolePlugin,
             widget_sandbox::WidgetSandboxPlugin,
+            acceptance_list::AcceptanceListPlugin,
         ));
     }
 }

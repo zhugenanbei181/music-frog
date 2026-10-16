@@ -109,8 +109,8 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         .world()
         .resource::<RoutingIntentActionState>()
         .0
-        .pending
-        .clone()
+        .pending_change()
+        .cloned()
         .unwrap();
     assert_eq!(first.target, RoutingIntent::RouteAllThroughProxy);
     assert_eq!(
@@ -122,8 +122,8 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
     let failure = Failure::new(ErrorCode::Network, "write refused temporarily", true);
     result(&mut app, 1, first.target.clone(), Err(failure.clone()));
     assert_eq!(
-        app.world().resource::<RoutingIntentActionState>().0.failure,
-        Some(failure)
+        app.world().resource::<RoutingIntentActionState>().0.failure(),
+        Some(&failure)
     );
     assert_eq!(
         app.world().get::<Node>(issue).unwrap().display,
@@ -147,8 +147,8 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         .world()
         .resource::<RoutingIntentActionState>()
         .0
-        .pending
-        .clone()
+        .pending_change()
+        .cloned()
         .unwrap();
     assert_ne!(second.token, first.token);
     result(
@@ -163,14 +163,14 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         app.world()
             .resource::<RoutingIntentActionState>()
             .0
-            .pending
+            .pending_change()
             .is_none()
     );
     assert_eq!(
         app.world()
             .resource::<RoutingIntentActionState>()
             .0
-            .observed
+            .render_snapshot()
             .current,
         Some(RoutingIntent::RouteAllThroughProxy)
     );
@@ -181,8 +181,8 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         .world()
         .resource::<RoutingIntentActionState>()
         .0
-        .pending
-        .clone()
+        .pending_change()
+        .cloned()
         .unwrap();
     result(
         &mut app,
@@ -205,7 +205,7 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         app.world()
             .resource::<RoutingIntentActionState>()
             .0
-            .failure
+            .failure()
             .is_none()
     );
     assert_eq!(
@@ -234,8 +234,8 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         .world()
         .resource::<RoutingIntentActionState>()
         .0
-        .pending
-        .clone()
+        .pending_change()
+        .cloned()
         .unwrap();
     assert_eq!(fourth.target, RoutingIntent::FollowRules);
     assert_eq!(
@@ -261,14 +261,14 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
         app.world()
             .resource::<RoutingIntentActionState>()
             .0
-            .pending
+            .pending_change()
             .is_none()
     );
     assert_eq!(
         app.world()
             .resource::<RoutingIntentActionState>()
             .0
-            .observed
+            .render_snapshot()
             .current,
         Some(RoutingIntent::RouteAllThroughProxy),
         "a result from a retired generation cannot update the observed choice"

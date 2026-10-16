@@ -1,4 +1,7 @@
 //! Scoped activation of the actual staged-list UI and permission failure panel.
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::request_scroll;
@@ -43,7 +46,7 @@ struct CaptureList {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
     let core = Arc::new(CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
@@ -53,10 +56,10 @@ pub fn install(app: &mut App) {
     let reader = Arc::new(
         ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(
-                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+                profiles_for_mihomo(store.clone()),
             )
             .with_configuration(
-                infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+                for_mihomo_store(store.clone()),
             ),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
@@ -247,7 +250,7 @@ pub fn observe(
         || !probe
             .editor
             .model
-            .failure
+            .failure()
             .as_ref()
             .is_some_and(|failure| failure.code == ErrorCode::Permission)
         || probe.capture.store.writes.load(Ordering::SeqCst) != 0

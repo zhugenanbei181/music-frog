@@ -107,7 +107,8 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
         .padding([7, 14])
         .style(style_accent)
         .on_press_maybe(
-            (!state.profile.is_applying_sync_diff).then_some(Message::ApplySyncDiffMerge),
+            (!state.profile.sync_diff_apply_phase.is_applying())
+                .then_some(Message::ApplySyncDiffMerge),
         ),
         Space::new().width(theme::SP_SM),
         button(text(lang.tr("sync_diff_all_local").to_string()).size(12))
@@ -127,7 +128,7 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
     ]
     .align_y(Alignment::Center);
 
-    if state.profile.is_loading_sync_diff {
+    if state.profile.sync_diff_load_phase.is_loading() {
         actions = row![text(lang.tr("sync_diff_computing").to_string()).size(12)];
     }
 

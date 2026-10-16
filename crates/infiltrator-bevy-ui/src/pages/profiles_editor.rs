@@ -16,6 +16,9 @@
 
 #[path = "profiles_editor_query_access.rs"]
 pub mod query_access;
+use infiltrator_contract::profile_document::DocumentInspection;
+use infiltrator_contract::profile_document::DocumentInspectionUnavailableReason;
+use infiltrator_contract::yaml_snippets::column_of_byte_offset;
 use self::query_access::EditorVisualTargets;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -485,14 +488,14 @@ pub fn refresh_profile_editor_body(
         (Some(handle), Some(source)) => handle
             .inspect_profile_buffer(&source.document, &state.buffer.full_text())
             .unwrap_or_else(|failure| {
-                infiltrator_contract::profile_document::DocumentInspection::Unavailable(
-                    infiltrator_contract::profile_document::DocumentInspectionUnavailableReason::AdapterUnavailable {
+                DocumentInspection::Unavailable(
+                    DocumentInspectionUnavailableReason::AdapterUnavailable {
                         detail: failure.message,
                     },
                 )
             }),
-        _ => infiltrator_contract::profile_document::DocumentInspection::Unavailable(
-            infiltrator_contract::profile_document::DocumentInspectionUnavailableReason::CodecMissing,
+        _ => DocumentInspection::Unavailable(
+            DocumentInspectionUnavailableReason::CodecMissing,
         ),
     };
     state.record_profile_inspection(inspection);
@@ -674,7 +677,7 @@ pub fn on_profile_editor_snippet_activated(
         let content = state.buffer.full_text();
         let caret_line = state.buffer.cursor_row.min(state.buffer.line_count() - 1);
         let line_text = state.buffer.lines[caret_line].as_str();
-        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
+        let caret_column = column_of_byte_offset(
             line_text,
             state.buffer.cursor_col,
         );

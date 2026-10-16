@@ -30,6 +30,7 @@ FORBIDDEN_UI_FEATURES = {
     "capture-controller",
     "desktop-host",
     "script-engine-boa",
+    "fixture-demo",
 }
 FORBIDDEN_DRIVER_SYMBOLS = {
     "run_demo",
@@ -81,7 +82,7 @@ def default_feature_problems(features: dict[str, object]) -> list[str]:
         return [f"{UI_MANIFEST}: `[features].default` must be an explicit list"]
     problems = [
         f"{UI_MANIFEST}: capture-only feature `{name}` must not be a product default"
-        for name in ("capture-tools", "capture-controller")
+        for name in ("capture-tools", "capture-controller", "fixture-demo")
         if name in defaults
     ]
     if "ui-application-projections" in features:
@@ -202,7 +203,7 @@ def main() -> int:
 
 def self_test() -> int:
     tree = """\
-├── infiltrator-bevy-ui v0.41.0
+├── infiltrator-bevy-ui v0.42.0
 """
     if package_names(tree) != {"infiltrator-bevy-ui"}:
         print("package parser self-test failed", file=sys.stderr)

@@ -7,7 +7,7 @@ use crate::mini_hud_window::DesktopMiniHudWindow;
 use crate::mtu::DesktopMtuProbe;
 use crate::rule_provider_cache::DesktopRuleProviderCache;
 use crate::script_export::DesktopScriptExportPort;
-use crate::service::ServiceStatus;
+use crate::service::{ServiceManager, ServiceStatus};
 use crate::system_dns_cache::DesktopSystemDnsCache;
 use crate::system_proxy::DesktopSystemProxy;
 use crate::tun_service::{ServiceModeStatus, TunServiceManager};
@@ -97,7 +97,7 @@ impl MihomoRuntime {
 }
 
 struct DesktopCpuResourceObserver {
-    service_manager: crate::service::ServiceManager,
+    service_manager: ServiceManager,
 }
 
 #[async_trait::async_trait]

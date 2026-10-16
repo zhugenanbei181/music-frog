@@ -4,7 +4,7 @@ use crate::client::MihomoClient;
 use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::runtime_stream::scope_stream;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, stream};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -166,7 +166,7 @@ impl ConnectionPort for MihomoConnectionPort {
         })?;
         let stream = scope_stream(receiver, scope, resolver, Into::into);
         let revision_state = self.revision_state.clone();
-        let observed = futures_util::stream::unfold(
+        let observed = stream::unfold(
             (stream, revision_state, ConnectionStreamProgress::Receiving),
             |(mut stream, revision_state, progress)| async move {
                 match progress {
@@ -307,6 +307,7 @@ mod tests {
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
     };
+    use infiltrator_domain::runtime::Connection;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tokio::net::TcpListener;
@@ -334,9 +335,9 @@ mod tests {
         ConnectionSnapshot {
             connections: ids
                 .iter()
-                .map(|id| infiltrator_domain::runtime::Connection {
+                .map(|id| Connection {
                     id: (*id).to_owned(),
-                    ..infiltrator_domain::runtime::Connection::default()
+                    ..Connection::default()
                 })
                 .collect(),
             ..ConnectionSnapshot::default()

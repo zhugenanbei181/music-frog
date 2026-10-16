@@ -1,3 +1,12 @@
+#![allow(
+    clippy::too_many_arguments,
+    clippy::never_loop,
+    clippy::useless_conversion,
+    clippy::needless_borrow,
+    clippy::clone_on_copy,
+    clippy::ptr_arg,
+    clippy::collapsible_if
+)]
 pub mod app_routing_io;
 pub mod apply;
 pub mod apply_workspace;

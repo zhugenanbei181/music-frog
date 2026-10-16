@@ -12,10 +12,12 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::subscription_import::{
-    SubscriptionContentEffectOutcome, SubscriptionImportChannel, SubscriptionUpdateOutcome,
+    SubscriptionContentEffectOutcome, SubscriptionFormat, SubscriptionImportChannel,
+    SubscriptionUpdateOutcome,
 };
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
+use infiltrator_http::reqwest::Client;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
@@ -29,10 +31,14 @@ use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mockito::Matcher;
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::future::ready;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str;
 use std::sync::Arc;
+use url::Url;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
@@ -117,7 +123,7 @@ fn subscription_document(revision: &str, log_level: &str) -> String {
 
 fn native_check_candidate(binary: &Path, configs_root: &Path, candidate_name: &str, bytes: &[u8]) {
     let candidate_path = configs_root.join(candidate_name);
-    std::fs::write(&candidate_path, bytes)
+    fs::write(&candidate_path, bytes)
         .expect("write isolated subscription candidate for native validation");
     let native_check = Command::new(binary)
         .arg("-t")
@@ -127,7 +133,7 @@ fn native_check_candidate(binary: &Path, configs_root: &Path, candidate_name: &s
         .arg(&candidate_path)
         .output()
         .expect("run the exact SHA-locked Mihomo native config check");
-    let _ = std::fs::remove_file(&candidate_path);
+    let _ = fs::remove_file(&candidate_path);
     assert!(
         native_check.status.success(),
         "Mihomo native check rejected {candidate_name}: stdout={} stderr={}",
@@ -160,7 +166,7 @@ async fn inspect_and_check_workspace(
         DocumentValidation::Valid,
         "the typed Mihomo codec accepts the persisted workspace"
     );
-    let content = std::str::from_utf8(&workspace.document.raw_bytes).expect("UTF-8 profile");
+    let content = str::from_utf8(&workspace.document.raw_bytes).expect("UTF-8 profile");
     assert!(content.contains(expected_rule));
     native_check_candidate(
         binary,
@@ -197,11 +203,11 @@ async fn subscription_import_update_and_refresh_share_the_mihomo_profile_store()
 
     let mut server = mockito::Server::new_async().await;
     let url = format!("{}/sub.yaml", server.url());
-    let parsed_url = url::Url::parse(&url).expect("fixture URL parses");
+    let parsed_url = Url::parse(&url).expect("fixture URL parses");
     assert!(
         parsed_url
             .host_str()
-            .and_then(|host| host.parse::<std::net::IpAddr>().ok())
+            .and_then(|host| host.parse::<IpAddr>().ok())
             .is_some_and(|address| address.is_loopback())
     );
 
@@ -239,13 +245,13 @@ async fn subscription_import_update_and_refresh_share_the_mihomo_profile_store()
         .create_async()
         .await;
 
-    let client = infiltrator_http::reqwest::Client::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
+    let client = Client::builder()
+        .user_agent("MusicFrog-Infiltrator")
         .no_proxy()
         .build()
         .expect("build a no-proxy subscription client");
-    let raw_client = infiltrator_http::reqwest::Client::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
+    let raw_client = Client::builder()
+        .user_agent("MusicFrog-Infiltrator")
         .no_proxy()
         .no_gzip()
         .no_brotli()
@@ -281,7 +287,7 @@ async fn subscription_import_update_and_refresh_share_the_mihomo_profile_store()
     assert_eq!(imported.channel, SubscriptionImportChannel::Url);
     assert_eq!(
         imported.format,
-        infiltrator_contract::subscription_import::SubscriptionFormat::ClashYaml
+        SubscriptionFormat::ClashYaml
     );
     assert_eq!(imported.node_count, 1);
     assert!(imported.content_bytes > 0);

@@ -342,9 +342,16 @@ class NativeHostAdapter(
                 }
             }
             is NativeInsetsDelivery.BevyActivityFeed -> {
+                val displayMetrics = activity.resources.displayMetrics
+                val widthDp = (displayMetrics.widthPixels / density).toDouble()
+                val heightDp = (displayMetrics.heightPixels / density).toDouble()
+                val fontScale = activity.resources.configuration.fontScale.toDouble()
                 val observation = JSONObject()
                     .put("activity_generation", generation)
                     .put("density", density.toDouble())
+                    .put("width_dp", widthDp)
+                    .put("height_dp", heightDp)
+                    .put("font_scale", fontScale)
                     .put("status_bar", edgesJson(status))
                     .put("nav_bar", edgesJson(navigation))
                     .put("cutout", edgesJson(cutout))

@@ -11,7 +11,7 @@ mod doctor;
 mod localization;
 mod owner_operation;
 mod product;
-mod profile_age_credential_owner;
+pub(crate) mod profile_age_credential_owner;
 mod profiles;
 mod rules;
 mod settings;
@@ -44,26 +44,25 @@ pub use localization::{
 pub use owner_operation::wire::{
     android_dispatch_owner_operation_wire_json, android_execute_owner_operation,
 };
+pub use owner_operation::version::{
+    AndroidCoreRelease, AndroidCoreReleaseSummary, AndroidCoreVersionInstallCancellation,
+    AndroidCoreVersionInstallContext, AndroidCoreVersionInstallObservation,
+    AndroidCoreVersionInstallState, AndroidCoreVersionManagementOperation,
+    AndroidCoreVersionManagementReadback, AndroidEngineNeutralReleaseChannel,
+    AndroidInstalledCoreVersion, AndroidVersionDownloadProgress,
+};
 pub use owner_operation::{
-    AndroidActiveProfileReferenceObservation, AndroidCoreRelease, AndroidCoreReleaseSummary,
-    AndroidCoreVersionInstallCancellation, AndroidCoreVersionInstallContext,
-    AndroidCoreVersionInstallObservation, AndroidCoreVersionInstallState,
-    AndroidCoreVersionManagementOperation, AndroidCoreVersionManagementReadback,
-    AndroidEngineNeutralReleaseChannel, AndroidInstalledCoreVersion, AndroidOwnerDataDomain,
+    AndroidActiveProfileReferenceObservation, AndroidOwnerDataDomain,
     AndroidOwnerDataSnapshot, AndroidOwnerDataSnapshotData, AndroidOwnerOperation,
     AndroidOwnerOperationClientResult, AndroidOwnerOperationContext,
     AndroidOwnerOperationIpcResult, AndroidOwnerOperationIpcState,
     AndroidOwnerOperationProtocolVersion, AndroidOwnerOperationReadback,
     AndroidOwnerOperationReply, AndroidProfileSelectionReadback, AndroidProfileSelectionTarget,
-    AndroidVersionDownloadProgress, android_owner_data_revision,
+    android_owner_data_revision,
 };
 pub use product::{android_execute_product_command_json, android_surface_snapshot_json};
 pub use profile_age_credential_owner::android_dispatch_profile_age_credential_owner_operation_wire_json;
 pub use profile_age_credential_owner::execute_profile_age_credential_owner_submission;
-pub(crate) use profile_age_credential_owner::{
-    PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2, ProfileAgeCredentialOwnerWireOutcome,
-    ProfileAgeCredentialOwnerWireReply, ProfileAgeCredentialOwnerWireRequest,
-};
 pub use profiles::{ProfileSummary, ProfilesResult};
 pub use rules::{
     AndroidJsonEntry, AndroidJsonValue, AndroidRuleEntry, AndroidRuleProviderEntry,
@@ -83,10 +82,7 @@ pub use vpn::{
 pub use webdav::{WebDavSettings, WebDavSettingsResult, WebDavSyncResult};
 
 #[cfg(test)]
-use settings::{
-    build_dns_settings_patch, core_dns_fallback_filter_to_record,
-    record_to_core_dns_fallback_filter,
-};
+use infiltrator_contract::tun::TunStack;
 #[cfg(test)]
 use vpn::build_tun_patch;
 
@@ -112,8 +108,12 @@ pub fn bridge_shutdown() -> FfiStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(test)]
+    use infiltrator_contract::tun::TunStackUpdate;
     use infiltrator_domain::dns::FallbackFilter;
+    use settings::{
+        build_dns_settings_patch, core_dns_fallback_filter_to_record,
+        record_to_core_dns_fallback_filter,
+    };
 
     #[test]
     fn test_build_tun_patch_includes_stack_and_auto_detect_interface() {
@@ -130,8 +130,8 @@ mod tests {
         let core_patch = build_tun_patch(&patch);
         assert_eq!(
             core_patch.stack,
-            infiltrator_contract::tun::TunStackUpdate::Set(
-                infiltrator_contract::tun::TunStack::Gvisor,
+            TunStackUpdate::Set(
+                TunStack::Gvisor,
             ),
         );
         assert_eq!(core_patch.auto_detect_interface, Some(true));

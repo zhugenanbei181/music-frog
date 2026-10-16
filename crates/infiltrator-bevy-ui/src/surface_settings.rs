@@ -70,6 +70,8 @@ impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
             log_level: value.log_level,
             core_channel: value.core_channel,
             mini_hud: value.mini_hud,
+            refresh_current_profile_on_start: false,
+            custom_accent_color: None,
         }
     }
 }

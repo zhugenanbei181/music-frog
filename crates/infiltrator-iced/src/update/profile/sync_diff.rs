@@ -8,9 +8,11 @@
 //! protects the live core, so a file changed after the diff was computed can
 //! only fail loudly, never silently corrupt.
 
+use crate::update::core::profile_apply::runtime_access;
 use super::sync::sync_application;
 use crate::configs_dir::{config_manager, configs_dir};
 use crate::state::AppState;
+use crate::state::profiles::{SyncDiffApplyPhase, SyncDiffLoadPhase};
 use crate::types::app::{SyncConflict, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
@@ -28,7 +30,7 @@ impl AppState {
     pub(super) fn update_sync_diff(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadSyncDiff(profile) => {
-                if self.profile.is_loading_sync_diff {
+                if self.profile.sync_diff_load_phase.is_loading() {
                     return Task::none();
                 }
                 let Some(conflict) = self
@@ -40,7 +42,7 @@ impl AppState {
                 else {
                     return Task::none();
                 };
-                self.profile.is_loading_sync_diff = true;
+                self.profile.sync_diff_load_phase = SyncDiffLoadPhase::Loading;
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
@@ -63,7 +65,7 @@ impl AppState {
                 )
             }
             Message::SyncDiffLoaded(result) => {
-                self.profile.is_loading_sync_diff = false;
+                self.profile.sync_diff_load_phase = SyncDiffLoadPhase::Idle;
                 match result {
                     Ok(bundle) => {
                         self.profile.sync_diff = Some(SyncDiffState::new(bundle));
@@ -98,7 +100,7 @@ impl AppState {
                 Task::none()
             }
             Message::ApplySyncDiffMerge => {
-                if self.profile.is_applying_sync_diff {
+                if self.profile.sync_diff_apply_phase.is_applying() {
                     return Task::none();
                 }
                 let Some(diff) = self.profile.sync_diff.clone() else {
@@ -114,7 +116,7 @@ impl AppState {
                     self.profile.sync_diff = None;
                     return Task::none();
                 };
-                self.profile.is_applying_sync_diff = true;
+                self.profile.sync_diff_apply_phase = SyncDiffApplyPhase::Applying;
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
@@ -144,7 +146,7 @@ impl AppState {
                         validate_yaml(&merged)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         save_profile_content(
-                            crate::update::core::profile_apply::runtime_access(runtime),
+                            runtime_access(runtime),
                             conflict.profile.clone(),
                             merged,
                             ApplyStrategy::PreferReload,
@@ -157,7 +159,7 @@ impl AppState {
                 )
             }
             Message::SyncDiffMerged(result) => {
-                self.profile.is_applying_sync_diff = false;
+                self.profile.sync_diff_apply_phase = SyncDiffApplyPhase::Idle;
                 match result {
                     Ok(profile) => {
                         self.profile.sync_diff = None;

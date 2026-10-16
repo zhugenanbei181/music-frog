@@ -1,4 +1,7 @@
 //! Capture executes the same shared tracer command and reader as the interactive product.
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -22,7 +25,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let confirm = state.shell.capture_scenario == Some(FeatureId::RulesOverrideEditor);
-    let port = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let port = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(port.clone());
     let core = CoreApplication::new(
@@ -41,10 +44,10 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         )
         .with_rule_tracer(owner)
         .with_profiles(
-            infiltrator_composition::mihomo_configuration::profiles_for_mihomo(port.clone()),
+            profiles_for_mihomo(port.clone()),
         )
         .with_configuration(
-            infiltrator_composition::mihomo_configuration::for_mihomo_store(port.clone()),
+            for_mihomo_store(port.clone()),
         ),
     );
     attach_capture_owner(state, core);

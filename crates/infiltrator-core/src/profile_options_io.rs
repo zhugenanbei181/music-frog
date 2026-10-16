@@ -2,7 +2,7 @@
 
 use crate::profile_store_io::config_dir;
 use infiltrator_contract::subscription_filter_result::FilterReport;
-use mihomo_config::profile_options_codec::apply_saved as apply_mihomo_saved_options;
+use mihomo_config::profile_options_codec;
 use std::path::Path;
 
 /// Resolve the configured sidecar directory and compose options onto freshly
@@ -22,7 +22,7 @@ pub async fn apply_saved_options(
     profile: &str,
     content: &str,
 ) -> anyhow::Result<(String, Option<FilterReport>)> {
-    apply_mihomo_saved_options(config_dir, profile, content)
+    profile_options_codec::apply_saved(config_dir, profile, content)
         .await
         .map_err(Into::into)
 }

@@ -39,6 +39,7 @@ use crate::ffi::FfiBoolResult;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_session::active_profile_reference_state;
 use crate::host_support::get_runtime;
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceTarget,
 };
@@ -50,15 +51,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync;
 
 #[path = "owner_operation/version.rs"]
-mod version;
+pub mod version;
 #[path = "owner_operation/wire.rs"]
 pub mod wire;
-pub use version::{
-    AndroidCoreRelease, AndroidCoreReleaseSummary, AndroidCoreVersionInstallCancellation,
-    AndroidCoreVersionInstallContext, AndroidCoreVersionInstallObservation,
-    AndroidCoreVersionInstallState, AndroidCoreVersionManagementOperation,
-    AndroidCoreVersionManagementReadback, AndroidEngineNeutralReleaseChannel,
-    AndroidInstalledCoreVersion, AndroidVersionDownloadProgress,
+use version::{
+    AndroidCoreVersionManagementOperation, AndroidCoreVersionManagementReadback,
 };
 
 static OWNER_OPERATION_SERIALIZER: sync::Mutex<()> = sync::Mutex::const_new(());
@@ -109,10 +106,8 @@ pub(super) enum AndroidOwnerRevisionTransition {
 
 pub(super) fn owner_operation_mutation_admission(
     operation: &AndroidOwnerOperation,
-    activation: infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus,
+    activation: VpnConfigurationActivationStatus,
 ) -> OwnerOperationMutationAdmission {
-    use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
-
     match (operation.data_mutation(), activation) {
         (AndroidOwnerDataMutation::ReadOnly, _) => OwnerOperationMutationAdmission::ReadOnly,
         (

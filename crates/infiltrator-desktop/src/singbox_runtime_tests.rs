@@ -1,6 +1,7 @@
 //! Tests for the Desktop sing-box runtime composition.
 
 use super::*;
+use crate::core_owner_runtime::desktop_core_lifecycle_capabilities;
 use async_trait::async_trait;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileSelectionPreflight, preflight_active_profile_reference,
@@ -324,7 +325,7 @@ fn target_mismatched_capability_matrix_fails_before_runtime_construction() {
 
 #[test]
 fn surface_advertises_only_the_connected_lifecycle_capability() {
-    let capabilities = crate::core_owner_runtime::desktop_core_lifecycle_capabilities();
+    let capabilities = desktop_core_lifecycle_capabilities();
     assert!(capabilities.supports(Capability::CoreLifecycle));
     assert!(!capabilities.supports(Capability::Profiles));
     assert!(!capabilities.supports(Capability::RoutingIntent));

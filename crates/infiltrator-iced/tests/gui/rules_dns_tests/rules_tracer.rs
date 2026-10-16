@@ -1,5 +1,8 @@
 //! Native TEA flows execute the shared command owner and consume its actual reader.
 //! test-intent: behavior
+use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::*;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
@@ -26,13 +29,13 @@ use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 
 pub(crate) fn setup() -> (AppState, ProductSurfaceReader, Arc<RuleTraceStore>) {
-    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let profiles =
-        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone());
+        profiles_for_mihomo(store.clone());
     let configuration =
-        infiltrator_composition::mihomo_configuration::for_mihomo_profiles(profiles.clone());
+        for_mihomo_profiles(profiles.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([
@@ -255,7 +258,7 @@ fn test_rules_tracer_reverse_apply_override_dual_surface_flow() {
         state
             .editor
             .rule_trace
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,
@@ -292,7 +295,7 @@ fn test_rules_tracer_reverse_apply_override_dual_surface_flow() {
         state
             .editor
             .rule_trace
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,
@@ -308,7 +311,7 @@ fn test_rules_tracer_reverse_apply_override_dual_surface_flow() {
         state
             .editor
             .rule_trace
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,
@@ -347,7 +350,7 @@ fn named_rule_descent_confirmation_cancel_permission_retry_and_leaf_commit() {
         state
             .editor
             .rule_trace
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,

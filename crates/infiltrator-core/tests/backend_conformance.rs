@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::clone_on_copy)]
 //! Shared behavior assertions for engine adapters.
 //!
 //! Fake cases run in the ordinary focused nextest target. The ignored real

@@ -1,4 +1,5 @@
 //! Native filter activation uses actual typed commands and narrowly scoped ECS parameters.
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -67,12 +68,12 @@ pub fn install(app: &mut App) {
         tokio_application_runtime().expect("isolated filter runtime"),
     ));
     core.install_command_handler(Arc::new(CommandApplication::new().with_profile(
-        infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+        profiles_for_mihomo(store.clone()),
     )));
     let reader = Arc::new(
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(
-                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+                profiles_for_mihomo(store.clone()),
             ),
     );
     let scope = core.snapshot().scope().expect("identified capture owner");

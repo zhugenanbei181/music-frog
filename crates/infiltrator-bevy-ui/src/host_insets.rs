@@ -16,13 +16,15 @@
 //! the real read and sends observations through the typed input channel this
 //! module exposes.
 
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use crate::gesture::GestureHostReport;
 use bevy::app::{App, Plugin, PreUpdate};
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Res, ResMut};
-use infiltrator_bevy_widgets::responsive::SafeAreaInsets;
+use bevy::text::RemSize;
+use infiltrator_bevy_widgets::responsive::{ResponsiveContext, SafeAreaInsets};
 use infiltrator_contract::shell_gesture;
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SendError, Sender, channel};
@@ -84,6 +86,9 @@ pub struct WindowInsets {
     pub cutout: EdgeInsets,
     pub system_gestures: EdgeInsets,
     pub ime: EdgeInsets,
+    pub width_dp: Option<f32>,
+    pub height_dp: Option<f32>,
+    pub font_scale: Option<f32>,
 }
 
 impl Default for WindowInsets {
@@ -95,11 +100,75 @@ impl Default for WindowInsets {
             cutout: EdgeInsets::ZERO,
             system_gestures: EdgeInsets::ZERO,
             ime: EdgeInsets::ZERO,
+            width_dp: None,
+            height_dp: None,
+            font_scale: None,
         }
     }
 }
 
+/// Typed window metrics and insets observation from the native host (BANDROID-006.1).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowMetrics {
+    pub width_dp: f32,
+    pub height_dp: f32,
+    pub density: f32,
+    pub font_scale: f32,
+    pub insets: WindowInsets,
+}
+
+impl WindowMetrics {
+    pub fn new(
+        width_dp: f32,
+        height_dp: f32,
+        density: f32,
+        font_scale: f32,
+        insets: WindowInsets,
+    ) -> Self {
+        Self {
+            width_dp: width_dp.max(0.0),
+            height_dp: height_dp.max(0.0),
+            density: sane_density(density),
+            font_scale: if font_scale.is_finite() && font_scale > 0.0 {
+                font_scale
+            } else {
+                1.0
+            },
+            insets,
+        }
+    }
+}
+
+/// Typed window metrics input event from the native host (BANDROID-006.1).
+#[derive(Event, Clone, Copy, Debug, PartialEq)]
+pub struct WindowMetricsInput(pub WindowMetrics);
+
 impl WindowInsets {
+    /// Attach window metrics (width, height in dp, font scale) to the insets observation.
+    pub fn with_metrics(mut self, width_dp: f32, height_dp: f32, font_scale: f32) -> Self {
+        self.width_dp = Some(width_dp.max(0.0));
+        self.height_dp = Some(height_dp.max(0.0));
+        self.font_scale = Some(if font_scale.is_finite() && font_scale > 0.0 {
+            font_scale
+        } else {
+            1.0
+        });
+        self
+    }
+
+    /// Return typed [`WindowMetrics`] if window dimensions are present.
+    pub fn metrics(&self) -> Option<WindowMetrics> {
+        let width_dp = self.width_dp?;
+        let height_dp = self.height_dp?;
+        Some(WindowMetrics::new(
+            width_dp,
+            height_dp,
+            self.density,
+            self.font_scale.unwrap_or(1.0),
+            *self,
+        ))
+    }
+
     /// Build from physical-pixel edge groups. An invalid density falls back to
     /// 1.0 so coordinate conversion never divides by zero or becomes infinite.
     pub fn physical(
@@ -117,6 +186,9 @@ impl WindowInsets {
             cutout: clamp(cutout),
             system_gestures: clamp(system_gestures),
             ime: clamp(ime),
+            width_dp: None,
+            height_dp: None,
+            font_scale: None,
         }
     }
 
@@ -138,6 +210,9 @@ impl WindowInsets {
             cutout: clamp(scale(cutout, density)),
             system_gestures: clamp(scale(system_gestures, density)),
             ime: clamp(scale(ime, density)),
+            width_dp: None,
+            height_dp: None,
+            font_scale: None,
         }
     }
 
@@ -286,13 +361,18 @@ fn forward_host_window_insets(
     }
 }
 
-/// Project one insets report onto the existing safe-area consumers.
+/// Project one insets report onto the existing safe-area consumers and window metrics.
 fn apply_window_insets(
     input: On<WindowInsetsInput>,
-    mut host: ResMut<HostWindowInsets>,
-    mut safe_area: Option<ResMut<SafeAreaInsets>>,
-    mut gesture: Option<ResMut<GestureHostReport>>,
+    (mut host, mut safe_area, mut gesture): (
+        ResMut<HostWindowInsets>,
+        Option<ResMut<SafeAreaInsets>>,
+        Option<ResMut<GestureHostReport>>,
+    ),
     mut keyboard: ResMut<KeyboardAvoidance>,
+    mut responsive: Option<ResMut<ResponsiveContext>>,
+    mut rem_size: Option<ResMut<RemSize>>,
+    mut commands: Commands,
 ) {
     let insets = input.0;
     if host.0 == insets {
@@ -320,6 +400,15 @@ fn apply_window_insets(
     let bottom = insets.keyboard_bottom();
     if keyboard.bottom_px != bottom {
         keyboard.bottom_px = bottom;
+    }
+    if let Some(metrics) = insets.metrics() {
+        commands.trigger(WindowMetricsInput(metrics));
+        if let Some(responsive) = responsive.as_deref_mut() {
+            responsive.set_dimensions(metrics.width_dp, metrics.height_dp);
+        }
+        if let Some(rem_size) = rem_size.as_deref_mut() {
+            rem_size.0 = REM_BASE * metrics.font_scale;
+        }
     }
 }
 
@@ -566,5 +655,63 @@ mod tests {
         app.world_mut().trigger(WindowInsetsInput(report));
         app.update();
         assert_eq!(app.world().resource::<HostWindowInsets>().0, report);
+    }
+
+    #[test]
+    fn insets_with_window_metrics_updates_responsive_context_and_font_scale() {
+        let mut app = App::new();
+        app.init_resource::<SafeAreaInsets>();
+        app.init_resource::<GestureHostReport>();
+        app.init_resource::<ResponsiveContext>();
+        app.init_resource::<RemSize>();
+        app.add_plugins(HostInsetsPlugin);
+
+        // 1. Portrait phone: 360x780dp, density 3.0, font_scale 1.25
+        let report = WindowInsets::physical(
+            3.0,
+            top(72.0),
+            bottom(48.0),
+            EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
+        )
+        .with_metrics(360.0, 780.0, 1.25);
+
+        app.world_mut().trigger(WindowInsetsInput(report));
+        app.update();
+
+        let ctx = app.world().resource::<ResponsiveContext>();
+        assert_eq!(ctx.width_px, 360.0);
+        assert_eq!(ctx.height_px, 780.0);
+        assert!(ctx.is_compact());
+        assert!(!ctx.is_compact_height());
+        assert!(ctx.is_portrait());
+
+        let rem = app.world().resource::<RemSize>();
+        assert_eq!(rem.0, REM_BASE * 1.25);
+
+        // 2. Landscape phone / split screen: 780x360dp, density 3.0, font_scale 1.0 -> CompactHeight
+        let landscape = WindowInsets::physical(
+            3.0,
+            EdgeInsets::ZERO,
+            bottom(48.0),
+            EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
+        )
+        .with_metrics(780.0, 360.0, 1.0);
+
+        app.world_mut().trigger(WindowInsetsInput(landscape));
+        app.update();
+
+        let ctx = app.world().resource::<ResponsiveContext>();
+        assert_eq!(ctx.width_px, 780.0);
+        assert_eq!(ctx.height_px, 360.0);
+        assert!(ctx.is_medium());
+        assert!(ctx.is_compact_height());
+        assert!(ctx.is_landscape());
+
+        let rem = app.world().resource::<RemSize>();
+        assert_eq!(rem.0, REM_BASE * 1.0);
     }
 }

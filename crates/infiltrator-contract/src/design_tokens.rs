@@ -191,6 +191,10 @@ pub mod space {
     pub const LG: f32 = 16.0;
     pub const XL: f32 = 20.0;
     pub const XXL: f32 = 24.0;
+    /// Mobile screen edge margin (compact smartphones: 16px).
+    pub const SCREEN_MARGIN_MOBILE: f32 = 16.0;
+    /// Tablet screen edge margin (medium viewports: 24px).
+    pub const SCREEN_MARGIN_TABLET: f32 = 24.0;
 }
 
 /// Corner radius ladder (logical pixels).
@@ -205,6 +209,10 @@ pub mod radius {
     pub const CARD: f32 = 16.0;
     /// Centered modal dialog, command palette (24px).
     pub const MODAL: f32 = 24.0;
+    /// Mobile bottom sheet top edge radius (28px).
+    pub const BOTTOM_SHEET: f32 = 28.0;
+    /// Dialog corner radius (28px).
+    pub const DIALOG: f32 = 28.0;
     /// Fully-rounded pill capsule, status chip (999px).
     pub const PILL: f32 = 999.0;
 }
@@ -246,7 +254,13 @@ pub mod type_scale {
     pub const TITLE: f32 = 20.0;
     pub const HEADING: f32 = 20.0;
     pub const BODY: f32 = 15.0;
+    /// Large reading / prominent body text (16px).
+    pub const BODY_LARGE: f32 = 16.0;
+    /// Standard mobile label / button caption (14px).
+    pub const LABEL_LARGE: f32 = 14.0;
     pub const CAPTION: f32 = 12.0;
+    /// Small mobile auxiliary label (11px).
+    pub const LABEL_SMALL: f32 = 11.0;
     pub const TAG: f32 = 10.0;
     pub const MONO: f32 = 13.0;
 }
@@ -293,6 +307,64 @@ pub mod metrics {
     pub const HAIRLINE: f32 = 1.0;
     /// Minimum mobile touch target dimension (px) for touch accessibility (WCAG 2.5.5 / Android HIG).
     pub const MIN_TOUCH_TARGET: f32 = 48.0;
+    /// Compact mobile touch target (Apple HIG minimum: 44px).
+    pub const TOUCH_TARGET_COMPACT: f32 = 44.0;
+    /// Comfortable mobile touch target (Android HIG standard: 48px).
+    pub const TOUCH_TARGET_COMFORTABLE: f32 = 48.0;
+    /// Standard mobile bottom navigation bar height (56px).
+    pub const BOTTOM_NAV_HEIGHT: f32 = 56.0;
+    /// Standard mobile top app bar / header height (64px).
+    pub const TOP_APP_BAR_HEIGHT: f32 = 64.0;
+}
+
+/// Mobile navigation and interaction tokens for each skin (BANDROID-027.1).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MobileThemeTokens {
+    /// Bottom navigation bar container background.
+    pub bottom_nav_bg: RgbaToken,
+    /// Active indicator pill background for bottom navigation.
+    pub bottom_nav_indicator: RgbaToken,
+    /// Mobile touch ripple / splash feedback wash.
+    pub touch_ripple: RgbaToken,
+    /// Swipe-to-action primary indicator color.
+    pub swipe_action: RgbaToken,
+    /// Swipe-to-action destructive / delete indicator color.
+    pub swipe_destructive: RgbaToken,
+}
+
+pub const fn mobile_theme_tokens(skin: ThemeSkin) -> MobileThemeTokens {
+    let core = skin_core(skin);
+    let interaction = skin_interaction(skin);
+    match skin {
+        ThemeSkin::Dark => MobileThemeTokens {
+            bottom_nav_bg: core.sidebar,
+            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.24),
+            touch_ripple: interaction.pressed,
+            swipe_action: core.accent,
+            swipe_destructive: core.danger,
+        },
+        ThemeSkin::Light => MobileThemeTokens {
+            bottom_nav_bg: core.sidebar,
+            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.16),
+            touch_ripple: interaction.pressed,
+            swipe_action: core.accent,
+            swipe_destructive: core.danger,
+        },
+        ThemeSkin::Forest => MobileThemeTokens {
+            bottom_nav_bg: core.sidebar,
+            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.20),
+            touch_ripple: interaction.pressed,
+            swipe_action: core.accent,
+            swipe_destructive: core.danger,
+        },
+        ThemeSkin::Amoled => MobileThemeTokens {
+            bottom_nav_bg: core.sidebar,
+            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.28),
+            touch_ripple: interaction.pressed,
+            swipe_action: core.accent,
+            swipe_destructive: core.danger,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -373,6 +445,30 @@ mod tests {
         assert_ne!(light.hover, forest.hover);
         assert_ne!(dark.scrim.a, amoled.scrim.a);
         assert_ne!(light.disabled_ink, dark.disabled_ink);
+    }
+
+    #[test]
+    fn every_skin_defines_mobile_tokens_and_ladders_are_positive() {
+        for skin in ThemeSkin::ALL {
+            let mobile = mobile_theme_tokens(skin);
+            assert!(mobile.bottom_nav_bg.a > 0.0);
+            assert!(mobile.bottom_nav_indicator.a > 0.0);
+            assert!(mobile.touch_ripple.a > 0.0);
+            assert!(mobile.swipe_action.a > 0.0);
+            assert!(mobile.swipe_destructive.a > 0.0);
+        }
+        assert_eq!(metrics::MIN_TOUCH_TARGET, 48.0);
+        assert_eq!(metrics::TOUCH_TARGET_COMPACT, 44.0);
+        assert_eq!(metrics::TOUCH_TARGET_COMFORTABLE, 48.0);
+        assert_eq!(metrics::BOTTOM_NAV_HEIGHT, 56.0);
+        assert_eq!(metrics::TOP_APP_BAR_HEIGHT, 64.0);
+        assert_eq!(space::SCREEN_MARGIN_MOBILE, 16.0);
+        assert_eq!(space::SCREEN_MARGIN_TABLET, 24.0);
+        assert_eq!(radius::BOTTOM_SHEET, 28.0);
+        assert_eq!(radius::DIALOG, 28.0);
+        assert_eq!(type_scale::BODY_LARGE, 16.0);
+        assert_eq!(type_scale::LABEL_LARGE, 14.0);
+        assert_eq!(type_scale::LABEL_SMALL, 11.0);
     }
 
     #[test]

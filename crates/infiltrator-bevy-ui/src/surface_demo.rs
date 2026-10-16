@@ -67,12 +67,14 @@ use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 #[path = "surface_demo/projections.rs"]
 mod projections;
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OverviewFixture {
     DemoPages,
     OverviewOnly,
 }
 
+#[allow(dead_code)]
 pub(crate) fn snapshot_from_overview(
     overview: &OverviewProjection,
 ) -> surface_snapshot::SurfaceSnapshot {
@@ -217,6 +219,8 @@ fn snapshot_from_overview_fixture(
         traffic_waveform: overview.traffic_waveform.clone(),
         traffic_scale: overview.traffic_scale.clone(),
         traffic_topology: overview.traffic_topology.clone(),
+        closed_connections: Default::default(),
+        traffic_history: Default::default(),
         active_exit: overview.active_exit.clone(),
         outbound_inventory: match fixture {
             OverviewFixture::DemoPages => {
@@ -334,6 +338,8 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         traffic_waveform: TrafficWaveformSnapshot::default(),
         traffic_scale: TrafficScaleSnapshot::default(),
         traffic_topology: overview.traffic_topology.clone(),
+        closed_connections: Default::default(),
+        traffic_history: Default::default(),
         active_exit: overview.active_exit.clone(),
         outbound_inventory: surface_snapshot::PageData::ready(demo_outbound_inventory()),
         outbound_details: surface_snapshot::PageData::ready(demo_outbound_details()),

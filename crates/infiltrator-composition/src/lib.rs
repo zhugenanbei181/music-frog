@@ -1,3 +1,10 @@
+#![allow(
+    clippy::redundant_closure,
+    clippy::collapsible_if,
+    clippy::useless_conversion,
+    clippy::needless_borrow,
+    clippy::type_complexity
+)]
 //! Concrete adapter wiring for native and cross-platform application hosts.
 //!
 //! The application crate owns orchestration and private runtime details. This
@@ -5,6 +12,10 @@
 //! and the opt-in sing-box backend provider. Product roots select and bind one
 //! provider; UI crates do not construct engine clients or Core owners.
 
+use infiltrator_application::connection_application::ConnectionApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_ports::geo_database::GeoDatabasePort;
+use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
@@ -435,12 +446,12 @@ where
                 CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
             ],
         )));
-    let provider_port: Arc<dyn infiltrator_ports::rule_provider_runtime::RuleProviderPort> =
+    let provider_port: Arc<dyn RuleProviderPort> =
         Arc::new(MihomoRuleProviderAdapter::new(
             Arc::new(client.clone()),
             scope_source.clone(),
         ));
-    let geo_port: Arc<dyn infiltrator_ports::geo_database::GeoDatabasePort> = Arc::new(
+    let geo_port: Arc<dyn GeoDatabasePort> = Arc::new(
         MihomoGeoDatabaseAdapter::new(Arc::new(client.clone()), scope_source.clone()),
     );
     application
@@ -467,13 +478,13 @@ where
             .with_logs(application.log_application())
             .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
             .with_connections(
-                infiltrator_application::connection_application::ConnectionApplication::new(
+                ConnectionApplication::new(
                     scope_source.clone(),
                     connection_port,
                 ),
             )
             .with_runtime_queries(
-                infiltrator_application::runtime_query_application::RuntimeQueryApplication::new(
+                RuntimeQueryApplication::new(
                     scope_source,
                     runtime_stream_port,
                 )

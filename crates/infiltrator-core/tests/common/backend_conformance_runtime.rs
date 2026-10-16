@@ -1,4 +1,6 @@
 use super::*;
+use infiltrator_contract::outbound::inventory::OutboundInventorySnapshot;
+use infiltrator_domain::apply::ApplyStrategy;
 
 pub(super) async fn run_while_process_is_running(
     case: &BackendConformanceCase,
@@ -88,7 +90,7 @@ pub(super) async fn run_while_process_is_running(
                         sidecar_bytes: before.sidecar_bytes.clone(),
                     },
                     authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
-                    strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
+                    strategy: ApplyStrategy::PreferReload,
                 })
                 .await;
             match result {
@@ -159,7 +161,7 @@ async fn verify_scope_fences_have_no_selection_side_effect(
     case: &BackendConformanceCase,
     ports: &BackendConformancePorts<'_>,
     active_scope: &CoreScope,
-    inventory: &infiltrator_contract::outbound::inventory::OutboundInventorySnapshot,
+    inventory: &OutboundInventorySnapshot,
 ) -> Result<(), String> {
     let next_generation = active_scope
         .generation
@@ -221,7 +223,7 @@ async fn verify_scope_selection_rejection(
     case: &BackendConformanceCase,
     ports: &BackendConformancePorts<'_>,
     active_scope: &CoreScope,
-    inventory: &infiltrator_contract::outbound::inventory::OutboundInventorySnapshot,
+    inventory: &OutboundInventorySnapshot,
     rejected_scope: CoreScope,
     label: &str,
 ) -> Result<(), String> {
@@ -289,7 +291,7 @@ async fn verify_stale_revision_has_no_selection_side_effect(
     case: &BackendConformanceCase,
     ports: &BackendConformancePorts<'_>,
     scope: &CoreScope,
-    inventory: &infiltrator_contract::outbound::inventory::OutboundInventorySnapshot,
+    inventory: &OutboundInventorySnapshot,
 ) -> Result<(), String> {
     let stale_value =
         inventory.revision().value().checked_add(1).ok_or_else(|| {
@@ -338,8 +340,8 @@ async fn apply_selection(
     case: &BackendConformanceCase,
     ports: &BackendConformancePorts<'_>,
     scope: &CoreScope,
-    inventory: &infiltrator_contract::outbound::inventory::OutboundInventorySnapshot,
-) -> Result<infiltrator_contract::outbound::inventory::OutboundInventorySnapshot, String> {
+    inventory: &OutboundInventorySnapshot,
+) -> Result<OutboundInventorySnapshot, String> {
     let result = ports
         .outbound
         .select(

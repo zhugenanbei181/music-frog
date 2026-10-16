@@ -228,5 +228,7 @@ pub(super) fn build_settings_page(
         log_level: observed.log_level.clone(),
         core_channel: settings.core_channel.clone(),
         mini_hud: settings.mini_hud,
+        refresh_current_profile_on_start: settings.refresh_current_profile_on_start,
+        custom_accent_color: settings.custom_accent_color.clone(),
     })
 }

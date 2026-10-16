@@ -14,7 +14,7 @@ use crate::pages::overview::{
     AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OnAccentText,
     OverviewCardState, OverviewChipKind, OverviewLineKind, OverviewProjectionUpdated,
     OverviewRoutingIntentChip, OverviewScrubberStatus, OverviewTrafficChart, StatusDot,
-    SurfaceElevatedFill, SurfaceFill, banner_note, card_fill, chart_dims, chip_label, format_cpu,
+    SurfaceElevatedFill, SurfaceFill, banner_note, banner_state_text, card_fill, chart_dims, chip_label, format_cpu,
     format_memory, format_scale, format_total_traffic, state_ink, status_dot_color,
 };
 use crate::pages::overview_cards::quota_status_color;
@@ -42,7 +42,7 @@ use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
-use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_copy};
+use infiltrator_presentation::core_status_projection::failure_copy;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_presentation::subscription_quota_projection::{QuotaPresentation, project_quota};
@@ -299,11 +299,11 @@ pub(crate) fn apply_overview_projection(
     for (mut text, mut ink, line, semantic) in &mut lines {
         match line.0 {
             OverviewLineKind::State => {
-                text.0 = lifecycle_copy(&projection.lifecycle, language);
-                ink.0 = state_ink(&projection.lifecycle, palette);
+                let state_text = banner_state_text(projection, language);
+                text.0 = state_text.clone();
+                ink.0 = state_ink(Some(projection), &projection.lifecycle, palette);
                 if let Some(mut node) = semantic {
-                    node.0
-                        .set_label(lifecycle_copy(&projection.lifecycle, language));
+                    node.0.set_label(state_text);
                 }
             }
             OverviewLineKind::Upload => {
@@ -570,13 +570,12 @@ pub(crate) fn reskin_overview_tokens(
 ) {
     for mut row in &mut fills {
         let want = if let Some(state) = row.card {
-            state
-                .0
-                .as_ref()
-                .map_or(palette.accent_container, |state| card_fill(state, &palette))
+            state.0.as_ref().map_or(palette.accent_container, |lifecycle| {
+                card_fill(last.0.as_ref(), lifecycle, &palette)
+            })
         } else if row.dot {
             status_dot_color(
-                last.0.as_ref().map(|projection| &projection.lifecycle),
+                last.0.as_ref(),
                 &palette,
             )
         } else if row.chip || row.accent {

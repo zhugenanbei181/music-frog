@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use crate::dns_query_actions::DnsQueryPhase::Observed;
 use crate::dns_query_actions::{DnsQueryActions, QUERY_PAGE_SIZE, QuerySection};
 use crate::dns_query_projection::project_query;
 use infiltrator_contract::dns_query::{
@@ -146,7 +147,7 @@ fn readback_before_receipt_is_retained_and_foreign_or_stale_snapshots_are_inert(
     assert!(model.finish(operation, Ok(())));
     assert_eq!(
         model.phase(),
-        &crate::dns_query_actions::DnsQueryPhase::Observed { operation }
+        &Observed { operation }
     );
 
     let before = model.snapshot.clone();

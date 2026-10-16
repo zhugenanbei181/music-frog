@@ -162,3 +162,5 @@ pub mod profiles_snapshot_copy;
 pub mod overview_quota_copy;
 
 pub mod profiles_editor_transactions;
+
+pub mod acceptance_list;

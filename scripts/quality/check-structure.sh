@@ -13,6 +13,8 @@ python3 scripts/quality/bevy_bsn_guard.py --mode enforce
 python3 scripts/quality/bevy_shader_guard.py --mode enforce
 python3 scripts/quality/line-guard.py --self-test
 python3 scripts/quality/line-guard.py --mode enforce
+python3 scripts/quality/kt-line-guard.py --self-test
+python3 scripts/quality/kt-line-guard.py --mode enforce
 python3 scripts/quality/doc-governance-guard.py --self-test
 python3 scripts/quality/doc-governance-guard.py --mode enforce
 python3 scripts/quality/test-layout-guard.py --mode enforce
@@ -28,6 +30,8 @@ python3 scripts/quality/android-owner-client-guard.py
 python3 scripts/quality/android-vpn-lifecycle-guard.py --self-test
 python3 scripts/quality/android-vpn-lifecycle-guard.py
 python3 scripts/quality/android-manifest-contract-guard.py
+python3 scripts/quality/android-so-combination-guard.py --self-test
+python3 scripts/quality/android-so-combination-guard.py
 python3 scripts/quality/verify-packaging.py
 python3 -m unittest discover -s scripts/packaging_tests -p 'test_*.py'
 python3 -m unittest discover -s scripts/quality/tests -p 'test_*.py'

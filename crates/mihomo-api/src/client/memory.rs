@@ -5,7 +5,8 @@ use crate::error::{MihomoError, Result};
 use crate::types::MemoryData;
 use futures_util::StreamExt;
 use serde::de::DeserializeOwned;
-use std::io::{Error as IoError, ErrorKind};
+use std::io::{self, ErrorKind};
+use std::result;
 
 const MAX_MEMORY_SAMPLE_BYTES: usize = 64 * 1024;
 
@@ -35,13 +36,13 @@ impl MihomoClient {
                 }
             }
             if sample.len() > MAX_MEMORY_SAMPLE_BYTES {
-                return Err(MihomoError::Io(IoError::new(
+                return Err(MihomoError::Io(io::Error::new(
                     ErrorKind::InvalidData,
                     "Mihomo memory sample exceeded the 64 KiB limit",
                 )));
             }
         }
-        Err(MihomoError::Io(IoError::new(
+        Err(MihomoError::Io(io::Error::new(
             ErrorKind::UnexpectedEof,
             "Mihomo memory stream ended before its first complete sample",
         )))
@@ -50,7 +51,7 @@ impl MihomoClient {
 
 fn next_json_value<T: DeserializeOwned>(
     bytes: &[u8],
-) -> std::result::Result<Option<(T, usize)>, serde_json::Error> {
+) -> result::Result<Option<(T, usize)>, serde_json::Error> {
     let mut values = serde_json::Deserializer::from_slice(bytes).into_iter::<T>();
     match values.next() {
         Some(Ok(value)) => Ok(Some((value, values.byte_offset()))),

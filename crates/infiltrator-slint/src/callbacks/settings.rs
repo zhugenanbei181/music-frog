@@ -35,31 +35,26 @@ pub(super) fn register(
         queue_action(&tx, &weak_for_user_agent, action);
     });
 
+    let tx_for_refresh_on_start = requests.clone();
     let weak_for_refresh_on_start = weak.clone();
     window.on_set_refresh_profile_on_start(move |enabled| {
-        let _ = weak_for_refresh_on_start
-            .clone()
-            .upgrade_in_event_loop(move |window| {
-                window.set_refresh_current_profile_on_start(false);
-                if enabled {
-                    window.set_notice(
-                        "The shared settings contract has no startup profile-refresh preference"
-                            .into(),
-                    );
-                }
-            });
+        queue_intent(
+            &tx_for_refresh_on_start,
+            &weak_for_refresh_on_start,
+            CommandIntent::UpdateSetting {
+                key: "refresh_current_profile_on_start".to_owned(),
+                value: enabled.to_string(),
+            },
+        );
     });
     let tx = requests.clone();
     let weak_for_autostart = weak.clone();
     window.on_set_auto_start(move |enabled| {
         if cfg!(target_os = "android") {
-            let weak = weak_for_autostart.clone();
-            let _ = weak.clone().upgrade_in_event_loop(|window| {
-                window.set_auto_start(false);
-            });
-            show_unsupported(
+            queue_action(
+                &tx,
                 &weak_for_autostart,
-                "Android startup behavior is controlled by the Android host",
+                Ok(SlintAction::OpenAutostartSettings),
             );
             return;
         }
@@ -118,23 +113,30 @@ pub(super) fn register(
             });
     });
     let weak_for_color_apply = weak.clone();
+    let tx_for_color_apply = requests.clone();
     window.on_set_theme_color(move |hex| {
         let hex = hex.to_string();
-        if parse_color(&hex).is_some() {
-            apply_theme_color(&weak_for_color_apply, &hex);
-        }
-        let weak = weak_for_color_apply.clone();
         let valid = parse_color(&hex).is_some();
-        let _ = weak.clone().upgrade_in_event_loop(move |window| {
-            window.set_theme_color_saving(false);
-            window.set_theme_color_error(if valid {
-                "Custom accent color is previewed, but the shared settings owner does not persist it yet".into()
-            } else {
-                "Enter a six-digit hexadecimal color such as #016888".into()
-            });
-        });
         if valid {
-            show_unsupported(&weak_for_color_apply, "Custom accent color is a surface-local preference and is not persisted by the shared settings owner yet");
+            apply_theme_color(&weak_for_color_apply, &hex);
+            queue_intent(
+                &tx_for_color_apply,
+                &weak_for_color_apply,
+                CommandIntent::UpdateSetting {
+                    key: "custom_accent_color".to_owned(),
+                    value: hex,
+                },
+            );
+        } else {
+            let weak = weak_for_color_apply.clone();
+            let _ = weak.clone().upgrade_in_event_loop(move |window| {
+                window.set_theme_color_saving(false);
+                window.set_theme_color_error("Enter a six-digit hexadecimal color such as #016888".into());
+            });
+            show_failure(
+                &weak_for_color_apply,
+                Failure::new(ErrorCode::InvalidInput, "Enter a six-digit hexadecimal color such as #016888", false),
+            );
         }
     });
 
@@ -177,51 +179,69 @@ pub(super) fn register(
             });
     });
     let weak_for_background_card = weak.clone();
-    window.on_set_hide_background_card(move |_| {
+    let tx_for_background_card = requests.clone();
+    window.on_set_hide_background_card(move |enabled| {
         let weak = weak_for_background_card.clone();
-        let _ = weak
-            .clone()
-            .upgrade_in_event_loop(|window| window.set_hide_background_card(false));
-        show_unsupported(
+        let _ = weak.clone().upgrade_in_event_loop(move |window| {
+            window.set_hide_background_card(enabled);
+        });
+        queue_action(
+            &tx_for_background_card,
             &weak_for_background_card,
-            "Hiding the Android recents card needs a window security adapter",
+            Ok(SlintAction::SetHideBackgroundCard(enabled)),
         );
     });
     let weak_for_traffic_notification = weak.clone();
+    let tx_for_traffic_notification = requests.clone();
     window.on_set_show_traffic_notification(move |enabled| {
-        let _ = enabled;
-        show_unsupported(
+        let weak = weak_for_traffic_notification.clone();
+        let _ = weak.clone().upgrade_in_event_loop(move |window| {
+            window.set_show_traffic_notification(enabled);
+        });
+        queue_action(
+            &tx_for_traffic_notification,
             &weak_for_traffic_notification,
-            "Traffic notifications need an Android notification-service adapter",
+            Ok(SlintAction::SetShowTrafficNotification(enabled)),
         );
     });
     let weak_for_release_ui = weak.clone();
+    let tx_for_release_ui = requests.clone();
     window.on_set_release_ui_when_background(move |enabled| {
-        let _ = enabled;
-        show_unsupported(
+        let weak = weak_for_release_ui.clone();
+        let _ = weak.clone().upgrade_in_event_loop(move |window| {
+            window.set_release_ui_when_background(enabled);
+        });
+        queue_action(
+            &tx_for_release_ui,
             &weak_for_release_ui,
-            "Background surface release needs an Android lifecycle adapter",
+            Ok(SlintAction::SetReleaseUiWhenBackground(enabled)),
         );
     });
     let weak_for_battery = weak.clone();
+    let tx_for_battery = requests.clone();
     window.on_request_ignore_battery_optimization(move || {
-        show_unsupported(
+        queue_action(
+            &tx_for_battery,
             &weak_for_battery,
-            "Battery optimization exemption needs an Android activity result adapter",
+            Ok(SlintAction::RequestBatteryOptimizationExemption),
         );
     });
     let weak_for_back_preview = weak.clone();
+    let tx_for_back_preview = requests.clone();
     window.on_cache_back_preview(move || {
-        show_unsupported(
+        queue_action(
+            &tx_for_back_preview,
             &weak_for_back_preview,
-            "Predictive-back image capture is not supplied by the NativeActivity host",
+            Ok(SlintAction::CacheBackPreview),
         );
     });
     let weak_for_back_commit = weak.clone();
+    let tx_for_back_commit = requests.clone();
     window.on_commit_back_preview(move || {
-        show_unsupported(
+        queue_action(
+            &tx_for_back_commit,
             &weak_for_back_commit,
-            "Predictive-back image capture is not supplied by the NativeActivity host",
+            Ok(SlintAction::CommitBackPreview),
         );
     });
 }

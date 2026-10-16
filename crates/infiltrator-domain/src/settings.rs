@@ -111,6 +111,12 @@ pub struct AppSettings {
     /// Persisted Mini HUD placement (shared contract geometry, DUAL-15-04).
     #[serde(default)]
     pub mini_hud: MiniHudPlacement,
+    /// Refresh the active profile on application startup.
+    #[serde(default)]
+    pub refresh_current_profile_on_start: bool,
+    /// Custom accent color hex code (e.g. "#016888").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_accent_color: Option<String>,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -142,6 +148,8 @@ impl Default for AppSettings {
             window_maximized: false,
             shortcuts: Vec::new(),
             mini_hud: MiniHudPlacement::default(),
+            refresh_current_profile_on_start: false,
+            custom_accent_color: None,
         }
     }
 }

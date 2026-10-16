@@ -1,13 +1,17 @@
 //! Owner-local sing-box process lifecycle adapter.
 
 use crate::command::{
-    NativeConfigCheck, SingBoxChildPoll, SingBoxCommandPort, TokioSingBoxCommandPort,
+    NativeConfigCheck, SingBoxChildPoll, SingBoxChildProcess, SingBoxCommandPort,
+    TokioSingBoxCommandPort,
 };
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
+use std::mem;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,7 +37,7 @@ impl SingBoxCoreOperationGate {
 
 enum ProcessState {
     Stopped,
-    Running(Box<dyn crate::command::SingBoxChildProcess>),
+    Running(Box<dyn SingBoxChildProcess>),
     Exited,
 }
 
@@ -118,7 +122,7 @@ impl SingBoxProcess {
     }
 
     async fn prepare_start(&self, state: &mut ProcessState) -> Result<(), PortError> {
-        match std::mem::replace(state, ProcessState::Stopped) {
+        match mem::replace(state, ProcessState::Stopped) {
             ProcessState::Stopped | ProcessState::Exited => Ok(()),
             ProcessState::Running(mut child) => match child.poll().await {
                 Ok(SingBoxChildPoll::Running) => {
@@ -148,7 +152,7 @@ impl CoreProcess for SingBoxProcess {
 
     async fn start(
         &self,
-        context: infiltrator_ports::core_process::CoreProcessStartContext,
+        context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         if !context.identity().same_instance(&self.identity) {
             return Err(PortError::Failed(
@@ -167,8 +171,8 @@ impl CoreProcess for SingBoxProcess {
             NativeConfigCheck::Accepted => {}
             NativeConfigCheck::Rejected => {
                 return Err(PortError::Rejected(
-                    infiltrator_contract::error::Failure::new(
-                        infiltrator_contract::error::ErrorCode::Configuration,
+                    Failure::new(
+                        ErrorCode::Configuration,
                         "sing-box native config check rejected the active document",
                         false,
                     ),
@@ -187,7 +191,7 @@ impl CoreProcess for SingBoxProcess {
     async fn stop(&self) -> Result<(), PortError> {
         let _gate = self.operation_gate.acquire().await;
         let mut state = self.state.lock().await;
-        match std::mem::replace(&mut *state, ProcessState::Stopped) {
+        match mem::replace(&mut *state, ProcessState::Stopped) {
             ProcessState::Stopped | ProcessState::Exited => Ok(()),
             ProcessState::Running(mut child) => match child.terminate().await {
                 Ok(()) => Ok(()),
@@ -202,7 +206,7 @@ impl CoreProcess for SingBoxProcess {
     async fn status(&self) -> Result<CoreLifecycle, PortError> {
         let _gate = self.operation_gate.acquire().await;
         let mut state = self.state.lock().await;
-        match std::mem::replace(&mut *state, ProcessState::Stopped) {
+        match mem::replace(&mut *state, ProcessState::Stopped) {
             ProcessState::Stopped => Ok(CoreLifecycle::Stopped),
             ProcessState::Exited => {
                 *state = ProcessState::Exited;

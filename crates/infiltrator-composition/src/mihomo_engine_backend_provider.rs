@@ -1,5 +1,6 @@
 //! Shared production Mihomo engine backend provider.
 
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineBackendProvider, EngineOperationPort,
@@ -83,7 +84,7 @@ impl MihomoEngineBackendProvider {
 }
 
 impl EngineBackendProvider for MihomoEngineBackendProvider {
-    fn engine_id(&self) -> infiltrator_contract::core_identity::EngineId {
+    fn engine_id(&self) -> EngineId {
         mihomo_config::engine_id()
     }
 

@@ -42,7 +42,7 @@ fn runtime_and_vpn_terminal_messages_use_the_current_shared_locale_and_keep_opaq
         let (copy, status) = notice(state.update(Message::TestWebDavConnection));
         assert_eq!(copy, Lang(locale).tr("webdav_credentials_required"));
         assert_eq!(status, ToastStatus::Error);
-        assert!(!state.profile.is_testing_webdav);
+        assert!(!state.profile.webdav_test_phase.is_testing());
         let snapshot = VpnSessionSnapshot {
             state: VpnSessionState::Unsupported {
                 reason: "opaque {reason} 用户".into(),

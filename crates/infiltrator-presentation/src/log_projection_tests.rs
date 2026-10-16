@@ -1,4 +1,5 @@
 //! Behavior tests for scoped raw-log display projection.
+use std::iter::empty;
 use super::{page_from_log_records, parse_structured_log, project_log_facts};
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -139,6 +140,6 @@ fn current_scope_rejects_foreign_observation_and_connecting_is_not_empty() {
     assert_eq!(page.status, PageStatus::Loading);
     assert!(page.data.is_none());
 
-    let empty = page_from_log_records(std::iter::empty::<&str>());
+    let empty = page_from_log_records(empty::<&str>());
     assert_eq!(empty.status, PageStatus::Empty);
 }

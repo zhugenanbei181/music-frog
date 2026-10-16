@@ -1,6 +1,8 @@
+use infiltrator_ports::core_binary_selection::CoreBinarySelection;
+use tokio::fs;
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{
+use infiltrator_contract::android_control::core_launch::{
     AndroidCoreBinaryTarget, CoreLaunchArguments, CoreLaunchBinary,
     CoreLaunchConfigurationIdentity, CoreLaunchPath, CoreLaunchSpec,
 };
@@ -93,7 +95,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidSingBoxProfileLaunchSpecPro
             .existing_profile_document_path(self.profile_document.identity.profile_id.as_str())
             .await
             .map_err(config_failure)?;
-        let configuration_bytes = tokio::fs::read(&configuration_path)
+        let configuration_bytes = fs::read(&configuration_path)
             .await
             .map_err(|error| PortError::Io(format!("read sing-box profile: {error}")))?;
         if configuration_bytes != self.profile_document.raw_bytes {
@@ -122,7 +124,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidSingBoxProfileLaunchSpecPro
             &self.profile_document.identity.profile_id,
         )
         .await?;
-        let final_bytes = tokio::fs::read(&configuration_path)
+        let final_bytes = fs::read(&configuration_path)
             .await
             .map_err(|error| PortError::Io(format!("re-read sing-box profile: {error}")))?;
         if final_workspace.document != self.profile_document
@@ -186,7 +188,7 @@ fn validate_document_identity(
 }
 
 fn validate_binary_selection(
-    selection: &infiltrator_ports::core_binary_selection::CoreBinarySelection,
+    selection: &CoreBinarySelection,
     expected_engine: &EngineId,
     expected_target: EngineBinaryTarget,
     working_directory: &Path,
@@ -243,7 +245,7 @@ async fn validate_binary_storage_path(
     binary_path: &Path,
     working_directory: &Path,
 ) -> Result<(), PortError> {
-    let canonical_root = tokio::fs::canonicalize(working_directory)
+    let canonical_root = fs::canonicalize(working_directory)
         .await
         .map_err(|error| PortError::Io(format!("resolve Android app data directory: {error}")))?;
     let version_directory = binary_path.parent().ok_or_else(|| {
@@ -253,13 +255,13 @@ async fn validate_binary_storage_path(
             false,
         ))
     })?;
-    let canonical_version_directory = tokio::fs::canonicalize(version_directory)
+    let canonical_version_directory = fs::canonicalize(version_directory)
         .await
         .map_err(|error| PortError::Io(format!("resolve managed sing-box version: {error}")))?;
-    let canonical_binary = tokio::fs::canonicalize(binary_path)
+    let canonical_binary = fs::canonicalize(binary_path)
         .await
         .map_err(|error| PortError::Io(format!("resolve managed sing-box binary: {error}")))?;
-    let metadata = tokio::fs::metadata(&canonical_binary)
+    let metadata = fs::metadata(&canonical_binary)
         .await
         .map_err(|error| PortError::Io(format!("inspect managed sing-box binary: {error}")))?;
     if !canonical_version_directory.starts_with(&canonical_root)

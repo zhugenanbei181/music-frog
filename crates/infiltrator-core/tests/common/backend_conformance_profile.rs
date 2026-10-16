@@ -1,10 +1,17 @@
 use super::*;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
     ActiveProfileWorkspaceWriteLease,
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 pub(crate) trait ConformanceLifecycleControl: CoreLifecyclePort {
     fn update_observed_lifecycle(&self, lifecycle: CoreLifecycle);
@@ -15,7 +22,7 @@ pub(crate) trait ConformanceLifecycleControl: CoreLifecyclePort {
 /// transition, so live Unsupported checks see the actual process phase.
 pub(crate) struct ConformanceLifecycleSession {
     identity: CoreIdentity,
-    lifecycle: std::sync::RwLock<CoreLifecycle>,
+    lifecycle: RwLock<CoreLifecycle>,
 }
 
 impl ConformanceLifecycleSession {
@@ -38,7 +45,7 @@ impl ConformanceLifecycleSession {
         identity.version = Some(expected_version);
         Ok(Self {
             identity,
-            lifecycle: std::sync::RwLock::new(CoreLifecycle::Stopped),
+            lifecycle: RwLock::new(CoreLifecycle::Stopped),
         })
     }
 }
@@ -103,9 +110,9 @@ impl ConformanceLifecycleControl for ConformanceLifecycleSession {
 /// production `ProfileStore` implementation is owned by a different host.
 pub(crate) struct ConformanceProfileStore {
     engine: EngineId,
-    reference: tokio::sync::Mutex<ActiveProfileReferenceState>,
-    active: tokio::sync::Mutex<ProfileWorkspace>,
-    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
+    reference: Mutex<ActiveProfileReferenceState>,
+    active: Mutex<ProfileWorkspace>,
+    workspace_write_gate: Arc<Mutex<()>>,
     next_revision: AtomicU64,
     writes: AtomicU64,
 }
@@ -114,7 +121,7 @@ struct ConformanceWorkspaceWriteLease<'a> {
     store: &'a ConformanceProfileStore,
     expected_reference: ActiveProfileReference,
     observed: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct ConformanceWorkspacePublishedLease<'a> {
@@ -122,17 +129,17 @@ struct ConformanceWorkspacePublishedLease<'a> {
     expected_reference: ActiveProfileReference,
     previous: ProfileWorkspace,
     published: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct ConformanceWorkspaceRestoredLease {
     workspace: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 impl ConformanceProfileStore {
     pub(crate) fn new(
-        scope: &infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope,
+        scope: &ProfileDocumentCodecScope,
         initial_bytes: &[u8],
     ) -> Self {
         let identity = ProfileDocumentIdentity::new(
@@ -154,14 +161,14 @@ impl ConformanceProfileStore {
         ));
         Self {
             engine: scope.engine_id.clone(),
-            reference: tokio::sync::Mutex::new(reference),
-            active: tokio::sync::Mutex::new(ProfileWorkspace {
+            reference: Mutex::new(reference),
+            active: Mutex::new(ProfileWorkspace {
                 document: ProfileDocument::new(identity, initial_bytes.to_vec()),
                 sidecar_revision: ProfileSidecarRevision::Absent,
                 write_protection: ProfileWriteProtection::Editable,
                 sidecar_bytes: None,
             }),
-            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
+            workspace_write_gate: Arc::new(Mutex::new(())),
             next_revision: AtomicU64::new(2),
             writes: AtomicU64::new(0),
         }
@@ -299,7 +306,7 @@ impl ProfileStore for ConformanceProfileStore {
 
     async fn list_profiles(
         &self,
-    ) -> Result<Vec<infiltrator_domain::profiles::ProfileInfo>, PortError> {
+    ) -> Result<Vec<ProfileInfo>, PortError> {
         Err(unused_profile_store_operation())
     }
 
@@ -322,14 +329,14 @@ impl ProfileStore for ConformanceProfileStore {
     async fn get_profile_metadata(
         &self,
         _profile: &str,
-    ) -> Result<infiltrator_domain::profiles::ProfileMetadata, PortError> {
+    ) -> Result<ProfileMetadata, PortError> {
         Err(unused_profile_store_operation())
     }
 
     async fn update_profile_metadata(
         &self,
         _profile: &str,
-        _metadata: &infiltrator_domain::profiles::ProfileMetadata,
+        _metadata: &ProfileMetadata,
     ) -> Result<(), PortError> {
         Err(unused_profile_store_operation())
     }
@@ -351,7 +358,7 @@ impl ProfileStore for ConformanceProfileStore {
     async fn acquire_active_workspace_write_lease(
         &self,
         expected_reference: ActiveProfileReference,
-        expected: infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        expected: ProfileWorkspaceIdentity,
         authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
         let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
@@ -395,7 +402,7 @@ impl ProfileStore for ConformanceProfileStore {
 
 fn unused_profile_store_operation() -> PortError {
     PortError::unsupported(
-        infiltrator_contract::capability::Capability::Profiles,
+        Capability::Profiles,
         "conformance store does not implement this profile operation",
     )
 }
@@ -448,7 +455,7 @@ pub(super) async fn verify_native_profile_behavior(
                 case.engine.as_str()
             )
         })?;
-    let infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
+    let ActiveProfileReferenceState::Selected(
         expected_reference,
     ) = expected_reference
     else {
@@ -475,7 +482,7 @@ pub(super) async fn verify_native_profile_behavior(
                 sidecar_bytes: initial_workspace.sidecar_bytes.clone(),
             },
             authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
-            strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
+            strategy: ApplyStrategy::PreferReload,
         })
         .await
         .map_err(|error| {
@@ -544,7 +551,7 @@ pub(super) async fn verify_native_profile_behavior(
                 sidecar_bytes: stored.sidecar_bytes.clone(),
             },
             authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
-            strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
+            strategy: ApplyStrategy::PreferReload,
         })
         .await
         .expect_err("stale profile revision must be rejected");
@@ -576,7 +583,7 @@ pub(super) async fn verify_native_profile_behavior(
                 sidecar_bytes: stale_before.sidecar_bytes.clone(),
             },
             authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
-            strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
+            strategy: ApplyStrategy::PreferReload,
         })
         .await
         .expect_err("foreign profile engine must be rejected");
@@ -605,7 +612,7 @@ pub(super) async fn verify_native_profile_behavior(
                 sidecar_bytes: stale_before.sidecar_bytes.clone(),
             },
             authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
-            strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
+            strategy: ApplyStrategy::PreferReload,
         })
         .await
         .expect_err("native-invalid profile must be rejected by the transaction");

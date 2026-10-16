@@ -3,24 +3,30 @@
 
 use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(target_os = "android")]
+use crate::uniffi_api::owner_operation::{android_owner_data_revision, owner_data_revision_fence};
+#[cfg(target_os = "android")]
 use crate::host_session::shared_core;
-use crate::host_support::{build_configuration_application, get_runtime, map_application_failure};
+#[cfg(target_os = "android")]
+use crate::host_support::get_runtime;
+use crate::host_support::{build_configuration_application, map_application_failure};
 #[cfg(target_os = "android")]
 use crate::vpn_route::VpnRouteConfig;
+#[cfg(target_os = "android")]
 use crate::vpn_service::AndroidVpnServicePort;
 #[cfg(any(target_os = "android", test))]
-use crate::vpn_service::WorkerStopOutcome;
+use crate::vpn_service::worker::WorkerStopOutcome;
 #[cfg(target_os = "android")]
 use crate::vpn_service::stop_data_plane_worker;
+#[cfg(target_os = "android")]
 use infiltrator_application::vpn_application::VpnServiceApplication;
 #[cfg(target_os = "android")]
 use infiltrator_application::vpn_preparation::{
     VpnConfigurationActivationBeginOutcome, VpnConfigurationActivationConsumeOutcome,
     VpnPreparationInstallOutcome, VpnPreparationReadyOutcome, VpnPreparationStore,
 };
-use infiltrator_application::vpn_preparation::{
-    VpnConfigurationActivationReleaseOutcome, VpnConfigurationActivationStatus,
-};
+#[cfg(target_os = "android")]
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationReleaseOutcome;
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 #[cfg(target_os = "android")]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 #[cfg(target_os = "android")]
@@ -28,7 +34,6 @@ use infiltrator_contract::core_identity::CoreScope;
 #[cfg(target_os = "android")]
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::tun::{TunStack, TunStackUpdate};
-use infiltrator_contract::vpn;
 use infiltrator_contract::vpn::VpnConfigurationActivationLease;
 #[cfg(target_os = "android")]
 use infiltrator_contract::vpn::VpnSessionState;
@@ -42,6 +47,7 @@ use infiltrator_domain::tun;
 use infiltrator_platform::android_bridge::get_android_bridge;
 #[cfg(target_os = "android")]
 use std::net::IpAddr;
+#[cfg(target_os = "android")]
 use std::sync::Arc;
 #[cfg(target_os = "android")]
 use std::sync::OnceLock;
@@ -134,12 +140,12 @@ pub fn start_vpn(
         let generation = VpnGeneration::new(vpn_generation);
         get_runtime().block_on(async {
             let request = {
-                let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+                let _owner_data_fence = owner_data_revision_fence().await;
                 let core_scope = match active_core_scope().await {
                     Ok(scope) => scope,
                     Err(status) => return status,
                 };
-                let observed_revision = super::owner_operation::android_owner_data_revision();
+                let observed_revision = android_owner_data_revision();
                 match vpn_preparation_store().consume_activation(
                     activation_lease_id,
                     VpnPreparationId::new(preparation_id),
@@ -219,8 +225,8 @@ pub fn android_begin_vpn_configuration_activation(
             };
         }
         get_runtime().block_on(async {
-            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
-            let observed_revision = super::owner_operation::android_owner_data_revision();
+            let _owner_data_fence = owner_data_revision_fence().await;
+            let observed_revision = android_owner_data_revision();
             let lease_id = NEXT_VPN_CONFIGURATION_ACTIVATION_LEASE_ID.try_update(
                 Ordering::SeqCst,
                 Ordering::SeqCst,
@@ -315,7 +321,7 @@ pub fn android_finish_vpn_configuration_activation(
             return AndroidVpnConfigurationActivationReleaseResult::LeaseMismatch;
         }
         get_runtime().block_on(async {
-            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            let _owner_data_fence = owner_data_revision_fence().await;
             map_activation_release(vpn_preparation_store().finish_activation(activation_lease_id))
         })
     }
@@ -327,6 +333,7 @@ pub fn android_finish_vpn_configuration_activation(
     }
 }
 
+#[cfg(target_os = "android")]
 fn map_activation_release(
     outcome: VpnConfigurationActivationReleaseOutcome,
 ) -> AndroidVpnConfigurationActivationReleaseResult {
@@ -362,7 +369,7 @@ pub fn prepare_vpn(vpn_generation: u64) -> VpnPreparationResult {
             };
         }
         get_runtime().block_on(async move {
-            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            let _owner_data_fence = owner_data_revision_fence().await;
             if vpn_configuration_activation_status() != VpnConfigurationActivationStatus::Available {
                 return VpnPreparationResult {
                     status: FfiStatus::err(
@@ -372,7 +379,7 @@ pub fn prepare_vpn(vpn_generation: u64) -> VpnPreparationResult {
                     preparation_id: None,
                 };
             }
-            let owner_data_revision = super::owner_operation::android_owner_data_revision();
+            let owner_data_revision = android_owner_data_revision();
             let core_scope = match active_core_scope().await {
                 Ok(scope) => scope,
                 Err(status) => {
@@ -420,7 +427,7 @@ pub fn prepare_vpn(vpn_generation: u64) -> VpnPreparationResult {
                 }
             };
             let observed_owner_data_revision =
-                super::owner_operation::android_owner_data_revision();
+                android_owner_data_revision();
             if observed_owner_data_revision != owner_data_revision {
                 return VpnPreparationResult {
                     status: FfiStatus::err(
@@ -487,7 +494,7 @@ pub fn prepare_vpn(vpn_generation: u64) -> VpnPreparationResult {
                 Ok(snapshot) if snapshot.foreground => match active_core_scope().await {
                     Ok(current_scope)
                         if current_scope == prepared.core_scope
-                            && super::owner_operation::android_owner_data_revision()
+                            && android_owner_data_revision()
                                 == prepared.owner_data_revision =>
                     {
                         match vpn_preparation_store().mark_prepared(preparation_id) {
@@ -573,7 +580,7 @@ pub fn cancel_vpn_preparation(vpn_generation: u64) -> FfiStatus {
             );
         }
         get_runtime().block_on(async {
-            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            let _owner_data_fence = owner_data_revision_fence().await;
             let _ = vpn_preparation_store().clear_through(VpnGeneration::new(vpn_generation));
         });
         FfiStatus::ok()
@@ -642,29 +649,9 @@ async fn active_core_scope() -> Result<CoreScope, FfiStatus> {
     Ok(scope)
 }
 
-#[cfg(target_os = "android")]
-async fn start_prepared_vpn(request: VpnStartRequest) -> FfiStatus {
-    let expected_core_scope = request.prepared.core_scope.clone();
-    let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-    match application.start(request).await {
-        Ok(snapshot) if snapshot.is_running() => match active_core_scope().await {
-            Ok(current_scope) if current_scope == expected_core_scope => FfiStatus::ok(),
-            Ok(_) => FfiStatus::err(
-                FfiErrorCode::InvalidState,
-                "Core identity, generation, or session changed while the VPN worker started",
-            ),
-            Err(status) => status,
-        },
-        Ok(snapshot) => FfiStatus::err(
-            FfiErrorCode::NotReady,
-            format!(
-                "VPN data-plane start receipt/readback did not reach foreground Running: {:?}",
-                snapshot.state
-            ),
-        ),
-        Err(failure) => map_application_failure(failure),
-    }
-}
+#[path = "vpn/tun_config.rs"]
+mod tun_config;
+use tun_config::*;
 
 #[uniffi::export]
 pub fn stop_vpn_worker() -> FfiStatus {
@@ -811,80 +798,6 @@ pub struct VpnTunSettingsResult {
     pub settings: Option<VpnTunSettings>,
 }
 
-// Android-only helpers for tun2proxy URL resolution
-#[cfg(target_os = "android")]
-async fn resolve_proxy_url() -> Result<Option<String>, FfiStatus> {
-    let configuration = build_configuration_application().await?;
-    configuration
-        .load_proxy_endpoint()
-        .await
-        .map_err(map_application_failure)
-}
-
-#[cfg(target_os = "android")]
-fn default_proxy_url() -> String {
-    "socks5://127.0.0.1:7891".to_string()
-}
-
-#[cfg(target_os = "android")]
-async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfiguration, FfiStatus> {
-    let tun_settings = load_vpn_tun_settings().await?;
-    let dns_result = super::settings::read_dns_settings_local().await;
-    let dns_snapshot = match (dns_result.status.code, dns_result.settings) {
-        (FfiErrorCode::Ok, Some(settings)) => settings,
-        (FfiErrorCode::Ok, None) => {
-            return Err(FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "DNS settings owner returned no settings readback",
-            ));
-        }
-        (_, _) => return Err(dns_result.status),
-    };
-    let mtu = tun_settings.mtu.unwrap_or(1500);
-    let ipv6 = dns_snapshot.ipv6.unwrap_or(true);
-    let dns_servers = if dns_snapshot.nameserver_configured {
-        dns_snapshot.nameserver
-    } else {
-        dns_snapshot.default_nameserver
-    }
-    .into_iter()
-    .filter(|server| server.parse::<IpAddr>().is_ok())
-    .collect::<Vec<_>>();
-    let route_plan = VpnRouteConfig {
-        bypass_lan: false,
-        bypass_china: false,
-        custom_dns: dns_servers.clone(),
-        mtu,
-    }
-    .build_plan();
-    Ok(VpnConfiguration {
-        proxy_endpoint,
-        mtu: route_plan.mtu,
-        routes: route_plan
-            .routes
-            .into_iter()
-            .map(|route| VpnRoute {
-                address: route.ip,
-                prefix: route.prefix,
-                exclude: false,
-            })
-            .chain(
-                route_plan
-                    .excluded_routes
-                    .into_iter()
-                    .map(|route| VpnRoute {
-                        address: route.ip,
-                        prefix: route.prefix,
-                        exclude: true,
-                    }),
-            )
-            .collect(),
-        dns_servers,
-        ipv6,
-        foreground_requested: true,
-    })
-}
-
 pub(super) async fn owner_tun_settings_read() -> VpnTunSettingsResult {
     match load_vpn_tun_settings().await {
         Ok(settings) => VpnTunSettingsResult {
@@ -911,36 +824,6 @@ pub(super) async fn owner_tun_settings_save(patch: VpnTunSettingsPatch) -> VpnTu
     }
 }
 
-async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus> {
-    let application = build_configuration_application().await?;
-    let tun_config = application
-        .load_tun_config()
-        .await
-        .map_err(map_application_failure)?;
-    Ok(build_vpn_tun_settings(tun_config))
-}
-
-async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSettings, FfiStatus> {
-    let tun_patch = build_tun_patch(&patch);
-
-    let application = build_configuration_application().await?;
-    let tun_config = application
-        .save_tun_config(tun_patch)
-        .await
-        .map_err(map_application_failure)?;
-    Ok(build_vpn_tun_settings(tun_config))
-}
-
-fn build_vpn_tun_settings(tun_config: tun::TunConfig) -> VpnTunSettings {
-    VpnTunSettings {
-        mtu: tun_config.mtu,
-        auto_route: tun_config.auto_route,
-        strict_route: tun_config.strict_route,
-        stack: tun_config.stack,
-        auto_detect_interface: tun_config.auto_detect_interface,
-    }
-}
-
 pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> tun::TunConfigPatch {
     let mut core_patch = tun::TunConfigPatch::default();
     if let Some(value) = patch.mtu {
@@ -960,62 +843,5 @@ pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> tun::TunConfigPatc
 }
 
 #[cfg(test)]
-mod worker_stop_tests {
-    use super::*;
-
-    #[test]
-    fn stop_ffi_success_requires_worker_exit_readback() {
-        assert_eq!(
-            worker_stop_status(WorkerStopOutcome::Stopped),
-            FfiStatus::ok()
-        );
-        assert_eq!(
-            worker_stop_status(WorkerStopOutcome::TimedOut).code,
-            FfiErrorCode::NotReady,
-        );
-        assert_eq!(
-            worker_stop_status(WorkerStopOutcome::Unavailable).code,
-            FfiErrorCode::NotReady,
-        );
-    }
-
-    #[test]
-    fn tun_settings_patch_only_contains_tun_configuration() {
-        let patch = VpnTunSettingsPatch {
-            mtu: Some(1420),
-            auto_route: Some(false),
-            strict_route: Some(true),
-            stack_update: VpnTunStackUpdate::Set {
-                stack: VpnTunStack::System,
-            },
-            auto_detect_interface: Some(true),
-        };
-        let result = build_tun_patch(&patch);
-        assert_eq!(result.mtu, Some(1420));
-        assert_eq!(result.auto_route, Some(false));
-        assert_eq!(result.strict_route, Some(true));
-        assert_eq!(result.stack, TunStackUpdate::Set(TunStack::System),);
-        assert_eq!(result.auto_detect_interface, Some(true));
-    }
-
-    #[test]
-    fn tun_stack_update_keeps_clear_and_set_distinct_at_the_owner_boundary() {
-        let keep = build_tun_patch(&VpnTunSettingsPatch {
-            mtu: None,
-            auto_route: None,
-            strict_route: None,
-            stack_update: VpnTunStackUpdate::Keep,
-            auto_detect_interface: None,
-        });
-        assert_eq!(keep.stack, TunStackUpdate::Keep);
-
-        let clear = build_tun_patch(&VpnTunSettingsPatch {
-            mtu: None,
-            auto_route: None,
-            strict_route: None,
-            stack_update: VpnTunStackUpdate::Clear,
-            auto_detect_interface: None,
-        });
-        assert_eq!(clear.stack, TunStackUpdate::Clear);
-    }
-}
+#[path = "vpn/worker_stop_tests.rs"]
+mod worker_stop_tests;

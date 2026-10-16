@@ -13,12 +13,13 @@ use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
 use infiltrator_contract::core_identity::CoreIdentity;
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
+use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
@@ -300,7 +301,9 @@ mod tests {
     #[cfg(test)]
     use infiltrator_application::offline_startup_application::OfflineStartupApplication;
     use infiltrator_contract::command::{CommandIntent, CommandResult};
-    use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
+    use infiltrator_contract::core_capabilities::{
+        CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
+    };
     use infiltrator_contract::core_identity::{CoreCommandRequest, CoreInstanceId, EngineId};
     #[cfg(test)]
     use infiltrator_contract::mtu::MtuProbeState;
@@ -502,9 +505,11 @@ mod tests {
             },
             Arc::new(TokioTestRuntime(runtime)),
         );
+        let binary_target = EngineBinaryTarget::current();
+        let host = binary_target.host_kind().unwrap_or(HostKind::Desktop);
         app.install_core_capability_application(CoreCapabilityApplication::new(Arc::new(
             MihomoCoreCapabilityProvider::new(
-                HostKind::Ios,
+                host,
                 [
                     CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
                     CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),

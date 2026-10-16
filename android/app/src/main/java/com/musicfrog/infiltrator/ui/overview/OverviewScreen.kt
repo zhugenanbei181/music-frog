@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.AndroidActivityState
 import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
@@ -45,8 +46,8 @@ internal fun OverviewScreen(
     isExpanded: Boolean,
     viewModel: OverviewViewModel = viewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val activityError by AndroidActivityState.error.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val activityError by AndroidActivityState.error.collectAsStateWithLifecycle()
 
     val displayError = state.error ?: state.coreLifecycleError ?: state.vpnStateError ?: activityError
 

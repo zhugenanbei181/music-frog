@@ -4,6 +4,9 @@
 //!
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
+use crate::configs_dir::config_manager;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use crate::state::AppState;
 use crate::test_mounts::command_harness::attach_product_application_with_accepted_owner_snapshot;
 use crate::test_mounts::identified_core_application::identified_core_application;
@@ -50,8 +53,8 @@ fn futures_executor_block_on<F: Future>(future: F) -> F::Output {
 }
 
 fn attach_mihomo_editor_codec(state: &mut AppState) {
-    let manager = futures_executor_block_on(crate::configs_dir::config_manager()).unwrap();
-    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(manager);
+    let manager = futures_executor_block_on(config_manager()).unwrap();
+    let profiles = profiles_for_mihomo(manager);
     let application = identified_core_application();
     application.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
     attach_product_application_with_accepted_owner_snapshot(state, application);
@@ -110,7 +113,7 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     let _ = state.update(Message::SaveMixin);
     assert!(!matches!(
         &state.editor.mixin_session.operation,
-        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+        ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
         state
@@ -299,7 +302,7 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
     let _ = state.update(Message::SyncDiffMerged(Err(InfiltratorError::Config(
         "合并失败".into(),
     ))));
-    assert!(!state.profile.is_applying_sync_diff);
+    assert!(!state.profile.sync_diff_apply_phase.is_applying());
     assert!(state.profile.sync_diff.is_some());
     assert!(
         state

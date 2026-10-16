@@ -41,12 +41,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -65,18 +65,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private data class LocalImportDraft(
-    val suggestedName: String,
-    val content: String,
-)
-
 @Composable
 internal fun ProfilesScreen(
     viewModel: ProfilesViewModel = viewModel(),
     initialImportUrl: String? = null,
     onImportHandled: () -> Unit = {}
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val drafts = state.drafts
     val collection = state.collection
     val profiles = when (collection) {
         is ProfilesReadState.Loading -> collection.lastAccepted?.value?.profiles.orEmpty()
@@ -105,11 +101,6 @@ internal fun ProfilesScreen(
         is ProfileActionState.Working -> (state.detail as? ProfileDetailReadState.Unavailable)?.failure
     }
 
-    var showAddDialog by remember { mutableStateOf(false) }
-    var prefilledUrl by remember { mutableStateOf<String?>(null) }
-    var deletingProfile by remember { mutableStateOf<ProfileSummary?>(null) }
-    var subscriptionProfile by remember { mutableStateOf<ProfileSummary?>(null) }
-    var localImportDraft by remember { mutableStateOf<LocalImportDraft?>(null) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -128,17 +119,16 @@ internal fun ProfilesScreen(
                 ?.substringBeforeLast(".")
                 ?.takeIf { it.isNotBlank() }
                 ?: "imported"
-            localImportDraft = LocalImportDraft(
+            viewModel.setLocalImportDraft(LocalImportDraft(
                 suggestedName = suggestedName,
                 content = fileContent,
-            )
+            ))
         }
     }
 
     LaunchedEffect(initialImportUrl) {
         if (initialImportUrl != null) {
-            prefilledUrl = initialImportUrl
-            showAddDialog = true
+            viewModel.openAddDialog(initialImportUrl)
         }
     }
 
@@ -160,8 +150,7 @@ internal fun ProfilesScreen(
                 }
                 FloatingActionButton(
                     onClick = {
-                        prefilledUrl = null
-                        showAddDialog = true
+                        viewModel.openAddDialog(null)
                     },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                 ) {
@@ -183,8 +172,8 @@ internal fun ProfilesScreen(
                         onSelect = { viewModel.selectProfile(profile.name) },
                         onUpdate = { viewModel.updateProfile(profile.name) },
                         onEdit = { viewModel.loadProfileDetail(profile.name) },
-                        onSubscription = { subscriptionProfile = profile },
-                        onDelete = { deletingProfile = profile },
+                        onSubscription = { viewModel.setSubscriptionProfile(profile) },
+                        onDelete = { viewModel.setDeletingProfile(profile) },
                     )
                     HorizontalDivider()
                 }
@@ -217,16 +206,16 @@ internal fun ProfilesScreen(
                 )
             }
 
-            if (showAddDialog) {
+            if (drafts.showAddDialog) {
                 AddProfileDialog(
-                    initialUrl = prefilledUrl ?: "",
+                    initialUrl = drafts.prefilledUrl ?: "",
                     onDismiss = {
-                        showAddDialog = false
+                        viewModel.closeAddDialog()
                         onImportHandled()
                     },
                     onConfirm = { name, url ->
                         viewModel.addProfile(name, url)
-                        showAddDialog = false
+                        viewModel.closeAddDialog()
                         onImportHandled()
                     }
                 )
@@ -246,48 +235,51 @@ internal fun ProfilesScreen(
                 )
             }
 
-            if (localImportDraft != null) {
+            if (drafts.localImportDraft != null) {
+                val localDraft = drafts.localImportDraft!!
                 SaveProfileDialog(
                     title = stringResource(R.string.title_import_local_profile),
-                    initialName = localImportDraft!!.suggestedName,
+                    initialName = localDraft.suggestedName,
                     nameEditable = true,
-                    initialContent = localImportDraft!!.content,
+                    initialContent = localDraft.content,
                     initialActivate = false,
-                    onDismiss = { localImportDraft = null },
+                    onDismiss = { viewModel.setLocalImportDraft(null) },
                     onConfirm = { name, content, activate ->
                         viewModel.saveProfileContent(name, content, activate.toProfileActivation())
-                        localImportDraft = null
+                        viewModel.setLocalImportDraft(null)
                     },
                 )
             }
 
-            if (subscriptionProfile != null) {
+            if (drafts.subscriptionProfile != null) {
+                val subProfile = drafts.subscriptionProfile!!
                 SubscriptionSettingsDialog(
-                    profile = subscriptionProfile!!,
-                    onDismiss = { subscriptionProfile = null },
+                    profile = subProfile,
+                    onDismiss = { viewModel.setSubscriptionProfile(null) },
                     onSave = { url, autoUpdate, intervalHours ->
                         viewModel.saveSubscriptionSettings(
-                            name = subscriptionProfile!!.name,
+                            name = subProfile.name,
                             url = url,
                             updatePolicy = autoUpdate.toSubscriptionUpdatePolicy(),
                             updateIntervalHours = intervalHours,
                         )
-                        subscriptionProfile = null
+                        viewModel.setSubscriptionProfile(null)
                     },
                     onClear = {
-                        viewModel.clearSubscriptionSettings(subscriptionProfile!!.name)
-                        subscriptionProfile = null
+                        viewModel.clearSubscriptionSettings(subProfile.name)
+                        viewModel.setSubscriptionProfile(null)
                     }
                 )
             }
 
-            if (deletingProfile != null) {
+            if (drafts.deletingProfile != null) {
+                val delProfile = drafts.deletingProfile!!
                 ConfirmDeleteDialog(
-                    profileName = deletingProfile!!.name,
-                    onDismiss = { deletingProfile = null },
+                    profileName = delProfile.name,
+                    onDismiss = { viewModel.setDeletingProfile(null) },
                     onConfirm = {
-                        viewModel.deleteProfile(deletingProfile!!.name)
-                        deletingProfile = null
+                        viewModel.deleteProfile(delProfile.name)
+                        viewModel.setDeletingProfile(null)
                     }
                 )
             }

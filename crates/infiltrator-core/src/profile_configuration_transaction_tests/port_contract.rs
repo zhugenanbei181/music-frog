@@ -5,6 +5,8 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
@@ -21,7 +23,9 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionScope,
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope;
-use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -83,7 +87,7 @@ impl ProfileConfigurationCandidateValidatorPort for FakeNativeValidator {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if !self.scope.supports(expected) {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "native validator received a foreign engine, format, or schema",
             ));
         }
@@ -95,7 +99,7 @@ impl ProfileConfigurationCandidateValidatorPort for FakeNativeValidator {
                 false,
             ))),
             NativeValidationPlan::Unsupported => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "fake native validator is unavailable while the Core is stopped",
             )),
         }
@@ -155,7 +159,7 @@ impl ProfileConfigurationTransactionPort for FakeTransaction {
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
         if !self.scope.supports(&request.expected) {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "foreign engine, format, or schema",
             ));
         }
@@ -290,7 +294,7 @@ impl ProfileConfigurationTransactionPort for FakeTransaction {
 
 fn scope(engine: &str, format: &str, schema: u32) -> ProfileConfigurationTransactionScope {
     ProfileConfigurationTransactionScope::new(ProfileDocumentCodecScope {
-        engine_id: infiltrator_contract::core_identity::EngineId::new(engine)
+        engine_id: EngineId::new(engine)
             .expect("valid test engine"),
         format_id: ProfileFormatId::new(format).expect("valid test format"),
         schema_version: ProfileSchemaVersion::new(schema).expect("valid test schema"),
@@ -350,7 +354,7 @@ fn request(
         expected_reference,
         expected,
         update: ProfileWorkspaceUpdate {
-            purpose: infiltrator_ports::profile_workspace::ProfileWorkspacePurpose::Derived,
+            purpose: ProfileWorkspacePurpose::Derived,
             document_bytes: document_bytes.to_vec(),
             sidecar_bytes: None,
         },

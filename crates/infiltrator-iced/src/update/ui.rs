@@ -4,6 +4,7 @@ use crate::routing_application::application;
 use crate::state::AppState;
 use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
+use crate::types::app_routing::AppRoutingRefreshPhase;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::types::rule_trace::RuleTraceAction;
@@ -545,7 +546,7 @@ impl AppState {
                 }
             }
             Message::RefreshAppRoutingProcesses => {
-                self.app_routing.is_refreshing = true;
+                self.app_routing.refresh_phase = AppRoutingRefreshPhase::Refreshing;
                 let processes = Task::perform(
                     async { enumerate_extended_processes().unwrap_or_default() },
                     Message::AppRoutingProcessesLoaded,
@@ -562,7 +563,7 @@ impl AppState {
                 Task::batch(vec![processes, config])
             }
             Message::AppRoutingProcessesLoaded(procs) => {
-                self.app_routing.is_refreshing = false;
+                self.app_routing.refresh_phase = AppRoutingRefreshPhase::Idle;
                 self.app_routing.processes = procs;
                 Task::none()
             }

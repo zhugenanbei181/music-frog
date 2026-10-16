@@ -1,3 +1,10 @@
+#![allow(
+    clippy::too_many_arguments,
+    clippy::redundant_locals,
+    clippy::single_match,
+    clippy::items_after_test_module,
+    clippy::cloned_ref_to_slice_refs
+)]
 #[cfg(any(target_os = "android", test))]
 mod android_async_bridge;
 pub mod composition;

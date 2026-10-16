@@ -2,6 +2,7 @@
 //! [`crate::profile_options_codec`].
 use crate::manager::lock_reset_fenced_profile_mutation_for_dir;
 use crate::manager::paths::scope_config_dir;
+use crate::profile_options_codec;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::{ProfileOptions, options_path};
@@ -20,7 +21,7 @@ fn scoped_dir(config_root_or_scoped: &Path) -> Result<PathBuf, PortError> {
 
 pub async fn load_options(config_dir: &Path, profile: &str) -> Result<ProfileOptions, PortError> {
     let bytes = read_options_bytes(config_dir, profile).await?;
-    crate::profile_options_codec::decode(bytes.as_deref())
+    profile_options_codec::decode(bytes.as_deref())
 }
 
 /// Read exact opaque sidecar bytes for the Mihomo options codec.
@@ -39,7 +40,7 @@ pub async fn save_options(
     profile: &str,
     options: &ProfileOptions,
 ) -> Result<(), PortError> {
-    let bytes = crate::profile_options_codec::encode(options)?;
+    let bytes = profile_options_codec::encode(options)?;
     write_options_bytes(config_dir, profile, bytes.as_deref()).await
 }
 

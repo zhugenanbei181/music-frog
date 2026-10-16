@@ -201,7 +201,7 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     assert_eq!(state.shell.theme, iced::Theme::Light);
 
     let task = state.update(Message::SaveAppSettings);
-    assert!(state.profile.is_saving_app_settings);
+    assert!(state.profile.app_settings_save_phase.is_saving());
     let completion = language_terminal(task);
     assert!(
         matches!(completion, Message::AppSettingsSaved(Ok(()))),
@@ -211,7 +211,7 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     let saved = block_on(settings.load()).unwrap();
     assert_eq!(saved.language, "en-US");
     assert_eq!(saved.theme, "light");
-    assert!(!state.profile.is_saving_app_settings);
+    assert!(!state.profile.app_settings_save_phase.is_saving());
     assert_eq!(units, 1, "success toast");
     assert!(
         home.join("settings.toml").exists(),

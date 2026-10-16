@@ -32,7 +32,7 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
         })
         .collect();
 
-    if state.profile.is_loading_profiles {
+    if state.profile.list_load_phase.is_loading() {
         profiles_list = profiles_list.push(empty_state(
             Icon::FileText,
             lang.tr("loading_profiles").as_ref(),

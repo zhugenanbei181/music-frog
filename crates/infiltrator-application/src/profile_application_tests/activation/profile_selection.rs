@@ -1,5 +1,8 @@
 //! Selection and activation lifecycle behavior.
 
+use crate::profile_application::ProfileRuntimeAccess;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use super::*;
 use infiltrator_contract::error::FailureReason;
 
@@ -11,7 +14,7 @@ async fn activation_stale_revision_does_not_dispatch_or_overwrite_the_winner() {
 
     let failure = application
         .activate_profile::<ActivationRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             "next",
         )
         .await
@@ -49,7 +52,7 @@ async fn offline_selection_is_rejected_while_a_core_owner_is_bound() {
 async fn managed_activation_updates_selection_without_starting_a_stopped_core() {
     let store = store_with_profiles("main", &["next"]);
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
-    runtime.set_lifecycle(infiltrator_contract::snapshot::CoreLifecycle::Stopped);
+    runtime.set_lifecycle(CoreLifecycle::Stopped);
     let application = ProfileApplication::new(store.clone());
 
     let outcome = application
@@ -60,7 +63,7 @@ async fn managed_activation_updates_selection_without_starting_a_stopped_core() 
     assert_eq!(
         outcome,
         ProfileActivationOutcome::SelectedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+            CoreInactiveLifecycle::Stopped,
         )
     );
     assert_eq!(selected_profile(&store.active_reference()), ("next", 2));
@@ -71,7 +74,7 @@ async fn managed_activation_updates_selection_without_starting_a_stopped_core() 
 async fn managed_activation_while_core_failed_keeps_the_failed_state() {
     let store = store_with_profiles("main", &["next"]);
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
-    runtime.set_lifecycle(infiltrator_contract::snapshot::CoreLifecycle::Failed);
+    runtime.set_lifecycle(CoreLifecycle::Failed);
     let application = ProfileApplication::new(store.clone());
 
     let outcome = application
@@ -82,7 +85,7 @@ async fn managed_activation_while_core_failed_keeps_the_failed_state() {
     assert_eq!(
         outcome,
         ProfileActivationOutcome::SelectedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+            CoreInactiveLifecycle::Failed,
         )
     );
     assert_eq!(selected_profile(&store.active_reference()), ("next", 2));
@@ -93,7 +96,7 @@ async fn managed_activation_while_core_failed_keeps_the_failed_state() {
 async fn transitioning_core_rejects_activation_before_reference_or_apply_effects() {
     let store = store_with_profiles("main", &["next"]);
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
-    runtime.set_lifecycle(infiltrator_contract::snapshot::CoreLifecycle::Starting);
+    runtime.set_lifecycle(CoreLifecycle::Starting);
     let application = ProfileApplication::new(store.clone());
 
     let failure = application

@@ -27,6 +27,7 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
+use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_test_support::doctor_capture_fixtures::{CHECK_ID, DoctorCapturePort};
 use std::sync::Arc;
 #[derive(Resource)]
@@ -65,7 +66,10 @@ fn initialize(
         .block_on(Box::pin(async move {
             initial.run(None).await.expect("initial diagnosis");
         }));
-    latest.0.pages.doctor = capture.application.page();
+    latest.0.pages.doctor = project_observation(
+        &capture.application.observation(),
+        &capture.application.list_checks(),
+    );
     commands.trigger(DoctorProjectionUpdated(doctor_projection(&latest.0)));
     capture.initialized = true;
 }
@@ -87,7 +91,10 @@ pub fn activate(mut diagnosis: DiagnosticActivation, mut commands: Commands) {
     ) {
         return;
     }
-    let page = diagnosis.capture.application.page();
+    let page = project_observation(
+        &diagnosis.capture.application.observation(),
+        &diagnosis.capture.application.list_checks(),
+    );
     if diagnosis.latest.0.pages.doctor != page {
         diagnosis.latest.0.pages.doctor = page;
         commands.trigger(DoctorProjectionUpdated(doctor_projection(

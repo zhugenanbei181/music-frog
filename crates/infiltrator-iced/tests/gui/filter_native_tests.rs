@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Real field and action widgets feed TEA and the injected typed transaction.
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::state::AppState;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
@@ -33,7 +34,7 @@ fn composed() -> (AppState, Arc<FilterCaptureStore>) {
     core.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Profile(ProfileOperation::ApplyFeature)])
             .with_profile(
-                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+                profiles_for_mihomo(store.clone()),
             ),
     ));
     let observed = core.clone();

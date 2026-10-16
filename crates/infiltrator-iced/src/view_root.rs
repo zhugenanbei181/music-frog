@@ -1,6 +1,7 @@
 //! View root for the iced desktop client: sidebar + main view routing,
 //! notification toasts, operation errors, configuration-save status HUD and modal dialogs.
 
+use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::view::component_forms::style_ghost;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, SP_MD, SP_SM, tokens};
@@ -127,7 +128,7 @@ impl AppState {
             layers.push(hosts_editor_modal(self));
         }
         if self.runtime.group_order_dialog
-            == crate::state::runtime::ProxyGroupOrderDialogState::Editing
+            == ProxyGroupOrderDialogState::Editing
         {
             layers.push(group_order_modal(self));
         }

@@ -147,7 +147,13 @@ class AppRoutingSessionTest {
         session.load()
 
         assertTrue(session.installedApps.value is InstalledAppsState.Unavailable)
-        assertEquals(AppRoutingOperationState.Failed(failure()), session.operation.value)
+        assertEquals(
+            AppRoutingOperationState.Failed(
+                failure(AppFailureCode.Internal, FailureTextKey.Internal)
+                    .copy(diagnostic = "PackageManager unavailable"),
+            ),
+            session.operation.value,
+        )
         assertEquals(0, repository.operations.size)
     }
 

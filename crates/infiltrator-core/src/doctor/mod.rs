@@ -17,6 +17,7 @@ use crate::version_port::MihomoVersionPort;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use mihomo_api::error;
@@ -310,10 +311,10 @@ impl DoctorEnv {
         )
     }
 
-    async fn read_only_settings(&self) -> infiltrator_domain::settings::AppSettings {
+    async fn read_only_settings(&self) -> AppSettings {
         let content = match fs::read_to_string(&self.settings_file).await {
             Ok(content) => content,
-            Err(_) => return infiltrator_domain::settings::AppSettings::default(),
+            Err(_) => return AppSettings::default(),
         };
         parse_settings_toml(&content)
             .map(|(settings, _)| settings)

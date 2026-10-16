@@ -6,7 +6,7 @@ pub type HttpClient = reqwest::Client;
 
 pub fn build_http_client() -> HttpClient {
     HttpClient::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
+        .user_agent("MusicFrog-Infiltrator")
         .timeout(Duration::from_secs(30))
         .build()
         .unwrap_or_else(|err| {
@@ -17,7 +17,7 @@ pub fn build_http_client() -> HttpClient {
 
 pub fn build_raw_http_client(default_client: &HttpClient) -> HttpClient {
     HttpClient::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
+        .user_agent("MusicFrog-Infiltrator")
         .timeout(Duration::from_secs(30))
         .no_gzip()
         .no_brotli()
@@ -37,7 +37,7 @@ pub fn build_raw_http_client(default_client: &HttpClient) -> HttpClient {
 /// [`build_raw_http_client`].
 pub fn build_insecure_http_client(raw: bool) -> HttpClient {
     let builder = HttpClient::builder()
-        .user_agent("MusicFrog-Despicable-Infiltrator")
+        .user_agent("MusicFrog-Infiltrator")
         .timeout(Duration::from_secs(30))
         .danger_accept_invalid_certs(true);
     let builder = if raw {

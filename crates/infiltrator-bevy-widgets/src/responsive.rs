@@ -170,6 +170,37 @@ pub enum ModalForm {
     CenteredDialog,
 }
 
+/// Compact height boundary (480.0 px), derived from standard mobile landscape and split-screen bounds.
+pub const COMPACT_HEIGHT_MAX_PX: f32 = 480.0;
+
+/// Height breakpoint classification according to compact height boundaries.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum CompactHeight {
+    /// Compact height (< 480px, e.g. phones in landscape mode, small split screens).
+    Compact,
+    /// Normal height (>= 480px, standard portrait and desktop viewports).
+    #[default]
+    Normal,
+}
+
+impl CompactHeight {
+    pub fn from_height(height_px: f32) -> Self {
+        if height_px < COMPACT_HEIGHT_MAX_PX {
+            Self::Compact
+        } else {
+            Self::Normal
+        }
+    }
+
+    pub fn is_compact(&self) -> bool {
+        matches!(self, Self::Compact)
+    }
+
+    pub fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal)
+    }
+}
+
 /// Global responsive context resource providing layout metrics and multi-end adaptive state.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct ResponsiveContext {
@@ -183,6 +214,8 @@ pub struct ResponsiveContext {
     pub density: Density,
     /// Active viewport orientation.
     pub orientation: Orientation,
+    /// Compact height category.
+    pub compact_height: CompactHeight,
 }
 
 impl Default for ResponsiveContext {
@@ -196,12 +229,14 @@ impl ResponsiveContext {
     pub fn new(width_px: f32, height_px: f32) -> Self {
         let breakpoint = Breakpoint::from_width(width_px);
         let orientation = Orientation::from_dimensions(width_px, height_px);
+        let compact_height = CompactHeight::from_height(height_px);
         Self {
             width_px,
             height_px,
             breakpoint,
             density: Density::Comfortable,
             orientation,
+            compact_height,
         }
     }
 
@@ -211,19 +246,22 @@ impl ResponsiveContext {
         self
     }
 
-    /// Update dimensions, recomputing breakpoint and orientation. Returns true if changed.
+    /// Update dimensions, recomputing breakpoint, orientation, and compact height. Returns true if changed.
     pub fn set_dimensions(&mut self, width_px: f32, height_px: f32) -> bool {
         let breakpoint = Breakpoint::from_width(width_px);
         let orientation = Orientation::from_dimensions(width_px, height_px);
+        let compact_height = CompactHeight::from_height(height_px);
         if (self.width_px - width_px).abs() > 0.5
             || (self.height_px - height_px).abs() > 0.5
             || self.breakpoint != breakpoint
             || self.orientation != orientation
+            || self.compact_height != compact_height
         {
             self.width_px = width_px;
             self.height_px = height_px;
             self.breakpoint = breakpoint;
             self.orientation = orientation;
+            self.compact_height = compact_height;
             true
         } else {
             false
@@ -243,6 +281,11 @@ impl ResponsiveContext {
     /// Whether current breakpoint is Compact (<600px).
     pub fn is_compact(&self) -> bool {
         self.breakpoint.is_compact()
+    }
+
+    /// Whether height is compact (<480px).
+    pub fn is_compact_height(&self) -> bool {
+        self.compact_height.is_compact()
     }
 
     /// Whether current breakpoint is Medium (600px..1024px).

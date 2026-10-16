@@ -31,7 +31,9 @@ use crate::host_capabilities::{HostPreferenceIntent, MotionPreference};
 use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
+use infiltrator_shared::i18n_interpolator::localize;
 use bevy::app::{App, Plugin, Update};
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
@@ -47,8 +49,8 @@ use bevy::ui_widgets::ScrollArea;
 use infiltrator_bevy_widgets::gesture;
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, GestureRecognizer, PinchZoomController, PullToRefreshIndicator,
-    PullToRefreshSpring, PullToRefreshState, PullToRefreshText, SwipeActionDrawer,
-    SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
+    PullToRefreshPhase, PullToRefreshSpring, PullToRefreshState, PullToRefreshText,
+    SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
 use infiltrator_bevy_widgets::localization::{
     LocaleCopySet, LocalizedText, WidgetLocalizationPlugin,
@@ -56,8 +58,8 @@ use infiltrator_bevy_widgets::localization::{
 use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::shell_gesture::{
-    GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, SafeAreaInsets,
-    TouchGestureSupport,
+    GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, PullPhase,
+    SafeAreaInsets, TouchGestureSupport,
 };
 use std::collections::BTreeMap;
 
@@ -172,6 +174,121 @@ impl Default for GestureHostReport {
     }
 }
 
+/// The four mutually exclusive diagnostic outcomes of an Android touch sequence (BANDROID-025.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TouchLayerDiagnosticCategory {
+    /// MotionEvent was received by the Android host but no winit TouchInput event entered Bevy.
+    TouchNotEnteredBevy,
+    /// Touch arrived in Bevy but Picking interaction did not hit any UI entity.
+    TouchMissedUi,
+    /// Drag gesture or TouchInput::Moved occurred, but ScrollPosition was not driven (delta == 0).
+    DragNotDrivenScroll,
+    /// ScrollPosition changed, but no render presentation or visual offset update occurred.
+    PositionNotRendered,
+}
+
+impl TouchLayerDiagnosticCategory {
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::TouchNotEnteredBevy => "touch_not_entered_bevy",
+            Self::TouchMissedUi => "touch_missed_ui",
+            Self::DragNotDrivenScroll => "drag_not_driven_scroll",
+            Self::PositionNotRendered => "position_not_rendered",
+        }
+    }
+
+    pub const fn description_key(self) -> &'static str {
+        match self {
+            Self::TouchNotEnteredBevy => "touch_diag_not_entered_bevy",
+            Self::TouchMissedUi => "touch_diag_missed_ui",
+            Self::DragNotDrivenScroll => "touch_diag_drag_not_driven_scroll",
+            Self::PositionNotRendered => "touch_diag_position_not_rendered",
+        }
+    }
+
+    pub fn description(self) -> String {
+        self.description_in("zh-CN")
+    }
+
+    pub fn description_in(self, locale: &str) -> String {
+        localize(locale, self.description_key(), &[])
+    }
+}
+
+/// Diagnostic sample tracking the touch pipeline through all 4 layers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TouchLayerDiagnosticEntry {
+    /// Scenario identifier (shared with Compose, e.g. "SCN-01-OVERVIEW", "SCN-05-CONNECTIONS").
+    pub scenario_id: String,
+    /// Raw touch coordinates from Android MotionEvent (if known).
+    pub raw_coords: Option<Vec2>,
+    /// Screen density (dpi or scale factor).
+    pub density: f32,
+    /// Winit/Bevy TouchInput phase and coordinates.
+    pub touch_input: Option<(TouchPhase, Vec2)>,
+    /// Picking entity hit by this touch (if any).
+    pub picking_hit: Option<Entity>,
+    /// Recognized gesture mode (Pull, Swipe, Pinch, Recognizer, etc.).
+    pub gesture_mode: String,
+    /// Scroll position before and after this event (x, y).
+    pub scroll_before: Option<Vec2>,
+    pub scroll_after: Option<Vec2>,
+    /// Was a render frame submitted for this position change?
+    pub rendered: bool,
+}
+
+impl TouchLayerDiagnosticEntry {
+    /// Classifies this touch sequence into one of the four required failure categories,
+    /// or None if the touch was processed and rendered successfully.
+    pub fn classify(&self) -> Option<TouchLayerDiagnosticCategory> {
+        if self.touch_input.is_none() {
+            return Some(TouchLayerDiagnosticCategory::TouchNotEnteredBevy);
+        }
+        if self.picking_hit.is_none() {
+            return Some(TouchLayerDiagnosticCategory::TouchMissedUi);
+        }
+        if let (Some(before), Some(after)) = (self.scroll_before, self.scroll_after) {
+            let is_drag = self.gesture_mode == "Pull"
+                || self.gesture_mode == "Swipe"
+                || self.gesture_mode == "Recognizer"
+                || matches!(self.touch_input, Some((TouchPhase::Moved, _)));
+            if is_drag && (after - before).length_squared() < 0.0001 {
+                return Some(TouchLayerDiagnosticCategory::DragNotDrivenScroll);
+            }
+            if (after - before).length_squared() >= 0.0001 && !self.rendered {
+                return Some(TouchLayerDiagnosticCategory::PositionNotRendered);
+            }
+        }
+        None
+    }
+
+    /// Formats a structured diagnostic log line for logcat / automated log inspection.
+    pub fn format_log(&self) -> String {
+        let category = self.classify().map_or("SUCCESS", |c| c.label());
+        format!(
+            "[TOUCH_DIAG] scenario={} category={} touch={:?} picking={:?} gesture={} scroll_delta={:?} rendered={}",
+            self.scenario_id,
+            category,
+            self.touch_input,
+            self.picking_hit,
+            self.gesture_mode,
+            match (self.scroll_before, self.scroll_after) {
+                (Some(b), Some(a)) => Some(a - b),
+                _ => None,
+            },
+            self.rendered
+        )
+    }
+}
+
+/// In-memory diagnostic log resource for development/diagnostic mode.
+#[derive(Resource, Default)]
+pub struct TouchLayerDiagnosticLog {
+    pub enabled: bool,
+    pub current_scenario: String,
+    pub entries: Vec<TouchLayerDiagnosticEntry>,
+}
+
 /// Installs the real touch consumer and the shared snapshot.
 pub struct ShellGesturePlugin;
 
@@ -250,6 +367,15 @@ pub fn shared_outcome(outcome: GestureOutcome) -> GestureSemanticEvent {
         GestureOutcome::Pinch { scale, center } => {
             GestureSemanticEvent::pinch(scale, 1.0, point(center))
         }
+    }
+}
+
+pub fn map_pull_phase(phase: PullToRefreshPhase) -> PullPhase {
+    match phase {
+        PullToRefreshPhase::Idle => PullPhase::Idle,
+        PullToRefreshPhase::Pulling => PullPhase::Pulling,
+        PullToRefreshPhase::Armed => PullPhase::Armed,
+        PullToRefreshPhase::Refreshing => PullPhase::Refreshing,
     }
 }
 
@@ -351,7 +477,7 @@ fn consume_touch_input(
                             snapshot.0.apply(GestureSemanticEvent::pull_to_refresh(
                                 state.pull.pull_offset,
                                 state.pull.threshold,
-                                state.pull.is_refreshing,
+                                map_pull_phase(state.pull.phase),
                             ));
                         }
                     }
@@ -388,7 +514,7 @@ fn consume_touch_input(
                                 snapshot.0.apply(GestureSemanticEvent::pull_to_refresh(
                                     state.pull.pull_offset,
                                     state.pull.threshold,
-                                    state.pull.is_refreshing,
+                                    map_pull_phase(state.pull.phase),
                                 ));
                             }
                             GestureMode::Swipe => {
@@ -419,7 +545,7 @@ fn consume_touch_input(
                         snapshot.0.apply(GestureSemanticEvent::pull_to_refresh(
                             state.pull.pull_offset,
                             state.pull.threshold,
-                            state.pull.is_refreshing,
+                            map_pull_phase(state.pull.phase),
                         ));
                     }
                     GestureMode::Swipe => {
@@ -517,7 +643,7 @@ pub fn sync_pull_to_refresh_indicators(params: PullToRefreshIndicatorParams) {
         .filter(|&dt| dt > 0.001)
         .unwrap_or(1.0 / 60.0);
     let pull = &gesture_state.pull;
-    let is_refreshing = pull.is_refreshing;
+    let is_refreshing = pull.phase.is_refreshing();
 
     // Trigger command when entering refreshing state
     if is_refreshing

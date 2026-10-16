@@ -174,9 +174,10 @@ fn invalid_scope(message: impl Into<String>) -> Failure {
 #[cfg(test)]
 mod tests {
     use super::RuleProviderRuntimeApplication;
+    use crate::core_capability_application::CoreCapabilityApplication;
     use crate::core_capability_test_support::{capability_application, core_scope};
     use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use infiltrator_contract::rule_provider_runtime::{
         RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayload,
@@ -240,7 +241,7 @@ mod tests {
             identity: CoreIdentity::new(
                 EngineId::mihomo(),
                 CoreInstanceId::new("other").unwrap(),
-                Some(infiltrator_contract::core_identity::CoreVersion::new("1.19.12").unwrap()),
+                Some(CoreVersion::new("1.19.12").unwrap()),
             ),
             generation: CoreGeneration::new(1),
             session_token: None,
@@ -318,7 +319,7 @@ mod tests {
         });
         let app = RuleProviderRuntimeApplication::new(
             port.clone(),
-            crate::core_capability_application::CoreCapabilityApplication::without_provider(),
+            CoreCapabilityApplication::without_provider(),
         );
         assert!(app.inventory(&scope).await.is_err());
         assert_eq!(port.calls.load(Ordering::SeqCst), 0);

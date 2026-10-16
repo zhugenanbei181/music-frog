@@ -1,4 +1,5 @@
 //! Capture the real typed options read and denied filter transaction through TEA.
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -28,7 +29,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated filter runtime"),
     );
-    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store);
+    let profiles = profiles_for_mihomo(store);
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_profile(profiles.clone()),
     ));

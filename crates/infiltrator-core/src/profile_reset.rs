@@ -7,6 +7,7 @@ use infiltrator_contract::core_identity::EngineId;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_reset::ProfileResetPort;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::profile_reset::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
@@ -62,7 +63,7 @@ async fn reset_profiles_with_default_builder(
     // no pending reset. A pending v2 intent already contains the exact bytes
     // needed for recovery and must not depend on port discovery succeeding.
     let default_config = build_default_config()?;
-    let expected = infiltrator_ports::profile_store::ProfileStore::read_active_profile_reference(
+    let expected = ProfileStore::read_active_profile_reference(
         manager.engine_profile_store(),
     )
     .await?;
@@ -237,7 +238,7 @@ mod tests {
         assert!(!builder_called.load(Ordering::SeqCst));
         assert_eq!(read(previous_default_path).await.unwrap(), default_document);
         assert_eq!(
-            infiltrator_ports::profile_store::ProfileStore::read_active_profile_reference(
+            ProfileStore::read_active_profile_reference(
                 manager.engine_profile_store(),
             )
             .await

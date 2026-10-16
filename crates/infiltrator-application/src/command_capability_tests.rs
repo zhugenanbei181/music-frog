@@ -1,3 +1,6 @@
+use infiltrator_contract::rule_provider_runtime::RuleProviderId;
+use infiltrator_contract::rule_provider_runtime::RuleProviderRevision;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use super::{
     CommandCapabilityRoute, CoreTerminalScopePolicy, classify_command, terminal_scope_policy,
     validate_terminal_scope,
@@ -413,13 +416,13 @@ async fn every_core_command_family_fails_closed_without_scope_and_provider() {
         ),
         (
             CommandIntent::RefreshRuleProvider {
-                reference: infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference {
-                    id: infiltrator_contract::rule_provider_runtime::RuleProviderId::new(
+                reference: RuleProviderControllerReference {
+                    id: RuleProviderId::new(
                         EngineId::mihomo(),
                         "ads",
                     )
                     .expect("typed provider ID"),
-                    inventory_revision: infiltrator_contract::rule_provider_runtime::RuleProviderRevision::initial(),
+                    inventory_revision: RuleProviderRevision::initial(),
                 },
             },
             CoreOperation::Provider(ProviderOperation::UpdateRule),

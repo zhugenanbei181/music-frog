@@ -319,7 +319,7 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             }
         }
 
-        let update_geo_btn = if state.editor.is_updating_geo_databases {
+        let update_geo_btn = if state.editor.geo_databases_update_phase.is_updating() {
             button(
                 row![
                     svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t)
@@ -432,7 +432,7 @@ pub(super) fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Ele
             state.editor.rule_providers_editor_state,
             &state.editor.rule_providers_json_content,
             state.editor.rule_providers_json_dirty,
-            state.editor.is_saving_rule_providers_json,
+            state.editor.rule_providers_json_save_phase.is_saving(),
             Message::EnsureRuleProvidersEditorLoaded,
             Message::RuleProvidersEditorAction,
             Message::SaveRuleProvidersJson,
@@ -444,7 +444,7 @@ pub(super) fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Ele
             state.editor.proxy_providers_editor_state,
             &state.editor.proxy_providers_json_content,
             state.editor.proxy_providers_json_dirty,
-            state.editor.is_saving_proxy_providers_json,
+            state.editor.proxy_providers_json_save_phase.is_saving(),
             Message::EnsureProxyProvidersEditorLoaded,
             Message::ProxyProvidersEditorAction,
             Message::SaveProxyProvidersJson,
@@ -456,7 +456,7 @@ pub(super) fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Ele
             state.editor.sniffer_editor_state,
             &state.editor.sniffer_json_content,
             state.editor.sniffer_json_dirty,
-            state.editor.is_saving_sniffer_json,
+            state.editor.sniffer_json_save_phase.is_saving(),
             Message::EnsureSnifferEditorLoaded,
             Message::SnifferEditorAction,
             Message::SaveSnifferJson,

@@ -3,6 +3,8 @@
 use crate::error::Failure;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroU32;
 use url::Url;
 
@@ -17,8 +19,8 @@ pub enum RuntimeProbeSettingsError {
     ZeroTimeout,
 }
 
-impl std::fmt::Display for RuntimeProbeSettingsError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for RuntimeProbeSettingsError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::InvalidUrl => "probe URL must be an absolute HTTP or HTTPS URL",
             Self::UnsupportedScheme => "probe URL must use HTTP or HTTPS",
@@ -28,7 +30,7 @@ impl std::fmt::Display for RuntimeProbeSettingsError {
     }
 }
 
-impl std::error::Error for RuntimeProbeSettingsError {}
+impl Error for RuntimeProbeSettingsError {}
 
 /// Validated absolute HTTP(S) URL used by outbound latency probes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

@@ -1,5 +1,10 @@
 //! Revision-fenced active-profile activation behavior.
 
+use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::core_identity::CoreIdentity;
+use infiltrator_contract::core_identity::CoreInstanceId;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -34,20 +39,20 @@ struct ActivationRuntime {
     behaviors: Mutex<VecDeque<ApplyBehavior>>,
     calls: AtomicUsize,
     references: Mutex<Vec<ActiveProfileReference>>,
-    lifecycle: Mutex<infiltrator_contract::snapshot::CoreLifecycle>,
+    lifecycle: Mutex<CoreLifecycle>,
 }
 
 impl ActivationRuntime {
     fn new(store: Arc<FakeStore>, behaviors: impl IntoIterator<Item = ApplyBehavior>) -> Self {
         let engine = EngineId::new("mihomo").expect("test engine ID");
         store.bind_owner_for_test(
-            infiltrator_contract::core_identity::CoreIdentity::new(
+            CoreIdentity::new(
                 engine.clone(),
-                infiltrator_contract::core_identity::CoreInstanceId::new("activation-test-core")
+                CoreInstanceId::new("activation-test-core")
                     .expect("test owner instance"),
                 None,
             ),
-            infiltrator_contract::core_identity::CoreGeneration::new(1),
+            CoreGeneration::new(1),
         );
         Self {
             engine,
@@ -55,11 +60,11 @@ impl ActivationRuntime {
             behaviors: Mutex::new(behaviors.into_iter().collect()),
             calls: AtomicUsize::new(0),
             references: Mutex::new(Vec::new()),
-            lifecycle: Mutex::new(infiltrator_contract::snapshot::CoreLifecycle::Running),
+            lifecycle: Mutex::new(CoreLifecycle::Running),
         }
     }
 
-    fn set_lifecycle(&self, lifecycle: infiltrator_contract::snapshot::CoreLifecycle) {
+    fn set_lifecycle(&self, lifecycle: CoreLifecycle) {
         *self.lifecycle.lock().expect("runtime lifecycle") = lifecycle;
     }
 }
@@ -70,24 +75,24 @@ impl ActiveProfileReferenceApplier for ActivationRuntime {
         Some(self.engine.clone())
     }
 
-    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+    fn core_lifecycle(&self) -> CoreLifecycle {
         self.lifecycle.lock().expect("runtime lifecycle").clone()
     }
 
     fn write_authorization(
         &self,
     ) -> Result<
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        ActiveProfileReferenceWriteAuthorization,
         PortError,
     > {
         Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
-            identity: infiltrator_contract::core_identity::CoreIdentity::new(
+            identity: CoreIdentity::new(
                 self.engine.clone(),
-                infiltrator_contract::core_identity::CoreInstanceId::new("activation-test-core")
+                CoreInstanceId::new("activation-test-core")
                     .expect("test owner instance"),
                 None,
             ),
-            generation: infiltrator_contract::core_identity::CoreGeneration::new(1),
+            generation: CoreGeneration::new(1),
         })
     }
 
@@ -130,7 +135,7 @@ impl ActiveProfileReferenceApplier for ActivationRuntime {
     async fn apply_active_profile_workspace(
         &self,
         expected_reference: &ActiveProfileReference,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
         authorization: ActiveProfileReferenceWriteAuthorization,
         strategy: ApplyStrategy,

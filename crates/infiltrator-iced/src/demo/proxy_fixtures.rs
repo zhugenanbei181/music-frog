@@ -361,7 +361,7 @@ pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
     snapshot.revision = 1;
     snapshot.core.identity = Some(scope.identity.clone());
     snapshot.core.generation = 1;
-    snapshot.core.session_token = scope.session_token.clone();
+    snapshot.core.session_token = scope.session_token;
     snapshot.core.lifecycle = CoreLifecycle::Stopped;
     snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
     snapshot.core.core_version = Some("1.19.32".to_owned());

@@ -1,18 +1,22 @@
-use std::{rc::Rc, time::{Duration, Instant}};
-use slint::{ComponentHandle, SharedString};
-use slint::platform::{Platform, PlatformError, WindowAdapter};
+use slint::language::ColorScheme;
+use slint::platform::{self, Platform, PlatformError, WindowAdapter};
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
+use slint::{ComponentHandle, SharedString};
+use std::env;
+use std::rc::Rc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 struct SnapshotPlatform { window: Rc<MinimalSoftwareWindow>, start: Instant }
 impl Platform for SnapshotPlatform {
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         Ok(self.window.clone())
     }
-    fn duration_since_start(&self) -> std::time::Duration { self.start.elapsed() }
+    fn duration_since_start(&self) -> Duration { self.start.elapsed() }
 }
 
 fn main() -> anyhow::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = env::args().collect();
     let page = args.get(1).map(String::as_str).unwrap_or("Proxy");
     let width: u32 = args.get(2).map(|s| s.parse()).transpose()?.unwrap_or(320);
     let height: u32 = args.get(3).map(|s| s.parse()).transpose()?.unwrap_or(720);
@@ -23,12 +27,12 @@ fn main() -> anyhow::Result<()> {
     let _ = slint::select_bundled_translation("zh-CN");
 
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-    slint::platform::set_platform(Box::new(SnapshotPlatform { window: window.clone(), start: Instant::now() }))?;
+    platform::set_platform(Box::new(SnapshotPlatform { window: window.clone(), start: Instant::now() }))?;
     let ui = lumen::AppWindow::new()?;
     if english_variant {
         let _ = slint::select_bundled_translation("en");
     }
-    ui.global::<lumen::Palette>().set_color_scheme(slint::language::ColorScheme::Light);
+    ui.global::<lumen::Palette>().set_color_scheme(ColorScheme::Light);
     ui.window().set_size(slint::LogicalSize::new(width as f32, height as f32));
     ui.set_compact_layout(true);
     ui.set_android_platform(true);
@@ -131,10 +135,10 @@ fn main() -> anyhow::Result<()> {
         ui.set_proxy_testing_node(loading_node_id.into());
     }
     if variant == "detail-dark" {
-        ui.global::<lumen::Palette>().set_color_scheme(slint::language::ColorScheme::Dark);
+        ui.global::<lumen::Palette>().set_color_scheme(ColorScheme::Dark);
     }
     if dark_variant {
-        ui.global::<lumen::Palette>().set_color_scheme(slint::language::ColorScheme::Dark);
+        ui.global::<lumen::Palette>().set_color_scheme(ColorScheme::Dark);
     }
     // Running alone cannot exercise the distinct HomeActionButton component.
     if variant.starts_with("home-stopped") || variant == "home-empty" {
@@ -174,8 +178,8 @@ fn main() -> anyhow::Result<()> {
             ui.set_page_scale_dialog_open(true);
         }
         for _ in 0..32 {
-            std::thread::sleep(Duration::from_millis(10));
-            slint::platform::update_timers_and_animations();
+            thread::sleep(Duration::from_millis(10));
+            platform::update_timers_and_animations();
         }
     }
     if variant == "config-action-debug" {
@@ -193,8 +197,8 @@ fn main() -> anyhow::Result<()> {
         ui.set_profile_settings_location("https://example.invalid/config.yaml".into());
         ui.set_profile_settings_id("demo-profile".into());
         for _ in 0..8 {
-            std::thread::sleep(Duration::from_millis(10));
-            slint::platform::update_timers_and_animations();
+            thread::sleep(Duration::from_millis(10));
+            platform::update_timers_and_animations();
         }
         if variant == "config-settings-overrides-debug" {
             ui.set_profile_settings_type_index(1);
@@ -204,14 +208,14 @@ fn main() -> anyhow::Result<()> {
     if sheet_variant {
         ui.set_profile_add_open(true);
         for _ in 0..8 {
-            std::thread::sleep(Duration::from_millis(10));
-            slint::platform::update_timers_and_animations();
+            thread::sleep(Duration::from_millis(10));
+            platform::update_timers_and_animations();
         }
     }
     if variant == "proxy-ping-loading" {
         for _ in 0..4 {
-            std::thread::sleep(Duration::from_millis(80));
-            slint::platform::update_timers_and_animations();
+            thread::sleep(Duration::from_millis(80));
+            platform::update_timers_and_animations();
         }
     }
     let snapshot = window.take_snapshot()?;

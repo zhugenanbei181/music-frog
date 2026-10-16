@@ -1,3 +1,4 @@
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time;
@@ -121,7 +122,7 @@ impl CoreProcess for ProductControlProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         self.steps
             .lock()

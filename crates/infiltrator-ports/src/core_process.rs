@@ -1,7 +1,7 @@
 use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreVersion};
-pub use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 
 /// Admission observed before a managed launch is persisted and dispatched.

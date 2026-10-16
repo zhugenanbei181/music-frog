@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Native inspector and modal widgets replay the shared source-qualified workflow.
+use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use super::rules_tracer::{publish, run, setup};
 use crate::state::AppState;
 use crate::test_mounts::native_widgets;
@@ -98,7 +99,7 @@ fn native_statistics_reset_permission_retry_requires_matching_receipt_and_actual
     complete(&mut state, tasks);
     assert!(matches!(
         state.editor.rule_hit_audit.reset_phase(),
-        infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+        StatisticsResetPhase::AwaitingReadback { .. }
     ));
     assert_eq!(state.editor.rule_hit_audit.audit.as_ref(), Some(&before));
     publish(&mut state, &reader);

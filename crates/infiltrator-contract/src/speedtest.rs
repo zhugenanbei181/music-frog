@@ -2,12 +2,16 @@
 //! packet-loss classification, and identity-fenced result histories.
 
 use crate::core_identity::CoreScope;
-use crate::error::Failure;
+#[cfg(test)]
+use crate::core_identity::EngineId;
+use crate::error::{ErrorCode, Failure};
 use crate::outbound::identity::{OutboundContractError, OutboundId, SnapshotRevision};
 use crate::outbound::inventory::OutboundProbeState;
 use crate::outbound::probe::OutboundProbeBatchScope;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 use std::num::{NonZeroU8, NonZeroU64};
 
 /// Packet loss gradient rating reflecting connection quality tiers.
@@ -278,15 +282,15 @@ pub enum SpeedtestTargetError {
     InvalidOutboundScope(OutboundContractError),
 }
 
-impl std::fmt::Display for SpeedtestTargetError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SpeedtestTargetError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidOutboundScope(error) => error.fmt(formatter),
         }
     }
 }
 
-impl std::error::Error for SpeedtestTargetError {}
+impl Error for SpeedtestTargetError {}
 
 /// Number of latency samples to collect for every target in one run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -331,8 +335,8 @@ pub enum SpeedtestRoundsError {
     ExceedsMaximum,
 }
 
-impl std::fmt::Display for SpeedtestRoundsError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SpeedtestRoundsError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::Zero => "speedtest rounds must be greater than zero",
             Self::ExceedsMaximum => "speedtest rounds must not exceed 50",
@@ -340,7 +344,7 @@ impl std::fmt::Display for SpeedtestRoundsError {
     }
 }
 
-impl std::error::Error for SpeedtestRoundsError {}
+impl Error for SpeedtestRoundsError {}
 
 /// Bounded parallelism for a multi-round speedtest run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -383,8 +387,8 @@ pub enum SpeedtestConcurrencyError {
     ExceedsMaximum,
 }
 
-impl std::fmt::Display for SpeedtestConcurrencyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SpeedtestConcurrencyError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::Zero => "speedtest concurrency must be greater than zero",
             Self::ExceedsMaximum => "speedtest concurrency must not exceed 30",
@@ -392,7 +396,7 @@ impl std::fmt::Display for SpeedtestConcurrencyError {
     }
 }
 
-impl std::error::Error for SpeedtestConcurrencyError {}
+impl Error for SpeedtestConcurrencyError {}
 
 /// The outcome of one sample in the multi-round speedtest.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -418,7 +422,7 @@ impl From<&OutboundProbeState> for SpeedtestSampleOutcome {
             },
             OutboundProbeState::Unknown | OutboundProbeState::Probing => Self::Failed {
                 failure: Failure::new(
-                    crate::error::ErrorCode::InvalidState,
+                    ErrorCode::InvalidState,
                     "outbound probe returned a nonterminal sample",
                     false,
                 ),
@@ -873,7 +877,7 @@ mod tests {
 
     #[test]
     fn stable_latency_sort_keeps_inventory_order_for_equal_and_missing_samples() {
-        let engine = crate::core_identity::EngineId::new("fixture").expect("engine");
+        let engine = EngineId::new("fixture").expect("engine");
         let first_id = OutboundId::new(engine.clone(), "first").expect("outbound");
         let second_id = OutboundId::new(engine.clone(), "second").expect("outbound");
         let third_id = OutboundId::new(engine, "third").expect("outbound");

@@ -175,7 +175,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                     header_actions(
                         Message::RefreshDnsOnly,
                         Message::SaveDns,
-                        state.editor.is_saving_dns,
+                        state.editor.dns_save_phase.is_saving(),
                         dirty
                     )
                 ]
@@ -231,7 +231,7 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
                     header_actions(
                         Message::RefreshFakeIpOnly,
                         Message::SaveFakeIpConfig,
-                        state.editor.is_saving_fake_ip,
+                        state.editor.fake_ip_save_phase.is_saving(),
                         dirty
                     )
                 ]
@@ -315,7 +315,7 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                     header_actions(
                         Message::RefreshTunOnly,
                         Message::SaveTunConfig,
-                        state.editor.is_saving_tun,
+                        state.editor.tun_save_phase.is_saving(),
                         dirty
                     )
                 ]
@@ -452,7 +452,7 @@ fn dns_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
     advanced_json_panel(
         title.as_ref(),
         dirty,
-        state.editor.is_saving_dns,
+        state.editor.dns_save_phase.is_saving(),
         "DNS",
         state.editor.advanced_configs_loaded_once,
         state.editor.dns_editor_state,
@@ -476,7 +476,7 @@ fn fake_ip_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
     advanced_json_panel(
         title.as_ref(),
         dirty,
-        state.editor.is_saving_fake_ip,
+        state.editor.fake_ip_save_phase.is_saving(),
         "Fake-IP",
         state.editor.advanced_configs_loaded_once,
         state.editor.fake_ip_editor_state,
@@ -498,7 +498,7 @@ fn tun_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
     advanced_json_panel(
         title.as_ref(),
         dirty,
-        state.editor.is_saving_tun,
+        state.editor.tun_save_phase.is_saving(),
         "TUN",
         state.editor.advanced_configs_loaded_once,
         state.editor.tun_editor_state,
@@ -603,7 +603,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     latency_policy_line(
                         &state.editor.dns_latency,
                         Some(Message::RunDnsLatencyProbe),
-                        state.editor.is_probing_dns_latency,
+                        state.editor.dns_latency_probe_phase.is_probing(),
                         &lang,
                     )
                 ),

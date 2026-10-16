@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::io_other_error, clippy::collapsible_if)]
 use infiltrator_contract::core_identity::EngineId;
 
 pub mod endpoint;

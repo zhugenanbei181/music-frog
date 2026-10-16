@@ -30,6 +30,7 @@ use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use std::mem;
 #[cfg(test)]
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
@@ -339,7 +340,7 @@ pub(crate) async fn begin_owner_product_session() {
 
 pub(crate) async fn close_owner_product_session() -> Result<(), FfiStatus> {
     let mut state = owner_product_slot().lock().await;
-    let previous = std::mem::replace(&mut *state, OwnerProductState::Closed);
+    let previous = mem::replace(&mut *state, OwnerProductState::Closed);
     drop(state);
     drop(previous);
 
@@ -362,14 +363,19 @@ fn serialize_owner_surface_snapshot(snapshot: &SurfaceSnapshot) -> Result<String
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
     use infiltrator_contract::android_control::{
         AndroidChildProcessIdentity, AndroidCoreProcessObservation,
-        AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, CoreLaunchSpec,
+        AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess,
         VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
     };
-    use infiltrator_contract::snapshot::CoreLifecycle;
+    use crate::ffi::FfiErrorCode;
+    use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+    use infiltrator_contract::core_process::CoreProcessStartContext;
+    use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
+    use infiltrator_contract::vpn::VpnGeneration;
     use infiltrator_platform::android_bridge::{
-        AndroidBridgeResult as Result, CoreProcessStartReceipt, CoreProcessStopReceipt,
+        AndroidBridgeResult, CoreProcessStartReceipt, CoreProcessStopReceipt,
         clear_android_bridge, get_android_bridge, set_android_bridge,
     };
     use infiltrator_ports::error::PortError;
@@ -510,8 +516,8 @@ mod tests {
         async fn core_start(
             &self,
             _launch_spec: &CoreLaunchSpec,
-            context: &infiltrator_ports::core_process::CoreProcessStartContext,
-        ) -> Result<CoreProcessStartReceipt> {
+            context: &CoreProcessStartContext,
+        ) -> AndroidBridgeResult<CoreProcessStartReceipt> {
             *self.observation.lock().expect("test observation lock") =
                 AndroidCoreProcessObservation::Running {
                     owned: AndroidOwnedCoreProcess {
@@ -525,13 +531,13 @@ mod tests {
             Ok(CoreProcessStartReceipt::Started)
         }
 
-        async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
+        async fn core_stop(&self) -> AndroidBridgeResult<CoreProcessStopReceipt> {
             *self.observation.lock().expect("test observation lock") =
                 AndroidCoreProcessObservation::NeverStarted;
             Ok(CoreProcessStopReceipt::StoppedGracefully)
         }
 
-        async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+        async fn core_process_observation(&self) -> AndroidBridgeResult<AndroidCoreProcessObservation> {
             Ok(self
                 .observation
                 .lock()
@@ -539,15 +545,15 @@ mod tests {
                 .clone())
         }
 
-        async fn credential_get(&self, _service: &str, _key: &str) -> Result<Option<String>> {
+        async fn credential_get(&self, _service: &str, _key: &str) -> AndroidBridgeResult<Option<String>> {
             Ok(None)
         }
 
-        async fn credential_set(&self, _service: &str, _key: &str, _value: &str) -> Result<()> {
+        async fn credential_set(&self, _service: &str, _key: &str, _value: &str) -> AndroidBridgeResult<()> {
             Ok(())
         }
 
-        async fn credential_delete(&self, _service: &str, _key: &str) -> Result<()> {
+        async fn credential_delete(&self, _service: &str, _key: &str) -> AndroidBridgeResult<()> {
             Ok(())
         }
 
@@ -559,18 +565,18 @@ mod tests {
             Some(PathBuf::from("cache"))
         }
 
-        async fn vpn_start(&self) -> Result<VpnStartOutcome> {
+        async fn vpn_start(&self) -> AndroidBridgeResult<VpnStartOutcome> {
             Ok(VpnStartOutcome::PermissionRequired)
         }
 
         async fn vpn_apply_configuration(
             &self,
             _prepared: &PreparedVpnConfiguration,
-        ) -> Result<VpnConfigurationApplyOutcome> {
+        ) -> AndroidBridgeResult<VpnConfigurationApplyOutcome> {
             Ok(VpnConfigurationApplyOutcome::Rejected)
         }
 
-        async fn vpn_stop(&self, _target: VpnStopTarget) -> Result<VpnOwnerStopReceipt> {
+        async fn vpn_stop(&self, _target: VpnStopTarget) -> AndroidBridgeResult<VpnOwnerStopReceipt> {
             Ok(VpnOwnerStopReceipt::OwnerUnavailable {
                 failure: Failure::new(
                     ErrorCode::NotReady,
@@ -580,11 +586,11 @@ mod tests {
             })
         }
 
-        async fn vpn_owner_snapshot(&self) -> Result<VpnOwnerSnapshot> {
+        async fn vpn_owner_snapshot(&self) -> AndroidBridgeResult<VpnOwnerSnapshot> {
             Ok(VpnOwnerSnapshot {
                 owner_session_id: "owner-session".to_owned(),
                 revision: 1,
-                vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),
+                vpn_generation: VpnGeneration::new(0),
                 vpn_state: VpnOwnerLifecycle::Stopped,
                 readiness: VpnOwnerReadiness::Stopped,
                 resources: Vec::new(),
@@ -594,7 +600,7 @@ mod tests {
                 dns_servers: Vec::new(),
                 ipv6: false,
                 core: VpnOwnerCoreReadback::Available(
-                    infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+                    CoreLifecycleSnapshot {
                         identity: None,
                         lifecycle: CoreLifecycle::Stopped,
                         generation: 0,
@@ -606,7 +612,7 @@ mod tests {
             })
         }
 
-        async fn surface_snapshot_json(&self) -> Result<String> {
+        async fn surface_snapshot_json(&self) -> AndroidBridgeResult<String> {
             self.surface_snapshot_reads.fetch_add(1, Ordering::SeqCst);
             match &self.surface_snapshot_reply {
                 TestSurfaceSnapshotReply::Available(snapshot) => Ok(snapshot.clone()),
@@ -683,7 +689,7 @@ mod tests {
 
         let result = crate::android_surface_snapshot_json().await;
 
-        assert_eq!(result.status.code, crate::ffi::FfiErrorCode::Ok);
+        assert_eq!(result.status.code, FfiErrorCode::Ok);
         assert_eq!(result.value.as_deref(), Some(expected_json.as_str()));
         assert_eq!(bridge.surface_snapshot_reads.load(Ordering::SeqCst), 1);
     }
@@ -697,7 +703,7 @@ mod tests {
 
         let result = crate::android_surface_snapshot_json().await;
 
-        assert_eq!(result.status.code, crate::ffi::FfiErrorCode::NotReady);
+        assert_eq!(result.status.code, FfiErrorCode::NotReady);
         assert!(result.value.is_none());
         assert_eq!(bridge.surface_snapshot_reads.load(Ordering::SeqCst), 1);
     }
@@ -724,7 +730,7 @@ mod tests {
         snapshot.vpn = VpnSurfaceObservation::from_android_owner(VpnOwnerSnapshot {
             owner_session_id: "vpn-owner-a".to_owned(),
             revision: 1,
-            vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),
+            vpn_generation: VpnGeneration::new(0),
             vpn_state: VpnOwnerLifecycle::Stopped,
             readiness: VpnOwnerReadiness::Stopped,
             resources: Vec::new(),
@@ -739,9 +745,9 @@ mod tests {
         });
         assert!(serialize_owner_surface_snapshot(&snapshot).is_ok());
 
-        snapshot.core.identity = Some(infiltrator_contract::core_identity::CoreIdentity::new(
-            infiltrator_contract::core_identity::EngineId::new("mihomo").expect("engine ID"),
-            infiltrator_contract::core_identity::CoreInstanceId::new("core-a")
+        snapshot.core.identity = Some(CoreIdentity::new(
+            EngineId::new("mihomo").expect("engine ID"),
+            CoreInstanceId::new("core-a")
                 .expect("instance ID"),
             None,
         ));
@@ -749,7 +755,7 @@ mod tests {
             unreachable!("the test installed an Android owner snapshot");
         };
         owner.core = VpnOwnerCoreReadback::Available(
-            infiltrator_contract::snapshot::CoreLifecycleSnapshot::default(),
+            CoreLifecycleSnapshot::default(),
         );
         let error = serialize_owner_surface_snapshot(&snapshot)
             .expect_err("surface must not combine a newer Core identity with stale owner data");

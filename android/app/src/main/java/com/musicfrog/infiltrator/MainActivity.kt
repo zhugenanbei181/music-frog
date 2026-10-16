@@ -20,7 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
             val windowSizeClass = calculateWindowSizeClass(this)
             val importUrl by pendingImportUrl
             
-            val authorizationState by AndroidActivityState.vpnAuthorization.collectAsState()
+            val authorizationState by AndroidActivityState.vpnAuthorization.collectAsStateWithLifecycle()
             
             val requestVpnPermission: () -> Unit = {
                 Log.d("VpnAuth", "Checking VPN permission for pkg=${this.packageName} uid=${android.os.Process.myUid()}")

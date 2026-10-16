@@ -6,7 +6,6 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::adapter_operation_declaration::{
     AdapterOperationSupport, ValidatedAdapterOperationDeclarations,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     AdapterRevision, CoreOperation, EngineBinaryTarget, OutboundOperation, ProxyControlOperation,
 };
@@ -27,12 +26,14 @@ use infiltrator_contract::profile_document_identity::{
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
+use std::collections::HashSet;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
@@ -198,7 +199,7 @@ fn verify_operation_declarations(
     if case.declared_operations.is_empty() {
         return Err("conformance case has no declared operation expectations".to_owned());
     }
-    let mut unique_operations = std::collections::HashSet::new();
+    let mut unique_operations = HashSet::new();
     for expected in &case.declared_operations {
         if !unique_operations.insert(expected.operation) {
             return Err(format!(
@@ -361,7 +362,7 @@ async fn verify_initial_process_state(process: &dyn CoreProcess) -> Result<(), S
 }
 
 pub fn expected_support(
-    declarations: &infiltrator_contract::adapter_operation_declaration::ValidatedAdapterOperationDeclarations,
+    declarations: &ValidatedAdapterOperationDeclarations,
     operation: CoreOperation,
 ) -> OperationDeclarationState {
     use infiltrator_contract::adapter_operation_declaration::AdapterOperationSupport;
@@ -374,13 +375,13 @@ pub fn expected_support(
 }
 
 pub fn assert_evidence_open_or_unsupported(
-    declarations: &infiltrator_contract::adapter_operation_declaration::ValidatedAdapterOperationDeclarations,
+    declarations: &ValidatedAdapterOperationDeclarations,
     operation: CoreOperation,
 ) {
     assert!(matches!(
         declarations.support(operation),
-        infiltrator_contract::adapter_operation_declaration::AdapterOperationSupport::EvidenceOpen { .. }
-            | infiltrator_contract::adapter_operation_declaration::AdapterOperationSupport::Unsupported { .. }
+        AdapterOperationSupport::EvidenceOpen { .. }
+            | AdapterOperationSupport::Unsupported { .. }
     ));
     assert!(
         declarations
@@ -391,7 +392,7 @@ pub fn assert_evidence_open_or_unsupported(
 
 pub fn assert_declared_operation_differences_match_case(
     case: &BackendConformanceCase,
-    declarations: &infiltrator_contract::adapter_operation_declaration::ValidatedAdapterOperationDeclarations,
+    declarations: &ValidatedAdapterOperationDeclarations,
 ) {
     let probe_operation = CoreOperation::Outbound(OutboundOperation::Probe);
     let probe_support = expected_support(declarations, probe_operation);

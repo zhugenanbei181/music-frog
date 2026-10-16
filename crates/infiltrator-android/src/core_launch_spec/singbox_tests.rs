@@ -1,9 +1,13 @@
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::profile_document_identity::ProfileDocument;
+use std::str::from_utf8;
 use super::AndroidSingBoxProfileLaunchSpecProvider;
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{
+use infiltrator_contract::android_control::core_launch::{
     AndroidCoreBinaryTarget, CoreLaunchArguments, CoreLaunchBinary,
 };
+use tokio::fs;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::error::ErrorCode;
@@ -108,7 +112,7 @@ impl SingBoxCommandPort for RecordingSingBoxCommand {
         _config_path: &Path,
     ) -> Result<Box<dyn SingBoxChildProcess>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "launch-spec tests never spawn a Core process",
         ))
     }
@@ -118,7 +122,7 @@ struct Fixture {
     _home: TempDir,
     working_directory: PathBuf,
     profile_store: Arc<ConfigManager<TestCredentialStore>>,
-    profile_document: infiltrator_contract::profile_document_identity::ProfileDocument,
+    profile_document: ProfileDocument,
     configuration_path: PathBuf,
     binary_selection: CoreBinarySelection,
 }
@@ -144,7 +148,7 @@ impl Fixture {
         ProfileStore::save_inactive_profile(
             profile_store.engine_profile_store(),
             "main",
-            std::str::from_utf8(profile_bytes).expect("profile JSON is UTF-8"),
+            from_utf8(profile_bytes).expect("profile JSON is UTF-8"),
         )
         .await
         .expect("save sing-box profile");
@@ -168,10 +172,10 @@ impl Fixture {
             .join("versions")
             .join(version.raw())
             .join("sing-box");
-        tokio::fs::create_dir_all(binary_path.parent().expect("binary parent"))
+        fs::create_dir_all(binary_path.parent().expect("binary parent"))
             .await
             .expect("create managed version directory");
-        tokio::fs::write(&binary_path, b"test binary")
+        fs::write(&binary_path, b"test binary")
             .await
             .expect("write managed binary fixture");
         let binary_selection = CoreBinarySelection {
@@ -329,10 +333,10 @@ async fn managed_binary_symlink_cannot_escape_its_version_directory() {
     let selection = fixture.binary_selection.clone();
     let binary_path = selection.binary_path.clone();
     let outside_binary = fixture.working_directory.join("unmanaged-sing-box");
-    tokio::fs::write(&outside_binary, b"unmanaged test binary")
+    fs::write(&outside_binary, b"unmanaged test binary")
         .await
         .expect("write out-of-directory binary");
-    tokio::fs::remove_file(&binary_path)
+    fs::remove_file(&binary_path)
         .await
         .expect("remove managed binary fixture");
     symlink(&outside_binary, &binary_path).expect("link managed path to outside binary");

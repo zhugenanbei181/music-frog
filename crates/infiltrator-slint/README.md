@@ -10,4 +10,4 @@ Slint 及编译器 crate 固定为当前最新稳定版 `1.18.1`，并使用 `=1
 
 文案、gettext catalog、SVG/PNG/ICO 与字体许可证索引由 `infiltrator-shared` 统一维护；Slint 使用同一产品 PO catalog 和共享图标/旗帜资源。跨表面资源接入与目录结构见 [`infiltrator-shared` 资源说明](../infiltrator-shared/assets/README.md)。
 
-速率、配置名和已接受观察使用 `infiltrator-presentation` 的共享投影；owner 快照中的语言偏好驱动 Slint 运行时切换和 Rust 文案 lookup。文件选择、命名 Override、历史流量和 Android 系统 Activity 入口只有在对应平台 adapter 接入后才启用；当前界面会显示 typed unsupported 结果，不会模拟成功。
+速率、配置名和已接受观察使用 `infiltrator-presentation` 的共享投影；owner 快照中的语言偏好驱动 Slint 运行时切换和 Rust 文案 lookup。平台特有操作由对应平台 adapter 接入，未支持操作明确返回 typed unsupported，不模拟成功。

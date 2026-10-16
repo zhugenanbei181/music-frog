@@ -1,5 +1,6 @@
 //! Owner-scoped Core resource observation and memory soft-quota reclamation.
 
+use crate::runtime_scope::active_scope;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::resources::{
@@ -104,7 +105,7 @@ impl ResourceApplication {
     }
 
     async fn observe_scoped(&self) -> Result<(CoreScope, ScopedResourceObservation), Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         let observation = self
             .resource_port
             .observe(scope.clone())
@@ -173,7 +174,7 @@ impl ResourceApplication {
     }
 
     fn ensure_current_scope(&self, requested: &CoreScope) -> Result<(), Failure> {
-        let current = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let current = active_scope(self.scope_source.as_ref())?;
         ensure_scope(requested, &current)
     }
 }

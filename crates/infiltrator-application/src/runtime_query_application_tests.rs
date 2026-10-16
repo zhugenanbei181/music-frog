@@ -1,3 +1,5 @@
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
 use super::*;
 use crate::resource_application::ResourceApplication;
 use async_trait::async_trait;
@@ -158,7 +160,7 @@ async fn unavailable_scope_rejects_runtime_stream_before_port_call() {
 
     assert_eq!(
         failure.code,
-        infiltrator_contract::error::ErrorCode::NotReady
+        ErrorCode::NotReady
     );
     assert_eq!(stream_port.0.load(Ordering::SeqCst), 0);
 }
@@ -185,7 +187,7 @@ async fn core_log_level_readback_mismatch_is_not_reported_as_success() {
             .expect_err("ignored update must not report success");
     assert_eq!(
         failure.code,
-        infiltrator_contract::error::ErrorCode::InvalidState
+        ErrorCode::InvalidState
     );
 }
 
@@ -223,8 +225,8 @@ async fn resource_observation_preserves_unsupported_and_failed_values() {
     let gateway = gateway(false);
     let resources = resource_port(
         gateway.scope.clone(),
-        ResourceAvailability::Failed(infiltrator_contract::error::Failure::new(
-            infiltrator_contract::error::ErrorCode::Network,
+        ResourceAvailability::Failed(Failure::new(
+            ErrorCode::Network,
             "memory probe failed",
             true,
         )),
@@ -283,7 +285,7 @@ async fn stale_resource_observation_is_rejected_before_gc() {
         .expect_err("foreign resource scope must be rejected");
     assert_eq!(
         failure.code,
-        infiltrator_contract::error::ErrorCode::InvalidState
+        ErrorCode::InvalidState
     );
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);
 }
@@ -294,8 +296,8 @@ async fn failed_gc_is_typed_and_does_not_claim_memory_reclamation() {
     let resources = resource_port(
         gateway.scope.clone(),
         ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES + 1),
-        GarbageCollectionOutcome::Failed(infiltrator_contract::error::Failure::new(
-            infiltrator_contract::error::ErrorCode::Network,
+        GarbageCollectionOutcome::Failed(Failure::new(
+            ErrorCode::Network,
             "collector failed",
             true,
         )),
@@ -346,7 +348,7 @@ async fn unavailable_owner_scope_rejects_resource_reads_before_adapter_access() 
 
     assert_eq!(
         failure.code,
-        infiltrator_contract::error::ErrorCode::NotReady
+        ErrorCode::NotReady
     );
     assert_eq!(resources.observe_calls.load(Ordering::SeqCst), 0);
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);

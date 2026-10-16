@@ -1,5 +1,7 @@
 //! test-intent: real_process
 
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use tokio::fs;
 use async_trait::async_trait;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
@@ -127,7 +129,7 @@ async fn rule_trace_uses_the_live_profile_workspace_and_mihomo_outbound_observat
     );
     let profile_id = ProfileId::new("profile").expect("fixture profile ID");
     assert_eq!(
-        tokio::fs::canonicalize(
+        fs::canonicalize(
             config
                 .existing_profile_document_path(profile_id.as_str())
                 .await
@@ -135,7 +137,7 @@ async fn rule_trace_uses_the_live_profile_workspace_and_mihomo_outbound_observat
         )
         .await
         .expect("canonical stored profile path"),
-        tokio::fs::canonicalize(profile_path)
+        fs::canonicalize(profile_path)
             .await
             .expect("canonical profile used by live Mihomo"),
         "the traced profile is the exact YAML loaded by the live process"
@@ -177,7 +179,7 @@ async fn rule_trace_uses_the_live_profile_workspace_and_mihomo_outbound_observat
     assert_eq!(observation.details().scope(), &scope);
     assert!(matches!(
         observation.inventory().inventory(),
-        infiltrator_contract::outbound::inventory::OutboundInventoryState::Ready { .. }
+        OutboundInventoryState::Ready { .. }
     ));
 
     let observed_workspace = workspace.identity();
@@ -207,7 +209,7 @@ async fn rule_trace_uses_the_live_profile_workspace_and_mihomo_outbound_observat
             &observed_workspace,
             RuleTraceOperationId(1),
             request,
-            &RuleTraceOutboundFacts::observed(observation),
+            &RuleTraceOutboundFacts::Observed(Box::new(observation)),
         )
         .await
         .expect("simulate the current profile against live Mihomo outbounds");

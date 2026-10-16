@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Native observers, production command pump, actual coherent reader and persisted results.
+use crate::support::mihomo_profiles;
 use crate::command_harness::{
     HostlessProcess, IdentifiedHostlessProcess, test_command_application,
 };
@@ -94,7 +95,7 @@ fn setup() -> (App, ProductSurfaceReader, Arc<FilterCaptureStore>) {
         Arc::new(HostlessProcess),
         tokio_application_runtime().unwrap(),
     ));
-    let profiles = crate::support::mihomo_profiles(store.clone());
+    let profiles = mihomo_profiles(store.clone());
     core.install_command_handler(Arc::new(
         test_command_application([CoreOperation::Profile(ProfileOperation::ApplyFeature)])
             .with_profile(profiles.clone()),

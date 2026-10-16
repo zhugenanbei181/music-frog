@@ -147,7 +147,7 @@ fn test_dns_latency_policy_line_is_localized_and_honest() {
     // the demo session has no host runtime.
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunDnsLatencyProbe);
-    assert!(!state.editor.is_probing_dns_latency);
+    assert!(!state.editor.dns_latency_probe_phase.is_probing());
 }
 
 #[test]

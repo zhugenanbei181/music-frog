@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Native controls execute actual lifecycle ports through the production command sink.
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use crate::command_harness::install_test_core_capability_application;
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::app::App;
@@ -55,7 +56,7 @@ impl CoreProcess for Process {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.deny_start.load(Ordering::SeqCst) {

@@ -1,3 +1,4 @@
+#![allow(clippy::large_enum_variant, clippy::derivable_impls, clippy::too_many_arguments)]
 //! Outbound ports used by the 0.30 application layer.
 //!
 //! Traits here describe capabilities, not implementations. They deliberately

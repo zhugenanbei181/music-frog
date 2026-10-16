@@ -391,7 +391,13 @@ impl CommandApplication {
         }
         if !matches!(
             key,
-            "language" | "theme" | "notifications_enabled" | "close_to_tray"
+            "language"
+                | "theme"
+                | "notifications_enabled"
+                | "close_to_tray"
+                | "refresh_current_profile_on_start"
+                | "refresh_profile_on_start"
+                | "custom_accent_color"
         ) {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,
@@ -400,7 +406,10 @@ impl CommandApplication {
             ));
         }
         let parsed_bool = match key {
-            "notifications_enabled" | "close_to_tray" => {
+            "notifications_enabled"
+            | "close_to_tray"
+            | "refresh_current_profile_on_start"
+            | "refresh_profile_on_start" => {
                 Some(value.parse::<bool>().map_err(|_| {
                     Failure::new(
                         ErrorCode::InvalidInput,
@@ -410,6 +419,22 @@ impl CommandApplication {
                 })?)
             }
             _ => None,
+        };
+        let custom_color = if key == "custom_accent_color" {
+            let hex = value.trim().trim_start_matches('#');
+            if hex.is_empty() || hex.eq_ignore_ascii_case("none") {
+                Some(None)
+            } else if hex.len() == 6 && u32::from_str_radix(hex, 16).is_ok() {
+                Some(Some(format!("#{hex}")))
+            } else {
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    format!("invalid hexadecimal color {value}"),
+                    false,
+                ));
+            }
+        } else {
+            None
         };
         // A theme value is a shared appearance preference: reject a typo
         // instead of storing a string no surface can resolve, and persist the
@@ -443,6 +468,12 @@ impl CommandApplication {
                     settings.notifications_enabled = parsed_bool.unwrap_or(false)
                 }
                 "close_to_tray" => settings.close_to_tray = parsed_bool.unwrap_or(false),
+                "refresh_current_profile_on_start" | "refresh_profile_on_start" => {
+                    settings.refresh_current_profile_on_start = parsed_bool.unwrap_or(false);
+                }
+                "custom_accent_color" => {
+                    settings.custom_accent_color = custom_color.expect("color validated above");
+                }
                 _ => {}
             })
             .await

@@ -5,6 +5,7 @@ use infiltrator_contract::core_identity::EngineId;
 use mihomo_api::error::{MihomoError, Result};
 use serde::{Deserialize, Serialize};
 use std::env::temp_dir;
+use std::io::ErrorKind;
 use std::path;
 use std::path::PathBuf;
 use std::process::id;
@@ -525,7 +526,7 @@ fn version_history_from_config(config: &toml::Value) -> Vec<String> {
 async fn is_regular_file(candidate: &path::Path) -> Result<bool> {
     match fs::metadata(candidate).await {
         Ok(metadata) => Ok(metadata.is_file()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error.into()),
     }
 }

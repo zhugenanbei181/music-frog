@@ -1,6 +1,6 @@
 //! One match and text presentation fold for live and projected connection facts.
 use infiltrator_contract::connection_search::ConnectionSearchRow;
-pub use infiltrator_domain::connection_view::display_endpoint;
+use infiltrator_domain::connection_view::display_endpoint;
 use infiltrator_domain::connection_view::{self, ConnectionView};
 use zhuge_ui_core::text::{CaseSensitivity, project_text_runs};
 pub fn project_search_row<C: ConnectionView>(row: &C, query: &str) -> ConnectionSearchRow {

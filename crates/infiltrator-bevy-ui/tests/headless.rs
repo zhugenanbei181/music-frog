@@ -34,6 +34,9 @@ mod mini_hud_tests;
 #[path = "headless/surface_tests.rs"]
 mod surface_tests;
 
+#[path = "headless/touch_diagnostic_tests.rs"]
+mod touch_diagnostic_tests;
+
 #[path = "headless/theme_skin_tests.rs"]
 mod theme_skin_tests;
 
@@ -192,3 +195,9 @@ mod globe_tests;
 
 #[path = "headless/host_asset_store_tests.rs"]
 mod host_asset_store_tests;
+
+#[path = "headless/four_pages_semantic_tests.rs"]
+mod four_pages_semantic_tests;
+
+#[path = "headless/acceptance_list_tests.rs"]
+mod acceptance_list_tests;

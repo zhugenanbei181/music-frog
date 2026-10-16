@@ -7,8 +7,10 @@
 //! library all route through the same shared application, so the source
 //! profiles are never touched.
 
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
+use crate::state::profiles::ProfileAggregatorPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
@@ -300,7 +302,7 @@ impl AppState {
                     Ok(draft) => draft,
                     Err(task) => return task,
                 };
-                self.profile.is_aggregating = true;
+                self.profile.aggregator_phase = ProfileAggregatorPhase::Aggregating;
                 Task::perform(
                     async move {
                         let store = config_manager().await?;
@@ -313,7 +315,7 @@ impl AppState {
                 )
             }
             Message::AggregationPreviewFinished(result) => {
-                self.profile.is_aggregating = false;
+                self.profile.aggregator_phase = ProfileAggregatorPhase::Idle;
                 match result {
                     Ok(report) => {
                         self.profile.aggregator_report = Some(report);
@@ -337,7 +339,7 @@ impl AppState {
                     Ok(draft) => draft,
                     Err(task) => return task,
                 };
-                self.profile.is_aggregating = true;
+                self.profile.aggregator_phase = ProfileAggregatorPhase::Aggregating;
                 // DUAL-08-12: carry the selected runtime access mode into the
                 // shared exact-reference activation use case.
                 let runtime = match self.runtime.runtime.clone() {
@@ -356,7 +358,7 @@ impl AppState {
                 )
             }
             Message::AggregatedProfileCreated(result) => {
-                self.profile.is_aggregating = false;
+                self.profile.aggregator_phase = ProfileAggregatorPhase::Idle;
                 self.aggregation_outcome_tasks(result, "aggregator_created")
             }
             Message::ReAggregateProfile(template_name) => {
@@ -417,22 +419,22 @@ impl AppState {
                         lang.tr("aggregator_state_switched").into_owned()
                     }
                     AggregationActivationOutcome::AlreadySelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                        CoreInactiveLifecycle::Stopped,
                     )
                     | AggregationActivationOutcome::SelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                        CoreInactiveLifecycle::Stopped,
                     )
                     | AggregationActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                        CoreInactiveLifecycle::Stopped,
                     ) => lang.tr("aggregator_state_core_stopped").into_owned(),
                     AggregationActivationOutcome::AlreadySelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                        CoreInactiveLifecycle::Failed,
                     )
                     | AggregationActivationOutcome::SelectedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                        CoreInactiveLifecycle::Failed,
                     )
                     | AggregationActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                        CoreInactiveLifecycle::Failed,
                     ) => lang.tr("aggregator_state_core_failed").into_owned(),
                     AggregationActivationOutcome::SelectedAndApplied
                     | AggregationActivationOutcome::CurrentProfileUpdatedAndApplied => {

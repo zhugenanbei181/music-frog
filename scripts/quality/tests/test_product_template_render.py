@@ -17,7 +17,7 @@ class ProductTemplateRenderTests(unittest.TestCase):
             encoding="utf-8"
         )
         rendered = render_template(template, read_properties())
-        self.assertIn("Name=Infiltrator", rendered)
+        self.assertIn("Name=MusicFrog Infiltrator", rendered)
         self.assertIn("Exec=infiltrator-iced %U", rendered)
         self.assertIn("Icon=infiltrator", rendered)
         self.assertIn("x-scheme-handler/infiltrator;", rendered)
@@ -27,7 +27,7 @@ class ProductTemplateRenderTests(unittest.TestCase):
             encoding="utf-8"
         )
         rendered = render_template(template, read_properties())
-        self.assertIn("Name=Infiltrator Bevy", rendered)
+        self.assertIn("Name=MusicFrog Infiltrator Bevy", rendered)
         self.assertIn("Exec=infiltrator-bevy-ui %U", rendered)
         self.assertIn("Icon=infiltrator-bevy", rendered)
         self.assertIn("x-scheme-handler/infiltrator-bevy;", rendered)

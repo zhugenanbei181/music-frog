@@ -5,6 +5,9 @@
 //! the returned mutation against its source-bound profile workspace before
 //! committing it.
 
+use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
+use crate::profile_protocol_codec;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -71,10 +74,10 @@ pub(crate) fn read(
                 .map_err(configuration_error)?,
         },
         ProfileConfigurationQuery::ProtocolNodes => ProfileConfigurationReadout::ProtocolNodes(
-            crate::profile_protocol_codec::read_protocol_nodes(raw_bytes)?,
+            profile_protocol_codec::read_protocol_nodes(raw_bytes)?,
         ),
         ProfileConfigurationQuery::TrustAnchors => ProfileConfigurationReadout::TrustAnchors(
-            crate::profile_protocol_codec::read_trust_anchors(raw_bytes)?,
+            profile_protocol_codec::read_trust_anchors(raw_bytes)?,
         ),
     };
     Ok(readout)
@@ -236,10 +239,10 @@ pub(crate) fn apply(
             ProfileConfigurationQuery::Sniffer,
         ),
         ProfileConfigurationUpdate::UpsertProtocolNode(draft) => {
-            return crate::profile_protocol_codec::upsert_protocol_node(raw_bytes, draft);
+            return profile_protocol_codec::upsert_protocol_node(raw_bytes, draft);
         }
         ProfileConfigurationUpdate::TrustAnchors(params) => {
-            return crate::profile_protocol_codec::apply_trust_anchors(raw_bytes, params);
+            return profile_protocol_codec::apply_trust_anchors(raw_bytes, params);
         }
     };
     let document_bytes = document.into_bytes();
@@ -335,11 +338,11 @@ fn dns_patch_from_settings(patch: DnsSettingsPatch) -> dns::DnsConfigPatch {
 
 fn ensure_scope(identity: &ProfileDocumentIdentity) -> Result<(), PortError> {
     if identity.engine_id != crate::engine_id()
-        || identity.format_id.as_str() != super::profile_document_codec::PROFILE_FORMAT
-        || identity.schema_version.value() != super::profile_document_codec::PROFILE_SCHEMA_VERSION
+        || identity.format_id.as_str() != PROFILE_FORMAT
+        || identity.schema_version.value() != PROFILE_SCHEMA_VERSION
     {
         return Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             format!(
                 "Mihomo configuration codec does not support engine `{}`, format `{}`, schema {}",
                 identity.engine_id.as_str(),

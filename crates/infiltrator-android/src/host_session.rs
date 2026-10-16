@@ -2,12 +2,16 @@
 //! already-running core, the restart-with-readiness path, and the
 //! apply-current-profile transaction with rollback.
 
+use crate::host_support::map_application_failure;
 use crate::runtime::AndroidBridgeAdapter;
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_application::android_core_owner_recovery_application::AndroidCoreOwnerRecoveryApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::core_owner_shutdown_application::CoreOwnerShutdownApplication;
+use infiltrator_application::profile_application::{
+    ProfileActivationOutcome, ProfileApplication, SelectedProfileApplyOutcome,
+};
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
@@ -17,24 +21,30 @@ use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidHostProcessRole,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::snapshot::{CoreInactiveLifecycle, CoreLifecycle};
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_active_profile_reference,
+    failure_from_apply_error,
 };
 use infiltrator_core::apply_workspace::apply_active_profile_workspace;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
+use infiltrator_ports::active_profile_reference_store::{
+    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+};
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -75,38 +85,8 @@ pub(crate) enum SharedCoreEngine {
     SingBox,
 }
 
-enum SharedCoreOwnerState {
-    Uninitialized,
-    Recovering,
-    Ready,
-    Active(Arc<SharedCore>),
-    Switching(Arc<SharedCore>),
-    RecoveryRequired,
-    Closing(Arc<SharedCore>),
-    ClosingWithoutCore,
-    Closed,
-}
-
-enum SharedCoreOwnerAdmission<'a> {
-    Existing(&'a Arc<SharedCore>),
-    Build,
-    RecoveryRequired,
-    Switching,
-    Closing,
-}
-
-enum SharedCoreOwnerSwitchCompletion {
-    Installed(Arc<SharedCore>),
-    RestorePrevious,
-    RecoveryRequired,
-}
-
-enum SharedCoreOwnerSwitchFinish {
-    Installed,
-    Restored,
-    RecoveryRequired,
-    OwnerStateChanged,
-}
+mod owner_state;
+use owner_state::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SharedCoreOwnerSessionBegin {
@@ -114,117 +94,6 @@ pub(crate) enum SharedCoreOwnerSessionBegin {
     AlreadyReady,
     RecoveryInProgress,
     RetryClose,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SharedCoreOwnerSessionCompletion {
-    Ready,
-    AlreadyReady,
-    RecoveryNotStarted,
-    RecoveryRequired,
-    Closing,
-}
-
-fn begin_owner_session_transition(state: &mut SharedCoreOwnerState) -> SharedCoreOwnerSessionBegin {
-    match state {
-        SharedCoreOwnerState::Uninitialized
-        | SharedCoreOwnerState::RecoveryRequired
-        | SharedCoreOwnerState::Closed => {
-            *state = SharedCoreOwnerState::Recovering;
-            SharedCoreOwnerSessionBegin::NewSession
-        }
-        SharedCoreOwnerState::Recovering => SharedCoreOwnerSessionBegin::RecoveryInProgress,
-        SharedCoreOwnerState::Ready | SharedCoreOwnerState::Active(_) => {
-            SharedCoreOwnerSessionBegin::AlreadyReady
-        }
-        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerSessionBegin::RecoveryInProgress,
-        SharedCoreOwnerState::Closing(_) | SharedCoreOwnerState::ClosingWithoutCore => {
-            SharedCoreOwnerSessionBegin::RetryClose
-        }
-    }
-}
-
-fn complete_owner_session_transition(
-    state: &mut SharedCoreOwnerState,
-) -> SharedCoreOwnerSessionCompletion {
-    match state {
-        SharedCoreOwnerState::Recovering => {
-            *state = SharedCoreOwnerState::Ready;
-            SharedCoreOwnerSessionCompletion::Ready
-        }
-        SharedCoreOwnerState::Ready | SharedCoreOwnerState::Active(_) => {
-            SharedCoreOwnerSessionCompletion::AlreadyReady
-        }
-        SharedCoreOwnerState::Uninitialized => SharedCoreOwnerSessionCompletion::RecoveryNotStarted,
-        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerSessionCompletion::Closing,
-        SharedCoreOwnerState::RecoveryRequired => {
-            SharedCoreOwnerSessionCompletion::RecoveryRequired
-        }
-        SharedCoreOwnerState::Closing(_)
-        | SharedCoreOwnerState::ClosingWithoutCore
-        | SharedCoreOwnerState::Closed => SharedCoreOwnerSessionCompletion::Closing,
-    }
-}
-
-fn shared_core_owner_admission(state: &SharedCoreOwnerState) -> SharedCoreOwnerAdmission<'_> {
-    match state {
-        SharedCoreOwnerState::Active(core) => SharedCoreOwnerAdmission::Existing(core),
-        SharedCoreOwnerState::Ready => SharedCoreOwnerAdmission::Build,
-        SharedCoreOwnerState::Uninitialized
-        | SharedCoreOwnerState::Recovering
-        | SharedCoreOwnerState::RecoveryRequired => SharedCoreOwnerAdmission::RecoveryRequired,
-        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerAdmission::Switching,
-        SharedCoreOwnerState::Closing(_)
-        | SharedCoreOwnerState::ClosingWithoutCore
-        | SharedCoreOwnerState::Closed => SharedCoreOwnerAdmission::Closing,
-    }
-}
-
-fn begin_shared_core_switch(
-    state: &mut SharedCoreOwnerState,
-) -> Result<Arc<SharedCore>, SharedCoreOwnerAdmission<'static>> {
-    match state {
-        SharedCoreOwnerState::Active(core) => {
-            let previous = Arc::clone(core);
-            *state = SharedCoreOwnerState::Switching(Arc::clone(&previous));
-            Ok(previous)
-        }
-        SharedCoreOwnerState::Switching(_) => Err(SharedCoreOwnerAdmission::Switching),
-        SharedCoreOwnerState::Uninitialized
-        | SharedCoreOwnerState::Recovering
-        | SharedCoreOwnerState::RecoveryRequired => Err(SharedCoreOwnerAdmission::RecoveryRequired),
-        SharedCoreOwnerState::Ready => Err(SharedCoreOwnerAdmission::Build),
-        SharedCoreOwnerState::Closing(_)
-        | SharedCoreOwnerState::ClosingWithoutCore
-        | SharedCoreOwnerState::Closed => Err(SharedCoreOwnerAdmission::Closing),
-    }
-}
-
-fn finish_shared_core_switch(
-    state: &mut SharedCoreOwnerState,
-    previous: &Arc<SharedCore>,
-    completion: SharedCoreOwnerSwitchCompletion,
-) -> SharedCoreOwnerSwitchFinish {
-    match state {
-        SharedCoreOwnerState::Switching(current) if Arc::ptr_eq(current, previous) => {
-            match completion {
-                SharedCoreOwnerSwitchCompletion::Installed(candidate) => {
-                    *state = SharedCoreOwnerState::Active(candidate);
-                    SharedCoreOwnerSwitchFinish::Installed
-                }
-                SharedCoreOwnerSwitchCompletion::RestorePrevious => {
-                    *state = SharedCoreOwnerState::Active(Arc::clone(previous));
-                    SharedCoreOwnerSwitchFinish::Restored
-                }
-                SharedCoreOwnerSwitchCompletion::RecoveryRequired => {
-                    *state = SharedCoreOwnerState::RecoveryRequired;
-                    SharedCoreOwnerSwitchFinish::RecoveryRequired
-                }
-            }
-        }
-        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerSwitchFinish::OwnerStateChanged,
-        _ => SharedCoreOwnerSwitchFinish::OwnerStateChanged,
-    }
 }
 
 fn shared_core_owner_slot() -> &'static Mutex<SharedCoreOwnerState> {
@@ -450,7 +319,7 @@ async fn build_mihomo_shared_core(
     config: Arc<ConfigManager<DefaultCredentialStore>>,
     reference: ActiveProfileReference,
     selection_lease: Box<
-        dyn infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease,
+        dyn ActiveProfileReferenceLease,
     >,
 ) -> Result<Arc<SharedCore>, FfiStatus> {
     if reference.engine_id != config.engine_id() {
@@ -568,7 +437,7 @@ async fn build_mihomo_shared_core(
 
 fn authorize_android_core_start(
     provider: Arc<dyn CoreCapabilityProvider>,
-    engine_id: &infiltrator_contract::core_identity::EngineId,
+    engine_id: &EngineId,
 ) -> Result<(), FfiStatus> {
     let matrix = CoreCapabilityApplication::new(provider)
         .matrix_for(engine_id, None)
@@ -608,19 +477,19 @@ struct AndroidCoreProfileApplier {
 
 #[async_trait::async_trait]
 impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
-    fn engine_id(&self) -> Option<infiltrator_contract::core_identity::EngineId> {
-        infiltrator_ports::core_lifecycle::CoreLifecyclePort::core_identity(&self.core.application)
+    fn engine_id(&self) -> Option<EngineId> {
+        CoreLifecyclePort::core_identity(&self.core.application)
             .map(|identity| identity.engine)
     }
 
-    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
-        infiltrator_ports::core_lifecycle::CoreLifecyclePort::lifecycle(&self.core.application)
+    fn core_lifecycle(&self) -> CoreLifecycle {
+        CoreLifecyclePort::lifecycle(&self.core.application)
     }
 
     fn write_authorization(
         &self,
     ) -> Result<
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        ActiveProfileReferenceWriteAuthorization,
         PortError,
     > {
         self.core
@@ -638,7 +507,7 @@ impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
             SharedCoreEngine::Mihomo { endpoints } => Arc::clone(endpoints),
             SharedCoreEngine::SingBox => {
                 return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     "Android sing-box active-profile runtime apply is not connected",
                 ));
             }
@@ -681,7 +550,7 @@ impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
             SharedCoreEngine::Mihomo { endpoints } => Arc::clone(endpoints),
             SharedCoreEngine::SingBox => {
                 return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     "Android sing-box active workspace apply is not connected",
                 ));
             }
@@ -718,14 +587,14 @@ impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
 }
 
 fn android_apply_error(error: ApplyError) -> PortError {
-    PortError::Rejected(infiltrator_core::apply::failure_from_apply_error(error))
+    PortError::Rejected(failure_from_apply_error(error))
 }
 
 /// Apply the observed selected profile through the shared application use-case.
 /// It validates that the full reference state remains current, then the Android
 /// adapter holds the exact selection lease through native apply and rollback.
 pub(crate) async fn apply_selected_profile_reference_status(
-    expected: infiltrator_contract::active_profile_reference::ActiveProfileReferenceState,
+    expected: ActiveProfileReferenceState,
 ) -> FfiStatus {
     let core = match shared_core().await {
         Ok(core) => core,
@@ -740,7 +609,7 @@ pub(crate) async fn apply_selected_profile_reference_status(
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let application = infiltrator_application::profile_application::ProfileApplication::new(
+    let application = ProfileApplication::new(
         core.config.shared_engine_profile_store(),
     );
     let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
@@ -751,24 +620,24 @@ pub(crate) async fn apply_selected_profile_reference_status(
         .await
         .map(|outcome| {
             match outcome {
-            infiltrator_application::profile_application::SelectedProfileApplyOutcome::Applied {
+            SelectedProfileApplyOutcome::Applied {
                 ..
             } => FfiStatus::ok(),
-            infiltrator_application::profile_application::SelectedProfileApplyOutcome::NotActive(
-                infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+            SelectedProfileApplyOutcome::NotActive(
+                CoreInactiveLifecycle::Stopped,
             ) => FfiStatus::err(
                 FfiErrorCode::NotReady,
                 "the selected profile was retained while Core remains stopped",
             ),
-            infiltrator_application::profile_application::SelectedProfileApplyOutcome::NotActive(
-                infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+            SelectedProfileApplyOutcome::NotActive(
+                CoreInactiveLifecycle::Failed,
             ) => FfiStatus::err(
                 FfiErrorCode::NotReady,
                 "the selected profile was retained while Core is failed",
             ),
         }
         })
-        .unwrap_or_else(crate::host_support::map_application_failure)
+        .unwrap_or_else(map_application_failure)
 }
 
 /// Activate an Android profile through the same application-level CAS and
@@ -787,7 +656,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let application = infiltrator_application::profile_application::ProfileApplication::new(
+    let application = ProfileApplication::new(
         core.config.shared_engine_profile_store(),
     );
     let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
@@ -798,10 +667,10 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
         .await
     {
         Ok(outcome) => outcome,
-        Err(failure) => return crate::host_support::map_application_failure(failure),
+        Err(failure) => return map_application_failure(failure),
     };
     match outcome {
-        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWithRuntime => {
+        ProfileActivationOutcome::AlreadySelectedWithRuntime => {
             let expected = match ProfileStore::read_active_profile_reference(core.config.engine_profile_store()).await {
                 Ok(expected) => expected,
                 Err(error) => {
@@ -813,7 +682,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
             };
             if !matches!(
                 &expected,
-                infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(reference)
+                ActiveProfileReferenceState::Selected(reference)
                     if reference.engine_id == core.config.engine_id()
                         && reference.profile_id.as_str() == profile.trim()
             ) {
@@ -830,40 +699,40 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
                 )
                 .await
                 .map(|_| FfiStatus::ok())
-                .unwrap_or_else(crate::host_support::map_application_failure)
+                .unwrap_or_else(map_application_failure)
         }
-        infiltrator_application::profile_application::ProfileActivationOutcome::SelectedAndApplied => {
+        ProfileActivationOutcome::SelectedAndApplied => {
             FfiStatus::ok()
         }
-        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        ProfileActivationOutcome::AlreadySelectedWhileInactive(
+            CoreInactiveLifecycle::Stopped,
         )
-        | infiltrator_application::profile_application::ProfileActivationOutcome::SelectedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        | ProfileActivationOutcome::SelectedWhileInactive(
+            CoreInactiveLifecycle::Stopped,
         )
-        | infiltrator_application::profile_application::ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+            CoreInactiveLifecycle::Stopped,
         ) => FfiStatus {
             code: FfiErrorCode::Ok,
             message: Some("profile selected; Core remains stopped".to_owned()),
             localization: None,
         },
-        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        ProfileActivationOutcome::AlreadySelectedWhileInactive(
+            CoreInactiveLifecycle::Failed,
         )
-        | infiltrator_application::profile_application::ProfileActivationOutcome::SelectedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        | ProfileActivationOutcome::SelectedWhileInactive(
+            CoreInactiveLifecycle::Failed,
         )
-        | infiltrator_application::profile_application::ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+            CoreInactiveLifecycle::Failed,
         ) => FfiStatus {
             code: FfiErrorCode::Ok,
             message: Some("profile selected; Core is failed".to_owned()),
             localization: None,
         },
-        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWithoutRuntime
-        | infiltrator_application::profile_application::ProfileActivationOutcome::SelectedWithoutRuntime
-        | infiltrator_application::profile_application::ProfileActivationOutcome::CurrentProfileUpdatedAndApplied => {
+        ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+        | ProfileActivationOutcome::SelectedWithoutRuntime
+        | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied => {
             FfiStatus::err(
                 FfiErrorCode::InvalidState,
                 "Android profile activation did not produce a runtime apply outcome",
@@ -873,7 +742,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
 }
 
 pub(crate) async fn active_profile_reference_state()
--> Result<infiltrator_contract::active_profile_reference::ActiveProfileReferenceState, FfiStatus> {
+-> Result<ActiveProfileReferenceState, FfiStatus> {
     let core = shared_core().await?;
     ProfileStore::read_active_profile_reference(core.config.engine_profile_store())
         .await
@@ -885,67 +754,3 @@ pub(crate) async fn active_profile_reference_state()
         })
 }
 
-#[cfg(test)]
-mod shared_core_owner_session_state_tests {
-    use super::{
-        SharedCoreOwnerAdmission, SharedCoreOwnerSessionBegin, SharedCoreOwnerSessionCompletion,
-        SharedCoreOwnerState, begin_owner_session_transition, complete_owner_session_transition,
-        shared_core_owner_admission,
-    };
-
-    #[test]
-    fn shared_core_is_unavailable_until_startup_recovery_completes() {
-        let mut state = SharedCoreOwnerState::Uninitialized;
-        assert!(matches!(
-            shared_core_owner_admission(&state),
-            SharedCoreOwnerAdmission::RecoveryRequired
-        ));
-        assert_eq!(
-            begin_owner_session_transition(&mut state),
-            SharedCoreOwnerSessionBegin::NewSession
-        );
-        assert!(matches!(
-            shared_core_owner_admission(&state),
-            SharedCoreOwnerAdmission::RecoveryRequired
-        ));
-        assert_eq!(
-            begin_owner_session_transition(&mut state),
-            SharedCoreOwnerSessionBegin::RecoveryInProgress
-        );
-        assert_eq!(
-            complete_owner_session_transition(&mut state),
-            SharedCoreOwnerSessionCompletion::Ready
-        );
-        assert!(matches!(
-            shared_core_owner_admission(&state),
-            SharedCoreOwnerAdmission::Build
-        ));
-        assert_eq!(
-            begin_owner_session_transition(&mut state),
-            SharedCoreOwnerSessionBegin::AlreadyReady
-        );
-    }
-
-    #[test]
-    fn closing_or_unstarted_owner_cannot_be_marked_ready() {
-        let mut uninitialized = SharedCoreOwnerState::Uninitialized;
-        assert_eq!(
-            complete_owner_session_transition(&mut uninitialized),
-            SharedCoreOwnerSessionCompletion::RecoveryNotStarted
-        );
-
-        let mut closing = SharedCoreOwnerState::ClosingWithoutCore;
-        assert_eq!(
-            begin_owner_session_transition(&mut closing),
-            SharedCoreOwnerSessionBegin::RetryClose
-        );
-        assert_eq!(
-            complete_owner_session_transition(&mut closing),
-            SharedCoreOwnerSessionCompletion::Closing
-        );
-        assert!(matches!(
-            shared_core_owner_admission(&closing),
-            SharedCoreOwnerAdmission::Closing
-        ));
-    }
-}

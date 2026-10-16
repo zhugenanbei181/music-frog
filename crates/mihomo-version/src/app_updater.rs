@@ -46,7 +46,15 @@ impl AppUpdater {
         match os {
             "windows" => "setup.exe",
             "macos" => "universal.dmg",
-            "linux" => "x86_64.AppImage",
+            "linux" => {
+                // The Linux release ships one AppImage per architecture; pick the
+                // suffix matching the running binary's arch.
+                if cfg!(target_arch = "aarch64") {
+                    "aarch64.AppImage"
+                } else {
+                    "x86_64.AppImage"
+                }
+            }
             "android" => "arm64-v8a.apk",
             _ => "tar.gz",
         }
@@ -82,7 +90,12 @@ mod tests {
     fn test_target_asset_suffix() {
         assert_eq!(AppUpdater::target_asset_suffix("windows"), "setup.exe");
         assert_eq!(AppUpdater::target_asset_suffix("macos"), "universal.dmg");
-        assert_eq!(AppUpdater::target_asset_suffix("linux"), "x86_64.AppImage");
+        let linux_suffix = if cfg!(target_arch = "aarch64") {
+            "aarch64.AppImage"
+        } else {
+            "x86_64.AppImage"
+        };
+        assert_eq!(AppUpdater::target_asset_suffix("linux"), linux_suffix);
         assert_eq!(AppUpdater::target_asset_suffix("android"), "arm64-v8a.apk");
     }
 }

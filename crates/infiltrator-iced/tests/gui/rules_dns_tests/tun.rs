@@ -8,7 +8,7 @@ fn test_tun_form_invalid_mtu_blocks_save() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateTunFormMtu("abc".to_string()));
     let _ = state.update(Message::SaveTunConfig);
-    assert!(!state.editor.is_saving_tun);
+    assert!(!state.editor.tun_save_phase.is_saving());
     assert!(matches!(
         state.runtime.configuration_save_state,
         ConfigurationSaveState::Failed { .. }

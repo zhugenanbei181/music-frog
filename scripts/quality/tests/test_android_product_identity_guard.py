@@ -40,7 +40,8 @@ def fixture_repo(root: Path) -> Path:
         "crates/infiltrator-iced/Cargo.toml",
         "crates/infiltrator-iced/src/main.rs",
         "crates/infiltrator-bevy-ui/Cargo.toml",
-        "crates/infiltrator-bevy-ui/src/main.rs",
+        "crates/infiltrator-bevy-desktop-host/Cargo.toml",
+        "crates/infiltrator-bevy-desktop-host/src/main.rs",
         "crates/infiltrator-slint/Cargo.toml",
         "crates/infiltrator-slint/src/main.rs",
         "crates/infiltrator-cli/Cargo.toml",
@@ -58,7 +59,6 @@ def fixture_repo(root: Path) -> Path:
         "packaging/windows/nsis/infiltrator-bevy.nsi",
         "packaging/windows/nsis/infiltrator-slint.nsi",
         "packaging/windows/nsis/build-nsis.sh",
-        "packaging/windows/wix/Package.wxs",
         "scripts/product_identity.py",
         "scripts/render-product-template.py",
         "scripts/build-bevy-apk.sh",
@@ -81,38 +81,23 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_compose_and_bevy_version_codes_derive_from_the_shared_version(self):
         identity = GUARD.read_properties()
-        self.assertEqual(GUARD.get_value(identity, "compose.version_code"), "41000")
-        self.assertEqual(GUARD.get_value(identity, "bevy.version_code"), "16787712")
+        self.assertEqual(GUARD.get_value(identity, "compose.version_code"), "42000")
+        self.assertEqual(GUARD.get_value(identity, "bevy.version_code"), "16787968")
 
     def test_product_crate_cannot_override_the_workspace_release_version(self):
         with tempfile.TemporaryDirectory() as directory:
             root = fixture_repo(Path(directory))
             path = root / "crates/infiltrator-iced/Cargo.toml"
             contents = path.read_text(encoding="utf-8")
-            path.write_text(contents.replace("version.workspace = true", 'version = "0.42.0"'))
+            path.write_text(contents.replace("version.workspace = true", 'version = "9.9.9"'))
             problems = GUARD.source_problems(root)
         self.assertTrue(any("must inherit [workspace.package].version" in item for item in problems))
 
     def test_product_version_is_read_from_the_workspace_not_the_android_registry(self):
         identity = GUARD.read_properties()
-        self.assertEqual(identity["version.name"], "0.41.0")
+        self.assertEqual(identity["version.name"], "0.42.0")
         registry = (REPO / "product-identity.properties").read_text(encoding="utf-8")
         self.assertNotIn("version.name=", registry)
-
-    def test_cargo_packager_cannot_override_the_workspace_version(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = fixture_repo(Path(directory))
-            path = root / "crates/infiltrator-iced/Cargo.toml"
-            contents = path.read_text(encoding="utf-8")
-            path.write_text(
-                contents.replace(
-                    'product-name = "MusicFrog Infiltrator"',
-                    'product-name = "MusicFrog Infiltrator"\nversion = "0.20.0"',
-                ),
-                encoding="utf-8",
-            )
-            problems = GUARD.source_problems(root)
-        self.assertTrue(any("Cargo Packager must inherit" in item for item in problems))
 
     def test_hard_coded_launcher_name_cannot_shadow_the_identity_registry(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -232,8 +217,8 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_release_tag_must_match_the_registry_version(self):
         identity = GUARD.read_properties()
-        self.assertEqual(GUARD.release_tag_problems(identity, "v0.41.0"), [])
-        self.assertTrue(GUARD.release_tag_problems(identity, "v0.42.0"))
+        self.assertEqual(GUARD.release_tag_problems(identity, "v0.42.0"), [])
+        self.assertTrue(GUARD.release_tag_problems(identity, "v0.43.0"))
 
     def test_unregistered_product_reference_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -451,7 +436,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
                 archive.write(icon_source, "res/b7.png")
             badging = "\n".join(
                 (
-                    "package: name='com.musicfrog.infiltrator' versionCode='41000' versionName='0.41.0'",
+                    "package: name='com.musicfrog.infiltrator' versionCode='42000' versionName='0.42.0'",
                     "application-label:'MusicFrog Infiltrator'",
                     "application-icon-320:'res/b7.png'",
                 )
@@ -468,7 +453,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
                 archive.writestr("res/other.png", b"not the launcher icon")
             badging = "\n".join(
                 (
-                    "package: name='com.musicfrog.infiltrator' versionCode='41000' versionName='0.41.0'",
+                    "package: name='com.musicfrog.infiltrator' versionCode='42000' versionName='0.42.0'",
                     "application-label:'MusicFrog Infiltrator'",
                     "application-icon-320:'res/b7.png'",
                 )

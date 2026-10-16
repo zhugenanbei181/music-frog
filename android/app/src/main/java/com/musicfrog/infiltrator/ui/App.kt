@@ -113,7 +113,7 @@ fun InfiltratorApp(
             )
         },
         bottomBar = {
-            if (navigationType == NavigationType.Bottom) {
+            if (navigationType == NavigationType.Bottom && route is AppRoute.Main) {
                 NavigationBar {
                     AppSection.values().forEach { item ->
                         NavigationBarItem(

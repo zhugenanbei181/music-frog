@@ -14,6 +14,7 @@ use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal, ScopedRuntimeStream,
     ScopedRuntimeStreamEvent,
 };
+use std::convert::identity;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 #[derive(Clone)]
@@ -85,7 +86,7 @@ impl RuntimeStreamPort for MihomoRuntimeStreamPort {
             receiver,
             scope,
             resolver,
-            std::convert::identity,
+            identity,
         ))
     }
 

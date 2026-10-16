@@ -28,14 +28,15 @@ use std::io;
 use std::path::{Path, PathBuf};
 #[cfg(windows)]
 use std::ptr::null;
-use std::sync::Mutex;
+use std::result;
+use std::sync::{Mutex, PoisonError};
 use std::sync::mpsc::{SyncSender, sync_channel};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use infiltrator_ports::error::PortError;
 
-type Result<T> = std::result::Result<T, PortError>;
+type Result<T> = result::Result<T, PortError>;
 
 /// Held for the process lifetime; releasing on drop.
 ///
@@ -146,7 +147,7 @@ impl Drop for ThreadedInstanceLockGuard {
         let release = self
             .release
             .get_mut()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(PoisonError::into_inner)
             .take();
         if let Some(release) = release {
             let _ = release.send(());
@@ -154,7 +155,7 @@ impl Drop for ThreadedInstanceLockGuard {
         let worker = self
             .worker
             .get_mut()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(PoisonError::into_inner)
             .take();
         if let Some(worker) = worker {
             let _ = worker.join();

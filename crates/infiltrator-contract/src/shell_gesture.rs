@@ -307,21 +307,11 @@ pub enum GestureSemanticEvent {
 impl GestureSemanticEvent {
     /// Deterministic pull-to-refresh mapping from the widget layer's
     /// `PullToRefreshState` values. `threshold <= 0` can never arm.
-    pub fn pull_to_refresh(offset: f32, threshold: f32, is_refreshing: bool) -> Self {
+    pub fn pull_to_refresh(offset: f32, threshold: f32, phase: PullPhase) -> Self {
         let offset = finite(offset).max(0.0);
-        let phase = if is_refreshing {
-            PullPhase::Refreshing
-        } else if offset <= 0.0 {
-            PullPhase::Idle
-        } else if threshold > 0.0 && offset >= threshold {
-            PullPhase::Armed
-        } else {
-            PullPhase::Pulling
-        };
-        let progress_permille = if is_refreshing {
-            GESTURE_PERMILLE_MAX
-        } else {
-            permille(offset, threshold)
+        let progress_permille = match phase {
+            PullPhase::Refreshing => GESTURE_PERMILLE_MAX,
+            PullPhase::Idle | PullPhase::Pulling | PullPhase::Armed => permille(offset, threshold),
         };
         Self::PullToRefresh {
             phase,
@@ -500,13 +490,13 @@ mod tests {
     #[test]
     fn a_pull_release_maps_to_a_bounded_semantic_event() {
         assert_eq!(
-            GestureSemanticEvent::pull_to_refresh(0.0, 80.0, false),
+            GestureSemanticEvent::pull_to_refresh(0.0, 80.0, PullPhase::Idle),
             GestureSemanticEvent::PullToRefresh {
                 phase: PullPhase::Idle,
                 progress_permille: 0,
             }
         );
-        let pulling = GestureSemanticEvent::pull_to_refresh(40.0, 80.0, false);
+        let pulling = GestureSemanticEvent::pull_to_refresh(40.0, 80.0, PullPhase::Pulling);
         assert_eq!(
             pulling,
             GestureSemanticEvent::PullToRefresh {
@@ -515,14 +505,14 @@ mod tests {
             }
         );
         assert_eq!(
-            GestureSemanticEvent::pull_to_refresh(80.0, 80.0, false),
+            GestureSemanticEvent::pull_to_refresh(80.0, 80.0, PullPhase::Armed),
             GestureSemanticEvent::PullToRefresh {
                 phase: PullPhase::Armed,
                 progress_permille: 1000,
             }
         );
         assert_eq!(
-            GestureSemanticEvent::pull_to_refresh(120.0, 80.0, true),
+            GestureSemanticEvent::pull_to_refresh(120.0, 80.0, PullPhase::Refreshing),
             GestureSemanticEvent::PullToRefresh {
                 phase: PullPhase::Refreshing,
                 progress_permille: 1000,
@@ -530,7 +520,7 @@ mod tests {
         );
         // A non-finite or non-positive threshold never fabricates progress.
         assert_eq!(
-            GestureSemanticEvent::pull_to_refresh(f32::NAN, 0.0, false),
+            GestureSemanticEvent::pull_to_refresh(f32::NAN, 0.0, PullPhase::Idle),
             GestureSemanticEvent::PullToRefresh {
                 phase: PullPhase::Idle,
                 progress_permille: 0,
@@ -607,7 +597,11 @@ mod tests {
         assert!(snapshot.has_touch_host());
         assert_eq!(snapshot.revision, 0);
 
-        let revision = snapshot.apply(GestureSemanticEvent::pull_to_refresh(40.0, 80.0, false));
+        let revision = snapshot.apply(GestureSemanticEvent::pull_to_refresh(
+            40.0,
+            80.0,
+            PullPhase::Pulling,
+        ));
         assert_eq!(revision, 1);
         assert_eq!(snapshot.pull.progress_permille, 500);
         assert_eq!(

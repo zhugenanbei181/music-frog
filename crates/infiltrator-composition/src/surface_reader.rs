@@ -5,6 +5,7 @@
 //! turns their results into the one contract read model consumed by Iced and
 //! Bevy.
 
+use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_application::active_exit_application::ActiveExitApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::connection_rate_application::{
@@ -441,6 +442,10 @@ impl SurfaceReader for ProductSurfaceReader {
                 },
                 None => (Vec::new(), false),
             };
+            let named_overrides = match &self.profiles {
+                Some(profiles) => profiles.load_named_override_catalog().await.unwrap_or_default(),
+                None => NamedOverrideCatalog::default(),
+            };
             pages.profiles = match profile_result {
                 Some(Ok(items)) if items.is_empty() => {
                     surface_snapshot::PageData::empty(surface_snapshot::ProfilesPageSnapshot {
@@ -452,6 +457,7 @@ impl SurfaceReader for ProductSurfaceReader {
                         aggregation_templates_available,
                         snapshot_history: snapshot_history.clone(),
                         apply_transaction: apply_transaction.clone(),
+                        named_overrides,
                     })
                 }
                 Some(Ok(items)) => {
@@ -544,6 +550,7 @@ impl SurfaceReader for ProductSurfaceReader {
                         // History comes from this product instance and active profile.
                         snapshot_history: snapshot_history.clone(),
                         apply_transaction: apply_transaction.clone(),
+                        named_overrides,
                     })
                 }
                 Some(Err(failure)) => surface_snapshot::PageData::failed(failure),
@@ -689,6 +696,8 @@ impl SurfaceReader for ProductSurfaceReader {
             traffic_waveform,
             traffic_scale,
             traffic_topology,
+            closed_connections: Default::default(),
+            traffic_history: Default::default(),
             active_exit: active_exit_snapshot,
             outbound_inventory,
             outbound_details,

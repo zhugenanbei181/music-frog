@@ -17,6 +17,7 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use std::str;
 
 fn identity(engine: &str, format: &str, schema: u32) -> ProfileDocumentIdentity {
     ProfileDocumentIdentity::new(
@@ -79,7 +80,7 @@ fn mixin_update_strips_old_injected_rules_preserves_filter_and_does_not_mutate_i
         )
         .unwrap();
 
-    let merged = std::str::from_utf8(&changed.document_bytes).unwrap();
+    let merged = str::from_utf8(&changed.document_bytes).unwrap();
     assert!(!merged.contains("old.example"));
     assert!(merged.contains("new.example"));
     assert!(merged.contains("MATCH,DIRECT"));
@@ -230,7 +231,7 @@ fn filter_update_returns_typed_report_and_rejects_invalid_draft_without_mutation
         .apply_filter(&identity, document, Some(sidecar), &draft)
         .unwrap();
     assert_eq!((applied.report.total_input, applied.report.passed), (2, 1));
-    let filtered = std::str::from_utf8(&applied.document_bytes).unwrap();
+    let filtered = str::from_utf8(&applied.document_bytes).unwrap();
     assert!(filtered.contains("name: keep"));
     assert!(!filtered.contains("name: ad"));
     assert!(applied.projection.mixin_yaml.contains("mode: rule"));

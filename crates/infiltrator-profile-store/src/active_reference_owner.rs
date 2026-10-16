@@ -3,6 +3,7 @@
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -143,7 +144,7 @@ impl ActiveCoreOwnerProofRecord {
     pub fn validate(&self) -> Result<(), PortError> {
         if self.schema_version != ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 format!(
                     "active Core owner schema {} is unsupported",
                     self.schema_version
@@ -188,7 +189,7 @@ impl ActiveProfileReferenceRecord {
     pub fn validate(&self) -> Result<(), PortError> {
         if self.schema_version != ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 format!(
                     "active-profile reference schema {} is unsupported",
                     self.schema_version
@@ -237,7 +238,7 @@ impl LegacyActiveCoreOwnerProofRecordV1 {
     fn migrate(self) -> Result<ActiveCoreOwnerProofRecord, PortError> {
         if self.schema_version != LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 format!(
                     "active Core owner schema {} is unsupported",
                     self.schema_version
@@ -314,7 +315,7 @@ pub fn parse_active_core_owner_proof_record(
             .map_err(|error| PortError::Io(format!("invalid active Core owner proof: {error}")))?,
         version => {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 format!("active Core owner schema {version} is unsupported"),
             ));
         }

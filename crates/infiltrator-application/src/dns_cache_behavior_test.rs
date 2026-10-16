@@ -1,4 +1,6 @@
 //! test-intent: behavior
+use crate::command_application::CommandApplication;
+use infiltrator_test_support::dns_cache_fixtures::test_core_scope;
 use super::*;
 use crate::command_application::handler::{CommandHandler, ValidatedCoreCommandScope};
 use futures_util::{FutureExt, pin_mut};
@@ -16,12 +18,12 @@ fn operation_id() -> DnsCacheOperationId {
 async fn missing_core_capability_refuses_before_controller_or_host_cache_side_effects() {
     let ports = Arc::new(IsolatedCaches::default());
     let owner = DnsCacheApplication::new(Some(ports.clone()), Some(ports.clone()));
-    let application = crate::command_application::CommandApplication::new().with_dns_cache(owner);
+    let application = CommandApplication::new().with_dns_cache(owner);
 
     let failure = application
         .handle_output_scoped(
             ValidatedCoreCommandScope::from_core_application(Some(
-                infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+                test_core_scope(),
             )),
             CommandIntent::ClearDnsCache {
                 operation: operation_id(),
@@ -53,7 +55,7 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     let operation = operation_id();
     let failure = owner
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             operation,
         )
         .await
@@ -75,7 +77,7 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     assert_eq!(
         owner
             .flush_with_id(
-                infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+                test_core_scope(),
                 operation
             )
             .await
@@ -88,7 +90,7 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     let retry = operation_id();
     let report = owner
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             retry,
         )
         .await
@@ -107,7 +109,7 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
     let owner = DnsCacheApplication::new(Some(ports.clone()), Some(ports.clone()));
     let previous = owner
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             operation_id(),
         )
         .await
@@ -117,7 +119,7 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
     let operation = operation_id();
     {
         let pending = owner.flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             operation,
         );
         pin_mut!(pending);
@@ -127,7 +129,7 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
         assert_eq!(
             owner
                 .flush_with_id(
-                    infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+                    test_core_scope(),
                     operation_id(),
                 )
                 .await
@@ -145,7 +147,7 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
     assert!(
         owner
             .flush_with_id(
-                infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+                test_core_scope(),
                 operation_id(),
             )
             .await

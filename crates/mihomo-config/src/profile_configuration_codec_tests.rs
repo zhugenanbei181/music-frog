@@ -5,6 +5,7 @@ use super::{apply, read, read_rule_workspace};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::DnsHostEntry;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -204,7 +205,7 @@ fn unsupported_engine_format_and_schema_fail_before_yaml_decode() {
                 .expect_err("foreign identity must fail before parsing");
             assert_eq!(
                 error.error_code(),
-                infiltrator_contract::error::ErrorCode::Unsupported
+                ErrorCode::Unsupported
             );
         }
     }
@@ -224,7 +225,7 @@ fn invalid_document_or_typed_update_has_no_mutation_result() {
     .expect_err("invalid source rejected");
     assert_eq!(
         invalid_document.error_code(),
-        infiltrator_contract::error::ErrorCode::Configuration
+        ErrorCode::Configuration
     );
 
     let invalid_update = apply(
@@ -238,7 +239,7 @@ fn invalid_document_or_typed_update_has_no_mutation_result() {
     .expect_err("invalid typed update rejected");
     assert_eq!(
         invalid_update.error_code(),
-        infiltrator_contract::error::ErrorCode::Configuration
+        ErrorCode::Configuration
     );
 }
 
@@ -285,7 +286,7 @@ fn rule_workspace_projection_rejects_a_foreign_schema_before_parsing() {
         read_rule_workspace(&workspace, b"not: [valid YAML").expect_err("foreign format rejected");
     assert_eq!(
         error.error_code(),
-        infiltrator_contract::error::ErrorCode::Unsupported
+        ErrorCode::Unsupported
     );
 }
 
@@ -354,7 +355,7 @@ fn rule_workspace_mutation_rejects_foreign_identity_invalid_yaml_and_invalid_rul
         .expect_err("foreign engine, format, or schema must reject before parsing");
         assert_eq!(
             error.error_code(),
-            infiltrator_contract::error::ErrorCode::Unsupported
+            ErrorCode::Unsupported
         );
     }
 
@@ -367,7 +368,7 @@ fn rule_workspace_mutation_rejects_foreign_identity_invalid_yaml_and_invalid_rul
     .expect_err("invalid source has no mutation result");
     assert_eq!(
         invalid_source.error_code(),
-        infiltrator_contract::error::ErrorCode::Configuration
+        ErrorCode::Configuration
     );
 
     let invalid_rules = super::apply_rule_workspace(
@@ -381,6 +382,6 @@ fn rule_workspace_mutation_rejects_foreign_identity_invalid_yaml_and_invalid_rul
     .expect_err("invalid typed rule has no mutation result");
     assert_eq!(
         invalid_rules.error_code(),
-        infiltrator_contract::error::ErrorCode::InvalidInput
+        ErrorCode::InvalidInput
     );
 }

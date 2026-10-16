@@ -1,5 +1,6 @@
 //! Application-boundary scope fencing for runtime streams.
 
+use crate::runtime_scope::active_scope;
 use futures_util::{StreamExt, stream::unfold};
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -43,7 +44,7 @@ where
                         ));
                     };
 
-                    let event = match crate::runtime_scope::active_scope(scope_source.as_ref()) {
+                    let event = match active_scope(scope_source.as_ref()) {
                         Ok(active_scope)
                             if event.scope == expected_scope && active_scope == expected_scope =>
                         {

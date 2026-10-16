@@ -1,6 +1,7 @@
 //!  Editor page for raw profile YAML editing, Mixin overlay editing and
 //! per-profile subscription filtering with history snapshot restoration.
 
+use infiltrator_presentation::profile_edit_status_projection::status;
 use super::editor_history::{apply_banner, history_panel};
 use super::editor_viewport::viewport_label;
 use crate::state::AppState;
@@ -557,14 +558,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
     content = content.push(Space::new().height(theme::SP_SM));
     let save_status = match state.editor.editor_pane {
-        EditorPane::Profile => state
-            .editor
-            .document_session
-            .status(&state.editor.editor_content.text(), &state.shell.lang),
-        EditorPane::Mixin => state
-            .editor
-            .mixin_session
-            .status(&state.editor.mixin_content.text(), &state.shell.lang),
+        EditorPane::Profile => status(
+            &state
+                .editor
+                .document_session
+                .status_fact(&state.editor.editor_content.text()),
+            &state.shell.lang,
+        ),
+        EditorPane::Mixin => status(
+            &state
+                .editor
+                .mixin_session
+                .status_fact(&state.editor.mixin_content.text()),
+            &state.shell.lang,
+        ),
         _ => String::new(),
     };
     if !save_status.is_empty() {

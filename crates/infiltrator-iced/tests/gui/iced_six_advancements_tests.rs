@@ -264,7 +264,7 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
         state
             .editor
             .script_sandbox
-            .script_code
+            .script_code()
             .contains("auto_country_groups")
     );
 
@@ -282,8 +282,7 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
     let snapshot = state
         .editor
         .script_sandbox
-        .snapshot
-        .as_ref()
+        .snapshot()
         .expect("Shared projection expected");
     assert!(snapshot.is_success());
     assert!(snapshot.execution_time_ms < 500); // Strict latency SLA

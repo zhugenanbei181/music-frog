@@ -37,6 +37,7 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
             aggregation: value.aggregation,
             aggregation_templates: value.aggregation_templates,
             aggregation_templates_available: value.aggregation_templates_available,
+            named_overrides: Default::default(),
         }
     }
 }

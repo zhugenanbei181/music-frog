@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::admin_api::state::CoreOwnerAction;
 use crate::support::select_test_profile;
 use axum::body::to_bytes;
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
@@ -101,7 +102,7 @@ async fn test_save_rules_route_schedules_typed_owner_restart() {
     assert_eq!(status_json["last_reason"], "rules-update");
     assert_eq!(
         *actions.lock().unwrap_or_else(|error| error.into_inner()),
-        vec![crate::admin_api::state::CoreOwnerAction::RestartCore],
+        vec![CoreOwnerAction::RestartCore],
     );
     clear_home_dir_override();
 }

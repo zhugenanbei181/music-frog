@@ -20,6 +20,7 @@ use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::subscription_filter_result::FilterReport;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileDocumentCodecScope {
@@ -151,7 +152,7 @@ pub struct ProfileRuleWorkspaceProjection {
     pub source: RuleSourceIdentity,
     pub rules: Vec<rules::RuleEntry>,
     pub targets: Vec<String>,
-    pub sub_rules: std::collections::BTreeMap<String, Vec<rules::RuleEntry>>,
+    pub sub_rules: BTreeMap<String, Vec<rules::RuleEntry>>,
 }
 
 #[derive(Clone, Debug)]

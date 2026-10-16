@@ -3,6 +3,8 @@
 //! renders, plus the INFILTRATOR_* environment contract.
 //! test-intent: behavior
 
+use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::resources::ResourceAvailability;
 use super::*;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::types::options::EditorPane;
@@ -74,8 +76,8 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert!(state.diag.traffic.is_some());
     assert!(matches!(
         &state.runtime.core_resources,
-        infiltrator_contract::resources::CoreResourceSnapshot::Observed {
-            memory: infiltrator_contract::resources::ResourceAvailability::Available(_),
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::Available(_),
             ..
         }
     ));

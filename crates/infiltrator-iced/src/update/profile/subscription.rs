@@ -6,6 +6,7 @@ use crate::host::runtime::{application_runtime, subscription_notifier};
 use crate::host::storage::subscription_source;
 use crate::notify::NotifyUrgency;
 use crate::state::AppState;
+use crate::state::profiles::{SubscriptionSavePhase, SubscriptionUpdatePhase};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use chrono::Utc;
@@ -206,7 +207,7 @@ impl AppState {
                     ));
                 }
 
-                self.profile.is_saving_subscription = true;
+                self.profile.subscription_save_phase = SubscriptionSavePhase::Saving;
                 let draft = SubscriptionScheduleDraft {
                     url,
                     auto_update_enabled: auto_update,
@@ -243,7 +244,7 @@ impl AppState {
                 )
             }
             Message::SubscriptionSettingsSaved(result) => {
-                self.profile.is_saving_subscription = false;
+                self.profile.subscription_save_phase = SubscriptionSavePhase::Idle;
                 match result {
                     Ok(_) => Task::batch(vec![
                         Task::done(Message::LoadProfiles),
@@ -266,7 +267,7 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 }
-                self.profile.is_updating_subscription_now = true;
+                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Updating;
                 let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
@@ -305,7 +306,7 @@ impl AppState {
                 )
             }
             Message::SubscriptionUpdatedNow(result) => {
-                self.profile.is_updating_subscription_now = false;
+                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Idle;
                 self.refresh_tray();
                 match result {
                     Ok(report) => {
@@ -433,10 +434,10 @@ impl AppState {
                 // Tray + toolbar "update all" entry: refresh every profile
                 // carrying a subscription URL right away, regardless of its
                 // schedule, through the shared bounded-concurrency batch path.
-                if self.profile.is_updating_subscription_now {
+                if self.profile.subscription_update_phase.is_updating() {
                     return Task::none();
                 }
-                self.profile.is_updating_subscription_now = true;
+                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Updating;
                 let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
@@ -464,7 +465,7 @@ impl AppState {
                 )
             }
             Message::AllSubscriptionsUpdated(result) => {
-                self.profile.is_updating_subscription_now = false;
+                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Idle;
                 match result {
                     Ok(report) => {
                         let applied_to_core = report

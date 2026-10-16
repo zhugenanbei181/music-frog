@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -27,7 +28,7 @@ pub trait ActiveProfileReferenceApplier: Send + Sync {
     ) -> Result<u64, PortError> {
         let _ = (expected, strategy);
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "revision-bound active-profile apply is unavailable",
         ))
     }
@@ -49,7 +50,7 @@ pub trait ActiveProfileReferenceApplier: Send + Sync {
             strategy,
         );
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "revision- and workspace-bound active-profile apply is unavailable",
         ))
     }

@@ -1,3 +1,4 @@
+use super::backend_conformance_declarations;
 use super::backend_conformance::profile_support::{
     ConformanceLifecycleSession, ConformanceProfileStore,
 };
@@ -11,6 +12,7 @@ use infiltrator_composition::engine_backend_factory::{
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_capabilities::{AdapterRevision, EngineBinaryTarget};
 use infiltrator_contract::core_identity::{
@@ -47,22 +49,26 @@ use std::collections::HashMap;
 use std::env;
 use std::net::{SocketAddr, TcpListener};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::process;
+use std::str;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::TempDir;
+use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener as TokioTcpListener;
+use tokio::net::TcpStream;
+use tokio::sync;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
 const MIHOMO_LOCKED_VERSION: &str = "v1.19.32";
 const SING_BOX_LOCKED_VERSION: &str = "v1.14.3";
 
-struct SmokeSecureStore(std::sync::Mutex<HashMap<(String, String), String>>);
+struct SmokeSecureStore(Mutex<HashMap<(String, String), String>>);
 
 impl Default for SmokeSecureStore {
     fn default() -> Self {
-        Self(std::sync::Mutex::new(HashMap::new()))
+        Self(Mutex::new(HashMap::new()))
     }
 }
 
@@ -121,7 +127,9 @@ enum InitialProxyRequest {
 
 impl ProbeProxyFixture {
     async fn start() -> Result<Self, String> {
-        let listener = TokioTcpListener::bind("127.0.0.1:0")
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .map_err(|error| format!("bind local Mihomo probe proxy: {error}"))?;
         let address = listener
@@ -188,7 +196,7 @@ impl Drop for ProbeProxyFixture {
 }
 
 fn request_start_line(request: &[u8]) -> Result<&str, String> {
-    let request = std::str::from_utf8(request)
+    let request = str::from_utf8(request)
         .map_err(|error| format!("Mihomo probe request headers are not UTF-8: {error}"))?;
     request
         .lines()
@@ -223,7 +231,7 @@ fn parse_origin_health_request(request: &[u8]) -> Result<ProbeRequestMethod, Str
     }
 }
 
-async fn read_http_headers(stream: &mut tokio::net::TcpStream) -> Result<Vec<u8>, String> {
+async fn read_http_headers(stream: &mut TcpStream) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
     loop {
         let mut byte = [0_u8; 1];
@@ -283,7 +291,7 @@ pub async fn locked_real_mihomo_runs_the_shared_core_conformance_suite() -> Resu
         .map_err(|error| format!("read Mihomo controller port: {error}"))?;
     drop(controller_reservation);
     let mut probe_proxy = ProbeProxyFixture::start().await?;
-    let secret = format!("music-frog-conformance-{}", std::process::id());
+    let secret = format!("music-frog-conformance-{}", process::id());
     let pid_path = temp.path().join("mihomo.pid");
     let valid_profile = format!(
         r#"port: 0
@@ -328,9 +336,9 @@ rules:
         binary_target: EngineBinaryTarget::current(),
         adapter_revision: AdapterRevision::new(1),
         declared_operations: {
-            let mut operations = super::backend_conformance_declarations::supported_engine_operations();
+            let mut operations = backend_conformance_declarations::supported_engine_operations();
             operations.extend(
-                super::backend_conformance_declarations::unsupported_profile_transaction_operations(),
+                backend_conformance_declarations::unsupported_profile_transaction_operations(),
             );
             operations
         },
@@ -389,7 +397,7 @@ rules:
         profile_store.engine_profile_store(),
         expected,
         target,
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
     )
     .await
     .map_err(|error| format!("select Mihomo profile workspace: {error}"))?
@@ -456,7 +464,7 @@ rules:
             session,
             Arc::clone(&profile_store),
             reloader,
-            Arc::new(tokio::sync::Mutex::new(())),
+            Arc::new(sync::Mutex::new(())),
         )
         .map_err(|error| format!("construct production Mihomo profile transaction: {error}"))?,
     );
@@ -479,7 +487,7 @@ rules:
         return Err("could not install isolated Mihomo home override".to_owned());
     }
     let declarations =
-        super::backend_conformance_declarations::declarations_for_engine(&case.engine);
+        backend_conformance_declarations::declarations_for_engine(&case.engine);
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,
@@ -546,7 +554,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         }
     }))
     .map_err(|error| format!("serialize sing-box conformance profile: {error}"))?;
-    let engine = infiltrator_contract::core_identity::EngineId::new("sing-box")
+    let engine = EngineId::new("sing-box")
         .expect("static sing-box engine ID is valid");
     let controller = SingBoxControllerConfiguration::from_profile_json(&valid_profile)
         .map_err(|error| format!("sing-box controller preflight rejected the fixture: {error}"))?;
@@ -555,7 +563,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         expected_version,
         binary_target: EngineBinaryTarget::current(),
         adapter_revision: AdapterRevision::new(1),
-        declared_operations: super::backend_conformance_declarations::unsupported_engine_operations(
+        declared_operations: backend_conformance_declarations::unsupported_engine_operations(
         ),
         valid_profile,
         invalid_profile: b"{".to_vec(),
@@ -638,7 +646,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         .map_err(|error| format!("resolve production sing-box routing port: {error}"))?;
     let transaction = backend.configuration_transaction();
     let declarations =
-        super::backend_conformance_declarations::declarations_for_engine(&case.engine);
+        backend_conformance_declarations::declarations_for_engine(&case.engine);
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,
@@ -654,7 +662,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         },
     )
     .await;
-    let native_readback = tokio::fs::read(config_path)
+    let native_readback = fs::read(config_path)
         .await
         .map_err(|error| format!("read sing-box configuration after conformance: {error}"))?;
     if native_readback != case.valid_profile {

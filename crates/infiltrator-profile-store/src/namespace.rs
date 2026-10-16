@@ -8,7 +8,7 @@ use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use std::future::Future;
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
 use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 use toml::map::Map;
@@ -121,7 +121,7 @@ pub async fn read_profile_state(path: &Path) -> Result<toml::Value, PortError> {
     let text = match fs::read_to_string(path).await {
         Ok(text) => text,
         Err(error) if error.kind() == ErrorKind::NotFound => {
-            return Ok(toml::Value::Table(toml::map::Map::new()));
+            return Ok(toml::Value::Table(Map::new()));
         }
         Err(error) => return Err(map_io_error(error)),
     };
@@ -184,7 +184,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
     }
 
     pub async fn reset_engine_scoped_namespace_marker_unlocked(&self) -> Result<(), PortError> {
-        let mut state = toml::Value::Table(toml::map::Map::new());
+        let mut state = toml::Value::Table(Map::new());
         ProfileNamespaceSchema::write_engine_scoped_v1(&mut state)?;
         write_profile_state_atomically(self.settings_file(), &state).await
     }
@@ -618,7 +618,7 @@ mod tests {
     }
 }
 
-fn map_io_error(error: std::io::Error) -> PortError {
+fn map_io_error(error: io::Error) -> PortError {
     if error.kind() == ErrorKind::PermissionDenied {
         PortError::PermissionDenied(error.to_string())
     } else {

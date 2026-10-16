@@ -2,6 +2,7 @@
 //! concurrency controls, the per-node detail modal and the
 //! in-place restamp of every measured value from the Core-owned snapshot.
 
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::overview::{LastOverviewProjection, OverviewLine};
 use crate::route::{ActiveRoute, Route};
@@ -285,7 +286,7 @@ pub(crate) fn on_overview_speedtest_activated(
 }
 
 fn speedtest_target(
-    snapshot: &infiltrator_contract::surface_snapshot::SurfaceSnapshot,
+    snapshot: &SurfaceSnapshot,
 ) -> Option<SpeedtestTarget> {
     let scope = snapshot.core.scope()?;
     let inventory = snapshot.outbound_inventory.data.as_ref()?;

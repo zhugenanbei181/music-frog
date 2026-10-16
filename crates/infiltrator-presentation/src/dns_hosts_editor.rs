@@ -1,4 +1,5 @@
 //! Hosts draft reducer with explicit observation, editing, and save lifecycles.
+use std::mem;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::{
     DnsHostEntry, DnsHostsIssue, DnsHostsProfile, validate_hosts,
@@ -292,7 +293,7 @@ impl DnsHostsEditor {
     }
 
     fn update_row_draft(&mut self, address: Option<String>, domain: Option<String>) {
-        self.row_draft = match std::mem::take(&mut self.row_draft) {
+        self.row_draft = match mem::take(&mut self.row_draft) {
             HostsRowDraft::Empty => HostsRowDraft::New {
                 address: address.unwrap_or_default(),
                 domain: domain.unwrap_or_default(),

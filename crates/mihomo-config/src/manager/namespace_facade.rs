@@ -1,6 +1,7 @@
 //! Mihomo facade for the shared engine-scoped namespace owner.
 
-use super::ConfigManager;
+use super::{ConfigManager, lock_reset_fenced_profile_mutation_for_dir};
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
@@ -9,7 +10,7 @@ use std::io::{Error, ErrorKind};
 fn namespace_error(error: PortError) -> MihomoError {
     match error {
         PortError::Rejected(failure)
-            if failure.code == infiltrator_contract::error::ErrorCode::Configuration =>
+            if failure.code == ErrorCode::Configuration =>
         {
             MihomoError::Config(failure.message)
         }
@@ -28,7 +29,7 @@ impl<S: SecureStore> ConfigManager<S> {
     pub async fn initialize_profile_namespace(&self) -> Result<()> {
         self.profile_store
             .initialize_profile_namespace_with(|| async {
-                crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir()).await
+                lock_reset_fenced_profile_mutation_for_dir(self.config_dir()).await
             })
             .await
             .map_err(namespace_error)
@@ -45,8 +46,7 @@ mod tests {
     use infiltrator_ports::secure_store::SecureStore;
     use infiltrator_profile_store::metadata::SUBSCRIPTION_SERVICE;
     use infiltrator_profile_store::namespace::{
-        ProfileNamespaceSchema as NamespaceSchema, merge_profile_state,
-        profile_state_backup_path as namespace_backup_path, read_profile_state as read_toml_table,
+        ProfileNamespaceSchema, merge_profile_state, profile_state_backup_path, read_profile_state,
     };
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -88,26 +88,26 @@ mod tests {
     #[test]
     fn namespace_schema_uses_exhaustive_legacy_and_current_states() {
         assert_eq!(
-            NamespaceSchema::parse(None).unwrap(),
-            NamespaceSchema::LegacyShared
+            ProfileNamespaceSchema::parse(None).unwrap(),
+            ProfileNamespaceSchema::LegacyShared
         );
         assert_eq!(
-            NamespaceSchema::parse(Some(&toml::Value::String("engine_scoped_v1".into()))).unwrap(),
-            NamespaceSchema::EngineScopedV1
+            ProfileNamespaceSchema::parse(Some(&toml::Value::String("engine_scoped_v1".into()))).unwrap(),
+            ProfileNamespaceSchema::EngineScopedV1
         );
-        assert!(NamespaceSchema::parse(Some(&toml::Value::String("unknown".into()))).is_err());
-        assert!(NamespaceSchema::parse(Some(&toml::Value::Integer(1))).is_err());
+        assert!(ProfileNamespaceSchema::parse(Some(&toml::Value::String("unknown".into()))).is_err());
+        assert!(ProfileNamespaceSchema::parse(Some(&toml::Value::Integer(1))).is_err());
     }
 
     #[tokio::test]
     async fn interrupted_state_replace_restores_backup_before_reading() {
         let home = tempfile::tempdir().unwrap();
         let path = home.path().join("profile-state.toml");
-        let backup = namespace_backup_path(&path);
+        let backup = profile_state_backup_path(&path);
         let previous = "[default]\nprofile = \"main\"\n";
         fs::write(&backup, previous).await.unwrap();
 
-        let state = read_toml_table(&path).await.unwrap();
+        let state = read_profile_state(&path).await.unwrap();
 
         assert_eq!(state["default"]["profile"].as_str(), Some("main"));
         assert_eq!(fs::read_to_string(&path).await.unwrap(), previous);

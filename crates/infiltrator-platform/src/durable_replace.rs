@@ -3,6 +3,9 @@
 //! Callers must flush the staged file before invoking this function. Both
 //! paths must be siblings so replacement stays on one filesystem.
 
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
+use std::fs::{self, File};
 use std::io;
 use std::path::Path;
 
@@ -15,8 +18,8 @@ pub enum DurableReplaceError {
     DurabilityUncertain(io::Error),
 }
 
-impl std::fmt::Display for DurableReplaceError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DurableReplaceError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotCommitted(error) => write!(formatter, "atomic replacement failed: {error}"),
             Self::DurabilityUncertain(error) => {
@@ -29,7 +32,7 @@ impl std::fmt::Display for DurableReplaceError {
     }
 }
 
-impl std::error::Error for DurableReplaceError {}
+impl Error for DurableReplaceError {}
 
 /// Atomically replace `destination` with the already-flushed `staged` file and
 /// request the strongest supported persistence guarantee for the platform.
@@ -58,11 +61,11 @@ pub fn remove_durable(path: &Path) -> Result<(), DurableReplaceError> {
 
 #[cfg(unix)]
 fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), DurableReplaceError> {
-    std::fs::rename(staged, destination).map_err(DurableReplaceError::NotCommitted)?;
+    fs::rename(staged, destination).map_err(DurableReplaceError::NotCommitted)?;
 
     let parent = destination.parent().unwrap_or_else(|| Path::new("."));
     let directory =
-        std::fs::File::open(parent).map_err(DurableReplaceError::DurabilityUncertain)?;
+        File::open(parent).map_err(DurableReplaceError::DurabilityUncertain)?;
     directory
         .sync_all()
         .map_err(DurableReplaceError::DurabilityUncertain)
@@ -70,7 +73,7 @@ fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), Durable
 
 #[cfg(unix)]
 fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
-    match std::fs::remove_file(path) {
+    match fs::remove_file(path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(DurableReplaceError::NotCommitted(error)),
@@ -80,7 +83,7 @@ fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
 
 #[cfg(windows)]
 fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
-    match std::fs::remove_file(path) {
+    match fs::remove_file(path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(DurableReplaceError::NotCommitted(error)),
@@ -91,13 +94,13 @@ fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
 #[cfg(unix)]
 fn sync_parent_directory(path: &Path) -> io::Result<()> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    std::fs::File::open(parent)?.sync_all()
+    File::open(parent)?.sync_all()
 }
 
 #[cfg(windows)]
 fn sync_parent_directory(path: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
-    use std::ptr::null;
+    use std::ptr::{null, null_mut};
     use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_WRITE, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ,
@@ -114,7 +117,7 @@ fn sync_parent_directory(path: &Path) -> io::Result<()> {
             null(),
             OPEN_EXISTING,
             FILE_FLAG_BACKUP_SEMANTICS,
-            std::ptr::null_mut(),
+            null_mut(),
         )
     };
     if directory == INVALID_HANDLE_VALUE {

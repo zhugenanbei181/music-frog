@@ -1,5 +1,8 @@
 //! test-intent: behavior
 
+use infiltrator_contract::capability::Capability;
+use std::str::from_utf8;
+use tokio::fs;
 use crate::engine_backend_factory::SingBoxEngineBackendProvider;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -60,7 +63,7 @@ impl SingBoxCommandPort for AcceptingSingBoxCommand {
         _binary_path: &Path,
         candidate_path: &Path,
     ) -> Result<NativeConfigCheck, PortError> {
-        tokio::fs::read(candidate_path)
+        fs::read(candidate_path)
             .await
             .map_err(|error| PortError::Failed(format!("read staged sing-box JSON: {error}")))?;
         Ok(NativeConfigCheck::Accepted)
@@ -72,7 +75,7 @@ impl SingBoxCommandPort for AcceptingSingBoxCommand {
         _config_path: &Path,
     ) -> Result<Box<dyn SingBoxChildProcess>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "profile-store conformance does not launch a Core process",
         ))
     }
@@ -91,7 +94,7 @@ impl SingBoxClashHttpPort for UnusedSingBoxHttp {
         _timeout: Duration,
     ) -> Result<SingBoxClashResponse, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::RoutingIntent,
+            Capability::RoutingIntent,
             "profile-store conformance does not dispatch controller requests",
         ))
     }
@@ -121,7 +124,7 @@ impl CoreLifecyclePort for StoppedCoreSession {
 
     async fn start(&self) -> Result<u64, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "profile-store conformance keeps the Core stopped",
         ))
     }
@@ -132,14 +135,14 @@ impl CoreLifecyclePort for StoppedCoreSession {
 
     async fn restart(&self) -> Result<u64, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "profile-store conformance keeps the Core stopped",
         ))
     }
 
     async fn wait_for_ready(&self, _generation: u64, _timeout: Duration) -> Result<(), PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "profile-store conformance does not start the Core",
         ))
     }
@@ -167,7 +170,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
     ProfileStore::save_inactive_profile(
         store.engine_profile_store(),
         profile_id.as_str(),
-        std::str::from_utf8(initial_document).expect("JSON is UTF-8"),
+        from_utf8(initial_document).expect("JSON is UTF-8"),
     )
     .await
     .expect("save initial sing-box profile");
@@ -204,7 +207,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
     let instance_id =
         CoreInstanceId::new("singbox-profile-store-conformance").expect("valid Core instance");
     let native_config_path = home.path().join("runtime/active.json");
-    tokio::fs::create_dir_all(
+    fs::create_dir_all(
         native_config_path
             .parent()
             .expect("native config has a parent directory"),
@@ -276,13 +279,13 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
         Some(next_sidecar.as_slice())
     );
     assert_eq!(
-        tokio::fs::read(store.config_dir().join("main.json"))
+        fs::read(store.config_dir().join("main.json"))
             .await
             .expect("read engine-namespaced profile file"),
         next_document
     );
     assert_eq!(
-        tokio::fs::read(native_config_path)
+        fs::read(native_config_path)
             .await
             .expect("read sing-box native config file"),
         next_document

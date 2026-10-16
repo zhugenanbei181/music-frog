@@ -1,5 +1,11 @@
 //! Behavior cases for rule, subscription, profile, and provider commands.
 
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use super::*;
 use crate::core_capability_test_support::capability_application;
 use crate::geo_database_application::GeoDatabaseApplication;
@@ -14,24 +20,24 @@ use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 
 #[derive(Default)]
-struct RecordingGeoPort(std::sync::atomic::AtomicUsize);
+struct RecordingGeoPort(AtomicUsize);
 
 #[async_trait::async_trait]
 impl GeoDatabasePort for RecordingGeoPort {
     async fn trigger(
         &self,
-        scope: infiltrator_contract::core_identity::CoreScope,
+        scope: CoreScope,
     ) -> Result<GeoDatabaseTriggerReceipt, PortError> {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.0.fetch_add(1, Ordering::SeqCst);
         Ok(GeoDatabaseTriggerReceipt::accepted(scope))
     }
 }
 
 #[derive(Default)]
 struct RecordingRuleProviderPort(
-    std::sync::Mutex<
+    Mutex<
         Option<(
-            infiltrator_contract::core_identity::CoreScope,
+            CoreScope,
             RuleProviderRevision,
             RuleProviderId,
         )>,
@@ -42,17 +48,17 @@ struct RecordingRuleProviderPort(
 impl RuleProviderPort for RecordingRuleProviderPort {
     async fn inventory(
         &self,
-        _scope: infiltrator_contract::core_identity::CoreScope,
+        _scope: CoreScope,
     ) -> Result<RuleProviderInventorySnapshot, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::RoutingIntent,
+            Capability::RoutingIntent,
             "single-provider command must not query inventory",
         ))
     }
 
     async fn refresh(
         &self,
-        scope: infiltrator_contract::core_identity::CoreScope,
+        scope: CoreScope,
         revision: RuleProviderRevision,
         id: RuleProviderId,
     ) -> Result<RuleProviderRefreshReceipt, PortError> {
@@ -78,12 +84,12 @@ impl RuleProviderPort for RecordingRuleProviderPort {
 
     async fn payload(
         &self,
-        _scope: infiltrator_contract::core_identity::CoreScope,
+        _scope: CoreScope,
         _revision: RuleProviderRevision,
         _id: RuleProviderId,
     ) -> Result<RuleProviderPayloadSnapshot, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::RoutingIntent,
+            Capability::RoutingIntent,
             "single-provider command does not read payload",
         ))
     }
@@ -574,14 +580,14 @@ async fn upgrade_geo_databases_requires_the_scoped_port() {
         )
         .await
         .expect("geo upgrade");
-    assert_eq!(port.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(port.0.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]
 async fn refresh_rule_provider_dispatches_snapshot_reference_to_scoped_port() {
     let store = Arc::new(FakeStore::with_profile(THREE_RULES));
     let scope = core_scope();
-    let reference = infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference {
+    let reference = RuleProviderControllerReference {
         id: RuleProviderId::new(scope.identity.engine.clone(), "ads").unwrap(),
         inventory_revision: RuleProviderRevision::new(7).unwrap(),
     };

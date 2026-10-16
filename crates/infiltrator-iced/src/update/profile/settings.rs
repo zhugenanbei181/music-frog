@@ -4,6 +4,7 @@
 use crate::host::storage::{clear_webdav_password, save_webdav_password};
 use crate::settings_store::{load, save};
 use crate::state::AppState;
+use crate::state::profiles::AppSettingsSavePhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::version_application::normalized_release_channel;
@@ -65,7 +66,7 @@ impl AppState {
                     }
                 };
 
-                self.profile.is_saving_app_settings = true;
+                self.profile.app_settings_save_phase = AppSettingsSavePhase::Saving;
                 let core_channel = self.profile_core_channel();
                 // Persist the *preference* ("system" stays "system"); a
                 // resolved skin name would silently pin the appearance on the
@@ -122,7 +123,7 @@ impl AppState {
                 )
             }
             Message::AppSettingsSaved(result) => {
-                self.profile.is_saving_app_settings = false;
+                self.profile.app_settings_save_phase = AppSettingsSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.editor_path =

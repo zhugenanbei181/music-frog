@@ -1,3 +1,8 @@
+use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_contract::profile_document::DocumentDiagnosticSnapshot;
+use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use super::*;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, recording_application,
@@ -124,10 +129,10 @@ fn a_snippet_that_would_break_the_document_is_refused_and_the_buffer_survives() 
     state.editor.editor_content.move_to(caret_on(0, 6));
 
     handler.4.lock().unwrap().push_back(Ok(
-        infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome::Rejected {
-            validation: infiltrator_contract::profile_document::DocumentValidation::Invalid {
+        ProfileDocumentSnippetOutcome::Rejected {
+            validation: DocumentValidation::Invalid {
                 diagnostics: vec![
-                    infiltrator_contract::profile_document::DocumentDiagnosticSnapshot {
+                    DocumentDiagnosticSnapshot {
                         line: Some(1),
                         column: Some(7),
                         message: "snippet would make document invalid".into(),
@@ -248,7 +253,7 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
         .expect("shared history stored");
     assert_eq!(history.pending_prune, 1);
     assert_eq!(history.duplicate_entries, 1);
-    assert!(!state.editor.is_loading_snapshots);
+    assert!(!state.editor.snapshots_load_phase.is_loading());
 
     // The retention control clamps to the shared supported range.
     let _ = state.update(Message::SetSnapshotPruneKeep(0));
@@ -263,17 +268,17 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
     let _ = state.update(Message::ProfileSnapshotsLoaded(Err(
         InfiltratorError::Config("boom".to_owned()),
     )));
-    assert!(!state.editor.is_loading_snapshots);
+    assert!(!state.editor.snapshots_load_phase.is_loading());
 }
 
 #[test]
 fn editor_live_preflight_reports_the_shared_diagnostic_line() {
     let (mut state, _) = AppState::new();
-    let profiles = infiltrator_composition::mihomo_configuration::profiles_for_mihomo(Arc::new(
+    let profiles = profiles_for_mihomo(Arc::new(
         HostsCaptureStore::default(),
     ));
     let configuration =
-        infiltrator_composition::mihomo_configuration::for_mihomo_profiles(profiles.clone());
+        for_mihomo_profiles(profiles.clone());
     let (core, _) = recording_application();
     core.install_command_handler(Arc::new(
         CommandApplication::new()

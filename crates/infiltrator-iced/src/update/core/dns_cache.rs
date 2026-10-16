@@ -3,7 +3,6 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 impl AppState {
     pub(super) fn update_core_dns_cache(&mut self, message: Message) -> Task<Message> {
@@ -41,9 +40,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         match (application
-                            .execute(CommandIntent::ClearDnsCache {
-                                operation: DnsCacheOperationId(token),
-                            })
+                            .execute(CommandIntent::ClearDnsCache { operation: token })
                             .await)
                             .into_unit()
                         {

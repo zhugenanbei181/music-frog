@@ -98,7 +98,7 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
                 owner = discovery.get(test)
                 if owner is None:
                     dangling.append(f"{key}: {test}")
-                elif owner != SURFACES.get(row["surface"]) and not (row["level"] == "contract" and owner in {"infiltrator-contract", "infiltrator-domain", "infiltrator-application"}):
+                elif owner != SURFACES.get(row["surface"]) and not (row["level"] == "contract" and owner in {"infiltrator-contract", "infiltrator-domain", "infiltrator-application", "infiltrator-core", "infiltrator-presentation"}):
                     invalid.append(f"wrong package for {key}: {owner}")
         if specs is not None and row["level"] == "scenario" and key[0] in specs:
             if set(row["paths"].split(",")) != set(specs[key[0]]["required_paths"]):
@@ -165,7 +165,7 @@ def main():
             catalogue = json.loads(args.catalogue_json.read_text()) if args.catalogue_json else command_json([
                 "cargo", "run", "--quiet", "-p", "infiltrator-contract", "--example", "parity_catalogue"])
             payload = json.loads(args.discovery_json.read_text()) if args.discovery_json else command_json([
-                "cargo", "nextest", "list", "--workspace", "--build-jobs", "4", "--message-format", "json"])
+                "cargo", "nextest", "list", "--workspace", "--features", "infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools", "--build-jobs", "4", "--message-format", "json"])
             discovery = discovered_tests(payload)
             if args.receipts:
                 from visual_receipts import verified_receipts

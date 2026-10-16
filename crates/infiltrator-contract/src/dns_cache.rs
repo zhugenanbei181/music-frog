@@ -1,8 +1,18 @@
 //! Typed independent DNS cache facts; configuration reads never author flush outcomes.
 use crate::error::Failure;
 use serde::{Deserialize, Serialize};
+use std::ops::Add;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsCacheOperationId(pub u64);
+
+impl Add<u64> for DnsCacheOperationId {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self {
+        Self(self.0 + rhs)
+    }
+}
 
 /// Outcome of one DNS cache flush target.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

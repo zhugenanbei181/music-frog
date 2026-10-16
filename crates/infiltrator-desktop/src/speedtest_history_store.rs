@@ -171,7 +171,7 @@ struct LegacyEnvelopeV1 {
 mod tests {
     use super::*;
     use std::env::temp_dir;
-    use std::fs::{read_to_string, remove_dir_all, remove_file, write};
+    use std::fs::{create_dir_all, read_to_string, remove_dir_all, remove_file, write};
     use std::process::id;
 
     fn sample_records() -> Vec<HistoricalSpeedtestRecord> {
@@ -203,7 +203,7 @@ mod tests {
     fn legacy_history_migrates_once_and_discards_unrecoverable_name_identity() {
         let dir = temp_dir().join(format!("mf-speedtest-history-v1-{}", id()));
         let path = dir.join("history.json");
-        std::fs::create_dir_all(&dir).unwrap();
+        create_dir_all(&dir).unwrap();
         write(
             &path,
             r#"[{"run_id":7,"timestamp_epoch_ms":1700000000000,"scope":{"single_group":"HongKong"},"target_url":"https://probe.example.test","total_nodes":4,"alive_nodes":3,"avg_latency_ms":42.5,"avg_jitter_ms":1.5,"avg_bandwidth_mbps":120.0,"overall_star_rating":4}]"#,

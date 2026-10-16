@@ -1,5 +1,8 @@
 //! test-intent: behavior
 //! Actual SDK controls, typed command terminals and a shared profile-backed reader.
+use crate::configuration_codec::mihomo_rule_trace_fixture;
+use crate::support::mihomo_profiles;
+use infiltrator_application::configuration_application::ConfigurationApplication;
 use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::native_input::{click_entity, press, type_text};
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
@@ -45,11 +48,11 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
 fn setup() -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
-    let store = crate::configuration_codec::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let profiles = crate::support::mihomo_profiles(store.clone());
-    let configuration = infiltrator_application::configuration_application::ConfigurationApplication::from_profile_application(profiles.clone());
+    let profiles = mihomo_profiles(store.clone());
+    let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
         test_command_application([
@@ -147,7 +150,7 @@ fn confirmation(app: &mut App, wanted: TraceConfirmationAction) -> Entity {
 }
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while app.world().resource::<RulesTraceState>().model.busy() {
+    while app.world().resource::<RulesTraceState>().model.is_pending() {
         assert!(Instant::now() < deadline, "actual terminal event");
         app.update();
         yield_now();
@@ -280,7 +283,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_some()
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
@@ -290,7 +293,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_none()
     );
     assert_eq!(store.content(), TRACE_DOCUMENT);
@@ -305,7 +308,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_none()
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
@@ -318,7 +321,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,
@@ -328,7 +331,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_some()
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
@@ -342,7 +345,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_none()
     );
     assert!(
@@ -385,7 +388,7 @@ fn native_tracer_missing_context_keyboard_metadata_ime_confirmation_cancel_permi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,
@@ -432,7 +435,7 @@ fn native_tracer_confirmation_isolates_background_and_permission_guide_releases_
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_none()
     );
     assert!(
@@ -621,8 +624,8 @@ fn native_named_rule_descent_confirmation_cancel_permission_retry_and_leaf_commi
         .world()
         .resource::<RulesTraceState>()
         .model
-        .confirmation
-        .clone()
+        .confirmation()
+        .cloned()
         .unwrap();
     assert_eq!(request.rule_table.as_deref(), Some("secure"));
     assert_eq!(request.rule_index, 0);
@@ -640,7 +643,7 @@ fn native_named_rule_descent_confirmation_cancel_permission_retry_and_leaf_commi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .override_failure
+            .override_failure()
             .as_ref()
             .unwrap()
             .code,
@@ -651,7 +654,7 @@ fn native_named_rule_descent_confirmation_cancel_permission_retry_and_leaf_commi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_some()
     );
     store.deny_write.store(false, Ordering::SeqCst);
@@ -675,7 +678,7 @@ fn native_named_rule_descent_confirmation_cancel_permission_retry_and_leaf_commi
         app.world()
             .resource::<RulesTraceState>()
             .model
-            .confirmation
+            .confirmation()
             .is_none()
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);

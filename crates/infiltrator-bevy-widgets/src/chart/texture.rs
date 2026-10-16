@@ -28,6 +28,19 @@ pub struct ChartTextureView {
 }
 
 impl ChartTextureViewItem<'_, '_> {
+    /// Whether this texture is fully bound to an active asset in images.
+    pub(crate) fn is_bound<P: Component>(&self, images: &Assets<Image>) -> bool {
+        let role = TypeId::of::<P>();
+        if let Some(texture) = self
+            .texture
+            .filter(|texture| images.contains(&texture.image))
+        {
+            texture.plate == role && self.node.is_some_and(|node| node.image == texture.image)
+        } else {
+            false
+        }
+    }
+
     /// Repaint only the owned asset; restoring a binding needs no rasterization.
     pub(crate) fn sync<P: Component>(
         &self,

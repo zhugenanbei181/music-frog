@@ -323,6 +323,8 @@ mod tests {
     }
 
     fn running_owner() -> VpnOwnerSnapshot {
+        use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+
         VpnOwnerSnapshot {
             owner_session_id: "owner-session".to_owned(),
             revision: 4,
@@ -353,7 +355,7 @@ mod tests {
             dns_servers: vec!["1.1.1.1".to_owned()],
             ipv6: false,
             core: VpnOwnerCoreReadback::Available(
-                infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+                CoreLifecycleSnapshot {
                     identity: Some(CoreIdentity::new(
                         EngineId::new("mihomo").expect("engine ID"),
                         CoreInstanceId::new("owner-a").expect("instance ID"),

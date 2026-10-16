@@ -10,6 +10,7 @@ bash scripts/quality/check-structure.sh
 if [[ "${1:-}" == "--guards-only" ]]; then exit 0; fi
 # Compile the Rust authority and resolve all declared anchors against real discovery.
 python3 scripts/parity/resolve_surface_evidence.py --report-json target/parity/evidence.json
-nextest_mode=()
-if [[ "${1:-}" == "--no-run" ]]; then nextest_mode+=("--no-run"); fi
-exec cargo nextest run --workspace --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools --no-fail-fast --build-jobs 4 --test-threads 4 "${nextest_mode[@]}"
+if [[ "${1:-}" == "--no-run" ]]; then
+  exec cargo nextest run --workspace --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools --build-jobs 4 --test-threads 4 --no-run
+fi
+exec cargo nextest run --workspace --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools --no-fail-fast --build-jobs 4 --test-threads 4

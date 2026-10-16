@@ -7,10 +7,13 @@ use infiltrator_contract::command::{CommandResult, RequestId};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document::DocumentInspection;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
 use infiltrator_ports::core_scope::CoreScopeObservation;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, RwLock};
@@ -134,20 +137,20 @@ impl UiCommandSink for DesktopCommandSink {
 
     fn inspect_profile_buffer(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         content: &str,
-    ) -> Result<infiltrator_contract::profile_document::DocumentInspection, Failure> {
+    ) -> Result<DocumentInspection, Failure> {
         self.application.inspect_profile_buffer(identity, content)
     }
 
     fn insert_profile_snippet(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         content: &str,
         snippet_id: &str,
         line: usize,
         column: usize,
-    ) -> Result<infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome, Failure>
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure>
     {
         self.application
             .insert_profile_snippet(identity, content, snippet_id, line, column)
@@ -155,7 +158,7 @@ impl UiCommandSink for DesktopCommandSink {
 
     fn inspect_mixin_draft(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
     ) -> Result<(), Failure> {
@@ -165,7 +168,7 @@ impl UiCommandSink for DesktopCommandSink {
 
     fn inspect_mixin_toggle(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         mixin_yaml: &str,
         toggle_id: ProfileMixinToggleId,
     ) -> Result<bool, Failure> {
@@ -175,7 +178,7 @@ impl UiCommandSink for DesktopCommandSink {
 
     fn set_mixin_toggle(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         mixin_yaml: &str,
         toggle_id: ProfileMixinToggleId,
         enabled: bool,
@@ -186,7 +189,7 @@ impl UiCommandSink for DesktopCommandSink {
 
     fn inspect_mixin_studio(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
     ) -> Result<ProfileMixinStudioObservation, Failure> {

@@ -2,7 +2,7 @@
   "source_archive": "re-Lumen (1).zip",
   "archive_sha256": "4a5195d205b8e23e00694764e8c5d105a6ba4d43085d6b5533de42d4cfa295e4",
   "imported_files": 718,
-  "imported_bytes": 8738780,
+  "imported_bytes": 8724347,
   "files": {
     "assets/flags/ac.svg": {
       "path": "assets/flags/ac.svg",
@@ -1861,8 +1861,12 @@
     },
     "assets/flags/ir.svg": {
       "path": "assets/flags/ir.svg",
-      "bytes": 27099,
-      "sha256": "aa37d2514374a2ce60cd46e6249daa4763688ddb0a6a07f8a418f5ed17db5b8d"
+      "bytes": 27057,
+      "sha256": "c841ebae4b8dd1180f33108f5faf450f96c7cc649d15e6b639eed0900168ab95",
+      "original_bytes": 27099,
+      "original_sha256": "aa37d2514374a2ce60cd46e6249daa4763688ddb0a6a07f8a418f5ed17db5b8d",
+      "patched": true,
+      "patch_source": "flags (twemoji assets and rendering)"
     },
     "assets/flags/is.svg": {
       "path": "assets/flags/is.svg",
@@ -1971,8 +1975,12 @@
     },
     "assets/flags/LICENSE-GRAPHICS": {
       "path": "assets/flags/LICENSE-GRAPHICS",
-      "bytes": 18917,
-      "sha256": "f7c011ea2361bca6404b53a3e4d7ae8f9ca2d5abdc3916f83787789e71029d07"
+      "bytes": 18523,
+      "sha256": "55bfbc1759943f7d19acfc68e35644b7fbe10cd8d39ab3551ce5ecff5dda9979",
+      "original_bytes": 18917,
+      "original_sha256": "f7c011ea2361bca6404b53a3e4d7ae8f9ca2d5abdc3916f83787789e71029d07",
+      "patched": true,
+      "patch_source": "THIRD-PARTY-NOTICES.md"
     },
     "assets/flags/lk.svg": {
       "path": "assets/flags/lk.svg",
@@ -2881,8 +2889,12 @@
     },
     "assets/third_party_licenses.json": {
       "path": "assets/third_party_licenses.json",
-      "bytes": 1512442,
-      "sha256": "9b5ceb64f7ca758fe22863d2d9227d4edf7dc8fc445eb636032d3bd455071d09"
+      "bytes": 1501584,
+      "sha256": "acfb74cea488f166d4f4d17b83a57f5c804862bf30e991bc58982f5adbe4fc41",
+      "original_bytes": 1512442,
+      "original_sha256": "9b5ceb64f7ca758fe22863d2d9227d4edf7dc8fc445eb636032d3bd455071d09",
+      "patched": true,
+      "patch_source": "THIRD-PARTY-NOTICES.md"
     },
     "build.rs": {
       "path": "reference-tools/build.rs",
@@ -2901,8 +2913,12 @@
     },
     "docs/README.md": {
       "path": "reference-docs/docs/README.md.source",
-      "bytes": 13124,
-      "sha256": "e812332a2ea6af4d1ba4488c19cc0434aa77992855a7567d692bce15a8947faa"
+      "bytes": 13065,
+      "sha256": "4c8fcda300f4512150dda0de6ff96a7147b7ba1c9ca94652f8185f663a1cc320",
+      "original_bytes": 13124,
+      "original_sha256": "e812332a2ea6af4d1ba4488c19cc0434aa77992855a7567d692bce15a8947faa",
+      "patched": true,
+      "patch_source": "docs (layer level and documentation governance)"
     },
     "docs/research.md": {
       "path": "reference-docs/docs/research.md.source",
@@ -2941,8 +2957,12 @@
     },
     "material-1.1.0/ui/components/app_bar.slint": {
       "path": "material-1.1.0/ui/components/app_bar.slint",
-      "bytes": 9087,
-      "sha256": "a2cc874bddde95f6455e116e22c27d0fb3301785dd02df07bd08a2c7dc38938f"
+      "bytes": 9086,
+      "sha256": "ce7ba362c1c43d22596b66a44a589b20e092133663264a1ae9982641a72d45da",
+      "original_bytes": 9087,
+      "original_sha256": "a2cc874bddde95f6455e116e22c27d0fb3301785dd02df07bd08a2c7dc38938f",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/badge.slint": {
       "path": "material-1.1.0/ui/components/badge.slint",
@@ -2966,28 +2986,48 @@
     },
     "material-1.1.0/ui/components/bottom_sheet.slint": {
       "path": "material-1.1.0/ui/components/bottom_sheet.slint",
-      "bytes": 6252,
-      "sha256": "466cc07a00f6da377ab5f1d2fb2b73cef284ea74d7f50c4558f6fcbd9ea10e49"
+      "bytes": 6251,
+      "sha256": "48c3cc09b33e110c3aa1909518cecacdee343fb55d9452ddfa99add7940233b4",
+      "original_bytes": 6252,
+      "original_sha256": "466cc07a00f6da377ab5f1d2fb2b73cef284ea74d7f50c4558f6fcbd9ea10e49",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/card.slint": {
       "path": "material-1.1.0/ui/components/card.slint",
-      "bytes": 2827,
-      "sha256": "a03a4cb5e8c71dbcc264c9317d4bacdac03e69803460fab469428a6b8f133d08"
+      "bytes": 2826,
+      "sha256": "179fd91e2c63dcd9528cdf1b9d718f15a8b4e34514def0ecd64376ce0a630f08",
+      "original_bytes": 2827,
+      "original_sha256": "a03a4cb5e8c71dbcc264c9317d4bacdac03e69803460fab469428a6b8f133d08",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/check_box.slint": {
       "path": "material-1.1.0/ui/components/check_box.slint",
-      "bytes": 4855,
-      "sha256": "5484b96b616196c22881fa6c9faa2050c16ac06c80e679f62355ea93db4a3073"
+      "bytes": 4854,
+      "sha256": "b619acce2a17a0198f4b22ee45cc413e6504aec596ce4ee0a737e22598cd49cf",
+      "original_bytes": 4855,
+      "original_sha256": "5484b96b616196c22881fa6c9faa2050c16ac06c80e679f62355ea93db4a3073",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/chip.slint": {
       "path": "material-1.1.0/ui/components/chip.slint",
-      "bytes": 7493,
-      "sha256": "54c62b4b4f78e1ba5783e1417541389708064a2a16cd3bbe7efe7abd7debb504"
+      "bytes": 7491,
+      "sha256": "a717057d1b4349f2cfae97c66ca9ac005a6785eac6232483dc2d7d6afcb61ef2",
+      "original_bytes": 7493,
+      "original_sha256": "54c62b4b4f78e1ba5783e1417541389708064a2a16cd3bbe7efe7abd7debb504",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/date_picker.slint": {
       "path": "material-1.1.0/ui/components/date_picker.slint",
-      "bytes": 19240,
-      "sha256": "20489ae6940cb3901f16ac14f0cf265db7b409ed2ded0452f35e051e586285e4"
+      "bytes": 19185,
+      "sha256": "e58e7fa2facb7042697536a44dbbe7fc18389800b53e0d03f5a69d03e1725c62",
+      "original_bytes": 19240,
+      "original_sha256": "20489ae6940cb3901f16ac14f0cf265db7b409ed2ded0452f35e051e586285e4",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/dialog.slint": {
       "path": "material-1.1.0/ui/components/dialog.slint",
@@ -2996,8 +3036,12 @@
     },
     "material-1.1.0/ui/components/divider.slint": {
       "path": "material-1.1.0/ui/components/divider.slint",
-      "bytes": 602,
-      "sha256": "490fb199456bd433be2e322b62fd81a417441d69ad6d991c0336978a1c35b6cc"
+      "bytes": 601,
+      "sha256": "2ead0b0407741dcec01d013b4ab06eddba8e7271dead31dad65e4e24380589bc",
+      "original_bytes": 602,
+      "original_sha256": "490fb199456bd433be2e322b62fd81a417441d69ad6d991c0336978a1c35b6cc",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/drawer.slint": {
       "path": "material-1.1.0/ui/components/drawer.slint",
@@ -3016,13 +3060,21 @@
     },
     "material-1.1.0/ui/components/elevation.slint": {
       "path": "material-1.1.0/ui/components/elevation.slint",
-      "bytes": 5770,
-      "sha256": "edf336ad165148f220212bb1af823fb1d2bc7acfa1aafb1a47a6d9f7b1ac8afb"
+      "bytes": 5769,
+      "sha256": "4dc9c60d5b12a045447fb9eb18fb6967da7dd0a9fcd98581c25d8394dc2039f3",
+      "original_bytes": 5770,
+      "original_sha256": "edf336ad165148f220212bb1af823fb1d2bc7acfa1aafb1a47a6d9f7b1ac8afb",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/extended_touch_area.slint": {
       "path": "material-1.1.0/ui/components/extended_touch_area.slint",
-      "bytes": 1595,
-      "sha256": "52a12cf174b32411dc7860b226c8748ca3c7f2bd60beeca0ae5a79c005bebc2f"
+      "bytes": 1594,
+      "sha256": "26d17e29d6be72b3f995b889f05df50190f963a08bdead0652916dbf2daa445a",
+      "original_bytes": 1595,
+      "original_sha256": "52a12cf174b32411dc7860b226c8748ca3c7f2bd60beeca0ae5a79c005bebc2f",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/filled_button.slint": {
       "path": "material-1.1.0/ui/components/filled_button.slint",
@@ -3061,8 +3113,12 @@
     },
     "material-1.1.0/ui/components/list.slint": {
       "path": "material-1.1.0/ui/components/list.slint",
-      "bytes": 3462,
-      "sha256": "98de4c41c50324d2ff3b62a15feb10115e9c316d49861076531c3410ecbaf203"
+      "bytes": 3461,
+      "sha256": "d2f1b08d55ef18b48702d7a87f59b24900100a724b4d0375e905c8f2921b97cf",
+      "original_bytes": 3462,
+      "original_sha256": "98de4c41c50324d2ff3b62a15feb10115e9c316d49861076531c3410ecbaf203",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/list_view.slint": {
       "path": "material-1.1.0/ui/components/list_view.slint",
@@ -3081,8 +3137,12 @@
     },
     "material-1.1.0/ui/components/menu.slint": {
       "path": "material-1.1.0/ui/components/menu.slint",
-      "bytes": 9390,
-      "sha256": "9cbe1dcdbd1bc8fab455af1e9823ae2fab8eceb44e128b84c76636377fffa8ec"
+      "bytes": 9389,
+      "sha256": "9b1dca94266a972251e07fc4362bf5ba75d9314805c81907d93dab368b876f33",
+      "original_bytes": 9390,
+      "original_sha256": "9cbe1dcdbd1bc8fab455af1e9823ae2fab8eceb44e128b84c76636377fffa8ec",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/modal.slint": {
       "path": "material-1.1.0/ui/components/modal.slint",
@@ -3091,13 +3151,21 @@
     },
     "material-1.1.0/ui/components/navigation_bar.slint": {
       "path": "material-1.1.0/ui/components/navigation_bar.slint",
-      "bytes": 10321,
-      "sha256": "bb73b3584b09b1da5c7817beb77d5305fe921ebfa0c6139df19716917c971a1c"
+      "bytes": 10320,
+      "sha256": "6c3ab8a1eb9aab14ad06bcb0409b0f1d2fd3ce5c995b5eee436f9831ab1f93d1",
+      "original_bytes": 10321,
+      "original_sha256": "bb73b3584b09b1da5c7817beb77d5305fe921ebfa0c6139df19716917c971a1c",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/navigation_drawer.slint": {
       "path": "material-1.1.0/ui/components/navigation_drawer.slint",
-      "bytes": 8429,
-      "sha256": "30029cde51c32573289411ce7d7b312c1afa8a71392764316e79f4bf0c662a69"
+      "bytes": 8428,
+      "sha256": "44750e3fe9c86d3565719056e12f2f711631596aff4565d8cac3f1a64fc3565b",
+      "original_bytes": 8429,
+      "original_sha256": "30029cde51c32573289411ce7d7b312c1afa8a71392764316e79f4bf0c662a69",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/navigation_rail.slint": {
       "path": "material-1.1.0/ui/components/navigation_rail.slint",
@@ -3106,13 +3174,21 @@
     },
     "material-1.1.0/ui/components/outline_button.slint": {
       "path": "material-1.1.0/ui/components/outline_button.slint",
-      "bytes": 1416,
-      "sha256": "489052fc59c52a5a3ab2a2409f7b3179c726033b2fbae7a525cc40939a52053b"
+      "bytes": 1415,
+      "sha256": "6f319d914ff620d5ded591f7d651c69f3e192ad908ed88fff491cc6e5c949a7d",
+      "original_bytes": 1416,
+      "original_sha256": "489052fc59c52a5a3ab2a2409f7b3179c726033b2fbae7a525cc40939a52053b",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/outline_icon_button.slint": {
       "path": "material-1.1.0/ui/components/outline_icon_button.slint",
-      "bytes": 2829,
-      "sha256": "542af0d6885c0f48e7fadab61a54d8ba54776ff2258a106b79a648eaa64470d2"
+      "bytes": 2828,
+      "sha256": "6d63c823382a9749a1dd30422572a9179b1443d5bc198ec6e9119845e69ac457",
+      "original_bytes": 2829,
+      "original_sha256": "542af0d6885c0f48e7fadab61a54d8ba54776ff2258a106b79a648eaa64470d2",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/progress_indicator.slint": {
       "path": "material-1.1.0/ui/components/progress_indicator.slint",
@@ -3126,23 +3202,39 @@
     },
     "material-1.1.0/ui/components/scroll_view.slint": {
       "path": "material-1.1.0/ui/components/scroll_view.slint",
-      "bytes": 7079,
-      "sha256": "a39d47c11db37776979e1be324e360b0443aa72106c4f38bbdf7c93443dddeec"
+      "bytes": 7078,
+      "sha256": "80ddd6159570898929ba93c8c6347ac454d4a787e2fa972dbed34701347a7879",
+      "original_bytes": 7079,
+      "original_sha256": "a39d47c11db37776979e1be324e360b0443aa72106c4f38bbdf7c93443dddeec",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/search_bar.slint": {
       "path": "material-1.1.0/ui/components/search_bar.slint",
-      "bytes": 11041,
-      "sha256": "05e93acab60f4b088d589aef8b7aadec2b7950450ea344cab06a342f8a80a95c"
+      "bytes": 11040,
+      "sha256": "ce84dee0618265d19325637804a5eea64057d6663d7c081c8b88f56a592ebee3",
+      "original_bytes": 11041,
+      "original_sha256": "05e93acab60f4b088d589aef8b7aadec2b7950450ea344cab06a342f8a80a95c",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/segmented_button.slint": {
       "path": "material-1.1.0/ui/components/segmented_button.slint",
-      "bytes": 3007,
-      "sha256": "5f0578d2161677bd5a4d013b1e876fd485719af49e7561f33f997ede22b21059"
+      "bytes": 3006,
+      "sha256": "a62e346f120b17424b280f6c3b687dd541c6d1bc20ddfaf0394fa8e2365f2594",
+      "original_bytes": 3007,
+      "original_sha256": "5f0578d2161677bd5a4d013b1e876fd485719af49e7561f33f997ede22b21059",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/slider.slint": {
       "path": "material-1.1.0/ui/components/slider.slint",
-      "bytes": 5917,
-      "sha256": "6a4081a289bbbc249ba958b5d2687b2701bb3240a7e45532a0a7c4788c505fc5"
+      "bytes": 5916,
+      "sha256": "60f3d66a1bb80f52ca4ea36a3cc5c1f32df2bca84913f93140bd693851fd9c9d",
+      "original_bytes": 5917,
+      "original_sha256": "6a4081a289bbbc249ba958b5d2687b2701bb3240a7e45532a0a7c4788c505fc5",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/snack_bar.slint": {
       "path": "material-1.1.0/ui/components/snack_bar.slint",
@@ -3151,13 +3243,21 @@
     },
     "material-1.1.0/ui/components/state_layer.slint": {
       "path": "material-1.1.0/ui/components/state_layer.slint",
-      "bytes": 5293,
-      "sha256": "ede70dd0e8826bd914b530b346589dec89dc394f73e2d8c654c3615e25ad193a"
+      "bytes": 5292,
+      "sha256": "90a5540bd570c926bea959ff0bc17c3c6108be10b1335e64e32db17c16199331",
+      "original_bytes": 5293,
+      "original_sha256": "ede70dd0e8826bd914b530b346589dec89dc394f73e2d8c654c3615e25ad193a",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/switch.slint": {
       "path": "material-1.1.0/ui/components/switch.slint",
-      "bytes": 6437,
-      "sha256": "ffff99c6084a1eb9f8cacd14063c10583a994ebb01f4eb738525e63ddd0a63bb"
+      "bytes": 6436,
+      "sha256": "e2da1609c7ffc97ff11e7441a2eaa473f49e32db38e4dca135494dc074824257",
+      "original_bytes": 6437,
+      "original_sha256": "ffff99c6084a1eb9f8cacd14063c10583a994ebb01f4eb738525e63ddd0a63bb",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/tab_bar.slint": {
       "path": "material-1.1.0/ui/components/tab_bar.slint",
@@ -3171,13 +3271,21 @@
     },
     "material-1.1.0/ui/components/text_field.slint": {
       "path": "material-1.1.0/ui/components/text_field.slint",
-      "bytes": 8793,
-      "sha256": "df2f56a4dc7c8430b66c55b41f48c129d76496ff80c6fb3ec5ad5e8956f24679"
+      "bytes": 8792,
+      "sha256": "da2dba74e046c859c4df3d4092259dddc567e179a63cc6e5ec40e8113bebd88d",
+      "original_bytes": 8793,
+      "original_sha256": "df2f56a4dc7c8430b66c55b41f48c129d76496ff80c6fb3ec5ad5e8956f24679",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/time_picker.slint": {
       "path": "material-1.1.0/ui/components/time_picker.slint",
-      "bytes": 22021,
-      "sha256": "16cec9a3bb7e47895d5ba916cf6ea63d1269b43269d51af09964de816a9e8b3e"
+      "bytes": 22020,
+      "sha256": "f70e10fc605f417f8ee673ffcbea5aff3f0a8a649cd7651fa3da35bf1b418ce5",
+      "original_bytes": 22021,
+      "original_sha256": "16cec9a3bb7e47895d5ba916cf6ea63d1269b43269d51af09964de816a9e8b3e",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/tonal_button.slint": {
       "path": "material-1.1.0/ui/components/tonal_button.slint",
@@ -3191,8 +3299,12 @@
     },
     "material-1.1.0/ui/components/tooltip.slint": {
       "path": "material-1.1.0/ui/components/tooltip.slint",
-      "bytes": 1139,
-      "sha256": "925616aac456e04b3f5af43b074fcd44bfd67edb609daf7ac1c20041f2c1b45b"
+      "bytes": 1138,
+      "sha256": "e4fcf7f7fb6d4730bb61061acd3d8e2d16961af3ee520c73f5e45bd721bc5c19",
+      "original_bytes": 1139,
+      "original_sha256": "925616aac456e04b3f5af43b074fcd44bfd67edb609daf7ac1c20041f2c1b45b",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/components/vertical.slint": {
       "path": "material-1.1.0/ui/components/vertical.slint",
@@ -3311,8 +3423,12 @@
     },
     "material-1.1.0/ui/styling/material_typography.slint": {
       "path": "material-1.1.0/ui/styling/material_typography.slint",
-      "bytes": 2513,
-      "sha256": "e48014baaf47e14df2e2e35af7f40d8c7a0c96392bfef9cb7c07fab817bd85a2"
+      "bytes": 2512,
+      "sha256": "103a89d2a0ac9086b96929518fca151885bbe7ed1fb00977bcaaec14f42895b0",
+      "original_bytes": 2513,
+      "original_sha256": "e48014baaf47e14df2e2e35af7f40d8c7a0c96392bfef9cb7c07fab817bd85a2",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "README.md": {
       "path": "reference-docs/README.md.source",
@@ -3326,8 +3442,12 @@
     },
     "src/flag_assets.rs": {
       "path": "reference-rust/src/flag_assets.rs.source",
-      "bytes": 7219,
-      "sha256": "32ccf3abcd8f56918f0477952acf86a496907f82e2e50c3520dbd13023722778"
+      "bytes": 6957,
+      "sha256": "feba638e44ac8116bde189c6137cf85dca6e24dfe233b07b312e1201dba251ef",
+      "original_bytes": 7219,
+      "original_sha256": "32ccf3abcd8f56918f0477952acf86a496907f82e2e50c3520dbd13023722778",
+      "patched": true,
+      "patch_source": "flags (twemoji assets and rendering)"
     },
     "src/licenses.rs": {
       "path": "reference-rust/src/licenses.rs.source",
@@ -3357,7 +3477,11 @@
     "tools/flag-renderer/src/main.rs": {
       "path": "tools/flag-renderer/src/main.rs",
       "bytes": 3892,
-      "sha256": "d585b3bd2f30837c173a2dd3e0e29bd344543afef3f820079fad2eb4372e192e"
+      "sha256": "977a7a9b5cec100cebb6540ccfe9bb543e90896f42a54c1f5733f479a718285b",
+      "original_bytes": 3892,
+      "original_sha256": "d585b3bd2f30837c173a2dd3e0e29bd344543afef3f820079fad2eb4372e192e",
+      "patched": true,
+      "patch_source": "tools/flag-renderer (import hygiene)"
     },
     "tools/generate_licenses.ps1": {
       "path": "reference-tools/tools/generate_licenses.ps1",
@@ -3381,8 +3505,12 @@
     },
     "tools/ui-preview/src/main.rs": {
       "path": "tools/ui-preview/src/main.rs",
-      "bytes": 14238,
-      "sha256": "cdf586180d9f629240adc8e931fa690c6d1de7ff4a1c8d71929ead63cff1a2d7"
+      "bytes": 14194,
+      "sha256": "bc2422fa0f3ef27b0a1e4f030ba9aed21a0f66397608918b724db7a42df4fd3d",
+      "original_bytes": 14238,
+      "original_sha256": "cdf586180d9f629240adc8e931fa690c6d1de7ff4a1c8d71929ead63cff1a2d7",
+      "patched": true,
+      "patch_source": "tools/ui-preview (import hygiene and harness)"
     },
     "tools/ui-preview.ps1": {
       "path": "reference-tools/tools/ui-preview.ps1",
@@ -3391,13 +3519,21 @@
     },
     "translations/en/LC_MESSAGES/lumen.po": {
       "path": "translations/en/LC_MESSAGES/lumen.po",
-      "bytes": 31568,
-      "sha256": "5ad807858d5d4b0c519d5f7f7ba0c5d6ea909aec05291223a77c8dd350e53754"
+      "bytes": 30352,
+      "sha256": "1582324572a42b63d7c449600494ad2ff8ebe08fd22e85ce6786c3e5e3a0e37c",
+      "original_bytes": 31568,
+      "original_sha256": "5ad807858d5d4b0c519d5f7f7ba0c5d6ea909aec05291223a77c8dd350e53754",
+      "patched": true,
+      "patch_source": "translations (localization catalog)"
     },
     "translations/zh-CN/LC_MESSAGES/lumen.po": {
       "path": "translations/zh-CN/LC_MESSAGES/lumen.po",
-      "bytes": 30703,
-      "sha256": "237359c26d5bbc84255fda6e9488926ab523dbc910c8a4fc750d12ef35bdb021"
+      "bytes": 29487,
+      "sha256": "daebec6cf6aaeae5bcce23897bb06563126286993fc3ec68c4533c232b2c559b",
+      "original_bytes": 30703,
+      "original_sha256": "237359c26d5bbc84255fda6e9488926ab523dbc910c8a4fc750d12ef35bdb021",
+      "patched": true,
+      "patch_source": "translations (localization catalog)"
     },
     "ui/app.slint": {
       "path": "ui/app.slint",
@@ -3406,8 +3542,12 @@
     },
     "ui/flag-icons.slint": {
       "path": "ui/flag-icons.slint",
-      "bytes": 16037,
-      "sha256": "538c863dcdede9c72017a366e8414838168908bbb2b1839e666fbe60c962df26"
+      "bytes": 15775,
+      "sha256": "1102beac13eff660a8783248fe8a714d4f6dc879056b08193eae284d89fcc39f",
+      "original_bytes": 16037,
+      "original_sha256": "538c863dcdede9c72017a366e8414838168908bbb2b1839e666fbe60c962df26",
+      "patched": true,
+      "patch_source": "flags (twemoji assets and rendering)"
     },
     "ui/ui-scale.slint": {
       "path": "ui/ui-scale.slint",

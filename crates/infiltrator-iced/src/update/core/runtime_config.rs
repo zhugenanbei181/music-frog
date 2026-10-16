@@ -1,8 +1,11 @@
 //! Live runtime configuration: query non-routing controller settings and
 //! patch TUN/sniffer toggles through the runtime gateway.
 
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::ErrorCode;
 use crate::port_conflict_application::application;
 use crate::state::AppState;
+use crate::state::editor::TunSavePhase;
 use crate::state::runtime::TunServiceInstallState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
@@ -29,10 +32,10 @@ use tokio::task::spawn_blocking;
 impl AppState {
     fn runtime_configuration_scope(
         &self,
-    ) -> Result<infiltrator_contract::core_identity::CoreScope, Failure> {
+    ) -> Result<CoreScope, Failure> {
         self.runtime.core_lifecycle.scope().ok_or_else(|| {
             Failure::new(
-                infiltrator_contract::error::ErrorCode::NotReady,
+                ErrorCode::NotReady,
                 "live configuration requires an observed Core scope",
                 false,
             )
@@ -162,7 +165,7 @@ impl AppState {
             ));
         };
         self.shell.error_msg = None;
-        self.editor.is_saving_tun = false;
+        self.editor.tun_save_phase = TunSavePhase::Idle;
         let binary = runtime.core_binary_path();
         self.runtime.tun_service_status = Some(status);
         self.runtime.service_mode = legacy_service_snapshot(status);

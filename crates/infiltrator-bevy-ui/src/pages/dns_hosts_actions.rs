@@ -39,10 +39,7 @@ pub fn activate(
     if !state.editor.is_open() {
         return;
     }
-    if matches!(
-        action,
-        HostAction::CommitRow | HostAction::Apply | HostAction::ImportLegacy | HostAction::Edit(_)
-    ) {
+    if matches!(action, HostAction::CommitRow) {
         for (children, address) in &inputs.wrappers {
             if let Some(value) = children.iter().find_map(|entity| {
                 inputs

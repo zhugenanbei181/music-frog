@@ -1,6 +1,7 @@
 //! Mihomo GeoIP/GeoSite trigger adapter.
 
 use crate::client::MihomoClient;
+use crate::error::MihomoError;
 use crate::network_error::network_error;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
@@ -13,12 +14,12 @@ use std::sync::Arc;
 
 #[async_trait]
 pub(crate) trait MihomoGeoDatabaseApi: Send + Sync {
-    async fn trigger_geo_database_update(&self) -> crate::error::Result<()>;
+    async fn trigger_geo_database_update(&self) -> Result<(), MihomoError>;
 }
 
 #[async_trait]
 impl MihomoGeoDatabaseApi for MihomoClient {
-    async fn trigger_geo_database_update(&self) -> crate::error::Result<()> {
+    async fn trigger_geo_database_update(&self) -> Result<(), MihomoError> {
         MihomoClient::upgrade_geo(self).await
     }
 }
@@ -81,7 +82,7 @@ fn rejected(code: ErrorCode, message: impl Into<String>) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::{MihomoGeoDatabaseAdapter, MihomoGeoDatabaseApi};
-    use crate::error::Result;
+    use crate::error::MihomoError;
     use async_trait::async_trait;
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -95,7 +96,7 @@ mod tests {
     struct FakeApi(AtomicUsize);
     #[async_trait]
     impl MihomoGeoDatabaseApi for FakeApi {
-        async fn trigger_geo_database_update(&self) -> Result<()> {
+        async fn trigger_geo_database_update(&self) -> Result<(), MihomoError> {
             self.0.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }

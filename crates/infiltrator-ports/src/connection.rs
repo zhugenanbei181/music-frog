@@ -11,6 +11,8 @@ use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_domain::runtime::ConnectionSnapshot;
 use std::collections::HashSet;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 
 /// One immutable controller observation bound to its Core owner and identity
 /// set revision. Counters may advance without invalidating a close request;
@@ -74,8 +76,8 @@ pub enum ConnectionControlError {
     DuplicateConnectionId,
 }
 
-impl std::fmt::Display for ConnectionControlError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ConnectionControlError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::ForeignEngine => formatter.write_str("connection ID belongs to another engine"),
             Self::DuplicateConnectionId => {
@@ -85,7 +87,7 @@ impl std::fmt::Display for ConnectionControlError {
     }
 }
 
-impl std::error::Error for ConnectionControlError {}
+impl Error for ConnectionControlError {}
 
 /// A close request cannot be constructed without an owner scope and the
 /// revision from which its connection identities were observed.

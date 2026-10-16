@@ -6,9 +6,11 @@ mod tests {
     #[cfg(test)]
     use crate::endpoint::ProfileEndpointSource;
     use crate::manager::ConfigManager;
+    use crate::manager::paths::engine_config_dir;
     use crate::profile::Profile;
     use infiltrator_contract::active_profile_reference::{
         ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+        ActiveProfileReferenceWriteAuthorization,
     };
     use infiltrator_contract::profile_document_identity::ProfileId;
     use infiltrator_ports::endpoint::EndpointSource;
@@ -16,42 +18,46 @@ mod tests {
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::profile_store::ProfileStore;
     use infiltrator_ports::secure_store::SecureStore;
+    use std::collections::HashMap;
     use std::path::PathBuf;
     #[cfg(test)]
     use std::result;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
     use tokio::fs;
 
-    struct TestStore;
+    #[derive(Default)]
+    struct TestStore(Mutex<HashMap<(String, String), String>>);
 
     #[async_trait::async_trait]
     impl SecureStore for TestStore {
         async fn get(
             &self,
-            _namespace: &str,
-            _key: &str,
+            namespace: &str,
+            key: &str,
         ) -> result::Result<Option<String>, PortError> {
-            Ok(None)
+            Ok(self.0.lock().unwrap().get(&(namespace.to_owned(), key.to_owned())).cloned())
         }
 
         async fn set(
             &self,
-            _namespace: &str,
-            _key: &str,
-            _value: &str,
+            namespace: &str,
+            key: &str,
+            value: &str,
         ) -> result::Result<(), PortError> {
+            self.0.lock().unwrap().insert((namespace.to_owned(), key.to_owned()), value.to_owned());
             Ok(())
         }
 
-        async fn delete(&self, _namespace: &str, _key: &str) -> result::Result<(), PortError> {
+        async fn delete(&self, namespace: &str, key: &str) -> result::Result<(), PortError> {
+            self.0.lock().unwrap().remove(&(namespace.to_owned(), key.to_owned()));
             Ok(())
         }
     }
 
     async fn setup_test_manager(temp_dir: &TempDir) -> ConfigManager<TestStore> {
         let home = temp_dir.path().to_path_buf();
-        ConfigManager::with_home_and_store(home, TestStore).unwrap()
+        ConfigManager::with_home_and_store(home, TestStore::default()).unwrap()
     }
 
     async fn select_profile<S: SecureStore>(
@@ -68,7 +74,7 @@ mod tests {
             manager.engine_profile_store(),
             expected,
             target,
-            infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+            ActiveProfileReferenceWriteAuthorization::Unowned,
         ).await
     }
 
@@ -79,7 +85,7 @@ mod tests {
 
         assert_eq!(
             manager.config_dir(),
-            crate::manager::paths::engine_config_dir(
+            engine_config_dir(
                 &temp_dir.path().join("configs"),
                 &crate::engine_id(),
             )

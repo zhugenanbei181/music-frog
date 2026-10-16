@@ -45,3 +45,6 @@ pub mod tun_service;
 pub mod updater;
 pub mod uwp_loopback;
 pub mod uwp_loopback_port;
+
+#[cfg(test)]
+mod desktop_pages_matrix_tests;

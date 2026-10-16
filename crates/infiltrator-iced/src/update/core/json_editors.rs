@@ -1,6 +1,9 @@
 //! JSON sub-editors for Rules: Rule Providers, Proxy Providers and Sniffer JSON tabs.
 
 use crate::state::AppState;
+use crate::state::editor::{
+    ProxyProvidersJsonSavePhase, RuleProvidersJsonSavePhase, SnifferJsonSavePhase,
+};
 use crate::types::app::ToastStatus;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
@@ -82,7 +85,7 @@ impl AppState {
             Message::SaveRuleProvidersJson => {
                 self.ensure_rule_providers_editor_loaded();
                 let text = self.editor.rule_providers_json_content.text();
-                self.editor.is_saving_rule_providers_json = true;
+                self.editor.rule_providers_json_save_phase = RuleProvidersJsonSavePhase::Saving;
                 self.begin_configuration_save("Rule Providers");
                 self.save_rules_configuration(
                     RulesJsonSection::RuleProviders,
@@ -91,7 +94,7 @@ impl AppState {
                 )
             }
             Message::RuleProvidersJsonSaved(result) => {
-                self.editor.is_saving_rule_providers_json = false;
+                self.editor.rule_providers_json_save_phase = RuleProvidersJsonSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.rule_providers_json_dirty = false;
@@ -127,7 +130,7 @@ impl AppState {
             Message::SaveProxyProvidersJson => {
                 self.ensure_proxy_providers_editor_loaded();
                 let text = self.editor.proxy_providers_json_content.text();
-                self.editor.is_saving_proxy_providers_json = true;
+                self.editor.proxy_providers_json_save_phase = ProxyProvidersJsonSavePhase::Saving;
                 self.begin_configuration_save("Proxy Providers");
                 self.save_rules_configuration(
                     RulesJsonSection::ProxyProviders,
@@ -136,7 +139,7 @@ impl AppState {
                 )
             }
             Message::ProxyProvidersJsonSaved(result) => {
-                self.editor.is_saving_proxy_providers_json = false;
+                self.editor.proxy_providers_json_save_phase = ProxyProvidersJsonSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.proxy_providers_json_dirty = false;
@@ -172,7 +175,7 @@ impl AppState {
             Message::SaveSnifferJson => {
                 self.ensure_sniffer_editor_loaded();
                 let text = self.editor.sniffer_json_content.text();
-                self.editor.is_saving_sniffer_json = true;
+                self.editor.sniffer_json_save_phase = SnifferJsonSavePhase::Saving;
                 self.begin_configuration_save("Sniffer");
                 self.save_rules_configuration(
                     RulesJsonSection::Sniffer,
@@ -181,7 +184,7 @@ impl AppState {
                 )
             }
             Message::SnifferJsonSaved(result) => {
-                self.editor.is_saving_sniffer_json = false;
+                self.editor.sniffer_json_save_phase = SnifferJsonSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.sniffer_json_dirty = false;

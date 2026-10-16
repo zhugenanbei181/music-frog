@@ -52,22 +52,28 @@ class MihomoControlService : Service() {
 
     private lateinit var commandThread: HandlerThread
     private lateinit var endpoint: Messenger
-    private lateinit var commandHandler: Handler
-    private lateinit var ownerSessionId: String
+    internal lateinit var commandHandler: Handler
+    internal lateinit var ownerSessionId: String
     @Volatile
     private var ownerServicePhase: OwnerServicePhase = OwnerServicePhase.Initializing
     private var ownerSessionStartJob: Job? = null
-    private lateinit var vpnStartExecutor: ThreadPoolExecutor
-    private val vpnStartAdmission = VpnOwnerStartRequestAdmission()
-    private val vpnStartTasks = ConcurrentHashMap<VpnOwnerRequestKey, FutureTask<Unit>>()
-    private val vpnStartTerminalCache = VpnOwnerStartTerminalCache<OwnerResponse>()
-    private val vpnStartRepliesLock = Any()
-    private val vpnStartReplies = mutableMapOf<VpnOwnerRequestKey, MutableList<Message>>()
-    private val ownerRequestAdmission = OwnerIpcRequestAdmission<OwnerResponse>()
+    internal lateinit var vpnStartExecutor: ThreadPoolExecutor
+    internal val vpnStartAdmission = VpnOwnerStartRequestAdmission()
+    internal val vpnStartTasks = ConcurrentHashMap<VpnOwnerRequestKey, FutureTask<Unit>>()
+    internal val vpnStartTerminalCache = VpnOwnerStartTerminalCache<ControlServiceResponse>()
+    internal val vpnStartRepliesLock = Any()
+    internal val vpnStartReplies = mutableMapOf<VpnOwnerRequestKey, MutableList<Message>>()
+    private val ownerRequestAdmission = OwnerIpcRequestAdmission<ControlServiceResponse>()
     private val ownerRequestLock = Any()
     private val ownerRequestReplies = mutableMapOf<OwnerIpcRequestKey, MutableList<Message>>()
     private val ownerRequestJobs = mutableMapOf<OwnerIpcRequestKey, Job>()
-    private val ownerRequestSensitivePayloads = OwnerIpcSensitivePayloadStore()
+    internal val ownerRequestSensitivePayloads = OwnerIpcSensitivePayloadStore()
+
+    internal suspend fun canonicalSurfaceSnapshotRouteCheck(): Any =
+        when (AndroidHostRequest.READ_SURFACE_SNAPSHOT) {
+            AndroidHostRequest.READ_SURFACE_SNAPSHOT -> androidSurfaceSnapshotJson()
+            else -> Unit
+        }
 
     override fun onCreate() {
         super.onCreate()
@@ -157,7 +163,7 @@ class MihomoControlService : Service() {
                             requestMessage,
                             key.requestId,
                             key.clientSessionId,
-                            OwnerResponse(
+                            ControlServiceResponse(
                                 AndroidHostReply.SERVICE_UNAVAILABLE,
                                 FfiErrorCode.NOT_READY,
                                 "Android owner service is shutting down",
@@ -209,7 +215,7 @@ class MihomoControlService : Service() {
                 message,
                 Long.MIN_VALUE,
                 null,
-                OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT, "request bundle unavailable"),
+                ControlServiceResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT, "request bundle unavailable"),
             )
             return true
         }
@@ -223,7 +229,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.SERVICE_UNAVAILABLE,
                     FfiErrorCode.NOT_READY,
                     "Android Core owner session is not accepting requests",
@@ -238,17 +244,17 @@ class MihomoControlService : Service() {
         val result = when {
             protocolVersion != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L -> {
                 wipeSensitiveRequest(message, arguments)
-                OwnerResponse(AndroidHostReply.SERVICE_UNAVAILABLE, FfiErrorCode.NOT_READY)
+                ControlServiceResponse(AndroidHostReply.SERVICE_UNAVAILABLE, FfiErrorCode.NOT_READY)
             }
             request == null -> {
                 wipeSensitiveRequest(message, arguments)
-                OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
+                ControlServiceResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
             }
             request == AndroidHostRequest.START_VPN_SERVICE -> {
                 val deadline = runCatching { readRequestDeadline(arguments) }.getOrNull()
                 if (deadline == null) {
                     wipeSensitiveRequest(message, arguments)
-                    OwnerResponse(
+                    ControlServiceResponse(
                         AndroidHostReply.VPN_START_TIMED_OUT,
                         FfiErrorCode.NOT_READY,
                         "VPN start request omitted its absolute deadline",
@@ -290,14 +296,14 @@ class MihomoControlService : Service() {
             }
             VpnOwnerStartReplayLookup.Miss -> Unit
         }
-        fun sendTerminal(response: OwnerResponse) {
+        fun sendTerminal(response: ControlServiceResponse) {
             vpnStartTerminalCache.store(key, response, SystemClock.elapsedRealtime())
             sendResponse(message, requestId, clientSessionId, response)
         }
         val admission = vpnStartAdmission.admit(key, deadline, now)
         when (admission) {
             VpnOwnerStartAdmission.Expired -> sendTerminal(
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.VPN_START_TIMED_OUT,
                     FfiErrorCode.NOT_READY,
                     "VPN start request expired before owner admission",
@@ -310,7 +316,7 @@ class MihomoControlService : Service() {
                     message,
                     requestId,
                     clientSessionId,
-                    OwnerResponse(
+                    ControlServiceResponse(
                         AndroidHostReply.SERVICE_UNAVAILABLE,
                         FfiErrorCode.NOT_READY,
                         "duplicate VPN start waiter limit reached",
@@ -322,7 +328,7 @@ class MihomoControlService : Service() {
                     is VpnOwnerStartReplayLookup.Hit ->
                         sendResponse(message, requestId, clientSessionId, replay.response)
                     VpnOwnerStartReplayLookup.Miss -> sendTerminal(
-                        OwnerResponse(
+                        ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.INVALID_STATE,
                             "VPN start request no longer has an active terminal result",
@@ -331,7 +337,7 @@ class MihomoControlService : Service() {
                 }
             }
             VpnOwnerStartAdmission.QueueFull -> sendTerminal(
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.SERVICE_UNAVAILABLE,
                     FfiErrorCode.NOT_READY,
                     "VPN start owner queue is full",
@@ -350,7 +356,7 @@ class MihomoControlService : Service() {
                     vpnStartExecutor.execute(task)
                 } catch (_: RejectedExecutionException) {
                     vpnStartTasks.remove(key)
-                    val rejected = OwnerResponse(
+                    val rejected = ControlServiceResponse(
                             AndroidHostReply.SERVICE_UNAVAILABLE,
                             FfiErrorCode.NOT_READY,
                             "VPN start owner queue rejected the request",
@@ -380,7 +386,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.SERVICE_UNAVAILABLE,
                     FfiErrorCode.NOT_READY,
                     "owner request omitted its absolute deadline",
@@ -395,7 +401,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.FAILED,
                     FfiErrorCode.INVALID_INPUT,
                     "owner request payload is malformed",
@@ -427,23 +433,23 @@ class MihomoControlService : Service() {
                             arguments,
                             expectedOwnerSession,
                         )
-                        OwnerIpcExecutionStart.Canceled -> OwnerResponse(
+                        OwnerIpcExecutionStart.Canceled -> ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.NOT_READY,
                             "owner request was canceled before execution",
                         )
-                        OwnerIpcExecutionStart.Expired -> OwnerResponse(
+                        OwnerIpcExecutionStart.Expired -> ControlServiceResponse(
                             AndroidHostReply.SERVICE_UNAVAILABLE,
                             FfiErrorCode.NOT_READY,
                             "owner request expired before execution",
                         )
-                        OwnerIpcExecutionStart.InFlight -> OwnerResponse(
+                        OwnerIpcExecutionStart.InFlight -> ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.INVALID_STATE,
                             "owner request is already executing",
                         )
                         is OwnerIpcExecutionStart.TerminalReadback -> execution.response
-                        OwnerIpcExecutionStart.Unknown -> OwnerResponse(
+                        OwnerIpcExecutionStart.Unknown -> ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.INVALID_STATE,
                             "owner request admission is no longer active",
@@ -479,7 +485,7 @@ class MihomoControlService : Service() {
                     message,
                     requestId,
                     clientSessionId,
-                    OwnerResponse(
+                    ControlServiceResponse(
                         AndroidHostReply.SERVICE_UNAVAILABLE,
                         FfiErrorCode.NOT_READY,
                         "duplicate owner IPC waiter limit reached",
@@ -489,7 +495,7 @@ class MihomoControlService : Service() {
                     message,
                     requestId,
                     clientSessionId,
-                    OwnerResponse(
+                    ControlServiceResponse(
                         AndroidHostReply.FAILED,
                         FfiErrorCode.INVALID_STATE,
                         "owner request no longer has an active terminal waiter",
@@ -500,7 +506,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.FAILED,
                     FfiErrorCode.NOT_READY,
                     "owner request was canceled before execution",
@@ -516,7 +522,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.SERVICE_UNAVAILABLE,
                     FfiErrorCode.NOT_READY,
                     "owner IPC request queue is full",
@@ -526,7 +532,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.SERVICE_UNAVAILABLE,
                     FfiErrorCode.NOT_READY,
                     "owner request expired before admission",
@@ -536,7 +542,7 @@ class MihomoControlService : Service() {
                 message,
                 requestId,
                 clientSessionId,
-                OwnerResponse(
+                ControlServiceResponse(
                     AndroidHostReply.FAILED,
                     FfiErrorCode.INVALID_STATE,
                     "owner request ID was reused with different input",
@@ -545,7 +551,7 @@ class MihomoControlService : Service() {
         }
     }
 
-    private fun publishOwnerRequest(key: OwnerIpcRequestKey, response: OwnerResponse) {
+    private fun publishOwnerRequest(key: OwnerIpcRequestKey, response: ControlServiceResponse) {
         val waiters = synchronized(ownerRequestLock) {
             ownerRequestJobs.remove(key)
             ownerRequestReplies.remove(key).orEmpty().toList()
@@ -613,7 +619,7 @@ class MihomoControlService : Service() {
         wipeSensitiveRequest(message, arguments)
     }
 
-    private fun wipeOwnerRequestSensitivePayload(key: OwnerIpcRequestKey) {
+    internal fun wipeOwnerRequestSensitivePayload(key: OwnerIpcRequestKey) {
         when (ownerRequestSensitivePayloads.removeAndWipe(key)) {
             OwnerIpcSensitivePayloadRemoval.Wiped,
             OwnerIpcSensitivePayloadRemoval.Missing -> Unit
@@ -645,7 +651,7 @@ class MihomoControlService : Service() {
                         requestMessage,
                         key.requestId,
                         key.clientSessionId,
-                        OwnerResponse(
+                        ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.NOT_READY,
                             "owner request was canceled before execution",
@@ -660,159 +666,11 @@ class MihomoControlService : Service() {
         }
     }
 
-    private fun executeVpnStart(
-        key: VpnOwnerRequestKey,
-        deadline: VpnOwnerRequestDeadline,
-    ) {
-        val response = when (val execution = vpnStartAdmission.begin(key, SystemClock.elapsedRealtime())) {
-            is VpnOwnerStartExecution.Started -> startVpnService(key, execution.deadline)
-            VpnOwnerStartExecution.Canceled -> OwnerResponse(
-                AndroidHostReply.VPN_START_TIMED_OUT,
-                FfiErrorCode.NOT_READY,
-                "VPN start request was canceled before execution",
-                OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.TimedOut),
-            )
-            VpnOwnerStartExecution.Expired -> OwnerResponse(
-                AndroidHostReply.VPN_START_TIMED_OUT,
-                FfiErrorCode.NOT_READY,
-                "VPN start request expired in the owner queue",
-                OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.TimedOut),
-            )
-            VpnOwnerStartExecution.Unknown -> OwnerResponse(
-                AndroidHostReply.FAILED,
-                FfiErrorCode.INVALID_STATE,
-                "VPN start request is no longer admitted",
-                OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.Failed),
-            )
-        }
-        vpnStartTerminalCache.store(key, response, SystemClock.elapsedRealtime())
-        val completion = vpnStartAdmission.complete(key)
-        vpnStartTasks.remove(key)
-        scheduleStartExpiry(key, deadline)
-        when (completion) {
-            VpnOwnerStartCompletion.Publish,
-            VpnOwnerStartCompletion.SuppressLateReceipt -> publishVpnStartReplies(key, response)
-            VpnOwnerStartCompletion.Unknown -> Log.i(
-                TAG,
-                "suppressed terminal VPN start receipt for canceled request=${key.requestId}",
-            )
-        }
-    }
-
-    private fun attachVpnStartReply(
-        key: VpnOwnerRequestKey,
-        message: Message,
-    ): VpnStartReplyAdmission = synchronized(vpnStartRepliesLock) {
-        val replies = vpnStartReplies[key] ?: return@synchronized VpnStartReplyAdmission.NoActiveRequest
-        if (replies.size >= MAX_VPN_START_REQUEST_WAITERS) {
-            VpnStartReplyAdmission.CapacityExceeded
-        } else {
-            replies += message
-            VpnStartReplyAdmission.Attached
-        }
-    }
-
-    private fun publishVpnStartReplies(key: VpnOwnerRequestKey, response: OwnerResponse) {
-        val replies = synchronized(vpnStartRepliesLock) {
-            vpnStartReplies.remove(key).orEmpty().toList()
-        }
-        replies.forEach { requestMessage ->
-            sendResponse(requestMessage, key.requestId, key.clientSessionId, response)
-        }
-    }
-
-    private fun clearVpnStartReplies(key: VpnOwnerRequestKey) {
-        synchronized(vpnStartRepliesLock) { vpnStartReplies.remove(key) }
-    }
-
-    private fun cacheCanceledVpnStart(key: VpnOwnerRequestKey) {
-        vpnStartTerminalCache.store(
-            key,
-            OwnerResponse(
-                reply = AndroidHostReply.VPN_START_TIMED_OUT,
-                statusCode = FfiErrorCode.NOT_READY,
-                statusMessage = "VPN start request was canceled before service dispatch",
-                payload = OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.TimedOut),
-            ),
-            SystemClock.elapsedRealtime(),
-        )
-    }
-
-    private fun cancelStartRequest(message: Message) {
-        val arguments = runCatching { message.data }.getOrNull() ?: return
-        arguments.classLoader = AndroidHostProtocolVersion::class.java.classLoader
-        val protocol = readProtocolVersion(arguments)
-        val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
-        val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
-        if (protocol != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
-            Log.w(TAG, "ignored malformed VPN start cancellation")
-            return
-        }
-        val key = VpnOwnerRequestKey(clientSessionId, requestId)
-        when (val cancellation = vpnStartAdmission.cancel(key)) {
-            VpnOwnerStartCancellation.CanceledBeforeGeneration -> {
-                clearVpnStartReplies(key)
-                cacheCanceledVpnStart(key)
-                val task = vpnStartTasks[key]
-                if (task != null && task.cancel(false)) {
-                    vpnStartExecutor.remove(task)
-                    vpnStartTasks.remove(key)
-                    vpnStartAdmission.complete(key)
-                }
-            }
-            is VpnOwnerStartCancellation.CancelGeneration -> {
-                clearVpnStartReplies(key)
-                cacheCanceledVpnStart(key)
-                MihomoVpnService.cancelUndispatchedStart(cancellation.generation)
-            }
-            VpnOwnerStartCancellation.ExecutionAlreadyStarted -> {
-                clearVpnStartReplies(key)
-                Log.i(
-                    TAG,
-                    "VPN start request already crossed service dispatch: request=${key.requestId}",
-                )
-            }
-            VpnOwnerStartCancellation.TerminalReadback -> Log.i(
-                TAG,
-                "VPN start request already reached a terminal result: request=${key.requestId}",
-            )
-            VpnOwnerStartCancellation.AlreadyCanceled,
-            VpnOwnerStartCancellation.Unknown -> Unit
-        }
-    }
-
-    private fun acknowledgeStartRequest(message: Message) {
-        val arguments = runCatching { message.data }.getOrNull() ?: return
-        arguments.classLoader = AndroidHostProtocolVersion::class.java.classLoader
-        val protocol = readProtocolVersion(arguments)
-        val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
-        val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
-        if (protocol != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
-            Log.w(TAG, "ignored malformed VPN start acknowledgment")
-            return
-        }
-        vpnStartAdmission.acknowledgeTerminal(VpnOwnerRequestKey(clientSessionId, requestId))
-    }
-
-    private fun scheduleStartExpiry(key: VpnOwnerRequestKey, deadline: VpnOwnerRequestDeadline) {
-        val remainingMillis = when (val budget = deadline.remainingAt(SystemClock.elapsedRealtime())) {
-            VpnDeadlineState.Expired -> 0L
-            is VpnDeadlineState.Remaining -> budget.millis
-        }
-        commandHandler.postDelayed({
-            when (val expiry = vpnStartAdmission.expireTerminal(key, SystemClock.elapsedRealtime())) {
-                VpnOwnerStartExpiry.NotExpired -> scheduleStartExpiry(key, deadline)
-                VpnOwnerStartExpiry.ExpiredTerminal,
-                VpnOwnerStartExpiry.Unknown -> Unit
-            }
-        }, remainingMillis)
-    }
-
-    private fun sendResponse(
+    internal fun sendResponse(
         requestMessage: Message,
         requestId: Long,
         clientSessionId: String?,
-        result: OwnerResponse,
+        result: ControlServiceResponse,
     ) {
         val response = Message.obtain(null, RESPONSE).apply {
             data = Bundle().apply {
@@ -831,658 +689,6 @@ class MihomoControlService : Service() {
         } catch (error: RemoteException) {
             Log.w(TAG, "host IPC reply was lost: ${error.message}")
         }
-    }
-
-    private fun Bundle.putOwnerResponsePayload(payload: OwnerResponsePayload) {
-        putSerializable(RESPONSE_PAYLOAD_KIND, payload.kind())
-        when (payload) {
-            OwnerResponsePayload.Failure -> Unit
-            is OwnerResponsePayload.CoreLifecycleSnapshot -> putCoreSnapshot(payload.snapshot)
-            is OwnerResponsePayload.VpnOwnerSnapshot -> putString(
-                VPN_OWNER_SNAPSHOT_JSON,
-                payload.canonicalJson,
-            )
-            is OwnerResponsePayload.SurfaceSnapshot -> {
-                putString(SURFACE_SNAPSHOT_JSON, payload.json)
-                putCoreReadback(payload.coreReadback)
-            }
-            is OwnerResponsePayload.OwnerDataRevision -> {
-                putLong(OWNER_DATA_REVISION, payload.revision)
-                putLong(OWNER_DATA_GENERATION, payload.generation)
-                putCoreReadback(payload.coreReadback)
-            }
-            is OwnerResponsePayload.Authorization -> putSerializable(
-                VPN_AUTHORIZATION_STATE,
-                payload.state,
-            )
-            is OwnerResponsePayload.ProductCommand -> {
-                putString(PRODUCT_COMMAND_RESULT_JSON, payload.resultJson)
-                putCoreReadback(payload.coreReadback)
-            }
-            is OwnerResponsePayload.OwnerOperation -> {
-                putString(OWNER_OPERATION_RESULT_JSON, payload.outcomeJson)
-                putLong(OWNER_DATA_REVISION, payload.revision)
-                putLong(OWNER_DATA_GENERATION, payload.generation)
-                when (val facts = payload.dataFacts) {
-                    OwnerOperationDataFacts.RevisionOnly -> putSerializable(
-                        OWNER_OPERATION_DATA_FACTS_KIND,
-                        OwnerOperationDataFactsKind.RevisionOnly,
-                    )
-                    is OwnerOperationDataFacts.Domain -> {
-                        putSerializable(
-                            OWNER_OPERATION_DATA_FACTS_KIND,
-                            OwnerOperationDataFactsKind.Domain,
-                        )
-                        putSerializable(OWNER_OPERATION_DATA_DOMAIN, facts.domain)
-                    }
-                    is OwnerOperationDataFacts.Snapshot -> {
-                        putSerializable(
-                            OWNER_OPERATION_DATA_FACTS_KIND,
-                            OwnerOperationDataFactsKind.Snapshot,
-                        )
-                        putSerializable(OWNER_OPERATION_DATA_DOMAIN, facts.domain)
-                        putString(OWNER_OPERATION_DATA_SNAPSHOT_JSON, facts.json)
-                    }
-                }
-                putCoreReadback(payload.coreReadback)
-            }
-            is OwnerResponsePayload.StopVpn -> putString(VPN_STOP_SNAPSHOT_JSON, payload.snapshotJson)
-            is OwnerResponsePayload.VpnStart -> putSerializable(VPN_START_OUTCOME, payload.outcome)
-            is OwnerResponsePayload.VpnConfiguration -> putSerializable(
-                VPN_CONFIGURATION_OUTCOME,
-                payload.outcome,
-            )
-            is OwnerResponsePayload.OwnerSessionReadback -> {
-                putLong(OWNER_DATA_REVISION, payload.ownerDataRevision)
-                putCoreReadback(payload.coreReadback)
-            }
-        }
-    }
-
-    private fun Bundle.putCoreReadback(readback: OwnerCoreReadback) {
-        when (readback) {
-            OwnerCoreReadback.Unavailable -> putSerializable(
-                CORE_READBACK_KIND,
-                OwnerCoreReadbackKind.Unavailable,
-            )
-            is OwnerCoreReadback.Available -> {
-                putSerializable(CORE_READBACK_KIND, OwnerCoreReadbackKind.Available)
-                putCoreSnapshot(readback.snapshot)
-            }
-        }
-    }
-
-    private fun Bundle.putCoreSnapshot(snapshot: OwnerCoreSnapshot) {
-        putSerializable(CORE_SNAPSHOT_LIFECYCLE, snapshot.lifecycle)
-        putLong(CORE_SNAPSHOT_GENERATION, snapshot.generation)
-        putString(CORE_SNAPSHOT_SESSION_TOKEN, snapshot.sessionToken)
-        putLong(CORE_SNAPSHOT_REVISION, snapshot.revision)
-        putString(CORE_SNAPSHOT_IDENTITY_JSON, snapshot.identity.toJsonValue().toString())
-        putString(CORE_SNAPSHOT_FAILURE_JSON, snapshot.failure?.toJson()?.toString())
-    }
-
-    private suspend fun executeAdmitted(
-        key: OwnerIpcRequestKey,
-        request: AndroidHostRequest,
-        arguments: Bundle,
-        expectedOwnerSession: String?,
-    ): OwnerResponse {
-        try {
-            if (expectedOwnerSession != null && expectedOwnerSession != ownerSessionId &&
-                request != AndroidHostRequest.STOP_VPN_SERVICE &&
-                request != AndroidHostRequest.READ_VPN_OWNER_SNAPSHOT
-            ) {
-                return recoverOwnerSession()
-            }
-            return execute(request, arguments, key)
-        } finally {
-            wipeOwnerRequestSensitivePayload(key)
-        }
-    }
-
-    private suspend fun execute(
-        request: AndroidHostRequest,
-        arguments: Bundle,
-        requestKey: OwnerIpcRequestKey,
-    ): OwnerResponse {
-        val host = (application as? MihomoApplication)?.coreHost
-            ?: return OwnerResponse(
-                AndroidHostReply.SERVICE_UNAVAILABLE,
-                FfiErrorCode.NOT_READY,
-            )
-        return when (request) {
-            AndroidHostRequest.READ_CORE_LIFECYCLE -> readCoreLifecycle()
-            AndroidHostRequest.EXECUTE_PRODUCT_COMMAND -> {
-                val commandJson = arguments.getString(PRODUCT_COMMAND_JSON)
-                    ?: return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
-                val resultJson = androidExecuteProductCommandJson(commandJson)
-                OwnerResponse(
-                    AndroidHostReply.PRODUCT_COMMAND_COMPLETED,
-                    FfiErrorCode.OK,
-                    payload = OwnerResponsePayload.ProductCommand(
-                        resultJson,
-                        OwnerCoreReadback.Unavailable,
-                    ),
-                ).withCurrentCoreSnapshot()
-            }
-            AndroidHostRequest.READ_SURFACE_SNAPSHOT -> {
-                val result = androidSurfaceSnapshotJson()
-                val snapshotJson = result.value
-                if (result.status.code == FfiErrorCode.OK && snapshotJson != null) {
-                    OwnerResponse(
-                        AndroidHostReply.SURFACE_SNAPSHOT_AVAILABLE,
-                        FfiErrorCode.OK,
-                        payload = OwnerResponsePayload.SurfaceSnapshot(
-                            snapshotJson,
-                            OwnerCoreReadback.Unavailable,
-                        ),
-                    ).withCurrentCoreSnapshot()
-                } else {
-                    OwnerResponse(
-                        AndroidHostReply.FAILED,
-                        result.status.code,
-                        result.status.message,
-                    )
-                }
-            }
-            AndroidHostRequest.READ_OWNER_DATA_REVISION ->
-                OwnerResponse(
-                    AndroidHostReply.OWNER_DATA_REVISION_AVAILABLE,
-                    FfiErrorCode.OK,
-                    payload = OwnerResponsePayload.OwnerDataRevision(
-                        androidOwnerDataRevision().toLong(),
-                        generation = 0L,
-                        coreReadback = OwnerCoreReadback.Unavailable,
-                    ),
-                ).withCurrentCoreSnapshot()
-            AndroidHostRequest.EXECUTE_OWNER_OPERATION -> {
-                val operationJson = arguments.getString(OWNER_OPERATION_JSON)
-                    ?: return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
-                val expectedOwnerSession = arguments.getString(EXPECTED_OWNER_SESSION_ID)
-                    ?: return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.NOT_READY)
-                val result = androidDispatchOwnerOperationWireJson(
-                    operationJson,
-                    arguments.getString(CLIENT_SESSION_ID).orEmpty(),
-                    expectedOwnerSession,
-                    ownerSessionId,
-                    arguments.getLong(CORE_GENERATION).toULong(),
-                    arguments.getLong(OWNER_DATA_REVISION).toULong(),
-                )
-                val reply = when (result.state) {
-                    AndroidOwnerOperationIpcState.COMPLETED -> AndroidHostReply.OWNER_OPERATION_COMPLETED
-                    AndroidOwnerOperationIpcState.STALE_OWNER_DATA -> AndroidHostReply.STALE_OWNER_DATA
-                    AndroidOwnerOperationIpcState.VPN_CONFIGURATION_BUSY -> AndroidHostReply.VPN_CONFIGURATION_BUSY
-                    AndroidOwnerOperationIpcState.FAILED -> AndroidHostReply.FAILED
-                }
-                val dataDomain = result.dataDomain
-                val snapshotJson = result.snapshotJson
-                OwnerResponse(
-                    reply = reply,
-                    statusCode = result.statusCode,
-                    statusMessage = result.statusMessage,
-                    payload = OwnerResponsePayload.OwnerOperation(
-                        outcomeJson = result.outcomeJson,
-                        revision = result.dataRevision.toLong(),
-                        generation = result.coreGeneration.toLong(),
-                        dataFacts = when {
-                            dataDomain == null -> OwnerOperationDataFacts.RevisionOnly
-                            snapshotJson == null -> OwnerOperationDataFacts.Domain(dataDomain)
-                            else -> OwnerOperationDataFacts.Snapshot(dataDomain, snapshotJson)
-                        },
-                        coreReadback = OwnerCoreReadback.Unavailable,
-                    ),
-                ).withCurrentCoreSnapshot()
-            }
-            AndroidHostRequest.EXECUTE_PROFILE_AGE_CREDENTIAL_OWNER_OPERATION -> {
-                val metadataJson = runCatching {
-                    arguments.getString(PROFILE_AGE_CREDENTIAL_METADATA_JSON)
-                }.getOrNull()
-                    ?: return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
-                val privateKeyBytes = when (
-                    val payload = ownerRequestSensitivePayloads.lookup(requestKey)
-                ) {
-                    OwnerIpcSensitivePayloadLookup.Missing -> return OwnerResponse(
-                        AndroidHostReply.FAILED,
-                        FfiErrorCode.INVALID_INPUT,
-                        "Age credential request has no one-shot secret payload",
-                    )
-                    is OwnerIpcSensitivePayloadLookup.Present -> payload.bytes
-                }
-                val expectedOwnerSession = runCatching {
-                    arguments.getString(EXPECTED_OWNER_SESSION_ID)
-                }.getOrNull()
-                    ?: run {
-                        privateKeyBytes.fill(0)
-                        return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.NOT_READY)
-                    }
-                val expectedCoreGeneration = runCatching {
-                    arguments.getLong(CORE_GENERATION, -1L)
-                }.getOrDefault(-1L)
-                val expectedOwnerDataRevision = runCatching {
-                    arguments.getLong(OWNER_DATA_REVISION, -1L)
-                }.getOrDefault(-1L)
-                if (expectedCoreGeneration < 0L || expectedOwnerDataRevision < 0L) {
-                    privateKeyBytes.fill(0)
-                    return OwnerResponse(
-                        AndroidHostReply.FAILED,
-                        FfiErrorCode.INVALID_INPUT,
-                        "Age credential request omitted its owner revision fence",
-                    )
-                }
-                val result = try {
-                    androidDispatchProfileAgeCredentialOwnerOperationWireJson(
-                        metadataJson,
-                        privateKeyBytes,
-                        runCatching { arguments.getString(CLIENT_SESSION_ID) }
-                            .getOrNull().orEmpty(),
-                        expectedOwnerSession,
-                        ownerSessionId,
-                        expectedCoreGeneration.toULong(),
-                        expectedOwnerDataRevision.toULong(),
-                    )
-                } finally {
-                    privateKeyBytes.fill(0)
-                }
-                val reply = when (result.state) {
-                    AndroidOwnerOperationIpcState.COMPLETED -> AndroidHostReply.OWNER_OPERATION_COMPLETED
-                    AndroidOwnerOperationIpcState.STALE_OWNER_DATA -> AndroidHostReply.STALE_OWNER_DATA
-                    AndroidOwnerOperationIpcState.VPN_CONFIGURATION_BUSY -> AndroidHostReply.VPN_CONFIGURATION_BUSY
-                    AndroidOwnerOperationIpcState.FAILED -> AndroidHostReply.FAILED
-                }
-                val dataDomain = result.dataDomain
-                val snapshotJson = result.snapshotJson
-                OwnerResponse(
-                    reply = reply,
-                    statusCode = result.statusCode,
-                    statusMessage = result.statusMessage,
-                    payload = OwnerResponsePayload.OwnerOperation(
-                        outcomeJson = result.outcomeJson,
-                        revision = result.dataRevision.toLong(),
-                        generation = result.coreGeneration.toLong(),
-                        dataFacts = when {
-                            dataDomain == null -> OwnerOperationDataFacts.RevisionOnly
-                            snapshotJson == null -> OwnerOperationDataFacts.Domain(dataDomain)
-                            else -> OwnerOperationDataFacts.Snapshot(dataDomain, snapshotJson)
-                        },
-                        coreReadback = OwnerCoreReadback.Unavailable,
-                    ),
-                ).withCurrentCoreSnapshot()
-            }
-            AndroidHostRequest.START_VPN_SERVICE -> OwnerResponse(
-                AndroidHostReply.SERVICE_UNAVAILABLE,
-                FfiErrorCode.NOT_READY,
-                "VPN start must use bounded owner admission",
-            )
-            AndroidHostRequest.STOP_VPN_SERVICE -> stopVpn(arguments)
-            AndroidHostRequest.READ_VPN_AUTHORIZATION -> {
-                val authorization = readVpnAuthorization()
-                OwnerResponse(
-                    reply = authorization.toAndroidHostReply(),
-                    statusCode = FfiErrorCode.OK,
-                    payload = OwnerResponsePayload.Authorization(authorization),
-                )
-            }
-            AndroidHostRequest.READ_VPN_OWNER_SNAPSHOT -> readVpnOwnerSnapshot()
-            AndroidHostRequest.APPLY_VPN_CONFIGURATION ->
-                applyVpnConfiguration(arguments)
-        }
-    }
-
-    private suspend fun readVpnOwnerSnapshot(): OwnerResponse {
-        val snapshot = currentVpnOwnerSnapshotJson()
-            ?: return OwnerResponse(
-                AndroidHostReply.SERVICE_UNAVAILABLE,
-                FfiErrorCode.NOT_READY,
-                "VPN owner snapshot is unavailable",
-            )
-        return OwnerResponse(
-            reply = AndroidHostReply.VPN_OWNER_SNAPSHOT_AVAILABLE,
-            statusCode = FfiErrorCode.OK,
-            payload = OwnerResponsePayload.VpnOwnerSnapshot(snapshot),
-        )
-    }
-
-    private suspend fun stopVpn(arguments: Bundle): OwnerResponse {
-        val deadline = readRequestDeadline(arguments)
-        if (deadline == null) {
-            val snapshot = currentVpnOwnerSnapshotJson()
-            return OwnerResponse(
-                reply = AndroidHostReply.VPN_STOP_TIMED_OUT,
-                statusCode = FfiErrorCode.NOT_READY,
-                statusMessage = "VPN stop request omitted its absolute deadline",
-                payload = snapshot?.let { OwnerResponsePayload.StopVpn(it) }
-                    ?: OwnerResponsePayload.Failure,
-            )
-        }
-        if (!arguments.containsKey(VPN_STOP_TARGET_CODE) ||
-            !arguments.containsKey(VPN_STOP_GENERATION)
-        ) {
-            val snapshot = currentVpnOwnerSnapshotJson()
-            return OwnerResponse(
-                AndroidHostReply.FAILED,
-                FfiErrorCode.INVALID_INPUT,
-                "VPN stop request omitted its typed target",
-                payload = snapshot?.let { OwnerResponsePayload.StopVpn(it) }
-                    ?: OwnerResponsePayload.Failure,
-            )
-        }
-        val target = VpnStopTarget.fromWire(
-            arguments.getInt(VPN_STOP_TARGET_CODE),
-            arguments.getLong(VPN_STOP_GENERATION),
-        ) ?: return OwnerResponse(
-            reply = AndroidHostReply.FAILED,
-            statusCode = FfiErrorCode.INVALID_INPUT,
-            statusMessage = "VPN stop request carried an invalid target",
-            payload = currentVpnOwnerSnapshotJson()?.let { OwnerResponsePayload.StopVpn(it) }
-                ?: OwnerResponsePayload.Failure,
-        )
-        when (target) {
-            VpnStopTarget.Current -> Unit
-            is VpnStopTarget.Generation -> return OwnerResponse(
-                reply = AndroidHostReply.FAILED,
-                statusCode = FfiErrorCode.INVALID_INPUT,
-                statusMessage = "Generation VPN stop targets are owner-local worker callbacks",
-                payload = currentVpnOwnerSnapshotJson()?.let { OwnerResponsePayload.StopVpn(it) }
-                    ?: OwnerResponsePayload.Failure,
-            )
-        }
-        val result = MihomoVpnService.stopAndAwaitStopped(this, target, deadline)
-        val snapshotJson = currentVpnOwnerSnapshotJson()
-        val snapshot = snapshotJson?.let(VpnOwnerSnapshotWire::parse)
-        val response = when (result) {
-            VpnStopResult.Stopped -> when (snapshot?.isTerminalStopped()) {
-                true -> OwnerResponse(
-                    AndroidHostReply.VPN_STOPPED,
-                    FfiErrorCode.OK,
-                )
-                false, null -> OwnerResponse(
-                    AndroidHostReply.VPN_STOP_SUPERSEDED,
-                    FfiErrorCode.INVALID_STATE,
-                    "VPN stop was superseded before owner readback",
-                )
-            }
-            is VpnStopResult.Failed -> {
-                Log.e(TAG, "VpnService shutdown failed: ${result.message}")
-                OwnerResponse(
-                    AndroidHostReply.FAILED,
-                    FfiErrorCode.INVALID_STATE,
-                    result.message,
-                )
-            }
-            VpnStopResult.TimedOut -> OwnerResponse(
-                AndroidHostReply.VPN_STOP_TIMED_OUT,
-                FfiErrorCode.NOT_READY,
-                "VpnService did not stop before the shutdown deadline",
-            )
-            VpnStopResult.Superseded -> OwnerResponse(
-                AndroidHostReply.VPN_STOP_SUPERSEDED,
-                FfiErrorCode.INVALID_STATE,
-                "VPN stop request belongs to an older generation",
-            )
-            VpnStopResult.Canceled -> OwnerResponse(
-                AndroidHostReply.VPN_STOP_CANCELED,
-                FfiErrorCode.NOT_READY,
-                "VPN stop wait was canceled before owner readback",
-            )
-        }
-        return if (snapshot == null || snapshotJson == null) {
-            response.copy(
-                reply = AndroidHostReply.SERVICE_UNAVAILABLE,
-                statusCode = FfiErrorCode.NOT_READY,
-                statusMessage = "VPN stop terminal omitted its owner-authored snapshot",
-                payload = OwnerResponsePayload.Failure,
-            )
-        } else {
-            response.copy(payload = OwnerResponsePayload.StopVpn(snapshotJson))
-        }
-    }
-
-    private suspend fun currentVpnOwnerSnapshotJson(): String? =
-        (application as? MihomoApplication)?.refreshAndPublishVpnOwnerSnapshotJson()
-
-    /**
-     * A request carrying the retired process session is rejected. The client
-     * treats this Core-only reply as partial and obtains one complete VPN/Core
-     * owner snapshot before it issues another operation.
-     */
-    private suspend fun recoverOwnerSession(): OwnerResponse {
-        val lifecycle = readCoreLifecycle()
-        return lifecycle.copy(
-            reply = AndroidHostReply.OWNER_SESSION_CHANGED,
-            statusMessage = lifecycle.statusMessage
-                ?: "Android :vpn owner changed; lifecycle state was refreshed",
-            payload = OwnerResponsePayload.OwnerSessionReadback(
-                ownerDataRevision = androidOwnerDataRevision().toLong(),
-                coreReadback = lifecycle.payload.coreReadback(),
-            ),
-        )
-    }
-
-    private suspend fun OwnerResponse.withCurrentCoreSnapshot(): OwnerResponse {
-        val readback = androidCoreLifecycleStatus().toOwnerCoreReadback()
-        return copy(payload = payload.withCoreReadback(readback))
-    }
-
-    private suspend fun readCoreLifecycle(): OwnerResponse {
-        val result = androidCoreLifecycleStatus()
-        return when {
-            result.status.code != FfiErrorCode.OK -> result.toOwnerResponse(AndroidHostReply.FAILED)
-            else -> when (val core = result.toOwnerCoreReadback()) {
-                OwnerCoreReadback.Unavailable -> OwnerResponse(
-                    AndroidHostReply.FAILED,
-                    FfiErrorCode.NOT_READY,
-                    "Core lifecycle snapshot is unavailable",
-                )
-                is OwnerCoreReadback.Available -> OwnerResponse(
-                    AndroidHostReply.CORE_LIFECYCLE_AVAILABLE,
-                    FfiErrorCode.OK,
-                    payload = OwnerResponsePayload.CoreLifecycleSnapshot(core.snapshot),
-                )
-            }
-        }
-    }
-
-    private fun applyVpnConfiguration(arguments: Bundle): OwnerResponse {
-        val configuration = arguments.getString(VPN_CONFIGURATION)
-        if (configuration == null) {
-            return OwnerResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
-        }
-        return when (MihomoVpnService.setPendingConfiguration(this, configuration)) {
-            VpnConfigurationApplyOutcomeWire.Accepted ->
-                OwnerResponse(
-                    AndroidHostReply.VPN_CONFIGURATION_ACCEPTED,
-                    FfiErrorCode.OK,
-                    payload = OwnerResponsePayload.VpnConfiguration(
-                        VpnConfigurationApplyOutcomeWire.Accepted,
-                    ),
-                )
-            VpnConfigurationApplyOutcomeWire.Rejected ->
-                OwnerResponse(
-                    AndroidHostReply.FAILED,
-                    FfiErrorCode.INVALID_INPUT,
-                    payload = OwnerResponsePayload.VpnConfiguration(
-                        VpnConfigurationApplyOutcomeWire.Rejected,
-                    ),
-                )
-            VpnConfigurationApplyOutcomeWire.OwnerUnavailable ->
-                OwnerResponse(
-                    AndroidHostReply.SERVICE_UNAVAILABLE,
-                    FfiErrorCode.NOT_READY,
-                    payload = OwnerResponsePayload.VpnConfiguration(
-                        VpnConfigurationApplyOutcomeWire.OwnerUnavailable,
-                    ),
-                )
-        }
-    }
-
-    private fun startVpnService(
-        key: VpnOwnerRequestKey,
-        deadline: VpnOwnerRequestDeadline,
-    ): OwnerResponse {
-        when (val authorization = readVpnAuthorization()) {
-            OwnerVpnAuthorization.PermissionRequired -> {
-                VpnAuthorizationBroadcast.requestForExplicitStart(this)
-                return OwnerResponse(
-                    AndroidHostReply.VPN_PERMISSION_REQUIRED,
-                    FfiErrorCode.OK,
-                    payload = OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.PermissionRequired),
-                )
-            }
-            OwnerVpnAuthorization.Authorized -> Unit
-        }
-        val result = MihomoVpnService.startAndAwaitRunning(
-            context = this,
-            deadline = deadline,
-            generationSelected = { generation ->
-                vpnStartAdmission.associateGeneration(key, generation)
-            },
-            generationAlreadyExecuting = { generation ->
-                vpnStartAdmission.associateAlreadyExecutingGeneration(key, generation)
-            },
-            generationDispatchPending = { generation ->
-                vpnStartAdmission.markServiceDispatchPending(key, generation)
-            },
-            generationDispatchStarted = { generation ->
-                vpnStartAdmission.markServiceDispatchStarted(key, generation)
-            },
-            generationDispatched = { generation ->
-                vpnStartAdmission.markServiceDispatched(key, generation)
-            },
-        )
-        val outcome = result.toWireOutcome()
-        return when (result) {
-            VpnStartResult.Running -> OwnerResponse(
-                AndroidHostReply.VPN_RUNNING,
-                FfiErrorCode.OK,
-                payload = OwnerResponsePayload.VpnStart(outcome),
-            )
-            VpnStartResult.PermissionRequired -> OwnerResponse(
-                AndroidHostReply.VPN_PERMISSION_REQUIRED,
-                FfiErrorCode.OK,
-                payload = OwnerResponsePayload.VpnStart(outcome),
-            )
-            is VpnStartResult.Failed -> {
-                Log.e(TAG, "VpnService startup failed: ${result.message}")
-                OwnerResponse(
-                    AndroidHostReply.FAILED,
-                    FfiErrorCode.INVALID_STATE,
-                    result.message,
-                    OwnerResponsePayload.VpnStart(outcome),
-                )
-            }
-            VpnStartResult.TimedOut -> {
-                Log.e(TAG, "VpnService startup timed out before proxy data path was running")
-                OwnerResponse(
-                    AndroidHostReply.VPN_START_TIMED_OUT,
-                    FfiErrorCode.NOT_READY,
-                    payload = OwnerResponsePayload.VpnStart(outcome),
-                )
-            }
-        }
-    }
-
-    private fun readVpnAuthorization(): OwnerVpnAuthorization {
-        return when (VpnService.prepare(this)) {
-            null -> OwnerVpnAuthorization.Authorized
-            else -> OwnerVpnAuthorization.PermissionRequired
-        }
-    }
-
-    private fun readRequest(bundle: Bundle): AndroidHostRequest? {
-        bundle.classLoader = AndroidHostRequest::class.java.classLoader
-        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            bundle.getSerializable(REQUEST_VALUE, AndroidHostRequest::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            bundle.getSerializable(REQUEST_VALUE) as? AndroidHostRequest
-        }
-    }
-
-    private fun readProtocolVersion(bundle: Bundle): AndroidHostProtocolVersion? {
-        bundle.classLoader = AndroidHostProtocolVersion::class.java.classLoader
-        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            bundle.getSerializable(PROTOCOL_VERSION, AndroidHostProtocolVersion::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            bundle.getSerializable(PROTOCOL_VERSION) as? AndroidHostProtocolVersion
-        }
-    }
-
-    private fun readRequestDeadline(bundle: Bundle): VpnOwnerRequestDeadline? {
-        if (!bundle.containsKey(REQUEST_DEADLINE_ELAPSED_REALTIME)) return null
-        val deadline = bundle.getLong(REQUEST_DEADLINE_ELAPSED_REALTIME, 0L)
-        return deadline.takeIf { it > 0L }?.let(::VpnOwnerRequestDeadline)
-    }
-
-    private fun AndroidCoreLifecycleResult.toOwnerResponse(accepted: AndroidHostReply): OwnerResponse =
-        when (val core = toOwnerCoreReadback()) {
-            OwnerCoreReadback.Unavailable -> OwnerResponse(
-                accepted,
-                status.code,
-                status.message,
-            )
-            is OwnerCoreReadback.Available -> OwnerResponse(
-                accepted,
-                status.code,
-                status.message,
-                OwnerResponsePayload.CoreLifecycleSnapshot(core.snapshot),
-            )
-        }
-
-    private fun AndroidCoreLifecycleResult.toOwnerCoreReadback(): OwnerCoreReadback {
-        if (status.code != FfiErrorCode.OK) return OwnerCoreReadback.Unavailable
-        val state = lifecycle?.toCoreOwnerLifecycleWire() ?: return OwnerCoreReadback.Unavailable
-        val ownerGeneration = generation.toLong()
-        val ownerRevision = revision.toLong()
-        val ownerSessionToken = sessionToken
-        val invalidSessionToken = ownerSessionToken?.let { token ->
-            token.isBlank() || !token.all(Char::isDigit)
-        } == true
-        if (ownerGeneration < 0L || ownerRevision < 0L || invalidSessionToken) {
-            return OwnerCoreReadback.Unavailable
-        }
-        val identity = CoreOwnerIdentityWire.fromNullableParts(engineId, coreInstanceId, coreVersion)
-            ?: return OwnerCoreReadback.Unavailable
-        val failure = when (val rawFailure = failureJson) {
-            null -> null
-            else -> CoreOwnerFailureWire.parse(rawFailure) ?: return OwnerCoreReadback.Unavailable
-        }
-        return OwnerCoreReadback.Available(
-            OwnerCoreSnapshot(
-                lifecycle = state,
-                generation = ownerGeneration,
-                sessionToken = ownerSessionToken,
-                revision = ownerRevision,
-                identity = identity,
-                failure = failure,
-            ),
-        )
-    }
-
-    private fun infiltrator_android.FfiStatus.toOwnerResponse(accepted: AndroidHostReply): OwnerResponse =
-        OwnerResponse(
-            if (code == FfiErrorCode.OK) accepted else AndroidHostReply.FAILED,
-            code,
-            message,
-        )
-
-    private data class OwnerResponse(
-        val reply: AndroidHostReply,
-        val statusCode: FfiErrorCode,
-        val statusMessage: String? = null,
-        val payload: OwnerResponsePayload = OwnerResponsePayload.Failure,
-    )
-
-    private enum class OwnerIpcWaiterAdmission {
-        Attached,
-        CapacityExceeded,
-        NoActiveRequest,
-    }
-
-    private enum class VpnStartReplyAdmission {
-        Attached,
-        CapacityExceeded,
-        NoActiveRequest,
     }
 
     companion object {
@@ -1531,7 +737,7 @@ class MihomoControlService : Service() {
         internal const val CORE_SNAPSHOT_IDENTITY_JSON = "core_snapshot_identity_json"
         internal const val CORE_SNAPSHOT_FAILURE_JSON = "core_snapshot_failure_json"
         private const val MAX_OWNER_REQUEST_WAITERS = 4
-        private const val MAX_VPN_START_REQUEST_WAITERS = 4
-        private const val TAG = "MihomoControlService"
+        internal const val MAX_VPN_START_REQUEST_WAITERS = 4
+        internal const val TAG = "MihomoControlService"
     }
 }

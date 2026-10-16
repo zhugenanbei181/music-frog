@@ -85,6 +85,7 @@ pub fn project_script_export(model: &ScriptWorkbench, language: &str) -> ScriptE
 mod tests {
     use super::*;
     use crate::script_workbench::{ScriptExportPhase, ScriptWorkbench};
+    use infiltrator_contract::error::Failure;
     use infiltrator_contract::script_export_review::{
         ScriptExportDraft, ScriptExportValidationScope,
     };
@@ -114,7 +115,7 @@ mod tests {
         assert!(!project_script_export(&model, "en-US").confirm);
         model.finish(
             pending.operation + 1,
-            Err(infiltrator_contract::error::Failure::unsupported("foreign")),
+            Err(Failure::unsupported("foreign")),
         );
         assert!(model.is_exporting());
         assert!(!project_script_export(&model, "en-US").close);

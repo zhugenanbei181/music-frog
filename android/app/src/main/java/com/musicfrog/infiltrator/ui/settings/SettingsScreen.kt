@@ -26,7 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,7 +52,7 @@ fun SettingsScreen(
     onNavigateToConnections: () -> Unit = {},
     onNavigateToLogs: () -> Unit = {}
 ) {
-    val currentLocale by viewModel.currentLocale.collectAsState()
+    val currentLocale by viewModel.currentLocale.collectAsStateWithLifecycle()
     var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold { padding ->

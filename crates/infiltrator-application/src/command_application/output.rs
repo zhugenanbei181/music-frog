@@ -1,4 +1,7 @@
 //! Typed output routing validates actual results rather than unit acknowledgements.
+use infiltrator_contract::profile_document::DocumentInspection;
+use infiltrator_contract::script_export::ScriptExportKind;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use super::{
     CommandApplication, CommandFuture, CommandHandler, CommandOutputFuture,
     CoreLifecycleChildPermit, ValidatedCoreCommandScope,
@@ -196,12 +199,12 @@ impl CommandApplication {
                 .as_ref()
                 .ok_or_else(|| Failure::unsupported("Script export is not composed"))
                 .and_then(|exports| match draft.kind {
-                    infiltrator_contract::script_export::ScriptExportKind::MixinOverlayYaml => {
+                    ScriptExportKind::MixinOverlayYaml => {
                         let options = self.profile_options()?;
                         exports.prepare_mixin_overlay(&draft, &options)
                     }
-                    infiltrator_contract::script_export::ScriptExportKind::DirectiveDslScript
-                    | infiltrator_contract::script_export::ScriptExportKind::ExtensionPackageJson => {
+                    ScriptExportKind::DirectiveDslScript
+                    | ScriptExportKind::ExtensionPackageJson => {
                         exports.prepare(&draft)
                     }
                 })
@@ -327,18 +330,18 @@ impl CommandHandler for CommandApplication {
         &self,
         identity: &ProfileDocumentIdentity,
         content: &str,
-    ) -> Result<infiltrator_contract::profile_document::DocumentInspection, Failure> {
+    ) -> Result<DocumentInspection, Failure> {
         Ok(self.profile_document()?.inspect_buffer(identity, content))
     }
 
     fn insert_profile_snippet(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         content: &str,
         snippet_id: &str,
         line: usize,
         column: usize,
-    ) -> Result<infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome, Failure>
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure>
     {
         self.profile_document()?
             .insert_snippet_for_buffer(identity, content, snippet_id, line, column)
@@ -346,7 +349,7 @@ impl CommandHandler for CommandApplication {
 
     fn inspect_mixin_draft(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
     ) -> Result<(), Failure> {

@@ -110,17 +110,3 @@ mihomo-version = { path = "../mihomo-version" }
 name = "headless"
 path = "tests/headless.rs"
 required-features = ["capture-tools"]
-
-[package.metadata.packager]
-product-name = "MusicFrog Infiltrator"
-identifier = "app.musicfrog.infiltrator"
-authors = ["MusicFrog"]
-description = "A native high-performance proxy client."
-icons = ["../infiltrator-shared/assets/product/icon.png"]
-resources = [
-    "../infiltrator-shared/assets/product/icon.png",
-    "../../vendor/mihomo.exe"
-]
-
-[package.metadata.packager.wix]
-languages = ["zh-CN"]

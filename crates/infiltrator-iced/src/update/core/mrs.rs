@@ -7,6 +7,7 @@
 
 use crate::configs_dir::{config_manager, configs_dir};
 use crate::state::AppState;
+use crate::state::editor::MrsScanPhase;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
 use iced::Task;
@@ -23,10 +24,10 @@ impl AppState {
     pub(super) fn update_core_mrs(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ScanMrsProviders => {
-                if self.editor.is_scanning_mrs {
+                if self.editor.mrs_scan_phase.is_scanning() {
                     return Task::none();
                 }
-                self.editor.is_scanning_mrs = true;
+                self.editor.mrs_scan_phase = MrsScanPhase::Scanning;
                 let live: Vec<(String, String)> = self
                     .editor
                     .rule_providers
@@ -37,7 +38,7 @@ impl AppState {
                 Task::perform(scan_mrs_providers(live, lang), Message::MrsDetailsReady)
             }
             Message::MrsDetailsReady(result) => {
-                self.editor.is_scanning_mrs = false;
+                self.editor.mrs_scan_phase = MrsScanPhase::Idle;
                 match result {
                     Ok(details) => self.editor.mrs_details = details,
                     Err(error) => self.set_error(&error),

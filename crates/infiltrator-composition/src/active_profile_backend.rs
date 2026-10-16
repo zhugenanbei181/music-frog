@@ -1,5 +1,10 @@
 //! Resolve the unique active profile reference before composing one Core backend.
 
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_process::CoreProcessStartContext;
+use std::error::Error;
+use tokio::sync::Mutex;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
@@ -116,8 +121,8 @@ impl fmt::Display for ActiveProfileBackendSwitchError {
     }
 }
 
-impl std::error::Error for ActiveProfileBackendSwitchError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl Error for ActiveProfileBackendSwitchError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::BeforeReservation(failure)
             | Self::ReservationPending(failure)
@@ -168,7 +173,7 @@ impl ActiveProfileOwnerLease for SharedOwnerLease {
 
     async fn record_start_context(
         &self,
-        context: &infiltrator_contract::core_process::CoreProcessStartContext,
+        context: &CoreProcessStartContext,
     ) -> Result<(), PortError> {
         self.inner.record_start_context(context).await
     }
@@ -234,7 +239,7 @@ impl SelectedActiveProfileBackend {
     /// terminal snapshot, and release the durable switch reservation.
     pub async fn discard_application_candidate(
         self,
-        application: &infiltrator_application::core_application::CoreApplication,
+        application: &CoreApplication,
     ) -> Result<(), PortError> {
         let before = application.snapshot().lifecycle_snapshot();
         application.close().await.map_err(PortError::Rejected)?;
@@ -258,7 +263,7 @@ impl SelectedActiveProfileBackend {
     /// can be discarded.
     pub async fn into_owner_binding_for_application(
         self,
-        application: &infiltrator_application::core_application::CoreApplication,
+        application: &CoreApplication,
     ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
         match self.owner_admission {
             SelectedOwnerAdmission::SelectionLease(selection_lease) => {
@@ -323,7 +328,7 @@ impl SelectedActiveProfileBackend {
     /// application has a matching terminal readback.
     pub async fn install_owner_binding_for_application(
         self,
-        application: &infiltrator_application::core_application::CoreApplication,
+        application: &CoreApplication,
     ) -> Result<(), PortError> {
         let owner_lease = self.into_owner_binding_for_application(application).await?;
         let retained: Arc<dyn ActiveProfileOwnerLease> = Arc::from(owner_lease);
@@ -344,7 +349,7 @@ impl SelectedActiveProfileBackend {
     /// selected target to the new CoreApplication before it can accept work.
     pub fn install_core_capabilities(
         &self,
-        application: &infiltrator_application::core_application::CoreApplication,
+        application: &CoreApplication,
     ) -> Result<(), Failure> {
         application.install_core_capability_application(CoreCapabilityApplication::new(Arc::clone(
             &self.capability_provider,
@@ -357,7 +362,7 @@ pub struct ActiveProfileBackendSelector {
     profile_stores: HashMap<EngineId, Arc<dyn ProfileStore>>,
     factory: Arc<dyn EngineBackendFactory>,
     capabilities: Arc<dyn CoreCapabilityProvider>,
-    selection_gate: tokio::sync::Mutex<()>,
+    selection_gate: Mutex<()>,
 }
 
 #[path = "active_profile_backend/selector.rs"]
@@ -391,7 +396,7 @@ pub async fn preflight_active_profile_reference(
     let reference = match selection_lease.state() {
         ActiveProfileReferenceState::Unselected { .. } => {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "no product-wide active profile reference is selected",
             ));
         }
@@ -403,7 +408,7 @@ pub async fn preflight_active_profile_reference(
         .collect();
     let store = profile_stores.get(&reference.engine_id).ok_or_else(|| {
         PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             format!(
                 "no profile-document store is registered for engine {}",
                 reference.engine_id.as_str()
@@ -455,7 +460,7 @@ pub fn authorize_lifecycle_start(
             true,
         ) => Ok(()),
         (status, _) => Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             format!(
                 "Core start is not evidenced for engine {} on the current target: {status:?}",
                 engine_id.as_str()
@@ -532,7 +537,7 @@ fn verify_stopped_owner(
 fn capability_failure(failure: Failure) -> PortError {
     if failure.code == ErrorCode::Unsupported {
         PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             failure.message,
         )
     } else {

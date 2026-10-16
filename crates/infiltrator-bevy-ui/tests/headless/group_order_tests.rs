@@ -48,8 +48,7 @@ fn settle(app: &mut App) {
         .world()
         .resource::<GroupOrderState>()
         .editor
-        .pending
-        .is_some()
+        .is_pending()
     {
         assert!(Instant::now() < deadline, "typed order request must finish");
         app.update();

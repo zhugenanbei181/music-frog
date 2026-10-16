@@ -1,3 +1,6 @@
+use crate::core_application::CoreApplication;
+use std::future::pending;
+use std::mem;
 use super::*;
 use crate::core_application::ReadinessPolicy;
 use crate::core_owner_shutdown_application::CoreOwnerShutdownApplication;
@@ -15,7 +18,6 @@ use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
 use std::collections::VecDeque;
-use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
@@ -44,14 +46,14 @@ impl CoreProcess for ShutdownProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> StdResult<(), PortError> {
+        _context: CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         self.events.lock().expect("event lock").push("core.start");
         *self.state.lock().expect("process state lock") = CoreLifecycle::Running;
         Ok(())
     }
 
-    async fn stop(&self) -> StdResult<(), PortError> {
+    async fn stop(&self) -> Result<(), PortError> {
         self.events.lock().expect("event lock").push("core.stop");
         match self
             .stop_outcomes
@@ -70,7 +72,7 @@ impl CoreProcess for ShutdownProcess {
         }
     }
 
-    async fn status(&self) -> StdResult<CoreLifecycle, PortError> {
+    async fn status(&self) -> Result<CoreLifecycle, PortError> {
         Ok(self.state.lock().expect("process state lock").clone())
     }
 
@@ -109,14 +111,14 @@ impl ActiveProfileOwnerLease for ShutdownOwnerLease {
     async fn record_start_context(
         &self,
         _context: &CoreProcessStartContext,
-    ) -> StdResult<(), PortError> {
+    ) -> Result<(), PortError> {
         Ok(())
     }
 
     async fn release_after_terminal(
         &self,
         terminal: &CoreLifecycleSnapshot,
-    ) -> StdResult<(), PortError> {
+    ) -> Result<(), PortError> {
         if !terminal
             .identity
             .as_ref()
@@ -138,30 +140,30 @@ impl ActiveProfileOwnerLease for ShutdownOwnerLease {
 
 #[async_trait::async_trait]
 impl VpnServicePort for ShutdownVpnPort {
-    async fn request_start(&self) -> StdResult<VpnSessionSnapshot, PortError> {
+    async fn request_start(&self) -> Result<VpnSessionSnapshot, PortError> {
         Err(PortError::Failed("not used by owner shutdown test".into()))
     }
 
     async fn prepare(
         &self,
         _prepared: PreparedVpnConfiguration,
-    ) -> StdResult<VpnSessionSnapshot, PortError> {
+    ) -> Result<VpnSessionSnapshot, PortError> {
         Err(PortError::Failed("not used by owner shutdown test".into()))
     }
 
-    async fn start(&self, _request: VpnStartRequest) -> StdResult<VpnStartReceipt, PortError> {
+    async fn start(&self, _request: VpnStartRequest) -> Result<VpnStartReceipt, PortError> {
         Err(PortError::Failed("not used by owner shutdown test".into()))
     }
 
-    async fn stop(&self) -> StdResult<VpnSessionSnapshot, PortError> {
+    async fn stop(&self) -> Result<VpnSessionSnapshot, PortError> {
         self.events.lock().expect("event lock").push("vpn.stop");
         let first_stop_gate = {
             let mut gate = self.first_stop_gate.lock().expect("VPN stop gate lock");
-            std::mem::replace(&mut *gate, ShutdownVpnFirstStopGate::Open)
+            mem::replace(&mut *gate, ShutdownVpnFirstStopGate::Open)
         };
         if let ShutdownVpnFirstStopGate::SuspendFirst(started) = first_stop_gate {
             started.notify_one();
-            std::future::pending::<()>().await;
+            pending::<()>().await;
         }
         match self
             .stop_outcomes
@@ -180,11 +182,11 @@ impl VpnServicePort for ShutdownVpnPort {
         }
     }
 
-    async fn revoke(&self) -> StdResult<VpnSessionSnapshot, PortError> {
+    async fn revoke(&self) -> Result<VpnSessionSnapshot, PortError> {
         Err(PortError::Failed("not used by owner shutdown test".into()))
     }
 
-    async fn snapshot(&self) -> StdResult<VpnSessionSnapshot, PortError> {
+    async fn snapshot(&self) -> Result<VpnSessionSnapshot, PortError> {
         Ok(VpnSessionSnapshot::default())
     }
 }
@@ -208,7 +210,7 @@ fn shutdown_application_with_outcomes(
     first_stop_gate: ShutdownVpnFirstStopGate,
     events: Arc<Mutex<Vec<&'static str>>>,
 ) -> (CoreApplication, CoreOwnerShutdownApplication) {
-    let core = crate::core_application::CoreApplication::new_with_policy(
+    let core = CoreApplication::new_with_policy(
         Arc::new(ShutdownProcess {
             state: Mutex::new(CoreLifecycle::Stopped),
             events: Arc::clone(&events),

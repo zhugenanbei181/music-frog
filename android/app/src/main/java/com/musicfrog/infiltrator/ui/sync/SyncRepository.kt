@@ -63,7 +63,7 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
         else -> return unconfirmedSync(null)
     }
     val latest = latestSyncSnapshot()
-    if (!hasSyncOwnerFence()) return unconfirmedSync(latest)
+    if (!hasSyncOwnerFence()) return unconfirmedSync(null)
 
     val readbackStatus = when (val value = readback) {
         is AndroidOwnerOperationReadback.WebDavSettings -> value.v1.status
@@ -81,7 +81,7 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
             ?: return unconfirmedSync(latest)
         SyncOperationPurpose.Unsupported -> return unconfirmedSync(latest)
     }
-    if (dataRevision != expectedRevision) return unconfirmedSync(latest)
+    if (dataRevision != expectedRevision) return unconfirmedSync(null)
 
     if (readbackStatus.code != FfiErrorCode.OK) {
         return when (readbackStatus.code) {

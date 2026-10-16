@@ -79,12 +79,14 @@ mod tests {
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use infiltrator_contract::session::SessionToken;
-    use infiltrator_contract::vpn::{VpnGeneration, VpnPreparationId, VpnRoute, VpnStartRequest};
+    use infiltrator_contract::vpn::{
+        PreparedVpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute, VpnStartRequest,
+    };
 
     fn request() -> VpnStartRequest {
         VpnStartRequest {
             tun_fd: 7,
-            prepared: infiltrator_contract::vpn::PreparedVpnConfiguration {
+            prepared: PreparedVpnConfiguration {
                 preparation_id: VpnPreparationId::new(1),
                 vpn_generation: VpnGeneration::new(1),
                 owner_data_revision: 1,

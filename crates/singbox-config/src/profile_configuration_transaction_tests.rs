@@ -15,6 +15,7 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
@@ -25,29 +26,31 @@ use infiltrator_ports::profile_workspace::ProfileWorkspacePurpose;
 use infiltrator_ports::profile_workspace::ProfileWorkspaceUpdate;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::collections::VecDeque;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex as StdMutex, RwLock};
+use std::sync::{self, RwLock};
 use std::time::Duration;
 use tempfile::TempDir;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 struct FakeCommand {
     checks: AtomicUsize,
-    outcomes: StdMutex<VecDeque<NativeConfigCheck>>,
+    outcomes: sync::Mutex<VecDeque<NativeConfigCheck>>,
 }
 
 impl FakeCommand {
     fn accepting() -> Self {
         Self {
             checks: AtomicUsize::new(0),
-            outcomes: StdMutex::new(VecDeque::new()),
+            outcomes: sync::Mutex::new(VecDeque::new()),
         }
     }
 
     fn with_outcomes(outcomes: impl IntoIterator<Item = NativeConfigCheck>) -> Self {
         Self {
             checks: AtomicUsize::new(0),
-            outcomes: StdMutex::new(outcomes.into_iter().collect()),
+            outcomes: sync::Mutex::new(outcomes.into_iter().collect()),
         }
     }
 }
@@ -150,9 +153,9 @@ impl CoreLifecyclePort for FakeSession {
 
 struct FakeProfileStore {
     engine_id: EngineId,
-    reference: tokio::sync::Mutex<ActiveProfileReferenceState>,
+    reference: Mutex<ActiveProfileReferenceState>,
     active: Mutex<ProfileWorkspace>,
-    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
+    workspace_write_gate: Arc<Mutex<()>>,
     writes: AtomicUsize,
     next_revision: AtomicUsize,
 }
@@ -161,7 +164,7 @@ struct FakeWorkspaceWriteLease<'a> {
     store: &'a FakeProfileStore,
     expected_reference: ActiveProfileReference,
     observed: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct FakeWorkspacePublishedLease<'a> {
@@ -169,12 +172,12 @@ struct FakeWorkspacePublishedLease<'a> {
     expected_reference: ActiveProfileReference,
     previous: ProfileWorkspace,
     published: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct FakeWorkspaceRestoredLease {
     workspace: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 impl FakeProfileStore {
@@ -186,9 +189,9 @@ impl FakeProfileStore {
         ));
         Self {
             engine_id: active.document.identity.engine_id.clone(),
-            reference: tokio::sync::Mutex::new(reference),
+            reference: Mutex::new(reference),
             active: Mutex::new(active),
-            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
+            workspace_write_gate: Arc::new(Mutex::new(())),
             writes: AtomicUsize::new(0),
             next_revision: AtomicUsize::new(2),
         }
@@ -469,7 +472,7 @@ fn request(workspace: &ProfileWorkspace, update: &[u8]) -> ProfileConfigurationT
             sidecar_bytes: None,
         },
         authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
-        strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
+        strategy: ApplyStrategy::PreferReload,
     }
 }
 
@@ -539,7 +542,7 @@ async fn stopped_transaction_cas_saves_and_reads_back_exact_json_bytes() {
     let directory = TempDir::new().unwrap();
     let config_path = directory.path().join("active.json");
     let previous_bytes = br#"{"log":{"level":"warn"}}"#;
-    std::fs::write(&config_path, previous_bytes).unwrap();
+    fs::write(&config_path, previous_bytes).unwrap();
     let initial = workspace(previous_bytes);
     let store = Arc::new(FakeProfileStore::new(initial.clone()));
     let command = Arc::new(FakeCommand::accepting());
@@ -564,7 +567,7 @@ async fn stopped_transaction_cas_saves_and_reads_back_exact_json_bytes() {
         }
         other => panic!("expected a committed sing-box workspace, received {other:?}"),
     }
-    assert_eq!(std::fs::read(config_path).unwrap(), submitted);
+    assert_eq!(fs::read(config_path).unwrap(), submitted);
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     assert_eq!(command.checks.load(Ordering::SeqCst), 2);
 }
@@ -574,7 +577,7 @@ async fn foreign_stale_and_invalid_requests_do_not_write_the_workspace_or_active
     let directory = TempDir::new().unwrap();
     let config_path = directory.path().join("active.json");
     let original_bytes = br#"{"inbounds":[]}"#;
-    std::fs::write(&config_path, original_bytes).unwrap();
+    fs::write(&config_path, original_bytes).unwrap();
     let initial = workspace(original_bytes);
     let store = Arc::new(FakeProfileStore::new(initial.clone()));
     let command = Arc::new(FakeCommand::accepting());
@@ -609,7 +612,7 @@ async fn foreign_stale_and_invalid_requests_do_not_write_the_workspace_or_active
     ));
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     assert_eq!(command.checks.load(Ordering::SeqCst), 0);
-    assert_eq!(std::fs::read(config_path).unwrap(), original_bytes);
+    assert_eq!(fs::read(config_path).unwrap(), original_bytes);
 }
 
 #[tokio::test]
@@ -617,7 +620,7 @@ async fn running_core_is_unsupported_without_native_or_profile_dispatch() {
     let directory = TempDir::new().unwrap();
     let config_path = directory.path().join("active.json");
     let original_bytes = br#"{"inbounds":[]}"#;
-    std::fs::write(&config_path, original_bytes).unwrap();
+    fs::write(&config_path, original_bytes).unwrap();
     let initial = workspace(original_bytes);
     let store = Arc::new(FakeProfileStore::new(initial.clone()));
     let command = Arc::new(FakeCommand::accepting());
@@ -636,7 +639,7 @@ async fn running_core_is_unsupported_without_native_or_profile_dispatch() {
     ));
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     assert_eq!(command.checks.load(Ordering::SeqCst), 0);
-    assert_eq!(std::fs::read(config_path).unwrap(), original_bytes);
+    assert_eq!(fs::read(config_path).unwrap(), original_bytes);
 }
 
 #[tokio::test]
@@ -644,7 +647,7 @@ async fn native_apply_rejection_rolls_back_workspace_and_exact_file_bytes() {
     let directory = TempDir::new().unwrap();
     let config_path = directory.path().join("active.json");
     let original_bytes = br#"{"inbounds":[]}"#;
-    std::fs::write(&config_path, original_bytes).unwrap();
+    fs::write(&config_path, original_bytes).unwrap();
     let initial = workspace(original_bytes);
     let store = Arc::new(FakeProfileStore::new(initial.clone()));
     let command = Arc::new(FakeCommand::with_outcomes([
@@ -670,7 +673,7 @@ async fn native_apply_rejection_rolls_back_workspace_and_exact_file_bytes() {
         other => panic!("expected exact rollback, received {other:?}"),
     }
     assert_eq!(store.load_active_workspace().await.unwrap(), initial);
-    assert_eq!(std::fs::read(config_path).unwrap(), original_bytes);
+    assert_eq!(fs::read(config_path).unwrap(), original_bytes);
     assert_eq!(store.writes.load(Ordering::SeqCst), 2);
     assert_eq!(command.checks.load(Ordering::SeqCst), 2);
 }

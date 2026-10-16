@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
 use std::sync::{Arc, Mutex};
@@ -87,7 +88,7 @@ impl ProfileConfigurationCandidateValidatorPort
         _document_bytes: &[u8],
     ) -> Result<(), PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             self.reason.clone(),
         ))
     }
@@ -174,7 +175,7 @@ impl ProfileConfigurationTransactionPort for UnavailableProfileConfigurationTran
         _request: ProfileConfigurationTransactionRequest,
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             self.reason.clone(),
         ))
     }
@@ -243,8 +244,8 @@ impl ProfileConfigurationTransactionPort for ProfileConfigurationTransactionBind
             match &*state {
                 BindingState::Unbound => {
                     return Err(PortError::Rejected(
-                        infiltrator_contract::error::Failure::new(
-                            infiltrator_contract::error::ErrorCode::NotReady,
+                        Failure::new(
+                            ErrorCode::NotReady,
                             "configuration transaction owner is not composed",
                             false,
                         ),

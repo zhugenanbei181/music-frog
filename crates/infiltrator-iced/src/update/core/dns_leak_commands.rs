@@ -1,4 +1,5 @@
 //! Composed DNS probes execute the product command owner and correlate actual terminal feedback.
+use infiltrator_contract::error::Failure;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
@@ -14,7 +15,7 @@ impl AppState {
     pub(crate) fn begin_dns_leak_probe(
         &mut self,
         admission: DnsLeakProbeAdmission,
-    ) -> Result<u64, infiltrator_contract::error::Failure> {
+    ) -> Result<u64, Failure> {
         match admission {
             DnsLeakProbeAdmission::Start => self.diag.dns_leak_action.begin(),
             DnsLeakProbeAdmission::Retry => self.diag.dns_leak_action.begin_retry(),

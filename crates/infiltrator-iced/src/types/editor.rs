@@ -7,6 +7,20 @@ pub enum EditorLazyState {
     Loaded,
 }
 
+/// Update operation phase for GeoData databases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GeoDataUpdatePhase {
+    #[default]
+    Idle,
+    Updating,
+}
+
+impl GeoDataUpdatePhase {
+    pub const fn is_updating(self) -> bool {
+        matches!(self, Self::Updating)
+    }
+}
+
 /// Status and metadata for the GeoIP / GeoSite binary databases.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GeoDataStatus {
@@ -14,6 +28,6 @@ pub struct GeoDataStatus {
     pub geosite_version: String,
     pub geoip_size_bytes: u64,
     pub geosite_size_bytes: u64,
-    pub is_updating: bool,
+    pub phase: GeoDataUpdatePhase,
     pub update_message: Option<String>,
 }

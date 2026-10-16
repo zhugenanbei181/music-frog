@@ -5,6 +5,7 @@
 //! country or an ISP. A host without a configured echo source answers a typed
 //! unsupported failure and the panel renders exactly that.
 
+use infiltrator_contract::error::ErrorCode;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
@@ -97,7 +98,7 @@ impl AppState {
             return Task::done(Message::DnsLeakProbed {
                 token,
                 result: Err(Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
+                    ErrorCode::NotReady,
                     "DNS probe runtime is unavailable",
                     true,
                 )),

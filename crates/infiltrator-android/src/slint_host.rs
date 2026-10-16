@@ -1,3 +1,4 @@
+use crate::uniffi_api::profile_age_credential_owner::execute_owner_request;
 use crate::host_support::get_runtime;
 use infiltrator_contract::android_control::{
     AndroidProductCommand, AndroidProductCommandOutcome, AndroidProductCommandRequest,
@@ -5,7 +6,11 @@ use infiltrator_contract::android_control::{
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreScope};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_age_credential::{
+    ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
+};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_slint::age_action::execute_slint_age_action;
 use infiltrator_slint::{SlintAction, SlintProductHost};
 
 pub(super) struct AndroidSlintHost;
@@ -51,6 +56,26 @@ impl SlintProductHost for AndroidSlintHost {
             }
             SlintAction::Command(intent) => vec![intent],
             SlintAction::Sequence(intents) => intents,
+            action @ (SlintAction::ImportEncryptedSubscription { .. }
+            | SlintAction::SetProfileAgeCredential { .. }
+            | SlintAction::ClearProfileAgeCredential { .. }
+            | SlintAction::SaveProfileSettings { .. }
+            | SlintAction::ImportProfileFile { .. }
+            | SlintAction::ImportOverrideFile { .. }
+            | SlintAction::ExportProfile { .. }
+            | SlintAction::ExportOverride { .. }
+            | SlintAction::ExportLogs { .. }
+            | SlintAction::StartRuntime
+            | SlintAction::ScanQrCode
+            | SlintAction::OpenAutostartSettings
+            | SlintAction::RequestBatteryOptimizationExemption
+            | SlintAction::SetHideBackgroundCard(_)
+            | SlintAction::SetReleaseUiWhenBackground(_)
+            | SlintAction::SetShowTrafficNotification(_)
+            | SlintAction::CacheBackPreview
+            | SlintAction::CommitBackPreview) => {
+                return execute_slint_age_action(self, snapshot, action);
+            }
         };
         let mut scope = snapshot
             .and_then(|snapshot| snapshot.core.scope())
@@ -63,7 +88,7 @@ impl SlintProductHost for AndroidSlintHost {
             })?;
         let command_count = intents.len();
         for (index, intent) in intents.into_iter().enumerate() {
-            match self.execute_one(scope, intent)? {
+            match self.execute_one(scope.clone(), intent)? {
                 Some(next_scope) => scope = next_scope,
                 None if index + 1 < command_count => {
                     return Err(Failure::new(
@@ -80,6 +105,25 @@ impl SlintProductHost for AndroidSlintHost {
 
     fn autostart_enabled(&self) -> Option<bool> {
         None
+    }
+
+    fn execute_age_credential_request(
+        &self,
+        request: ProfileAgeCredentialOwnerRequest,
+    ) -> Result<ProfileAgeCredentialOwnerReadback, Failure> {
+        get_runtime()
+            .block_on(
+                execute_owner_request(request),
+            )
+            .map_err(|status| {
+                Failure::new(
+                    ErrorCode::Internal,
+                    status
+                        .message
+                        .unwrap_or_else(|| "Age credential operation failed".to_owned()),
+                    true,
+                )
+            })
     }
 }
 

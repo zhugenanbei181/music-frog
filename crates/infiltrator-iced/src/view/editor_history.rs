@@ -143,7 +143,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         // DUAL-09-14: explicit list refresh (the Bevy history card has the
         // same button); the panel no longer depends on an incidental reload.
         button(
-            text(if state.editor.is_loading_snapshots {
+            text(if state.editor.snapshots_load_phase.is_loading() {
                 "...".to_string()
             } else {
                 lang.tr("editor_history_refresh").to_string()
@@ -153,11 +153,12 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         .padding([3, 8])
         .style(style_ghost)
         .on_press_maybe(
-            (!state.editor.is_loading_snapshots).then_some(Message::LoadProfileSnapshots),
+            (!state.editor.snapshots_load_phase.is_loading())
+                .then_some(Message::LoadProfileSnapshots),
         ),
         Space::new().width(theme::SP_XS),
         button(
-            text(if state.editor.is_backing_up_snapshot {
+            text(if state.editor.snapshot_backup_phase.is_backing_up() {
                 "...".to_string()
             } else {
                 lang.tr("editor_backup_now").to_string()
@@ -167,11 +168,12 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         .padding([3, 8])
         .style(style_ghost)
         .on_press_maybe(
-            (!state.editor.is_backing_up_snapshot).then_some(Message::BackupProfileSnapshot),
+            (!state.editor.snapshot_backup_phase.is_backing_up())
+                .then_some(Message::BackupProfileSnapshot),
         ),
         Space::new().width(theme::SP_XS),
         button(
-            text(if state.editor.is_pruning_snapshots {
+            text(if state.editor.snapshot_prune_phase.is_pruning() {
                 "...".to_string()
             } else {
                 lang.tr("editor_prune_now").to_string()
@@ -181,7 +183,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         .padding([3, 8])
         .style(style_ghost)
         .on_press_maybe(
-            (!state.editor.is_pruning_snapshots && pending > 0)
+            (!state.editor.snapshot_prune_phase.is_pruning() && pending > 0)
                 .then_some(Message::PruneProfileSnapshots),
         ),
     ]
@@ -189,7 +191,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
 
     let mut items_col = column![].spacing(theme::SP_SM);
 
-    if state.editor.is_loading_snapshots {
+    if state.editor.snapshots_load_phase.is_loading() {
         items_col = items_col.push(
             text(lang.tr("editor_history_loading").to_string())
                 .size(11)

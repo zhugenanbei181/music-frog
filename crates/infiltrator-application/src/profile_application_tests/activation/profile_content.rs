@@ -1,12 +1,16 @@
 //! Profile content behavior across Core lifecycle states.
 
+use crate::profile_application::ProfileContentSaveOutcome;
+use crate::profile_application::SelectedProfileApplyOutcome;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use super::*;
 
 #[tokio::test]
 async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {
     let store = store_with_profiles("main", &[]);
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
-    runtime.set_lifecycle(infiltrator_contract::snapshot::CoreLifecycle::Stopped);
+    runtime.set_lifecycle(CoreLifecycle::Stopped);
     let application = ProfileApplication::new(store.clone());
     let expected = store.active_reference();
 
@@ -23,8 +27,8 @@ async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {
 
     assert_eq!(
         outcome,
-        crate::profile_application::ProfileContentSaveOutcome::StoredWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        ProfileContentSaveOutcome::StoredWhileInactive(
+            CoreInactiveLifecycle::Stopped,
         )
     );
     assert_eq!(store.load("main").await.unwrap(), "mode: global\n");
@@ -37,7 +41,7 @@ async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {
 async fn failed_core_profile_content_is_stored_with_a_failed_lifecycle_receipt() {
     let store = store_with_profiles("main", &[]);
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
-    runtime.set_lifecycle(infiltrator_contract::snapshot::CoreLifecycle::Failed);
+    runtime.set_lifecycle(CoreLifecycle::Failed);
     let application = ProfileApplication::new(store.clone());
 
     let outcome = application
@@ -53,8 +57,8 @@ async fn failed_core_profile_content_is_stored_with_a_failed_lifecycle_receipt()
 
     assert_eq!(
         outcome,
-        crate::profile_application::ProfileContentSaveOutcome::StoredWhileInactive(
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        ProfileContentSaveOutcome::StoredWhileInactive(
+            CoreInactiveLifecycle::Failed,
         )
     );
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 1);
@@ -66,12 +70,12 @@ async fn failed_core_profile_content_is_stored_with_a_failed_lifecycle_receipt()
 async fn selected_profile_apply_reports_stopped_and_failed_separately() {
     for (lifecycle, expected) in [
         (
-            infiltrator_contract::snapshot::CoreLifecycle::Stopped,
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+            CoreLifecycle::Stopped,
+            CoreInactiveLifecycle::Stopped,
         ),
         (
-            infiltrator_contract::snapshot::CoreLifecycle::Failed,
-            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+            CoreLifecycle::Failed,
+            CoreInactiveLifecycle::Failed,
         ),
     ] {
         let store = store_with_profiles("main", &[]);
@@ -91,7 +95,7 @@ async fn selected_profile_apply_reports_stopped_and_failed_separately() {
 
         assert_eq!(
             outcome,
-            crate::profile_application::SelectedProfileApplyOutcome::NotActive(expected),
+            SelectedProfileApplyOutcome::NotActive(expected),
         );
         assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
     }
@@ -101,7 +105,7 @@ async fn selected_profile_apply_reports_stopped_and_failed_separately() {
 async fn transitioning_core_rejects_profile_content_before_store_or_runtime_effects() {
     let store = store_with_profiles("main", &[]);
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
-    runtime.set_lifecycle(infiltrator_contract::snapshot::CoreLifecycle::Stopping);
+    runtime.set_lifecycle(CoreLifecycle::Stopping);
     let application = ProfileApplication::new(store.clone());
     let expected = store.active_reference();
 

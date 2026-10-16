@@ -23,6 +23,7 @@ use infiltrator_ports::connection::{ConnectionPort, UnsupportedConnectionPort};
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
@@ -216,7 +217,7 @@ impl HostRuntime for DesktopCoreOwnerRuntime {
         Arc::new(UnsupportedCoreResourcePort)
     }
 
-    fn core_scope_source(&self) -> Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> {
+    fn core_scope_source(&self) -> Arc<dyn CoreScopeSource> {
         Arc::new(self.application.as_ref().clone())
     }
 }

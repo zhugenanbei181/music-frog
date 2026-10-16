@@ -12,6 +12,7 @@
 //!
 //! test-intent: behavior
 
+use infiltrator_iced::state::editor::DnsSavePhase;
 use super::support::{
     FakeTray, SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast,
 };
@@ -277,7 +278,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Sync page → open the merge session (guard arm runs, loader task arms).
     let units = feed(&mut state, Message::LoadSyncDiff("alpha".into()));
-    assert!(state.profile.is_loading_sync_diff);
+    assert!(state.profile.sync_diff_load_phase.is_loading());
     assert!(units >= 1);
 
     // Loader task body for real: local via manager + remote file + diff.
@@ -330,7 +331,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Apply arms the merge task (guards on an open session + the conflict).
     let units = feed(&mut state, Message::ApplySyncDiffMerge);
-    assert!(state.profile.is_applying_sync_diff);
+    assert!(state.profile.sync_diff_apply_phase.is_applying());
     assert!(units >= 1);
 
     // Task body for real — merge by picks, validate, commit, drop the
@@ -367,7 +368,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     });
 
     let units = feed(&mut state, Message::SyncDiffMerged(Ok("alpha".into())));
-    assert!(!state.profile.is_applying_sync_diff);
+    assert!(!state.profile.sync_diff_apply_phase.is_applying());
     assert!(state.profile.sync_diff.is_none(), "session closed");
     assert!(state.profile.sync_conflicts.is_empty(), "conflict cleared");
     assert!(units >= 2, "LoadProfiles + success-toast legs");
@@ -601,7 +602,7 @@ fn mixed_profile_sync_failure_and_runtime_refetch_chain() {
     state.runtime.configuration_save_state = ConfigurationSaveState::Saving {
         label: "DNS".into(),
     };
-    state.editor.is_saving_dns = true;
+    state.editor.dns_save_phase = DnsSavePhase::Saving;
     let units = feed(
         &mut state,
         Message::DnsSaved(Err(InfiltratorError::Backend("DNS 应用失败".into()))),
@@ -611,7 +612,7 @@ fn mixed_profile_sync_failure_and_runtime_refetch_chain() {
         ConfigurationSaveState::Failed { .. }
     ));
     assert!(state.shell.error_msg.is_some());
-    assert!(!state.editor.is_saving_dns);
+    assert!(!state.editor.dns_save_phase.is_saving());
     assert!(units >= 1);
 
     // The banner reset clears the flow.

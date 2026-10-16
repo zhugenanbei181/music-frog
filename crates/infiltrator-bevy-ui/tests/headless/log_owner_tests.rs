@@ -1,5 +1,6 @@
 //! test-intent: behavior
 //! Native clear/filter controls execute the real application commands and publish its actual buffer.
+use std::iter::empty;
 use crate::command_harness::{
     install_test_core_capability_application, test_command_application_for,
 };
@@ -84,7 +85,7 @@ fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_comple
     let (completed, observed) = channel();
     core.install_command_handler(Arc::new(ObservedCommands {
         commands: test_command_application_for(
-            std::iter::empty::<CoreOperation>(),
+            empty::<CoreOperation>(),
             [Capability::Logs],
         )
         .with_logs(core.log_application()),

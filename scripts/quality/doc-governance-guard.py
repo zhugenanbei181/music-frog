@@ -216,7 +216,8 @@ def self_test() -> int:
     assert doc_level("THIRD-PARTY-NOTICES.md") == 1
     assert doc_level("TODO.md") == 4
     assert doc_level("todos/CODE_TODO.md") == 4
-    assert doc_level("todos/MACHINE_TODO.md") == 4
+    assert doc_level("todos/CODE_TODO_PAST.md") == 4
+    assert doc_level("todos/CODE_TODO_FUTURE.md") == 4
     assert doc_level("docs/README.md") == 1
     assert doc_level("docs/ARCHITECTURE.md") == 2
     assert doc_level("crates/infiltrator-bevy-ui/docs/README.md") == 3

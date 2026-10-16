@@ -1,6 +1,7 @@
 use super::read_credential_record;
 use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use age::secrecy::ExposeSecret;
+use age::x25519::Identity;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
@@ -478,7 +479,7 @@ async fn age_subscription_payload_decrypts_only_inside_profile_owner() {
     let profile_id = ProfileId::new("primary").unwrap();
     create_profile(&store, &profile_id).await;
 
-    let identity = age::x25519::Identity::generate();
+    let identity = Identity::generate();
     let private_key = identity.to_string();
     let private_key_text = private_key.expose_secret().to_owned();
     let encrypted = age::encrypt_and_armor(&identity.to_public(), b"proxies: []\n")
@@ -526,7 +527,7 @@ async fn age_subscription_payload_decrypts_only_inside_profile_owner() {
     assert_eq!(credential_revision, ProfileAgeCredentialRevision::new(1));
     assert!(!format!("{content:?}").contains("proxies: []"));
 
-    let wrong_identity = age::x25519::Identity::generate();
+    let wrong_identity = Identity::generate();
     let wrong_key = wrong_identity.to_string();
     let current = ProfileStore::mutate_profile_age_credential(
         &store,
@@ -579,7 +580,7 @@ async fn age_subscription_can_preconfigure_a_new_profile_before_import() {
         observation(&profile_id, 0, ProfileAgeCredentialState::NotConfigured)
     );
 
-    let identity = age::x25519::Identity::generate();
+    let identity = Identity::generate();
     let private_key_text = identity.to_string().expose_secret().to_owned();
     let encrypted = age::encrypt_and_armor(&identity.to_public(), b"proxies: []\n")
         .expect("armored Age document");
@@ -627,7 +628,7 @@ async fn sing_box_age_subscription_payload_decrypts_inside_its_profile_owner() {
     let profile_id = ProfileId::new("primary").unwrap();
     create_profile(&store, &profile_id).await;
 
-    let identity = age::x25519::Identity::generate();
+    let identity = Identity::generate();
     let private_key_text = identity.to_string().expose_secret().to_owned();
     let encrypted = age::encrypt_and_armor(&identity.to_public(), b"outbounds: []\n")
         .expect("armored Age document");

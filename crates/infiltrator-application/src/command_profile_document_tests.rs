@@ -1,5 +1,7 @@
 //! Source-bound document commands and snippet validity.
 //! test-intent: behavior
+use crate::profile_application::ProfileRuntimeAccess;
+use infiltrator_contract::core_identity::EngineId;
 use super::*;
 use crate::command_application::handler::ValidatedCoreCommandScope;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
@@ -125,7 +127,7 @@ async fn missing_or_mismatched_codec_never_claims_valid_or_reaches_store_on_writ
     let reads_before_write = store.workspace_reads.load(Ordering::SeqCst);
     let error = plain_documents
         .save::<dyn ActiveProfileReferenceApplier>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             &unavailable.workspace_identity,
             "mode: rule\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -307,7 +309,7 @@ async fn foreign_document_identity_is_rejected_before_codec_or_store_side_effect
         .await
         .expect("workspace identity");
     let mut foreign: ProfileDocumentIdentity = workspace.document.identity.clone();
-    foreign.engine_id = infiltrator_contract::core_identity::EngineId::new("sing-box")
+    foreign.engine_id = EngineId::new("sing-box")
         .expect("valid foreign engine");
     let application = ProfileDocumentApplication::new(profiles);
     let reads_before = store.workspace_reads.load(Ordering::SeqCst);

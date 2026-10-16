@@ -1,5 +1,7 @@
 //! test-intent: real_process
 
+use infiltrator_composition::active_profile_backend::SelectedActiveProfileBackend;
+use std::mem;
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::active_profile_backend::{
@@ -75,7 +77,7 @@ impl EngineBackendProvider for RecoveringSingBoxProvider {
                 .state
                 .lock()
                 .map_err(|_| PortError::Failed("smoke provider state was poisoned".into()))?;
-            match std::mem::replace(&mut *state, CandidateDispatchState::Available) {
+            match mem::replace(&mut *state, CandidateDispatchState::Available) {
                 CandidateDispatchState::RejectFirstCreation => Err(PortError::Failed(
                     "injected one-time sing-box candidate dispatch failure".into(),
                 )),
@@ -162,7 +164,7 @@ async fn require_active_reference(
 }
 
 async fn compose_owner(
-    selected: infiltrator_composition::active_profile_backend::SelectedActiveProfileBackend,
+    selected: SelectedActiveProfileBackend,
     applications: &mut Vec<Arc<CoreApplication>>,
     sing_box_provider: &SingBoxEngineBackendProvider,
     sing_box_store: Arc<dyn ProfileStore>,

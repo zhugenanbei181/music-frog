@@ -1,4 +1,7 @@
 //! Scoped actual-reader activation; independent confirmation pixels precede any write.
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -45,7 +48,7 @@ pub struct StatisticsCapture {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let core = Arc::new(CoreApplication::new(
@@ -56,7 +59,7 @@ pub fn install(app: &mut App) {
     let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_rule_tracer(owner.clone())
         .with_configuration(
-            infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+            for_mihomo_store(store.clone()),
         );
     let observed = Arc::new(Mutex::new(None));
     let result = observed.clone();
@@ -86,7 +89,7 @@ pub fn install(app: &mut App) {
                     &observed_workspace,
                     RuleTraceOperationId(1),
                     request,
-                    &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
+                    &RuleTraceOutboundFacts::observed(
                         outbound_observation.clone(),
                     ),
                 )

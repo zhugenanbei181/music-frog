@@ -10,6 +10,8 @@ import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.AndroidProfileSelectionTarget
+import infiltrator_android.ProfileSummary
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,8 +19,12 @@ import kotlinx.coroutines.launch
 
 internal class ProfilesViewModel internal constructor(
     private val repository: ProfilesRepository,
+    private val coroutineScope: CoroutineScope? = null,
 ) : ViewModel() {
     constructor() : this(UniFfiProfilesRepository())
+
+    private val effectiveScope: CoroutineScope
+        get() = coroutineScope ?: viewModelScope
 
     private val _state = MutableStateFlow(ProfilesUiState())
     internal val state: StateFlow<ProfilesUiState> = _state.asStateFlow()
@@ -40,7 +46,7 @@ internal class ProfilesViewModel internal constructor(
             collection = ProfilesReadState.Loading(acceptedProfiles(_state.value.collection)),
             action = ProfileActionState.Working(ProfileOperation.ReadProfiles),
         )
-        viewModelScope.launch {
+        effectiveScope.launch {
             when (val result = repository.execute(AndroidOwnerOperation.ProfilesList, DEFAULT_FFI_TIMEOUT_MS)) {
                 is ProfilesRepositoryResult.Completed -> when (val observation = result.observation) {
                     is ProfilesRepositoryObservation.Profiles -> when (
@@ -117,7 +123,7 @@ internal class ProfilesViewModel internal constructor(
             detail = ProfileDetailReadState.Loading(previous),
             action = ProfileActionState.Working(ProfileOperation.ReadDetail),
         )
-        viewModelScope.launch {
+        effectiveScope.launch {
             handleDetailResult(
                 result = repository.execute(AndroidOwnerOperation.ProfileDetail(name), DEFAULT_FFI_TIMEOUT_MS),
                 sequence = sequence,
@@ -218,6 +224,42 @@ internal class ProfilesViewModel internal constructor(
         _state.value = current.copy(action = nextAction, collection = nextCollection, detail = nextDetail)
     }
 
+    fun openAddDialog(prefilledUrl: String? = null) {
+        _state.value = _state.value.copy(
+            drafts = _state.value.drafts.copy(
+                showAddDialog = true,
+                prefilledUrl = prefilledUrl,
+            )
+        )
+    }
+
+    fun closeAddDialog() {
+        _state.value = _state.value.copy(
+            drafts = _state.value.drafts.copy(
+                showAddDialog = false,
+                prefilledUrl = null,
+            )
+        )
+    }
+
+    fun setLocalImportDraft(draft: LocalImportDraft?) {
+        _state.value = _state.value.copy(
+            drafts = _state.value.drafts.copy(localImportDraft = draft)
+        )
+    }
+
+    fun setDeletingProfile(profile: ProfileSummary?) {
+        _state.value = _state.value.copy(
+            drafts = _state.value.drafts.copy(deletingProfile = profile)
+        )
+    }
+
+    fun setSubscriptionProfile(profile: ProfileSummary?) {
+        _state.value = _state.value.copy(
+            drafts = _state.value.drafts.copy(subscriptionProfile = profile)
+        )
+    }
+
     private fun executeProfileCommand(
         operation: ProfileOperation,
         expectation: ProfileReadbackExpectation,
@@ -230,7 +272,7 @@ internal class ProfilesViewModel internal constructor(
         }
         val sequence = nextRequestSequence()
         _state.value = _state.value.copy(action = ProfileActionState.Working(operation))
-        viewModelScope.launch {
+        effectiveScope.launch {
             when (val result = repository.execute(command, LONG_FFI_TIMEOUT_MS)) {
                 is ProfilesRepositoryResult.Completed -> when (val observation = result.observation) {
                     is ProfilesRepositoryObservation.Profiles -> {

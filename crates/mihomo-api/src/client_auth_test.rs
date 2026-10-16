@@ -8,6 +8,7 @@ use crate::runtime_configuration::RuntimeScopeResolver;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
 use mockito::Server;
@@ -187,7 +188,7 @@ async fn typed_resource_observation_rejects_retired_scope_before_http_access() {
         .expect_err("retired scope must not be read");
     assert_eq!(
         error.error_code(),
-        infiltrator_contract::error::ErrorCode::InvalidState
+        ErrorCode::InvalidState
     );
     unexpected.assert_async().await;
 }

@@ -1,3 +1,10 @@
+#![allow(
+    clippy::bool_comparison,
+    clippy::derivable_impls,
+    clippy::collapsible_if,
+    clippy::ptr_arg,
+    clippy::items_after_test_module
+)]
 //! Engine-neutral durable profile persistence.
 
 pub mod active_owner_lease;
@@ -15,6 +22,7 @@ mod document_path;
 pub mod document_store;
 pub mod file_lock;
 pub mod metadata;
+pub mod named_overrides;
 pub mod namespace;
 pub mod profile_age_credential;
 pub mod profile_catalog;

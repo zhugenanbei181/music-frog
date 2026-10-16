@@ -1,6 +1,6 @@
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{
+use infiltrator_contract::android_control::core_launch::{
     CoreLaunchArguments, CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath,
     CoreLaunchSpec, CoreLaunchWorkingDirectory,
 };
@@ -8,6 +8,7 @@ use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::endpoint::ProfileEndpointSource;
@@ -16,9 +17,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-mod singbox;
-
-pub(crate) use singbox::AndroidSingBoxProfileLaunchSpecProvider;
+pub(crate) mod singbox;
 
 pub(crate) struct AndroidMihomoProfileLaunchSpecProvider<S: SecureStore> {
     config: Arc<ConfigManager<S>>,
@@ -59,7 +58,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProv
             .await
             .map_err(config_failure)?;
 
-        let workspace = infiltrator_ports::profile_store::ProfileStore::load_active_workspace(
+        let workspace = ProfileStore::load_active_workspace(
             self.config.engine_profile_store(),
         )
         .await?;
@@ -184,7 +183,7 @@ mod tests {
             .existing_profile_document_path(&current_profile)
             .await
             .expect("Rust-created default profile exists");
-        let workspace = infiltrator_ports::profile_store::ProfileStore::load_active_workspace(
+        let workspace = ProfileStore::load_active_workspace(
             config.engine_profile_store(),
         )
         .await

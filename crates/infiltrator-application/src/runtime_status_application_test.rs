@@ -1,3 +1,5 @@
+use infiltrator_contract::runtime_status::ControlServiceObservation;
+use infiltrator_contract::runtime_status::RuntimeStatusSnapshot;
 use super::project_runtime_status;
 use infiltrator_contract::android_control::{
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
@@ -106,7 +108,7 @@ fn projection(
     owner_ready: bool,
     topology: TrafficTopologySnapshot,
     origin: SurfaceOrigin,
-) -> infiltrator_contract::runtime_status::RuntimeStatusSnapshot {
+) -> RuntimeStatusSnapshot {
     let core = core(lifecycle);
     project_runtime_status(
         HostKind::Android,
@@ -131,7 +133,7 @@ fn running_control_service_and_core_do_not_claim_effective_proxy_without_tun() {
 
     assert!(matches!(
         status.control_service,
-        infiltrator_contract::runtime_status::ControlServiceObservation::Available { .. }
+        ControlServiceObservation::Available { .. }
     ));
     assert_eq!(status.core_process, CoreProcessObservation::Running);
     assert_eq!(
@@ -299,7 +301,7 @@ fn desktop_status_does_not_invent_android_service_or_vpn_facts() {
 
     assert_eq!(
         status.control_service,
-        infiltrator_contract::runtime_status::ControlServiceObservation::NotApplicable
+        ControlServiceObservation::NotApplicable
     );
     assert_eq!(
         status.tun_data_plane,

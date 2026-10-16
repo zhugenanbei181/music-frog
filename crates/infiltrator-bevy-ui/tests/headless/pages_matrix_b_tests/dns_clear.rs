@@ -38,7 +38,7 @@ fn test_dns_clear_cache_requires_an_independent_confirmation() {
     assert_eq!(
         sink.submitted(),
         vec![UiCommand::ClearDnsCache {
-            operation: model.requested.unwrap()
+            operation: model.requested_operation().unwrap()
         }]
     );
 }

@@ -1,6 +1,8 @@
 //! Behavior cases for settings vpn.
 //! test-intent: behavior
 
+use infiltrator_contract::android_control::VpnOwnerLifecycle;
+use infiltrator_contract::android_control::VpnOwnerReadiness;
 use super::*;
 use bevy::ecs::query::With;
 
@@ -12,8 +14,8 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
 
     let mut projection = SettingsProjection::demo();
     projection.vpn = owner_vpn_observation(
-        infiltrator_contract::android_control::VpnOwnerLifecycle::PermissionRequired,
-        infiltrator_contract::android_control::VpnOwnerReadiness::PermissionRequired,
+        VpnOwnerLifecycle::PermissionRequired,
+        VpnOwnerReadiness::PermissionRequired,
     );
     app.world_mut()
         .commands()
@@ -49,8 +51,8 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
     );
     let mut running = SettingsProjection::demo();
     running.vpn = owner_vpn_observation(
-        infiltrator_contract::android_control::VpnOwnerLifecycle::Running,
-        infiltrator_contract::android_control::VpnOwnerReadiness::Ready,
+        VpnOwnerLifecycle::Running,
+        VpnOwnerReadiness::Ready,
     );
     app.world_mut().trigger(SettingsProjectionUpdated(running));
     app.update();

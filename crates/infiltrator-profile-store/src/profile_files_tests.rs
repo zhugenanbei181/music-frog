@@ -1,5 +1,5 @@
 use crate::profile_files::profile_document_backup_path;
-use crate::store::{EngineProfileStore as Store, ProfileDocumentExtension};
+use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
@@ -80,14 +80,14 @@ impl MemorySecureStore {
     }
 }
 
-fn store(root: PathBuf, secure_store: MemorySecureStore) -> Store<MemorySecureStore> {
+fn store(root: PathBuf, secure_store: MemorySecureStore) -> EngineProfileStore<MemorySecureStore> {
     let engine = EngineId::new("mihomo").unwrap();
     let codec = Arc::new(TestCodec(ProfileDocumentCodecScope {
         engine_id: engine.clone(),
         format_id: ProfileFormatId::new("mihomo-yaml").unwrap(),
         schema_version: ProfileSchemaVersion::new(1).unwrap(),
     }));
-    Store::new(
+    EngineProfileStore::new(
         engine,
         root,
         codec,

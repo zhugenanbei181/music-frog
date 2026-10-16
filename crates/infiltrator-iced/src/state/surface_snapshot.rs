@@ -182,7 +182,7 @@ impl AppState {
             // DUAL-14-10: the last real probe is a shared fact; a probe in
             // flight keeps the local optimistic view until the reader
             // publishes the same report.
-            if !self.editor.is_probing_dns_latency || dns.latency.is_probed() {
+            if !self.editor.dns_latency_probe_phase.is_probing() || dns.latency.is_probed() {
                 self.editor.dns_latency = dns.latency.clone();
             }
             // DUAL-14-13: the self-heal observation is a shared fact.

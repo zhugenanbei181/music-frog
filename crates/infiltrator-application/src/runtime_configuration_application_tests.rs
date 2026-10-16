@@ -1,3 +1,4 @@
+use infiltrator_contract::capability::Capability;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{
@@ -73,7 +74,7 @@ impl TunConfigurationPort for FakeTunPort {
         state.observation_count += 1;
         match state.behavior {
             FakeBehavior::Unsupported => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Tun,
+                Capability::Tun,
                 "TUN configuration is unsupported in this fake",
             )),
             _ => {
@@ -119,7 +120,7 @@ impl TunConfigurationPort for FakeTunPort {
             TunConfigurationUpdate::SetStack(stack) => {
                 if !stack.is_live_supported() {
                     return Err(PortError::unsupported(
-                        infiltrator_contract::capability::Capability::Tun,
+                        Capability::Tun,
                         "stack is not live supported",
                     ));
                 }

@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use crate::dns_hosts_projection::feedback;
 use super::*;
 fn entry(domain: &str, address: &str) -> DnsHostEntry {
     DnsHostEntry {
@@ -55,7 +56,7 @@ fn stable_row_edits_cancel_migration_failure_retry_and_stale_ack_preserve_real_a
     assert!(editor.finish(retry.token, Ok(())));
     assert!(editor.is_awaiting_readback());
     assert!(
-        crate::dns_hosts_projection::feedback(&editor, "en-US")
+        feedback(&editor, "en-US")
             .contains("Waiting for the updated Hosts configuration")
     );
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 2);

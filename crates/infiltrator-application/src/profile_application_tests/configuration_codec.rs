@@ -1,6 +1,16 @@
 //! Engine-scoped configuration codec behavior and source-bound writes.
 //! test-intent: behavior
 
+use infiltrator_contract::active_profile_reference::ActiveProfileReference;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::core_identity::CoreIdentity;
+use infiltrator_contract::core_identity::CoreInstanceId;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::tun::TunConfig;
+use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
 use super::*;
 use crate::configuration_application::ConfigurationApplication;
 use crate::profile_application::ProfileRuntimeAccess;
@@ -36,41 +46,41 @@ struct WorkspaceApplyRuntime {
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for WorkspaceApplyRuntime {
-    fn engine_id(&self) -> Option<infiltrator_contract::core_identity::EngineId> {
-        infiltrator_contract::core_identity::EngineId::new("mihomo").ok()
+    fn engine_id(&self) -> Option<EngineId> {
+        EngineId::new("mihomo").ok()
     }
-    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
-        infiltrator_contract::snapshot::CoreLifecycle::Running
+    fn core_lifecycle(&self) -> CoreLifecycle {
+        CoreLifecycle::Running
     }
     fn write_authorization(
         &self,
     ) -> Result<
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        ActiveProfileReferenceWriteAuthorization,
         PortError,
     > {
-        Ok(infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::BoundOwner {
-            identity: infiltrator_contract::core_identity::CoreIdentity::new(
-                infiltrator_contract::core_identity::EngineId::new("mihomo")
+        Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo")
                     .expect("test engine"),
-                infiltrator_contract::core_identity::CoreInstanceId::new("workspace-test-core")
+                CoreInstanceId::new("workspace-test-core")
                     .expect("test owner instance"),
                 None,
             ),
-            generation: infiltrator_contract::core_identity::CoreGeneration::new(7),
+            generation: CoreGeneration::new(7),
         })
     }
     async fn apply_active_profile_workspace(
         &self,
-        _: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
+        _: &ActiveProfileReference,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
-        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        _: ActiveProfileReferenceWriteAuthorization,
         _: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         *self.update.lock().unwrap() = Some(update.clone());
         let mut receipt =
-            infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar(
+            workspace_with_raw_sidecar(
                 expected.document.profile_id.as_str(),
                 &update.document_bytes,
                 update.sidecar_bytes.clone(),
@@ -236,7 +246,7 @@ async fn committed_configuration_returns_codec_readback_for_exact_written_bytes(
     let codec = Arc::new(TestProfileDocumentCodec::mihomo());
     codec.queue_configuration_mutation(Ok(ProfileConfigurationMutation {
         document_bytes: b"tun:\n  enable: true\n  mtu: 9000\n".to_vec(),
-        readback: ProfileConfigurationReadout::Tun(infiltrator_domain::tun::TunConfig {
+        readback: ProfileConfigurationReadout::Tun(TunConfig {
             enable: Some(true),
             mtu: Some(9000),
             ..Default::default()
@@ -452,7 +462,7 @@ async fn rule_workspace_read_and_edit_dispatch_through_codec_without_storage_sid
         .apply_profile_rule_workspace(
             &workspace.identity(),
             &workspace.document.raw_bytes,
-            ProfileRuleWorkspaceUpdate::ReplaceRules(vec![infiltrator_domain::rules::RuleEntry {
+            ProfileRuleWorkspaceUpdate::ReplaceRules(vec![RuleEntry {
                 rule: "MATCH,REJECT".to_owned(),
                 enabled: true,
             }]),

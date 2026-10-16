@@ -1,9 +1,8 @@
 //! Stopped-Core native configuration validation through the Android owner host.
 
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{
-    AndroidHostProcessRole, CoreLaunchConfigurationIdentity,
-};
+use infiltrator_contract::android_control::AndroidHostProcessRole;
+use infiltrator_contract::android_control::core_launch::CoreLaunchConfigurationIdentity;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{
@@ -19,9 +18,10 @@ use infiltrator_ports::profile_configuration_transaction::{
 };
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use std::process;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs::OpenOptions;
+use tokio::fs::{File, OpenOptions, canonicalize, create_dir_all};
 use tokio::io::AsyncWriteExt;
 
 const VALIDATION_TIMEOUT_MILLIS: u64 = 30_000;
@@ -144,7 +144,7 @@ impl ProfileConfigurationCandidateValidatorPort for AndroidProfileConfigurationC
         drop(file);
 
         let candidate_path = utf8_path(&candidate.0)?;
-        let working_directory = tokio::fs::canonicalize(&self.working_directory)
+        let working_directory = canonicalize(&self.working_directory)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         let working_directory = utf8_path(&working_directory)?;
@@ -169,7 +169,8 @@ struct CandidateFile(PathBuf);
 
 impl Drop for CandidateFile {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
+        use std::fs;
+        let _ = fs::remove_file(&self.0);
     }
 }
 
@@ -177,16 +178,16 @@ async fn reserve_candidate(
     config_directory: &Path,
     profile_id: &str,
     request_id: u64,
-) -> Result<(CandidateFile, tokio::fs::File), PortError> {
-    tokio::fs::create_dir_all(config_directory)
+) -> Result<(CandidateFile, File), PortError> {
+    create_dir_all(config_directory)
         .await
         .map_err(|error| PortError::Io(error.to_string()))?;
-    let config_directory = tokio::fs::canonicalize(config_directory)
+    let config_directory = canonicalize(config_directory)
         .await
         .map_err(|error| PortError::Io(error.to_string()))?;
     let path = config_directory.join(format!(
         ".{profile_id}.yaml.tmp-{}-{request_id}",
-        std::process::id(),
+        process::id(),
     ));
     match OpenOptions::new()
         .write(true)
@@ -258,10 +259,13 @@ mod tests {
     use infiltrator_contract::profile_document_identity::{
         ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
         ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-        ProfileSidecarRevision, ProfileWorkspaceIdentity,
+        ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
     };
     use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationCandidateValidatorPort;
     use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+    use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+    use std::fs;
+    use std::io::ErrorKind;
     use std::sync::Mutex;
 
     struct FakeClient {
@@ -282,7 +286,7 @@ mod tests {
         ) -> Result<AndroidCoreConfigurationValidationOutcome, String> {
             *self.request.lock().expect("request mutex") = Some(request.clone());
             let candidate =
-                std::fs::read(&request.candidate_path).map_err(|error| error.to_string())?;
+                fs::read(&request.candidate_path).map_err(|error| error.to_string())?;
             if sha256_digest(&candidate) != request.candidate_digest {
                 return Err("candidate digest did not match its bytes".to_owned());
             }
@@ -297,7 +301,7 @@ mod tests {
                 EngineId::new("mihomo").expect("engine ID"),
                 ProfileDocumentSourceIdentity::new(
                     ProfileDocumentSourceKind::Local,
-                    infiltrator_contract::profile_document_identity::ProfileSourceId::new(
+                    ProfileSourceId::new(
                         "local-primary",
                     )
                     .expect("source ID"),
@@ -316,7 +320,7 @@ mod tests {
     ) -> AndroidProfileConfigurationCandidateValidator {
         AndroidProfileConfigurationCandidateValidator::new(
             ProfileConfigurationTransactionScope::new(
-                mihomo_config::profile_document_codec::MihomoProfileDocumentCodec.scope(),
+                MihomoProfileDocumentCodec.scope(),
             ),
             directory.join("files/engines/mihomo"),
             directory.join("files"),
@@ -357,8 +361,8 @@ mod tests {
             request.candidate_digest.trim_start_matches("sha256:"),
         );
         assert_eq!(
-            std::fs::read(&request.candidate_path).unwrap_err().kind(),
-            std::io::ErrorKind::NotFound
+            fs::read(&request.candidate_path).unwrap_err().kind(),
+            ErrorKind::NotFound
         );
         assert_eq!(request.working_directory, directory.path().join("files"));
         assert!(
@@ -420,8 +424,8 @@ mod tests {
             .clone()
             .expect("native validation request");
         assert_eq!(
-            std::fs::read(&request.candidate_path).unwrap_err().kind(),
-            std::io::ErrorKind::NotFound
+            fs::read(&request.candidate_path).unwrap_err().kind(),
+            ErrorKind::NotFound
         );
     }
 
@@ -468,8 +472,8 @@ mod tests {
             .clone()
             .expect("staged request");
         assert_eq!(
-            std::fs::read(&request.candidate_path).unwrap_err().kind(),
-            std::io::ErrorKind::NotFound
+            fs::read(&request.candidate_path).unwrap_err().kind(),
+            ErrorKind::NotFound
         );
     }
 }

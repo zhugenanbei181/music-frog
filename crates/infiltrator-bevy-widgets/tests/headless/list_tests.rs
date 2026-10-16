@@ -15,7 +15,8 @@ use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::list::scroll_core::{
-    clamp_scroll_offset, visible_window, visible_window_with_overscan,
+    clamp_scroll_offset, visible_window, visible_window_with_overscan, VirtualEntityPool,
+    VirtualSlot,
 };
 use infiltrator_bevy_widgets::list::{
     FixedExtentUpdate, RowHeightMode, RowMeasurementOutcome, ScrollOffsetOutcome,
@@ -697,4 +698,148 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
     );
     let mut lists = world.query::<&List>();
     assert_eq!(lists.iter(world).count(), 1, "the list itself survives");
+}
+
+#[test]
+fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queued_clicks() {
+    let mut app = headless_app();
+    let slot_entities: Vec<Entity> = (0..5)
+        .map(|_| app.world_mut().spawn_empty().id())
+        .collect();
+
+    let mut pool = VirtualEntityPool::new(slot_entities);
+    assert_eq!(pool.capacity(), 5);
+    assert_eq!(pool.active_count(), 0);
+
+    // Initial mount: items 0..5 into slots 0..5
+    let actions = pool.sync_window(0, 5, |idx| idx as f32 * 40.0);
+    assert_eq!(actions.len(), 5);
+    assert_eq!(pool.active_count(), 5);
+
+    // Check slot 2: bound to item 2, active, generation 1
+    assert_eq!(pool.slot_binding(2), Some((Some(2), true, 1)));
+    assert!(pool.is_receipt_valid(2, 2, 1));
+    assert!(!pool.is_receipt_valid(2, 2, 0)); // stale generation rejected
+    assert!(!pool.is_receipt_valid(2, 3, 1)); // wrong item rejected
+
+    let mut slot_comp = VirtualSlot::new(2);
+    slot_comp.apply_rebind(2, 1);
+    assert!(slot_comp.is_bound_to(2));
+    assert!(slot_comp.is_valid_receipt(2, 1));
+    assert!(!slot_comp.is_valid_receipt(2, 0));
+
+    // Simulate user clicking slot 2 (item 2 at generation 1).
+    // An async command or delayed callback is queued with (slot: 2, item: 2, gen: 1).
+    let queued_click_target = (2usize, 2usize, 1u64);
+
+    // Now user scrolls down: window slides to [10, 15).
+    let rebind_actions = pool.sync_window(10, 15, |idx| idx as f32 * 40.0);
+    assert_eq!(rebind_actions.len(), 5);
+    // Slot 2 is now rebound to item 12 at generation 2
+    assert_eq!(pool.slot_binding(2), Some((Some(12), true, 2)));
+    slot_comp.apply_rebind(12, 2);
+
+    // The delayed receipt / queued click from the earlier interaction arrives!
+    // Rebind protection guard checks whether the receipt is still valid for slot 2:
+    assert!(
+        !pool.is_receipt_valid(queued_click_target.0, queued_click_target.1, queued_click_target.2),
+        "delayed click or receipt targeting item 2 must be rejected after slot 2 was rebound to item 12"
+    );
+    assert!(
+        !slot_comp.is_valid_receipt(queued_click_target.1, queued_click_target.2),
+        "VirtualSlot component must reject stale receipt targeting previous item and generation"
+    );
+
+    // Valid receipt for current binding succeeds
+    assert!(pool.is_receipt_valid(2, 12, 2));
+    assert!(slot_comp.is_valid_receipt(12, 2));
+
+    // Deactivate slots when window shrinks to [10, 12) (only 2 active slots)
+    let _deact_actions = pool.sync_window(10, 12, |idx| idx as f32 * 40.0);
+    assert_eq!(pool.active_count(), 2);
+    // Slot 2 was deactivated: generation advanced to 3, is_active is false
+    assert_eq!(pool.slot_binding(2), Some((None, false, 3)));
+    slot_comp.apply_deactivate(3);
+    assert!(!pool.is_receipt_valid(2, 12, 2));
+    assert!(!pool.is_receipt_valid(2, 12, 3));
+    assert!(!slot_comp.is_valid_receipt(12, 2));
+    assert!(!slot_comp.is_valid_receipt(12, 3));
+
+    // Scrolling back so slot 2 rebinds to item 2 again: generation is now 4!
+    let _scroll_back_actions = pool.sync_window(0, 5, |idx| idx as f32 * 40.0);
+    assert_eq!(pool.slot_binding(2), Some((Some(2), true, 4)));
+    slot_comp.apply_rebind(2, 4);
+
+    // Even though slot 2 is once again bound to item 2, the old delayed click from generation 1 is STILL rejected!
+    assert!(
+        !pool.is_receipt_valid(queued_click_target.0, queued_click_target.1, queued_click_target.2),
+        "stale click targeting generation 1 must not match the new generation 4 binding of the same item"
+    );
+    assert!(!slot_comp.is_valid_receipt(queued_click_target.1, queued_click_target.2));
+    assert!(pool.is_receipt_valid(2, 2, 4));
+    assert!(slot_comp.is_valid_receipt(2, 4));
+}
+
+#[test]
+fn virtual_list_pool_capacity_and_mounted_slots_are_strictly_bounded_by_viewport_and_overscan() {
+    // Test dataset with 50,000 items in an 800px viewport with row height 40px and overscan 3.
+    let item_count = 50_000;
+    let row_height = 40.0;
+    let viewport = 800.0;
+    let overscan = 3;
+
+    let mut state = VirtualListState::new(item_count, row_height, viewport).with_overscan(overscan);
+
+    // Visible rows in viewport = 800 / 40 = 20.
+    // Mounted rows with overscan = 20 + 2 * 3 = 26 (at interior positions).
+    // The maximum possible mounted rows for any scroll offset is strictly bounded:
+    let max_mounted_bound = ((viewport / row_height).ceil() as usize) + overscan * 2 + 2;
+
+    // Pool capacity needed:
+    let pool_capacity = max_mounted_bound;
+    let mut app = headless_app();
+    let dummy_entities: Vec<Entity> = (0..pool_capacity)
+        .map(|_| app.world_mut().spawn_empty().id())
+        .collect();
+    let mut pool = VirtualEntityPool::new(dummy_entities);
+
+    // Test across various scroll positions from top to middle to bottom
+    let scroll_offsets = [
+        0.0,
+        15.0, // fractional top
+        120.0,
+        5000.0,
+        20_000.0,
+        500_000.0,
+        1_000_000.0,
+        state.max_scroll_offset() - 50.0,
+        state.max_scroll_offset(),
+    ];
+
+    for &offset in &scroll_offsets {
+        let _ = state.set_scroll_offset(offset);
+        let win = state.window();
+
+        // 1. Mounted window length must never exceed the viewport + overscan upper bound
+        assert!(
+            win.visible_count <= max_mounted_bound,
+            "mounted rows count {} must be bounded by {}",
+            win.visible_count,
+            max_mounted_bound
+        );
+
+        // 2. Sync pool to window
+        let _actions = pool.sync_window(win.start, win.end, |idx| idx as f32 * row_height);
+
+        // 3. Active pool slots must be exactly equal to the mounted window visible count
+        assert_eq!(
+            pool.active_count(),
+            win.visible_count,
+            "active slots in pool must match the mounted window count"
+        );
+
+        // 4. Pool capacity never changes and is independent of 50,000 item dataset
+        assert_eq!(pool.capacity(), pool_capacity);
+        assert!(pool.capacity() <= 30);
+    }
 }

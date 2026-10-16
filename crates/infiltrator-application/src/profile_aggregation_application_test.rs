@@ -1,5 +1,8 @@
 //! DUAL-08: headless tests for the shared aggregation application.
 
+use crate::profile_application::ProfileRuntimeAccess;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::aggregator::AggregationActivationOutcome;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -103,7 +106,7 @@ impl ProfileStore for FakeStore {
         &self,
         expected: ActiveProfileReferenceState,
         target: ActiveProfileReferenceTarget,
-        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        _: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
         let mut state = self.active_reference.lock().expect("active reference");
         if state.revision() != expected.revision() {
@@ -371,7 +374,7 @@ async fn create_profile_saves_a_new_independent_profile() {
     // No activation was requested, so the surface must not claim one.
     assert_eq!(
         outcome.activation,
-        infiltrator_contract::aggregator::AggregationActivationOutcome::NotRequested
+        AggregationActivationOutcome::NotRequested
     );
     // DUAL-08-13: creating also remembers the draft under the profile name.
     assert_eq!(outcome.template_name.as_deref(), Some("Aggregated-Test"));
@@ -478,7 +481,7 @@ async fn create_profile_activates_through_the_shared_profile_path() {
     let outcome = app.create_profile(&request).await.expect("create");
     assert_eq!(
         outcome.activation,
-        infiltrator_contract::aggregator::AggregationActivationOutcome::SelectedWithoutRuntime
+        AggregationActivationOutcome::SelectedWithoutRuntime
     );
     assert_eq!(
         store.get_current().await.expect("current"),
@@ -581,7 +584,7 @@ proxies:
 
     let refreshed = app
         .reaggregate::<dyn ActiveProfileReferenceApplier>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             "Aggregated-Test",
         )
         .await
@@ -605,7 +608,7 @@ proxies:
 
     let unknown = app
         .reaggregate::<dyn ActiveProfileReferenceApplier>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             "nope",
         )
         .await

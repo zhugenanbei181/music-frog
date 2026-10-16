@@ -2,8 +2,11 @@
 
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_option_store;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion,
+};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
     ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
@@ -34,12 +37,12 @@ pub const SIDECAR_SCHEMA_VERSION: u32 = 1;
 pub fn scope(document: ProfileDocumentCodecScope) -> ProfileOptionsCodecScope {
     ProfileOptionsCodecScope {
         document,
-        sidecar_format_id: infiltrator_contract::profile_document_identity::ProfileFormatId::new(
+        sidecar_format_id: ProfileFormatId::new(
             SIDECAR_FORMAT,
         )
         .expect("static Mihomo options format ID is valid"),
         sidecar_schema_version:
-            infiltrator_contract::profile_document_identity::ProfileSchemaVersion::new(
+            ProfileSchemaVersion::new(
                 SIDECAR_SCHEMA_VERSION,
             )
             .expect("Mihomo options schema version is positive"),
@@ -142,8 +145,7 @@ pub fn inspect_mixin_studio(
         Err(error)
             if matches!(
                 error.error_code(),
-                infiltrator_contract::error::ErrorCode::InvalidInput
-                    | infiltrator_contract::error::ErrorCode::Configuration
+                ErrorCode::InvalidInput | ErrorCode::Configuration
             ) =>
         {
             ProfileMixinPreflight::Blocked {
@@ -437,7 +439,7 @@ fn ensure_document_scope(identity: &ProfileDocumentIdentity) -> Result<(), PortE
         || identity.schema_version.value() != PROFILE_SCHEMA_VERSION
     {
         return Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             format!(
                 "Mihomo options codec does not support engine `{}`, format `{}`, schema {}",
                 identity.engine_id.as_str(),

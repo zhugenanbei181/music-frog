@@ -27,7 +27,7 @@ use infiltrator_ports::active_profile_reference_store::{
 };
 use infiltrator_ports::error::PortError;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy)]
 enum OwnerRecoveryRecordPosition {
@@ -60,7 +60,7 @@ impl ActiveProfileOwnerCoordinator {
         }
     }
 
-    pub(crate) fn config_root(&self) -> &std::path::Path {
+    pub(crate) fn config_root(&self) -> &Path {
         &self.config_root
     }
 
@@ -439,7 +439,7 @@ impl ActiveProfileOwnerCoordinator {
 pub fn validate_reference_write_authorization(
     owner_state: &ActiveCoreOwnerState,
     authorization: &ActiveProfileReferenceWriteAuthorization,
-    config_root: &std::path::Path,
+    config_root: &Path,
 ) -> Result<(), PortError> {
     match (owner_state, authorization) {
         (ActiveCoreOwnerState::Unowned, ActiveProfileReferenceWriteAuthorization::Unowned) => {

@@ -56,6 +56,7 @@ kotlin {
                 "com/musicfrog/infiltrator/AndroidBridgeCallWire.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallDispatcher.kt",
                 "com/musicfrog/infiltrator/AndroidBridgeCallRouter.kt",
+                "com/musicfrog/infiltrator/ClientOwnerResponse.kt",
                 "com/musicfrog/infiltrator/MihomoControlClient.kt",
                 "com/musicfrog/infiltrator/MihomoOwnerIpcConnection.kt",
                 "com/musicfrog/infiltrator/OwnerIpcPayload.kt",

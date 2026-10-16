@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use infiltrator_contract::error::Failure;
 use super::*;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
@@ -89,7 +90,7 @@ fn speedtest_details_render_typed_unsupported_without_inventing_results() {
     let mut app = mounted_default();
     let mut projection = DemoOverviewSource::running().current();
     projection.speedtest = SpeedtestSnapshot::unavailable(
-        infiltrator_contract::error::Failure::unsupported("missing Core speedtest owner"),
+        Failure::unsupported("missing Core speedtest owner"),
     );
     app.world_mut()
         .commands()

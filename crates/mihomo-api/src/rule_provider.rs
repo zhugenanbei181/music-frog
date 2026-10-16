@@ -1,6 +1,7 @@
 //! Mihomo rule-provider adapter with owner and observation revision fences.
 
 use crate::client::MihomoClient;
+use crate::error::MihomoError;
 use crate::network_error::network_error;
 use crate::types::RuleProvider;
 use async_trait::async_trait;
@@ -19,22 +20,22 @@ use tokio::sync::Mutex;
 
 #[async_trait]
 pub(crate) trait MihomoRuleProviderApi: Send + Sync {
-    async fn list_rule_providers(&self) -> crate::error::Result<HashMap<String, RuleProvider>>;
-    async fn rule_provider_payload(&self, name: &str) -> crate::error::Result<Option<Vec<String>>>;
-    async fn update_rule_provider(&self, name: &str) -> crate::error::Result<()>;
+    async fn list_rule_providers(&self) -> Result<HashMap<String, RuleProvider>, MihomoError>;
+    async fn rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>, MihomoError>;
+    async fn update_rule_provider(&self, name: &str) -> Result<(), MihomoError>;
 }
 
 #[async_trait]
 impl MihomoRuleProviderApi for MihomoClient {
-    async fn list_rule_providers(&self) -> crate::error::Result<HashMap<String, RuleProvider>> {
+    async fn list_rule_providers(&self) -> Result<HashMap<String, RuleProvider>, MihomoError> {
         MihomoClient::get_rule_providers(self).await
     }
 
-    async fn rule_provider_payload(&self, name: &str) -> crate::error::Result<Option<Vec<String>>> {
+    async fn rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>, MihomoError> {
         MihomoClient::get_rule_provider_payload(self, name).await
     }
 
-    async fn update_rule_provider(&self, name: &str) -> crate::error::Result<()> {
+    async fn update_rule_provider(&self, name: &str) -> Result<(), MihomoError> {
         MihomoClient::update_rule_provider(self, name).await
     }
 }
@@ -305,7 +306,7 @@ fn stale_revision() -> PortError {
 #[cfg(test)]
 mod tests {
     use super::{MihomoRuleProviderAdapter, MihomoRuleProviderApi};
-    use crate::error::Result;
+    use crate::error::MihomoError;
     use crate::types::RuleProvider;
     use async_trait::async_trait;
     use infiltrator_contract::core_identity::{
@@ -371,14 +372,14 @@ mod tests {
 
     #[async_trait]
     impl MihomoRuleProviderApi for FakeApi {
-        async fn list_rule_providers(&self) -> Result<HashMap<String, RuleProvider>> {
+        async fn list_rule_providers(&self) -> Result<HashMap<String, RuleProvider>, MihomoError> {
             self.lists.fetch_add(1, Ordering::SeqCst);
             Ok(self.providers.lock().unwrap().clone())
         }
-        async fn rule_provider_payload(&self, _name: &str) -> Result<Option<Vec<String>>> {
+        async fn rule_provider_payload(&self, _name: &str) -> Result<Option<Vec<String>>, MihomoError> {
             Ok(self.payload.clone())
         }
-        async fn update_rule_provider(&self, name: &str) -> Result<()> {
+        async fn update_rule_provider(&self, name: &str) -> Result<(), MihomoError> {
             self.updates.fetch_add(1, Ordering::SeqCst);
             if let Some(provider) = self.providers.lock().unwrap().get_mut(name) {
                 provider.rule_count += 1;

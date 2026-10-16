@@ -4,7 +4,9 @@
 //! Scenes read it as a `Res<UiPalette>`; nothing else in this crate (or in
 //! the frontend crate) is allowed to construct a `Color` from raw numbers.
 
-use crate::theme::{REM_BASE, Theme, TokenColor, metrics, radius, timing, type_scale};
+use crate::theme::{
+    REM_BASE, Theme, TokenColor, metrics, mobile_theme_tokens, radius, space, timing, type_scale,
+};
 use bevy::color::{Alpha, Color};
 use bevy::ecs::resource::Resource;
 use bevy::ui::{Val, ValNum};
@@ -62,12 +64,29 @@ pub struct UiPalette {
     pub display_font_px: f32,
     pub heading_font_px: f32,
     pub body_font_px: f32,
+    pub body_large_font_px: f32,
+    pub label_large_font_px: f32,
     pub caption_font_px: f32,
+    pub label_small_font_px: f32,
     pub mono_font_px: f32,
+    pub bottom_sheet_radius_px: f32,
+    pub dialog_radius_px: f32,
+    pub touch_target_compact_px: f32,
+    pub touch_target_comfortable_px: f32,
+    pub bottom_nav_height_px: f32,
+    pub top_app_bar_height_px: f32,
+    pub screen_margin_mobile_px: f32,
+    pub screen_margin_tablet_px: f32,
+    pub bottom_nav_bg: Color,
+    pub bottom_nav_indicator: Color,
+    pub touch_ripple: Color,
+    pub swipe_action: Color,
+    pub swipe_destructive: Color,
 }
 
 impl UiPalette {
     pub fn new(theme: &Theme) -> Self {
+        let mobile = mobile_theme_tokens(theme.mode);
         Self {
             window_clear: theme_color(theme.window_bg),
             surface: theme_color(theme.surface),
@@ -98,8 +117,24 @@ impl UiPalette {
             display_font_px: type_scale::DISPLAY,
             heading_font_px: type_scale::HEADING,
             body_font_px: type_scale::BODY,
+            body_large_font_px: type_scale::BODY_LARGE,
+            label_large_font_px: type_scale::LABEL_LARGE,
             caption_font_px: type_scale::CAPTION,
+            label_small_font_px: type_scale::LABEL_SMALL,
             mono_font_px: type_scale::MONO,
+            bottom_sheet_radius_px: radius::BOTTOM_SHEET,
+            dialog_radius_px: radius::DIALOG,
+            touch_target_compact_px: metrics::TOUCH_TARGET_COMPACT,
+            touch_target_comfortable_px: metrics::TOUCH_TARGET_COMFORTABLE,
+            bottom_nav_height_px: metrics::BOTTOM_NAV_HEIGHT,
+            top_app_bar_height_px: metrics::TOP_APP_BAR_HEIGHT,
+            screen_margin_mobile_px: space::SCREEN_MARGIN_MOBILE,
+            screen_margin_tablet_px: space::SCREEN_MARGIN_TABLET,
+            bottom_nav_bg: theme_color(mobile.bottom_nav_bg),
+            bottom_nav_indicator: theme_color(mobile.bottom_nav_indicator),
+            touch_ripple: theme_color(mobile.touch_ripple),
+            swipe_action: theme_color(mobile.swipe_action),
+            swipe_destructive: theme_color(mobile.swipe_destructive),
         }
     }
 

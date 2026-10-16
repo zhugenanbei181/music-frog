@@ -9,7 +9,8 @@ pub(super) mod collections;
 
 use super::flag_assets;
 use super::slint_model;
-use super::{AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
+use super::{apply_theme_color, AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
+use slint::ComponentHandle;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
 };
@@ -531,6 +532,10 @@ fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: O
         ThemePreference::System => {}
         ThemePreference::Fixed(skin) => window.set_application_dark_mode(skin.is_dark()),
     }
+    window.set_refresh_current_profile_on_start(settings.refresh_current_profile_on_start);
+    if let Some(color_hex) = &settings.custom_accent_color {
+        apply_theme_color(&window.as_weak(), color_hex);
+    }
 }
 
 fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &str) {
@@ -543,10 +548,12 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
         window.set_profile_settings_overrides(slint_model(Vec::<ProfileOverrideChoice>::new()));
         return;
     };
+    let total_profiles = page.profiles.len();
     let rows = page
         .profiles
         .iter()
-        .map(|profile| ProfileCard {
+        .enumerate()
+        .map(|(index, profile)| ProfileCard {
             id: profile.id.clone().into(),
             name: profile.name.clone().into(),
             kind: if profile.write_protection == ProfileWriteProtection::RemoteSubscription {
@@ -561,8 +568,8 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
             },
             updated: profile.updated_at.clone().into(),
             current: profile.is_active,
-            can_move_up: false,
-            can_move_down: false,
+            can_move_up: index > 0,
+            can_move_down: index + 1 < total_profiles,
         })
         .collect::<Vec<_>>();
     window.set_profiles(slint_model(rows));
@@ -583,8 +590,42 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
             .into(),
     );
 
-    // The shared contract exposes one per-profile Mixin overlay, not Lumen's
-    // independent named Override catalog. Never invent catalog rows from it.
-    window.set_overrides(slint_model(Vec::<OverrideCard>::new()));
-    window.set_profile_settings_overrides(slint_model(Vec::<ProfileOverrideChoice>::new()));
+    let override_cards: Vec<OverrideCard> = page
+        .named_overrides
+        .overrides
+        .iter()
+        .map(|item| OverrideCard {
+            id: item.id.as_str().into(),
+            name: item.name.clone().into(),
+            kind: "yaml".into(),
+            format: "YAML".into(),
+            bound_count: page.named_overrides.bound_profile_count(&item.id).to_string().into(),
+        })
+        .collect();
+    window.set_overrides(slint_model(override_cards));
+
+    let active_profile_id = page
+        .profiles
+        .iter()
+        .find(|p| p.is_active)
+        .map(|p| p.id.as_str())
+        .unwrap_or_default();
+    let bindings = page.named_overrides.bindings_for_profile(active_profile_id);
+    let total_bindings = bindings.len();
+    let choices: Vec<ProfileOverrideChoice> = bindings
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, b)| {
+            let item = page.named_overrides.get_override(&b.override_id)?;
+            Some(ProfileOverrideChoice {
+                id: item.id.as_str().into(),
+                name: item.name.clone().into(),
+                format: "YAML".into(),
+                selected: b.enabled,
+                can_move_up: idx > 0,
+                can_move_down: idx + 1 < total_bindings,
+            })
+        })
+        .collect();
+    window.set_profile_settings_overrides(slint_model(choices));
 }

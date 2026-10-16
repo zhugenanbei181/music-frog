@@ -6,6 +6,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
@@ -133,7 +134,7 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
         _evidence: ActiveProfileOwnerRecoveryEvidence,
     ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "active profile owner terminal recovery is unavailable for this store",
         ))
     }
@@ -164,7 +165,7 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
             expected_binding_generation,
         );
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "active profile owner switching is unavailable for this store",
         ))
     }
@@ -173,7 +174,7 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
     /// reservation whose owner or candidate process state is ambiguous.
     async fn recover_owner_switch(&self) -> Result<ActiveProfileOwnerSwitchRecovery, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "active profile owner switch recovery is unavailable for this store",
         ))
     }
@@ -187,7 +188,7 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
         _terminal: &CoreLifecycleSnapshot,
     ) -> Result<Box<dyn ActiveProfileOwnerStoppedSwitchLease>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "active profile old-owner terminal recovery is unavailable for this store",
         ))
     }
@@ -200,7 +201,7 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
         _terminal: &CoreLifecycleSnapshot,
     ) -> Result<ActiveProfileReferenceState, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "active profile candidate recovery is unavailable for this store",
         ))
     }
@@ -236,7 +237,7 @@ pub trait ActiveProfileOwnerLease: Send + Sync {
         _context: &CoreProcessStartContext,
     ) -> Result<(), PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "active Core owner session proof persistence is unavailable for this store",
         ))
     }

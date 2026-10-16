@@ -1,9 +1,13 @@
 //! Wave 3 Advanced feature message handlers: PCAP capture, Sub-Rules, Speedtest,
 //! GeoData updater, UWP Loopback, and Encrypted Backup packages.
 
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::speedtest::SpeedtestCancelOutcome;
 use crate::host::desktop::uwp_loopback_application;
 use crate::state::AppState;
 use crate::types::app::{ToastStatus, UwpAppItem, UwpLoopbackState};
+use crate::types::editor::GeoDataUpdatePhase;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
@@ -135,25 +139,25 @@ impl AppState {
                     async move {
                         let outcome = ingress
                             .execute_outcome(
-                                infiltrator_contract::command::CommandIntent::StartSpeedtest {
+                                CommandIntent::StartSpeedtest {
                                     target,
                                 },
                             )
                             .await;
                         if outcome.scope.as_ref() != Some(&requested_scope) {
-                            return Err(infiltrator_contract::error::Failure::new(
-                                infiltrator_contract::error::ErrorCode::InvalidState,
+                            return Err(Failure::new(
+                                ErrorCode::InvalidState,
                                 "speedtest start completed for a stale Core scope",
                                 false,
                             ));
                         }
                         let receipt = outcome.result.into_output().and_then(|output| {
                             match output {
-                            infiltrator_contract::command_output::CommandOutput::SpeedtestStarted(
+                            CommandOutput::SpeedtestStarted(
                                 receipt,
                             ) => Ok(receipt),
-                            _ => Err(infiltrator_contract::error::Failure::new(
-                                infiltrator_contract::error::ErrorCode::InvalidState,
+                            _ => Err(Failure::new(
+                                ErrorCode::InvalidState,
                                 "speedtest start returned another output type",
                                 false,
                             )),
@@ -184,16 +188,16 @@ impl AppState {
             Message::SpeedtestCancelled(Ok((outcome, snapshot))) => {
                 self.diag.speedtest = snapshot;
                 let message = match outcome {
-                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::Requested { .. } => {
+                    SpeedtestCancelOutcome::Requested { .. } => {
                         "Speedtest cancellation accepted"
                     }
-                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::AlreadyRequested {
+                    SpeedtestCancelOutcome::AlreadyRequested {
                         ..
                     } => "Speedtest cancellation is already pending",
-                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::RunAlreadyFinished {
+                    SpeedtestCancelOutcome::RunAlreadyFinished {
                         ..
                     } => "Speedtest run has already finished",
-                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::StaleRun { .. } => {
+                    SpeedtestCancelOutcome::StaleRun { .. } => {
                         "Speedtest cancellation referred to a stale run"
                     }
                 };
@@ -238,7 +242,7 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 };
-                self.editor.geodata_status.is_updating = true;
+                self.editor.geodata_status.phase = GeoDataUpdatePhase::Updating;
                 Task::perform(
                     async move {
                         application
@@ -252,7 +256,7 @@ impl AppState {
             }
             Message::GeoDataUpdateResult(result) => {
                 let lang = Lang(&self.shell.lang);
-                self.editor.geodata_status.is_updating = false;
+                self.editor.geodata_status.phase = GeoDataUpdatePhase::Idle;
                 match result {
                     Ok(()) => {
                         self.editor.geodata_status.update_message =

@@ -318,13 +318,14 @@ pub(super) fn system_integration_card<'a>(
             Space::new().height(theme::SP_SM),
             row![
                 text_btn(
-                    if state.profile.is_saving_app_settings {
+                    if state.profile.app_settings_save_phase.is_saving() {
                         lang.tr("settings_saving").to_string()
                     } else {
                         lang.tr("settings_save_btn").to_string()
                     },
                     style_accent,
-                    (!state.profile.is_saving_app_settings).then_some(Message::SaveAppSettings)
+                    (!state.profile.app_settings_save_phase.is_saving())
+                        .then_some(Message::SaveAppSettings)
                 ),
                 Space::new().width(theme::SP_MD),
                 text_btn(

@@ -4,10 +4,7 @@
 //! owns `DesktopProductSession`, the application-backed snapshot source, and
 //! the matching command sink.
 
-mod command_sink;
-mod desktop;
-mod entry;
-mod surface;
-
-pub use desktop::run_desktop;
-pub use entry::{DesktopEntry, DesktopEntryParseError, parse_entry};
+pub mod command_sink;
+pub mod desktop;
+pub mod entry;
+pub mod surface;

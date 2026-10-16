@@ -1,5 +1,6 @@
 //! Scope-bound live configuration use-cases.
 
+use std::fmt::Debug;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -526,7 +527,7 @@ fn expected_lan_security(update: &LanSecurityUpdate) -> LanSecurityConfiguration
     }
 }
 
-fn verify_apply_readback<T: Clone + std::fmt::Debug + PartialEq>(
+fn verify_apply_readback<T: Clone + Debug + PartialEq>(
     scope: &CoreScope,
     expected: &T,
     applied: ConfigurationObservation<T>,
@@ -605,7 +606,7 @@ fn canonical_bind_address(raw: &str) -> Result<String, Failure> {
     })
 }
 
-fn readback_mismatch<T: std::fmt::Debug>(name: &str, expected: &T, observed: &T) -> Failure {
+fn readback_mismatch<T: Debug>(name: &str, expected: &T, observed: &T) -> Failure {
     Failure::new(
         ErrorCode::InvalidState,
         format!("{name} readback mismatch: expected {expected:?}, observed {observed:?}"),

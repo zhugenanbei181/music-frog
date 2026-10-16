@@ -11,6 +11,7 @@ use crate::reset_fence::{
     initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
+use age::x25519::Identity;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
@@ -33,7 +34,7 @@ use std::ptr;
 use std::str;
 use std::sync::atomic::{Ordering, compiler_fence};
 
-const AGE_CREDENTIAL_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
+const AGE_CREDENTIAL_SERVICE: &str = "MusicFrog-Infiltrator";
 const AGE_CREDENTIAL_SCHEMA_VERSION: u8 = 1;
 const AGE_CREDENTIAL_KEY_PREFIX: &str = "age";
 
@@ -284,7 +285,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         let PersistedAgeCredentialState::Configured { private_key } = record.credential else {
             return Ok(ProfileAgeContentDecryption::CredentialNotConfigured);
         };
-        let Ok(identity) = private_key.as_str().parse::<age::x25519::Identity>() else {
+        let Ok(identity) = private_key.as_str().parse::<Identity>() else {
             return Ok(ProfileAgeContentDecryption::InvalidCredentialOrContent);
         };
         let Ok(plaintext) = age::decrypt(&identity, content.as_str().as_bytes()) else {

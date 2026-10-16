@@ -47,6 +47,19 @@ if [[ ! -d "$TOOLCHAIN_BIN" ]]; then
     exit 1
 fi
 
+if [[ -z "${JAVA_HOME:-}" || ! -d "${JAVA_HOME:-}" ]]; then
+    resolved_java="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" resolve-java 2>/dev/null || true)"
+    if [[ -n "$resolved_java" && -d "$resolved_java" ]]; then
+        export JAVA_HOME="$resolved_java"
+    elif [[ -d "/home/zhugenanbei/android-tools-bevy/jdk" ]]; then
+        export JAVA_HOME="/home/zhugenanbei/android-tools-bevy/jdk"
+    fi
+fi
+export JAVA_HOME="${JAVA_HOME:-}"
+if [[ -n "$JAVA_HOME" && -d "$JAVA_HOME/bin" ]]; then
+    export PATH="$JAVA_HOME/bin:$PATH"
+fi
+
 cd "$REPO_ROOT"
 for mapping in "${TARGETS[@]}"; do
     abi="${mapping%%:*}"
@@ -58,6 +71,10 @@ for mapping in "${TARGETS[@]}"; do
         "CC_${target}=$TOOLCHAIN_BIN/${target}21-clang" \
         "AR_${target//-/_}=$TOOLCHAIN_BIN/llvm-ar" \
         "AR_${target}=$TOOLCHAIN_BIN/llvm-ar" \
+        "JAVA_HOME=$JAVA_HOME" \
+        "PATH=$JAVA_HOME/bin:$PATH" \
+        "ANDROID_HOME=${ANDROID_HOME:-/home/zhugenanbei/android-tools/android-sdk}" \
+        "ANDROID_SDK_ROOT=${ANDROID_HOME:-/home/zhugenanbei/android-tools/android-sdk}" \
         cargo build --release --target "$target" -p infiltrator-android --features slint-ui
     destination="$DEST_DIR/$abi/libinfiltrator_android.so"
     mkdir -p "$(dirname "$destination")"

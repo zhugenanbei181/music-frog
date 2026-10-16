@@ -1,4 +1,7 @@
 //! Drive the actual tracer Tab, native input and shared command owner before observing pixels.
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::request_scroll;
@@ -57,7 +60,7 @@ struct TraceCapture {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let handler = CommandApplication::new().with_rule_tracer(owner.clone());
@@ -70,10 +73,10 @@ pub fn install(app: &mut App) {
         ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_rule_tracer(owner.clone())
             .with_profiles(
-                infiltrator_composition::mihomo_configuration::profiles_for_mihomo(store.clone()),
+                profiles_for_mihomo(store.clone()),
             )
             .with_configuration(
-                infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+                for_mihomo_store(store.clone()),
             ),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(

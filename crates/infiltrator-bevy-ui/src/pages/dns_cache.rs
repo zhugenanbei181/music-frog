@@ -30,7 +30,7 @@ use infiltrator_presentation::dns_cache_projection::project_cache;
 #[derive(Resource, Default)]
 pub struct CacheConfirmation {
     pub model: DnsCacheActions,
-    pub request: Option<(RequestId, u64)>,
+    pub request: Option<(RequestId, DnsCacheOperationId)>,
     pub requested: bool,
     pub restore_focus: Vec<Entity>,
 }
@@ -99,11 +99,9 @@ pub fn activate(
     let Ok(token) = token else {
         return;
     };
-    if let Some(request) = sink.and_then(|sink| {
-        sink.submit_tracked(UiCommand::ClearDnsCache {
-            operation: DnsCacheOperationId(token),
-        })
-    }) {
+    if let Some(request) =
+        sink.and_then(|sink| sink.submit_tracked(UiCommand::ClearDnsCache { operation: token }))
+    {
         state.request = Some((request, token));
     } else {
         state.model.finish(
@@ -124,7 +122,7 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<CacheConfirmati
         return;
     };
     if event.request_id == request
-        && operation == DnsCacheOperationId(token)
+        && operation == token
         && state.model.finish(token, event.unit_result())
     {
         state.request = None;

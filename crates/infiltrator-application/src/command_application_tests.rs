@@ -5,6 +5,8 @@
 //! list arithmetic as `infiltrator_domain::rules::edit` and persists the
 //! result, without a real profile directory.
 
+use infiltrator_contract::core_identity::CoreScope;
+use tokio::sync::OwnedMutexGuard;
 use super::*;
 use crate::command_application::CommandApplication;
 use crate::command_application::handler::ValidatedCoreCommandScope;
@@ -51,6 +53,7 @@ use infiltrator_test_support::profile_workspace_test_support::{
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use tokio::sync;
 
 #[derive(Default)]
 struct FakeStore {
@@ -59,14 +62,14 @@ struct FakeStore {
     metadata: Mutex<ProfileMetadata>,
     workspace_reads: AtomicUsize,
     workspace_writes: AtomicUsize,
-    workspace_lease_gate: Arc<tokio::sync::Mutex<()>>,
+    workspace_lease_gate: Arc<sync::Mutex<()>>,
 }
 
 struct FakeActiveWorkspaceWriteLease<'a> {
     store: &'a FakeStore,
     expected_reference: ActiveProfileReference,
     observed: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct FakeActiveWorkspacePublishedLease<'a> {
@@ -74,12 +77,12 @@ struct FakeActiveWorkspacePublishedLease<'a> {
     previous: ProfileWorkspace,
     published: ProfileWorkspace,
     published_state: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct FakeActiveWorkspaceRestoredLease {
     workspace: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 impl FakeStore {
@@ -407,7 +410,7 @@ pub(super) struct RecordingConnectionPort {
 impl ConnectionPort for RecordingConnectionPort {
     async fn observe(
         &self,
-        scope: infiltrator_contract::core_identity::CoreScope,
+        scope: CoreScope,
     ) -> Result<ConnectionObservationSnapshot, PortError> {
         ConnectionObservationSnapshot::new(
             scope,

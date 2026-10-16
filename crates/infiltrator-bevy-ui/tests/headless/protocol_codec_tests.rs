@@ -36,7 +36,7 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
 use infiltrator_ports::profile_document_codec::{
-    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
+    ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_presentation::protocol_form::{draft_from_uri, uri_from_draft};
 use std::sync::Arc;
@@ -370,9 +370,9 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_bevy_surface() {
-    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
+    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(
         profile_document_codec_fixture(),
-    ));
+    );
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",

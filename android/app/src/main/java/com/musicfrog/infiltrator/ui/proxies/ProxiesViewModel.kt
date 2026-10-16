@@ -83,9 +83,11 @@ internal class ProxiesViewModel internal constructor(
 
     private fun startRefreshLoop() {
         viewModelScope.launch {
-            while (isActive) {
-                loadInventory()
-                delay(3000)
+            repository.ownerSurfaceFlow(3000L).collect { read ->
+                when (read) {
+                    is OwnerSurfaceRead.Available -> acceptSurface(read.snapshot)
+                    is OwnerSurfaceRead.Unavailable -> publishUnavailable(read.failure)
+                }
             }
         }
     }

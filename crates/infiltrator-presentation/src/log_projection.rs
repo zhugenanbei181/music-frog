@@ -1,4 +1,5 @@
 //! A single pure parser for original controller log records on all peers.
+use infiltrator_contract::logs::RawLogRecord;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::{LogFactsSnapshot, LogLevel, LogSession, LogStreamState};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
@@ -114,7 +115,7 @@ fn observation_matches_core(session: &LogSession, core: &CoreSnapshot) -> bool {
 }
 
 fn project_log_rows(
-    records: &[infiltrator_contract::logs::RawLogRecord],
+    records: &[RawLogRecord],
     facts: &LogFactsSnapshot,
 ) -> LogsPageSnapshot {
     let all_entries: Vec<_> = records

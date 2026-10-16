@@ -8,7 +8,9 @@
 //! The Iced editor keeps its local `rules` draft dirty and persists it through
 //! the existing `SaveRules` path, exactly like the other DUAL-11 rule edits.
 
+use infiltrator_contract::error::ErrorCode;
 use crate::state::AppState;
+use crate::state::editor::RuleProviderDiffLoadPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
@@ -35,12 +37,12 @@ impl AppState {
             Message::PurgeRuleProviderCache => self.start_rule_provider_cache_purge(),
             Message::InspectRuleProviderDiff(None) => {
                 self.editor.inspecting_rule_provider_diff = None;
-                self.editor.is_loading_rule_provider_diff = false;
+                self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Idle;
                 Task::none()
             }
             Message::InspectRuleProviderDiff(Some(name)) => self.start_rule_provider_diff(name),
             Message::RuleProviderDiffLoaded(result) => {
-                self.editor.is_loading_rule_provider_diff = false;
+                self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Idle;
                 match result {
                     Ok(diff) => {
                         self.editor.inspecting_rule_provider_diff = Some(diff);
@@ -182,13 +184,13 @@ impl AppState {
     /// failure instead of a sample diff.
     fn start_rule_provider_diff(&mut self, provider_name: String) -> Task<Message> {
         let Some(declaration) = self.declared_rule_provider(&provider_name) else {
-            self.editor.is_loading_rule_provider_diff = false;
+            self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Idle;
             return self.set_provider_status(
                 format!("Provider {provider_name} is not declared in the loaded profile"),
                 ToastStatus::Error,
             );
         };
-        self.editor.is_loading_rule_provider_diff = true;
+        self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Loading;
         let cache = self.runtime.rule_provider_cache_port.clone();
         let runtime_access = self.rule_provider_runtime_access();
         Task::perform(
@@ -225,7 +227,7 @@ impl AppState {
                             },
                             Err(failure)
                                 if failure.code
-                                    == infiltrator_contract::error::ErrorCode::Unsupported =>
+                                    == ErrorCode::Unsupported =>
                             {
                                 None
                             }

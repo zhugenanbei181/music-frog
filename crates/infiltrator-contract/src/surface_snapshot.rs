@@ -6,6 +6,7 @@
 
 use crate::active_exit::ActiveExitSnapshot;
 use crate::aggregator::{AggregationReport, AggregationTemplate};
+use crate::android_control::VpnOwnerCoreReadback;
 use crate::app_routing::{AppRoutingMode, AppRoutingRule};
 use crate::apply_transaction::ApplyTransactionSnapshot;
 use crate::capability::CapabilitySnapshot;
@@ -31,6 +32,7 @@ use crate::logs::LogStreamState;
 use crate::mini_hud::MiniHudPlacement;
 use crate::mrs_acceleration::MrsAccelerationSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
+use crate::named_override::NamedOverrideCatalog;
 use crate::network_roaming::NetworkRoamingSnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
 use crate::outbound::details::OutboundDetailsSnapshot;
@@ -73,6 +75,7 @@ use crate::subscription_quota::SubscriptionQuotaSnapshot;
 use crate::surface::{HostKind, SurfaceKind};
 use crate::sync_snapshot::SyncPageSnapshot;
 use crate::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
+use crate::traffic_history::{ClosedConnectionsSnapshot, TrafficHistorySnapshot};
 use crate::traffic_scale::TrafficScaleSnapshot;
 use crate::traffic_topology::TrafficTopologySnapshot;
 use crate::traffic_waveform::TrafficWaveformSnapshot;
@@ -322,6 +325,9 @@ pub struct ProfilesPageSnapshot {
     /// config is verified.
     #[serde(default)]
     pub apply_transaction: Option<ApplyTransactionSnapshot>,
+    /// SLINT-004: Shared named YAML overrides catalog.
+    #[serde(default)]
+    pub named_overrides: NamedOverrideCatalog,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -595,6 +601,12 @@ pub struct SettingsPageSnapshot {
     /// the settings page snapshot so both surfaces read one placement.
     #[serde(default)]
     pub mini_hud: MiniHudPlacement,
+    /// Refresh the active profile on application startup.
+    #[serde(default)]
+    pub refresh_current_profile_on_start: bool,
+    /// Custom accent color hex code (e.g. "#016888").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_accent_color: Option<String>,
 }
 
 fn default_language_code() -> String {
@@ -735,6 +747,12 @@ pub struct SurfaceSnapshot {
     /// Bounded live upload/download samples shared by both primary surfaces.
     #[serde(default)]
     pub traffic_waveform: TrafficWaveformSnapshot,
+    /// Rolling 7-day traffic usage history and charts (SLINT-007).
+    #[serde(default)]
+    pub traffic_history: TrafficHistorySnapshot,
+    /// Closed connection history and telemetry records (SLINT-007).
+    #[serde(default)]
+    pub closed_connections: ClosedConnectionsSnapshot,
     /// Dynamic shared max/unit/tick scale for the traffic waveform.
     #[serde(default)]
     pub traffic_scale: TrafficScaleSnapshot,
@@ -790,95 +808,10 @@ pub enum SurfaceEvent {
     SnapshotUpdated(SurfaceSnapshot),
 }
 
+#[path = "surface_snapshot/validation.rs"]
+mod validation;
+
 impl SurfaceSnapshot {
-    /// Ensure the target-scoped capability evidence belongs to this exact
-    /// Core engine/version and host surface. Capability evidence is static
-    /// across Core process generations, so it is intentionally not bound to
-    /// the runtime generation or session token.
-    pub fn validate_core_capability_scope_binding(&self) -> Result<(), Failure> {
-        let capability = match (
-            &self.core_capability_snapshot.status,
-            &self.core_capability_snapshot.data,
-        ) {
-            (PageStatus::Ready | PageStatus::Empty, Some(capability)) => capability,
-            (PageStatus::Ready | PageStatus::Empty, None) => {
-                return Err(Failure::new(
-                    ErrorCode::InvalidState,
-                    "ready Core capability page has no typed snapshot",
-                    true,
-                ));
-            }
-            (_, None) => return Ok(()),
-            (_, Some(_)) => {
-                return Err(Failure::new(
-                    ErrorCode::InvalidState,
-                    "unavailable Core capability page carries untrusted snapshot data",
-                    true,
-                ));
-            }
-        };
-        capability.validate().map_err(|_| {
-            Failure::new(
-                ErrorCode::InvalidState,
-                "Core capability snapshot contains stale, duplicate, or missing operation evidence",
-                true,
-            )
-        })?;
-        let identity = self.core.identity.as_ref().ok_or_else(|| {
-            Failure::new(
-                ErrorCode::InvalidState,
-                "Core capability evidence is present without a Core identity",
-                true,
-            )
-        })?;
-        let scope = &capability.scope;
-        let same_engine_version_host = scope.engine_id == identity.engine
-            && scope.core_version == identity.version
-            && scope.host == self.capabilities.host
-            && scope.binary_target.host_kind() == Some(self.capabilities.host);
-        if same_engine_version_host {
-            Ok(())
-        } else {
-            Err(Failure::new(
-                ErrorCode::InvalidState,
-                "Core capability scope does not match the surface Core identity, version, or target host",
-                true,
-            ))
-        }
-    }
-
-    /// Ensure the Core scope embedded in the Android VPN owner snapshot agrees
-    /// with the top-level Core facts from this surface read.
-    pub fn validate_vpn_owner_core_binding(&self) -> Result<(), Failure> {
-        let owner = match &self.vpn {
-            VpnSurfaceObservation::AndroidOwner(owner) => owner,
-            VpnSurfaceObservation::Unsupported { .. }
-            | VpnSurfaceObservation::NotApplicable
-            | VpnSurfaceObservation::Unavailable { .. } => return Ok(()),
-        };
-        match &owner.core {
-            crate::android_control::VpnOwnerCoreReadback::Available(owner_core) => {
-                if owner_core == &self.core.lifecycle_snapshot() {
-                    Ok(())
-                } else {
-                    Err(Failure::new(
-                        ErrorCode::InvalidState,
-                        "surface Core facts and :vpn owner Core scope/generation do not match",
-                        true,
-                    ))
-                }
-            }
-            crate::android_control::VpnOwnerCoreReadback::Unavailable { .. }
-                if self.core.identity.is_none() =>
-            {
-                Ok(())
-            }
-            crate::android_control::VpnOwnerCoreReadback::Unavailable { failure_message } => Err(
-                Failure::new(ErrorCode::NotReady, failure_message.clone(), true),
-            ),
-        }
-    }
-
     pub fn unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) -> Self {
         Self {
             shell_readout: Default::default(),
@@ -936,6 +869,8 @@ impl SurfaceSnapshot {
             vpn: VpnSurfaceObservation::NotApplicable,
             privileged_network: PrivilegedNetworkSnapshot::default(),
             traffic_waveform: TrafficWaveformSnapshot::default(),
+            traffic_history: Default::default(),
+            closed_connections: Default::default(),
             traffic_scale: TrafficScaleSnapshot::default(),
             traffic_topology: TrafficTopologySnapshot::default(),
             active_exit: ActiveExitSnapshot::default(),

@@ -1,4 +1,5 @@
 //! Typed log-export workbench transitions shared by native surfaces.
+use infiltrator_contract::log_export::LogExportIdentity;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -24,7 +25,7 @@ impl LogExportContext {
         }
     }
 
-    fn identity(&self) -> infiltrator_contract::log_export::LogExportIdentity {
+    fn identity(&self) -> LogExportIdentity {
         self.summary().identity.clone()
     }
 

@@ -73,9 +73,9 @@ fn build_status_card<'a>(
     lang: &Lang<'_>,
     _is_en: bool,
 ) -> Element<'a, Message> {
-    let is_active = state.profile.is_syncing || state.profile.webdav_enabled;
+    let is_active = state.profile.webdav_sync_phase.is_syncing() || state.profile.webdav_enabled;
 
-    let (status_title, badge_text, badge_kind) = if state.profile.is_syncing {
+    let (status_title, badge_text, badge_kind) = if state.profile.webdav_sync_phase.is_syncing() {
         (
             lang.tr("sync_syncing").to_string(),
             lang.tr("sync_status_syncing").to_string(),
@@ -276,35 +276,38 @@ fn build_settings_form<'a>(
     lang: &Lang<'_>,
     _is_en: bool,
 ) -> Element<'a, Message> {
-    let save_settings_btn: Element<'_, Message> = if state.profile.is_saving_app_settings {
-        text_btn(lang.tr("sync_saving").to_string(), style_ghost, None)
-    } else {
-        text_btn(
-            lang.tr("sync_save_btn").to_string(),
-            style_accent,
-            Some(Message::SaveAppSettings),
-        )
-    };
+    let save_settings_btn: Element<'_, Message> =
+        if state.profile.app_settings_save_phase.is_saving() {
+            text_btn(lang.tr("sync_saving").to_string(), style_ghost, None)
+        } else {
+            text_btn(
+                lang.tr("sync_save_btn").to_string(),
+                style_accent,
+                Some(Message::SaveAppSettings),
+            )
+        };
 
-    let cancel_sync_btn: Option<Element<'_, Message>> = if state.profile.is_syncing {
-        Some(text_btn(
-            lang.tr("sync_cancel_btn").to_string(),
-            style_ghost,
-            Some(Message::CancelWebDavSync),
-        ))
-    } else {
-        None
-    };
+    let cancel_sync_btn: Option<Element<'_, Message>> =
+        if state.profile.webdav_sync_phase.is_syncing() {
+            Some(text_btn(
+                lang.tr("sync_cancel_btn").to_string(),
+                style_ghost,
+                Some(Message::CancelWebDavSync),
+            ))
+        } else {
+            None
+        };
 
     let test_connection_btn = text_btn(
-        if state.profile.is_testing_webdav {
+        if state.profile.webdav_test_phase.is_testing() {
             lang.tr("sync_testing").to_string()
         } else {
             lang.tr("sync_test_btn").to_string()
         },
         style_ghost,
-        (!state.profile.is_syncing && !state.profile.is_testing_webdav)
-            .then_some(Message::TestWebDavConnection),
+        (!state.profile.webdav_sync_phase.is_syncing()
+            && !state.profile.webdav_test_phase.is_testing())
+        .then_some(Message::TestWebDavConnection),
     );
 
     let upload_btn = button(
@@ -320,8 +323,9 @@ fn build_settings_form<'a>(
     .padding([7, 14])
     .style(style_ghost)
     .on_press_maybe(
-        (!state.profile.is_syncing && !state.profile.is_testing_webdav)
-            .then_some(Message::SyncUpload),
+        (!state.profile.webdav_sync_phase.is_syncing()
+            && !state.profile.webdav_test_phase.is_testing())
+        .then_some(Message::SyncUpload),
     );
 
     let download_btn = button(
@@ -337,8 +341,9 @@ fn build_settings_form<'a>(
     .padding([7, 14])
     .style(style_accent)
     .on_press_maybe(
-        (!state.profile.is_syncing && !state.profile.is_testing_webdav)
-            .then_some(Message::SyncDownload),
+        (!state.profile.webdav_sync_phase.is_syncing()
+            && !state.profile.webdav_test_phase.is_testing())
+        .then_some(Message::SyncDownload),
     );
 
     let mut left_actions = row![save_settings_btn]

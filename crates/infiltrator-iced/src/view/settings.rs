@@ -1,6 +1,7 @@
 //! Settings page: shell exports, system proxy, TUN, kernel management,
 //! hotkeys and admin surfaces.
 
+use infiltrator_shared::assets::harmonyos_font_license_text;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::apply_guard_card::apply_guard_card;
@@ -142,7 +143,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .size(13)
             .style(form_input_style),
             row![
-                if state.profile.is_saving_app_settings {
+                if state.profile.app_settings_save_phase.is_saving() {
                     text_btn("Saving...", style_ghost, None)
                 } else {
                     text_btn(
@@ -238,7 +239,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Some(lang.tr("settings_font_attribution_title").into_owned()),
         column![
             secondary_text(lang.tr("settings_font_attribution_copy").into_owned(),),
-            text(infiltrator_shared::assets::harmonyos_font_license_text())
+            text(harmonyos_font_license_text())
                 .size(10)
                 .font(MONO),
         ]

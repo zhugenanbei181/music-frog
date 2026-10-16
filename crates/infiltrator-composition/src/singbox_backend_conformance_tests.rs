@@ -1,10 +1,15 @@
 //! test-intent: behavior
 
+use singbox_api::controller_configuration::SingBoxControllerConfigurationError;
+use std::time::Duration;
+use tokio::fs;
+use tokio::time::timeout;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use serde_json::Value;
@@ -22,7 +27,7 @@ use singbox_process::command::{
 use singbox_process::process::SingBoxProcess;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{self, Arc};
 use tempfile::TempDir;
 use tokio::sync::{Mutex, Semaphore};
 use url::Url;
@@ -84,7 +89,7 @@ impl SingBoxCommandPort for FakeSingBoxCommandPort {
         _binary_path: &Path,
         config_path: &Path,
     ) -> Result<NativeConfigCheck, PortError> {
-        let bytes = tokio::fs::read(config_path)
+        let bytes = fs::read(config_path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         self.checked_documents.lock().await.push(bytes);
@@ -141,12 +146,12 @@ enum FakeObservedAuthorization {
 
 struct FakeReadinessHttpPort {
     outcome: FakeHttpOutcome,
-    requests: StdMutex<
+    requests: sync::Mutex<
         Vec<(
             String,
             SingBoxClashMethod,
             Option<Vec<u8>>,
-            std::time::Duration,
+            Duration,
             FakeObservedAuthorization,
         )>,
     >,
@@ -160,7 +165,7 @@ impl SingBoxClashHttpPort for FakeReadinessHttpPort {
         method: SingBoxClashMethod,
         authorization: &SingBoxControllerAuthorization,
         body: Option<Vec<u8>>,
-        timeout: std::time::Duration,
+        timeout: Duration,
     ) -> Result<SingBoxClashResponse, PortError> {
         let observed_authorization = match authorization {
             SingBoxControllerAuthorization::NoSecret => FakeObservedAuthorization::NoSecret,
@@ -222,7 +227,7 @@ fn sing_box_codec_is_scoped_to_json_and_requires_an_object_root() {
 async fn native_validation_precedes_atomic_config_apply_and_exact_readback() {
     let home = TempDir::new().unwrap();
     let config_path = home.path().join("config.json");
-    tokio::fs::write(&config_path, br#"{"log":{"level":"error"}}"#)
+    fs::write(&config_path, br#"{"log":{"level":"error"}}"#)
         .await
         .unwrap();
     let command = Arc::new(FakeSingBoxCommandPort::new(NativeConfigCheck::Accepted));
@@ -240,7 +245,7 @@ async fn native_validation_precedes_atomic_config_apply_and_exact_readback() {
     let checked_documents = command.checked_documents.lock().await;
     assert_eq!(checked_documents.len(), 1);
     assert_eq!(checked_documents[0].as_slice(), &proposed[..]);
-    let mut files = tokio::fs::read_dir(home.path()).await.unwrap();
+    let mut files = fs::read_dir(home.path()).await.unwrap();
     assert_eq!(
         files.next_entry().await.unwrap().unwrap().file_name(),
         "config.json"
@@ -253,7 +258,7 @@ async fn invalid_or_natively_rejected_json_never_replaces_the_active_file() {
     let home = TempDir::new().unwrap();
     let config_path = home.path().join("config.json");
     let previous = br#"{"log":{"level":"error"}}"#;
-    tokio::fs::write(&config_path, previous).await.unwrap();
+    fs::write(&config_path, previous).await.unwrap();
     let command = Arc::new(FakeSingBoxCommandPort::new(NativeConfigCheck::Rejected));
     let adapter = SingBoxProfileConfigurationAdapter::new(
         PathBuf::from("sing-box"),
@@ -297,7 +302,7 @@ impl SingBoxCommandPort for SerializedApplyCommandPort {
         _binary_path: &Path,
         config_path: &Path,
     ) -> Result<NativeConfigCheck, PortError> {
-        let document = tokio::fs::read(config_path)
+        let document = fs::read(config_path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         self.checked_documents.lock().await.push(document.clone());
@@ -333,7 +338,7 @@ impl SingBoxCommandPort for SerializedApplyCommandPort {
 async fn concurrent_apply_transactions_on_one_adapter_serialize_validation_through_readback() {
     let home = TempDir::new().unwrap();
     let config_path = home.path().join("config.json");
-    tokio::fs::write(&config_path, br#"{"transaction":"original"}"#)
+    fs::write(&config_path, br#"{"transaction":"original"}"#)
         .await
         .unwrap();
     let command = Arc::new(SerializedApplyCommandPort::new());
@@ -349,8 +354,8 @@ async fn concurrent_apply_transactions_on_one_adapter_serialize_validation_throu
             .apply_and_readback(br#"{"transaction":"first"}"#)
             .await
     });
-    tokio::time::timeout(
-        std::time::Duration::from_secs(2),
+    timeout(
+        Duration::from_secs(2),
         command.first_validation_started.acquire(),
     )
     .await
@@ -364,8 +369,8 @@ async fn concurrent_apply_transactions_on_one_adapter_serialize_validation_throu
             .apply_and_readback(br#"{"transaction":"second"}"#)
             .await
     });
-    let second_started_while_first_was_validating = tokio::time::timeout(
-        std::time::Duration::from_millis(50),
+    let second_started_while_first_was_validating = timeout(
+        Duration::from_millis(50),
         command.second_validation_started.acquire(),
     )
     .await;
@@ -409,7 +414,7 @@ async fn process_lifecycle_tracks_a_single_child_and_fails_closed_on_duplicate_s
     let home = TempDir::new().unwrap();
     let config_path = home.path().join("config.json");
     let raw_config = br#"{"outbounds":[],"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090"}}}"#;
-    tokio::fs::write(&config_path, raw_config).await.unwrap();
+    fs::write(&config_path, raw_config).await.unwrap();
     let command = Arc::new(FakeSingBoxCommandPort::new(NativeConfigCheck::Accepted));
     let core = SingBoxProcess::new(
         PathBuf::from("sing-box"),
@@ -449,7 +454,7 @@ async fn process_lifecycle_tracks_a_single_child_and_fails_closed_on_duplicate_s
 async fn readiness_uses_the_injected_http_port_and_rejects_non_loopback_endpoints() {
     let http = Arc::new(FakeReadinessHttpPort {
         outcome: FakeHttpOutcome::Ready,
-        requests: StdMutex::new(Vec::new()),
+        requests: sync::Mutex::new(Vec::new()),
     });
     let readiness = SingBoxControllerReadiness::new(
         controller_configuration("127.0.0.1:9090", None),
@@ -464,13 +469,13 @@ async fn readiness_uses_the_injected_http_port_and_rejects_non_loopback_endpoint
         .expect("fake readiness request list is not poisoned");
     assert_eq!(requests[0].0, "http://127.0.0.1:9090/version");
     assert_eq!(requests[0].1, SingBoxClashMethod::Get);
-    assert_eq!(requests[0].3, std::time::Duration::from_secs(5));
+    assert_eq!(requests[0].3, Duration::from_secs(5));
     assert_eq!(requests[0].4, FakeObservedAuthorization::NoSecret);
     assert_eq!(
         SingBoxControllerConfiguration::from_profile_json(
             br#"{"experimental":{"clash_api":{"external_controller":"192.0.2.1:9090"}}}"#,
         ),
-        Err(singbox_api::controller_configuration::SingBoxControllerConfigurationError::ExternalControllerNotLoopback)
+        Err(SingBoxControllerConfigurationError::ExternalControllerNotLoopback)
     );
 }
 
@@ -480,7 +485,7 @@ async fn readiness_rejects_an_unavailable_loopback_controller() {
         controller_configuration("127.0.0.1:9090", None),
         Arc::new(FakeReadinessHttpPort {
             outcome: FakeHttpOutcome::Unavailable,
-            requests: StdMutex::new(Vec::new()),
+            requests: sync::Mutex::new(Vec::new()),
         }),
     )
     .expect("loopback endpoint is accepted");
@@ -507,7 +512,7 @@ async fn readiness_reads_a_successful_loopback_http_version_response() {
     .unwrap();
 
     readiness
-        .wait_until_ready(std::time::Duration::from_secs(2))
+        .wait_until_ready(Duration::from_secs(2))
         .await
         .unwrap();
     assert_eq!(

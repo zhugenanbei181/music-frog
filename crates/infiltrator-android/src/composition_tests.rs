@@ -1,6 +1,14 @@
 //! Android owner profile-command composition behavior.
 //! test-intent: behavior
 
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use infiltrator_contract::vpn::VpnGeneration;
+use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
 use super::AndroidCoreComposition;
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
@@ -9,9 +17,10 @@ use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistr
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
+use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessObservation, AndroidHostProcessRole,
-    AndroidOwnedCoreProcess, AndroidProductCommand, AndroidProductCommandRequest, CoreLaunchSpec,
+    AndroidOwnedCoreProcess, AndroidProductCommand, AndroidProductCommandRequest,
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
@@ -69,6 +78,8 @@ const SAVED_DOCUMENT: &str = "mode: direct\n";
 
 #[path = "composition_tests/singbox.rs"]
 mod singbox;
+#[path = "composition_tests/async_tests.rs"]
+mod async_tests;
 
 struct TestCredentialStore;
 
@@ -122,7 +133,7 @@ async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &st
         manager.engine_profile_store(),
         expected,
         target,
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
     )
         .await
         .expect("revisioned test selection CAS")
@@ -156,7 +167,7 @@ fn relative_entries(root: &Path) -> Vec<PathBuf> {
 struct TestBridge {
     observation: Arc<Mutex<AndroidCoreProcessObservation>>,
     launch_specs: Arc<Mutex<Vec<CoreLaunchSpec>>>,
-    start_contexts: Arc<Mutex<Vec<infiltrator_ports::core_process::CoreProcessStartContext>>>,
+    start_contexts: Arc<Mutex<Vec<CoreProcessStartContext>>>,
     data_dir_calls: Arc<AtomicUsize>,
 }
 
@@ -180,7 +191,7 @@ impl AndroidBridge for TestBridge {
     async fn core_start(
         &self,
         launch_spec: &CoreLaunchSpec,
-        context: &infiltrator_ports::core_process::CoreProcessStartContext,
+        context: &CoreProcessStartContext,
     ) -> AndroidBridgeResult<CoreProcessStartReceipt> {
         self.launch_specs
             .lock()
@@ -260,7 +271,7 @@ impl AndroidBridge for TestBridge {
 
     async fn vpn_stop(&self, _target: VpnStopTarget) -> AndroidBridgeResult<VpnOwnerStopReceipt> {
         Ok(VpnOwnerStopReceipt::OwnerUnavailable {
-            failure: infiltrator_contract::error::Failure::new(
+            failure: Failure::new(
                 ErrorCode::NotReady,
                 "fake VPN stop owner has no same-request readback",
                 true,
@@ -272,7 +283,7 @@ impl AndroidBridge for TestBridge {
         Ok(VpnOwnerSnapshot {
             owner_session_id: "owner-session".to_owned(),
             revision: 1,
-            vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),
+            vpn_generation: VpnGeneration::new(0),
             vpn_state: VpnOwnerLifecycle::Stopped,
             readiness: VpnOwnerReadiness::Stopped,
             resources: Vec::new(),
@@ -282,7 +293,7 @@ impl AndroidBridge for TestBridge {
             dns_servers: Vec::new(),
             ipv6: false,
             core: VpnOwnerCoreReadback::Available(
-                infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+                CoreLifecycleSnapshot {
                     identity: None,
                     lifecycle: CoreLifecycle::Stopped,
                     generation: 0,
@@ -312,7 +323,7 @@ fn android_mihomo_backend_provider_recreates_scoped_ports_without_hidden_state()
         .expect("Mihomo engine admission succeeds before controller parsing"),
     );
     let provider_for_factory: Arc<
-        dyn infiltrator_ports::engine_backend_factory::EngineBackendProvider,
+        dyn EngineBackendProvider,
     > = provider;
     let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
     let engine_id = MihomoVersionPort::engine_identifier();
@@ -343,7 +354,7 @@ fn android_core_scope_resolver_rejects_a_stopped_owner() {
         .expect("Mihomo engine admission succeeds"),
     );
     let provider_for_factory: Arc<
-        dyn infiltrator_ports::engine_backend_factory::EngineBackendProvider,
+        dyn EngineBackendProvider,
     > = provider;
     let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
     let backend = factory
@@ -353,7 +364,7 @@ fn android_core_scope_resolver_rejects_a_stopped_owner() {
         backend.process(),
         backend.readiness(),
         Arc::new(UnavailableOverviewReader::new(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "scope resolver test does not need overview polling",
         ))),
         infiltrator_composition::tokio_application_runtime().unwrap(),
@@ -510,7 +521,7 @@ fn unknown_android_engine_is_unsupported_before_bridge_or_controller_side_effect
     assert!(matches!(
         result,
         Err(PortError::Unsupported {
-            capability: infiltrator_contract::capability::Capability::CoreLifecycle,
+            capability: Capability::CoreLifecycle,
             ..
         })
     ));
@@ -721,312 +732,3 @@ async fn assert_local_load_succeeds_and_runtime_apply_fails_closed(
     assert_eq!(store.load("main").await.unwrap(), INITIAL_DOCUMENT);
 }
 
-#[tokio::test]
-async fn unavailable_controller_keeps_core_lifecycle_and_local_profile_reads_available() {
-    let (_home, store) = config_manager();
-    store
-        .save_inactive_profile("main", INITIAL_DOCUMENT)
-        .await
-        .unwrap();
-    let owner = super::core_application_with_readiness_and_provider(
-        TestBridge::new(),
-        "invalid-controller-endpoint".to_owned(),
-        None,
-        AndroidCoreComposition::new(Arc::clone(&store)),
-        Arc::new(TestReadiness),
-        Arc::new(TestLifecycleCapabilityProvider),
-    )
-    .expect("unavailable controller operations do not block Core owner composition");
-
-    assert!(matches!(
-        run_scoped(&owner, CommandIntent::StartCore).await,
-        CommandResult::Completed { .. }
-    ));
-    let loaded = produced(
-        run_scoped(
-            &owner,
-            CommandIntent::LoadProfileDocument {
-                profile: Some("main".to_owned()),
-            },
-        )
-        .await,
-    );
-    let document = match loaded {
-        CommandOutput::ProfileDocumentLoaded(document) => *document,
-        other => panic!("local profile loading remains available: {other:?}"),
-    };
-    assert_eq!(document.content, INITIAL_DOCUMENT);
-}
-
-#[tokio::test]
-async fn core_start_sends_the_active_profile_identity_and_rust_resolved_arguments() {
-    let (_home, store) = config_manager();
-    store
-        .save_inactive_profile(
-            "main",
-            "mode: rule\nexternal-controller: 127.0.0.1:9090\nsecret: test-secret\n",
-        )
-        .await
-        .unwrap();
-    select_profile(store.as_ref(), "main").await;
-    let bridge = TestBridge::new();
-    let owner = super::core_application_with_readiness_and_provider(
-        bridge.clone(),
-        "invalid-controller-endpoint".to_owned(),
-        None,
-        AndroidCoreComposition::new(Arc::clone(&store)),
-        Arc::new(TestReadiness),
-        Arc::new(TestCapabilityProvider),
-    )
-    .expect("Android owner runtime is constructible");
-
-    assert!(matches!(
-        run_scoped(&owner, CommandIntent::StartCore).await,
-        CommandResult::Completed { .. }
-    ));
-
-    let spec = bridge
-        .launch_specs
-        .lock()
-        .expect("captured launch specs")
-        .first()
-        .cloned()
-        .expect("Rust owner must submit one launch spec");
-    let start_context = bridge
-        .start_contexts
-        .lock()
-        .expect("captured Core start contexts")
-        .first()
-        .cloned()
-        .expect("Rust owner must submit one typed Core start context");
-    let infiltrator_ports::core_process::CoreProcessStartContext::Managed {
-        identity,
-        generation,
-        session_token,
-    } = start_context
-    else {
-        panic!("Android Core launch must carry a managed owner context");
-    };
-    assert!(identity.same_instance(&owner.core_identity().expect("active Core identity")));
-    assert_eq!(
-        generation,
-        infiltrator_contract::core_identity::CoreGeneration::new(owner.generation()),
-    );
-    assert_eq!(
-        session_token,
-        owner.session_token().expect("active session token")
-    );
-    let workspace = ProfileStore::load_active_workspace(store.engine_profile_store())
-        .await
-        .unwrap();
-    let config_path = store.existing_profile_document_path("main").await.unwrap();
-    let workdir = PathBuf::from("/android-test-data");
-    assert_eq!(spec.configuration_identity().engine_id.as_str(), "mihomo");
-    assert_eq!(spec.configuration_identity().profile_id.as_str(), "main");
-    assert_eq!(
-        spec.configuration_identity().document_revision,
-        workspace.document.identity.revision
-    );
-    assert_eq!(spec.working_directory().as_path(), workdir);
-    assert_eq!(
-        spec.launch_arguments().configuration_path().as_str(),
-        config_path.to_string_lossy()
-    );
-}
-
-#[tokio::test]
-async fn local_profile_load_ignores_runtime_version_but_apply_requires_exact_evidence() {
-    assert_local_load_succeeds_and_runtime_apply_fails_closed(Arc::new(NoVersionReadiness)).await;
-    assert_local_load_succeeds_and_runtime_apply_fails_closed(Arc::new(TestReadiness)).await;
-}
-
-#[tokio::test]
-async fn owner_profile_commands_use_the_shared_store_and_codec_fail_closed() {
-    let (_home, store) = config_manager();
-    store
-        .save_inactive_profile("main", INITIAL_DOCUMENT)
-        .await
-        .unwrap();
-    let composition = AndroidCoreComposition::new(Arc::clone(&store));
-    let owner = super::core_application_with_readiness_and_provider(
-        TestBridge::new(),
-        "invalid-controller-endpoint".to_owned(),
-        None,
-        composition,
-        Arc::new(TestReadiness),
-        Arc::new(TestCapabilityProvider),
-    )
-    .expect("Android owner runtime is constructible");
-
-    assert!(matches!(
-        run_scoped(&owner, CommandIntent::StartCore).await,
-        CommandResult::Completed { .. }
-    ));
-
-    let loaded = produced(
-        run_scoped(
-            &owner,
-            CommandIntent::LoadProfileDocument {
-                profile: Some("main".to_owned()),
-            },
-        )
-        .await,
-    );
-    let document = match loaded {
-        CommandOutput::ProfileDocumentLoaded(document) => *document,
-        other => panic!("owner must return the composed profile document: {other:?}"),
-    };
-    assert_eq!(document.content, INITIAL_DOCUMENT);
-    assert_eq!(
-        document.workspace_identity.document.engine_id.as_str(),
-        "mihomo"
-    );
-    assert_eq!(
-        document.workspace_identity.document.format_id.as_str(),
-        "mihomo-yaml"
-    );
-
-    let mut foreign_engine = document.workspace_identity.clone();
-    foreign_engine.document.engine_id = EngineId::new("sing-box").unwrap();
-    rejected(
-        run_scoped(
-            &owner,
-            CommandIntent::SaveProfileDocument {
-                workspace_identity: foreign_engine,
-                content: SAVED_DOCUMENT.to_owned(),
-                authorization: ProfileWriteAuthorization::RequireUnlock,
-            },
-        )
-        .await,
-        ErrorCode::Unsupported,
-    );
-    assert_eq!(store.load("main").await.unwrap(), INITIAL_DOCUMENT);
-
-    let mut foreign_format = document.workspace_identity.clone();
-    foreign_format.document.format_id = ProfileFormatId::new("sing-box-json").unwrap();
-    rejected(
-        run_scoped(
-            &owner,
-            CommandIntent::SaveProfileDocument {
-                workspace_identity: foreign_format,
-                content: SAVED_DOCUMENT.to_owned(),
-                authorization: ProfileWriteAuthorization::RequireUnlock,
-            },
-        )
-        .await,
-        ErrorCode::Unsupported,
-    );
-    assert_eq!(store.load("main").await.unwrap(), INITIAL_DOCUMENT);
-
-    rejected(
-        run_scoped(
-            &owner,
-            CommandIntent::SaveProfileDocument {
-                workspace_identity: document.workspace_identity.clone(),
-                content: "rules: [\n".to_owned(),
-                authorization: ProfileWriteAuthorization::RequireUnlock,
-            },
-        )
-        .await,
-        ErrorCode::Configuration,
-    );
-    assert_eq!(store.load("main").await.unwrap(), INITIAL_DOCUMENT);
-
-    let saved = produced(
-        run_scoped(
-            &owner,
-            CommandIntent::SaveProfileDocument {
-                workspace_identity: document.workspace_identity,
-                content: SAVED_DOCUMENT.to_owned(),
-                authorization: ProfileWriteAuthorization::RequireUnlock,
-            },
-        )
-        .await,
-    );
-    assert!(matches!(saved, CommandOutput::ProfileDocumentSaved(_)));
-    assert_eq!(
-        store.load("main").await.unwrap(),
-        SAVED_DOCUMENT,
-        "the exact ConfigManager supplied to the owner composition receives the write"
-    );
-}
-
-#[tokio::test]
-async fn stopped_owner_rejects_outbound_inventory_and_selection_before_controller_io() {
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("local controller mock binds");
-    let address = listener.local_addr().expect("local controller address");
-    let controller = format!("http://{address}");
-    let server = tokio::spawn(async move {
-        let mut requests = Vec::new();
-        while let Ok(Ok((mut stream, _))) =
-            timeout(Duration::from_millis(250), listener.accept()).await
-        {
-            let mut request = [0; 2048];
-            let read = stream
-                .read(&mut request)
-                .await
-                .expect("controller request reads");
-            let line = String::from_utf8_lossy(&request[..read])
-                .lines()
-                .next()
-                .unwrap_or_default()
-                .to_owned();
-            requests.push(line);
-            let body = r#"{"proxies":{}}"#;
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            stream
-                .write_all(response.as_bytes())
-                .await
-                .expect("controller response writes");
-        }
-        requests
-    });
-    let (_home, store) = config_manager();
-    let owner = super::core_application_with_readiness_and_provider(
-        TestBridge::new(),
-        controller,
-        None,
-        AndroidCoreComposition::new(store),
-        Arc::new(TestReadiness),
-        Arc::new(TestCapabilityProvider),
-    )
-    .expect("Android owner and its outbound adapter compose");
-    let owner_outbound = owner
-        .outbound_port()
-        .expect("Android owner registers one outbound adapter");
-    assert!(Arc::ptr_eq(
-        &owner_outbound,
-        &owner
-            .outbound_port()
-            .expect("same owner port remains available")
-    ));
-
-    // The stopped owner has no active version, so the existing capability
-    // gate denies both commands before either reaches its HTTP adapter.
-    rejected(
-        run_scoped(&owner, CommandIntent::ReadOutboundInventory).await,
-        ErrorCode::Unsupported,
-    );
-    let engine = EngineId::new("mihomo").expect("Mihomo engine ID");
-    let request = OutboundSelectionRequest::new(
-        OutboundId::new(engine.clone(), "selector").expect("selector ID"),
-        OutboundId::new(engine, "proxy-a").expect("outbound ID"),
-        SnapshotRevision::new(1),
-    )
-    .expect("valid typed selection request");
-    rejected(
-        run_scoped(&owner, CommandIntent::SelectOutbound { request }).await,
-        ErrorCode::Unsupported,
-    );
-
-    let requests = server.await.expect("controller mock finishes");
-    assert!(
-        requests.is_empty(),
-        "stopped owner must reject both use cases before GET or PUT"
-    );
-}

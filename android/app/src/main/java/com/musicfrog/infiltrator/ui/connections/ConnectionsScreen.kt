@@ -22,7 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,9 +41,9 @@ import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
-    val state by viewModel.uiState.collectAsState()
-    val hostFilter by viewModel.hostFilter.collectAsState()
-    val processFilter by viewModel.processFilter.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val hostFilter by viewModel.hostFilter.collectAsStateWithLifecycle()
+    val processFilter by viewModel.processFilter.collectAsStateWithLifecycle()
     var selectedConnection by remember { mutableStateOf<ConnectionRecord?>(null) }
 
     val commandFailure = (state.actionState as? ConnectionActionState.Failed)?.failure

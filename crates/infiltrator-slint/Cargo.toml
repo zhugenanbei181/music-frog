@@ -27,11 +27,17 @@ infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-application = { path = "../infiltrator-application", optional = true }
 infiltrator-desktop = { path = "../infiltrator-desktop", optional = true }
 
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }
+
 [build-dependencies]
 slint-build.workspace = true
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 slint = { workspace = true, features = ["backend-winit"] }
+rfd = "0.17"
 
 [target.'cfg(target_os = "android")'.dependencies]
 slint = { workspace = true, features = ["backend-android-activity-06"] }

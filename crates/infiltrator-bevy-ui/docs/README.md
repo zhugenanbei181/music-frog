@@ -6,5 +6,13 @@
 
 - [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)：ECS、bsn 场景、shader 与资源生命周期章程。
 - [BEVY_020_UI_CAPABILITIES.md](BEVY_020_UI_CAPABILITIES.md)：Bevy 0.20 UI 能力唯一权威规范（rem/em 尺寸、ThemeContext 分层主题、headless 控件优先、FixedNode、InlineBox、bsn_list!/Ready/despawn_all）；新 UI 代码必须遵守，守卫见 `scripts/quality/bevy_ui_capability_guard.py`。
+
+## 消费端架构纪律（强制遵照执行）
+
+Bevy UI 表面严格作为纯被动消费端，必须遵照执行自底向上裁决铁律：
+- 严禁在 Bevy 组件、资源、系统或场景中就地修补底层架构未决问题；
+- 严禁在 UI 表面自行拼装、推导或维护第二份业务真源；
+- 遇契约模糊或底层能力缺失时，严禁使用临时布尔标志或容错垫片绕行，必须先底层裁决收口后再接入。
+
 - demo 页面矩阵运行 `bash scripts/capture-bevy-matrix.sh`；真实 Mihomo 首页运行 `bash scripts/capture-bevy-live.sh`。产品默认 feature 不包含截图 fixture；页面矩阵显式启用 `capture-tools`，live capture 显式启用 `capture-controller`。截图写入本地 `screenshots/`，默认不入库。
 - crate 入口见 [README.md](../README.md)。

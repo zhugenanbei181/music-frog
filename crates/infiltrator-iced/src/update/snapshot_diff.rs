@@ -6,6 +6,7 @@
 
 use crate::snapshot_commands::execute;
 use crate::state::AppState;
+use crate::state::editor::SnapshotDiffLoadPhase;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
 use iced::Task;
@@ -19,7 +20,7 @@ impl AppState {
             Message::OpenSnapshotDiff(id) => {
                 self.editor.snapshot_diff_modal_open = true;
                 self.editor.snapshot_diff_selected_id = Some(id.clone());
-                self.editor.snapshot_diff_loading = true;
+                self.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Loading;
                 self.editor.snapshot_diff_error = None;
                 // DUAL-09-08: the modal renders the shared application's real
                 // Myers diff; it never fabricates rows.
@@ -31,7 +32,7 @@ impl AppState {
                     .and_then(|stem| stem.to_str())
                     .map(str::to_string)
                 else {
-                    self.editor.snapshot_diff_loading = false;
+                    self.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
                     self.editor.snapshot_diff_error =
                         Some("no profile is open in the editor".to_string());
                     return Task::none();
@@ -57,7 +58,7 @@ impl AppState {
                 )
             }
             Message::SnapshotDiffLoaded(result) => {
-                self.editor.snapshot_diff_loading = false;
+                self.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
                 match result {
                     Ok(diff) => {
                         self.editor.snapshot_diff = Some(diff);

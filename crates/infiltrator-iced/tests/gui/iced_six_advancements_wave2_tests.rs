@@ -4,6 +4,10 @@
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
+use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use crate::state::AppState;
 use crate::types::message::Message;
 use infiltrator_composition::capture_fixtures::list_document;
@@ -30,7 +34,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     // Default state: no report, no readiness, no verdict.
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
+        DnsLeakActionPhase::Idle
     ));
     assert!(!state.editor.dns_leak.status.is_ready());
     assert_eq!(
@@ -41,20 +45,20 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     // Trigger without a host runtime: nothing is invented.
     let _ = state.update(Message::RunDnsLeakProbe);
     let first_token = match &state.diag.dns_leak_action.phase {
-        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        DnsLeakActionPhase::Pending { token } => *token,
         phase => panic!("probe must enter its typed pending phase: {phase:?}"),
     };
     let _ = state.update(Message::DnsLeakProbed {
         token: first_token,
-        result: Err(infiltrator_contract::error::Failure::new(
-            infiltrator_contract::error::ErrorCode::NotReady,
+        result: Err(Failure::new(
+            ErrorCode::NotReady,
             "DNS probe runtime is unavailable",
             true,
         )),
     });
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Failed { .. }
+        DnsLeakActionPhase::Failed { .. }
     ));
     assert!(state.editor.dns_leak.observations.is_empty());
 
@@ -80,7 +84,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     );
     let _ = state.update(Message::RetryDnsLeakProbe);
     let report_token = match &state.diag.dns_leak_action.phase {
-        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        DnsLeakActionPhase::Pending { token } => *token,
         phase => panic!("retry must enter its typed pending phase: {phase:?}"),
     };
     let _ = state.update(Message::DnsLeakProbed {
@@ -89,7 +93,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     });
     assert!(matches!(
         &state.diag.dns_leak_action.phase,
-        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
+        DnsLeakActionPhase::Idle
     ));
     assert_eq!(state.editor.dns_leak, report);
     let conclusion = state.editor.dns_leak.conclusion();
@@ -103,7 +107,7 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     let unsupported = DnsLeakReport::unsupported("no echo authority is configured");
     let _ = state.update(Message::RunDnsLeakProbe);
     let unsupported_token = match &state.diag.dns_leak_action.phase {
-        infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        DnsLeakActionPhase::Pending { token } => *token,
         phase => panic!("probe must enter its typed pending phase: {phase:?}"),
     };
     let _ = state.update(Message::DnsLeakProbed {
@@ -264,7 +268,7 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     // A real shared report lands in the surface state verbatim.
     let _ = state.update(Message::AggregationPreviewFinished(Ok(report.clone())));
     assert_eq!(state.profile.aggregator_report.as_ref(), Some(&report));
-    assert!(!state.profile.is_aggregating);
+    assert!(!state.profile.aggregator_phase.is_aggregating());
 
     // The draft assembled by the surface maps every switch to the shared type.
     let draft = state.aggregator_draft().expect("valid rename text");
@@ -342,7 +346,7 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     // No source selected: the surface refuses to start an aggregation.
     state.profile.aggregator_selected_profiles.clear();
     let _ = state.update(Message::PreviewProfileAggregation);
-    assert!(!state.profile.is_aggregating);
+    assert!(!state.profile.aggregator_phase.is_aggregating());
 
     // DUAL-08-11: the modal view (preview + YAML viewport + template library)
     // builds from the shared report; the surface keeps no second aggregator.
@@ -366,7 +370,7 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
     let (mut state, _) = AppState::new();
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
+        RuleListReadback::Observed(document),
     );
 
     // Default grouping mode

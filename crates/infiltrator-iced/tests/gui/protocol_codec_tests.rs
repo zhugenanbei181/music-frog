@@ -6,7 +6,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use infiltrator_application::dialer_chain_application::DialerChainApplication;
-use infiltrator_application::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
+use infiltrator_application::protocol_codec_application::clear_studio;
 use infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
 use infiltrator_composition::mihomo_configuration::profile_document_codec_fixture;
 use infiltrator_contract::profile_document_identity::{
@@ -21,7 +21,6 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_presentation::protocol_form::draft_from_uri;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::sync::Arc;
 
 fn mihomo_identity(codec: &dyn ProfileDocumentCodecPort) -> ProfileDocumentIdentity {
     let scope = codec.scope();
@@ -437,9 +436,8 @@ fn quic_and_xhttp_notes_are_surfaced_not_hidden() {
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_iced_surface() {
-    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
-        profile_document_codec_fixture(),
-    ));
+    let report =
+        ProtocolCodecMatrixApplication::run_deterministic_matrix(profile_document_codec_fixture());
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",

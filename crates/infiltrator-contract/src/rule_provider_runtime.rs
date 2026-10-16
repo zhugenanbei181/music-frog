@@ -3,6 +3,7 @@
 use crate::core_identity::{CoreScope, EngineId};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
@@ -145,7 +146,7 @@ impl RuleProviderInventorySnapshot {
         revision: RuleProviderRevision,
         mut providers: Vec<RuleProviderFact>,
     ) -> Result<Self, RuleProviderContractError> {
-        let mut identities = std::collections::HashSet::with_capacity(providers.len());
+        let mut identities = HashSet::with_capacity(providers.len());
         for provider in &providers {
             if provider.id.engine_id() != &scope.identity.engine {
                 return Err(RuleProviderContractError::ForeignEngine);

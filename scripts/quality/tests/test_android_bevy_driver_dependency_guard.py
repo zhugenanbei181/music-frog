@@ -32,7 +32,7 @@ class AndroidBevyDriverDependencyGuardTests(unittest.TestCase):
 
     def test_capture_and_desktop_features_are_rejected(self) -> None:
         problems = guard.feature_problems(
-            {"capture-tools", "desktop-host", "ui-application-projections"}
+            {"capture-tools", "desktop-host", "ui-application-projections", "fixture-demo"}
         )
         self.assertIn(
             "Android Bevy driver enables forbidden UI feature `ui-application-projections`",
@@ -43,6 +43,9 @@ class AndroidBevyDriverDependencyGuardTests(unittest.TestCase):
         )
         self.assertIn(
             "Android Bevy driver enables forbidden UI feature `desktop-host`", problems
+        )
+        self.assertIn(
+            "Android Bevy driver enables forbidden UI feature `fixture-demo`", problems
         )
 
     def test_driver_manifest_disables_all_ui_features(self) -> None:

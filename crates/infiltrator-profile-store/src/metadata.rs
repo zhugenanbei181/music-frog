@@ -7,11 +7,12 @@ use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use std::io::ErrorKind;
 use std::path::Path;
 use tokio::fs;
 use toml::map::Map;
 
-pub const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
+pub const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Infiltrator";
 const SUBSCRIPTION_KEY_PREFIX: &str = "subscription";
 
 pub fn ensure_table(value: &mut toml::Value) -> Result<&mut Map<String, toml::Value>, PortError> {
@@ -202,7 +203,7 @@ pub fn legacy_subscription_key(profile: &str) -> String {
 pub async fn read_settings_file(path: &Path) -> Result<toml::Value, PortError> {
     let content = match fs::read_to_string(path).await {
         Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(error) if error.kind() == ErrorKind::NotFound => {
             return Ok(toml::Value::Table(Map::new()));
         }
         Err(error) => return Err(PortError::Io(error.to_string())),

@@ -3,13 +3,15 @@ use bevy::ecs::entity::Entity;
 use bevy::math::Vec2;
 use bevy::ui::{BorderColor, Val};
 use infiltrator_bevy_widgets::cadence::FramePacingMode;
-use infiltrator_bevy_widgets::desktop::{FramelessWindowConfig, TrayBadgeState, WindowHitZone};
+use infiltrator_bevy_widgets::desktop::{
+    FramelessWindowConfig, TrayBadgePhase, TrayBadgeState, WindowHitZone,
+};
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::editor::{CodeEditorGutter, SyntaxTokenKind, tokenize_yaml_line};
 use infiltrator_bevy_widgets::focus::{FocusDirection, find_spatial_neighbor};
 use infiltrator_bevy_widgets::gesture::{
-    GestureOutcome, GestureRecognizer, PullToRefreshState, SafeAreaInsets, SwipeToActionItem,
-    TouchPhase,
+    GestureOutcome, GestureRecognizer, PullToRefreshPhase, PullToRefreshState, SafeAreaInsets,
+    SwipeToActionItem, TouchPhase,
 };
 use infiltrator_bevy_widgets::i18n::{
     Locale, LocaleKey, TranslationRepo, format_bytes, format_duration_secs, format_rate,
@@ -62,13 +64,14 @@ fn test_safe_area_insets_and_pull_to_refresh() {
     assert_eq!(ptr.fraction(), 0.0);
     ptr.pull(40.0);
     assert!(ptr.pull_offset > 0.0);
+    assert_eq!(ptr.phase, PullToRefreshPhase::Pulling);
     assert!(!ptr.release());
 
     ptr.pull(150.0);
     assert!(ptr.release());
-    assert!(ptr.is_refreshing);
+    assert_eq!(ptr.phase, PullToRefreshPhase::Refreshing);
     ptr.finish_refresh();
-    assert!(!ptr.is_refreshing);
+    assert_eq!(ptr.phase, PullToRefreshPhase::Idle);
 }
 
 #[test]
@@ -182,8 +185,8 @@ fn test_frameless_window_hit_testing_and_tray_badge() {
     );
 
     let mut badge = TrayBadgeState::default();
-    badge.update(true, "12 KB/s", "1.5 MB/s");
-    assert!(badge.is_running);
+    badge.update(TrayBadgePhase::Running, "12 KB/s", "1.5 MB/s");
+    assert_eq!(badge.phase, TrayBadgePhase::Running);
     assert_eq!(badge.download_rate_str, "1.5 MB/s");
 }
 

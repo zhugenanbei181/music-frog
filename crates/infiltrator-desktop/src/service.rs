@@ -4,10 +4,11 @@
 //! on Linux/macOS) between the unprivileged GUI client and the background privileged
 //! service helper (TUN route injection, system proxy override, and power/status telemetry).
 
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 #[cfg(unix)]
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
+use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use mihomo_api::error;
 use mihomo_process::desktop::ProcessCoreController;

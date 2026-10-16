@@ -7,10 +7,13 @@ use infiltrator_application::core_capability_application::CoreCapabilityApplicat
 use infiltrator_application::mtu_application::MtuApplication;
 #[cfg(test)]
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_contract::android_control::core_launch::{
+    CoreLaunchArguments, CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath,
+    CoreLaunchSpec,
+};
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
-    AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, CoreLaunchArguments,
-    CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath, CoreLaunchSpec,
+    AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess,
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
@@ -37,8 +40,9 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_platform::android_bridge::AndroidBridgeResult;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::CoreProcessStartContext;
 use infiltrator_ports::core_process::{CoreProcessStartAdmission, CoreReadiness};
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use std::collections::HashMap;
@@ -88,7 +92,7 @@ impl AndroidBridge for TestBridge {
         &self,
         _launch_spec: &CoreLaunchSpec,
         context: &CoreProcessStartContext,
-    ) -> Result<CoreProcessStartReceipt> {
+    ) -> AndroidBridgeResult<CoreProcessStartReceipt> {
         self.start_contexts
             .lock()
             .expect("start context lock")
@@ -99,14 +103,14 @@ impl AndroidBridge for TestBridge {
         Ok(CoreProcessStartReceipt::Started)
     }
 
-    async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
+    async fn core_stop(&self) -> AndroidBridgeResult<CoreProcessStopReceipt> {
         if let Ok(mut guard) = self.running.lock() {
             *guard = false;
         }
         Ok(CoreProcessStopReceipt::StoppedGracefully)
     }
 
-    async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+    async fn core_process_observation(&self) -> AndroidBridgeResult<AndroidCoreProcessObservation> {
         match self
             .process_observation
             .lock()
@@ -142,7 +146,7 @@ impl AndroidBridge for TestBridge {
         }
     }
 
-    async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>> {
+    async fn credential_get(&self, service: &str, key: &str) -> AndroidBridgeResult<Option<String>> {
         Ok(self
             .store
             .lock()
@@ -150,14 +154,14 @@ impl AndroidBridge for TestBridge {
             .and_then(|g| g.get(&(service.to_string(), key.to_string())).cloned()))
     }
 
-    async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()> {
+    async fn credential_set(&self, service: &str, key: &str, value: &str) -> AndroidBridgeResult<()> {
         if let Ok(mut guard) = self.store.lock() {
             guard.insert((service.to_string(), key.to_string()), value.to_string());
         }
         Ok(())
     }
 
-    async fn credential_delete(&self, service: &str, key: &str) -> Result<()> {
+    async fn credential_delete(&self, service: &str, key: &str) -> AndroidBridgeResult<()> {
         if let Ok(mut guard) = self.store.lock() {
             guard.remove(&(service.to_string(), key.to_string()));
         }
@@ -176,18 +180,18 @@ impl AndroidBridge for TestBridge {
         OfflineStartupSnapshot::ready(LocalAssetStatus::Available)
     }
 
-    async fn vpn_start(&self) -> Result<VpnStartOutcome> {
+    async fn vpn_start(&self) -> AndroidBridgeResult<VpnStartOutcome> {
         Ok(VpnStartOutcome::Running)
     }
 
     async fn vpn_apply_configuration(
         &self,
         _prepared: &PreparedVpnConfiguration,
-    ) -> Result<VpnConfigurationApplyOutcome> {
+    ) -> AndroidBridgeResult<VpnConfigurationApplyOutcome> {
         Ok(VpnConfigurationApplyOutcome::Accepted)
     }
 
-    async fn vpn_stop(&self, _target: VpnStopTarget) -> Result<VpnOwnerStopReceipt> {
+    async fn vpn_stop(&self, _target: VpnStopTarget) -> AndroidBridgeResult<VpnOwnerStopReceipt> {
         Ok(VpnOwnerStopReceipt::OwnerUnavailable {
             failure: Failure::new(
                 ErrorCode::NotReady,
@@ -197,7 +201,7 @@ impl AndroidBridge for TestBridge {
         })
     }
 
-    async fn vpn_owner_snapshot(&self) -> Result<VpnOwnerSnapshot> {
+    async fn vpn_owner_snapshot(&self) -> AndroidBridgeResult<VpnOwnerSnapshot> {
         Ok(VpnOwnerSnapshot {
             owner_session_id: "owner-session".to_owned(),
             revision: 1,

@@ -1,6 +1,8 @@
 //! Behavior cases for profiles editor.
 //! test-intent: behavior
 
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use super::*;
 use crate::native_input::{click_entity, type_text};
 use bevy::ui::prelude::BackgroundColor;
@@ -313,8 +315,8 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
     )
     .expect("snippet fixture");
     sink.queue_profile_snippet(Ok(
-        infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome::Inserted(
-            infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion {
+        ProfileDocumentSnippetOutcome::Inserted(
+            ProfileDocumentSnippetInsertion {
                 snippet_id: fixture_insertion.snippet_id.to_owned(),
                 content: fixture_insertion.content,
                 cursor_line: fixture_insertion.cursor_line,
@@ -377,7 +379,7 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
         .full_text();
     let group = snippet_button_entity(&mut app, 4);
     sink.queue_profile_snippet(Ok(
-        infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome::Rejected {
+        ProfileDocumentSnippetOutcome::Rejected {
             validation: DocumentValidation::Invalid {
                 diagnostics: vec![DocumentDiagnosticSnapshot {
                     line: Some(1),

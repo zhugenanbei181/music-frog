@@ -8,6 +8,7 @@
 mod editor_support;
 #[path = "pages_matrix_a_tests/filter_support.rs"]
 mod filter_support;
+use crate::configuration_codec::mihomo_rule_workspace;
 use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -252,7 +253,7 @@ fn tracer_test_workspace(rules: &[RuleEntry]) -> RuleWorkspace {
         "proxy-groups:\n  - name: PROXY\n    type: select\n    proxies: [DIRECT]\nrules: {}\n",
         serde_json::to_string(&raw).expect("rules flow sequence")
     );
-    let mut workspace = crate::configuration_codec::mihomo_rule_workspace("test.yaml", &yaml);
+    let mut workspace = mihomo_rule_workspace("test.yaml", &yaml);
     workspace.rules = rules.to_vec();
     workspace
 }

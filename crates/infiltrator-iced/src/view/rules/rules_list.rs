@@ -159,7 +159,7 @@ fn add_rule_panel<'a>(
         .iter()
         .map(|choice| (*choice).to_string())
         .collect::<Vec<String>>();
-    let add_rule_btn_style = if state.editor.is_adding_rule {
+    let add_rule_btn_style = if state.editor.rule_add_phase.is_adding() {
         style_ghost
     } else {
         style_accent
@@ -210,7 +210,7 @@ fn add_rule_panel<'a>(
                 button(
                     row![
                         svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| {
-                            if state.editor.is_adding_rule {
+                            if state.editor.rule_add_phase.is_adding() {
                                 tokens(t).text_secondary
                             } else {
                                 tokens(t).on_accent

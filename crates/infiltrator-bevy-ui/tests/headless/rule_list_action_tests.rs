@@ -1,5 +1,8 @@
 //! test-intent: behavior
 //! Native SDK clicks stage a full source-bound list, then explicitly commit or discard it.
+use crate::configuration_codec::mihomo_configuration;
+use crate::configuration_codec::mihomo_rule_trace_fixture;
+use crate::support::mihomo_profiles;
 use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::native_input::{click_before_frame, click_entity, press, type_text};
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
@@ -114,8 +117,7 @@ fn settle(app: &mut App) {
         .world()
         .resource::<RulesDraftState>()
         .model
-        .pending
-        .is_some()
+        .is_pending()
     {
         assert!(Instant::now() < deadline, "real terminal event");
         app.update();
@@ -124,7 +126,7 @@ fn settle(app: &mut App) {
     app.update();
 }
 pub(crate) fn setup() -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
-    let store = crate::configuration_codec::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let (core, _) = identified_recording_application();
     core.install_command_handler(Arc::new(
         test_command_application([CoreOperation::Rules(RulesOperation::Apply)])
@@ -133,8 +135,8 @@ pub(crate) fn setup() -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let core = Arc::new(core);
     let reader =
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(crate::support::mihomo_profiles(store.clone()))
-            .with_configuration(crate::configuration_codec::mihomo_configuration(
+            .with_profiles(mihomo_profiles(store.clone()))
+            .with_configuration(mihomo_configuration(
                 store.clone(),
             ));
     let mut app = App::new();
@@ -315,7 +317,7 @@ fn native_list_toggle_discard_permission_retry_and_changed_profile_keep_full_dra
         app.world()
             .resource::<RulesDraftState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,

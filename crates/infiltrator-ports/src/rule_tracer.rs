@@ -6,7 +6,7 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
@@ -46,7 +46,7 @@ pub trait RuleOverridePort: Send + Sync {
         let workspace = self.load_rule_workspace().await?;
         if workspace.profile_identity != owner.workspace {
             return Err(PortError::Rejected(Failure::new(
-                infiltrator_contract::error::ErrorCode::NotReady,
+                ErrorCode::NotReady,
                 "Profile workspace changed; refresh before simulating rules",
                 true,
             )));

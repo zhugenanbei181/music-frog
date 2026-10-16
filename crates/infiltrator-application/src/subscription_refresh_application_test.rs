@@ -1,6 +1,9 @@
 //! Headless tests for the shared subscription refresh orchestration
 //! (DUAL-07-05 retry/backoff, DUAL-07-06 single-flight).
 
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::capability::Capability;
+use std::mem;
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
@@ -202,7 +205,7 @@ impl ProfileStore for FakeStore {
                 Ok(reference.profile_id.as_str().to_owned())
             }
             ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "test store has no selected profile",
             )),
         }
@@ -222,7 +225,7 @@ impl ProfileStore for FakeStore {
         &self,
         expected: ActiveProfileReferenceState,
         target: ActiveProfileReferenceTarget,
-        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        _: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
         let mut active_reference = self.active_reference.lock().expect("active reference lock");
         if *active_reference != expected {
@@ -245,7 +248,7 @@ impl ProfileStore for FakeStore {
             } => {
                 if engine_id != self.engine_id() {
                     return Err(PortError::unsupported(
-                        infiltrator_contract::capability::Capability::Profiles,
+                        Capability::Profiles,
                         "test store cannot select a foreign engine",
                     ));
                 }
@@ -262,7 +265,7 @@ impl ProfileStore for FakeStore {
                 ))
             }
         };
-        let previous = std::mem::replace(&mut *active_reference, current.clone());
+        let previous = mem::replace(&mut *active_reference, current.clone());
         Ok(ActiveProfileReferenceCasOutcome::Committed { previous, current })
     }
 

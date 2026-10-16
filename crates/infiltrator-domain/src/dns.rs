@@ -8,6 +8,7 @@ use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeMap;
+use std::mem;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -642,7 +643,7 @@ fn remove_absent_option_values(value: &mut Value) {
     match value {
         Value::Mapping(mapping) => {
             let mut retained = Mapping::new();
-            for (key, mut child) in std::mem::take(mapping) {
+            for (key, mut child) in mem::take(mapping) {
                 remove_absent_option_values(&mut child);
                 if !matches!(child, Value::Null) {
                     retained.insert(key, child);

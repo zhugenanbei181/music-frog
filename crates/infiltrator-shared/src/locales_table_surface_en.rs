@@ -179,6 +179,16 @@ pub(super) fn translate_surface_en(key: &str) -> Cow<'static, str> {
         "overview_toggle_failed" => "Failed".into(),
         "settings_preference_stale" => "{state} (stale: {reason})".into(),
         "settings_preference_loading" => "{state} (loading)".into(),
+        "acceptance_list_title" => "Acceptance List · {scenario}".into(),
+        "acceptance_list_desc" => "50-row virtual list state machine acceptance · Viewport {viewport}px · Row {row}px".into(),
+        "acceptance_btn_top" => "Top".into(),
+        "acceptance_btn_center" => "Center (25)".into(),
+        "acceptance_btn_bottom" => "Bottom (50)".into(),
+        "acceptance_btn_menu" => "Action Menu ▼".into(),
+        "touch_diag_not_entered_bevy" => "Touch did not enter Bevy: Android native MotionEvent was not converted to winit TouchInput".into(),
+        "touch_diag_missed_ui" => "Missed UI: TouchInput entered Bevy but picking did not hit any UI node".into(),
+        "touch_diag_drag_not_driven_scroll" => "Drag did not drive scroll: recognized as drag but ScrollPosition offset did not change".into(),
+        "touch_diag_position_not_rendered" => "Position change not rendered: ScrollPosition moved but render presentation was not triggered".into(),
         _ => Cow::Owned(key.to_owned()),
     }
 }

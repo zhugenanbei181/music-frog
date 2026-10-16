@@ -266,49 +266,89 @@ pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot
         .trim()
         .to_lowercase();
     let sort_mode = window.get_connection_sort().to_string();
-    let rows = snapshot
-        .pages
-        .connections
-        .data
-        .as_ref()
-        .map(|page| {
-            let mut connections = page.connections.iter().collect::<Vec<_>>();
-            match sort_mode.as_str() {
-                "upload" => connections.sort_by_key(|connection| Reverse(connection.upload_total)),
-                "download" => {
-                    connections.sort_by_key(|connection| Reverse(connection.download_total))
-                }
-                "host" => connections.sort_by(|left, right| left.host.cmp(&right.host)),
-                "time" => connections.sort_by(|left, right| right.start.cmp(&left.start)),
-                _ => {}
+    let show_closed = window.get_connection_show_closed();
+
+    let rows = if show_closed {
+        let mut connections = snapshot.closed_connections.records.iter().collect::<Vec<_>>();
+        match sort_mode.as_str() {
+            "upload" => connections.sort_by_key(|connection| Reverse(connection.upload_bytes)),
+            "download" => {
+                connections.sort_by_key(|connection| Reverse(connection.download_bytes))
             }
-            connections
-                .into_iter()
-                .map(|connection| ObservationRow {
-                    id: connection.id.clone().into(),
-                    title: connection.host.clone().into(),
-                    accessible_title: connection.host.clone().into(),
-                    flag_code: "".into(),
-                    flag_index: -1,
-                    delay_ms: -1,
-                    subtitle: format!("{} · {}", connection.network, connection.process).into(),
-                    trailing: format!(
-                        "↑ {} · ↓ {}",
-                        format_bytes(connection.upload_total),
-                        format_bytes(connection.download_total)
-                    )
-                    .into(),
-                    active: true,
-                })
-                .filter(|row| {
-                    query.is_empty()
-                        || row.title.to_string().to_lowercase().contains(&query)
-                        || row.subtitle.to_string().to_lowercase().contains(&query)
-                        || row.id.to_string().to_lowercase().contains(&query)
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+            "host" => connections.sort_by(|left, right| left.destination.cmp(&right.destination)),
+            "time" => connections.sort_by(|left, right| right.closed_at.cmp(&left.closed_at)),
+            _ => {}
+        }
+        connections
+            .into_iter()
+            .map(|connection| ObservationRow {
+                id: connection.id.clone().into(),
+                title: connection.destination.clone().into(),
+                accessible_title: connection.destination.clone().into(),
+                flag_code: "".into(),
+                flag_index: -1,
+                delay_ms: -1,
+                subtitle: format!("{} · {}", connection.outbound, connection.rule).into(),
+                trailing: format!(
+                    "↑ {} · ↓ {}",
+                    format_bytes(connection.upload_bytes),
+                    format_bytes(connection.download_bytes)
+                )
+                .into(),
+                active: false,
+            })
+            .filter(|row| {
+                query.is_empty()
+                    || row.title.to_string().to_lowercase().contains(&query)
+                    || row.subtitle.to_string().to_lowercase().contains(&query)
+                    || row.id.to_string().to_lowercase().contains(&query)
+            })
+            .collect::<Vec<_>>()
+    } else {
+        snapshot
+            .pages
+            .connections
+            .data
+            .as_ref()
+            .map(|page| {
+                let mut connections = page.connections.iter().collect::<Vec<_>>();
+                match sort_mode.as_str() {
+                    "upload" => connections.sort_by_key(|connection| Reverse(connection.upload_total)),
+                    "download" => {
+                        connections.sort_by_key(|connection| Reverse(connection.download_total))
+                    }
+                    "host" => connections.sort_by(|left, right| left.host.cmp(&right.host)),
+                    "time" => connections.sort_by(|left, right| right.start.cmp(&left.start)),
+                    _ => {}
+                }
+                connections
+                    .into_iter()
+                    .map(|connection| ObservationRow {
+                        id: connection.id.clone().into(),
+                        title: connection.host.clone().into(),
+                        accessible_title: connection.host.clone().into(),
+                        flag_code: "".into(),
+                        flag_index: -1,
+                        delay_ms: -1,
+                        subtitle: format!("{} · {}", connection.network, connection.process).into(),
+                        trailing: format!(
+                            "↑ {} · ↓ {}",
+                            format_bytes(connection.upload_total),
+                            format_bytes(connection.download_total)
+                        )
+                        .into(),
+                        active: true,
+                    })
+                    .filter(|row| {
+                        query.is_empty()
+                            || row.title.to_string().to_lowercase().contains(&query)
+                            || row.subtitle.to_string().to_lowercase().contains(&query)
+                            || row.id.to_string().to_lowercase().contains(&query)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
     window.set_connections(slint_model(rows));
 }
 
@@ -510,16 +550,65 @@ pub(super) fn project_traffic(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     window.set_home_traffic_points(slint_model(points));
     window.set_home_traffic_has_data(snapshot.traffic_waveform.is_drawable());
     window.set_traffic_samples(slint_model(samples));
-    window.set_traffic_today_bars(slint_model(Vec::<TrafficBar>::new()));
-    window.set_traffic_week_bars(slint_model(Vec::<TrafficBar>::new()));
-    window.set_traffic_today_has_data(false);
-    window.set_traffic_week_has_data(false);
-    window.set_traffic_today_down("—".into());
-    window.set_traffic_today_up("—".into());
-    window.set_traffic_week_down("—".into());
-    window.set_traffic_week_up("—".into());
-    window.set_traffic_week_average_down("—".into());
-    window.set_traffic_week_average_up("—".into());
+    let history = &snapshot.traffic_history;
+    let today_bars: Vec<TrafficBar> = history
+        .today_bars
+        .iter()
+        .map(|bar| TrafficBar {
+            label: bar.label.clone().into(),
+            detail_label: bar.detail_label.clone().into(),
+            download: format_bytes(bar.download_bytes).into(),
+            upload: format_bytes(bar.upload_bytes).into(),
+            download_fraction: bar.download_fraction,
+            upload_fraction: bar.upload_fraction,
+        })
+        .collect();
+    let week_bars: Vec<TrafficBar> = history
+        .week_bars
+        .iter()
+        .map(|bar| TrafficBar {
+            label: bar.label.clone().into(),
+            detail_label: bar.detail_label.clone().into(),
+            download: format_bytes(bar.download_bytes).into(),
+            upload: format_bytes(bar.upload_bytes).into(),
+            download_fraction: bar.download_fraction,
+            upload_fraction: bar.upload_fraction,
+        })
+        .collect();
+    window.set_traffic_today_bars(slint_model(today_bars));
+    window.set_traffic_week_bars(slint_model(week_bars));
+    window.set_traffic_today_has_data(history.today_has_data);
+    window.set_traffic_week_has_data(history.week_has_data);
+    window.set_traffic_today_down(if history.today_has_data {
+        format_bytes(history.today_download_bytes).into()
+    } else {
+        "—".into()
+    });
+    window.set_traffic_today_up(if history.today_has_data {
+        format_bytes(history.today_upload_bytes).into()
+    } else {
+        "—".into()
+    });
+    window.set_traffic_week_down(if history.week_has_data {
+        format_bytes(history.week_download_bytes).into()
+    } else {
+        "—".into()
+    });
+    window.set_traffic_week_up(if history.week_has_data {
+        format_bytes(history.week_upload_bytes).into()
+    } else {
+        "—".into()
+    });
+    window.set_traffic_week_average_down(if history.week_has_data {
+        format_bytes(history.week_average_download_bytes).into()
+    } else {
+        "—".into()
+    });
+    window.set_traffic_week_average_up(if history.week_has_data {
+        format_bytes(history.week_average_upload_bytes).into()
+    } else {
+        "—".into()
+    });
 }
 
 pub(super) fn license_rows(query: &str, language: &str) -> Vec<LicenseRow> {
@@ -565,6 +654,29 @@ pub(crate) fn project_connection_detail(
             .find(|connection| connection.id == connection_id)
     });
     let Some(connection) = connection else {
+        if let Some(closed) = snapshot
+            .closed_connections
+            .records
+            .iter()
+            .find(|c| c.id == connection_id)
+        {
+            window.set_connection_detail_host(closed.destination.clone().into());
+            window.set_connection_detail_id(closed.id.clone().into());
+            window.set_connection_detail_protocol("—".into());
+            window.set_connection_detail_process("—".into());
+            window.set_connection_detail_source("—".into());
+            window.set_connection_detail_destination(closed.destination.clone().into());
+            window.set_connection_detail_rule(if closed.rule.is_empty() { "—" } else { &closed.rule }.into());
+            window.set_connection_detail_chains(if closed.outbound.is_empty() { "—" } else { &closed.outbound }.into());
+            window.set_connection_detail_providers("—".into());
+            window.set_connection_detail_start("—".into());
+            let duration_sec = closed.duration_ms / 1000;
+            window.set_connection_detail_duration(format!("{}s", duration_sec).into());
+            window.set_connection_detail_upload(format_bytes(closed.upload_bytes).into());
+            window.set_connection_detail_download(format_bytes(closed.download_bytes).into());
+            window.set_connection_detail_active(false);
+            return;
+        }
         window.set_connection_detail_host("".into());
         window.set_connection_detail_active(false);
         return;

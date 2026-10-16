@@ -1,4 +1,7 @@
 //! Capture the actual reader and independent native cleanup review before any write.
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -23,7 +26,7 @@ use infiltrator_test_support::rule_trace_fixtures::{
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
-    let store = infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture();
+    let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let core = CoreApplication::new(
@@ -41,7 +44,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     )
     .with_rule_tracer(owner.clone())
     .with_configuration(
-        infiltrator_composition::mihomo_configuration::for_mihomo_store(store.clone()),
+        for_mihomo_store(store.clone()),
     );
     attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;
@@ -69,7 +72,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
                     &observed_workspace,
                     RuleTraceOperationId(1),
                     request,
-                    &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::observed(
+                    &RuleTraceOutboundFacts::observed(
                         outbound_observation.clone(),
                     ),
                 )

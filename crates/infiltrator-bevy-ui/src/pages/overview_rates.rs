@@ -1,8 +1,8 @@
 //! Native overview copy replays shared facts and locale without replacing entities.
 use crate::pages::overview::{
     LastOverviewProjection, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
-    banner_note, chip_label, format_cpu, format_memory, format_scale, format_total_traffic,
-    state_ink,
+    banner_note, banner_state_text, chip_label, format_cpu, format_memory, format_scale,
+    format_total_traffic, state_ink,
 };
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::change_detection::DetectChanges;
@@ -15,7 +15,7 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
-use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_copy};
+use infiltrator_presentation::core_status_projection::failure_copy;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 
@@ -68,8 +68,8 @@ pub fn refresh(mut copy: OverviewCopy) {
     for mut line in &mut copy.lines {
         let value = match line.kind.0 {
             OverviewLineKind::State => {
-                line.color.0 = state_ink(&projection.lifecycle, &copy.palette);
-                lifecycle_copy(&projection.lifecycle, language)
+                line.color.0 = state_ink(Some(projection), &projection.lifecycle, &copy.palette);
+                banner_state_text(projection, language)
             }
             OverviewLineKind::Upload => format!("↑ {upload}"),
             OverviewLineKind::Download => format!("↓ {download}"),

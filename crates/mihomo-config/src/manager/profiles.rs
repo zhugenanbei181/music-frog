@@ -1,7 +1,10 @@
 //! Engine-scoped profile CRUD and per-profile metadata persistence.
 
-use super::ConfigManager;
 use super::paths::profile_id;
+use super::{
+    ConfigManager, ensure_profile_reset_not_pending_for_dir,
+    lock_reset_fenced_profile_mutation_for_dir,
+};
 use crate::profile::Profile;
 use crate::profile_workspace_store::config_error;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
@@ -16,6 +19,7 @@ use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::metadata::delete_subscription_url;
 use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;
+use std::result;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
@@ -34,7 +38,7 @@ impl<S: SecureStore> ConfigManager<S> {
     pub async fn load_backup(&self, profile: &str) -> Result<Option<String>> {
         self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await?;
-        crate::manager::ensure_profile_reset_not_pending_for_dir(self.config_dir())
+        ensure_profile_reset_not_pending_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile = profile_id(profile)?;
@@ -58,7 +62,7 @@ impl<S: SecureStore> ConfigManager<S> {
         &self,
         profile: &str,
         content: &str,
-    ) -> std::result::Result<(), PortError> {
+    ) -> result::Result<(), PortError> {
         self.initialize_profile_namespace()
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
@@ -160,7 +164,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// known to be live (or when a save did not require a runtime rebuild).
     pub async fn clear_backup(&self, profile: &str) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
+        let _guard = lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile = profile_id(profile)?;
@@ -172,7 +176,7 @@ impl<S: SecureStore> ConfigManager<S> {
 
     pub(crate) async fn list_profile_info(
         &self,
-    ) -> std::result::Result<Vec<ProfileInfo>, PortError> {
+    ) -> result::Result<Vec<ProfileInfo>, PortError> {
         self.initialize_profile_namespace()
             .await
             .map_err(config_error)?;
@@ -222,7 +226,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// 元数据。profile 名使用共享领域校验后再拼 engine-scoped subscription key。
     pub async fn delete_subscription_credential(&self, profile: &str) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
+        let _guard = lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let key = profile_id(profile)?;
@@ -251,7 +255,7 @@ impl<S: SecureStore> ConfigManager<S> {
 
     pub async fn update_profile_metadata(&self, profile: &str, metadata: &Profile) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
+        let _guard = lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let key = profile_id(profile)?;

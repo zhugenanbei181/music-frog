@@ -1,3 +1,4 @@
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use super::*;
 use crate::command_application::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
@@ -71,7 +72,7 @@ impl CoreProcess for WatchdogProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.fail_starts.load(Ordering::SeqCst) > 0 {
@@ -112,7 +113,7 @@ impl CoreProcess for FakeProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         if self.fail_start {
             return Err(PortError::Failed("fake start failure".to_string()));
@@ -165,7 +166,7 @@ impl CoreProcess for ReadinessRollbackProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         *self.state.lock().expect("process state lock") = CoreLifecycle::Running;
         Ok(())
@@ -203,7 +204,7 @@ impl CoreProcess for StartAdmissionTrackingProcess {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         assert!(
             self.prepare_called.load(Ordering::SeqCst),
@@ -232,7 +233,7 @@ impl CoreProcess for StartAdmissionTrackingProcess {
 
     async fn prepare_start(
         &self,
-        _context: &infiltrator_contract::core_process::CoreProcessStartContext,
+        _context: &CoreProcessStartContext,
     ) -> Result<CoreProcessStartAdmission, PortError> {
         self.prepare_called.store(true, Ordering::SeqCst);
         Ok(CoreProcessStartAdmission::LaunchNewProcess)

@@ -3,8 +3,8 @@
 set -euo pipefail
 
 DMG_PATH="${1:-dist/Infiltrator-macOS.dmg}"
-APP_PATH="${2:-dist/Infiltrator.app}"
-# Product identity is env-overridable so iced and bevy each get an equal DMG.
+APP_PATH="${2:-dist/MusicFrog Infiltrator.app}"
+# Product identity is env-overridable so each desktop product gets an equal DMG.
 VOL_NAME="${VOL_NAME:-Infiltrator}"
 APP_NAME="$(basename "$APP_PATH")"
 

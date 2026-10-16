@@ -52,22 +52,23 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
         Some(state.profile.subscription_update_interval_hours.clone())
     };
 
-    let subscription_save_action: Element<'_, Message> = if state.profile.is_saving_subscription {
-        text_btn(
-            lang.tr("profiles_saving_subscription").to_string(),
-            style_accent,
-            None,
-        )
-    } else {
-        text_btn(
-            lang.tr("profiles_save_subscription").to_string(),
-            style_accent,
-            Some(Message::SaveSubscriptionSettings),
-        )
-    };
+    let subscription_save_action: Element<'_, Message> =
+        if state.profile.subscription_save_phase.is_saving() {
+            text_btn(
+                lang.tr("profiles_saving_subscription").to_string(),
+                style_accent,
+                None,
+            )
+        } else {
+            text_btn(
+                lang.tr("profiles_save_subscription").to_string(),
+                style_accent,
+                Some(Message::SaveSubscriptionSettings),
+            )
+        };
 
     let subscription_update_now_action: Element<'_, Message> =
-        if state.profile.is_updating_subscription_now {
+        if state.profile.subscription_update_phase.is_updating() {
             text_btn(
                 lang.tr("profiles_updating_subscription").to_string(),
                 style_ghost,

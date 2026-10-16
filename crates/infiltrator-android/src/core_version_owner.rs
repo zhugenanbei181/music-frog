@@ -1,5 +1,6 @@
 //! Process-local owner of engine-keyed version factories for Android `:vpn`.
 
+use std::path::PathBuf;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::map_port_error;
 use infiltrator_application::core_version_management_application::CoreVersionManagementApplication;
@@ -32,7 +33,7 @@ impl AndroidCoreVersionOwner {
         Self::build_at_home(home)
     }
 
-    fn build_at_home(home: std::path::PathBuf) -> Result<Self, FfiStatus> {
+    fn build_at_home(home: PathBuf) -> Result<Self, FfiStatus> {
         let mut registrations: Vec<(EngineId, Arc<dyn EngineVersionBackendFactory>)> = vec![(
             MihomoVersionPort::engine_identifier(),
             Arc::new(MihomoEngineVersionBackendFactory::with_home(home.clone())),

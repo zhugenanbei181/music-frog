@@ -5,6 +5,8 @@
 //! The real filesystem adapter lives in `infiltrator-desktop` and is tested
 //! there against a real temporary directory.
 
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use super::*;
 use crate::profile_application::ProfileApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
@@ -86,7 +88,7 @@ fn valid_review_draft() -> ScriptExportDraft {
 }
 
 fn overlay_review_draft(
-    identity: infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+    identity: ProfileDocumentIdentity,
     base_yaml: String,
     mixin_yaml: &str,
 ) -> ScriptExportDraft {
@@ -261,7 +263,7 @@ fn mixin_overlay_review_requires_a_scoped_codec_preflight_and_never_writes_while
     assert_eq!(store.observed(), workspace);
 
     let mut foreign_identity = identity;
-    foreign_identity.engine_id = infiltrator_contract::core_identity::EngineId::new("sing-box")
+    foreign_identity.engine_id = EngineId::new("sing-box")
         .expect("typed foreign engine");
     let foreign = overlay_review_draft(foreign_identity, base_yaml, "ipv6: true\n");
     let calls_before_foreign = codec.options_call_count();

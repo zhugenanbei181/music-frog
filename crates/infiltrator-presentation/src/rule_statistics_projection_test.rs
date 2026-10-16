@@ -1,6 +1,7 @@
 //! test-intent: behavior
 //! Absent observations stay distinct from measured zero and foreign source rows.
 
+use crate::rule_list_editor::RuleListReadback::Observed;
 use super::*;
 use crate::rule_fixtures::list_document;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
@@ -33,7 +34,7 @@ fn qualified_audit_and_duplicate_requests_cannot_disable_a_different_identical_r
         2
     ]);
     let mut editor = RuleListEditor::default();
-    editor.observe_readback(crate::rule_list_editor::RuleListReadback::Observed(
+    editor.observe_readback(Observed(
         document.clone(),
     ));
     let first = editor.row_id(0).unwrap();

@@ -1,4 +1,5 @@
 //! Behavior tests for Doctor presentation state and report projection.
+use std::slice::from_ref;
 use super::*;
 use infiltrator_contract::doctor::DoctorCheckResult;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -107,7 +108,7 @@ fn fix_availability_requires_a_matching_fixable_diagnostic_descriptor() {
     };
     let available = project_observation(
         &DoctorObservation::Ready(report.clone()),
-        std::slice::from_ref(&metadata),
+        from_ref(&metadata),
     );
     assert!(available.data.unwrap().checks[0].fix_available);
 

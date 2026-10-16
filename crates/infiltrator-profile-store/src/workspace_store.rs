@@ -22,6 +22,7 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use std::io::{self, ErrorKind};
 use tokio::fs;
 
 /// Selection evidence held by the caller while a workspace publication runs.
@@ -264,8 +265,8 @@ fn invalid_metadata() -> PortError {
     ))
 }
 
-fn map_io_error(error: std::io::Error) -> PortError {
-    if error.kind() == std::io::ErrorKind::PermissionDenied {
+fn map_io_error(error: io::Error) -> PortError {
+    if error.kind() == ErrorKind::PermissionDenied {
         PortError::PermissionDenied(error.to_string())
     } else {
         PortError::Io(error.to_string())

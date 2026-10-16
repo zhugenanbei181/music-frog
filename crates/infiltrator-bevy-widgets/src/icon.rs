@@ -23,6 +23,7 @@
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
+use infiltrator_shared::assets::bevy_icon_png;
 use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
@@ -118,7 +119,7 @@ impl IconSources {
     pub fn embedded(images: &mut Assets<Image>) -> Self {
         let mut sources = Self::default();
         for icon in IconId::ALL {
-            let Some(bytes) = infiltrator_shared::assets::bevy_icon_png(icon.asset_name()) else {
+            let Some(bytes) = bevy_icon_png(icon.asset_name()) else {
                 continue;
             };
             let Ok(image) = Image::from_buffer(

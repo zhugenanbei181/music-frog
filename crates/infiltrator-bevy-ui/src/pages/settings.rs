@@ -8,6 +8,7 @@
 
 #[path = "settings_query_access.rs"]
 pub mod query_access;
+use infiltrator_shared::assets::harmonyos_font_license_text;
 use self::query_access::{
     LogLevelControlItem, SettingsActionControls, SettingsProjectionTargets, SettingsTextOutputItem,
     TunStackControlItem,
@@ -187,7 +188,7 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
                     --
                     LocalizedText::plain("HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd.") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                     --
-                    Text({ infiltrator_shared::assets::harmonyos_font_license_text().to_owned() }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                    Text({ harmonyos_font_license_text().to_owned() }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                 ]
                 --
                 @{ tun_permission_alert_banner_scene(palette) }

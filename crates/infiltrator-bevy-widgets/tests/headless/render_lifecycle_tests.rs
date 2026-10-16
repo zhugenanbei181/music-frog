@@ -23,6 +23,7 @@ use infiltrator_bevy_widgets::shader_fx::{
 };
 use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::surface_shader::SurfaceShaderMode;
+use std::collections::HashSet;
 
 fn surface(app: &mut App) -> Entity {
     let palette = *app.world().resource::<UiPalette>();
@@ -156,7 +157,7 @@ fn every_chart_repairs_missing_assets_even_without_changed_samples() {
     assert_eq!(
         repaired_ids
             .into_iter()
-            .collect::<std::collections::HashSet<_>>()
+            .collect::<HashSet<_>>()
             .len(),
         4
     );

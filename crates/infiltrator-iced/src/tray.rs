@@ -265,7 +265,7 @@ impl AppState {
             core_downloading: self.runtime.core_download.is_downloading(),
             core_download_percent,
             webdav_enabled: self.profile.webdav_enabled,
-            syncing: self.profile.is_syncing,
+            syncing: self.profile.webdav_sync_phase.is_syncing(),
             sync_step,
             autostart: self.runtime.autostart_enabled,
             controller: controller.as_deref(),

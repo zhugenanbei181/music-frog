@@ -7,5 +7,5 @@ Terminal=false
 Type=Application
 Categories=Network;Utility;
 MimeType=x-scheme-handler/@desktop.slint.url_scheme@;
-Keywords=proxy;vpn;network;slint;
+Keywords=proxy;vpn;mihomo;network;
 StartupWMClass=@desktop.slint.binary_name@

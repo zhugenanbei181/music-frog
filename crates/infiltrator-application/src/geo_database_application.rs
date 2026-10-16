@@ -52,6 +52,7 @@ impl GeoDatabaseApplication {
 #[cfg(test)]
 mod tests {
     use super::GeoDatabaseApplication;
+    use crate::core_capability_application::CoreCapabilityApplication;
     use crate::core_capability_test_support::{capability_application, core_scope};
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -112,7 +113,7 @@ mod tests {
 
         let no_capability = GeoDatabaseApplication::new(
             port.clone(),
-            crate::core_capability_application::CoreCapabilityApplication::without_provider(),
+            CoreCapabilityApplication::without_provider(),
         );
         assert!(no_capability.trigger(&scope).await.is_err());
         assert_eq!(port.calls.load(Ordering::SeqCst), 1);

@@ -1,13 +1,16 @@
 //! Iced adapter for complete, source-bound draft facts and atomic commits.
 use crate::state::AppState;
+use crate::state::editor::RulesSavePhase;
 use crate::types::app::Route;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rule_list::RuleListAction;
 use iced::Task;
+use iced::widget::text_editor::Content;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::rules_workspace::RulesJsonSection;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot};
 use infiltrator_presentation::rule_form_binding::default_form_target;
 
@@ -81,13 +84,16 @@ impl AppState {
             }
             RuleListAction::Finished { operation, result } => {
                 if self.editor.rule_list.finish(operation, result) {
-                    self.editor.is_saving_rules = false;
+                    self.editor.rules_save_phase = RulesSavePhase::Idle;
                 }
             }
         }
         Task::none()
     }
     pub(super) fn commit_rule_list(&mut self) -> Task<Message> {
+        if !self.editor.rule_list.can_save() {
+            return Task::none();
+        }
         let Some(commands) = self.command_ingress() else {
             self.editor.rule_list.record_failure(Failure::new(
                 ErrorCode::NotReady,
@@ -98,12 +104,9 @@ impl AppState {
         };
         let (operation, request) = match self.editor.rule_list.begin() {
             Ok(pending) => pending,
-            Err(failure) => {
-                self.editor.rule_list.record_failure(failure);
-                return Task::none();
-            }
+            Err(_) => return Task::none(),
         };
-        self.editor.is_saving_rules = true;
+        self.editor.rules_save_phase = RulesSavePhase::Saving;
         Task::perform(
             async move {
                 match (commands
@@ -122,11 +125,11 @@ impl AppState {
 
 fn adopt_rules_document(
     cache: &mut String,
-    identity: &mut Option<infiltrator_contract::profile_document_identity::ProfileDocumentIdentity>,
-    content: &mut iced::widget::text_editor::Content,
+    identity: &mut Option<ProfileDocumentIdentity>,
+    content: &mut Content,
     editor_state: EditorLazyState,
     dirty: &mut bool,
-    document: &infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot,
+    document: &RulesJsonDocumentSnapshot,
 ) {
     if *dirty && content.text() != document.json {
         return;
@@ -135,6 +138,6 @@ fn adopt_rules_document(
     *identity = Some(document.identity.clone());
     *dirty = false;
     if editor_state == EditorLazyState::Loaded {
-        *content = iced::widget::text_editor::Content::with_text(cache);
+        *content = Content::with_text(cache);
     }
 }

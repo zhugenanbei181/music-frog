@@ -4,6 +4,7 @@
 //! is a real parity defect — the two surfaces would look different — so every
 //! core palette channel and every structural token is asserted here.
 
+use infiltrator_bevy_widgets::theme::mobile_theme_tokens;
 use design_tokens::elevation::{HIGH, LOW, MEDIUM};
 use design_tokens::metrics::HAIRLINE;
 use design_tokens::radius::{CARD, CONTROL, MODAL, PILL};
@@ -87,6 +88,21 @@ fn assert_interaction_palette(skin: theme::ThemeSkin) {
     assert_eq!(palette.disabled_ink, theme_color(resolved.disabled_ink));
     assert_eq!(palette.hover_bg, theme_color(resolved.hover));
     assert_eq!(palette.pressed_bg, theme_color(resolved.pressed));
+
+    let mobile = design_tokens::mobile_theme_tokens(skin);
+    assert_eq!(palette.bottom_nav_bg, theme_color(TokenColor::rgba(mobile.bottom_nav_bg.r, mobile.bottom_nav_bg.g, mobile.bottom_nav_bg.b, mobile.bottom_nav_bg.a)));
+    assert_eq!(palette.bottom_nav_indicator, theme_color(TokenColor::rgba(mobile.bottom_nav_indicator.r, mobile.bottom_nav_indicator.g, mobile.bottom_nav_indicator.b, mobile.bottom_nav_indicator.a)));
+    assert_eq!(palette.touch_ripple, theme_color(TokenColor::rgba(mobile.touch_ripple.r, mobile.touch_ripple.g, mobile.touch_ripple.b, mobile.touch_ripple.a)));
+    assert_eq!(palette.swipe_action, theme_color(TokenColor::rgba(mobile.swipe_action.r, mobile.swipe_action.g, mobile.swipe_action.b, mobile.swipe_action.a)));
+    assert_eq!(palette.swipe_destructive, theme_color(TokenColor::rgba(mobile.swipe_destructive.r, mobile.swipe_destructive.g, mobile.swipe_destructive.b, mobile.swipe_destructive.a)));
+    assert_eq!(palette.bottom_sheet_radius_px, radius::BOTTOM_SHEET);
+    assert_eq!(palette.dialog_radius_px, radius::DIALOG);
+    assert_eq!(palette.touch_target_compact_px, metrics::TOUCH_TARGET_COMPACT);
+    assert_eq!(palette.touch_target_comfortable_px, metrics::TOUCH_TARGET_COMFORTABLE);
+    assert_eq!(palette.bottom_nav_height_px, metrics::BOTTOM_NAV_HEIGHT);
+    assert_eq!(palette.top_app_bar_height_px, metrics::TOP_APP_BAR_HEIGHT);
+    assert_eq!(palette.screen_margin_mobile_px, space::SCREEN_MARGIN_MOBILE);
+    assert_eq!(palette.screen_margin_tablet_px, space::SCREEN_MARGIN_TABLET);
 }
 
 #[test]
@@ -126,6 +142,8 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     assert_eq!(space::S16, LG);
     assert_eq!(space::S20, XL);
     assert_eq!(space::S24, XXL);
+    assert_eq!(space::SCREEN_MARGIN_MOBILE, space::SCREEN_MARGIN_MOBILE);
+    assert_eq!(space::SCREEN_MARGIN_TABLET, space::SCREEN_MARGIN_TABLET);
     let widget_xs = radius::XS;
     let widget_sm = radius::SM;
     {
@@ -137,11 +155,16 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     assert_eq!(radius::CARD, CARD);
     assert_eq!(radius::MODAL, MODAL);
     assert_eq!(radius::PILL, PILL);
+    assert_eq!(radius::BOTTOM_SHEET, radius::BOTTOM_SHEET);
+    assert_eq!(radius::DIALOG, radius::DIALOG);
     assert_eq!(type_scale::DISPLAY, DISPLAY);
     assert_eq!(type_scale::TITLE, TITLE);
     assert_eq!(type_scale::HEADING, HEADING);
     assert_eq!(type_scale::BODY, BODY);
+    assert_eq!(type_scale::BODY_LARGE, type_scale::BODY_LARGE);
+    assert_eq!(type_scale::LABEL_LARGE, type_scale::LABEL_LARGE);
     assert_eq!(type_scale::CAPTION, CAPTION);
+    assert_eq!(type_scale::LABEL_SMALL, type_scale::LABEL_SMALL);
     assert_eq!(type_scale::TAG, TAG);
     assert_eq!(type_scale::MONO, MONO);
     assert_eq!(elevation::LOW.blur_radius, LOW.blur_radius);
@@ -151,6 +174,21 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     assert_eq!(squircle.smoothing, 0.6);
     assert_eq!(squircle.radius_px, 16.0);
     assert_eq!(metrics::HAIRLINE, HAIRLINE);
+    assert_eq!(metrics::MIN_TOUCH_TARGET, metrics::MIN_TOUCH_TARGET);
+    assert_eq!(metrics::TOUCH_TARGET_COMPACT, metrics::TOUCH_TARGET_COMPACT);
+    assert_eq!(metrics::TOUCH_TARGET_COMFORTABLE, metrics::TOUCH_TARGET_COMFORTABLE);
+    assert_eq!(metrics::BOTTOM_NAV_HEIGHT, metrics::BOTTOM_NAV_HEIGHT);
+    assert_eq!(metrics::TOP_APP_BAR_HEIGHT, metrics::TOP_APP_BAR_HEIGHT);
+
+    for skin in theme::ThemeSkin::ALL {
+        let expected = design_tokens::mobile_theme_tokens(skin);
+        let actual = mobile_theme_tokens(mirrored_skin(skin));
+        assert_token(actual.bottom_nav_bg, expected.bottom_nav_bg, "bottom_nav_bg");
+        assert_token(actual.bottom_nav_indicator, expected.bottom_nav_indicator, "bottom_nav_indicator");
+        assert_token(actual.touch_ripple, expected.touch_ripple, "touch_ripple");
+        assert_token(actual.swipe_action, expected.swipe_action, "swipe_action");
+        assert_token(actual.swipe_destructive, expected.swipe_destructive, "swipe_destructive");
+    }
 }
 
 /// The contract values are the Iced reference, so the two dark-ish and

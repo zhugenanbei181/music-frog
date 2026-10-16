@@ -1,3 +1,4 @@
+use tokio::sync::OwnedMutexGuard;
 use super::FakeProfileStore;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -18,7 +19,7 @@ pub(super) struct FakeActiveWorkspaceWriteLease<'a> {
     pub(super) store: &'a FakeProfileStore,
     pub(super) expected_reference: ActiveProfileReference,
     pub(super) observed: ProfileWorkspace,
-    pub(super) _guard: tokio::sync::OwnedMutexGuard<()>,
+    pub(super) _guard: OwnedMutexGuard<()>,
 }
 
 struct FakeActiveWorkspacePublishedLease<'a> {
@@ -26,12 +27,12 @@ struct FakeActiveWorkspacePublishedLease<'a> {
     previous: ProfileWorkspace,
     published: ProfileWorkspace,
     published_state: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 struct FakeActiveWorkspaceRestoredLease {
     workspace: ProfileWorkspace,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
+    _guard: OwnedMutexGuard<()>,
 }
 
 #[async_trait]

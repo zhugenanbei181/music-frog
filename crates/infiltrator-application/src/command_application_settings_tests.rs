@@ -281,3 +281,89 @@ async fn language_commands_canonicalize_and_persist_only_after_success_without_o
         ErrorCode::NotReady
     );
 }
+
+#[tokio::test]
+async fn refresh_profile_on_start_and_custom_accent_color_are_validated_and_persisted() {
+    let (application, store) = settings_application();
+
+    // 1. refresh_current_profile_on_start
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "refresh_current_profile_on_start".into(),
+            value: "true".into(),
+        })
+        .await
+        .unwrap();
+    assert!(store.settings.lock().unwrap().refresh_current_profile_on_start);
+
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "refresh_profile_on_start".into(),
+            value: "false".into(),
+        })
+        .await
+        .unwrap();
+    assert!(!store.settings.lock().unwrap().refresh_current_profile_on_start);
+
+    // Invalid boolean is rejected
+    assert_eq!(
+        application
+            .execute(CommandIntent::UpdateSetting {
+                key: "refresh_current_profile_on_start".into(),
+                value: "not_a_bool".into(),
+            })
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidInput
+    );
+
+    // 2. custom_accent_color
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "custom_accent_color".into(),
+            value: "#016888".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        store.settings.lock().unwrap().custom_accent_color.as_deref(),
+        Some("#016888")
+    );
+
+    // Bare hex without hash is normalized
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "custom_accent_color".into(),
+            value: "FF5733".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        store.settings.lock().unwrap().custom_accent_color.as_deref(),
+        Some("#FF5733")
+    );
+
+    // "none" resets to None
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "custom_accent_color".into(),
+            value: "none".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(store.settings.lock().unwrap().custom_accent_color, None);
+
+    // Invalid hex is rejected
+    assert_eq!(
+        application
+            .execute(CommandIntent::UpdateSetting {
+                key: "custom_accent_color".into(),
+                value: "invalid_hex".into(),
+            })
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidInput
+    );
+}

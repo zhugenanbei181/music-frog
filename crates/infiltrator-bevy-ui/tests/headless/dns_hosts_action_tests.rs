@@ -1,4 +1,6 @@
 //! test-intent: behavior
+use crate::configuration_codec::mihomo_configuration;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use crate::command_harness::{TestCoreCapabilityProvider, identified_recording_application};
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::app::App;
@@ -59,7 +61,7 @@ async fn select_profile(store: &HostsCaptureStore, profile: &str) {
         store,
         expected,
         target,
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
     )
         .await
         .expect("revisioned test selection CAS")
@@ -72,7 +74,7 @@ async fn select_profile(store: &HostsCaptureStore, profile: &str) {
 }
 
 fn setup(store: Arc<HostsCaptureStore>) -> (App, ProductSurfaceReader) {
-    let configuration = crate::configuration_codec::mihomo_configuration(store);
+    let configuration = mihomo_configuration(store);
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
         CommandApplication::new()

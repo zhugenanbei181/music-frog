@@ -1,5 +1,8 @@
 //! PAC generation and local-service use-cases.
 
+use crate::runtime_configuration_application::RuntimeConfigurationApplication;
+use crate::runtime_scope::active_scope;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
@@ -60,9 +63,9 @@ impl PacApplication {
     }
 
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
-        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
+        let scope = active_scope(self.scope_source.as_ref())?;
         let configuration =
-            crate::runtime_configuration_application::RuntimeConfigurationApplication::new(
+            RuntimeConfigurationApplication::new(
                 scope,
                 self.configuration_ports.clone(),
             );
@@ -71,11 +74,11 @@ impl PacApplication {
 
     pub async fn apply_scoped(
         &self,
-        scope: infiltrator_contract::core_identity::CoreScope,
+        scope: CoreScope,
         request: PacRequest,
     ) -> Result<PacSnapshot, Failure> {
         let configuration =
-            crate::runtime_configuration_application::RuntimeConfigurationApplication::new(
+            RuntimeConfigurationApplication::new(
                 scope,
                 self.configuration_ports.clone(),
             );
@@ -84,7 +87,7 @@ impl PacApplication {
 
     async fn apply_with_configuration(
         &self,
-        configuration: crate::runtime_configuration_application::RuntimeConfigurationApplication,
+        configuration: RuntimeConfigurationApplication,
         request: PacRequest,
     ) -> Result<PacSnapshot, Failure> {
         let bypass_domains = normalize_bypass_domains(&request.bypass_domains)

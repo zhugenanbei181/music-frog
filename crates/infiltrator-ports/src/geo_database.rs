@@ -3,6 +3,7 @@
 use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 
 #[async_trait]
@@ -26,7 +27,7 @@ impl UnsupportedGeoDatabasePort {
 impl GeoDatabasePort for UnsupportedGeoDatabasePort {
     async fn trigger(&self, _scope: CoreScope) -> Result<GeoDatabaseTriggerReceipt, PortError> {
         Err(PortError::Rejected(
-            infiltrator_contract::error::Failure::unsupported(self.reason.clone()),
+            Failure::unsupported(self.reason.clone()),
         ))
     }
 }

@@ -1,6 +1,8 @@
 //! Behavior cases for rules rule.
 //! test-intent: behavior
 
+use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::error::InfiltratorError;
@@ -24,7 +26,7 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
+        RuleListReadback::Observed(document),
     );
     state.editor.rule_providers_json_cache =
         r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com","tracker.net"]}}"#
@@ -37,7 +39,11 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
         .next()
         .expect("declaration");
     let plan = RuleProviderApplication::default()
-        .deconstruct(&declaration, "PROXY", None)
+        .deconstruct(
+            &declaration,
+            "PROXY",
+            RuleProviderRuntimeAccess::Unavailable,
+        )
         .await
         .expect("inline plan");
     assert_eq!(plan.origin, ProviderContentOrigin::InlinePayload);
@@ -80,7 +86,7 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
                 }),
             ),
             "PROXY",
-            None,
+            RuleProviderRuntimeAccess::Unavailable,
         )
         .await
         .expect_err("no source");

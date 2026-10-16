@@ -1,9 +1,13 @@
 //! Profile import handlers: subscription-URL import and local YAML file
 //! import (file picker, metadata fields, activation).
 
+use crate::update::core::profile_apply::runtime_access;
+use infiltrator_application::profile_application::ProfileContentSaveOutcome;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use crate::configs_dir::config_manager;
 use crate::host::storage::{subscription_import_port, subscription_source};
 use crate::state::AppState;
+use crate::state::profiles::ProfileImportPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::profile_apply::activate_profile;
@@ -49,7 +53,7 @@ impl AppState {
                 let name = self.profile.import_name.trim().to_string();
                 let activate = self.profile.import_activate;
                 let runtime = self.runtime.runtime.clone();
-                let runtime = crate::update::core::profile_apply::runtime_access(runtime);
+                let runtime = runtime_access(runtime);
                 if name.is_empty() || url.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Name and subscription URL are required".to_string(),
@@ -57,7 +61,7 @@ impl AppState {
                     ));
                 }
 
-                self.profile.is_importing = true;
+                self.profile.url_import_phase = ProfileImportPhase::Importing;
                 Task::perform(
                     async move {
                         let profile_name = sanitize_profile_name(&name)
@@ -121,7 +125,7 @@ impl AppState {
                 )
             }
             Message::ProfileImported(result) => {
-                self.profile.is_importing = false;
+                self.profile.url_import_phase = ProfileImportPhase::Idle;
                 match result {
                     Ok(activation) => {
                         self.invalidate_rules_dns_views();
@@ -152,13 +156,13 @@ impl AppState {
                             }
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    CoreInactiveLifecycle::Stopped,
                                 )
                                 | ProfileActivationOutcome::SelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    CoreInactiveLifecycle::Stopped,
                                 )
                                 | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    CoreInactiveLifecycle::Stopped,
                                 ),
                             ) => tasks.push(Task::done(Message::ShowToast(
                                 Lang(&self.shell.lang)
@@ -168,13 +172,13 @@ impl AppState {
                             ))),
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    CoreInactiveLifecycle::Failed,
                                 )
                                 | ProfileActivationOutcome::SelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    CoreInactiveLifecycle::Failed,
                                 )
                                 | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    CoreInactiveLifecycle::Failed,
                                 ),
                             ) => tasks.push(Task::done(Message::ShowToast(
                                 Lang(&self.shell.lang)
@@ -246,7 +250,7 @@ impl AppState {
                     ));
                 }
 
-                self.profile.is_importing_local = true;
+                self.profile.local_import_phase = ProfileImportPhase::Importing;
                 Task::perform(
                     async move {
                         let profile_name = sanitize_profile_name(&name)
@@ -281,7 +285,7 @@ impl AppState {
                                 ProfileImportTarget::OtherSelection
                             }
                         };
-                        let runtime = crate::update::core::profile_apply::runtime_access(runtime);
+                        let runtime = runtime_access(runtime);
                         let activation = match target {
                             ProfileImportTarget::SelectedActive => {
                                 let saved = profiles
@@ -295,27 +299,27 @@ impl AppState {
                                     .await
                                     .map_err(|failure| InfiltratorError::Config(failure.message))?;
                                 Some(match saved {
-                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::Applied => {
+                                    ProfileContentSaveOutcome::Applied => {
                                         ProfileActivationOutcome::CurrentProfileUpdatedAndApplied
                                     }
-                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredWhileInactive(
-                                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    ProfileContentSaveOutcome::StoredWhileInactive(
+                                        CoreInactiveLifecycle::Stopped,
                                     ) => {
                                         ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                                            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                            CoreInactiveLifecycle::Stopped,
                                         )
                                     }
-                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredWhileInactive(
-                                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    ProfileContentSaveOutcome::StoredWhileInactive(
+                                        CoreInactiveLifecycle::Failed,
                                     ) => {
                                         ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                                            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                            CoreInactiveLifecycle::Failed,
                                         )
                                     }
-                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredOffline => {
+                                    ProfileContentSaveOutcome::StoredOffline => {
                                         ProfileActivationOutcome::AlreadySelectedWithoutRuntime
                                     }
-                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredInactive => {
+                                    ProfileContentSaveOutcome::StoredInactive => {
                                         return Err(InfiltratorError::Config(
                                             "selected profile import was stored as inactive".to_owned(),
                                         ));
@@ -347,7 +351,7 @@ impl AppState {
                 )
             }
             Message::LocalProfileImported(result) => {
-                self.profile.is_importing_local = false;
+                self.profile.local_import_phase = ProfileImportPhase::Idle;
                 match result {
                     Ok(activation) => {
                         self.invalidate_rules_dns_views();
@@ -378,13 +382,13 @@ impl AppState {
                             }
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    CoreInactiveLifecycle::Stopped,
                                 )
                                 | ProfileActivationOutcome::SelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    CoreInactiveLifecycle::Stopped,
                                 )
                                 | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    CoreInactiveLifecycle::Stopped,
                                 ),
                             ) => tasks.push(Task::done(Message::ShowToast(
                                 Lang(&self.shell.lang)
@@ -394,13 +398,13 @@ impl AppState {
                             ))),
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    CoreInactiveLifecycle::Failed,
                                 )
                                 | ProfileActivationOutcome::SelectedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    CoreInactiveLifecycle::Failed,
                                 )
                                 | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
-                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    CoreInactiveLifecycle::Failed,
                                 ),
                             ) => tasks.push(Task::done(Message::ShowToast(
                                 Lang(&self.shell.lang)

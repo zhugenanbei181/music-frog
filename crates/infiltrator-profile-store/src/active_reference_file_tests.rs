@@ -8,6 +8,8 @@ use infiltrator_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tempfile::TempDir;
+use tokio::fs;
+use tokio::time::timeout;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct ReferenceRecord {
@@ -33,7 +35,7 @@ async fn product_reference_file_reads_publishes_and_reads_back_typed_records() {
 async fn invalid_reference_json_fails_closed() {
     let root = TempDir::new().unwrap();
     let file = ActiveProfileReferenceFile::new(root.path());
-    tokio::fs::write(file.path(), b"{broken").await.unwrap();
+    fs::write(file.path(), b"{broken").await.unwrap();
 
     assert!(file.read::<ReferenceRecord>().await.is_err());
 }
@@ -93,20 +95,20 @@ async fn product_root_lock_serializes_independent_file_owners() {
     let root = TempDir::new().unwrap();
     let first = ActiveProfileReferenceFile::new(root.path());
     let second = ActiveProfileReferenceFile::new(root.path());
-    let (_, first_guard) = tokio::time::timeout(Duration::from_secs(2), first.acquire_root_lock())
+    let (_, first_guard) = timeout(Duration::from_secs(2), first.acquire_root_lock())
         .await
         .unwrap()
         .unwrap();
 
     assert!(
-        tokio::time::timeout(Duration::from_millis(60), second.acquire_root_lock())
+        timeout(Duration::from_millis(60), second.acquire_root_lock())
             .await
             .is_err()
     );
 
     drop(first_guard);
     let (_, second_guard) =
-        tokio::time::timeout(Duration::from_secs(2), second.acquire_root_lock())
+        timeout(Duration::from_secs(2), second.acquire_root_lock())
             .await
             .unwrap()
             .unwrap();
@@ -127,7 +129,7 @@ async fn product_reference_and_owner_locks_are_distinct_and_orderable() {
 
     assert!(canonical_file.try_acquire_owner_lock().unwrap().is_none());
     assert!(
-        tokio::time::timeout(
+        timeout(
             Duration::from_millis(60),
             canonical_file.acquire_owner_state_lock(),
         )

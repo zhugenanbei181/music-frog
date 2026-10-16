@@ -30,7 +30,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,9 +56,9 @@ private enum class RoutingModeMenuState {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
-    val apps by viewModel.uiState.collectAsState()
-    val routingMode by viewModel.routingMode.collectAsState()
-    val operation by viewModel.operation.collectAsState()
+    val apps by viewModel.uiState.collectAsStateWithLifecycle()
+    val routingMode by viewModel.routingMode.collectAsStateWithLifecycle()
+    val operation by viewModel.operation.collectAsStateWithLifecycle()
     val canEditSelection = when (val mode = routingMode) {
         AppRoutingModeState.Unavailable -> false
         is AppRoutingModeState.Available -> operation == AppRoutingOperationState.Ready &&

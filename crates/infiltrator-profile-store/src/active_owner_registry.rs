@@ -2,6 +2,7 @@
 
 use crate::active_reference_owner::ActiveOwnerToken;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::error::PortError;
 use std::collections::HashMap;
@@ -89,8 +90,8 @@ impl LocalOwnerRegistryGuard<'_> {
     ) -> Result<(), PortError> {
         if self.registrations.contains_key(&config_root) {
             return Err(PortError::Rejected(
-                infiltrator_contract::error::Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
+                Failure::new(
+                    ErrorCode::NotReady,
                     "this process already has an active Core owner registration",
                     true,
                 ),
@@ -248,8 +249,8 @@ impl LocalOwnerRegistryGuard<'_> {
                 Ok(())
             }
             Some(_) | None => Err(PortError::Rejected(
-                infiltrator_contract::error::Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
+                Failure::new(
+                    ErrorCode::NotReady,
                     "active Core owner lease is stale or no longer registered",
                     true,
                 ),
@@ -302,8 +303,8 @@ impl LocalOwnerRegistryGuard<'_> {
 }
 
 fn stale_registration(message: &str) -> PortError {
-    PortError::Rejected(infiltrator_contract::error::Failure::new(
-        infiltrator_contract::error::ErrorCode::NotReady,
+    PortError::Rejected(Failure::new(
+        ErrorCode::NotReady,
         message,
         true,
     ))

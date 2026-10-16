@@ -1,3 +1,5 @@
+use infiltrator_contract::capability::Capability;
+use infiltrator_core::settings_store::FileSettingsStore;
 use super::super::singbox::core_application_for_singbox;
 use super::{
     TestBridge, TestCredentialStore, TestLifecycleCapabilityProvider, TestReadiness, config_manager,
@@ -52,7 +54,7 @@ impl SingBoxCommandPort for AcceptingSingBoxCommand {
         _config_path: &Path,
     ) -> Result<Box<dyn SingBoxChildProcess>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "composition identity test does not start a local Core process",
         ))
     }
@@ -75,7 +77,7 @@ impl VersionPort for TestVersionPort {
 
     async fn latest(&self, _channel: EngineReleaseChannel) -> Result<CoreRelease, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            Capability::CoreVersionInstall,
             "identity test does not inspect releases",
         ))
     }
@@ -90,21 +92,21 @@ impl VersionPort for TestVersionPort {
 
     async fn install(&self, _request: VersionInstallRequest) -> Result<(), PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            Capability::CoreVersionInstall,
             "identity test does not install releases",
         ))
     }
 
     async fn activate(&self, _request: VersionActivationRequest) -> Result<(), PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            Capability::CoreVersionInstall,
             "identity test does not activate releases",
         ))
     }
 
     async fn uninstall(&self, _request: VersionUninstallRequest) -> Result<(), PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            Capability::CoreVersionInstall,
             "identity test does not uninstall releases",
         ))
     }
@@ -126,7 +128,7 @@ impl CoreBinarySelectionPort for UnavailableBinarySelection {
         _request: CoreBinarySelectionRequest,
     ) -> Result<CoreBinarySelection, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "composition identity test does not select or execute a binary",
         ))
     }
@@ -188,7 +190,7 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
         Arc::new(TestLifecycleCapabilityProvider),
         version_application(),
         SettingsApplication::new(Arc::new(
-            infiltrator_core::settings_store::FileSettingsStore::for_home(home.0.clone()),
+            FileSettingsStore::for_home(home.0.clone()),
         )),
     )
     .await

@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use crate::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, install_lifecycle_test_capabilities,
 };
@@ -40,7 +41,7 @@ impl CoreProcess for Process {
 
     async fn start(
         &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+        _context: CoreProcessStartContext,
     ) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.deny_start.load(Ordering::SeqCst) {

@@ -91,7 +91,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             color: Some(tokens(t).text_tertiary)
         }),
         Space::new().width(Length::Fill),
-        if state.editor.is_loading_rules {
+        if state.editor.rules_load_phase.is_loading() {
             Element::from(text("...").size(12).style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }))

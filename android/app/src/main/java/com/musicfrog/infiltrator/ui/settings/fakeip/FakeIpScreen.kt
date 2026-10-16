@@ -16,7 +16,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +35,7 @@ import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 internal fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val observation = state.observation
     val settingsBusy = state.settingsActivity == FakeIpSettingsActivity.Busy
     val cacheBusy = state.hostCacheOperation is HostFakeIpFileCacheState.Clearing

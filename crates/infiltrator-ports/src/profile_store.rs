@@ -11,6 +11,7 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialWriteRequest, ProfileAgeEncryptedContent,
@@ -344,6 +345,17 @@ pub trait ProfileStore: Send + Sync {
             Capability::Profiles,
             "this profile store keeps no aggregation-template sidecar",
         ))
+    }
+    /// SLINT-004: load the named YAML override catalog.
+    async fn load_named_override_catalog(&self) -> Result<NamedOverrideCatalog, PortError> {
+        Ok(NamedOverrideCatalog::default())
+    }
+    /// SLINT-004: persist the named YAML override catalog.
+    async fn save_named_override_catalog(
+        &self,
+        _catalog: &NamedOverrideCatalog,
+    ) -> Result<(), PortError> {
+        Ok(())
     }
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError>;
     async fn restore_inactive_profile_backup(&self, profile: &str) -> Result<bool, PortError>;

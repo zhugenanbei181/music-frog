@@ -1,3 +1,4 @@
+use futures_util::future::Abortable;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{
@@ -431,7 +432,7 @@ async fn cancellation_aborts_the_probe_future_and_old_run_messages_cannot_replac
     tokio::pin!(start);
     let run_application = application.clone();
     let run = tokio::spawn(async move {
-        let outcome = match futures_util::future::Abortable::new(
+        let outcome = match Abortable::new(
             run_application.execute_prepared(receipt.run_id, prepared, concurrency),
             registration,
         )
@@ -499,7 +500,7 @@ async fn run_prepared(
         concurrency,
     } = admission;
     let scope = prepared.target.core_scope().clone();
-    let outcome = match futures_util::future::Abortable::new(
+    let outcome = match Abortable::new(
         application.execute_prepared(receipt.run_id, prepared, concurrency),
         registration,
     )

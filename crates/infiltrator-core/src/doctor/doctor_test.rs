@@ -4,13 +4,15 @@
 
 use super::pidfile::{PidFileState, ProcessState, inspect_process, read_pid_state};
 use super::*;
+use crate::bootstrap::ensure_bootstrap_at;
 use crate::settings_io::{save_settings, test_support};
 use infiltrator_domain::settings::AppSettings;
 use mihomo_config::manager::paths::engine_config_dir;
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::fs::copy;
-use std::fs::{create_dir_all, set_permissions, write};
+use std::fs::{create_dir_all, read, read_to_string, set_permissions, write};
+use std::io::{self, ErrorKind};
 use std::path::Path;
 #[cfg(unix)]
 use std::process;
@@ -42,10 +44,10 @@ enum FileSnapshot {
     Present(Vec<u8>),
 }
 
-fn snapshot_file(path: &Path) -> std::io::Result<FileSnapshot> {
-    match std::fs::read(path) {
+fn snapshot_file(path: &Path) -> io::Result<FileSnapshot> {
+    match read(path) {
         Ok(content) => Ok(FileSnapshot::Present(content)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(FileSnapshot::Missing),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(FileSnapshot::Missing),
         Err(error) => Err(error),
     }
 }
@@ -396,7 +398,7 @@ async fn read_only_profile_checks_leave_fresh_root_for_bootstrap() {
     assert!(!engine_dir.exists());
     assert!(!config_root.exists());
 
-    let bootstrap = crate::bootstrap::ensure_bootstrap_at(dir.path())
+    let bootstrap = ensure_bootstrap_at(dir.path())
         .await
         .unwrap();
     let configs_step = bootstrap
@@ -477,7 +479,7 @@ async fn current_yaml_skips_when_active_reference_is_unreadable() {
         status_of(&report, "config.current_yaml"),
         DoctorStatus::Skip
     );
-    assert_eq!(std::fs::read(&config_root).unwrap(), b"operator data");
+    assert_eq!(read(&config_root).unwrap(), b"operator data");
 }
 
 #[tokio::test]
@@ -539,7 +541,7 @@ async fn binary_available_observes_legacy_default_without_migrating_it() {
     assert!(!env.home().join("engines").exists());
     assert!(legacy_binary.exists());
     assert_eq!(
-        std::fs::read_to_string(legacy_config).unwrap(),
+        read_to_string(legacy_config).unwrap(),
         legacy_contents
     );
 }

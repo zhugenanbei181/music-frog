@@ -11,6 +11,7 @@ use crate::state::core_operations::{
     CoreDownloadProgressAdmission, CoreDownloadRunId, CoreDownloadStart,
     CoreUpdateCheckCompletionAdmission, CoreUpdateCheckInvalidation, CoreUpdateCheckStart,
 };
+use crate::state::profiles::WebDavSyncPhase;
 use crate::types::app::{CoreDownloadProgress, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
@@ -322,7 +323,7 @@ impl AppState {
                     cancel.store(true, Ordering::Release);
                 }
                 self.profile.sync_cancel = None;
-                self.profile.is_syncing = false;
+                self.profile.webdav_sync_phase = WebDavSyncPhase::Idle;
                 self.profile.sync_progress = None;
                 self.runtime.system_proxy_enabled = false;
                 self.runtime.system_toggles = self

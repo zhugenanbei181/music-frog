@@ -9,6 +9,11 @@ use infiltrator_contract::profile_selection_clear::{
 };
 
 impl ProfileApplication {
+    /// Read the current active profile selection reference.
+    pub async fn read_active_profile_reference(&self) -> Result<ActiveProfileReferenceState, Failure> {
+        self.store.read_active_profile_reference().await.map_err(Failure::from)
+    }
+
     /// Clear this engine's selected profile through the owner-authorized
     /// revision CAS. The operation only changes the selection reference; it
     /// never stops the independently owned Core service or VPN.

@@ -66,7 +66,7 @@ fn native_sandbox_pending_edit_fence_clear_and_hostless_export_remain_actual_com
         state
             .editor
             .script_sandbox
-            .snapshot
+            .snapshot()
             .as_ref()
             .unwrap()
             .is_success()

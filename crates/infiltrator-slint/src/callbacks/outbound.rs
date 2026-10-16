@@ -119,15 +119,12 @@ pub(super) fn register(
         refresh_projection(&weak_for_connection_search, &latest_for_connection_search);
     });
     let weak_for_closed = weak.clone();
+    let latest_for_closed = Arc::clone(&latest);
     window.on_set_connection_view(move |show_closed| {
-        if show_closed {
-            let _ = weak_for_closed.clone().upgrade_in_event_loop(|window| {
-                window.set_connection_show_closed(false);
-                window.set_notice(
-                    "Closed connection history is not published by the shared owner".into(),
-                );
-            });
-        }
+        let _ = weak_for_closed.clone().upgrade_in_event_loop(move |window| {
+            window.set_connection_show_closed(show_closed);
+        });
+        refresh_projection(&weak_for_closed, &latest_for_closed);
     });
     let weak_for_connection_sort = weak.clone();
     let latest_for_connection_sort = Arc::clone(&latest);
@@ -203,11 +200,29 @@ pub(super) fn register(
     });
 
     let weak_for_export_logs = weak.clone();
+    let latest_for_export_logs = Arc::clone(&latest);
+    let tx_for_export_logs = requests.clone();
     window.on_export_logs(move || {
-        show_unsupported(
-            &weak_for_export_logs,
-            "Log export needs the shared prepared-export review and a platform file-output adapter",
-        );
+        #[cfg(not(target_os = "android"))]
+        {
+            let picked = rfd::FileDialog::new()
+                .set_file_name("musicfrog-logs.txt")
+                .add_filter("Log Files", &["txt", "log"])
+                .save_file();
+            if let Some(destination) = picked {
+                queue_action(
+                    &tx_for_export_logs,
+                    &weak_for_export_logs,
+                    require_snapshot(&latest_for_export_logs).map(|_| SlintAction::ExportLogs {
+                        destination,
+                    }),
+                );
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            show_unsupported(&weak_for_export_logs, "Android SAF log export is handled through Intent");
+        }
     });
     let tx = requests.clone();
     let weak_for_observations = weak.clone();

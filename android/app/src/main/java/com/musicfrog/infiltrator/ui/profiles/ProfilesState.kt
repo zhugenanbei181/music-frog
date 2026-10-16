@@ -76,10 +76,24 @@ internal sealed interface ProfileActionState {
     data class Unconfirmed(val operation: ProfileOperation, val failure: AppFailure) : ProfileActionState
 }
 
+data class LocalImportDraft(
+    val suggestedName: String,
+    val content: String,
+)
+
+data class ProfileDraftsState(
+    val showAddDialog: Boolean = false,
+    val prefilledUrl: String? = null,
+    val deletingProfile: ProfileSummary? = null,
+    val subscriptionProfile: ProfileSummary? = null,
+    val localImportDraft: LocalImportDraft? = null,
+)
+
 internal data class ProfilesUiState(
     val collection: ProfilesReadState = ProfilesReadState.Loading(),
     val detail: ProfileDetailReadState = ProfileDetailReadState.Idle,
     val action: ProfileActionState = ProfileActionState.Idle,
+    val drafts: ProfileDraftsState = ProfileDraftsState(),
 )
 
 internal sealed interface ProfileReadbackExpectation {

@@ -5,19 +5,40 @@
 //! into the same typed commands used by the other surfaces. It does not own a
 //! Core, profile store, or a second Android runtime.
 
+#![allow(
+    clippy::collapsible_if,
+    clippy::needless_borrows_for_generic_args,
+    clippy::map_clone,
+    clippy::items_after_test_module,
+    clippy::large_enum_variant,
+    clippy::manual_pattern_char_comparison
+)]
+
+pub mod age_action;
 mod callbacks;
 mod flag_assets;
 mod lumen_projection;
 
+use infiltrator_contract::android_control::{
+    VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
+};
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::named_override::NamedOverrideId;
 use infiltrator_contract::outbound::identity::OutboundContractError;
 use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::outbound::preferences::{
     OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
 };
 use infiltrator_contract::outbound::probe::OutboundSelectionRequest;
+use infiltrator_contract::profile_age_credential::{
+    AgePrivateKey, ProfileAgeCredentialMutation, ProfileAgeCredentialObservation,
+    ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
+    ProfileAgeCredentialReadOutcome, ProfileAgeCredentialState, ProfileAgeCredentialTarget,
+};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::subscription_import::{
@@ -28,6 +49,8 @@ use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_shared::locales::{Lang, Localizer, resolve_language_code};
 use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
@@ -40,14 +63,81 @@ pub(crate) fn slint_model<T: Clone + 'static>(items: Vec<T>) -> slint::ModelRc<T
     slint::ModelRc::new(slint::VecModel::from(items))
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VpnPermissionOutcome {
+    Granted,
+    Denied,
+    Canceled,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotificationPermissionOutcome {
+    Granted,
+    Denied,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatteryOptimizationOutcome {
+    Supported { enabled: bool },
+    Unsupported,
+    Canceled,
+    PermissionDenied,
+}
+
 /// Work handed to the platform composition. Sequences are reserved for one
 /// user action that must move through several shared commands (for example,
 /// switching the desktop network mode while preserving the running state).
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum SlintAction {
     Command(CommandIntent),
     Sequence(Vec<CommandIntent>),
+    StartRuntime,
     SetAutostart(bool),
+    OpenAutostartSettings,
+    RequestBatteryOptimizationExemption,
+    SetHideBackgroundCard(bool),
+    SetReleaseUiWhenBackground(bool),
+    SetShowTrafficNotification(bool),
+    CacheBackPreview,
+    CommitBackPreview,
+    ScanQrCode,
+    ImportEncryptedSubscription {
+        name: String,
+        url: String,
+        private_key: Option<AgePrivateKey>,
+    },
+    SetProfileAgeCredential {
+        profile_id: String,
+        private_key: AgePrivateKey,
+    },
+    ClearProfileAgeCredential {
+        profile_id: String,
+    },
+    SaveProfileSettings {
+        profile_id: String,
+        name: Option<String>,
+        url: String,
+        private_key: Option<AgePrivateKey>,
+    },
+    ImportProfileFile {
+        name: String,
+        path: String,
+        private_key: Option<AgePrivateKey>,
+    },
+    ImportOverrideFile {
+        path: String,
+    },
+    ExportProfile {
+        profile_id: String,
+        destination: PathBuf,
+    },
+    ExportOverride {
+        override_id: String,
+        destination: PathBuf,
+    },
+    ExportLogs {
+        destination: PathBuf,
+    },
 }
 
 /// The only seam between this frontend and the shared application owner.
@@ -65,16 +155,70 @@ pub trait SlintProductHost: Send + Sync + 'static {
     fn autostart_enabled(&self) -> Option<bool> {
         None
     }
+
+    fn execute_age_credential_request(
+        &self,
+        _request: ProfileAgeCredentialOwnerRequest,
+    ) -> Result<ProfileAgeCredentialOwnerReadback, Failure> {
+        Err(Failure::unsupported(
+            "Age credential operations are not supported by this host",
+        ))
+    }
+
+    fn request_vpn_permission(&self) -> Result<VpnPermissionOutcome, Failure> {
+        Ok(VpnPermissionOutcome::Granted)
+    }
+
+    fn request_notification_permission(&self) -> Result<NotificationPermissionOutcome, Failure> {
+        Ok(NotificationPermissionOutcome::Granted)
+    }
+
+    fn scan_qr_code(&self) -> Result<String, Failure> {
+        Err(Failure::unsupported("QR code scanning is not supported on this platform"))
+    }
+
+    fn request_battery_optimization_exemption(&self) -> Result<BatteryOptimizationOutcome, Failure> {
+        Ok(BatteryOptimizationOutcome::Unsupported)
+    }
+
+    fn open_autostart_settings(&self) -> Result<(), Failure> {
+        Err(Failure::unsupported("Autostart settings not available on this platform"))
+    }
+
+    fn set_hide_background_card(&self, _enabled: bool) -> Result<(), Failure> {
+        Ok(())
+    }
+
+    fn set_release_ui_when_background(&self, _enabled: bool) -> Result<(), Failure> {
+        Ok(())
+    }
+
+    fn set_show_traffic_notification(&self, _enabled: bool) -> Result<(), Failure> {
+        Ok(())
+    }
+
+    fn cache_back_preview(&self) -> Result<(), Failure> {
+        Ok(())
+    }
+
+    fn commit_back_preview(&self) -> Result<(), Failure> {
+        Ok(())
+    }
 }
 
-enum WorkerRequest {
+pub(crate) enum WorkerRequest {
     Read,
     Action(SlintAction),
+    ReadAgeCredential { profile_id: String },
 }
 
-enum WorkerEvent {
+pub(crate) enum WorkerEvent {
     Snapshot(Result<SurfaceSnapshot, Failure>, Option<bool>),
     ActionFinished(Result<(), Failure>),
+    AgeCredentialRead {
+        profile_id: String,
+        result: Result<ProfileAgeCredentialObservation, Failure>,
+    },
 }
 
 /// Launch the same Slint component on a native host supplied by the product
@@ -133,6 +277,7 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
                         let close_user_agent = window.get_user_agent_saving();
                         clear_pending_ui(&window);
                         window.set_user_agent_error("".into());
+                        window.set_profile_settings_age_key("".into());
                         if close_profile_settings {
                             window.set_profile_settings_id("".into());
                         }
@@ -144,10 +289,25 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
                     WorkerEvent::ActionFinished(Err(failure)) => {
                         let user_agent_save_failed = window.get_user_agent_saving();
                         clear_pending_ui(&window);
+                        window.set_profile_settings_age_key("".into());
                         if user_agent_save_failed {
                             window.set_user_agent_error(failure.message.clone().into());
                         }
                         window.set_notice(failure.message.into());
+                    }
+                    WorkerEvent::AgeCredentialRead { profile_id, result } => {
+                        if window.get_profile_settings_id().as_str() == profile_id {
+                            match result {
+                                Ok(observation) => {
+                                    window.set_profile_settings_age_configured(
+                                        observation.state == ProfileAgeCredentialState::Configured,
+                                    );
+                                }
+                                Err(failure) => {
+                                    window.set_notice(failure.message.into());
+                                }
+                            }
+                        }
                     }
                 });
             }
@@ -209,6 +369,33 @@ fn spawn_host_worker(
                     },
                     WorkerRequest::Action(action) => {
                         WorkerEvent::ActionFinished(host.execute(latest.as_ref(), action))
+                    }
+                    WorkerRequest::ReadAgeCredential { profile_id } => {
+                        let snapshot = latest_snapshot.lock().ok().and_then(|guard| guard.clone());
+                        let result = match snapshot.as_ref().and_then(|s| s.core.scope()) {
+                            Some(scope) => {
+                                match ProfileId::new(profile_id.clone()) {
+                                    Ok(pid) => {
+                                        host.execute_age_credential_request(ProfileAgeCredentialOwnerRequest::Read {
+                                            scope,
+                                            profile_id: pid,
+                                        })
+                                        .and_then(|readback| match readback {
+                                            ProfileAgeCredentialOwnerReadback::Read(outcome) => match outcome {
+                                                ProfileAgeCredentialReadOutcome::Observed { current, .. } => Ok(current),
+                                                ProfileAgeCredentialReadOutcome::StaleSelection { .. } => {
+                                                    Err(Failure::new(ErrorCode::NotReady, "Age credential read selection was stale", true))
+                                                }
+                                            },
+                                            _ => Err(Failure::new(ErrorCode::Internal, "Unexpected Age credential readback", true)),
+                                        })
+                                    }
+                                    Err(error) => Err(Failure::new(ErrorCode::InvalidInput, error.to_string(), false)),
+                                }
+                            }
+                            None => Err(Failure::new(ErrorCode::NotReady, "No active Core scope for Age credential reading", true)),
+                        };
+                        WorkerEvent::AgeCredentialRead { profile_id, result }
                     }
                 };
                 if matches!(&event, WorkerEvent::Snapshot(_, _)) {
@@ -297,6 +484,7 @@ fn open_profile_settings(
     weak: &slint::Weak<AppWindow>,
     latest: &Arc<Mutex<Option<SurfaceSnapshot>>>,
     id: String,
+    requests: &Sender<WorkerRequest>,
 ) {
     let Some(snapshot) = clone_latest(latest) else {
         show_unsupported(
@@ -318,7 +506,8 @@ fn open_profile_settings(
         );
         return;
     };
-    let id = id.into();
+    let pid = id.clone();
+    let id_shared = id.into();
     let name = profile.name.clone().into();
     let url = profile.url.clone().into();
     let location = if profile.url.is_empty() {
@@ -337,7 +526,7 @@ fn open_profile_settings(
     };
     let kind = kind.into();
     let _ = weak.clone().upgrade_in_event_loop(move |window| {
-        window.set_profile_settings_id(id);
+        window.set_profile_settings_id(id_shared);
         window.set_profile_settings_name(name);
         window.set_profile_settings_url(url);
         window.set_profile_settings_location(location);
@@ -345,7 +534,9 @@ fn open_profile_settings(
         // The shared profile snapshot intentionally never returns subscription
         // credentials such as the Age private key.
         window.set_profile_settings_age_key("".into());
+        window.set_profile_settings_age_configured(false);
     });
+    let _ = requests.send(WorkerRequest::ReadAgeCredential { profile_id: pid });
 }
 
 fn network_mode_action(
@@ -365,32 +556,32 @@ fn network_mode_action(
                 }
                 VpnSurfaceObservation::AndroidOwner(owner)
                     if owner.readiness
-                        == infiltrator_contract::android_control::VpnOwnerReadiness::CleanupPending
+                        == VpnOwnerReadiness::CleanupPending
                         || owner.resources.iter().any(|resource| {
                             matches!(
                                 &resource.state,
-                                infiltrator_contract::android_control::VpnOwnerResourceState::CleanupPending { .. }
+                                VpnOwnerResourceState::CleanupPending { .. }
                             )
                         }) =>
                 {
                     Ok(SlintAction::Command(CommandIntent::StopVpn))
                 }
                 VpnSurfaceObservation::AndroidOwner(owner) => match &owner.vpn_state {
-                    infiltrator_contract::android_control::VpnOwnerLifecycle::PermissionRequired
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Stopped
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Revoked
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Failed { .. } => {
+                    VpnOwnerLifecycle::PermissionRequired
+                    | VpnOwnerLifecycle::Stopped
+                    | VpnOwnerLifecycle::Revoked
+                    | VpnOwnerLifecycle::Failed { .. } => {
                         Ok(SlintAction::Command(CommandIntent::StartVpn))
                     }
-                    infiltrator_contract::android_control::VpnOwnerLifecycle::Unavailable {
+                    VpnOwnerLifecycle::Unavailable {
                         failure_message,
                     } => Err(Failure::unsupported(failure_message.clone())),
-                    infiltrator_contract::android_control::VpnOwnerLifecycle::StartRequested
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Starting
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Foreground
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::TunnelEstablished
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Running
-                    | infiltrator_contract::android_control::VpnOwnerLifecycle::Stopping => Err(
+                    VpnOwnerLifecycle::StartRequested
+                    | VpnOwnerLifecycle::Starting
+                    | VpnOwnerLifecycle::Foreground
+                    | VpnOwnerLifecycle::TunnelEstablished
+                    | VpnOwnerLifecycle::Running
+                    | VpnOwnerLifecycle::Stopping => Err(
                         Failure::new(
                             ErrorCode::NotReady,
                             "VPN owner is in a transition and cannot accept a duplicate mode change",
@@ -624,7 +815,7 @@ fn parse_color(value: &str) -> Option<slint::Color> {
     Some(slint::Color::from_rgb_u8(red, green, blue))
 }
 
-fn apply_theme_color(weak: &slint::Weak<AppWindow>, hex: &str) {
+pub(crate) fn apply_theme_color(weak: &slint::Weak<AppWindow>, hex: &str) {
     let Some(color) = parse_color(hex) else {
         return;
     };
@@ -670,109 +861,8 @@ fn hsv_hex(hue: f64, saturation: f64, value: f64) -> String {
 }
 
 #[cfg(feature = "desktop-host")]
-mod desktop {
-    use super::{SlintAction, SlintProductHost, run_with_host};
-    use infiltrator_application::core_application::CoreApplication;
-    use infiltrator_application::surface_application::SurfacePump;
-    use infiltrator_contract::command::{CommandIntent, CommandResult};
-    use infiltrator_contract::core_identity::{CoreCommandRequest, CoreScope};
-    use infiltrator_contract::error::{ErrorCode, Failure};
-    use infiltrator_contract::surface::SurfaceKind;
-    use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-    use infiltrator_desktop::product::DesktopProductSession;
-    use infiltrator_shared::autostart::{is_autostart_enabled, set_autostart_enabled};
-    use std::sync::Arc;
-
-    struct DesktopProductHost {
-        _session: Arc<DesktopProductSession>,
-        application: Arc<CoreApplication>,
-        pump: SurfacePump,
-    }
-
-    impl SlintProductHost for DesktopProductHost {
-        fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
-            Ok(self.pump.current())
-        }
-
-        fn execute(
-            &self,
-            snapshot: Option<&SurfaceSnapshot>,
-            action: SlintAction,
-        ) -> Result<(), Failure> {
-            match action {
-                SlintAction::SetAutostart(enabled) => {
-                    set_autostart_enabled("MusicFrogInfiltrator", enabled)
-                        .map_err(|error| Failure::new(ErrorCode::Internal, error.to_string(), true))
-                }
-                SlintAction::Command(intent) => {
-                    let snapshot = snapshot.ok_or_else(no_snapshot)?;
-                    self.execute_commands(snapshot.core.scope(), [intent])
-                }
-                SlintAction::Sequence(intents) => {
-                    let snapshot = snapshot.ok_or_else(no_snapshot)?;
-                    self.execute_commands(snapshot.core.scope(), intents)
-                }
-            }
-        }
-
-        fn autostart_enabled(&self) -> Option<bool> {
-            Some(is_autostart_enabled("MusicFrogInfiltrator"))
-        }
-    }
-
-    impl DesktopProductHost {
-        fn execute_commands(
-            &self,
-            scope: Option<CoreScope>,
-            intents: impl IntoIterator<Item = CommandIntent>,
-        ) -> Result<(), Failure> {
-            let mut scope = scope.ok_or_else(no_snapshot)?;
-            for intent in intents {
-                let (request_id, receiver) =
-                    self.application
-                        .dispatch_scoped_tracked(CoreCommandRequest {
-                            scope: scope.clone(),
-                            intent,
-                        });
-                let outcome = receiver.recv().map_err(|_| {
-                    Failure::new(
-                        ErrorCode::Internal,
-                        format!("Core command {request_id:?} ended without a result"),
-                        true,
-                    )
-                })?;
-                if let Some(next_scope) = outcome.scope {
-                    scope = next_scope;
-                }
-                match outcome.result {
-                    CommandResult::Completed { .. }
-                    | CommandResult::Produced { .. }
-                    | CommandResult::Accepted { .. } => {}
-                    CommandResult::Rejected { failure, .. } => return Err(failure),
-                }
-            }
-            Ok(())
-        }
-    }
-
-    fn no_snapshot() -> Failure {
-        Failure::new(
-            ErrorCode::NotReady,
-            "The shared owner has not published an active Core identity",
-            true,
-        )
-    }
-
-    pub fn run() -> anyhow::Result<()> {
-        let session = Arc::new(DesktopProductSession::open(SurfaceKind::SlintDesktop)?);
-        let host = Arc::new(DesktopProductHost {
-            application: session.application(),
-            pump: session.surface_pump(),
-            _session: session,
-        });
-        run_with_host(host).map_err(|error| anyhow::anyhow!(error.to_string()))
-    }
-}
+#[path = "desktop.rs"]
+mod desktop;
 
 #[cfg(feature = "desktop-host")]
 pub fn run_desktop() -> anyhow::Result<()> {

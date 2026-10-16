@@ -294,7 +294,7 @@ impl SubscriptionRefreshApplication {
                     if failure.retryable
                         && matches!(
                             &failure.code,
-                            infiltrator_contract::error::ErrorCode::Network
+                            ErrorCode::Network
                         ) =>
                 {
                     match self.policy.delay_for_attempt(attempt) {

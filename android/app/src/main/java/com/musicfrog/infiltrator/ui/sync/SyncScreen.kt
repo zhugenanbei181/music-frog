@@ -18,7 +18,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -32,7 +32,7 @@ import com.musicfrog.infiltrator.ui.common.ErrorDialog
 @Composable
 fun SyncScreen() {
     val viewModel = remember { SyncViewModel() }
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val form = state.settings.displayForm()
     val draft = form?.draft ?: SyncSettingsDraft(
         enabled = false,

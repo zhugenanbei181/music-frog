@@ -4,8 +4,12 @@
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
+use infiltrator_contract::speedtest::SpeedtestConcurrency;
+use infiltrator_contract::speedtest::SpeedtestStartReceipt;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
+use crate::types::editor::GeoDataUpdatePhase;
 use crate::types::message::Message;
 use crate::view::speedtest_modal::speedtest_card;
 use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
@@ -20,7 +24,7 @@ use infiltrator_shared::locales::Lang;
 use std::fs::read;
 
 fn apply_speedtest_snapshot(state: &mut AppState, snapshot: SpeedtestSnapshot) {
-    let receipt = infiltrator_contract::speedtest::SpeedtestStartReceipt {
+    let receipt = SpeedtestStartReceipt {
         run_id: snapshot
             .state
             .run_id()
@@ -67,7 +71,7 @@ fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     let (mut state, _) = AppState::new();
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
+        RuleListReadback::Observed(document),
     );
 
     // Default draft state: the shared builder seeds the shared default target.
@@ -204,7 +208,7 @@ fn test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps() {
 
     // The card reads the bound from the shared snapshot, not a UI-local value.
     let mut snapshot = SpeedtestSnapshot::demo_fixture();
-    snapshot.concurrency = infiltrator_contract::speedtest::SpeedtestConcurrency::new(12).unwrap();
+    snapshot.concurrency = SpeedtestConcurrency::new(12).unwrap();
     apply_speedtest_snapshot(&mut state, snapshot);
     assert_eq!(state.diag.speedtest.concurrency.get(), 12);
     let lang = Lang("zh-CN");
@@ -267,7 +271,7 @@ fn test_advancement_w3_4_geodata_updater_stays_honest() {
     assert!(state.editor.geodata_status.geosite_version.is_empty());
     assert_eq!(state.editor.geodata_status.geoip_size_bytes, 0);
     assert_eq!(state.editor.geodata_status.geosite_size_bytes, 0);
-    assert!(!state.editor.geodata_status.is_updating);
+    assert_eq!(state.editor.geodata_status.phase, GeoDataUpdatePhase::Idle);
 
     // Check updates: the mihomo controller exposes no geo version/size
     // query, so the honest result is an informational notice — versions and
@@ -290,7 +294,7 @@ fn test_advancement_w3_4_geodata_updater_stays_honest() {
     assert!(!state.shell.toasts.is_empty());
     assert!(state.editor.geodata_status.geoip_version.is_empty());
     assert!(state.editor.geodata_status.geosite_version.is_empty());
-    assert!(!state.editor.geodata_status.is_updating);
+    assert_eq!(state.editor.geodata_status.phase, GeoDataUpdatePhase::Idle);
 }
 
 #[test]

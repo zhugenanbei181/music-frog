@@ -147,7 +147,7 @@ required-features = ["capture-tools"]
 
 # BEVY-006 back half (M3): Android APK packaging metadata for cargo-apk.
 [package.metadata.android]
-package = "app.musicfrog.infiltrator_bevy_ui"
+package = "com.musicfrog.infiltrator.bevy"
 apk_name = "infiltrator-bevy-ui"
 res = "../../android/app/src/main/res"
 build_targets = ["aarch64-linux-android"]

@@ -21,7 +21,7 @@ use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
-use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest, DnsRecordType};
+use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
@@ -160,7 +160,7 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
     app.world_mut().trigger(CommandExecutedEvent {
         request_id,
         command: UiCommand::QueryDns {
-            operation: DnsQueryOperationId(token + 1),
+            operation: token + 1,
             request: DnsQueryRequest {
                 name: "music.test".into(),
                 record_type: DnsRecordType::Txt,

@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 
 use anyhow::{Context, Result, bail};
 use image::RgbaImage;
@@ -12,7 +12,7 @@ const SIZE: u32 = 144;
 const EXPECTED_FLAGS: usize = 258;
 
 fn main() -> Result<()> {
-    let repo_root = std::env::args()
+    let repo_root = env::args()
         .nth(1)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));

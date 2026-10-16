@@ -1,6 +1,7 @@
 //! Behavior cases for rules hit.
 //! test-intent: behavior
 
+use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use super::*;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::rules_statistics::RulesStatisticsState;
@@ -154,7 +155,7 @@ fn test_rules_hit_audit_projection_and_clear_command() {
     assert!(statistics.reset_request().is_none());
     assert!(!matches!(
         statistics.reset_phase(),
-        infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+        StatisticsResetPhase::AwaitingReadback { .. }
     ));
     assert!(
         statistics.reset_failure().is_some(),

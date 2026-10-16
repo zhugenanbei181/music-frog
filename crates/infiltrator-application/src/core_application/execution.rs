@@ -1,4 +1,13 @@
 //! Inbound command serialization and nested lifecycle transactions use separate gates.
+use futures_util::future::Abortable;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::speedtest::SpeedtestRunId;
+use infiltrator_contract::speedtest::SpeedtestTarget;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
+use std::mem;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::PoisonError;
 use super::CoreApplication;
 use super::command_name::command_name;
 use crate::command_application::handler::{CoreLifecycleChildPermit, ValidatedCoreCommandScope};
@@ -23,19 +32,19 @@ impl Drop for CommandScope<'_> {
 }
 
 struct OwnerBindingReleaseGuard<'a> {
-    state: &'a std::sync::Mutex<super::ActiveProfileOwnerBindingState>,
+    state: &'a Mutex<super::ActiveProfileOwnerBindingState>,
     binding: Option<
-        std::sync::Arc<
-            dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease,
+        Arc<
+            dyn ActiveProfileOwnerLease,
         >,
     >,
 }
 
 impl<'a> OwnerBindingReleaseGuard<'a> {
     fn new(
-        state: &'a std::sync::Mutex<super::ActiveProfileOwnerBindingState>,
-        binding: std::sync::Arc<
-            dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease,
+        state: &'a Mutex<super::ActiveProfileOwnerBindingState>,
+        binding: Arc<
+            dyn ActiveProfileOwnerLease,
         >,
     ) -> Self {
         Self {
@@ -46,7 +55,7 @@ impl<'a> OwnerBindingReleaseGuard<'a> {
 
     fn binding(
         &self,
-    ) -> &dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease {
+    ) -> &dyn ActiveProfileOwnerLease {
         self.binding
             .as_deref()
             .expect("owner-binding release guard retains its lease")
@@ -60,7 +69,7 @@ impl<'a> OwnerBindingReleaseGuard<'a> {
         let mut state = self
             .state
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         *state = super::ActiveProfileOwnerBindingState::Released;
         drop(state);
         drop(binding);
@@ -75,7 +84,7 @@ impl Drop for OwnerBindingReleaseGuard<'_> {
         let mut state = self
             .state
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         // `Releasing` blocks installation while this future is suspended.
         // Cancellation or a release error restores the same lease so a later
         // close can retry with its terminal snapshot.
@@ -215,8 +224,8 @@ impl CoreApplication {
     async fn start_speedtest_with_id(
         &self,
         request_id: RequestId,
-        scope: infiltrator_contract::core_identity::CoreScope,
-        target: infiltrator_contract::speedtest::SpeedtestTarget,
+        scope: CoreScope,
+        target: SpeedtestTarget,
     ) -> CommandResult {
         let kind = CommandIntent::StartSpeedtest {
             target: target.clone(),
@@ -282,7 +291,7 @@ impl CoreApplication {
         let task_sender = self.inner.dispatch_tx.clone();
         let task_scope = scope.clone();
         let task = async move {
-            let outcome = match AssertUnwindSafe(futures_util::future::Abortable::new(
+            let outcome = match AssertUnwindSafe(Abortable::new(
                 task_speedtest.execute_prepared(run_id, prepared, concurrency),
                 registration,
             ))
@@ -353,7 +362,7 @@ impl CoreApplication {
         &self,
         request_id: RequestId,
         kind: CommandKind,
-        run_id: infiltrator_contract::speedtest::SpeedtestRunId,
+        run_id: SpeedtestRunId,
     ) -> CommandResult {
         let speedtest = match self.speedtest_application() {
             Ok(speedtest) => speedtest,
@@ -560,7 +569,7 @@ impl CoreApplication {
         }
         stop_result?;
         let terminal = self.snapshot().lifecycle_snapshot();
-        if terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
+        if terminal.lifecycle != CoreLifecycle::Stopped
             || terminal.session_token.is_some()
         {
             return Err(Failure::new(
@@ -589,7 +598,7 @@ impl CoreApplication {
                     ));
                 }
             }
-            match std::mem::replace(
+            match mem::replace(
                 &mut *owner_binding,
                 super::ActiveProfileOwnerBindingState::Releasing,
             ) {

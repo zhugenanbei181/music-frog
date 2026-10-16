@@ -1,4 +1,5 @@
 //! Native core controls replay the shared decision and correlate terminal results with snapshot revisions.
+use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::surface::{LatestCoreLifecycle, LatestSurfaceSnapshot};
@@ -24,7 +25,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::core_control::{CoreControlAction, CoreControlProjection};
+use infiltrator_contract::core_control::{CoreControlAction, CoreControlLabel, CoreControlProjection};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_presentation::core_control_projection::project_core_control;
@@ -73,6 +74,13 @@ fn projection(
     state: &CoreControlState,
     has_sink: bool,
 ) -> CoreControlProjection {
+    if snapshot.0.origin == SurfaceOrigin::Demo {
+        return CoreControlProjection {
+            action: None,
+            label: CoreControlLabel::Unavailable,
+            issue: None,
+        };
+    }
     if !has_sink {
         return project_core_control(core, None, false, None);
     }
@@ -112,6 +120,9 @@ fn on_core_control_activated(
     sink: Option<Res<CommandSinkHandle>>,
 ) {
     if !controls.contains(activated.entity) {
+        return;
+    }
+    if snapshot.0.origin == SurfaceOrigin::Demo {
         return;
     }
     match &state.phase {

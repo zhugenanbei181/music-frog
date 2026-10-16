@@ -28,6 +28,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use tokio::sync;
 
 #[path = "snapshot_active_workspace_fake.rs"]
 mod active_workspace_fake;
@@ -40,7 +41,7 @@ struct FakeProfileStore {
     current: Mutex<String>,
     active_reference: Mutex<ActiveProfileReferenceState>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
-    workspace_lease_gate: Arc<tokio::sync::Mutex<()>>,
+    workspace_lease_gate: Arc<sync::Mutex<()>>,
 }
 
 impl FakeProfileStore {

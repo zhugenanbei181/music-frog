@@ -525,9 +525,9 @@ impl Plugin for PagesPlugin {
         app.add_systems(
             Update,
             (
+                observe_simulation,
                 rules_tracer_sandbox::sync,
                 sync_basic_drafts,
-                observe_simulation,
                 rules_tracer_confirm::render,
             )
                 .chain(),

@@ -1,3 +1,4 @@
+use infiltrator_test_support::dns_cache_fixtures::test_core_scope;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
@@ -72,7 +73,7 @@ async fn reports_both_targets_honestly() {
     );
     let report = application
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             DnsCacheOperationId(1),
         )
         .await
@@ -94,7 +95,7 @@ async fn a_host_without_the_os_adapter_reports_typed_unsupported() {
     );
     let report = application
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             DnsCacheOperationId(1),
         )
         .await
@@ -116,7 +117,7 @@ async fn a_failing_controller_is_reported_not_hidden() {
     );
     let report = application
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             DnsCacheOperationId(1),
         )
         .await
@@ -145,7 +146,7 @@ async fn a_system_adapter_failure_is_distinct_from_unsupported_and_is_readable()
 
     let failure = application
         .flush_with_id(
-            infiltrator_test_support::dns_cache_fixtures::test_core_scope(),
+            test_core_scope(),
             DnsCacheOperationId(2),
         )
         .await

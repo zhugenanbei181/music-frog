@@ -1,3 +1,4 @@
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use super::ProfileApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{
@@ -166,7 +167,7 @@ impl ProfileApplication {
         identity: &ProfileDocumentIdentity,
         document_bytes: &[u8],
         sidecar_bytes: Option<&[u8]>,
-        draft: &infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+        draft: &SubscriptionFilterDraft,
     ) -> Result<ProfileFilterMutation, Failure> {
         let codec = self.options_codec_for(identity)?;
         codec

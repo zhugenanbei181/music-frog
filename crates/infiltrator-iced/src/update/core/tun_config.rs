@@ -1,9 +1,11 @@
 //! TUN advanced configuration: the form draft and its JSON editor twin,
 //! validation (stack/MTU) and persistence.
 
+use super::profile_apply::runtime_access;
 use super::profile_apply::save_task_with_strategy;
 use crate::configuration::application;
 use crate::state::AppState;
+use crate::state::editor::TunSavePhase;
 use crate::types::app::ToastStatus;
 use crate::types::dns::{AdvancedEditMode, TunFormDraft};
 use crate::types::editor::EditorLazyState;
@@ -196,7 +198,7 @@ impl AppState {
                 Task::none()
             }
             Message::SaveTunConfig => {
-                self.editor.is_saving_tun = true;
+                self.editor.tun_save_phase = TunSavePhase::Saving;
                 self.begin_configuration_save("TUN");
                 let patch = if self.editor.tun_mode == AdvancedEditMode::Form {
                     self.tun_patch_from_form()
@@ -210,7 +212,7 @@ impl AppState {
                 let patch = match patch {
                     Ok(value) => value,
                     Err(error) => {
-                        self.editor.is_saving_tun = false;
+                        self.editor.tun_save_phase = TunSavePhase::Idle;
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.tun = Some(mapped.clone());
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
@@ -230,14 +232,14 @@ impl AppState {
                     }
                 };
                 save_task_with_strategy(
-                    super::profile_apply::runtime_access(self.runtime.runtime.clone()),
+                    runtime_access(self.runtime.runtime.clone()),
                     ApplyStrategy::AlwaysRestart,
                     move |content| apply_tun_patch_to_yaml(content, patch),
                     Message::TunConfigSaved,
                 )
             }
             Message::TunConfigSaved(result) => {
-                self.editor.is_saving_tun = false;
+                self.editor.tun_save_phase = TunSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.tun_form_dirty = false;

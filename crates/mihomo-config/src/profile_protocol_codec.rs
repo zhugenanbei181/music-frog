@@ -1,5 +1,6 @@
 //! Mihomo-owned custom protocol node and CA trust-anchor YAML operations.
 
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_fidelity::{
     CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFamily,
@@ -15,6 +16,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationReadout, ProfileProtocolNodeMutationReadback,
 };
 use serde_yaml_ng::{Mapping, Value};
+use std::fmt::Display;
 use std::str::from_utf8;
 
 pub(crate) fn read_protocol_nodes(raw_bytes: &[u8]) -> Result<Vec<ProtocolDraft>, PortError> {
@@ -122,7 +124,7 @@ pub(crate) fn apply_trust_anchors(
 ) -> Result<ProfileConfigurationMutation, PortError> {
     if !params.ca_str.trim().is_empty() {
         return Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "Mihomo v1.19.18 has no profile-level inline PEM trust-anchor carrier; retain `ca-str` on the protocol draft",
         ));
     }
@@ -507,7 +509,7 @@ fn invalid_state(message: impl Into<String>) -> PortError {
     PortError::Rejected(Failure::new(ErrorCode::InvalidState, message.into(), false))
 }
 
-fn configuration_error(error: impl std::fmt::Display) -> PortError {
+fn configuration_error(error: impl Display) -> PortError {
     PortError::Rejected(Failure::new(
         ErrorCode::Configuration,
         error.to_string(),

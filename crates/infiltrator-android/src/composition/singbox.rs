@@ -1,8 +1,8 @@
 use super::*;
-use crate::core_launch_spec::AndroidSingBoxProfileLaunchSpecProvider;
+use crate::core_launch_spec::singbox::AndroidSingBoxProfileLaunchSpecProvider;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_contract::android_control::AndroidCoreBinaryTarget;
+use infiltrator_contract::android_control::core_launch::AndroidCoreBinaryTarget;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileDocument;

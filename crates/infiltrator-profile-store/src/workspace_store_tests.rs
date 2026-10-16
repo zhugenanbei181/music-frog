@@ -3,6 +3,7 @@ use crate::file_lock::lock_profile_writes_for_dir;
 use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use crate::workspace_store::ProfileWorkspacePublicationTarget;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -153,7 +154,7 @@ async fn shared_workspace_publication_rejects_stale_identity_without_writes() {
     drop(guard);
 
     assert!(
-        matches!(error, PortError::Rejected(failure) if failure.code == infiltrator_contract::error::ErrorCode::NotReady)
+        matches!(error, PortError::Rejected(failure) if failure.code == ErrorCode::NotReady)
     );
     let observed = store.read_profile_workspace(&profile).await.unwrap();
     assert_eq!(observed.document.raw_bytes, br#"{"revision":2}"#);

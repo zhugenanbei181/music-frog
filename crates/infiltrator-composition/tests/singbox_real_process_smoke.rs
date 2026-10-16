@@ -1,5 +1,7 @@
 //! test-intent: real_process
 
+use tokio::process::Command;
+use tokio::time::timeout;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
@@ -11,8 +13,9 @@ use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
@@ -49,7 +52,7 @@ impl CoreScopeSource for FixedScope {
 async fn locked_sing_box_binary_checks_applies_starts_and_answers_loopback_readiness() {
     let binary_path = PathBuf::from(required_environment("SINGBOX_REAL_BINARY"));
     let expected_version = required_environment("SINGBOX_REAL_VERSION");
-    let version = tokio::process::Command::new(&binary_path)
+    let version = Command::new(&binary_path)
         .arg("version")
         .output()
         .await
@@ -126,7 +129,7 @@ async fn locked_sing_box_binary_checks_applies_starts_and_answers_loopback_readi
         ))
         .await
         .expect("start the locked real binary");
-    let ready = tokio::time::timeout(
+    let ready = timeout(
         Duration::from_secs(10),
         readiness.wait_until_ready(Duration::from_secs(9)),
     )

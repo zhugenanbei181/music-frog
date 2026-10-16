@@ -12,7 +12,7 @@ use crate::reset_fence::{
     initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
-use crate::workspace::workspace_for_update;
+use crate::workspace::{validate_workspace_identity, workspace_for_update};
 use crate::workspace_store::ProfileWorkspacePublicationTarget;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
@@ -76,7 +76,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        crate::workspace::validate_workspace_identity(self.document_codec_scope(), expected)?;
+        validate_workspace_identity(self.document_codec_scope(), expected)?;
         self.validate_document_bytes(&update.document_bytes)?;
         initialize_namespace_with_reset_fence(self).await?;
         let selection = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;

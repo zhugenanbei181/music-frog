@@ -100,7 +100,6 @@ def source_problems(root: Path = ROOT) -> list[str]:
         "rust.version_exemptions",
         "rust.non_product_binaries",
     ]
-    required_keys.append("desktop.iced.cargo_packager_product_name")
     if "bevy" in products:
         required_keys.append("bevy.smoke.apk_name")
     for product in products:
@@ -582,23 +581,6 @@ def source_problems(root: Path = ROOT) -> list[str]:
             cargo_package = tomllib.loads(cargo_manifest_path.read_text(encoding="utf-8"))["package"]
             if cargo_package.get("name") != binary_name:
                 problems.append(f"{key}.binary_name does not match its Cargo product crate")
-            if product == "iced":
-                packager = cargo_package.get("metadata", {}).get("packager", {})
-                if "version" in packager:
-                    problems.append(
-                        "Iced Cargo Packager must inherit the Cargo package version, not override it"
-                    )
-                if packager.get("product-name") != identity[f"{key}.cargo_packager_product_name"]:
-                    problems.append("Iced Cargo Packager product-name differs from product identity")
-                if packager.get("identifier") != identity[f"{key}.bundle_id"]:
-                    problems.append("Iced Cargo Packager identifier differs from product identity")
-                packager_icons = packager.get("icons", [])
-                if not any(
-                    (root / "crates/infiltrator-iced" / icon).resolve()
-                    == (root / identity[f"{key}.icon_png"]).resolve()
-                    for icon in packager_icons
-                ):
-                    problems.append("Iced Cargo Packager icon differs from product identity")
         except (OSError, KeyError, tomllib.TOMLDecodeError) as error:
             problems.append(f"{key}.binary_name has no matching Cargo product crate: {error}")
 
@@ -766,14 +748,6 @@ def source_problems(root: Path = ROOT) -> list[str]:
         problems.append(f"macOS Info.plist cannot be read: {error}")
     if not (root / "scripts/macos/create-app-icon.sh").is_file():
         problems.append("macOS icon generator is missing while macOS product identity remains registered")
-    wix_path = root / "packaging/windows/wix/Package.wxs"
-    wix = wix_path.read_text(encoding="utf-8")
-    if 'Name="$(var.ProductDisplayName)"' not in wix:
-        problems.append("WiX package name must resolve through the registered Iced display name")
-    if 'Version="$(var.ProductVersion)"' not in wix:
-        problems.append("WiX package version must resolve through the workspace version")
-    if 'SourceFile="$(var.ProductIcon)"' not in wix or 'Icon="ApplicationIcon.ico"' not in wix:
-        problems.append("WiX installer must embed and use the registered Windows icon")
     for builder in ("appimage", "deb"):
         builder_path = root / f"packaging/linux/{builder}/build-{builder}.sh"
         source = builder_path.read_text(encoding="utf-8")

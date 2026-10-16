@@ -1,6 +1,7 @@
 //! test-intent: behavior
 //! Engine namespace boundaries for ProfileStore-owned profile state.
 
+use std::mem;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -369,7 +370,7 @@ impl ProfileStore for NamespaceStore {
             .profiles
             .get_mut(&self.key(&profile))
             .ok_or_else(|| PortError::NotFound(profile.as_str().to_owned()))?;
-        match std::mem::replace(&mut stored.backup, BackupState::Absent) {
+        match mem::replace(&mut stored.backup, BackupState::Absent) {
             BackupState::Absent => Ok(false),
             BackupState::Present(bytes) => {
                 stored.document = bytes;

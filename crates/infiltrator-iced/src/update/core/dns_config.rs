@@ -2,9 +2,11 @@
 //! editor twins, the quick-edit DNS/fallback server lists, persistence and
 //! the Fake-IP cache flush.
 
+use super::profile_apply::runtime_access;
 use super::profile_apply::save_task;
 use crate::configuration::application;
 use crate::state::AppState;
+use crate::state::editor::{DnsLatencyProbePhase, DnsSavePhase, FakeIpSavePhase};
 use crate::types::app::ToastStatus;
 use crate::types::dns::{AdvancedEditMode, FakeIpFormDraft};
 use crate::types::editor::EditorLazyState;
@@ -187,7 +189,7 @@ impl AppState {
                         false,
                     ))));
                 }
-                self.editor.is_probing_dns_latency = true;
+                self.editor.dns_latency_probe_phase = DnsLatencyProbePhase::Probing;
                 let request = DnsLatencyProbeRequest::new(targets);
                 Task::perform(
                     async move {
@@ -199,7 +201,7 @@ impl AppState {
                 )
             }
             Message::DnsLatencyProbed(result) => {
-                self.editor.is_probing_dns_latency = false;
+                self.editor.dns_latency_probe_phase = DnsLatencyProbePhase::Idle;
                 match result {
                     Ok(report) => {
                         self.editor.dns_latency = report;
@@ -453,7 +455,7 @@ impl AppState {
                 Task::none()
             }
             Message::SaveDns => {
-                self.editor.is_saving_dns = true;
+                self.editor.dns_save_phase = DnsSavePhase::Saving;
                 self.begin_configuration_save("DNS");
                 let patch = if self.editor.dns_mode == AdvancedEditMode::Form {
                     match self.dns_form_issue() {
@@ -472,7 +474,7 @@ impl AppState {
                 let patch = match patch {
                     Ok(value) => value,
                     Err(error) => {
-                        self.editor.is_saving_dns = false;
+                        self.editor.dns_save_phase = DnsSavePhase::Idle;
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.dns = Some(mapped.clone());
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
@@ -491,7 +493,7 @@ impl AppState {
                         ]);
                     }
                 };
-                let runtime = super::profile_apply::runtime_access(self.runtime.runtime.clone());
+                let runtime = runtime_access(self.runtime.runtime.clone());
                 Task::perform(
                     async move {
                         let configuration = application().await?;
@@ -505,7 +507,7 @@ impl AppState {
                 )
             }
             Message::DnsSaved(result) => {
-                self.editor.is_saving_dns = false;
+                self.editor.dns_save_phase = DnsSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.dns_form_dirty = false;
@@ -537,7 +539,7 @@ impl AppState {
                 }
             }
             Message::SaveFakeIpConfig => {
-                self.editor.is_saving_fake_ip = true;
+                self.editor.fake_ip_save_phase = FakeIpSavePhase::Saving;
                 self.begin_configuration_save("Fake-IP");
                 let patch = if self.editor.fake_ip_mode == AdvancedEditMode::Form {
                     self.fake_ip_patch_from_form()
@@ -552,7 +554,7 @@ impl AppState {
                 let patch = match patch {
                     Ok(value) => value,
                     Err(error) => {
-                        self.editor.is_saving_fake_ip = false;
+                        self.editor.fake_ip_save_phase = FakeIpSavePhase::Idle;
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.fake_ip = Some(mapped.clone());
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
@@ -572,13 +574,13 @@ impl AppState {
                     }
                 };
                 save_task(
-                    super::profile_apply::runtime_access(self.runtime.runtime.clone()),
+                    runtime_access(self.runtime.runtime.clone()),
                     move |content| apply_fake_ip_patch_to_yaml(content, patch),
                     Message::FakeIpConfigSaved,
                 )
             }
             Message::FakeIpConfigSaved(result) => {
-                self.editor.is_saving_fake_ip = false;
+                self.editor.fake_ip_save_phase = FakeIpSavePhase::Idle;
                 match result {
                     Ok(_) => {
                         self.editor.fake_ip_form_dirty = false;
