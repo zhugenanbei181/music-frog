@@ -1,0 +1,277 @@
+import { Button, CheckBox, LineEdit, TextEdit } from "std-widgets.slint";
+import { SegmentedButton } from "@material";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { OverrideCard } from "../components/models.slint";
+import {
+    AppPreferenceGroup, AppPreferenceRow, SettingRow
+} from "../components/base_widgets.slint";
+import { SectionCard } from "../components/cards.slint";
+
+export component PageSettings inherits VerticalLayout {
+    in property <bool> android-platform;
+    in property <bool> predictive-back-enabled;
+    in property <bool> layout-debug-tools-enabled;
+    in-out property <bool> layout-debug-bounds;
+
+    callback navigate(string);
+    callback cache-back-preview();
+
+    width: 100%;
+    spacing: LumenTheme.space-2;
+    alignment: start;
+
+    Text { text: @tr("界面设置"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    SectionCard {
+        heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
+        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("应用"); detail: @tr("主题、语言与启动行为"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-app.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppSettings"); } }
+        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("网络"); detail: @tr("代理模式、核心与平台接管"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
+        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("覆写"); detail: @tr("YAML 与规则覆写"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/list-checks-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Overrides"); } }
+        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("Meta 功能"); detail: @tr("连接、日志、规则和流量统计"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-meta.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Meta"); } }
+    }
+    Text { text: @tr("更多"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    SectionCard {
+        heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
+        SettingRow { label: @tr("关于"); detail: @tr("版本与许可证"); badge: "v0.1.0"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-about.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("About"); } }
+        if root.layout-debug-tools-enabled: CheckBox {
+            text: @tr("显示布局边界（调试）");
+            checked: root.layout-debug-bounds;
+            toggled => { root.layout-debug-bounds = self.checked; }
+        }
+        if root.layout-debug-bounds: Text { text: @tr("洋红：外框 · 青色：内容区/输入框 · 蓝色：图标框"); color: LumenTheme.text-secondary; font-size: 11px * LumenUiScale.factor; wrap: word-wrap; }
+    }
+}
+
+export component PageMeta inherits VerticalLayout {
+    in property <bool> android-platform;
+    in property <bool> predictive-back-enabled;
+
+    callback navigate(string);
+    callback cache-back-preview();
+
+    width: 100%;
+    spacing: LumenTheme.space-3;
+    alignment: start;
+
+    Text { text: @tr("运行观测"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    SectionCard {
+        heading: ""; detail: "";
+        SettingRow { label: @tr("连接"); detail: @tr("查看并管理活动连接"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
+        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        SettingRow { label: @tr("日志"); detail: @tr("筛选和导出 Mihomo 日志"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/logs-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Logs"); } }
+        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        SettingRow { label: @tr("运行规则"); detail: @tr("查看和临时启停规则"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/list-checks-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Rules"); } }
+        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        SettingRow { label: @tr("流量统计"); detail: @tr("查看今日和本周流量"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/traffic-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Traffic"); } }
+        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        SettingRow { label: @tr("Providers"); detail: @tr("更新代理与规则提供者"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/providers-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Providers"); } }
+    }
+}
+
+export component PageNetwork inherits VerticalLayout {
+    in property <bool> compact-layout;
+    in property <bool> android-platform;
+    in property <string> route-mode;
+    in property <string> runtime-status;
+    in property <bool> has-current-profile;
+    in property <string> network-mode;
+    in property <string> network-mode-label;
+    in property <string> network-mode-status;
+    in property <bool> network-mode-status-warning;
+    in property <bool> tun-capable;
+    in property <string> tun-capability-detail;
+    in property <string> core-version;
+    in property <bool> proxy-recovery-pending;
+
+    callback set-route-mode(string);
+    callback start-runtime();
+    callback stop-runtime();
+    callback set-network-mode(string);
+    callback open-network-dialog(string);
+    callback check-core();
+    callback retry-proxy-restore();
+
+    width: 100%;
+    spacing: 16px * LumenUiScale.factor;
+
+    SectionCard {
+        heading: @tr("代理模式"); detail: @tr("应用后由 Mihomo 核心回读实际模式。");
+        SegmentedButton {
+            width: max(0px * LumenUiScale.factor, parent.width - 2 * LumenTheme.space-4);
+            height: 48px * LumenUiScale.factor;
+            items: [{ text: @tr("规则") }, { text: @tr("全局") }, { text: @tr("直连") }];
+            current-index: root.route-mode == "Rule" ? 0 : root.route-mode == "Global" ? 1 : 2;
+            index-changed(index) => { root.set-route-mode(index == 0 ? "Rule" : index == 1 ? "Global" : "Direct"); }
+        }
+    }
+    SectionCard {
+        heading: @tr("运行模式"); detail: root.compact-layout ? @tr("Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。") : @tr("桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。");
+        if root.compact-layout: HorizontalLayout {
+            Button {
+                text: root.runtime-status == "Running" ? @tr("停止 VPN") : @tr("启动 VPN");
+                enabled: root.runtime-status == "Running" || root.has-current-profile;
+                clicked => { if root.runtime-status == "Running" { root.stop-runtime(); } else { root.start-runtime(); } }
+            }
+            Text { text: root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13px * LumenUiScale.factor; vertical-alignment: center; wrap: word-wrap; horizontal-stretch: 1; }
+        }
+        if !root.compact-layout: HorizontalLayout {
+            Button {
+                text: root.network-mode == "System Proxy" ? @tr("系统代理 ✓") : @tr("系统代理");
+                enabled: root.network-mode != "System Proxy";
+                clicked => {
+                    if root.runtime-status == "Running" { root.open-network-dialog("System Proxy"); }
+                    else { root.set-network-mode("System Proxy"); }
+                }
+            }
+            Button {
+                text: root.network-mode == "TUN" ? "TUN ✓" : "TUN";
+                enabled: root.tun-capable && root.network-mode != "TUN";
+                clicked => {
+                    if root.runtime-status == "Running" { root.open-network-dialog("TUN"); }
+                    else { root.set-network-mode("TUN"); }
+                }
+            }
+        }
+        if !root.compact-layout: Text { text: @tr("当前选择：") + root.network-mode-label + " · " + root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
+        if !root.compact-layout: Text { text: root.tun-capability-detail; color: root.tun-capable ? LumenTheme.text-muted : LumenTheme.status-warning; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
+    }
+    SectionCard {
+        heading: @tr("Mihomo 核心"); detail: root.android-platform ? (@tr("官方 Android v1.19.32 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前：") + root.core-version) : (@tr("从 PATH 运行 Mihomo；当前版本：") + root.core-version);
+        HorizontalLayout { Text { text: root.android-platform ? @tr("Android ABI 核心") : @tr("执行命令：mihomo"); color: LumenTheme.text-secondary; vertical-alignment: center; horizontal-stretch: 1; } Button { text: @tr("检查版本"); clicked => { root.check-core(); } } }
+    }
+    SectionCard {
+        heading: @tr("运行安全"); detail: @tr("控制 API 绑定 127.0.0.1，随机密钥仅驻留内存；未实现或未确认的系统接管能力不会报告为已生效。");
+        Button { text: @tr("重试恢复上次系统代理"); enabled: root.proxy-recovery-pending; clicked => { root.retry-proxy-restore(); } }
+    }
+}
+
+export component PageAppSettings inherits VerticalLayout {
+    in property <bool> android-platform;
+    in property <int> app-settings-preview-section;
+    in property <bool> auto-start;
+    in property <bool> refresh-current-profile-on-start;
+    in property <string> theme-mode;
+    in property <bool> invert-theme-foreground;
+    in property <string> theme-color-code;
+    in property <string> application-language;
+    in property <string> system-language;
+    in property <int> page-scale-percent;
+    in property <bool> hide-bottom-bar-on-scroll;
+    in property <bool> predictive-back-enabled;
+    in property <bool> predictive-back-supported;
+    in property <bool> hide-background-card;
+    in property <bool> show-traffic-notification;
+    in property <bool> release-ui-when-background;
+    in property <bool> ignore-battery-optimizations;
+    in property <string> user-agent;
+
+    callback set-auto-start(bool);
+    callback set-refresh-profile-on-start(bool);
+    callback set-invert-theme-foreground(bool);
+    callback set-hide-bottom-bar-on-scroll(bool);
+    callback set-predictive-back-enabled(bool);
+    callback set-hide-background-card(bool);
+    callback set-show-traffic-notification(bool);
+    callback set-release-ui-when-background(bool);
+    callback request-ignore-battery-optimization();
+    callback open-theme-menu(length, length);
+    callback open-language-menu(length, length);
+    callback open-theme-color-dialog();
+    callback open-page-scale-dialog();
+    callback open-user-agent-dialog();
+    callback show-message(string);
+
+    width: 100%;
+    spacing: 0px * LumenUiScale.factor;
+    alignment: start;
+
+    if root.app-settings-preview-section < 0: Text {
+        x: 18px * LumenUiScale.factor; text: @tr("应用设置"); font-size: 34px * LumenUiScale.factor; color: LumenTheme.text-primary;
+        min-height: 64px * LumenUiScale.factor; preferred-height: 64px * LumenUiScale.factor; vertical-alignment: center;
+    }
+    if root.app-settings-preview-section < 0 || root.app-settings-preview-section == 0: AppPreferenceGroup {
+        heading: @tr("行为");
+        AppPreferenceRow { label: @tr("自动启动"); toggle: true; checked: root.auto-start; toggled(value) => { root.set-auto-start(value); } }
+        AppPreferenceRow { label: @tr("启动更新配置"); toggle: true; checked: root.refresh-current-profile-on-start; toggled(value) => { root.set-refresh-profile-on-start(value); } }
+    }
+    if root.app-settings-preview-section < 0 || root.app-settings-preview-section == 1: AppPreferenceGroup {
+        heading: @tr("主题配色");
+        AppPreferenceRow { label: @tr("主题模式"); value: root.theme-mode == "light" ? @tr("浅色") : root.theme-mode == "dark" ? @tr("深色") : root.theme-mode == "forest" ? @tr("护眼森林") : root.theme-mode == "amoled" ? "AMOLED" : @tr("跟随系统"); expand: true; clicked => { root.open-theme-menu(self.absolute-position.x + self.width, self.absolute-position.y + self.height); } }
+        AppPreferenceRow { label: @tr("反转主题前景色"); toggle: true; checked: root.invert-theme-foreground; toggled(value) => { root.set-invert-theme-foreground(value); } }
+        AppPreferenceRow { label: @tr("主题配色"); detail: @tr("当前主题色：") + root.theme-color-code; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/palette.svg"); clicked => { root.open-theme-color-dialog(); } }
+        AppPreferenceRow { label: @tr("应用语言"); value: root.application-language == "en" ? "English" : root.application-language == "zh-CN" ? @tr("简体中文") : (root.system-language == "en" ? "English" : @tr("简体中文")); expand: true; clicked => { root.open-language-menu(self.absolute-position.x + self.width, self.absolute-position.y + self.height); } }
+        AppPreferenceRow { label: @tr("页面缩放"); value: root.page-scale-percent + "%"; clicked => { root.open-page-scale-dialog(); } }
+    }
+    if root.android-platform && (root.app-settings-preview-section < 0 || root.app-settings-preview-section == 2): AppPreferenceGroup {
+        heading: @tr("导航");
+        AppPreferenceRow { label: @tr("滑动隐藏底栏"); toggle: true; checked: root.hide-bottom-bar-on-scroll; toggled(value) => { root.set-hide-bottom-bar-on-scroll(value); } }
+        AppPreferenceRow { label: @tr("预测返回手势"); toggle: true; checked: root.predictive-back-enabled; capability-enabled: root.predictive-back-supported; unavailable: root.predictive-back-supported ? "" : @tr("Android 14及以上支持系统手势进度"); clicked => { root.show-message(@tr("Android 14及以上支持系统手势进度")); } toggled(value) => { root.set-predictive-back-enabled(value); } }
+    }
+    if root.android-platform && (root.app-settings-preview-section < 0 || root.app-settings-preview-section == 3): AppPreferenceGroup {
+        heading: @tr("隐私");
+        AppPreferenceRow { label: @tr("隐藏后台卡片"); toggle: true; checked: root.hide-background-card; toggled(value) => { root.set-hide-background-card(value); } }
+    }
+    if root.android-platform && (root.app-settings-preview-section < 0 || root.app-settings-preview-section == 4): AppPreferenceGroup {
+        heading: @tr("服务");
+        AppPreferenceRow { label: @tr("显示流量通知"); toggle: true; checked: root.show-traffic-notification; toggled(value) => { root.set-show-traffic-notification(value); } }
+        AppPreferenceRow { label: @tr("后台隐藏时释放界面"); toggle: true; checked: root.release-ui-when-background; toggled(value) => { root.set-release-ui-when-background(value); } }
+        AppPreferenceRow { label: @tr("电池优化无限制"); state-description: root.ignore-battery-optimizations ? @tr("系统已加入不优化名单") : @tr("系统正在优化 MusicFrog"); icon: root.ignore-battery-optimizations ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-right.svg"); checked: root.ignore-battery-optimizations; clicked => { root.request-ignore-battery-optimization(); } }
+    }
+    if root.app-settings-preview-section < 0 || root.app-settings-preview-section == 5: AppPreferenceGroup {
+        heading: @tr("网络");
+        AppPreferenceRow { label: @tr("自定义 User-Agent"); detail: root.user-agent == "" ? @tr("未设置，使用默认值") : root.user-agent; clicked => { root.open-user-agent-dialog(); } }
+    }
+}
+
+export component PageOverrides inherits VerticalLayout {
+    in property <bool> android-platform;
+    in property <[OverrideCard]> overrides;
+    in-out property <string> override-name;
+    in-out property <string> override-url;
+    in-out property <string> override-body;
+    in property <bool> override-importing;
+    in property <string> override-import-error;
+    in-out property <string> override-edit-id;
+
+    callback import-override-url(string);
+    callback add-override(string, string);
+    callback save-override(string, string);
+    callback choose-override-file();
+    callback edit-override(string);
+    callback apply-override(string);
+    callback export-override(string);
+    callback delete-override(string);
+
+    width: 100%;
+    spacing: 16px * LumenUiScale.factor;
+
+    SectionCard {
+        heading: @tr("新建 YAML Override"); detail: @tr("仅用户 Override 可编辑；JavaScript 尚未通过安全沙箱验证，因此不执行。");
+        LineEdit { placeholder-text: @tr("配置名称"); text <=> root.override-name; }
+        HorizontalLayout {
+            LineEdit { placeholder-text: @tr("HTTP/HTTPS YAML 链接"); text <=> root.override-url; input-type: password; enabled: !root.override-importing; horizontal-stretch: 1; }
+            Button { text: root.override-importing ? @tr("正在导入…") : @tr("从链接导入"); enabled: !root.override-importing && root.override-url != ""; clicked => { root.import-override-url(root.override-url); } }
+        }
+        if root.override-import-error != "": Text { text: root.override-import-error; color: #B3261E; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
+        if root.override-importing: Text { text: @tr("正在导入并校验 YAML Override…"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; }
+        TextEdit { text <=> root.override-body; placeholder-text: @tr("填写 YAML 覆写内容"); height: 150px * LumenUiScale.factor; }
+        HorizontalLayout {
+            Button { text: root.override-edit-id == "" ? @tr("创建覆写") : @tr("保存覆写"); clicked => {
+                if root.override-edit-id == "" { root.add-override(root.override-name, root.override-body); }
+                else { root.save-override(root.override-edit-id, root.override-body); }
+            } }
+            if root.override-edit-id != "": Button { text: @tr("取消编辑"); clicked => { root.override-edit-id = ""; root.override-name = ""; root.override-body = ""; } }
+        }
+        if root.android-platform: Button { text: @tr("从 YAML/YML 文件导入"); enabled: !root.override-importing; clicked => { root.choose-override-file(); } }
+        if !root.android-platform: Button { text: @tr("从 YAML/YML 文件导入"); clicked => { root.choose-override-file(); } }
+    }
+    for item in root.overrides: SectionCard {
+        heading: item.name + "   ·   " + item.kind; detail: item.format + @tr("  ·  绑定到 ") + item.bound-count + @tr(" 个配置");
+        HorizontalLayout {
+            Button { text: @tr("编辑"); clicked => { root.edit-override(item.id); } }
+            Button { text: @tr("应用到当前配置"); clicked => { root.apply-override(item.id); } }
+            Button { text: @tr("导出"); clicked => { root.export-override(item.id); } }
+            Button { text: @tr("删除"); clicked => { root.delete-override(item.id); } }
+        }
+    }
+}

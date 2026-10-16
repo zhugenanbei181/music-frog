@@ -1,0 +1,517 @@
+import { IconButton, Switch } from "@material";
+import { FlagIcon } from "../lumen-flags.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "theme.slint";
+import { LayoutOutline } from "base_widgets.slint";
+
+export component SectionCard inherits Rectangle {
+    in property <string> heading;
+    in property <string> detail;
+    in property <length> content-spacing: 12px * LumenUiScale.factor;
+    in property <length> vertical-padding: 18px * LumenUiScale.factor;
+    vertical-stretch: 0;
+    min-height: card-layout.min-height;
+    preferred-height: card-layout.min-height;
+    border-radius: 24px * LumenUiScale.factor;
+    background: LumenTheme.surface;
+    border-width: 0px * LumenUiScale.factor;
+    card-layout := VerticalLayout {
+        x: 18px * LumenUiScale.factor; y: 0px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor;
+        padding-top: root.vertical-padding; padding-bottom: root.vertical-padding;
+        spacing: root.content-spacing;
+        alignment: start;
+        if heading != "": Text { text: heading; color: LumenTheme.text-primary; font-size: 19px * LumenUiScale.factor; font-weight: 650; wrap: word-wrap; vertical-stretch: 0; }
+        if detail != "": Text { text: detail; color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; wrap: word-wrap; vertical-stretch: 0; }
+        @children
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component SurfaceCard inherits Rectangle {
+    in property <length> inset: LumenTheme.space-4;
+    vertical-stretch: 0;
+    min-height: content.min-height;
+    preferred-height: content.min-height;
+    border-radius: LumenTheme.radius-card;
+    background: LumenTheme.surface;
+    border-width: 1px * LumenUiScale.factor;
+    border-color: LumenTheme.border;
+
+    content := VerticalLayout {
+        x: root.inset;
+        width: parent.width - 2 * root.inset;
+        padding-top: root.inset;
+        padding-bottom: root.inset;
+        spacing: LumenTheme.space-3;
+        alignment: start;
+        @children
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component SummaryRow inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <image> icon;
+    in property <bool> emphasized;
+    in property <bool> actionable: false;
+    callback clicked();
+    min-height: 48px * LumenUiScale.factor;
+    preferred-height: 48px * LumenUiScale.factor;
+
+    HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: LumenTheme.space-3;
+        if root.icon.width > 0 && root.icon.height > 0: Image {
+            source: root.icon;
+            width: 22px * LumenUiScale.factor;
+            height: 22px * LumenUiScale.factor;
+            image-fit: contain;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.label;
+            color: LumenTheme.text-secondary;
+            font-size: LumenTheme.supporting-size;
+            horizontal-stretch: 0;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.value;
+            color: root.emphasized ? LumenTheme.accent : LumenTheme.text-primary;
+            font-size: LumenTheme.body-size;
+            font-weight: root.emphasized ? 600 : 450;
+            min-width: 0px * LumenUiScale.factor;
+            horizontal-stretch: 1;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            overflow: elide;
+            accessible-label: root.value;
+        }
+    }
+    if root.actionable: TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component StatusBadge inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <length> badge-width: 96px * LumenUiScale.factor;
+    width: badge-width;
+    height: 32px * LumenUiScale.factor;
+    border-radius: 16px * LumenUiScale.factor;
+    background: active ? LumenTheme.accent-soft : LumenTheme.surface-muted;
+    HorizontalLayout {
+        x: 11px * LumenUiScale.factor; width: parent.width - 22px * LumenUiScale.factor; height: parent.height; spacing: 7px * LumenUiScale.factor;
+        alignment: center;
+        Rectangle { width: 8px * LumenUiScale.factor; height: 8px * LumenUiScale.factor; y: (parent.height - self.height) / 2; border-radius: 4px * LumenUiScale.factor; background: root.active ? LumenTheme.accent : LumenTheme.text-secondary; }
+        Text { text: root.label; color: root.active ? LumenTheme.accent : LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; height: parent.height; vertical-alignment: center; overflow: elide; }
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component HomeProfileBadge inherits Rectangle {
+    in property <string> profile-name;
+    in property <string> route-mode;
+    in property <length> badge-width;
+    width: badge-width;
+    height: 32px * LumenUiScale.factor;
+    border-radius: 16px * LumenUiScale.factor;
+    background: LumenTheme.accent-soft;
+    HorizontalLayout {
+        x: 12px * LumenUiScale.factor;
+        width: parent.width - 24px * LumenUiScale.factor;
+        height: parent.height;
+        spacing: 6px * LumenUiScale.factor;
+        Text {
+            text: root.profile-name;
+            color: LumenTheme.accent;
+            font-size: 13px * LumenUiScale.factor;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text { text: "•"; color: LumenTheme.accent; font-size: 13px * LumenUiScale.factor; vertical-alignment: center; }
+        Text { text: root.route-mode; color: LumenTheme.accent; font-size: 13px * LumenUiScale.factor; vertical-alignment: center; }
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component HomeStatusChip inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> active;
+    in property <length> min-chip-width: 0px * LumenUiScale.factor;
+    width: max(root.min-chip-width, chip-label.preferred-width + 48px * LumenUiScale.factor);
+    height: 32px * LumenUiScale.factor;
+    border-radius: 16px * LumenUiScale.factor;
+    background: active ? LumenTheme.accent-soft : LumenTheme.surface-muted;
+    HorizontalLayout {
+        x: 12px * LumenUiScale.factor;
+        width: max(0px * LumenUiScale.factor, parent.width - 24px * LumenUiScale.factor);
+        height: parent.height;
+        spacing: 6px * LumenUiScale.factor;
+        Image { source: root.icon; width: 18px * LumenUiScale.factor; height: 18px * LumenUiScale.factor; y: (parent.height - self.height) / 2; image-fit: contain; }
+        chip-label := Text {
+            text: root.label;
+            color: root.active ? LumenTheme.accent : LumenTheme.text-secondary;
+            font-size: 14px * LumenUiScale.factor;
+            horizontal-stretch: 1;
+            height: parent.height;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    if LumenTheme.show-layout-bounds: Rectangle {
+        x: 12px * LumenUiScale.factor; y: 7px * LumenUiScale.factor; width: 18px * LumenUiScale.factor; height: 18px * LumenUiScale.factor;
+        background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #007AFF;
+    }
+    if LumenTheme.show-layout-bounds: Rectangle {
+        x: 36px * LumenUiScale.factor; y: 2px * LumenUiScale.factor; width: max(0px * LumenUiScale.factor, parent.width - 48px * LumenUiScale.factor); height: 28px * LumenUiScale.factor;
+        background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #00A6A6;
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component HomeRoundActionButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> accessible-name;
+    callback clicked();
+    width: max(48px * LumenUiScale.factor, 48px);
+    height: max(48px * LumenUiScale.factor, 48px);
+    background: transparent;
+    action := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        accessible-role: button;
+        accessible-label: root.accessible-name;
+        clicked => { root.clicked(); }
+    }
+    face := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: action.pressed ? 32px * LumenUiScale.factor : 36px * LumenUiScale.factor;
+        height: action.pressed ? 32px * LumenUiScale.factor : 36px * LumenUiScale.factor;
+        border-radius: self.height / 2;
+        background: action.pressed ? LumenTheme.accent.with_alpha(24%) : LumenTheme.accent-soft;
+        animate width, height, x, y, background { duration: 120ms; easing: ease-out; }
+        Image { source: root.icon; width: 18px * LumenUiScale.factor; height: 18px * LumenUiScale.factor; x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; image-fit: contain; }
+        if LumenTheme.show-layout-bounds: Rectangle {
+            x: (parent.width - 18px * LumenUiScale.factor) / 2; y: (parent.height - 18px * LumenUiScale.factor) / 2; width: 18px * LumenUiScale.factor; height: 18px * LumenUiScale.factor;
+            background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #007AFF;
+        }
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component HomeActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> running;
+    in property <bool> busy;
+    callback clicked();
+    width: 100px * LumenUiScale.factor;
+    height: 48px * LumenUiScale.factor;
+    background: transparent;
+    action := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: !root.busy;
+        clicked => { root.clicked(); }
+    }
+    face := Rectangle {
+        x: action.pressed ? 2px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+        y: action.pressed ? 10px * LumenUiScale.factor : 8px * LumenUiScale.factor;
+        width: action.pressed ? parent.width - 4px * LumenUiScale.factor : parent.width;
+        height: action.pressed ? 28px * LumenUiScale.factor : 32px * LumenUiScale.factor;
+        border-radius: self.height / 2;
+        background: root.running ? LumenTheme.accent.with_alpha(16%) : LumenTheme.accent-soft;
+        animate x, y, width, height { duration: 110ms; easing: ease-out; }
+        animate background { duration: 160ms; easing: ease-in-out; }
+        action-content := HorizontalLayout {
+            x: 9px * LumenUiScale.factor;
+            width: parent.width - 18px * LumenUiScale.factor;
+            height: parent.height;
+            spacing: 6px * LumenUiScale.factor;
+            cross-axis-alignment: center;
+            action-icon := Image {
+                source: root.running
+                    ? (LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/stop-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/stop.svg"))
+                    : (LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/start-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/start.svg"));
+                width: 16px * LumenUiScale.factor;
+                height: 16px * LumenUiScale.factor;
+                image-fit: contain;
+            }
+            action-label := Text {
+                text: root.label;
+                color: LumenTheme.accent;
+                font-size: 14px * LumenUiScale.factor;
+                horizontal-stretch: 1;
+                height: parent.height;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        if LumenTheme.show-layout-bounds: Rectangle {
+            x: action-content.x + action-icon.x; y: action-icon.y;
+            width: action-icon.width; height: action-icon.height;
+            background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #007AFF;
+        }
+        if LumenTheme.show-layout-bounds: Rectangle {
+            x: action-content.x + action-label.x; y: action-label.y;
+            width: action-label.width; height: action-label.height;
+            background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #00A6A6;
+        }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+    }
+}
+
+export component SheetActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    in property <bool> primary: false;
+    in property <length> button-height: 56px * LumenUiScale.factor;
+    callback clicked();
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+    height: button-height;
+    border-radius: self.height / 2;
+    background: root.primary ? LumenTheme.accent : LumenTheme.surface-muted;
+    action := TouchArea {
+        enabled: root.enabled;
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+    Text {
+        x: 16px * LumenUiScale.factor;
+        width: parent.width - 32px * LumenUiScale.factor;
+        height: parent.height;
+        text: root.label;
+        color: root.primary ? #FFFFFF : LumenTheme.text-primary;
+        font-size: 18px * LumenUiScale.factor;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    states [
+        pressed when action.pressed: {
+            background: root.primary ? LumenTheme.accent.with_alpha(82%) : LumenTheme.surface-muted.with_alpha(80%);
+            in-out { animate background { duration: 120ms; easing: ease-in-out; } }
+        }
+    ]
+}
+
+export component ProfileSheetTitle inherits Rectangle {
+    in property <string> title;
+    callback close();
+    callback confirm();
+    height: 48px * LumenUiScale.factor;
+    background: transparent;
+    HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: 4px * LumenUiScale.factor;
+        IconButton {
+            width: 44px * LumenUiScale.factor; height: 44px * LumenUiScale.factor;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
+            tooltip: @tr("关闭");
+            clicked => { root.close(); }
+        }
+        Text {
+            text: root.title;
+            color: LumenTheme.text-primary;
+            font-size: 20px * LumenUiScale.factor;
+            font-weight: 550;
+            horizontal-stretch: 1;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        IconButton {
+            width: 44px * LumenUiScale.factor; height: 44px * LumenUiScale.factor;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg");
+            tooltip: @tr("保存");
+            clicked => { root.confirm(); }
+        }
+    }
+}
+
+export component ProxyGroupCard inherits Rectangle {
+    in property <string> group-name;
+    in property <string> group-icon-emoji;
+    in property <string> group-kind;
+    in property <string> current-node;
+    in property <string> current-flag-code;
+    in property <int> current-flag-index;
+    in property <string> current-accessible;
+    in property <bool> selected;
+    in property <bool> compact;
+    in property <bool> runtime-running;
+    in property <bool> testing;
+    in property <bool> has-nodes;
+    callback clicked();
+    callback test-current();
+    min-height: group-layout.min-height;
+    preferred-height: group-layout.min-height;
+    border-radius: LumenTheme.radius-card;
+    background: LumenTheme.surface;
+    border-width: 0px * LumenUiScale.factor;
+    TouchArea { width: parent.width; height: parent.height; clicked => { root.clicked(); } }
+    group-layout := VerticalLayout {
+        x: LumenTheme.space-4; width: parent.width - 2 * LumenTheme.space-4;
+        padding-top: 0px * LumenUiScale.factor; padding-bottom: 12px * LumenUiScale.factor;
+        spacing: 0px * LumenUiScale.factor; alignment: start;
+        HorizontalLayout {
+            height: 48px * LumenUiScale.factor;
+            spacing: LumenTheme.space-2;
+            vertical-stretch: 0;
+            if root.group-icon-emoji != "": Text {
+                text: root.group-icon-emoji;
+                font-size: 20px * LumenUiScale.factor;
+                width: 24px * LumenUiScale.factor;
+                height: parent.height;
+                vertical-alignment: center;
+            }
+            Text {
+                text: root.group-name;
+                color: LumenTheme.text-primary;
+                font-size: 18px * LumenUiScale.factor;
+                font-weight: 450;
+                height: parent.height;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+                accessible-label: root.group-name;
+            }
+            Rectangle {
+                width: 84px * LumenUiScale.factor;
+                height: 48px * LumenUiScale.factor;
+                background: transparent;
+                Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    width: parent.width;
+                    height: 32px * LumenUiScale.factor;
+                    border-radius: 16px * LumenUiScale.factor;
+                    background: LumenTheme.accent-soft;
+                    Text { text: root.group-kind; width: parent.width; height: parent.height; color: LumenTheme.accent; font-size: 13px * LumenUiScale.factor; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+                }
+            }
+            IconButton {
+                width: LumenTheme.min-touch-target;
+                height: LumenTheme.min-touch-target;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/speed.svg");
+                tooltip: root.testing ? @tr("正在测试组内节点…") : @tr("测试策略组全部节点");
+                enabled: root.has-nodes && !root.testing;
+                clicked => { root.test-current(); }
+            }
+        }
+        Rectangle {
+            height: 36px * LumenUiScale.factor;
+            border-radius: 18px * LumenUiScale.factor;
+            background: LumenTheme.surface-muted;
+            HorizontalLayout {
+                x: LumenTheme.space-3;
+                width: parent.width - 2 * LumenTheme.space-3;
+                height: parent.height;
+                spacing: LumenTheme.space-2;
+                if root.current-flag-code != "": FlagIcon { country-code: root.current-flag-code; index: root.current-flag-index; }
+                Text { text: root.current-node == "" ? @tr("暂无可用节点") : root.current-node; accessible-label: root.current-accessible; color: LumenTheme.text-primary; font-size: 14px * LumenUiScale.factor; horizontal-stretch: 1; horizontal-alignment: left; vertical-alignment: center; overflow: elide; }
+                Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-right.svg"); width: 22px * LumenUiScale.factor; height: 22px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
+            }
+        }
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+export component ProfileCardSurface inherits Rectangle {
+    in property <string> profile-name;
+    in property <string> profile-kind;
+    in property <string> profile-location;
+    in property <bool> current;
+    callback set-current();
+    callback clear-current();
+    callback open-settings();
+    callback share-profile();
+    callback delete-profile();
+    vertical-stretch: 0;
+    min-height: card-layout.min-height;
+    preferred-height: card-layout.min-height;
+    border-radius: 42px * LumenUiScale.factor;
+    background: LumenTheme.surface;
+    border-width: 0px * LumenUiScale.factor;
+    card-layout := VerticalLayout {
+        x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor;
+        padding-top: 16px * LumenUiScale.factor; padding-bottom: 8px * LumenUiScale.factor;
+        spacing: 0px * LumenUiScale.factor; alignment: start;
+        HorizontalLayout { spacing: 12px * LumenUiScale.factor; vertical-stretch: 0; height: 34px * LumenUiScale.factor;
+            Text { text: root.profile-name; color: LumenTheme.text-primary; font-size: 20px * LumenUiScale.factor; font-weight: 600; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; accessible-label: root.profile-name; }
+            Switch {
+                checked: root.current;
+                width: 52px * LumenUiScale.factor;
+                height: 32px * LumenUiScale.factor;
+                tooltip: root.current ? @tr("取消当前配置") : @tr("设为当前配置");
+                checked-state-changed(checked) => {
+                    if checked { root.set-current(); }
+                    else { root.clear-current(); }
+                }
+            }
+        }
+        Text { text: root.profile-kind; color: LumenTheme.text-secondary; font-size: 15px * LumenUiScale.factor; vertical-stretch: 0; }
+        Text { text: root.profile-location; color: LumenTheme.text-secondary; font-size: 16px * LumenUiScale.factor; vertical-stretch: 0; wrap: word-wrap; accessible-label: root.profile-location; }
+        Rectangle { height: 12px * LumenUiScale.factor; background: transparent; }
+        Rectangle { height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        Rectangle { height: 12px * LumenUiScale.factor; background: transparent; }
+        HorizontalLayout { spacing: 12px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; vertical-stretch: 0;
+            Rectangle {
+                width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; background: transparent;
+                Rectangle { x: 4px * LumenUiScale.factor; y: 4px * LumenUiScale.factor; width: 40px * LumenUiScale.factor; height: 40px * LumenUiScale.factor; border-radius: 20px * LumenUiScale.factor; background: LumenTheme.surface-muted; }
+                IconButton { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/share.svg"); tooltip: @tr("分享配置文件"); clicked => { root.share-profile(); } }
+            }
+            Rectangle {
+                width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; background: transparent;
+                Rectangle { x: 4px * LumenUiScale.factor; y: 4px * LumenUiScale.factor; width: 40px * LumenUiScale.factor; height: 40px * LumenUiScale.factor; border-radius: 20px * LumenUiScale.factor; background: LumenTheme.surface-muted; }
+                IconButton { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/delete.svg"); tooltip: @tr("删除配置"); clicked => { root.delete-profile(); } }
+            }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            Rectangle {
+                width: 96px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; background: transparent;
+                Rectangle { x: 0px * LumenUiScale.factor; y: 4px * LumenUiScale.factor; width: parent.width; height: 40px * LumenUiScale.factor; border-radius: 20px * LumenUiScale.factor; background: LumenTheme.surface-muted; }
+                edit-row := HorizontalLayout {
+                    x: 0px * LumenUiScale.factor; y: 4px * LumenUiScale.factor; width: parent.width; height: 40px * LumenUiScale.factor;
+                    spacing: 8px * LumenUiScale.factor; alignment: center; cross-axis-alignment: center;
+                    edit-icon := Image {
+                        source: LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/edit-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/edit.svg");
+                        width: 22px * LumenUiScale.factor; height: 22px * LumenUiScale.factor; image-fit: contain;
+                    }
+                    edit-label := Text {
+                        text: @tr("编辑"); color: LumenTheme.text-primary; font-size: 16px * LumenUiScale.factor;
+                        height: parent.height; vertical-alignment: center;
+                    }
+                }
+                if LumenTheme.show-layout-bounds: Rectangle {
+                    x: edit-row.x; y: edit-row.y; width: parent.width; height: edit-row.height;
+                    background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #FF2D55;
+                }
+                if LumenTheme.show-layout-bounds: Rectangle {
+                    x: edit-row.x + edit-icon.x; y: edit-row.y + edit-icon.y;
+                    width: edit-icon.width; height: edit-icon.height;
+                    background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #007AFF;
+                }
+                if LumenTheme.show-layout-bounds: Rectangle {
+                    x: edit-row.x + edit-label.x; y: edit-row.y + edit-label.y;
+                    width: edit-label.width; height: edit-label.height;
+                    background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #00A6A6;
+                }
+                TouchArea { width: parent.width; height: parent.height; clicked => { root.open-settings(); } }
+            }
+        }
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}

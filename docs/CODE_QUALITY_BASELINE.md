@@ -21,6 +21,13 @@
 - Android lifecycle、service owner、permission flow、Binder protocol、repository 与 ViewModel 状态转换同样遵循上述约束；行为测试必须覆盖每个可达 variant 的合法转移与拒绝分支。
 - BANDROID-044 未完成前，不声明 Android Lint、ktlint、Detekt 或 Kotlin 架构守卫已接入；两 flavor 的格式/静态规则和正反例通过后，才将其加为强制 CI 门。专项要求登记在本地 TODO。
 
+## Slint UI 代码质量与模块化规范
+
+- `.slint` 声明代码单文件预算受 `scripts/quality/slint-syntax-guard.py` 严格管控（最大非空非注释代码行预算 $\le 600$ 行），严禁无限制堆叠单文件；
+- 必须遵循模块化、组件化架构：主题（`theme.slint`）、数据模型（`models.slint`）、交互基础控件（`base_widgets.slint`）与业务卡片（`cards.slint`）必须拆分子模块独立导入，禁止在页面级或主窗口内大杂烩内联；
+- 严禁硬编码未归一化的原始状态颜色（如 `#0B667F`、`#9A6810` 等），所有视觉和语义色彩必须经由 `LumenTheme` 的语义化属性统一输出；
+- 移动端控件（按钮、点击卡片、开关、导航项等）在 `compact-layout` 模式下必须遵守 $\ge 48\text{px} \times \text{LumenUiScale.factor}$ 的最小触控热区底线。
+
 ## 验证
 
 - 质量门只在 `scripts/quality/check-structure.sh` 汇总；禁止通过删除断言、放宽门槛、消音错误或复制第二套检查获得通过。

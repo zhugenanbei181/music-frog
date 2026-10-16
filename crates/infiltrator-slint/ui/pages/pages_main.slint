@@ -1,0 +1,200 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { ProfileCard, ProxyGroup, ObservationRow, ProfileOverrideChoice, HomeTrafficPoint, TrafficBar } from "../components/models.slint";
+import { PageHome } from "page_home.slint";
+import { PageConfig, PageProfileSettings } from "page_profiles.slint";
+import { PageProxies } from "page_proxies.slint";
+import { PageSettings } from "page_settings.slint";
+
+export component PagesMain inherits VerticalLayout {
+    in property <string> page;
+    in property <bool> android-platform;
+    in property <bool> compact-layout;
+    in property <bool> application-dark-mode;
+    in-out property <bool> layout-debug-bounds;
+    in property <bool> layout-debug-tools-enabled;
+    in property <bool> predictive-back-enabled;
+
+    // Home properties
+    in property <length> home-title-gap;
+    in property <length> home-data-upload-gap;
+    in property <length> home-before-node-gap;
+    in property <length> home-node-egress-gap;
+    in property <string> runtime-status;
+    in property <string> active-profile;
+    in property <bool> has-current-profile;
+    in property <string> network-mode-label;
+    in property <string> home-current-node;
+    in property <string> home-current-accessible;
+    in property <string> home-current-flag-code;
+    in property <int> home-current-flag-index;
+    in property <string> home-current-delay;
+    in property <string> home-exit-ip;
+    in property <string> home-exit-country-code;
+    in property <int> home-exit-flag-index;
+    in property <string> home-exit-status;
+    in property <[HomeTrafficPoint]> home-traffic-points;
+    in property <bool> home-traffic-has-data;
+    in property <string> stat-down;
+    in property <string> stat-up;
+    in property <string> stat-down-value;
+    in property <string> stat-down-unit;
+    in property <string> stat-up-compact;
+    in property <string> stat-connections;
+    in property <string> stat-total-down;
+    in property <string> stat-total-up;
+    in property <bool> traffic-today-has-data;
+    in property <string> traffic-today-down;
+    in property <string> traffic-today-up;
+    in property <[TrafficBar]> traffic-today-bars;
+
+    // Config & ProfileSettings properties
+    in property <[ProfileCard]> profiles;
+    in property <string> profile-settings-id;
+    in property <string> profile-settings-kind;
+    in property <string> profile-settings-location;
+    in-out property <string> profile-settings-name;
+    in-out property <string> profile-settings-url;
+    in-out property <string> profile-settings-age-key;
+    in property <bool> profile-settings-age-configured;
+    in property <[ProfileOverrideChoice]> profile-settings-overrides;
+
+    // Proxies properties
+    in property <string> route-mode;
+    in property <string> selected-group;
+    in property <string> proxy-testing-group;
+    in property <string> proxy-testing-node;
+    in property <[ProxyGroup]> proxy-groups;
+    in property <[ObservationRow]> proxy-nodes;
+    in-out property <string> proxy-search;
+    in-out property <length> proxy-active-node-position;
+    in-out property <bool> proxy-current-node-available;
+
+    // Callbacks
+    callback start-runtime();
+    callback stop-runtime();
+    callback navigate(string);
+    callback cache-back-preview();
+    callback open-profile-add();
+    callback set-current-profile(string);
+    callback open-profile-action(string, string);
+    callback request-export(string, string);
+    callback request-delete(string, string);
+    callback cancel-profile-settings();
+    callback save-profile-settings(string, string, string, string);
+    callback clear-profile-age-key(string);
+    callback toggle-profile-override(string, bool);
+    callback move-profile-override(string, bool);
+    callback select-group(string);
+    callback select-proxy(string, string);
+    callback search-proxy-nodes(string);
+    callback test-proxy(string, string);
+    callback open-sort-menu();
+    callback set-route-mode(string);
+
+    width: 100%;
+    alignment: start;
+
+    if root.page == "Home": PageHome {
+        compact-layout: root.compact-layout;
+        android-platform: root.android-platform;
+        predictive-back-enabled: root.predictive-back-enabled;
+        application-dark-mode: root.application-dark-mode;
+        profiles: root.profiles;
+        active-profile: root.active-profile;
+        route-mode: root.route-mode;
+        runtime-status: root.runtime-status;
+        network-mode-label: root.network-mode-label;
+        has-current-profile: root.has-current-profile;
+        stat-down: root.stat-down;
+        stat-up: root.stat-up;
+        stat-down-value: root.stat-down-value;
+        stat-down-unit: root.stat-down-unit;
+        stat-up-compact: root.stat-up-compact;
+        stat-total-down: root.stat-total-down;
+        stat-total-up: root.stat-total-up;
+        stat-connections: root.stat-connections;
+        home-current-node: root.home-current-node;
+        home-current-delay: root.home-current-delay;
+        home-current-flag-code: root.home-current-flag-code;
+        home-current-flag-index: root.home-current-flag-index;
+        home-current-accessible: root.home-current-accessible;
+        home-exit-country-code: root.home-exit-country-code;
+        home-exit-flag-index: root.home-exit-flag-index;
+        home-exit-ip: root.home-exit-ip;
+        home-exit-status: root.home-exit-status;
+        home-traffic-has-data: root.home-traffic-has-data;
+        home-traffic-points: root.home-traffic-points;
+        traffic-today-has-data: root.traffic-today-has-data;
+        traffic-today-down: root.traffic-today-down;
+        traffic-today-up: root.traffic-today-up;
+        traffic-today-bars: root.traffic-today-bars;
+        proxy-groups: root.proxy-groups;
+        home-title-gap: root.home-title-gap;
+        home-data-upload-gap: root.home-data-upload-gap;
+        home-before-node-gap: root.home-before-node-gap;
+        home-node-egress-gap: root.home-node-egress-gap;
+        start-runtime => { root.start-runtime(); }
+        stop-runtime => { root.stop-runtime(); }
+        open-profile-add => { root.open-profile-add(); }
+        navigate(t) => { root.navigate(t); }
+        cache-back-preview => { root.cache-back-preview(); }
+    }
+
+    if root.page == "Config": PageConfig {
+        application-dark-mode: root.application-dark-mode;
+        profiles: root.profiles;
+        open-profile-add => { root.open-profile-add(); }
+        set-current-profile(id) => { root.set-current-profile(id); }
+        open-profile-action(id, name) => { root.open-profile-action(id, name); }
+        request-export(id, name) => { root.request-export(id, name); }
+        request-delete(id, name) => { root.request-delete(id, name); }
+    }
+
+    if root.page == "ProfileSettings": PageProfileSettings {
+        profile-settings-id: root.profile-settings-id;
+        profile-settings-kind: root.profile-settings-kind;
+        profile-settings-location: root.profile-settings-location;
+        profile-settings-name <=> root.profile-settings-name;
+        profile-settings-url <=> root.profile-settings-url;
+        profile-settings-age-key <=> root.profile-settings-age-key;
+        profile-settings-age-configured: root.profile-settings-age-configured;
+        profile-settings-overrides: root.profile-settings-overrides;
+        cancel => { root.cancel-profile-settings(); }
+        save => { root.save-profile-settings(root.profile-settings-id, root.profile-settings-name, root.profile-settings-url, root.profile-settings-age-key); }
+        clear-age-key(id) => { root.clear-profile-age-key(id); }
+        toggle-override(id, en) => { root.toggle-profile-override(id, en); }
+        move-override(id, up) => { root.move-profile-override(id, up); }
+    }
+
+    if root.page == "Proxy": PageProxies {
+        compact-layout: root.compact-layout;
+        application-dark-mode: root.application-dark-mode;
+        layout-debug-bounds: root.layout-debug-bounds;
+        route-mode: root.route-mode;
+        runtime-status: root.runtime-status;
+        selected-group: root.selected-group;
+        proxy-groups: root.proxy-groups;
+        proxy-nodes: root.proxy-nodes;
+        proxy-search <=> root.proxy-search;
+        proxy-testing-group: root.proxy-testing-group;
+        proxy-testing-node: root.proxy-testing-node;
+        proxy-active-node-position <=> root.proxy-active-node-position;
+        proxy-current-node-available <=> root.proxy-current-node-available;
+        set-route-mode(mode) => { root.set-route-mode(mode); }
+        select-group(group) => { root.select-group(group); }
+        select-proxy(group, node) => { root.select-proxy(group, node); }
+        search-proxy-nodes(query) => { root.search-proxy-nodes(query); }
+        test-proxy(group, node) => { root.test-proxy(group, node); }
+        open-sort-menu => { root.open-sort-menu(); }
+    }
+
+    if root.page == "Settings": PageSettings {
+        android-platform: root.android-platform;
+        predictive-back-enabled: root.predictive-back-enabled;
+        layout-debug-tools-enabled: root.layout-debug-tools-enabled;
+        layout-debug-bounds <=> root.layout-debug-bounds;
+        navigate(t) => { root.navigate(t); }
+        cache-back-preview => { root.cache-back-preview(); }
+    }
+}

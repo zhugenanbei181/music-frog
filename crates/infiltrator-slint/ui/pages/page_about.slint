@@ -1,0 +1,248 @@
+import { Button, LineEdit, TextEdit } from "std-widgets.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { LicenseRow } from "../components/models.slint";
+import { SectionCard } from "../components/cards.slint";
+
+export component PagePreview inherits VerticalLayout {
+    in property <length> window-height;
+    in property <length> safe-top;
+    in property <length> safe-bottom;
+    in property <string> content-preview;
+
+    width: 100%;
+    spacing: 8px * LumenUiScale.factor;
+
+    HorizontalLayout {
+        width: parent.width;
+        height: 28px * LumenUiScale.factor;
+        spacing: 8px * LumenUiScale.factor;
+        Text {
+            text: @tr("有效配置");
+            color: LumenTheme.text-primary;
+            font-size: 16px * LumenUiScale.factor;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            background: transparent;
+        }
+        Rectangle {
+            width: 48px * LumenUiScale.factor;
+            height: 24px * LumenUiScale.factor;
+            border-radius: 12px * LumenUiScale.factor;
+            background: LumenTheme.surface-muted;
+            Text {
+                text: @tr("只读");
+                width: parent.width;
+                height: parent.height;
+                color: LumenTheme.text-secondary;
+                font-size: 12px * LumenUiScale.factor;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+    Text {
+        text: @tr("敏感字段已遮蔽 · 修改行为请使用覆写配置");
+        color: LumenTheme.text-secondary;
+        font-size: 12px * LumenUiScale.factor;
+        wrap: word-wrap;
+    }
+    Rectangle {
+        width: parent.width;
+        height: max(420px * LumenUiScale.factor, root.window-height - root.safe-top - root.safe-bottom - 168px * LumenUiScale.factor);
+        border-radius: 8px * LumenUiScale.factor;
+        border-width: 1px * LumenUiScale.factor;
+        border-color: LumenTheme.border;
+        background: LumenTheme.surface;
+        TextEdit {
+            x: 10px * LumenUiScale.factor;
+            y: 8px * LumenUiScale.factor;
+            width: parent.width - 20px * LumenUiScale.factor;
+            height: parent.height - 16px * LumenUiScale.factor;
+            text: root.content-preview;
+            read-only: true;
+            font-family: "monospace";
+            font-size: 12px * LumenUiScale.factor;
+        }
+    }
+}
+
+export component PageAbout inherits VerticalLayout {
+    in property <bool> android-platform;
+    in property <string> product-version;
+    in property <string> core-version;
+
+    callback open-licenses();
+
+    width: 100%;
+    spacing: 14px * LumenUiScale.factor;
+
+    SectionCard {
+        heading: "MusicFrog Infiltrator";
+        detail: @tr("版本 ") + root.product-version + @tr(" · Mihomo ") + root.core-version;
+        Text {
+            text: @tr("跨平台 Mihomo 客户端，使用 Rust + Slint。");
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+        }
+        Text {
+            text: @tr("界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。");
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+            wrap: word-wrap;
+        }
+        Text {
+            text: @tr("代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。");
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+            wrap: word-wrap;
+        }
+        if root.android-platform: Text {
+            text: @tr("Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。");
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+            wrap: word-wrap;
+        }
+        if !root.android-platform: Text {
+            text: @tr("Mihomo 核心由用户安装在 PATH 中。第三方依赖许可正文随应用离线提供。");
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+        }
+        Button {
+            text: @tr("查看第三方依赖许可");
+            clicked => { root.open-licenses(); }
+        }
+    }
+}
+
+export component PageLicenses inherits VerticalLayout {
+    in-out property <string> license-query;
+    in property <[LicenseRow]> license-rows;
+    in property <string> license-catalog-error;
+
+    callback back-about();
+    callback search(string);
+    callback retry-catalog();
+    callback select-license(LicenseRow);
+
+    width: 100%;
+    spacing: 14px * LumenUiScale.factor;
+
+    SectionCard {
+        heading: @tr("第三方依赖许可证");
+        detail: @tr("按依赖名、版本或 SPDX 许可证标识搜索");
+        Button {
+            text: @tr("返回关于");
+            clicked => { root.back-about(); }
+        }
+        LineEdit {
+            text <=> root.license-query;
+            placeholder-text: @tr("搜索依赖或 SPDX 标识");
+            edited(query) => { root.search(query); }
+        }
+        Text {
+            text: @tr("匹配 ") + root.license-rows.length + @tr(" 项");
+            color: LumenTheme.text-secondary;
+            font-size: 12px * LumenUiScale.factor;
+        }
+        if root.license-catalog-error != "": HorizontalLayout {
+            Text {
+                text: @tr("无法读取内置许可证清单：") + root.license-catalog-error;
+                color: #B3261E;
+                font-size: 12px * LumenUiScale.factor;
+                wrap: word-wrap;
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: @tr("重试");
+                clicked => { root.retry-catalog(); }
+            }
+        }
+        if root.license-rows.length == 0 && root.license-catalog-error == "": Text {
+            text: root.license-query == "" ? @tr("当前许可证清单为空") : @tr("没有匹配的依赖或许可证");
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+        }
+        for item in root.license-rows: Rectangle {
+            height: 66px * LumenUiScale.factor;
+            border-radius: 7px * LumenUiScale.factor;
+            background: LumenTheme.surface;
+            border-width: 1px * LumenUiScale.factor;
+            border-color: LumenTheme.border;
+            VerticalLayout {
+                x: 12px * LumenUiScale.factor;
+                y: 8px * LumenUiScale.factor;
+                width: parent.width - 24px * LumenUiScale.factor;
+                height: parent.height - 16px * LumenUiScale.factor;
+                spacing: 3px * LumenUiScale.factor;
+                Text {
+                    text: item.name + "  " + item.version;
+                    color: LumenTheme.text-primary;
+                    font-size: 13px * LumenUiScale.factor;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    text: item.identifier;
+                    color: LumenTheme.text-secondary;
+                    font-size: 11px * LumenUiScale.factor;
+                    wrap: word-wrap;
+                }
+            }
+            TouchArea {
+                width: parent.width;
+                height: parent.height;
+                clicked => { root.select-license(item); }
+            }
+        }
+    }
+}
+
+export component PageLicenseDetail inherits VerticalLayout {
+    in property <string> license-detail-name;
+    in property <string> license-detail-version;
+    in property <string> license-detail-identifier;
+    in property <string> license-detail-error;
+    in property <string> license-detail-text;
+
+    callback back-licenses();
+    callback retry-read();
+
+    width: 100%;
+    spacing: 14px * LumenUiScale.factor;
+
+    SectionCard {
+        heading: root.license-detail-name + "  " + root.license-detail-version;
+        detail: @tr("许可证标识：") + root.license-detail-identifier;
+        Button {
+            text: @tr("返回许可证列表");
+            clicked => { root.back-licenses(); }
+        }
+        if root.license-detail-error != "": HorizontalLayout {
+            Text {
+                text: root.license-detail-error;
+                color: #B3261E;
+                font-size: 12px * LumenUiScale.factor;
+                wrap: word-wrap;
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: @tr("重试读取");
+                clicked => { root.retry-read(); }
+            }
+        }
+        Text {
+            text: @tr("许可证全文可选择并复制；Windows/Linux 可使用 Ctrl+C。");
+            color: LumenTheme.text-secondary;
+            font-size: 12px * LumenUiScale.factor;
+        }
+        TextEdit {
+            text: root.license-detail-text;
+            read-only: true;
+            height: 560px * LumenUiScale.factor;
+        }
+    }
+}

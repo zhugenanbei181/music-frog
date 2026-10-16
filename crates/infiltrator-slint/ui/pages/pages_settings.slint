@@ -1,0 +1,151 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { OverrideCard } from "../components/models.slint";
+import { PageMeta, PageNetwork, PageAppSettings, PageOverrides } from "page_settings.slint";
+
+export component PagesSettings inherits VerticalLayout {
+    in property <string> page;
+    in property <bool> android-platform;
+    in property <bool> compact-layout;
+    in property <string> route-mode;
+    in property <string> runtime-status;
+    in property <bool> has-current-profile;
+    in property <string> network-mode;
+    in property <string> network-mode-label;
+    in property <string> network-mode-status;
+    in property <bool> network-mode-status-warning;
+    in property <bool> tun-capable;
+    in property <string> tun-capability-detail;
+    in property <int> app-settings-preview-section;
+    in property <bool> auto-start;
+    in property <bool> refresh-current-profile-on-start;
+    in property <string> theme-mode;
+    in property <bool> invert-theme-foreground;
+    in property <string> theme-color-code;
+    in property <string> application-language;
+    in property <string> system-language;
+    in property <int> page-scale-percent;
+    in property <bool> hide-bottom-bar-on-scroll;
+    in property <bool> predictive-back-enabled;
+    in property <bool> predictive-back-supported;
+    in property <bool> hide-background-card;
+    in property <bool> show-traffic-notification;
+    in property <bool> release-ui-when-background;
+    in property <bool> ignore-battery-optimizations;
+    in property <string> user-agent;
+    in property <[OverrideCard]> overrides;
+    in property <bool> override-importing;
+    in property <string> override-import-error;
+    in-out property <string> override-name;
+    in-out property <string> override-body;
+    in-out property <string> override-url;
+    in-out property <string> override-edit-id;
+
+    callback navigate(string);
+    callback cache-back-preview();
+    callback set-route-mode(string);
+    callback set-network-mode(string);
+    callback check-core();
+    callback set-auto-start(bool);
+    callback set-refresh-profile-on-start(bool);
+    callback set-invert-theme-foreground(bool);
+    callback set-hide-bottom-bar-on-scroll(bool);
+    callback set-predictive-back-enabled(bool);
+    callback set-hide-background-card(bool);
+    callback set-show-traffic-notification(bool);
+    callback set-release-ui-when-background(bool);
+    callback request-ignore-battery-optimization();
+    callback open-theme-menu(length, length);
+    callback open-language-menu(length, length);
+    callback open-theme-color-dialog();
+    callback open-page-scale-dialog();
+    callback open-user-agent-dialog();
+    callback show-message(string);
+    callback add-override(string, string);
+    callback save-override(string, string);
+    callback delete-override(string);
+    callback import-override-url(string);
+    callback choose-override-file();
+    callback export-override(string);
+    callback apply-override(string);
+
+    width: 100%;
+    alignment: start;
+
+    if root.page == "Meta": PageMeta {
+        android-platform: root.android-platform;
+        predictive-back-enabled: root.predictive-back-enabled;
+        navigate(t) => { root.navigate(t); }
+        cache-back-preview => { root.cache-back-preview(); }
+    }
+
+    if root.page == "Network": PageNetwork {
+        compact-layout: root.compact-layout;
+        android-platform: root.android-platform;
+        route-mode: root.route-mode;
+        runtime-status: root.runtime-status;
+        has-current-profile: root.has-current-profile;
+        network-mode: root.network-mode;
+        network-mode-label: root.network-mode-label;
+        network-mode-status: root.network-mode-status;
+        network-mode-status-warning: root.network-mode-status-warning;
+        tun-capable: root.tun-capable;
+        tun-capability-detail: root.tun-capability-detail;
+        set-route-mode(mode) => { root.set-route-mode(mode); }
+        set-network-mode(mode) => { root.set-network-mode(mode); }
+        check-core => { root.check-core(); }
+    }
+
+    if root.page == "AppSettings": PageAppSettings {
+        android-platform: root.android-platform;
+        app-settings-preview-section: root.app-settings-preview-section;
+        auto-start: root.auto-start;
+        refresh-current-profile-on-start: root.refresh-current-profile-on-start;
+        theme-mode: root.theme-mode;
+        invert-theme-foreground: root.invert-theme-foreground;
+        theme-color-code: root.theme-color-code;
+        application-language: root.application-language;
+        system-language: root.system-language;
+        page-scale-percent: root.page-scale-percent;
+        hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;
+        predictive-back-enabled: root.predictive-back-enabled;
+        predictive-back-supported: root.predictive-back-supported;
+        hide-background-card: root.hide-background-card;
+        show-traffic-notification: root.show-traffic-notification;
+        release-ui-when-background: root.release-ui-when-background;
+        ignore-battery-optimizations: root.ignore-battery-optimizations;
+        user-agent: root.user-agent;
+        set-auto-start(value) => { root.set-auto-start(value); }
+        set-refresh-profile-on-start(value) => { root.set-refresh-profile-on-start(value); }
+        set-invert-theme-foreground(value) => { root.set-invert-theme-foreground(value); }
+        set-hide-bottom-bar-on-scroll(value) => { root.set-hide-bottom-bar-on-scroll(value); }
+        set-predictive-back-enabled(value) => { root.set-predictive-back-enabled(value); }
+        set-hide-background-card(value) => { root.set-hide-background-card(value); }
+        set-show-traffic-notification(value) => { root.set-show-traffic-notification(value); }
+        set-release-ui-when-background(value) => { root.set-release-ui-when-background(value); }
+        request-ignore-battery-optimization => { root.request-ignore-battery-optimization(); }
+        open-theme-menu(x, y) => { root.open-theme-menu(x, y); }
+        open-language-menu(x, y) => { root.open-language-menu(x, y); }
+        open-theme-color-dialog => { root.open-theme-color-dialog(); }
+        open-page-scale-dialog => { root.open-page-scale-dialog(); }
+        open-user-agent-dialog => { root.open-user-agent-dialog(); }
+        show-message(msg) => { root.show-message(msg); }
+    }
+
+    if root.page == "Overrides": PageOverrides {
+        overrides: root.overrides;
+        override-importing: root.override-importing;
+        override-import-error: root.override-import-error;
+        override-name <=> root.override-name;
+        override-body <=> root.override-body;
+        override-url <=> root.override-url;
+        override-edit-id <=> root.override-edit-id;
+        add-override(name, body) => { root.add-override(name, body); }
+        save-override(id, body) => { root.save-override(id, body); }
+        delete-override(id) => { root.delete-override(id); }
+        import-override-url(url) => { root.import-override-url(url); }
+        choose-override-file => { root.choose-override-file(); }
+        export-override(id) => { root.export-override(id); }
+        apply-override(id) => { root.apply-override(id); }
+    }
+}

@@ -1,0 +1,71 @@
+export struct ProfileCard {
+    id: string,
+    name: string,
+    kind: string,
+    location: string,
+    updated: string,
+    current: bool,
+    can-move-up: bool,
+    can-move-down: bool,
+}
+
+export struct ProfileOverrideChoice {
+    id: string,
+    name: string,
+    format: string,
+    selected: bool,
+    can-move-up: bool,
+    can-move-down: bool,
+}
+
+export struct ProxyGroup {
+    name: string,
+    icon-emoji: string,
+    kind: string,
+    current: string,
+    current-flag-code: string,
+    current-flag-index: int,
+    current-accessible: string,
+    nodes: string,
+}
+
+export struct OverrideCard {
+    id: string,
+    name: string,
+    kind: string,
+    format: string,
+    bound-count: string,
+}
+
+export struct ObservationRow {
+    id: string,
+    title: string,
+    accessible-title: string,
+    flag-code: string,
+    flag-index: int,
+    delay-ms: int,
+    subtitle: string,
+    trailing: string,
+    active: bool,
+}
+
+export struct TrafficBar {
+    label: string,
+    detail-label: string,
+    download: string,
+    upload: string,
+    download-fraction: float,
+    upload-fraction: float,
+}
+
+export struct HomeTrafficPoint {
+    download-fraction: float,
+    upload-fraction: float,
+}
+
+export struct LicenseRow {
+    id: string,
+    name: string,
+    version: string,
+    identifier: string,
+}

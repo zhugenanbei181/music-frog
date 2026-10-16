@@ -1,0 +1,232 @@
+import { IconButton, SegmentedButton } from "@material";
+import { FlagIcon } from "../lumen-flags.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { ObservationRow, ProxyGroup } from "../components/models.slint";
+import { LayoutOutline, PingBadge } from "../components/base_widgets.slint";
+import { ProxyGroupCard, SurfaceCard } from "../components/cards.slint";
+
+export component PageProxies inherits VerticalLayout {
+    in property <bool> compact-layout;
+    in property <bool> application-dark-mode;
+    in property <bool> layout-debug-bounds;
+    in property <string> route-mode;
+    in property <string> runtime-status;
+    in property <string> selected-group;
+    in property <[ProxyGroup]> proxy-groups;
+    in property <[ObservationRow]> proxy-nodes;
+    in-out property <string> proxy-search;
+    in property <string> proxy-testing-group;
+    in property <string> proxy-testing-node;
+    in-out property <length> proxy-active-node-position;
+    in-out property <bool> proxy-current-node-available;
+
+    callback set-route-mode(string);
+    callback select-group(string);
+    callback select-proxy(string, string);
+    callback search-proxy-nodes(string);
+    callback test-proxy(string, string);
+    callback open-sort-menu();
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    if root.selected-group != "": VerticalLayout {
+        width: parent.width;
+        spacing: 8px * LumenUiScale.factor;
+        HorizontalLayout {
+            width: parent.width;
+            height: 44px * LumenUiScale.factor;
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            IconButton {
+                width: 44px * LumenUiScale.factor; height: 44px * LumenUiScale.factor;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/sort.svg");
+                tooltip: @tr("定位当前节点与排序");
+                clicked => { root.open-sort-menu(); }
+            }
+        }
+        Text { text: @tr("节点"); color: LumenTheme.text-primary; font-size: 38px * LumenUiScale.factor; font-weight: 450; height: 54px * LumenUiScale.factor; vertical-alignment: center; }
+        Rectangle { height: 16px * LumenUiScale.factor; background: transparent; }
+        search-box := Rectangle {
+            width: parent.width; height: 56px * LumenUiScale.factor; border-radius: 28px * LumenUiScale.factor;
+            background: LumenTheme.surface-muted;
+            search-layout := HorizontalLayout {
+                x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor; height: parent.height; spacing: 12px * LumenUiScale.factor;
+                cross-axis-alignment: center;
+                search-icon := Image {
+                    source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/search-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/search.svg");
+                    width: 22px * LumenUiScale.factor; height: 22px * LumenUiScale.factor; image-fit: contain;
+                }
+                search-content := Rectangle {
+                    horizontal-stretch: 1; height: parent.height; background: transparent;
+                    TextInput {
+                        width: parent.width; height: parent.height;
+                        text <=> root.proxy-search;
+                        color: LumenTheme.text-primary;
+                        font-size: 18px * LumenUiScale.factor;
+                        vertical-alignment: center;
+                        edited => { root.search-proxy-nodes(self.text); }
+                    }
+                    if root.proxy-search == "": Text {
+                        x: 0px * LumenUiScale.factor; width: parent.width; height: parent.height;
+                        text: @tr("搜索"); color: LumenTheme.text-secondary; font-size: 18px * LumenUiScale.factor;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            if root.layout-debug-bounds: Rectangle {
+                x: search-layout.x + search-icon.x; y: search-layout.y + search-icon.y;
+                width: search-icon.width; height: search-icon.height;
+                background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #007AFF;
+            }
+            if root.layout-debug-bounds: Rectangle {
+                x: search-layout.x + search-content.x; y: search-layout.y + search-content.y;
+                width: search-content.width; height: search-content.height;
+                background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #00A6A6;
+            }
+            if root.layout-debug-bounds: LayoutOutline { outline-color: #FF2D55; }
+        }
+        if root.runtime-status != "Running": Text { text: @tr("内核未启动：Ping 测 TCP 连通性，切换节点需启动"); color: LumenTheme.text-secondary; font-size: 11px * LumenUiScale.factor; height: 18px * LumenUiScale.factor; }
+    }
+    if root.selected-group == "" && !root.compact-layout: SurfaceCard {
+        Text { text: @tr("策略模式"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 600; }
+        Text { text: @tr("应用后会从 Mihomo 核心回读实际值"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; wrap: word-wrap; }
+        HorizontalLayout {
+            alignment: start;
+            SegmentedButton {
+                items: [{ text: @tr("规则") }, { text: @tr("全局") }, { text: @tr("直连") }];
+                current-index: root.route-mode == "Rule" ? 0 : root.route-mode == "Global" ? 1 : 2;
+                index-changed(index) => {
+                    root.set-route-mode(index == 0 ? "Rule" : index == 1 ? "Global" : "Direct");
+                }
+            }
+        }
+    }
+    if root.selected-group == "" && !root.compact-layout: Text { text: @tr("代理组"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    if root.selected-group == "" && root.proxy-groups.length == 0: SurfaceCard {
+        Text { text: root.runtime-status == "Running" ? @tr("正在读取代理组…") : @tr("暂无代理组"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 600; }
+        Text { text: root.runtime-status == "Running" ? @tr("正在读取当前 Mihomo 状态。") : @tr("选择当前配置后，可先查看配置中的代理组和节点。启动 Mihomo 后即可切换。"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; wrap: word-wrap; }
+    }
+    if root.selected-group == "": VerticalLayout {
+        width: parent.width;
+        spacing: LumenTheme.space-4;
+        for group in root.proxy-groups: ProxyGroupCard {
+            group-name: group.name;
+            group-icon-emoji: group.icon-emoji;
+            group-kind: group.kind;
+            current-node: group.current;
+            current-flag-code: group.current-flag-code;
+            current-flag-index: group.current-flag-index;
+            current-accessible: group.current-accessible;
+            compact: root.compact-layout;
+            runtime-running: root.runtime-status == "Running";
+            testing: root.proxy-testing-group == group.name;
+            has-nodes: group.nodes != "";
+            selected: false;
+            clicked => { root.select-group(group.name); }
+            test-current => { root.test-proxy(group.name, ""); }
+        }
+    }
+    if root.selected-group != "" && root.proxy-nodes.length == 0: SurfaceCard {
+        Text { text: root.proxy-search == "" ? @tr("当前组没有可选节点") : @tr("没有匹配的节点"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
+    }
+    if root.selected-group != "": VerticalLayout {
+        width: parent.width;
+        spacing: 14px * LumenUiScale.factor;
+        for node in root.proxy-nodes: node-row := Rectangle {
+            width: parent.width;
+            height: 76px * LumenUiScale.factor;
+            border-radius: 20px * LumenUiScale.factor;
+            background: LumenTheme.surface;
+            border-width: 0px * LumenUiScale.factor;
+            changed absolute-position => {
+                if node.active {
+                    root.proxy-active-node-position = self.absolute-position.y;
+                    root.proxy-current-node-available = true;
+                }
+            }
+            if root.runtime-status == "Running" && !node.active: TouchArea { width: parent.width; height: parent.height; clicked => { root.select-proxy(root.selected-group, node.id); } }
+            node-content := HorizontalLayout {
+                x: 16px * LumenUiScale.factor; width: parent.width - 32px * LumenUiScale.factor; height: parent.height; spacing: 12px * LumenUiScale.factor;
+                cross-axis-alignment: center;
+                flag-badge := Rectangle {
+                    width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; border-radius: 18px * LumenUiScale.factor;
+                    background: LumenTheme.dark-mode ? #303030 : LumenTheme.surface-muted;
+                    clip: true;
+                    flag-layout := HorizontalLayout {
+                        width: parent.width; height: parent.height;
+                        alignment: center; cross-axis-alignment: center;
+                        if node.flag-index >= 0: FlagIcon {
+                            diameter: 40px * LumenUiScale.factor;
+                            country-code: node.flag-code;
+                            index: node.flag-index;
+                            show-layout-bounds: root.layout-debug-bounds;
+                        }
+                        if node.flag-index < 0: Rectangle {
+                            width: 24px * LumenUiScale.factor; height: 24px * LumenUiScale.factor; background: transparent;
+                            Image {
+                                source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy.svg");
+                                width: parent.width; height: parent.height; image-fit: contain;
+                            }
+                            if root.layout-debug-bounds: LayoutOutline { outline-color: #007AFF; }
+                        }
+                    }
+                    if root.layout-debug-bounds: LayoutOutline { outline-color: #FF2D55; }
+                }
+                node-info := VerticalLayout {
+                    horizontal-stretch: 1;
+                    height: parent.height;
+                    spacing: 5px * LumenUiScale.factor;
+                    alignment: center;
+                    cross-axis-alignment: start;
+                    node-title := Text {
+                        height: 24px * LumenUiScale.factor;
+                        text: node.title;
+                        accessible-label: node.accessible-title;
+                        color: LumenTheme.text-primary;
+                        font-size: 16px * LumenUiScale.factor;
+                        font-weight: node.active ? 600 : 450;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    proxy-details := HorizontalLayout {
+                        horizontal-stretch: 1; height: 24px * LumenUiScale.factor;
+                        spacing: 6px * LumenUiScale.factor;
+                        cross-axis-alignment: center;
+                        proxy-type-badge := Rectangle {
+                            width: max(42px * LumenUiScale.factor, proxy-type-text.preferred-width + 18px * LumenUiScale.factor);
+                            height: 22px * LumenUiScale.factor; border-radius: 11px * LumenUiScale.factor; background: LumenTheme.accent-soft;
+                            proxy-type-text := Text {
+                                x: 9px * LumenUiScale.factor; height: parent.height;
+                                text: node.subtitle; color: LumenTheme.accent; font-size: 12px * LumenUiScale.factor;
+                                vertical-alignment: center; overflow: elide;
+                            }
+                            if root.layout-debug-bounds: Rectangle {
+                                x: proxy-type-text.x; y: proxy-type-text.y;
+                                width: proxy-type-text.preferred-width; height: proxy-type-text.height;
+                                background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #00A6A6;
+                            }
+                        }
+                        PingBadge {
+                            label: node.trailing == "" ? "Ping" : node.trailing;
+                            delay-ms: node.delay-ms;
+                            spinning: root.proxy-testing-node == node.id;
+                            enabled: root.proxy-testing-node != node.id;
+                            clicked => { root.test-proxy(root.selected-group, node.id); }
+                        }
+                    }
+                }
+                if node.active: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 28px * LumenUiScale.factor; height: 28px * LumenUiScale.factor; image-fit: contain; }
+            }
+            if root.layout-debug-bounds: Rectangle {
+                x: node-content.x + node-info.x + node-title.x;
+                y: node-content.y + node-info.y + node-title.y;
+                width: node-title.width; height: node-title.height;
+                background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #00A6A6;
+            }
+            if root.layout-debug-bounds: LayoutOutline { outline-color: #FF2D55; }
+        }
+    }
+}

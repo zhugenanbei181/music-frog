@@ -6,6 +6,8 @@ bash scripts/check-test-policy.sh
 python3 scripts/quality/import-guard.py --self-test
 python3 scripts/quality/import-guard.py --mode enforce
 python3 scripts/quality/slint-source-import-guard.py
+python3 scripts/quality/slint-syntax-guard.py --self-test
+python3 scripts/quality/slint-syntax-guard.py --mode enforce
 python3 scripts/quality/core-boundary-guard.py --mode enforce
 python3 scripts/quality/adapter-operation-declarations-guard.py
 python3 scripts/quality/workspace-pin-guard.py --mode enforce

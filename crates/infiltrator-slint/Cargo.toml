@@ -17,6 +17,12 @@ required-features = ["desktop-host"]
 [features]
 default = ["desktop-host"]
 desktop-host = ["dep:infiltrator-application", "dep:infiltrator-desktop"]
+capture-tools = [
+    "desktop-host",
+    "dep:infiltrator-composition",
+    "infiltrator-composition/capture-fixtures",
+    "dep:infiltrator-test-support",
+]
 static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
@@ -26,6 +32,8 @@ infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-application = { path = "../infiltrator-application", optional = true }
 infiltrator-desktop = { path = "../infiltrator-desktop", optional = true }
+infiltrator-composition = { path = "../infiltrator-composition", optional = true }
+infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -1,0 +1,76 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { LicenseRow } from "../components/models.slint";
+import { PagePreview, PageAbout, PageLicenses, PageLicenseDetail } from "page_about.slint";
+
+export component PagesInfo inherits VerticalLayout {
+    in property <string> page;
+    in property <bool> android-platform;
+    in property <bool> predictive-back-enabled;
+    in property <length> window-height;
+    in property <length> safe-top;
+    in property <length> safe-bottom;
+    in property <string> content-preview;
+    in property <string> product-version;
+    in property <string> core-version;
+    in-out property <string> license-query;
+    in property <[LicenseRow]> license-rows;
+    in property <string> license-catalog-error;
+    in property <string> license-detail-name;
+    in property <string> license-detail-version;
+    in property <string> license-detail-identifier;
+    in property <string> license-detail-error;
+    in property <string> license-detail-text;
+
+    callback navigate(string);
+    callback cache-back-preview();
+    callback search-licenses(string);
+    callback retry-license-catalog();
+    callback select-license(LicenseRow);
+
+    width: 100%;
+    alignment: start;
+
+    if root.page == "Preview": PagePreview {
+        window-height: root.window-height;
+        safe-top: root.safe-top;
+        safe-bottom: root.safe-bottom;
+        content-preview: root.content-preview;
+    }
+
+    if root.page == "About": PageAbout {
+        android-platform: root.android-platform;
+        product-version: root.product-version;
+        core-version: root.core-version;
+        open-licenses => {
+            if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
+            root.navigate("Licenses");
+        }
+    }
+
+    if root.page == "Licenses": PageLicenses {
+        license-query <=> root.license-query;
+        license-rows: root.license-rows;
+        license-catalog-error: root.license-catalog-error;
+        back-about => {
+            if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
+            root.navigate("About");
+        }
+        search(query) => { root.search-licenses(query); }
+        retry-catalog => { root.retry-license-catalog(); }
+        select-license(item) => { root.select-license(item); }
+    }
+
+    if root.page == "LicenseDetail": PageLicenseDetail {
+        license-detail-name: root.license-detail-name;
+        license-detail-version: root.license-detail-version;
+        license-detail-identifier: root.license-detail-identifier;
+        license-detail-error: root.license-detail-error;
+        license-detail-text: root.license-detail-text;
+        back-licenses => {
+            if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
+            root.navigate("Licenses");
+        }
+        retry-read => { root.retry-license-catalog(); }
+    }
+}

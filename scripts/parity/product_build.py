@@ -10,8 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-PRODUCTS = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui"}
-RUNTIME_ROOTS = {"iced": (), "bevy": ("crates/infiltrator-bevy-widgets/assets",)}
+PRODUCTS = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
+RUNTIME_ROOTS = {"iced": (), "bevy": ("crates/infiltrator-bevy-widgets/assets",), "slint": ()}
 
 
 def digest(path):
@@ -113,7 +113,10 @@ def inputs(root, binary, surface):
         if owner is None and path.is_relative_to(root.parent):
             raise ValueError(f"compiled sibling source is outside the current Cargo graph; rebuild: {path}")
         if owner is not None:
-            found.add(path)
+            if path.is_file():
+                found.add(path)
+            elif path.is_dir():
+                found.update(entry for entry in path.rglob("*") if entry.is_file())
             for directory in path.parents:
                 manifest = directory / "Cargo.toml"
                 if directory in owners and manifest.is_file():

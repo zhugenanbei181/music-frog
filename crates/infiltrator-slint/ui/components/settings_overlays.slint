@@ -1,0 +1,99 @@
+import { ThemeColorSheet, PageScaleSheet, UserAgentSheet, NetworkModeConfirmDialog } from "./settings_sheets.slint";
+
+export component SettingsOverlays inherits Rectangle {
+    in property <length> profile-dialog-content-width;
+    in property <length> app-settings-bottom-inset;
+    in property <length> theme-sheet-height;
+    in property <length> user-agent-sheet-height;
+    in property <bool> android-platform;
+    in property <bool> layout-debug-bounds;
+    in property <bool> compact-layout;
+    in property <string> product-version;
+    in property <string> theme-color-error;
+    in property <bool> theme-color-saving;
+    in property <string> user-agent-error;
+    in property <bool> user-agent-saving;
+    in property <string> network-mode-draft-label;
+    in property <bool> network-mode-dialog-open;
+
+    in-out property <float> theme-hue-draft;
+    in-out property <float> theme-saturation-draft;
+    in-out property <float> theme-value-draft;
+    in-out property <string> theme-color-code-draft;
+    in-out property <bool> theme-color-code-edited;
+    in-out property <int> page-scale-draft;
+    in-out property <string> user-agent-draft;
+
+    callback close-theme-color();
+    callback preview-theme-color(float, float, float);
+    callback set-theme-color(string);
+    callback close-page-scale();
+    callback apply-page-scale(int);
+    callback close-user-agent();
+    callback save-user-agent(string);
+    callback cancel-network-mode();
+    callback confirm-network-mode();
+
+    background: transparent;
+
+    public function show-theme-color() { theme-color-sheet.show(); }
+    public function close-theme-color-sheet() { theme-color-sheet.close(); }
+    public function show-page-scale() { page-scale-sheet.show(); }
+    public function close-page-scale-sheet() { page-scale-sheet.close(); }
+    public function show-user-agent() { user-agent-sheet.show(); }
+    public function close-user-agent-sheet() { user-agent-sheet.close(); }
+
+    theme-color-sheet := ThemeColorSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.app-settings-bottom-inset;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        sheet-height: root.theme-sheet-height;
+        android-platform: root.android-platform;
+        layout-debug-bounds: root.layout-debug-bounds;
+        theme-color-error: root.theme-color-error;
+        theme-color-saving: root.theme-color-saving;
+        theme-hue-draft <=> root.theme-hue-draft;
+        theme-saturation-draft <=> root.theme-saturation-draft;
+        theme-value-draft <=> root.theme-value-draft;
+        theme-color-code-draft <=> root.theme-color-code-draft;
+        theme-color-code-edited <=> root.theme-color-code-edited;
+        dismiss => { root.close-theme-color(); }
+        preview-color(h, s, v) => { root.preview-theme-color(h, s, v); }
+        apply-color(code) => { root.set-theme-color(code); }
+    }
+
+    page-scale-sheet := PageScaleSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.app-settings-bottom-inset;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        layout-debug-bounds: root.layout-debug-bounds;
+        page-scale-draft <=> root.page-scale-draft;
+        dismiss => { root.close-page-scale(); }
+        apply(draft) => { root.apply-page-scale(draft); }
+    }
+
+    user-agent-sheet := UserAgentSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.app-settings-bottom-inset;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        sheet-height: root.user-agent-sheet-height;
+        android-platform: root.android-platform;
+        layout-debug-bounds: root.layout-debug-bounds;
+        product-version: root.product-version;
+        user-agent-error: root.user-agent-error;
+        user-agent-saving: root.user-agent-saving;
+        user-agent-draft <=> root.user-agent-draft;
+        dismiss => { root.close-user-agent(); }
+        save(draft) => { root.save-user-agent(draft); }
+    }
+
+    if root.network-mode-dialog-open: NetworkModeConfirmDialog {
+        compact-layout: root.compact-layout;
+        network-mode-draft-label: root.network-mode-draft-label;
+        cancel => { root.cancel-network-mode(); }
+        confirm => { root.confirm-network-mode(); }
+    }
+}

@@ -23,3 +23,34 @@
 共享快照明确发布上限的规则、活动连接和日志窗口会在对应页面显示本地化的已显示数/总数提示；本地搜索只缩小已发布窗口，不声称检索未发布内容。
 
 配置目录排序、命名 Override 绑定、文件导入导出、流量历史清理与强调色设置已全部接入底层 owner 与 typed 命令；仍未接入特定平台能力的入口（如无二维码扫描器的宿主）会返回可见的 typed unsupported 状态，不伪装成功。用户配置名、节点名、日志正文等 runtime data 按原文呈现，不走翻译表。
+
+## 截图取证、测试矩阵与组件树架构
+
+1. **后台无感实机截图取证（Capture Matrix）**：
+   - 支持通过 `--demo` 命令行标志或 `INFILTRATOR_DEMO=1`、`INFILTRATOR_PAGE`、`INFILTRATOR_SKIN`、`INFILTRATOR_WINDOW_SIZE` 环境变量激活演示与截图模式；
+   - 窗口挂载与稳定首帧绘制后向 `INFILTRATOR_CAPTURE_MARKER` 写入标准 `CAPTURE_READY page=<p> skin=<s>\n` 标记；
+   - 配合 `scripts/capture-slint-matrix.sh` 与 `scripts/capture_slint_scenarios.tsv`，在私有虚拟 Wayland 合成器（KWin + Niri IPC）内实现无弹窗、不夺焦点、绑定二进制与源码指纹的自动化像素级取证。
+
+2. **行为测试矩阵覆盖（49 项全部通过）**：
+   - `core_and_network_mode_tests`：覆盖 Core 生命周期枚举、多命令作用域传递与错误拦截、路由模式与网络模式切换（系统代理/TUN/仅核心切换时的停机重启时序）；
+   - `outbound_and_probe_tests`：覆盖代理组节点选择的 revision 强校验、单节点测速与整组批量测速（concurrency=8）意图、排序与搜索偏好分发；
+   - `connections_and_logs_tests`：覆盖指定连接中断命令生成、四维连接排序、日志级别与别名过滤、发布窗口截断多语言告警；
+   - `rules_and_settings_tests`：覆盖规则开关幂等分发、Rule Provider 批量刷新、语言偏好解析、主题模式白名单与十六进制强调色合法性校验及反差度计算；
+   - `platform_adapter_tests` / `profile_catalog_action_tests` / `age_credential_tests` / `traffic_history_tests`：覆盖平台权限、窗口生命周期、配置管理与敏感凭据。
+
+3. **Lumen 组件树模块化与质量规范**：
+   - 彻底打破单文件巨石结构，建立清晰的分层模块（每个文件严格 $\le 600$ 行）：
+     - `ui/components/theme.slint`：全局 `LumenTheme` 主题系统与语义颜色；
+     - `ui/components/models.slint`：跨端结构体定义；
+     - `ui/components/base_widgets.slint`：基础交互原子组件（按钮、开关、滑块、输入框等）；
+     - `ui/components/cards.slint`：领域卡片与容器；
+     - `ui/components/sidebar.slint`：桌面侧边导航栏；
+     - `ui/components/profile_sheets.slint` 与 `profile_overlays.slint`：配置添加、操作、分享、删除与设置抽屉；
+     - `ui/components/settings_sheets.slint` 与 `settings_overlays.slint`：配色、缩放、User-Agent 抽屉与网络接管切换确认弹窗；
+     - `ui/components/app_chrome.slint`：移动端悬浮底栏、清空流量弹窗、通知/消息气泡与节点排序菜单；
+     - `ui/components/app_body.slint`：桌面/移动端弹性主体容器与滚动锚定；
+     - `ui/pages/page_*.slint` 与 `pages_*.slint`：分领域页面与路由集群；
+     - `ui/lumen-app.slint`：轻量级主页面根骨架（从 3587 行解耦并缩减至 591 行）；
+   - 所有触控交互控件均遵循移动端 $\ge 48\text{px} \times \text{LumenUiScale.factor}$ 最小触控热区规范；
+   - 由 `scripts/quality/slint-syntax-guard.py` 门禁执行单文件 $\le 600$ 行预算与严禁硬编码状态色约束（100% 通过）。
+

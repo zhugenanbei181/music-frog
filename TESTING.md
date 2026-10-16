@@ -9,6 +9,7 @@
 - `bash scripts/test.sh`：先运行 `scripts/quality/check-structure.sh` 和共享 UI 证据解析，再运行 workspace `cargo nextest`。
 - `bash scripts/test.sh --guards-only`：只运行质量守卫。
 - `bash scripts/test-bevy.sh`：Bevy UI 专项结构门、证据解析和 nextest。
+- `bash scripts/capture-slint-matrix.sh`：Slint UI 独立无感后台截图矩阵取证。
 - focused Rust 回归使用 `cargo nextest run --offline --locked -p <package> [test-filter]`。禁止使用裸 `cargo test`；test policy 会扫描并拒绝。
 - Android flavors 在一个 Gradle 调用中验证，命令以 [Android 文档](android/docs/BEVY_ANDROID_PRODUCT.md) 为准；禁止把一次 flavor 的构建结果用于证明另一个 flavor。
 - Android Core host mock/JVM 回归使用 `(cd android && ./gradlew :core-host-tests:test)`；该测试源集直接编译 app 中的 Core host 实现，不编译 Compose/Bevy/Slint UI。

@@ -1,0 +1,156 @@
+import { MaterialSchemes } from "@material";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+
+export global LumenTheme {
+    in-out property <bool> dark-mode: false;
+    in-out property <bool> forest-mode: false;
+    in-out property <bool> amoled-mode: false;
+    in-out property <bool> show-layout-bounds: false;
+    in-out property <color> user-accent: #016888;
+    in-out property <color> accent-foreground: #FFFFFF;
+    in-out property <bool> invert-semantic-foreground: false;
+    out property <MaterialSchemes> material-schemes: {
+        light: {
+            primary: root.user-accent,
+            surfaceTint: root.user-accent,
+            onPrimary: root.accent-foreground,
+            primaryContainer: #DCEEF2,
+            onPrimaryContainer: #062F3A,
+            secondary: #48666E,
+            onSecondary: #FFFFFF,
+            secondaryContainer: #D8EAED,
+            onSecondaryContainer: #12343B,
+            tertiary: #52635E,
+            onTertiary: #FFFFFF,
+            tertiaryContainer: #D7E8E1,
+            onTertiaryContainer: #152A25,
+            error: #BA1A1A,
+            onError: #FFFFFF,
+            errorContainer: #FFDAD6,
+            onErrorContainer: #410002,
+            background: #F7F7F7,
+            onBackground: #17191A,
+            surface: #FFFFFF,
+            onSurface: root.invert-semantic-foreground ? #41494B : #17191A,
+            surfaceVariant: #E8EEEE,
+            onSurfaceVariant: root.invert-semantic-foreground ? #17191A : #41494B,
+            outline: #747D7F,
+            outlineVariant: #DDE3E4,
+            shadow: #000000,
+            scrim: #000000,
+            inverseSurface: #2B3031,
+            inverseOnSurface: #EFF1F1,
+            inversePrimary: #A5D7E1,
+            primaryFixed: #DCEEF2,
+            onPrimaryFixed: #062F3A,
+            primaryFixedDim: #A5D7E1,
+            onPrimaryFixedVariant: #164F5D,
+            secondaryFixed: #D8EAED,
+            onSecondaryFixed: #12343B,
+            secondaryFixedDim: #BBD2D6,
+            onSecondaryFixedVariant: #354F55,
+            tertiaryFixed: #D7E8E1,
+            onTertiaryFixed: #152A25,
+            tertiaryFixedDim: #BBCDC6,
+            onTertiaryFixedVariant: #3A4E48,
+            surfaceDim: #DEDFDF,
+            surfaceBright: #FFFFFF,
+            surfaceContainerLowest: #FFFFFF,
+            surfaceContainerLow: #F4F6F6,
+            surfaceContainer: #FFFFFF,
+            surfaceContainerHigh: #E8ECEC,
+            surfaceContainerHighest: #E1E6E6,
+        },
+        dark: {
+            primary: root.user-accent,
+            surfaceTint: root.user-accent,
+            onPrimary: root.accent-foreground,
+            primaryContainer: #06495B,
+            onPrimaryContainer: #D5F1F8,
+            secondary: #B8CDD2,
+            onSecondary: #1D343A,
+            secondaryContainer: #263E44,
+            onSecondaryContainer: #D6E8EC,
+            tertiary: #BECAC3,
+            onTertiary: #28352F,
+            tertiaryContainer: #3B4942,
+            onTertiaryContainer: #DAE6DE,
+            error: #FFB4AB,
+            onError: #690005,
+            errorContainer: #93000A,
+            onErrorContainer: #FFDAD6,
+            background: #000000,
+            onBackground: #EEEEEE,
+            surface: #000000,
+            onSurface: root.invert-semantic-foreground ? #A4A4A4 : #EEEEEE,
+            surfaceVariant: #303030,
+            onSurfaceVariant: root.invert-semantic-foreground ? #EEEEEE : #A4A4A4,
+            outline: #777777,
+            outlineVariant: #353535,
+            shadow: #000000,
+            scrim: #000000,
+            inverseSurface: #EEEEEE,
+            inverseOnSurface: #252525,
+            inversePrimary: #0B667F,
+            primaryFixed: #DCEEF2,
+            onPrimaryFixed: #062F3A,
+            primaryFixedDim: #A5D7E1,
+            onPrimaryFixedVariant: #164F5D,
+            secondaryFixed: #D8EAED,
+            onSecondaryFixed: #12343B,
+            secondaryFixedDim: #BBD2D6,
+            onSecondaryFixedVariant: #354F55,
+            tertiaryFixed: #D7E8E1,
+            onTertiaryFixed: #152A25,
+            tertiaryFixedDim: #BBCDC6,
+            onTertiaryFixedVariant: #3A4E48,
+            surfaceDim: #000000,
+            surfaceBright: #383838,
+            surfaceContainerLowest: #111111,
+            surfaceContainerLow: #171717,
+            surfaceContainer: #222222,
+            surfaceContainerHigh: #2B2B2B,
+            surfaceContainerHighest: #333333,
+        },
+    };
+
+    out property <color> canvas: root.amoled-mode ? #000000 : root.forest-mode ? #F1F6EF : root.dark-mode ? root.material-schemes.dark.background : root.material-schemes.light.background;
+    out property <color> surface: root.amoled-mode ? #080808 : root.forest-mode ? #F8FBF6 : root.dark-mode ? #222222 : root.material-schemes.light.surface;
+    out property <color> surface-muted: root.amoled-mode ? #121212 : root.forest-mode ? #E8F0E5 : root.dark-mode ? #1C1C1C : root.material-schemes.light.surfaceContainerLow;
+    out property <color> accent: root.forest-mode ? #34784F : root.user-accent;
+    out property <color> accent-soft: root.dark-mode ? root.material-schemes.dark.primaryContainer : root.material-schemes.light.primaryContainer;
+    out property <color> text-primary: root.dark-mode ? root.material-schemes.dark.onSurface : root.material-schemes.light.onSurface;
+    out property <color> text-secondary: root.dark-mode ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant;
+    out property <color> border: root.dark-mode ? root.material-schemes.dark.outlineVariant : root.material-schemes.light.outlineVariant;
+    out property <color> disabled: (root.dark-mode ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant).with_alpha(38%);
+    out property <color> error: root.dark-mode ? root.material-schemes.dark.error : root.material-schemes.light.error;
+    out property <color> ping-good: root.dark-mode ? #82D68D : #2E7D32;
+    out property <color> ping-good-soft: root.dark-mode ? #233B27 : #E8F4E8;
+    out property <color> ping-warning: root.dark-mode ? #FFD180 : #8A5A00;
+    out property <color> ping-warning-soft: root.dark-mode ? #3C321F : #FFF2D1;
+    out property <color> ping-bad: root.dark-mode ? #FFB4AB : #C62828;
+    out property <color> ping-bad-soft: root.dark-mode ? #402624 : #FCE8E6;
+    out property <color> status-info: root.dark-mode ? #70D2EC : #0B667F;
+    out property <color> status-warning: root.dark-mode ? #FFD180 : #9A6810;
+    out property <color> text-muted: root.dark-mode ? #888888 : #666666;
+
+    out property <color> preference-off: root.dark-mode ? #484848 : #E7E7E7;
+    out property <color> preference-accent: root.accent;
+    out property <length> preference-card-radius: 28px * LumenUiScale.factor;
+    out property <length> preference-text-size: 18px * LumenUiScale.factor;
+    out property <length> space-1: 4px * LumenUiScale.factor;
+    out property <length> space-2: 8px * LumenUiScale.factor;
+    out property <length> space-3: 12px * LumenUiScale.factor;
+    out property <length> space-4: 16px * LumenUiScale.factor;
+    out property <length> space-6: 24px * LumenUiScale.factor;
+    out property <length> space-8: 32px * LumenUiScale.factor;
+    out property <length> radius-control: 14px * LumenUiScale.factor;
+    out property <length> radius-card: 24px * LumenUiScale.factor;
+    out property <length> radius-sheet: 28px * LumenUiScale.factor;
+    out property <length> min-touch-target: 48px * LumenUiScale.factor;
+    out property <length> page-padding: 16px * LumenUiScale.factor;
+    out property <length> navigation-height: 56px * LumenUiScale.factor;
+    out property <length> title-size: 28px * LumenUiScale.factor;
+    out property <length> body-size: 16px * LumenUiScale.factor;
+    out property <length> supporting-size: 14px * LumenUiScale.factor;
+}

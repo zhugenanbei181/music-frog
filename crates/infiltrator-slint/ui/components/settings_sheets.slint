@@ -1,0 +1,206 @@
+import { Button, ScrollView } from "std-widgets.slint";
+import { IconButton, ModalBottomSheet, PopupMenu } from "@material";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "./theme.slint";
+import { AppColorSlider, LayoutOutline, RoundedInputField } from "./base_widgets.slint";
+import { SheetActionButton } from "./cards.slint";
+
+export component ThemeColorSheet inherits ModalBottomSheet {
+    in property <length> profile-dialog-content-width;
+    in property <length> sheet-height;
+    in property <bool> android-platform;
+    in property <bool> layout-debug-bounds;
+    in property <string> theme-color-error;
+    in property <bool> theme-color-saving;
+    in-out property <float> theme-hue-draft;
+    in-out property <float> theme-saturation-draft;
+    in-out property <float> theme-value-draft;
+    in-out property <string> theme-color-code-draft;
+    in-out property <bool> theme-color-code-edited;
+
+    callback dismiss();
+    callback preview-color(float, float, float);
+    callback apply-color(string);
+
+    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32px * LumenUiScale.factor;
+    sheet_elevation_level: 1;
+    surface_color: LumenTheme.surface;
+    scrim_color: #000000.with_alpha(32%);
+    show_layout_bounds: root.layout-debug-bounds;
+    dismissed => { root.dismiss(); }
+
+    Rectangle {
+        width: root.profile-dialog-content-width;
+        height: root.sheet-height;
+        ScrollView {
+            width: parent.width; height: parent.height; content-width: self.width;
+            mouse-drag-pan-enabled: root.android-platform;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+            VerticalLayout {
+                x: 16px * LumenUiScale.factor; width: max(0px * LumenUiScale.factor, parent.width - 32px * LumenUiScale.factor);
+                padding-top: 12px * LumenUiScale.factor; padding-bottom: 18px * LumenUiScale.factor;
+                spacing: 8px * LumenUiScale.factor; alignment: start;
+                HorizontalLayout {
+                    height: 48px * LumenUiScale.factor; cross-axis-alignment: center;
+                    IconButton { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg"); tooltip: @tr("关闭"); clicked => { root.dismiss(); } }
+                    Text { text: @tr("主题配色"); font-size: 18px * LumenUiScale.factor; color: LumenTheme.text-primary; horizontal-stretch: 1; vertical-alignment: center; horizontal-alignment: center; }
+                    Rectangle { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; }
+                }
+                Text { text: @tr("颜色预览"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
+                Rectangle { width: parent.width; height: 44px * LumenUiScale.factor; border-radius: 22px * LumenUiScale.factor; background: LumenTheme.accent; }
+                Text { text: @tr("色相"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
+                AppColorSlider {
+                    width: parent.width; height: 44px * LumenUiScale.factor; value: root.theme-hue-draft; minimum: 0; maximum: 359; step: 1;
+                    track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("色相");
+                    value-changed(value) => { root.theme-color-code-edited = false; root.theme-hue-draft = value; root.preview-color(value, root.theme-saturation-draft, root.theme-value-draft); }
+                }
+                Text { text: @tr("饱和度"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
+                AppColorSlider {
+                    width: parent.width; height: 44px * LumenUiScale.factor; value: root.theme-saturation-draft * 100; minimum: 0; maximum: 100; step: 1;
+                    track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("饱和度");
+                    value-changed(value) => { root.theme-color-code-edited = false; root.theme-saturation-draft = value / 100; root.preview-color(root.theme-hue-draft, value / 100, root.theme-value-draft); }
+                }
+                Text { text: @tr("明度"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
+                AppColorSlider {
+                    width: parent.width; height: 44px * LumenUiScale.factor; value: root.theme-value-draft * 100; minimum: 0; maximum: 100; step: 1;
+                    track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("明度");
+                    value-changed(value) => { root.theme-color-code-edited = false; root.theme-value-draft = value / 100; root.preview-color(root.theme-hue-draft, root.theme-saturation-draft, value / 100); }
+                }
+                Text { text: @tr("颜色代码"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
+                RoundedInputField { width: parent.width; label: "##RRGGBB"; text <=> root.theme-color-code-draft; edited(value) => { root.theme-color-code-edited = true; } }
+                if root.theme-color-error != "": Text { text: root.theme-color-error; font-size: 14px * LumenUiScale.factor; color: LumenTheme.error; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 12px * LumenUiScale.factor;
+                    SheetActionButton { horizontal-stretch: 1; label: @tr("取消"); clicked => { root.dismiss(); } }
+                    SheetActionButton { horizontal-stretch: 1; label: root.theme-color-saving ? @tr("正在应用…") : @tr("应用颜色"); enabled: !root.theme-color-saving; primary: true; clicked => { root.apply-color(root.theme-color-code-draft); } }
+                }
+            }
+        }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #34C759; }
+    }
+}
+
+export component PageScaleSheet inherits ModalBottomSheet {
+    in property <length> profile-dialog-content-width;
+    in property <bool> layout-debug-bounds;
+    in-out property <int> page-scale-draft;
+
+    callback dismiss();
+    callback apply(int);
+
+    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32px * LumenUiScale.factor;
+    sheet_elevation_level: 1;
+    surface_color: LumenTheme.surface;
+    scrim_color: #000000.with_alpha(32%);
+    show_layout_bounds: root.layout-debug-bounds;
+    dismissed => { root.dismiss(); }
+
+    Rectangle {
+        width: root.profile-dialog-content-width; height: 280px * LumenUiScale.factor;
+        VerticalLayout {
+            x: 16px * LumenUiScale.factor; width: parent.width - 32px * LumenUiScale.factor;
+            padding-top: 12px * LumenUiScale.factor; padding-bottom: 16px * LumenUiScale.factor; spacing: 12px * LumenUiScale.factor;
+            HorizontalLayout {
+                height: 48px * LumenUiScale.factor; cross-axis-alignment: center;
+                IconButton { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg"); tooltip: @tr("取消"); clicked => { root.dismiss(); } }
+                Text { text: @tr("页面缩放"); font-size: 18px * LumenUiScale.factor; color: LumenTheme.text-primary; horizontal-stretch: 1; vertical-alignment: center; horizontal-alignment: center; }
+                Rectangle { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; }
+            }
+            Text { text: @tr("当前比例：") + root.page-scale-draft + "%"; font-size: 16px * LumenUiScale.factor; color: LumenTheme.text-primary; horizontal-alignment: center; horizontal-stretch: 1; }
+            AppColorSlider {
+                width: parent.width; height: 54px * LumenUiScale.factor; value: root.page-scale-draft; minimum: 85; maximum: 115; step: 5;
+                track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("页面缩放");
+                value-changed(value) => { root.page-scale-draft = Math.round(value / 5) * 5; }
+            }
+            Text { text: @tr("85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"); font-size: 13px * LumenUiScale.factor; color: LumenTheme.text-secondary; wrap: word-wrap; horizontal-alignment: center; horizontal-stretch: 1; }
+            HorizontalLayout {
+                spacing: 12px * LumenUiScale.factor;
+                SheetActionButton { horizontal-stretch: 1; label: @tr("取消"); clicked => { root.dismiss(); } }
+                SheetActionButton { horizontal-stretch: 1; label: @tr("应用"); primary: true; clicked => { root.apply(root.page-scale-draft); } }
+            }
+        }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #34C759; }
+    }
+}
+
+export component UserAgentSheet inherits ModalBottomSheet {
+    in property <length> profile-dialog-content-width;
+    in property <length> sheet-height;
+    in property <bool> android-platform;
+    in property <bool> layout-debug-bounds;
+    in property <string> product-version;
+    in property <string> user-agent-error;
+    in property <bool> user-agent-saving;
+    in-out property <string> user-agent-draft;
+
+    callback dismiss();
+    callback save(string);
+
+    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32px * LumenUiScale.factor;
+    sheet_elevation_level: 1;
+    surface_color: LumenTheme.surface;
+    scrim_color: #000000.with_alpha(32%);
+    show_layout_bounds: root.layout-debug-bounds;
+    dismissed => { root.dismiss(); }
+
+    Rectangle {
+        width: root.profile-dialog-content-width;
+        height: root.sheet-height;
+        ScrollView {
+            width: parent.width; height: parent.height; content-width: self.width;
+            mouse-drag-pan-enabled: root.android-platform;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+            VerticalLayout {
+                x: 16px * LumenUiScale.factor; width: max(0px * LumenUiScale.factor, parent.width - 32px * LumenUiScale.factor); padding-bottom: 16px * LumenUiScale.factor; spacing: 14px * LumenUiScale.factor; alignment: start;
+                HorizontalLayout {
+                    height: 48px * LumenUiScale.factor; cross-axis-alignment: center;
+                    IconButton { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg"); tooltip: @tr("取消"); clicked => { root.dismiss(); } }
+                    Text { text: @tr("自定义 User-Agent"); font-size: 18px * LumenUiScale.factor; color: LumenTheme.text-primary; horizontal-stretch: 1; vertical-alignment: center; horizontal-alignment: center; }
+                    Rectangle { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; }
+                }
+                Text { text: @tr("留空使用默认值") + " MusicFrog/" + root.product-version; font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; wrap: word-wrap; vertical-stretch: 0; }
+                RoundedInputField { width: parent.width; label: "User-Agent"; text <=> root.user-agent-draft; }
+                if root.user-agent-error != "": Text { text: root.user-agent-error; font-size: 14px * LumenUiScale.factor; color: LumenTheme.error; wrap: word-wrap; vertical-stretch: 0; }
+                HorizontalLayout {
+                    spacing: 12px * LumenUiScale.factor;
+                    SheetActionButton { horizontal-stretch: 1; label: @tr("取消"); clicked => { root.dismiss(); } }
+                    SheetActionButton { horizontal-stretch: 1; label: root.user-agent-saving ? @tr("保存中…") : @tr("应用"); enabled: !root.user-agent-saving; primary: true; clicked => { root.save(root.user-agent-draft); } }
+                }
+            }
+        }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #34C759; }
+    }
+}
+
+export component NetworkModeConfirmDialog inherits Rectangle {
+    in property <bool> compact-layout;
+    in property <string> network-mode-draft-label;
+
+    callback cancel();
+    callback confirm();
+
+    x: 0; y: 0; width: 100%; height: 100%;
+    background: #99000000;
+
+    Rectangle {
+        x: root.compact-layout ? 12px * LumenUiScale.factor : (parent.width - 480px * LumenUiScale.factor) / 2;
+        y: (parent.height - 230px * LumenUiScale.factor) / 2;
+        width: root.compact-layout ? parent.width - 24px * LumenUiScale.factor : 480px * LumenUiScale.factor;
+        height: 230px * LumenUiScale.factor; border-radius: 12px * LumenUiScale.factor;
+        background: LumenTheme.surface; border-width: 1px * LumenUiScale.factor; border-color: LumenTheme.border;
+        VerticalLayout {
+            x: 22px * LumenUiScale.factor; y: 20px * LumenUiScale.factor; width: parent.width - 44px * LumenUiScale.factor; height: parent.height - 40px * LumenUiScale.factor; spacing: 12px * LumenUiScale.factor;
+            Text { text: @tr("切换网络接管模式？"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 650; }
+            Text { text: @tr("将停止当前 Mihomo，再以「") + root.network-mode-draft-label + @tr("」重新启动；切换期间网络可能短暂中断。若配置校验或平台状态确认失败，Runtime 会保持停止并显示恢复提示。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
+            Rectangle { vertical-stretch: 1; background: transparent; }
+            HorizontalLayout {
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Button { text: @tr("取消"); clicked => { root.cancel(); } }
+                Button { text: @tr("切换并重启"); clicked => { root.confirm(); } }
+            }
+        }
+    }
+}

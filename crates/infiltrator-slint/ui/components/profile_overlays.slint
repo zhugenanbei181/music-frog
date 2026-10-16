@@ -1,0 +1,138 @@
+import { ProfileOverrideChoice } from "./models.slint";
+import { ProfileAddSheet, ProfileActionSheet, ProfileShareSheet, ProfileDeleteSheet, ProfileSettingsSheet } from "./profile_sheets.slint";
+
+export component ProfileOverlays inherits Rectangle {
+    in property <length> profile-dialog-content-width;
+    in property <length> profile-sheet-content-width;
+    in property <length> profile-sheet-content-height;
+    in property <length> profile-settings-sheet-height;
+    in property <length> safe-bottom;
+    in property <bool> application-dark-mode;
+    in property <bool> layout-debug-bounds;
+    in property <int> profile-add-kind-index;
+    in property <bool> profile-type-menu-open;
+    in property <string> notice;
+    in property <string> pending-delete-name;
+    in property <string> profile-settings-id;
+    in property <string> profile-settings-kind;
+    in property <bool> profile-settings-age-configured;
+    in property <[ProfileOverrideChoice]> profile-settings-overrides;
+
+    in-out property <string> profile-name;
+    in-out property <string> profile-url;
+    in-out property <string> profile-age-key;
+    in-out property <int> profile-settings-type-index;
+    in-out property <bool> profile-settings-type-menu-open;
+    in-out property <string> profile-settings-name;
+    in-out property <string> profile-settings-url;
+    in-out property <string> profile-settings-age-key;
+
+    callback close-profile-add();
+    callback confirm-add();
+    callback toggle-type-menu();
+    callback select-kind(int);
+    callback choose-file();
+    callback scan-qr();
+    callback close-profile-action();
+    callback open-editor();
+    callback open-settings();
+    callback close-profile-share();
+    callback export-profile();
+    callback close-profile-delete();
+    callback confirm-delete();
+    callback cancel-profile-settings();
+    callback save-profile-settings();
+    callback clear-profile-age-key();
+    callback toggle-override(string, bool);
+    callback move-override(string, bool);
+
+    background: transparent;
+
+    public function show-add() { profile-add-sheet.show(); }
+    public function close-add() { profile-add-sheet.close(); }
+    public function show-action() { profile-action-sheet.show(); }
+    public function close-action() { profile-action-sheet.close(); }
+    public function show-share() { profile-share-sheet.show(); }
+    public function close-share() { profile-share-sheet.close(); }
+    public function show-delete() { profile-delete-sheet.show(); }
+    public function close-delete() { profile-delete-sheet.close(); }
+    public function show-settings() { profile-settings-sheet.show(); }
+    public function close-settings() { profile-settings-sheet.close(); }
+
+    profile-add-sheet := ProfileAddSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.safe-bottom;
+        profile-sheet-content-width: root.profile-sheet-content-width;
+        profile-sheet-content-height: root.profile-sheet-content-height;
+        application-dark-mode: root.application-dark-mode;
+        layout-debug-bounds: root.layout-debug-bounds;
+        profile-add-kind-index: root.profile-add-kind-index;
+        profile-type-menu-open: root.profile-type-menu-open;
+        notice: root.notice;
+        profile-name <=> root.profile-name;
+        profile-url <=> root.profile-url;
+        profile-age-key <=> root.profile-age-key;
+        dismiss => { root.close-profile-add(); }
+        confirm => { root.confirm-add(); }
+        toggle-type-menu => { root.toggle-type-menu(); }
+        select-kind(k) => { root.select-kind(k); }
+        choose-file => { root.choose-file(); }
+        scan-qr => { root.scan-qr(); }
+    }
+
+    profile-action-sheet := ProfileActionSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.safe-bottom;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        layout-debug-bounds: root.layout-debug-bounds;
+        dismiss => { root.close-profile-action(); }
+        open-editor => { root.open-editor(); }
+        open-settings => { root.open-settings(); }
+    }
+
+    profile-share-sheet := ProfileShareSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.safe-bottom;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        layout-debug-bounds: root.layout-debug-bounds;
+        dismiss => { root.close-profile-share(); }
+        share => { root.export-profile(); }
+    }
+
+    profile-delete-sheet := ProfileDeleteSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.safe-bottom;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        layout-debug-bounds: root.layout-debug-bounds;
+        pending-delete-name: root.pending-delete-name;
+        dismiss => { root.close-profile-delete(); }
+        confirm-delete => { root.confirm-delete(); }
+    }
+
+    profile-settings-sheet := ProfileSettingsSheet {
+        width: root.width;
+        height: root.height;
+        bottom_safe_inset: root.safe-bottom;
+        profile-dialog-content-width: root.profile-dialog-content-width;
+        sheet-height: root.profile-settings-sheet-height;
+        layout-debug-bounds: root.layout-debug-bounds;
+        profile-settings-id: root.profile-settings-id;
+        profile-settings-kind: root.profile-settings-kind;
+        profile-settings-age-configured: root.profile-settings-age-configured;
+        profile-settings-overrides: root.profile-settings-overrides;
+        profile-settings-type-index <=> root.profile-settings-type-index;
+        profile-settings-type-menu-open <=> root.profile-settings-type-menu-open;
+        profile-settings-name <=> root.profile-settings-name;
+        profile-settings-url <=> root.profile-settings-url;
+        profile-settings-age-key <=> root.profile-settings-age-key;
+        dismiss => { root.cancel-profile-settings(); }
+        save => { root.save-profile-settings(); }
+        clear-age-key => { root.clear-profile-age-key(); }
+        toggle-override(id, en) => { root.toggle-override(id, en); }
+        move-override(id, up) => { root.move-override(id, up); }
+    }
+}

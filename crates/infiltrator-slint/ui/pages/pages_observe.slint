@@ -1,0 +1,171 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { ObservationRow, TrafficBar } from "../components/models.slint";
+import { PageConnections, PageConnectionDetail, PageLogs, PageRules, PageProviders, PageTraffic } from "page_observe.slint";
+
+export component PagesObserve inherits VerticalLayout {
+    in property <string> page;
+    in property <bool> android-platform;
+    in property <bool> predictive-back-enabled;
+    in property <string> runtime-status;
+    in property <bool> connection-show-closed;
+    in property <string> snapshot-window-warning;
+    in-out property <string> connection-search;
+    in-out property <string> connection-sort;
+    in property <[ObservationRow]> connections;
+    in property <string> connection-breaking-id;
+
+    // Connection detail
+    in property <string> connection-detail-id;
+    in property <string> connection-detail-host;
+    in property <string> connection-detail-protocol;
+    in property <string> connection-detail-process;
+    in property <string> connection-detail-source;
+    in property <string> connection-detail-destination;
+    in property <string> connection-detail-start;
+    in property <string> connection-detail-duration;
+    in property <string> connection-detail-upload;
+    in property <string> connection-detail-download;
+    in property <string> connection-detail-rule;
+    in property <string> connection-detail-chains;
+    in property <string> connection-detail-providers;
+    in property <bool> connection-detail-active;
+
+    // Logs
+    in property <string> log-stream-status;
+    in-out property <string> log-search;
+    in-out property <string> log-level;
+    in property <[ObservationRow]> logs;
+
+    // Rules & Providers
+    in-out property <string> rule-search;
+    in property <string> rule-pending-index;
+    in property <[ObservationRow]> rules;
+    in property <[ObservationRow]> providers;
+
+    // Traffic
+    in property <string> traffic-stream-status;
+    in property <string> stat-down;
+    in property <string> stat-up;
+    in-out property <string> traffic-range;
+    in-out property <string> traffic-selected-detail;
+    in property <string> traffic-today-down;
+    in property <string> traffic-today-up;
+    in property <bool> traffic-today-has-data;
+    in property <[TrafficBar]> traffic-today-bars;
+    in property <string> traffic-week-down;
+    in property <string> traffic-week-up;
+    in property <string> traffic-week-average-down;
+    in property <string> traffic-week-average-up;
+    in property <bool> traffic-week-has-data;
+    in property <[TrafficBar]> traffic-week-bars;
+
+    callback set-connection-view(bool);
+    callback refresh-observations();
+    callback search-connections(string);
+    callback set-connection-sort(string);
+    callback open-connection(string);
+    callback close-connection(string);
+    callback cache-back-preview();
+    callback go-back();
+    callback search-logs(string);
+    callback set-log-level(string);
+    callback export-logs();
+    callback search-rules(string);
+    callback toggle-rule(string, bool);
+    callback update-provider(string);
+    callback open-clear-dialog();
+
+    width: 100%;
+    alignment: start;
+
+    if root.page == "Connections": PageConnections {
+        android-platform: root.android-platform;
+        predictive-back-enabled: root.predictive-back-enabled;
+        runtime-status: root.runtime-status;
+        connection-show-closed: root.connection-show-closed;
+        snapshot-window-warning: root.snapshot-window-warning;
+        connection-search <=> root.connection-search;
+        connection-sort <=> root.connection-sort;
+        connections: root.connections;
+        connection-breaking-id: root.connection-breaking-id;
+        set-view(closed) => { root.set-connection-view(closed); }
+        refresh => { root.refresh-observations(); }
+        search(q) => { root.search-connections(q); }
+        set-sort(s) => { root.set-connection-sort(s); }
+        open-detail(id) => { root.open-connection(id); }
+        close-conn(id) => { root.close-connection(id); }
+        cache-back-preview => { root.cache-back-preview(); }
+    }
+
+    if root.page == "ConnectionDetail": PageConnectionDetail {
+        connection-detail-id: root.connection-detail-id;
+        connection-detail-host: root.connection-detail-host;
+        connection-detail-protocol: root.connection-detail-protocol;
+        connection-detail-process: root.connection-detail-process;
+        connection-detail-source: root.connection-detail-source;
+        connection-detail-destination: root.connection-detail-destination;
+        connection-detail-start: root.connection-detail-start;
+        connection-detail-duration: root.connection-detail-duration;
+        connection-detail-upload: root.connection-detail-upload;
+        connection-detail-download: root.connection-detail-download;
+        connection-detail-rule: root.connection-detail-rule;
+        connection-detail-chains: root.connection-detail-chains;
+        connection-detail-providers: root.connection-detail-providers;
+        connection-detail-active: root.connection-detail-active;
+        connection-breaking-id: root.connection-breaking-id;
+        back => { root.go-back(); }
+        close-conn(id) => { root.close-connection(id); }
+    }
+
+    if root.page == "Logs": PageLogs {
+        runtime-status: root.runtime-status;
+        log-stream-status: root.log-stream-status;
+        snapshot-window-warning: root.snapshot-window-warning;
+        log-search <=> root.log-search;
+        log-level <=> root.log-level;
+        logs: root.logs;
+        search(q) => { root.search-logs(q); }
+        set-level(l) => { root.set-log-level(l); }
+        export-logs => { root.export-logs(); }
+    }
+
+    if root.page == "Rules": PageRules {
+        runtime-status: root.runtime-status;
+        snapshot-window-warning: root.snapshot-window-warning;
+        rule-search <=> root.rule-search;
+        rule-pending-index: root.rule-pending-index;
+        rules: root.rules;
+        search(q) => { root.search-rules(q); }
+        refresh => { root.refresh-observations(); }
+        toggle-rule(idx, en) => { root.toggle-rule(idx, en); }
+    }
+
+    if root.page == "Providers": PageProviders {
+        runtime-status: root.runtime-status;
+        providers: root.providers;
+        refresh => { root.refresh-observations(); }
+        update-provider(id) => { root.update-provider(id); }
+    }
+
+    if root.page == "Traffic": PageTraffic {
+        android-platform: root.android-platform;
+        runtime-status: root.runtime-status;
+        traffic-stream-status: root.traffic-stream-status;
+        stat-down: root.stat-down;
+        stat-up: root.stat-up;
+        traffic-range <=> root.traffic-range;
+        traffic-selected-detail <=> root.traffic-selected-detail;
+        traffic-today-down: root.traffic-today-down;
+        traffic-today-up: root.traffic-today-up;
+        traffic-today-has-data: root.traffic-today-has-data;
+        traffic-today-bars: root.traffic-today-bars;
+        traffic-week-down: root.traffic-week-down;
+        traffic-week-up: root.traffic-week-up;
+        traffic-week-average-down: root.traffic-week-average-down;
+        traffic-week-average-up: root.traffic-week-average-up;
+        traffic-week-has-data: root.traffic-week-has-data;
+        traffic-week-bars: root.traffic-week-bars;
+        open-clear-dialog => { root.open-clear-dialog(); }
+    }
+}

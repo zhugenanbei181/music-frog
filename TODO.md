@@ -57,22 +57,24 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-16，基线 `musicfrog-todo-20261016-v203`）
+## Points 与完成度台账（2026-10-16，基线 `musicfrog-todo-20261016-v204`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 3 | 3 |
 | 过去佛 | 18 | 49 |
-| 未来佛 | 11 | 23 |
-| **未办结联合分母** | **32** | **75** |
+| 未来佛 | 33 | 72 |
+| **未办结联合分母** | **54** | **124** |
 
-- **严格交付率：623 / 698 = 89.3%**（archived 623pt / archived + 未办结 75pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：631 / 755 = 83.6%**（archived 631pt / archived + 未办结 124pt）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：58 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1）全部未完整关闭（0/58）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
-### 已归档交付原子条目（明细 234 条 / 622 pt；累计 235 条 / 623 pt）
+### 已归档交付原子条目（明细 236 条 / 630 pt；累计 237 条 / 631 pt）
 | 条目 | pt | 证据身份 |
 | --- | ---: | --- |
+| `SLINT-015` Slint 无感截图基础设施与场景矩阵 | 3 | `capture-tools` feature 与 `--demo`/`CAPTURE_READY` marker 接入；`scripts/capture-slint-matrix.sh`、`scripts/capture_slint_scenarios.tsv`（24 个场景）与 `scripts/parity/product_build.py` 接入生效；私有虚拟 Wayland 合成器（KWin + Niri IPC）实现 24/24 全量场景取证通过，manifest 100% 验证。 |
+| `SLINT-016` Slint 测试缺口补齐、Lumen 组件模块化（<=600行）与质量守卫 | 5 | 新增 18 项专项核心测试，49 项测试在 nextest（run ID `f55bd9e2`）中 100% PASS；Lumen 组件树彻底拆分为 22 个独立 `.slint` 模块，全仓手写 Slint 文件无一超标（`lumen-app.slint` 从 3587 行降至 599 行，严格达标 <= 600 行底线）；`slint-syntax-guard.py` 600 行门禁与 `check-structure.sh` 全绿通过。 |
 | `BANDROID-044.3` Kotlin 800 行文件预算 | 1 | 结构检查扫描 Android 219 个手写 .kt 文件，排除生成目录与 infiltrator_android.kt；4 个超预算文件（MihomoVpnService.kt、MihomoControlService.kt、MihomoControlClient.kt、VpnProcessStateTest.kt）沿组件边界拆分完毕；`kt-line-guard.py --mode enforce` 清零；5 项单元测试 100% 全绿；Android 113 项 Gradle 测试全绿。 |
 | `BANDROID-011.1` cadence 共享语义与 Winit 投影 | 3 | 交互/动画活跃、无变化不排帧、挂起无渲染、输入唤醒四项行为断言覆盖；Iced/Bevy/Android/Contract 一致；`infiltrator-bevy-ui` 10/10 cadence 单元与无头测试 100% 全绿。 |
 | `SLINT-001` Slint 共享 owner 接入与多平台验证 | 5 | Lumen 页面经 `CommandIntent`/`SurfaceSnapshot` 接入现有 owner；未有 owner 保留 typed unsupported；`infiltrator-slint` 31 项测试全绿，Android 两 ABI（arm64-v8a、x86_64）`.so` 编译与 `:app:testSlintDebugUnitTest` 全部通过。 |

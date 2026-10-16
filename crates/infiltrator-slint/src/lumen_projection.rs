@@ -9,7 +9,8 @@ pub(super) mod collections;
 
 use super::flag_assets;
 use super::slint_model;
-use super::{apply_theme_color, AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
+use super::{AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
+use crate::theme_util::apply_theme_color;
 use slint::ComponentHandle;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,

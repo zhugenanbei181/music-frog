@@ -1,0 +1,208 @@
+import { Button } from "std-widgets.slint";
+import { IconButton, NavigationBar, PopupMenu } from "@material";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "./theme.slint";
+
+export component AppBottomBar inherits Rectangle {
+    in property <string> page;
+    in property <length> window-width;
+    in property <length> window-height;
+    in property <length> safe-left;
+    in property <length> safe-right;
+    in property <length> safe-bottom;
+    in property <bool> layout-debug-bounds;
+
+    callback select-page(string);
+
+    width: min(360px * LumenUiScale.factor, max(0px * LumenUiScale.factor, root.window-width - root.safe-left - root.safe-right - 64px * LumenUiScale.factor));
+    x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.width) / 2;
+    y: root.window-height - root.safe-bottom - LumenTheme.navigation-height - LumenTheme.space-1;
+    height: LumenTheme.navigation-height;
+    border-width: 1px * LumenUiScale.factor;
+    border-color: LumenTheme.border;
+    border-radius: LumenTheme.navigation-height / 2;
+    background: LumenTheme.surface;
+    clip: true;
+
+    NavigationBar {
+        width: parent.width;
+        height: parent.height;
+        compact: true;
+        show-layout-bounds: root.layout-debug-bounds;
+        border-radius: LumenTheme.navigation-height / 2;
+        items: [
+            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/home.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/home-active.svg"), text: @tr("首页") },
+            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy-active.svg"), text: @tr("代理") },
+            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/config.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/config-active.svg"), text: @tr("配置") },
+            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings-active.svg"), text: @tr("设置") },
+        ];
+        current-index: root.page == "Home" ? 0 : root.page == "Proxy" ? 1 : root.page == "Config" ? 2 : 3;
+        index-changed(index) => {
+            root.select-page(index == 0 ? "Home" : index == 1 ? "Proxy" : index == 2 ? "Config" : "Settings");
+        }
+    }
+}
+
+export component ClearTrafficDialog inherits Rectangle {
+    in property <bool> compact-layout;
+
+    callback cancel();
+    callback confirm();
+
+    x: 0;
+    y: 0;
+    width: 100%;
+    height: 100%;
+    background: #99000000;
+
+    Rectangle {
+        x: root.compact-layout ? 16px * LumenUiScale.factor : (parent.width - 420px * LumenUiScale.factor) / 2;
+        y: (parent.height - 180px * LumenUiScale.factor) / 2;
+        width: root.compact-layout ? parent.width - 32px * LumenUiScale.factor : 420px * LumenUiScale.factor;
+        height: 180px * LumenUiScale.factor;
+        border-radius: 12px * LumenUiScale.factor;
+        background: LumenTheme.surface;
+        border-width: 1px * LumenUiScale.factor;
+        border-color: LumenTheme.border;
+
+        VerticalLayout {
+            x: 20px * LumenUiScale.factor;
+            y: 18px * LumenUiScale.factor;
+            width: parent.width - 40px * LumenUiScale.factor;
+            height: parent.height - 36px * LumenUiScale.factor;
+            spacing: 10px * LumenUiScale.factor;
+
+            Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 650; }
+            Text { text: @tr("将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
+            Rectangle { vertical-stretch: 1; background: transparent; }
+            HorizontalLayout {
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Button { text: @tr("取消"); clicked => { root.cancel(); } }
+                Button { text: @tr("清空"); clicked => { root.confirm(); } }
+            }
+        }
+    }
+}
+
+export component NoticeBanner inherits Rectangle {
+    in property <string> notice;
+    in property <length> window-width;
+    in property <length> window-height;
+    in property <length> safe-left;
+    in property <length> safe-right;
+    in property <length> safe-top;
+    in property <length> safe-bottom;
+    in property <bool> compact-layout;
+    in property <bool> primary-page;
+    in property <bool> bottom-bar-visible;
+
+    callback close();
+
+    x: root.safe-left + 12px * LumenUiScale.factor;
+    width: max(0px * LumenUiScale.factor, root.window-width - root.safe-left - root.safe-right - 24px * LumenUiScale.factor);
+    height: notice-content.min-height;
+    y: max(root.safe-top, root.window-height - root.safe-bottom - self.height - (root.compact-layout && root.primary-page && root.bottom-bar-visible ? LumenTheme.navigation-height + 24px * LumenUiScale.factor : 12px * LumenUiScale.factor));
+    z: 950;
+    background: LumenTheme.surface;
+    border-radius: 20px * LumenUiScale.factor;
+    border-width: 1px * LumenUiScale.factor;
+    border-color: LumenTheme.border;
+
+    notice-content := HorizontalLayout {
+        width: parent.width;
+        padding: 8px * LumenUiScale.factor;
+        spacing: 8px * LumenUiScale.factor;
+        cross-axis-alignment: center;
+        Text {
+            text: root.notice;
+            color: LumenTheme.text-primary;
+            font-size: 13px * LumenUiScale.factor;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+        IconButton {
+            width: 44px * LumenUiScale.factor;
+            height: 44px * LumenUiScale.factor;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
+            tooltip: @tr("关闭提示");
+            clicked => { root.close(); }
+        }
+    }
+}
+
+export component SettingsMessageBanner inherits Rectangle {
+    in property <string> message;
+    in property <length> window-width;
+    in property <length> safe-left;
+    in property <length> safe-right;
+    in property <length> safe-top;
+    in property <length> safe-bottom;
+
+    callback close();
+
+    x: root.safe-left + 12px * LumenUiScale.factor;
+    width: max(0px * LumenUiScale.factor, root.window-width - root.safe-left - root.safe-right - 24px * LumenUiScale.factor);
+    height: message-content.min-height;
+    y: max(root.safe-top, root.safe-top + 12px * LumenUiScale.factor);
+    background: LumenTheme.accent-soft;
+    border-radius: 24px * LumenUiScale.factor;
+
+    message-content := HorizontalLayout {
+        width: parent.width;
+        padding: 12px * LumenUiScale.factor;
+        spacing: 8px * LumenUiScale.factor;
+        cross-axis-alignment: center;
+        Text {
+            text: root.message;
+            color: LumenTheme.text-primary;
+            font-size: 14px * LumenUiScale.factor;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+        }
+        IconButton {
+            width: 48px * LumenUiScale.factor;
+            height: 48px * LumenUiScale.factor;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
+            tooltip: @tr("关闭提示");
+            clicked => { root.close(); }
+        }
+    }
+}
+
+export component ProxySortMenu inherits PopupMenu {
+    in property <length> window-width;
+    in property <length> safe-left;
+    in property <length> safe-right;
+    in property <length> safe-top;
+    in property <bool> layout-debug-bounds;
+    in property <bool> proxy-current-node-available;
+    in property <string> proxy-sort-mode;
+
+    callback locate-current-node();
+    callback set-sort(string);
+
+    x: root.safe-left + root.window-width - root.safe-right - self.width - 16px * LumenUiScale.factor;
+    y: root.safe-top + 72px * LumenUiScale.factor;
+    available_width: root.window-width - root.safe-left - root.safe-right;
+    first_item_height: 56px * LumenUiScale.factor;
+    row_height: 48px * LumenUiScale.factor;
+    show_layout_bounds: root.layout-debug-bounds;
+    divider_before_index: 1;
+    current_index: root.proxy-sort-mode == "name_asc" ? 1 : root.proxy-sort-mode == "name_desc" ? 2 : root.proxy-sort-mode == "latency_asc" ? 3 : root.proxy-sort-mode == "latency_desc" ? 4 : 3;
+    items: [
+        { text: @tr("定位当前节点"), enabled: root.proxy-current-node-available },
+        { text: @tr("按名称排序"), enabled: true },
+        { text: @tr("按名称降序"), enabled: true },
+        { text: @tr("按延迟排序"), enabled: true },
+        { text: @tr("按延迟降序"), enabled: true },
+    ];
+    activated(index) => {
+        self.close();
+        if index == 0 { root.locate-current-node(); }
+        else {
+            let mode = index == 1 ? "name_asc" : index == 2 ? "name_desc" : index == 3 ? "latency_asc" : "latency_desc";
+            root.set-sort(mode);
+        }
+    }
+}

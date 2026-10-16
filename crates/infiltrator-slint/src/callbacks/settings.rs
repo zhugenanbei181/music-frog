@@ -1,6 +1,7 @@
 //! Slint settings callbacks routed to the shared product owner.
 
 use super::super::*;
+use crate::theme_util::{apply_theme_color, hsv_hex, parse_color};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
