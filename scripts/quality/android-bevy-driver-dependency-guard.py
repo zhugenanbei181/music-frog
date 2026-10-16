@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""Keep the Android Bevy driver out of runtime and capture composition."""
+"""Keep the Android Bevy driver out of runtime and capture composition.
+
+This is a fast manifest/lock guard, not a `cargo tree` replacement: it must run
+before any toolchain install or registry cache exists, so it reads the committed
+driver lockfile instead of resolving the graph. The lockfile is a superset of the
+Android target closure, which keeps the forbidden-package check fail-closed.
+"""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 import re
-import subprocess
 import sys
+import tempfile
 import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DRIVER_MANIFEST = Path("android/bevy-host/driver/Cargo.toml")
+DRIVER_LOCK = Path("android/bevy-host/driver/Cargo.lock")
 UI_PACKAGE = "infiltrator-bevy-ui"
 UI_MANIFEST = Path("crates/infiltrator-bevy-ui/Cargo.toml")
 DRIVER_SOURCE = Path("android/bevy-host/driver/src/lib.rs")
@@ -22,15 +29,6 @@ FORBIDDEN_PACKAGES = {
     "infiltrator-composition",
     "mihomo-api",
     "infiltrator-platform",
-}
-FORBIDDEN_UI_FEATURES = {
-    "default",
-    "ui-application-projections",
-    "capture-tools",
-    "capture-controller",
-    "desktop-host",
-    "script-engine-boa",
-    "fixture-demo",
 }
 FORBIDDEN_DRIVER_SYMBOLS = {
     "run_demo",
@@ -46,33 +44,15 @@ FORBIDDEN_DRIVER_SYMBOLS = {
 }
 
 
-def package_names(tree: str) -> set[str]:
-    return {
-        match.group(1)
-        for line in tree.splitlines()
-        if (match := re.search(r"(?:^|[├└]── )([A-Za-z0-9_-]+) v[0-9]", line))
-    }
-
-
-def ui_features(tree: str) -> set[str]:
-    return {
-        match.group(1)
-        for line in tree.splitlines()
-        if (match := re.search(r'infiltrator-bevy-ui feature "([^"]+)"', line))
-    }
+def locked_package_names(root: Path) -> set[str]:
+    lock = tomllib.loads((root / DRIVER_LOCK).read_text(encoding="utf-8"))
+    return {package["name"] for package in lock["package"]}
 
 
 def dependency_problems(names: set[str]) -> list[str]:
     return [
-        f"Android Bevy driver normal closure contains forbidden package `{name}`"
+        f"Android Bevy driver resolved graph contains forbidden package `{name}`"
         for name in sorted(names & FORBIDDEN_PACKAGES)
-    ]
-
-
-def feature_problems(features: set[str]) -> list[str]:
-    return [
-        f"Android Bevy driver enables forbidden UI feature `{name}`"
-        for name in sorted(features & FORBIDDEN_UI_FEATURES)
     ]
 
 
@@ -148,30 +128,6 @@ def driver_source_manifest_problems(root: Path) -> list[str]:
     return driver_source_problems(source)
 
 
-def inspect_closure(root: Path) -> tuple[set[str], set[str]]:
-    command = [
-        "cargo",
-        "tree",
-        "--manifest-path",
-        str(root / DRIVER_MANIFEST),
-        "--offline",
-        "--locked",
-        "--target",
-        "aarch64-linux-android",
-        "-e",
-        "features",
-    ]
-    result = subprocess.run(
-        command,
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    return package_names(result.stdout), ui_features(result.stdout)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
@@ -183,18 +139,17 @@ def main() -> int:
     problems.extend(ui_default_manifest_problems(ROOT))
     problems.extend(driver_source_manifest_problems(ROOT))
     try:
-        names, features = inspect_closure(ROOT)
-    except (OSError, subprocess.SubprocessError) as error:
-        print(f"Android Bevy driver closure check failed: {error}", file=sys.stderr)
+        names = locked_package_names(ROOT)
+    except (OSError, KeyError, tomllib.TOMLDecodeError) as error:
+        print(f"Android Bevy driver lock inspection failed: {error}", file=sys.stderr)
         return 1
     problems.extend(dependency_problems(names))
-    problems.extend(feature_problems(features))
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
 
     print(
-        "Android Bevy driver runtime closure is isolated: "
+        "Android Bevy driver resolved graph is isolated: "
         "no Application, Android owner, composition, Mihomo API or platform package; "
         "capture/desktop/script features are disabled."
     )
@@ -202,18 +157,28 @@ def main() -> int:
 
 
 def self_test() -> int:
-    tree = """\
-├── infiltrator-bevy-ui v0.42.1
-"""
-    if package_names(tree) != {"infiltrator-bevy-ui"}:
-        print("package parser self-test failed", file=sys.stderr)
-        return 1
-    if ui_features(tree):
-        print("feature parser self-test failed", file=sys.stderr)
-        return 1
-    if dependency_problems(package_names(tree)):
-        print("isolated UI closure allow case self-test failed", file=sys.stderr)
-        return 1
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        lock = root / DRIVER_LOCK
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text(
+            '[[package]]\nname = "infiltrator-bevy-ui"\nversion = "0.0.0"\n',
+            encoding="utf-8",
+        )
+        if locked_package_names(root) != {"infiltrator-bevy-ui"}:
+            print("lock parser self-test failed", file=sys.stderr)
+            return 1
+        if dependency_problems(locked_package_names(root)):
+            print("isolated lock allow case self-test failed", file=sys.stderr)
+            return 1
+        lock.write_text(
+            '[[package]]\nname = "infiltrator-bevy-ui"\nversion = "0.0.0"\n\n'
+            '[[package]]\nname = "mihomo-api"\nversion = "0.0.0"\n',
+            encoding="utf-8",
+        )
+        if not dependency_problems(locked_package_names(root)):
+            print("forbidden package self-test failed", file=sys.stderr)
+            return 1
     if default_feature_problems({"default": ["script-engine-boa"]}):
         print("capture-free UI default feature self-test failed", file=sys.stderr)
         return 1
@@ -240,16 +205,6 @@ def self_test() -> int:
     """
     if not driver_source_problems(capture_source):
         print("capture source rejection self-test failed", file=sys.stderr)
-        return 1
-    forbidden = package_names(tree + "└── mihomo-api v0.1.0")
-    if "mihomo-api" not in forbidden or not dependency_problems(forbidden):
-        print("forbidden package self-test failed", file=sys.stderr)
-        return 1
-    bad_features = ui_features(
-        tree + '└── infiltrator-bevy-ui feature "capture-tools"'
-    )
-    if "capture-tools" not in bad_features or not feature_problems(bad_features):
-        print("forbidden feature self-test failed", file=sys.stderr)
         return 1
     print("Android Bevy driver dependency/symbol guard self-test passed")
     return 0

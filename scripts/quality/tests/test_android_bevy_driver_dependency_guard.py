@@ -24,29 +24,16 @@ class AndroidBevyDriverDependencyGuardTests(unittest.TestCase):
         self.assertEqual(
             guard.dependency_problems(names),
             [
-                "Android Bevy driver normal closure contains forbidden package `infiltrator-application`",
-                "Android Bevy driver normal closure contains forbidden package `infiltrator-composition`",
-                "Android Bevy driver normal closure contains forbidden package `mihomo-api`",
+                "Android Bevy driver resolved graph contains forbidden package `infiltrator-application`",
+                "Android Bevy driver resolved graph contains forbidden package `infiltrator-composition`",
+                "Android Bevy driver resolved graph contains forbidden package `mihomo-api`",
             ],
         )
 
-    def test_capture_and_desktop_features_are_rejected(self) -> None:
-        problems = guard.feature_problems(
-            {"capture-tools", "desktop-host", "ui-application-projections", "fixture-demo"}
-        )
-        self.assertIn(
-            "Android Bevy driver enables forbidden UI feature `ui-application-projections`",
-            problems,
-        )
-        self.assertIn(
-            "Android Bevy driver enables forbidden UI feature `capture-tools`", problems
-        )
-        self.assertIn(
-            "Android Bevy driver enables forbidden UI feature `desktop-host`", problems
-        )
-        self.assertIn(
-            "Android Bevy driver enables forbidden UI feature `fixture-demo`", problems
-        )
+    def test_driver_lock_is_the_closure_authority(self) -> None:
+        names = guard.locked_package_names(ROOT)
+        self.assertIn("infiltrator-bevy-ui", names)
+        self.assertEqual(names & guard.FORBIDDEN_PACKAGES, set())
 
     def test_driver_manifest_disables_all_ui_features(self) -> None:
         self.assertEqual(guard.manifest_problems(ROOT), [])
