@@ -203,7 +203,7 @@ def main() -> int:
 
 def self_test() -> int:
     tree = """\
-├── infiltrator-bevy-ui v0.42.0
+├── infiltrator-bevy-ui v0.42.1
 """
     if package_names(tree) != {"infiltrator-bevy-ui"}:
         print("package parser self-test failed", file=sys.stderr)

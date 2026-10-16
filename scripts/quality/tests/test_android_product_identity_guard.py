@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import tomllib
 import unittest
 from zipfile import ZipFile
 from unittest.mock import patch
@@ -81,8 +82,18 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_compose_and_bevy_version_codes_derive_from_the_shared_version(self):
         identity = GUARD.read_properties()
-        self.assertEqual(GUARD.get_value(identity, "compose.version_code"), "42000")
-        self.assertEqual(GUARD.get_value(identity, "bevy.version_code"), "16787968")
+        major, minor, patch = GUARD.version_parts(identity)
+        self.assertEqual(
+            GUARD.get_value(identity, "compose.version_code"),
+            str(major * 1_000_000 + minor * 1_000 + patch),
+        )
+        self.assertEqual(
+            GUARD.get_value(identity, "bevy.version_code"),
+            str((1 << 24) | (major << 16) | (minor << 8) | patch),
+        )
+        registry = (REPO / "product-identity.properties").read_text(encoding="utf-8")
+        self.assertNotIn("compose.version_code=", registry)
+        self.assertNotIn("bevy.version_code=", registry)
 
     def test_product_crate_cannot_override_the_workspace_release_version(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -95,7 +106,8 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_product_version_is_read_from_the_workspace_not_the_android_registry(self):
         identity = GUARD.read_properties()
-        self.assertEqual(identity["version.name"], "0.42.0")
+        workspace = tomllib.loads((REPO / "Cargo.toml").read_text(encoding="utf-8"))
+        self.assertEqual(identity["version.name"], workspace["workspace"]["package"]["version"])
         registry = (REPO / "product-identity.properties").read_text(encoding="utf-8")
         self.assertNotIn("version.name=", registry)
 
@@ -217,8 +229,9 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_release_tag_must_match_the_registry_version(self):
         identity = GUARD.read_properties()
-        self.assertEqual(GUARD.release_tag_problems(identity, "v0.42.0"), [])
-        self.assertTrue(GUARD.release_tag_problems(identity, "v0.43.0"))
+        major, minor, patch = GUARD.version_parts(identity)
+        self.assertEqual(GUARD.release_tag_problems(identity, f"v{major}.{minor}.{patch}"), [])
+        self.assertTrue(GUARD.release_tag_problems(identity, f"v{major}.{minor}.{patch + 1}"))
 
     def test_unregistered_product_reference_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -429,6 +442,8 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_final_apk_badging_checks_package_version_name_and_icon(self):
         identity = GUARD.read_properties()
+        version_name = identity["version.name"]
+        version_code = GUARD.get_value(identity, "compose.version_code")
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / "compose.apk"
             icon_source = REPO / identity["compose.icon_asset"]
@@ -436,7 +451,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
                 archive.write(icon_source, "res/b7.png")
             badging = "\n".join(
                 (
-                    "package: name='com.musicfrog.infiltrator' versionCode='42000' versionName='0.42.0'",
+                    f"package: name='com.musicfrog.infiltrator' versionCode='{version_code}' versionName='{version_name}'",
                     "application-label:'MusicFrog Infiltrator'",
                     "application-icon-320:'res/b7.png'",
                 )
@@ -447,13 +462,15 @@ class AndroidProductIdentityRules(unittest.TestCase):
 
     def test_final_apk_icon_path_must_exist_in_the_apk(self):
         identity = GUARD.read_properties()
+        version_name = identity["version.name"]
+        version_code = GUARD.get_value(identity, "compose.version_code")
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / "compose.apk"
             with ZipFile(apk, "w") as archive:
                 archive.writestr("res/other.png", b"not the launcher icon")
             badging = "\n".join(
                 (
-                    "package: name='com.musicfrog.infiltrator' versionCode='42000' versionName='0.42.0'",
+                    f"package: name='com.musicfrog.infiltrator' versionCode='{version_code}' versionName='{version_name}'",
                     "application-label:'MusicFrog Infiltrator'",
                     "application-icon-320:'res/b7.png'",
                 )
