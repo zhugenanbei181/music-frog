@@ -18,8 +18,9 @@ Thumbs.db
 __pycache__/
 *.pyc
 
-# Local AI tool cache
+# Local AI tool state (per-session caches and plans; never product sources)
 .mimosa/
+.zcode/
 .claude/settings.local.json
 .claude/worktrees/
 
@@ -37,23 +38,17 @@ vendor/
 *.db-shm
 *.db-wal
 
-# Documentation
-ANDROID.md
-GEMINI.md
-CHANGELOG.md
-coding.md
-WebAdminDoc.md
+# Private local notes (never committed)
 .private/
-ANDROID_BACKFILL_CHECKLIST.md
-CLEANUP_CHECKLIST.md
-.markdownlint-cli2.jsonc
-.markdownlint.json
-.markdownlintignore
+
+# Historical documents are local reference only; do not track archive contents.
+/docs/archive/
 
 # Build outputs
 *.msi
 *.exe
-# Android build outputs
+
+# Android build outputs and local toolchain configuration
 android/.gradle/
 android/.idea/
 android/.kotlin/
@@ -71,11 +66,7 @@ android/app/src/slint/jniLibs/
 android/local.properties
 android/app/src/main/assets/mihomo/mihomo-android-arm64-v8
 android/app/src/main/java/infiltrator_android/
-android/android/
 android/Medium-Phone-*
 
 # Bevy UI local render evidence; keep captures out of Git.
 crates/infiltrator-bevy-ui/docs/screenshots/bevy/
-
-# Historical documents are local reference only; do not track archive contents.
-/docs/archive/
