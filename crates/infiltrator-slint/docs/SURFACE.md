@@ -50,7 +50,7 @@
      - `ui/components/app_chrome.slint`：移动端悬浮底栏、清空流量弹窗、通知/消息气泡与节点排序菜单；
      - `ui/components/app_body.slint`：桌面/移动端弹性主体容器与滚动锚定；
      - `ui/pages/page_*.slint` 与 `pages_*.slint`：分领域页面与路由集群；
-     - `ui/lumen-app.slint`：轻量级主页面根骨架（从 3587 行解耦并缩减至 591 行）；
+     - `ui/lumen-app.slint`：轻量级主页面根骨架（从 3587 行解耦并缩减至 599 行）；
    - 所有触控交互控件均遵循移动端 $\ge 48\text{px} \times \text{LumenUiScale.factor}$ 最小触控热区规范；
    - 由 `scripts/quality/slint-syntax-guard.py` 门禁执行单文件 $\le 600$ 行预算与严禁硬编码状态色约束（100% 通过）。
 
