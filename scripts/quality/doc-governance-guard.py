@@ -158,6 +158,11 @@ def check_file(
             continue
         if target_rel.startswith("target/"):
             continue
+        if target_rel.split("/", 1)[0].startswith("."):
+            # The local ledger links into gitignored local artifacts (.evidence/,
+            # .private/, ...). Those never exist in a CI checkout, so they are not
+            # broken links; markdown_files already skips the same dot-directories.
+            continue
         if not target.exists():
             violations.append(f"broken relative link '{link}'")
             continue
@@ -270,6 +275,12 @@ def self_test() -> int:
             encoding="utf-8",
         )
         assert any("upward link to L2" in issue for issue in check_file(todo, root))
+
+        todo.write_text(
+            "# Local ledger\n\n> 层级：L4\n\n[Evidence](.evidence/old-board.md)\n",
+            encoding="utf-8",
+        )
+        assert check_file(todo, root) == []
 
         unclassified = root / "misc/NOTE.md"
         unclassified.parent.mkdir(parents=True)

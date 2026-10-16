@@ -602,12 +602,31 @@ jobs:
           print(f"validated {len(artifacts)} release artifacts and {len(packages)} updater packages")
           PY
 
+      - name: Write release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/RELEASE_NOTES.md" <<'EOF'
+          Engine-neutral proxy client for desktop and Android that manages the **Mihomo** and **sing-box** cores.
+
+          ### Desktop
+          - Iced / Bevy / Slint surfaces
+          - Linux: AppImage, `.deb` and tarball for x86_64 and aarch64
+          - Windows: NSIS installer (x86_64) and ZIP for x86_64 / arm64
+
+          ### Android
+          - Compose / Bevy / Slint APKs (arm64-v8a, x86_64)
+
+          Every package bundles the pinned, hash-verified Mihomo kernel; sing-box is managed through the engine-neutral Core. See `release-manifest.json` and `SHA256SUMS.txt` for artifact integrity.
+          EOF
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          name: MusicFrog Infiltrator ${{ github.ref_name }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/RELEASE_NOTES.md
           files: |
             release-dist/*
