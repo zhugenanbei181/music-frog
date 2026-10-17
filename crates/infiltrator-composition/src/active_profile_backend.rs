@@ -32,6 +32,9 @@ use lurker_core_ports::engine_switch::{
 };
 use lurker_core_ports::error::PortError;
 use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
+use lurker_engine_runtime::switch::coordinator::{
+    EngineSwitchCoordinator, EngineSwitchReservation,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -74,6 +77,17 @@ pub struct SelectedActiveProfileBackend {
 enum SelectedOwnerAdmission {
     SelectionLease(Box<dyn ActiveProfileReferenceLease>),
     SwitchReservation(Box<dyn EngineOwnerBindingLease<ActiveProfileReferenceState>>),
+    /// Forward switch driven by the neutral coordinator. The reservation is the
+    /// exact `BindingNew` handoff; the host constructs the candidate
+    /// `CoreApplication` from the reservation's dispatched bundle and hands the
+    /// reservation back to the same coordinator to finalize or roll back.
+    CoordinatorReservation {
+        coordinator: Arc<
+            EngineSwitchCoordinator<ProductEngineBackendPorts, dyn ActiveProfileReferenceStore>,
+        >,
+        reservation:
+            Box<EngineSwitchReservation<ProductEngineBackendPorts, ActiveProfileReferenceState>>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,6 +173,14 @@ impl SelectedActiveProfileBackend {
                 .abort_before_core_application()
                 .await
                 .map(|snapshot| snapshot.selection),
+            SelectedOwnerAdmission::CoordinatorReservation {
+                coordinator,
+                reservation,
+            } => coordinator
+                .cancel_reserved(*reservation)
+                .await
+                .map(|snapshot| snapshot.selection)
+                .map_err(|error| error.cause),
         }
     }
 
@@ -181,6 +203,14 @@ impl SelectedActiveProfileBackend {
                 .discard_unstarted_candidate(CoreGeneration::new(terminal.generation))
                 .await
                 .map(|_| ()),
+            SelectedOwnerAdmission::CoordinatorReservation {
+                coordinator,
+                reservation,
+            } => coordinator
+                .discard_reserved(*reservation, CoreGeneration::new(terminal.generation))
+                .await
+                .map(|_| ())
+                .map_err(|error| error.cause),
         }
     }
 
@@ -244,6 +274,60 @@ impl SelectedActiveProfileBackend {
                         binding
                             .discard_unstarted_candidate(CoreGeneration::new(terminal.generation))
                             .await?;
+                    }
+                    CandidateApplicationAdmission::StartedOrUnknown => {}
+                }
+                Err(PortError::Rejected(Failure::new(
+                    ErrorCode::InvalidState,
+                    "constructed CoreApplication identity or initial state does not match the selected backend",
+                    false,
+                )))
+            }
+            SelectedOwnerAdmission::CoordinatorReservation {
+                coordinator,
+                reservation,
+            } => {
+                let before = application.snapshot().lifecycle_snapshot();
+                let admission = classify_candidate_application(
+                    &before,
+                    &self.core_identity,
+                    self.initial_generation,
+                );
+                match admission {
+                    CandidateApplicationAdmission::ExactUnstarted => {
+                        coordinator
+                            .finalize_reserved(
+                                *reservation,
+                                self.core_identity.clone(),
+                                self.initial_generation,
+                            )
+                            .await
+                            .map_err(|error| error.cause)?;
+                        return self
+                            .owner_store
+                            .adopt_finalized_owner(self.core_identity, self.initial_generation)
+                            .await;
+                    }
+                    CandidateApplicationAdmission::ForeignUnstarted
+                    | CandidateApplicationAdmission::StartedOrUnknown => {}
+                }
+
+                application
+                    .close()
+                    .await
+                    .map_err(|failure| PortError::Rejected(failure))?;
+                let terminal = application.snapshot().lifecycle_snapshot();
+                verify_candidate_terminal(&before, &terminal)?;
+                match admission {
+                    CandidateApplicationAdmission::ExactUnstarted => unreachable!(),
+                    CandidateApplicationAdmission::ForeignUnstarted => {
+                        coordinator
+                            .discard_reserved(
+                                *reservation,
+                                CoreGeneration::new(terminal.generation),
+                            )
+                            .await
+                            .map_err(|error| error.cause)?;
                     }
                     CandidateApplicationAdmission::StartedOrUnknown => {}
                 }

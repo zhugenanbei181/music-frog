@@ -141,13 +141,6 @@ impl RecordingHost {
             .push(call);
     }
 
-    fn calls(&self) -> Vec<HostCall> {
-        self.log
-            .lock()
-            .expect("test host log lock is not poisoned")
-            .clone()
-    }
-
     fn take_log(&self) -> Vec<HostCall> {
         mem::take(&mut *self.log.lock().expect("test host log lock is not poisoned"))
     }
@@ -360,7 +353,68 @@ fn failure_before_old_close_rolls_back_and_keeps_owner_bound() {
 }
 
 #[test]
-fn reservation_can_be_cancelled_before_old_owner_close() {
+fn reserved_switch_stops_at_binding_new_after_the_old_terminal() {
+    let fixture = fixture(HostFaults::default());
+
+    let reservation = block_on(
+        fixture
+            .coordinator
+            .reserve_switch(EngineSwitchRevision::new(1), selected(singbox())),
+    )
+    .expect("switch reserves to the new-owner admission");
+
+    // The old owner reached its exact terminal before the host may apply the
+    // candidate: `Apply` is not recorded until the host finishes the handoff.
+    assert_eq!(
+        fixture.host.take_log(),
+        vec![HostCall::Validate, HostCall::Prepare, HostCall::Terminate]
+    );
+    assert_eq!(reservation.previous_selection(), &mihomo());
+    assert_eq!(reservation.selection(), &singbox());
+    assert_eq!(reservation.engine_id(), &singbox());
+    assert_eq!(
+        reservation.candidate_identity(),
+        &candidate_identity(&singbox())
+    );
+    assert_eq!(
+        reservation.previous_owner().0,
+        &old_identity(),
+        "the reservation keeps the exact terminated owner"
+    );
+    assert_eq!(reservation.terminal_generation(), old_generation());
+    assert_eq!(reservation.backend().engine_id, singbox());
+    assert_eq!(
+        reservation.snapshot().owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::BindingNew {
+                selection: singbox(),
+                engine_id: singbox(),
+            },
+        }
+    );
+
+    let snapshot = block_on(fixture.coordinator.finalize_reserved(
+        reservation,
+        candidate_identity(&singbox()),
+        CoreGeneration::new(1),
+    ))
+    .expect("the host binds the exact applied candidate");
+    assert_eq!(snapshot.selection, singbox());
+    assert_eq!(
+        snapshot.owner,
+        EngineOwnerState::Bound {
+            identity: candidate_identity(&singbox()),
+            generation: CoreGeneration::new(1),
+        }
+    );
+    assert!(
+        fixture.host.take_log().is_empty(),
+        "the deferred host applies the candidate itself; finalize must not re-apply it"
+    );
+}
+
+#[test]
+fn reserved_switch_is_cancelled_after_the_old_owner_closed() {
     let fixture = fixture(HostFaults::default());
 
     let reservation = block_on(
@@ -369,26 +423,79 @@ fn reservation_can_be_cancelled_before_old_owner_close() {
             .reserve_switch(EngineSwitchRevision::new(1), selected(singbox())),
     )
     .expect("switch reserves");
-    assert_eq!(
-        fixture.host.calls(),
-        vec![HostCall::Validate, HostCall::Prepare]
-    );
 
     let snapshot =
-        block_on(fixture.coordinator.cancel_switch(reservation)).expect("reservation cancels");
+        block_on(fixture.coordinator.cancel_reserved(reservation)).expect("reservation cancels");
+    // The old owner cannot be restored: it already reached its terminal. The
+    // committed selection stays and the journal becomes unowned.
+    assert_eq!(snapshot.selection, singbox());
+    assert_eq!(snapshot.owner, EngineOwnerState::Unowned);
     assert_eq!(
         fixture.host.take_log(),
-        vec![HostCall::Validate, HostCall::Prepare, HostCall::Close]
+        vec![HostCall::Validate, HostCall::Prepare, HostCall::Terminate]
     );
-    assert_eq!(snapshot.selection, mihomo());
-    assert_eq!(
+}
+
+#[test]
+fn reserved_switch_can_discard_a_proven_unstarted_candidate() {
+    let fixture = fixture(HostFaults::default());
+
+    let reservation = block_on(
+        fixture
+            .coordinator
+            .reserve_switch(EngineSwitchRevision::new(1), selected(singbox())),
+    )
+    .expect("switch reserves");
+
+    let snapshot = block_on(
+        fixture
+            .coordinator
+            .discard_reserved(reservation, CoreGeneration::new(0)),
+    )
+    .expect("a proven unstarted candidate is discarded");
+
+    assert_eq!(snapshot.selection, singbox());
+    assert!(matches!(
         snapshot.owner,
-        EngineOwnerState::Bound {
-            identity: old_identity(),
-            generation: old_generation(),
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::SelectionChanged { .. }
         }
-    );
-    assert_eq!(snapshot.revision, EngineSwitchRevision::new(3));
+    ));
+}
+
+#[test]
+fn finalize_reserved_rejects_a_mismatching_candidate_and_stays_resumable() {
+    let fixture = fixture(HostFaults::default());
+
+    let reservation = block_on(
+        fixture
+            .coordinator
+            .reserve_switch(EngineSwitchRevision::new(1), selected(singbox())),
+    )
+    .expect("switch reserves");
+    let pending = reservation.snapshot().clone();
+
+    let error = block_on(fixture.coordinator.finalize_reserved(
+        reservation,
+        CoreIdentity::new(
+            singbox(),
+            CoreInstanceId::new("foreign-instance").expect("test instance ID is valid"),
+            None,
+        ),
+        CoreGeneration::new(1),
+    ))
+    .expect_switch_error("a mismatching applied identity cannot bind");
+    assert_eq!(error.phase, EngineSwitchFailurePhase::OldOwnerClosed);
+    assert!(error.is_recovery_required());
+
+    let after = block_on(fixture.journal.snapshot()).expect("journal snapshot reads");
+    assert_eq!(after, pending);
+    assert!(matches!(
+        after.owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::BindingNew { .. }
+        }
+    ));
 }
 
 #[test]

@@ -267,14 +267,13 @@ async fn retry_rejects_a_binding_new_candidate_without_exact_terminal_evidence()
 }
 
 #[tokio::test]
-async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_owner_close() {
+async fn deleted_target_after_preflight_is_revalidated_before_the_durable_reservation() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let source_reference = reference("mihomo", "main", 7);
     let target_deleted = Arc::new(AtomicBool::new(false));
-    let refs = Arc::new(MemoryReferenceStore::with_target_deletion_on_begin(
+    let refs = Arc::new(MemoryReferenceStore::with_events(
         source_reference.clone(),
         Arc::clone(&events),
-        Arc::clone(&target_deleted),
     ));
     let profile_store = Arc::new(
         FakeProfileStore::new("sing-box", "sing-box", "primary")
@@ -282,6 +281,7 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
     );
     let store: Arc<dyn ProfileStore> = profile_store.clone();
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let provider = provider.deleting_target_on_dispatch(Arc::clone(&target_deleted));
     let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
@@ -314,9 +314,11 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
         switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Rejected(_)
     ));
+    // Preflight, the transaction validation and the candidate preparation all
+    // re-read the exact target document.
     assert_eq!(profile_store.workspace_reads.load(Ordering::SeqCst), 3);
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
-    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(refs.read().await.unwrap(), source_reference);
     assert_eq!(
         *refs.owner.lock().expect("owner state"),
@@ -326,13 +328,11 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
         }
     );
     assert_eq!(*refs.transition.lock().expect("switch state"), None);
+    // The candidate was dispatched (that is what deleted the target) and then
+    // rejected before any durable reservation existed.
     assert_eq!(
         *events.lock().expect("event lock"),
-        vec![
-            "target-deleted-before-reservation",
-            "switch-reserved",
-            "switch-cancelled",
-        ]
+        vec!["target-deleted-before-reservation", "provider:sing-box",]
     );
 }
 
@@ -561,6 +561,7 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
     assert_eq!(
         *events.lock().unwrap(),
         vec![
+            "provider:sing-box",
             "switch-reserved",
             "old-owner-close",
             "close-root-read",
@@ -569,7 +570,6 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
             "old-owner-released",
             "old-owner-confirmed",
             "reference-cas",
-            "provider:sing-box",
             "new-owner-reserved",
             "new-owner-bound",
         ]
@@ -653,6 +653,7 @@ async fn same_engine_profile_replacement_uses_the_same_durable_owner_transaction
     assert_eq!(
         *events.lock().unwrap(),
         vec![
+            "provider:sing-box",
             "switch-reserved",
             "old-owner-close",
             "close-root-read",
@@ -661,7 +662,6 @@ async fn same_engine_profile_replacement_uses_the_same_durable_owner_transaction
             "old-owner-released",
             "old-owner-confirmed",
             "reference-cas",
-            "provider:sing-box",
             "new-owner-reserved",
             "new-owner-bound",
         ]

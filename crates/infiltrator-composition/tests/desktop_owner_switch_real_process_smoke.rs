@@ -22,9 +22,7 @@ use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use lurker_core_contract::engine_switch::{
-    EngineOwnerState, EngineSwitchFailurePhase, EngineSwitchStage,
-};
+use lurker_core_contract::engine_switch::{EngineOwnerState, EngineSwitchFailurePhase};
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
@@ -446,24 +444,16 @@ async fn run_owner_switch_smoke(
         .replace_owner_for_profile(
             target_sing_box.clone(),
             &sing_box_document,
-            &PreviousCoreOwner::Owned(mihomo_owner),
+            &PreviousCoreOwner::Owned(Arc::clone(&mihomo_owner)),
         )
         .await;
-    let mihomo_terminal = mihomo_application.snapshot().lifecycle_snapshot();
-    if mihomo_terminal.lifecycle != CoreLifecycle::Stopped
-        || mihomo_terminal.session_token.is_some()
-    {
-        return Err(format!(
-            "Mihomo owner did not produce a terminal readback: {mihomo_terminal:?}"
-        ));
-    }
     match first_switch {
-        Err(error) if error.phase == EngineSwitchFailurePhase::OldOwnerClosed => {
+        Err(error) if error.phase == EngineSwitchFailurePhase::BeforeReservation => {
             if !error
                 .to_string()
                 .contains("injected one-time sing-box candidate dispatch failure")
             {
-                return Err(format!("unexpected recovered switch failure: {error}"));
+                return Err(format!("unexpected rolled-back switch failure: {error}"));
             }
         }
         Err(error) => {
@@ -479,11 +469,19 @@ async fn run_owner_switch_smoke(
             return Err("the first sing-box candidate dispatch did not fail as injected".into());
         }
     }
+    // Dispatch precedes the durable reservation, so the failed candidate never
+    // touched the live Mihomo owner or the committed selection.
+    let mihomo_live = mihomo_application.snapshot().lifecycle_snapshot();
+    if mihomo_live.lifecycle == CoreLifecycle::Stopped || mihomo_live.session_token.is_none() {
+        return Err(format!(
+            "a rolled-back dispatch failure touched the Mihomo owner: {mihomo_live:?}"
+        ));
+    }
     require_active_reference(
         references.as_ref(),
-        EngineId::sing_box(),
+        EngineId::new("mihomo").map_err(|error| error.to_string())?,
         profile_id.clone(),
-        2,
+        1,
     )
     .await?;
     match references
@@ -491,25 +489,22 @@ async fn run_owner_switch_smoke(
         .await
         .map_err(|error| format!("read durable owner-switch snapshot: {error}"))?
     {
-        snapshot
-            if matches!(
-                snapshot.owner,
-                EngineOwnerState::Switching {
-                    stage: EngineSwitchStage::SelectionChanged { .. }
-                }
-            ) => {}
+        snapshot if matches!(snapshot.owner, EngineOwnerState::Bound { .. }) => {}
         _ => {
             return Err(
-                "failed candidate dispatch did not leave the resumable selection-changed journal"
-                    .into(),
+                "a rolled-back candidate dispatch changed the durable owner-switch journal".into(),
             );
         }
     }
     let sing_box_selected = selector
-        .resume_owner_switch_for_profile(target_sing_box, &sing_box_document, &mihomo_terminal)
+        .replace_owner_for_profile(
+            target_sing_box,
+            &sing_box_document,
+            &PreviousCoreOwner::Owned(mihomo_owner),
+        )
         .await
         .map_err(|error| {
-            format!("recover sing-box selection from old terminal readback: {error}")
+            format!("retry the sing-box owner switch after the rolled-back dispatch: {error}")
         })?;
     let sing_box_application = compose_owner(
         sing_box_selected,

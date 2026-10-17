@@ -175,6 +175,7 @@ pub(crate) struct FakeProvider {
     events: Arc<Mutex<Vec<String>>>,
     identity_engine_override: Option<EngineId>,
     fail_creation: bool,
+    delete_target_on_dispatch: Option<Arc<AtomicBool>>,
 }
 
 impl FakeProvider {
@@ -192,6 +193,7 @@ impl FakeProvider {
                 events,
                 identity_engine_override: None,
                 fail_creation: false,
+                delete_target_on_dispatch: None,
             },
             counts,
         )
@@ -206,6 +208,14 @@ impl FakeProvider {
         self.fail_creation = true;
         self
     }
+
+    /// Delete the target profile document as soon as the provider is
+    /// dispatched, i.e. after the product preflight but before the durable
+    /// reservation.
+    pub(crate) fn deleting_target_on_dispatch(mut self, deleted: Arc<AtomicBool>) -> Self {
+        self.delete_target_on_dispatch = Some(deleted);
+        self
+    }
 }
 
 impl EngineBackendProvider<ProductEngineBackendPorts> for FakeProvider {
@@ -214,6 +224,13 @@ impl EngineBackendProvider<ProductEngineBackendPorts> for FakeProvider {
     }
 
     fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
+        if let Some(deleted) = &self.delete_target_on_dispatch {
+            deleted.store(true, Ordering::SeqCst);
+            self.events
+                .lock()
+                .expect("event lock")
+                .push("target-deleted-before-reservation".into());
+        }
         self.counts.created.fetch_add(1, Ordering::SeqCst);
         self.events
             .lock()

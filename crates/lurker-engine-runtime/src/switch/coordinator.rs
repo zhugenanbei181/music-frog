@@ -11,13 +11,29 @@
 //! 4. reserve the switch (`ClosingOld`);
 //! 5. terminate the exact old owner and confirm its terminal generation;
 //! 6. compare-and-set the new selection (`SelectionChanged`);
-//! 7. reserve the new owner admission (`BindingNew`);
-//! 8. apply the candidate and finalize the exact bound owner.
+//! 7. reserve the new owner admission (`BindingNew`).
 //!
-//! A failure before step 5 can be cancelled back to the previous binding. A
-//! failure from step 5 onwards never pretends the old owner still exists: the
-//! result carries `RecoveryRequired`, and the journal keeps the exact stage
-//! and terminal evidence needed to resume.
+//! [`EngineSwitchCoordinator::reserve_switch`] stops at step 7 and hands the
+//! dispatched bundle, the prepared candidate, the durable
+//! [`EngineOwnerBindingLease`] and the exact snapshot to the embedding host.
+//! The host finishes the switch with
+//! [`EngineSwitchCoordinator::finalize_reserved`], releases an unstarted
+//! candidate with [`EngineSwitchCoordinator::cancel_reserved`] or
+//! [`EngineSwitchCoordinator::discard_reserved`]. Hosts that own application
+//! themselves use [`EngineSwitchCoordinator::finalize_switch`], and
+//! [`EngineSwitchCoordinator::switch_and_finalize`] is the thin one-shot
+//! wrapper over the very same protocol.
+//!
+//! Dispatch happens before the durable reservation on purpose: a provider that
+//! cannot produce the candidate bundle fails while the previous binding is
+//! still exactly bound, so a failed dispatch can never leave a changed
+//! selection behind.
+//!
+//! A failure before step 4 leaves the journal untouched and is reported as
+//! rolled back to the previous binding. A failure from step 5 onwards never
+//! pretends the old owner still exists: the result carries `RecoveryRequired`,
+//! and the journal keeps the exact stage and terminal evidence needed to
+//! resume.
 
 use crate::registry::EngineBackendProviderRegistry;
 use crate::switch::error::EngineSwitchError;
@@ -29,27 +45,31 @@ use lurker_core_contract::engine_switch::{
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use lurker_core_ports::engine_backend::EngineBackendBundle;
-use lurker_core_ports::engine_switch::{EngineOwnerSwitchLease, EngineSwitchJournal};
+use lurker_core_ports::engine_switch::{EngineOwnerBindingLease, EngineSwitchJournal};
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
-/// One successful pre-termination reservation.
+/// One switch advanced all the way to its durable `BindingNew` admission.
 ///
-/// The caller may either hand it back to [`EngineSwitchCoordinator::cancel_switch`]
-/// or continue with [`EngineSwitchCoordinator::finalize_switch`].
+/// The value is the exact handoff between the coordinator and the host that
+/// owns application: it carries the dispatched bundle the host must apply, the
+/// identity the coordinator prepared, the durable binding lease and the
+/// readback snapshot of the stopped-old-owner reservation.
 pub struct EngineSwitchReservation<B, S>
 where
     B: EngineBackendBundle,
     S: Clone + Eq + Send + Sync + 'static,
 {
     previous: S,
-    owner_identity: CoreIdentity,
-    owner_generation: CoreGeneration,
+    previous_owner: CoreIdentity,
+    previous_generation: CoreGeneration,
+    terminal_generation: CoreGeneration,
     engine_id: EngineId,
     selection: S,
-    candidate_identity: CoreIdentity,
+    candidate: CoreIdentity,
     backend: B,
-    lease: Box<dyn EngineOwnerSwitchLease<S>>,
+    binding: Box<dyn EngineOwnerBindingLease<S>>,
+    snapshot: EngineSwitchSnapshot<S>,
 }
 
 impl<B, S> EngineSwitchReservation<B, S>
@@ -57,20 +77,44 @@ where
     B: EngineBackendBundle,
     S: Clone + Eq + Send + Sync + 'static,
 {
+    /// The selection the exact previous owner was bound to.
     pub fn previous_selection(&self) -> &S {
         &self.previous
     }
 
+    /// The committed replacement selection.
     pub fn selection(&self) -> &S {
         &self.selection
     }
 
+    /// The engine of the committed replacement selection.
     pub fn engine_id(&self) -> &EngineId {
         &self.engine_id
     }
 
+    /// The exact identity the coordinator prepared for the candidate.
     pub fn candidate_identity(&self) -> &CoreIdentity {
-        &self.candidate_identity
+        &self.candidate
+    }
+
+    /// The exact identity and binding generation of the terminated owner.
+    pub fn previous_owner(&self) -> (&CoreIdentity, CoreGeneration) {
+        (&self.previous_owner, self.previous_generation)
+    }
+
+    /// The exact terminal generation observed for the previous owner.
+    pub fn terminal_generation(&self) -> CoreGeneration {
+        self.terminal_generation
+    }
+
+    /// The dispatched bundle the host applies to construct the candidate owner.
+    pub fn backend(&self) -> &B {
+        &self.backend
+    }
+
+    /// The durable readback at the `BindingNew` admission.
+    pub fn snapshot(&self) -> &EngineSwitchSnapshot<S> {
+        &self.snapshot
     }
 }
 
@@ -78,17 +122,31 @@ where
 pub struct EngineSwitchCoordinator<B, J>
 where
     B: EngineBackendBundle,
-    J: EngineSwitchJournal,
+    J: EngineSwitchJournal + ?Sized,
 {
     registry: Arc<EngineBackendProviderRegistry<B>>,
     journal: Arc<J>,
     host: Arc<dyn EngineSwitchHost<B, J::Selection>>,
 }
 
+impl<B, J> Clone for EngineSwitchCoordinator<B, J>
+where
+    B: EngineBackendBundle,
+    J: EngineSwitchJournal + ?Sized,
+{
+    fn clone(&self) -> Self {
+        Self {
+            registry: Arc::clone(&self.registry),
+            journal: Arc::clone(&self.journal),
+            host: Arc::clone(&self.host),
+        }
+    }
+}
+
 impl<B, J> EngineSwitchCoordinator<B, J>
 where
     B: EngineBackendBundle,
-    J: EngineSwitchJournal,
+    J: EngineSwitchJournal + ?Sized,
 {
     pub fn new(
         registry: Arc<EngineBackendProviderRegistry<B>>,
@@ -110,8 +168,15 @@ where
         self.journal.snapshot().await
     }
 
-    /// Validate, dispatch, prepare and reserve a switch without touching the
-    /// previous owner.
+    /// Validate, dispatch, prepare and run the whole forward switch until the
+    /// durable `BindingNew` admission exists.
+    ///
+    /// The candidate is dispatched and prepared **before** the durable
+    /// reservation, so a failed dispatch leaves the previous binding exactly
+    /// as it was. On success the previous owner is already terminated and the
+    /// caller must finish with [`Self::finalize_reserved`],
+    /// [`Self::cancel_reserved`] or [`Self::discard_reserved`]; every later
+    /// failure is `RecoveryRequired`.
     pub async fn reserve_switch(
         &self,
         expected_revision: EngineSwitchRevision,
@@ -138,7 +203,7 @@ where
             let cause = stale_revision(expected_revision, snapshot.revision);
             return Err(self.before_reservation(cause).await);
         }
-        let (owner_identity, owner_generation) = match &snapshot.owner {
+        let (previous_owner, previous_generation) = match &snapshot.owner {
             EngineOwnerState::Bound {
                 identity,
                 generation,
@@ -156,7 +221,7 @@ where
             Ok(backend) => backend,
             Err(cause) => return Err(self.before_reservation(cause).await),
         };
-        let candidate_identity = match self
+        let candidate = match self
             .host
             .prepare_candidate(&engine_id, &selection, &backend)
             .await
@@ -164,11 +229,11 @@ where
             Ok(identity) => identity,
             Err(cause) => return Err(self.before_reservation(cause).await),
         };
-        if candidate_identity.engine != engine_id {
+        if candidate.engine != engine_id {
             let cause = PortError::Failed(format!(
                 "engine switch candidate for {} reported identity for {}",
                 engine_id.as_str(),
-                candidate_identity.engine.as_str()
+                candidate.engine.as_str()
             ));
             let error = self.before_reservation(cause).await;
             let _ = self.host.close_candidate(backend).await;
@@ -179,8 +244,8 @@ where
             .begin_owner_switch(
                 expected_revision,
                 previous.clone(),
-                owner_identity.clone(),
-                owner_generation,
+                previous_owner.clone(),
+                previous_generation,
             )
             .await
         {
@@ -193,85 +258,9 @@ where
                 ));
             }
         };
-        Ok(EngineSwitchReservation {
-            previous,
-            owner_identity,
-            owner_generation,
-            engine_id,
-            selection,
-            candidate_identity,
-            backend,
-            lease,
-        })
-    }
-
-    /// Cancel a reservation before the previous owner was asked to stop.
-    pub async fn cancel_switch(
-        &self,
-        reservation: EngineSwitchReservation<B, J::Selection>,
-    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
-        let EngineSwitchReservation {
-            previous,
-            owner_identity,
-            owner_generation,
-            backend,
-            lease,
-            ..
-        } = reservation;
-        let snapshot = lease
-            .cancel_before_old_owner_close()
-            .await
-            .map_err(|cause| {
-                EngineSwitchError::recovery_required(
-                    EngineSwitchFailurePhase::ReservationPending,
-                    cause,
-                )
-            })?;
-        let restored = snapshot.selection == previous
-            && snapshot.owner
-                == EngineOwnerState::Bound {
-                    identity: owner_identity,
-                    generation: owner_generation,
-                };
-        if !restored {
-            return Err(EngineSwitchError::recovery_required(
-                EngineSwitchFailurePhase::ReservationPending,
-                PortError::Failed(
-                    "cancelled engine switch did not restore the exact previous binding".to_owned(),
-                ),
-            ));
-        }
-        if let Err(cause) = self.host.close_candidate(backend).await {
-            return Err(EngineSwitchError::new(
-                EngineSwitchFailurePhase::BeforeReservation,
-                cause,
-                EngineSwitchDisposition::RolledBackToPrevious {
-                    selection: snapshot.selection.clone(),
-                },
-            ));
-        }
-        Ok(snapshot)
-    }
-
-    /// Continue a reservation: terminate the old owner, publish the selection,
-    /// reserve and start the candidate, then bind it.
-    pub async fn finalize_switch(
-        &self,
-        reservation: EngineSwitchReservation<B, J::Selection>,
-    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
-        let EngineSwitchReservation {
-            owner_identity,
-            owner_generation,
-            engine_id,
-            selection,
-            candidate_identity,
-            backend,
-            lease,
-            ..
-        } = reservation;
         let terminal_generation = self
             .host
-            .terminate_old_owner(&owner_identity, owner_generation)
+            .terminate_old_owner(&previous_owner, previous_generation)
             .await
             .map_err(|cause| {
                 EngineSwitchError::recovery_required(
@@ -298,11 +287,7 @@ where
                 )
             })?;
         let binding = changed
-            .reserve_new_owner(
-                engine_id.clone(),
-                candidate_identity.clone(),
-                CoreGeneration::new(0),
-            )
+            .reserve_new_owner(engine_id.clone(), candidate.clone(), CoreGeneration::new(0))
             .await
             .map_err(|cause| {
                 EngineSwitchError::recovery_required(
@@ -310,19 +295,52 @@ where
                     cause,
                 )
             })?;
-        let (applied_identity, applied_generation) = self
-            .host
-            .apply_candidate(backend, &selection)
+        let snapshot = self.journal.snapshot().await.map_err(|cause| {
+            EngineSwitchError::recovery_required(EngineSwitchFailurePhase::OldOwnerClosed, cause)
+        })?;
+        Ok(EngineSwitchReservation {
+            previous,
+            previous_owner,
+            previous_generation,
+            terminal_generation,
+            engine_id,
+            selection,
+            candidate,
+            backend,
+            binding,
+            snapshot,
+        })
+    }
+
+    /// Bind the exact candidate the host actually applied and clear the
+    /// switch. The applied identity must be the same instance the coordinator
+    /// prepared; a mismatching identity is `RecoveryRequired`.
+    pub async fn finalize_reserved(
+        &self,
+        reservation: EngineSwitchReservation<B, J::Selection>,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+        let EngineSwitchReservation {
+            engine_id,
+            candidate,
+            binding,
+            ..
+        } = reservation;
+        self.bind_reserved(&engine_id, &candidate, binding, identity, generation)
             .await
-            .map_err(|cause| {
-                EngineSwitchError::recovery_required(
-                    EngineSwitchFailurePhase::OldOwnerClosed,
-                    cause,
-                )
-            })?;
-        if applied_identity.engine != engine_id
-            || !applied_identity.same_instance(&candidate_identity)
-        {
+    }
+
+    /// Bind one exact reserved candidate and read the cleared journal back.
+    async fn bind_reserved(
+        &self,
+        engine_id: &EngineId,
+        candidate: &CoreIdentity,
+        binding: Box<dyn EngineOwnerBindingLease<J::Selection>>,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+        if identity.engine != *engine_id || !identity.same_instance(candidate) {
             return Err(EngineSwitchError::recovery_required(
                 EngineSwitchFailurePhase::OldOwnerClosed,
                 PortError::Failed(format!(
@@ -332,7 +350,7 @@ where
             ));
         }
         binding
-            .finalize(applied_identity, applied_generation)
+            .finalize(identity, generation)
             .await
             .map_err(|cause| {
                 EngineSwitchError::recovery_required(
@@ -343,6 +361,79 @@ where
         self.journal.snapshot().await.map_err(|cause| {
             EngineSwitchError::recovery_required(EngineSwitchFailurePhase::OldOwnerClosed, cause)
         })
+    }
+
+    /// Release a reserved candidate that never started. The selection stays at
+    /// the committed target; the previous owner cannot be restored because it
+    /// already reached its exact terminal.
+    pub async fn cancel_reserved(
+        &self,
+        reservation: EngineSwitchReservation<B, J::Selection>,
+    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+        let EngineSwitchReservation { binding, .. } = reservation;
+        binding
+            .abort_before_core_application()
+            .await
+            .map_err(|cause| {
+                EngineSwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                )
+            })
+    }
+
+    /// Release a reserved candidate only after its exact never-started
+    /// terminal generation proves it never ran. The journal returns to the
+    /// committed `SelectionChanged` stage so a later attempt can reserve again.
+    pub async fn discard_reserved(
+        &self,
+        reservation: EngineSwitchReservation<B, J::Selection>,
+        terminal_generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+        let EngineSwitchReservation { binding, .. } = reservation;
+        binding
+            .discard_unstarted_candidate(terminal_generation)
+            .await
+            .map_err(|cause| {
+                EngineSwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                )
+            })
+    }
+
+    /// Finish a reservation for a host that owns application: apply the
+    /// candidate through the host, then bind the exact applied identity.
+    pub async fn finalize_switch(
+        &self,
+        reservation: EngineSwitchReservation<B, J::Selection>,
+    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+        let EngineSwitchReservation {
+            engine_id,
+            selection,
+            candidate,
+            backend,
+            binding,
+            ..
+        } = reservation;
+        let (applied_identity, applied_generation) = self
+            .host
+            .apply_candidate(backend, &selection)
+            .await
+            .map_err(|cause| {
+                EngineSwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                )
+            })?;
+        self.bind_reserved(
+            &engine_id,
+            &candidate,
+            binding,
+            applied_identity,
+            applied_generation,
+        )
+        .await
     }
 
     /// Reserve and immediately run the whole switch.

@@ -8,7 +8,6 @@ pub(crate) struct MemoryReferenceStore {
     pub(crate) owner: Arc<Mutex<FakeOwnerAdmission>>,
     pub(crate) transition: Arc<Mutex<Option<FakeSwitch>>>,
     pub(crate) events: Option<Arc<Mutex<Vec<String>>>>,
-    pub(crate) delete_target_before_reservation: Option<Arc<AtomicBool>>,
     pub(crate) stale_next_begin: AtomicBool,
     pub(crate) fail_next_reservation: Arc<AtomicBool>,
     pub(crate) candidate_still_live: AtomicBool,
@@ -48,7 +47,6 @@ impl MemoryReferenceStore {
             owner: Arc::new(Mutex::new(FakeOwnerAdmission::Unowned)),
             transition: Arc::new(Mutex::new(None)),
             events: None,
-            delete_target_before_reservation: None,
             stale_next_begin: AtomicBool::new(false),
             fail_next_reservation: Arc::new(AtomicBool::new(false)),
             candidate_still_live: AtomicBool::new(false),
@@ -61,16 +59,6 @@ impl MemoryReferenceStore {
     ) -> Self {
         let mut store = Self::new(state);
         store.events = Some(events);
-        store
-    }
-
-    pub(crate) fn with_target_deletion_on_begin(
-        state: ActiveProfileReferenceState,
-        events: Arc<Mutex<Vec<String>>>,
-        deleted: Arc<AtomicBool>,
-    ) -> Self {
-        let mut store = Self::with_events(state, events);
-        store.delete_target_before_reservation = Some(deleted);
         store
     }
 
@@ -425,10 +413,6 @@ impl EngineSwitchJournal for MemoryReferenceStore {
                 )));
             }
         };
-        if let Some(deleted) = &self.delete_target_before_reservation {
-            deleted.store(true, Ordering::SeqCst);
-            self.record("target-deleted-before-reservation");
-        }
         let switch =
             FakeSwitch::closing_old(previous.clone(), owner_identity.clone(), owner_generation);
         *self.transition.lock().expect("switch state") = Some(switch.clone());

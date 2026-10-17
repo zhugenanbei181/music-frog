@@ -339,7 +339,7 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
 }
 
 #[tokio::test]
-async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch() {
+async fn stale_revision_at_reservation_dispatches_first_and_reports_recovery() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -378,14 +378,20 @@ async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch()
         .await;
 
     assert!(matches!(
-        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
+        switch_failure(result, EngineSwitchFailurePhase::ReservationPending),
         PortError::Rejected(_)
     ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
-    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
+    // Dispatch precedes the durable reservation, so the bundle exists; the
+    // journal never committed the switch and the exact old owner stays bound.
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
     assert_eq!(*refs.transition.lock().unwrap(), None);
-    assert_eq!(*events.lock().unwrap(), Vec::<String>::new());
+    assert!(matches!(
+        *refs.owner.lock().unwrap(),
+        FakeOwnerAdmission::Bound { .. }
+    ));
 }
 
 #[tokio::test]
@@ -436,7 +442,8 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
         PortError::Rejected(_)
     ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 1);
-    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
     assert!(matches!(
         refs.transition
@@ -449,7 +456,7 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
 }
 
 #[tokio::test]
-async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
+async fn close_failure_keeps_closing_reservation_and_reports_unconfirmed_termination() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -494,7 +501,11 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
         PortError::Failed(_)
     ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 1);
-    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
+    // The coordinator dispatches and prepares the candidate before the durable
+    // reservation, so the bundle exists even though the old owner failed to
+    // close. It never starts.
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
     assert!(matches!(
         refs.transition
@@ -575,7 +586,7 @@ async fn failed_new_owner_reservation_keeps_the_committed_selection_resumable() 
 }
 
 #[tokio::test]
-async fn provider_dispatch_failure_keeps_the_selection_changed_reservation_resumable() {
+async fn provider_dispatch_failure_rolls_back_before_the_durable_reservation() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -612,29 +623,25 @@ async fn provider_dispatch_failure_keeps_the_selection_changed_reservation_resum
         )
         .await;
 
+    // Dispatch is strictly before the durable reservation, so a failed
+    // dispatch cannot leave a changed selection behind.
     assert!(matches!(
-        switch_failure(result, EngineSwitchFailurePhase::OldOwnerClosed),
+        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Failed(_)
     ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
-    assert_eq!(
-        refs.read().await.unwrap(),
-        reference("sing-box", "primary", 2)
-    );
+    assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
+    assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
+    assert_eq!(*refs.transition.lock().unwrap(), None);
     assert!(matches!(
-        refs.transition
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|switch| &switch.stage),
-        Some(EngineSwitchStage::SelectionChanged { .. })
+        *refs.owner.lock().unwrap(),
+        FakeOwnerAdmission::Bound { .. }
     ));
-    assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
 }
 
 #[tokio::test]
-async fn provider_identity_preflight_failure_keeps_the_committed_selection() {
+async fn provider_identity_failure_rolls_back_before_the_durable_reservation() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -671,25 +678,21 @@ async fn provider_identity_preflight_failure_keeps_the_committed_selection() {
         )
         .await;
 
+    // The provider itself refuses to compose a foreign process identity during
+    // dispatch, i.e. before any durable reservation exists.
     assert!(matches!(
-        switch_failure(result, EngineSwitchFailurePhase::OldOwnerClosed),
+        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Failed(_)
     ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
-    assert_eq!(
-        refs.read().await.unwrap(),
-        reference("sing-box", "primary", 2)
-    );
+    assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
+    assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
+    assert_eq!(*refs.transition.lock().unwrap(), None);
     assert!(matches!(
-        refs.transition
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|switch| &switch.stage),
-        Some(EngineSwitchStage::SelectionChanged { .. })
+        *refs.owner.lock().unwrap(),
+        FakeOwnerAdmission::Bound { .. }
     ));
-    assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
 }
 
 #[test]
