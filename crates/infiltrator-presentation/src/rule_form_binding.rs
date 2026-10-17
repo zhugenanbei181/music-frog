@@ -1,10 +1,10 @@
 //! An unsent form remains owned by the source observed when editing began.
 use crate::rule_list_editor::RuleListEditor;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub fn default_form_target(editor: &RuleListEditor) -> String {
     let Some(base) = editor.base.as_ref() else {

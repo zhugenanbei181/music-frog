@@ -43,9 +43,9 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::country_flags::node_flag_emoji;
+use lurker_core_contract::outbound::identity::OutboundId;
 
 /// Renders the toolbar card containing search box, "只看可用" toggle switch, 4 sort mode pills, and "测试地址" indicator.
 pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {

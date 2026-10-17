@@ -21,9 +21,9 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
-use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface_snapshot::PageData;
+use lurker_core_contract::outbound::inventory::SelectionAvailability;
 use std::sync::Arc;
 
 #[derive(Resource)]

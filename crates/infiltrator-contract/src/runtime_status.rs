@@ -5,9 +5,9 @@
 //! separate facts and must never be collapsed into one `running` flag.
 
 use crate::android_control::{VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceKind};
-use crate::error::Failure;
-use crate::outbound::identity::OutboundId;
 use crate::vpn::VpnGeneration;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::outbound::identity::OutboundId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,8 +179,8 @@ mod tests {
         ControllerApiObservation, ProxyEffectivenessObservation, ProxyReadinessBlocker,
         RuntimeStatusSnapshot,
     };
-    use crate::core_identity::EngineId;
-    use crate::outbound::identity::OutboundId;
+    use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::outbound::identity::OutboundId;
 
     #[test]
     fn independent_runtime_axes_serialize_as_tagged_states() {

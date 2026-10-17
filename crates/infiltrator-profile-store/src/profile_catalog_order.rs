@@ -4,8 +4,6 @@ use crate::file_lock::lock_profile_writes_for_dir;
 use crate::metadata::ensure_table;
 use crate::reset_fence::initialize_namespace_with_reset_fence;
 use crate::store::EngineProfileStore;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest, ProfileCatalogSnapshot,
 };
@@ -14,6 +12,8 @@ use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use std::collections::{BTreeMap, HashSet};
 
 pub(crate) fn apply_catalog_order(

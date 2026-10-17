@@ -1,7 +1,7 @@
 //! Typed Android Core binary and process launch contract.
 
-use crate::core_identity::{CoreVersion, EngineId};
 use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use serde::de;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -268,8 +268,8 @@ mod core_launch_spec_tests {
         CoreLaunchConfigurationIdentity, CoreLaunchPath, CoreLaunchSpec,
         CoreLaunchSpecValidationError,
     };
-    use crate::core_identity::{CoreVersion, EngineId};
     use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
+    use lurker_core_contract::identity::{CoreVersion, EngineId};
     use std::path::{Path, PathBuf};
 
     fn identity() -> CoreLaunchConfigurationIdentity {

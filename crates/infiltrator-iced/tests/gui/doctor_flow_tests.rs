@@ -10,7 +10,7 @@ use infiltrator_contract::doctor::{
     BootstrapReport, BootstrapStep, DoctorCheckResult, DoctorFixAction, DoctorFixReport,
     DoctorReport, DoctorStatus,
 };
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 
 fn check(id: &str, status: DoctorStatus) -> DoctorCheckResult {
     DoctorCheckResult {

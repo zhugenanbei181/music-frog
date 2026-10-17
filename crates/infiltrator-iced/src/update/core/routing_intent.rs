@@ -4,10 +4,10 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_actions::RoutingIntentFinishOutcome;
 use infiltrator_presentation::routing_intent_projection;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 impl AppState {
     pub(super) fn update_routing_intent(&mut self, message: Message) -> Task<Message> {

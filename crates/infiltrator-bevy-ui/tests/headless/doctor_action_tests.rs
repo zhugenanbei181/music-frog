@@ -29,17 +29,6 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::outbound::{
-    details::OutboundSnapshot,
-    identity::{OutboundId, SnapshotRevision},
-    inventory::{
-        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
-        OutboundSelectionState, SelectionAvailability,
-    },
-    probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
-};
 use infiltrator_contract::speedtest::{
     SpeedtestOutboundResult, SpeedtestProgress, SpeedtestResultState, SpeedtestRounds,
     SpeedtestRunId, SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestTarget,
@@ -48,6 +37,17 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::{
+    details::OutboundSnapshot,
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+    probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
+};
 use std::any::type_name;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

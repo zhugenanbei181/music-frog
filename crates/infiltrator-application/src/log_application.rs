@@ -1,11 +1,11 @@
 //! Bounded, session-fenced raw controller log facts. Readers never consume the stream.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
     LogStreamState, RawLogRecord,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 

@@ -26,9 +26,9 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_presentation::rule_condition_projection::location_text;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct TraceConfirmationRoot;

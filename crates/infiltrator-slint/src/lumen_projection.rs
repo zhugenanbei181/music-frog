@@ -19,7 +19,6 @@ use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
@@ -29,6 +28,7 @@ use infiltrator_presentation::profile_preview::redact_profile_preview;
 use infiltrator_presentation::shell_readout::profile_name;
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
 use infiltrator_shared::locales::{Lang, Localizer, get_system_language, resolve_language_code};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use slint::ComponentHandle;
 use std::env;
 

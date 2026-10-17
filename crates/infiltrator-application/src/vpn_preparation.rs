@@ -1,10 +1,10 @@
 //! One-shot VPN configuration handoff between Android Builder and Rust worker.
 
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationActivationLease, VpnGeneration, VpnPreparationId,
     VpnStartRequest,
 };
+use lurker_core_contract::identity::CoreScope;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -365,10 +365,10 @@ impl VpnPreparationStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::{
+    use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute};
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
-    use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute};
     use lurker_core_contract::session::SessionToken;
 
     fn core_scope(session: u128) -> CoreScope {

@@ -1,8 +1,7 @@
 //! Cross-engine active-profile selection identity and revision fence.
 
-use crate::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use crate::profile_document_identity::ProfileId;
-use crate::snapshot::CoreInactiveLifecycle;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use serde::{Deserialize, Serialize};
 
 /// Monotonic revision for the one product-wide active-profile reference.
@@ -119,61 +118,6 @@ pub enum ActiveProfileReferenceCasOutcome {
     },
 }
 
-/// Stable category of the native apply failure that triggered activation
-/// recovery.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CoreApplyFailureKind {
-    Validation,
-    Write,
-    Permission,
-    SourceChanged,
-    ActiveProfileReferenceStale,
-    InactiveCore,
-    Busy,
-    RolledBack,
-    RollbackFailed,
-    Lifecycle,
-    Adapter,
-}
-
-/// Exhaustive outcome of the application-level recovery after an activation
-/// apply failure.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "outcome", rename_all = "snake_case")]
-pub enum ActiveProfileRecoveryOutcome {
-    RestoredAndReapplied {
-        restored_revision: u64,
-        apply_failure: CoreApplyFailureKind,
-    },
-    RestoredButRuntimeUnavailable {
-        restored_revision: u64,
-        engine_id: EngineId,
-        lifecycle: CoreInactiveLifecycle,
-        apply_failure: CoreApplyFailureKind,
-    },
-    RestoredButRuntimeMismatch {
-        restored_revision: u64,
-        engine_id: EngineId,
-        apply_failure: CoreApplyFailureKind,
-    },
-    Superseded {
-        expected_revision: u64,
-        observed_revision: u64,
-        apply_failure: CoreApplyFailureKind,
-    },
-    CompareFailed {
-        expected_revision: u64,
-        message: String,
-        apply_failure: CoreApplyFailureKind,
-    },
-    ReapplyFailed {
-        restored_revision: u64,
-        message: String,
-        apply_failure: CoreApplyFailureKind,
-    },
-}
-
 impl ActiveProfileReferenceTarget {
     pub fn selected(engine_id: EngineId, profile_id: ProfileId) -> Self {
         Self::Selected {
@@ -188,8 +132,8 @@ mod tests {
     use super::{
         ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     };
-    use crate::core_identity::EngineId;
     use crate::profile_document_identity::ProfileId;
+    use lurker_core_contract::identity::EngineId;
 
     #[test]
     fn reference_round_trip_preserves_engine_profile_and_revision() {

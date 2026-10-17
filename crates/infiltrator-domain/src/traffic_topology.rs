@@ -1,16 +1,16 @@
 //! Pure topology derivation from typed runtime observations.
 
 use crate::runtime::Connection;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::outbound::details::{OutboundDetailsState, OutboundObservation};
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventoryState, OutboundObservationSnapshot,
-};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::{
     RttJitterHistogram, TrafficTopologyNodeSnapshot, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus, adjacent_links,
+};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::details::{OutboundDetailsState, OutboundObservation};
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventoryState, OutboundObservationSnapshot,
 };
 use std::collections::BTreeSet;
 
@@ -411,16 +411,16 @@ fn inbound_detail(
 mod tests {
     use super::*;
     use crate::runtime::ConnectionMetadata;
-    use infiltrator_contract::core_identity::{
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
     };
-    use infiltrator_contract::outbound::details::{
+    use lurker_core_contract::outbound::details::{
         OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
         OutboundLatencySample, OutboundObservation, OutboundProbeAvailability,
         OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
     };
-    use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
-    use infiltrator_contract::outbound::inventory::{
+    use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
+    use lurker_core_contract::outbound::inventory::{
         OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
         OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
     };

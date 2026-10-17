@@ -15,7 +15,6 @@ use iced::widget::text_editor;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::editor_viewport::EditorViewport;
-use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::profile_document::{DocumentInspection, DocumentValidation};
 use infiltrator_contract::snapshot_history::{SNAPSHOT_DEFAULT_KEEP, SnapshotHistorySnapshot};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
@@ -25,6 +24,7 @@ use infiltrator_presentation::failure_projection::failure_message;
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
 };
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 
 /// Why the shared editor window is being re-synced (DUAL-09-02/13).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

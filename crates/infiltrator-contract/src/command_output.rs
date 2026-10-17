@@ -1,18 +1,11 @@
 //! Typed command output independent of runtime and toolkit implementations.
 use crate::command::CommandIntent;
-use crate::error::{ErrorCode, Failure};
 use crate::log_export::{LogExportReceipt, LogExportSummary};
-use crate::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundProbeSnapshot, OutboundProbeState,
-};
-use crate::outbound::preferences::OutboundUiPreferencesSnapshot;
-use crate::outbound::probe::OutboundProbeBatchSnapshot;
 use crate::profile_document::{
     ProfileDocumentSaved, ProfileDocumentSnapshot, ProfileWorkspaceReceipt,
 };
 use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_options::ProfileOptionsSnapshot;
-use crate::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use crate::rule_statistics::RuleStatisticsResetReceipt;
 use crate::script_export_review::{ScriptExportReview, ScriptExportSaved};
 use crate::script_run::{ScriptClearReceipt, ScriptRunResult};
@@ -26,6 +19,13 @@ use crate::snapshot_restore::{
 use crate::speedtest::{SpeedtestCancelOutcome, SpeedtestStartReceipt};
 use crate::subscription_filter_result::SubscriptionFilterApplied;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundProbeSnapshot, OutboundProbeState,
+};
+use lurker_core_contract::outbound::preferences::OutboundUiPreferencesSnapshot;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchSnapshot;
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -417,16 +417,16 @@ fn same_document_namespace(
 mod tests {
     use super::CommandOutput;
     use crate::command::{CommandIntent, CommandResult, RequestId};
-    use crate::core_identity::EngineId;
-    use crate::error::{ErrorCode, Failure};
     use crate::profile_document_identity::{
         ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
         ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
         ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
     };
     use crate::profile_options::ProfileOptionsSnapshot;
-    use crate::routing_intent::RoutingIntent;
     use crate::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
+    use lurker_core_contract::error::{ErrorCode, Failure};
+    use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::routing_intent::RoutingIntent;
 
     #[test]
     fn routing_intent_command_requires_matching_typed_readback() {

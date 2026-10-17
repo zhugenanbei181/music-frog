@@ -4,10 +4,10 @@ use infiltrator_contract::android_control::{
     CoreLaunchArguments, CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath,
     CoreLaunchSpec,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::session::SessionToken;
 use std::path::PathBuf;
 

@@ -1,13 +1,13 @@
 //! One shared fold for shell facts, including retained but stale observations.
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState,
-};
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile, ShellReadoutSnapshot};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaStatus;
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus, SurfaceSnapshot};
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState,
+};
 use std::mem;
 use std::sync::{Arc, Mutex};
 

@@ -11,8 +11,6 @@ use infiltrator_composition::engine_backend_factory::{
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{CoreBinarySelection, CoreBinarySelectionSource};
@@ -23,6 +21,8 @@ use infiltrator_ports::engine_backend_factory::{
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::engine_id;
 use singbox_api::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};

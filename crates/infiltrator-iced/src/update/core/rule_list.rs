@@ -8,11 +8,11 @@ use crate::types::rule_list::RuleListAction;
 use iced::Task;
 use iced::widget::text_editor::Content;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot};
 use infiltrator_presentation::rule_form_binding::default_form_target;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl AppState {
     pub(crate) fn observe_rule_list_page(&mut self, page: &PageData<RulesPageSnapshot>) {

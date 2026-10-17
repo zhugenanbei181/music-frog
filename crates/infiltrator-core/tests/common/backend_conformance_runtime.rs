@@ -1,6 +1,6 @@
 use super::*;
-use infiltrator_contract::outbound::inventory::OutboundInventorySnapshot;
 use infiltrator_domain::apply::ApplyStrategy;
+use lurker_core_contract::outbound::inventory::OutboundInventorySnapshot;
 
 pub(super) async fn run_while_process_is_running(
     case: &BackendConformanceCase,

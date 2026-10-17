@@ -11,7 +11,7 @@ use iced::widget::text_editor;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_composition::snapshot_restore_fixture::{AFTER, BEFORE, SnapshotRestoreFixture};
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::ErrorCode;
+use lurker_core_contract::error::ErrorCode;
 use std::path::PathBuf;
 use std::sync::Arc;
 fn setup() -> (AppState, SnapshotRestoreFixture) {

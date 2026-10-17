@@ -2,9 +2,9 @@
 
 use crate::host::storage::version_application;
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::version::{EngineReleaseChannel, ReleaseChannelId};
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::identity::EngineId;
 
 pub fn application() -> Result<VersionApplication, InfiltratorError> {
     version_application().map_err(|error| InfiltratorError::Download(error.to_string()))

@@ -1,8 +1,8 @@
 //! A single normalization of sandbox requests into domain facts and published data.
 use super::TrafficContext;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::rule_trace_run::RuleTraceRequest;
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
+use lurker_core_contract::error::Failure;
 use std::net::IpAddr;
 impl TrafficContext {
     pub fn from_request(request: &RuleTraceRequest) -> Result<Self, Failure> {

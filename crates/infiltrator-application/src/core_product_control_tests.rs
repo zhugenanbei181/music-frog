@@ -1,4 +1,4 @@
-use infiltrator_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time;
@@ -19,10 +19,7 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
     EngineCapabilityDecision, HostCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{
-    CoreCommandRequest, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::application_runtime::{
@@ -33,6 +30,8 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use tokio::runtime::Builder;
 use tokio::time::sleep;
 

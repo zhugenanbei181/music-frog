@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use infiltrator_contract::routing_intent::{
+use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
 use serde::{Deserialize, Serialize};

@@ -1,8 +1,8 @@
 //! One fold of the full query response, shared window and original record data.
 use crate::dns_query_actions::{DnsQueryActions, QUERY_PAGE_SIZE};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::i18n_interpolator::localize;
+use lurker_core_contract::error::ErrorCode;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnsQueryDisplay {

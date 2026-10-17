@@ -1,7 +1,7 @@
 //! Engine-neutral intent for choosing how traffic is routed.
 
-use crate::core_identity::EngineId;
 use crate::error::Failure;
+use crate::identity::EngineId;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;

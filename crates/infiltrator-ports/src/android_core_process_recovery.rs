@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
 };
-use infiltrator_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 
 #[async_trait]
 pub trait AndroidCoreProcessRecoveryPort: Send + Sync {

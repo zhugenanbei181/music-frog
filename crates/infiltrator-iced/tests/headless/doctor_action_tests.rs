@@ -10,7 +10,6 @@ use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -19,6 +18,7 @@ use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
+use lurker_core_contract::error::ErrorCode;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 

@@ -1,15 +1,15 @@
 use super::*;
 use crate::types::message::Message;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
-use infiltrator_contract::routing_intent::RoutingIntentStatus;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
+use lurker_core_contract::routing_intent::RoutingIntentStatus;
 
 #[test]
 fn shared_observation_replay_keeps_intent_typed_and_preserves_failed_tun_readback() {

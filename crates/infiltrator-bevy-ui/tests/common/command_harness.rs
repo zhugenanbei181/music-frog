@@ -19,19 +19,6 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreOperation, DnsOperation, EngineCapabilityDecision,
     FakeIpCacheOperation, HostCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
-};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::outbound::{
-    identity::SnapshotRevision,
-    preferences::{
-        OutboundFavoriteState, OutboundGroupExpansion, OutboundUiPreferenceIntent,
-        OutboundUiPreferenceRequest, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
-    },
-};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -41,6 +28,19 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::{
+    identity::SnapshotRevision,
+    preferences::{
+        OutboundFavoriteState, OutboundGroupExpansion, OutboundUiPreferenceIntent,
+        OutboundUiPreferenceRequest, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
+    },
+};
 use mem::take;
 use std::mem;
 use std::sync::{Arc, Mutex};

@@ -40,10 +40,10 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandTarget, ProfileChoice};
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::system_toggle::SystemToggle;
 use infiltrator_presentation::system_toggle_projection;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
 /// The last mounted overlay signature: a remount happens only when the open
 /// flag, query, cursor or result set actually changed.

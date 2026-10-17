@@ -11,10 +11,10 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_latency::{
     DnsLatencyProbeRequest, DnsLatencyReport, DnsLatencyStatus, DnsProbeTarget, MAX_REPORTED_RTT_MS,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface_snapshot::DnsServerSnapshot;
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
 /// The typed reason a host without a prober publishes.

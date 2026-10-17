@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v205`：当前现在佛 32 pt（15 条）/ 过去佛 49 pt（18 条）/ 未来佛 43 pt（21 条），联合未办结分母 124 pt；已归档交付 631 pt（237 条）；累计 755 pt，严格归档完成率 83.6%。
+- Point 基线 `musicfrog-todo-20261017-v206`：当前现在佛 32 pt（15 条）/ 过去佛 49 pt（18 条）/ 未来佛 47 pt（24 条），联合未办结分母 128 pt；已归档交付 631 pt（237 条）；累计 759 pt，严格归档完成率 83.1%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -48,11 +48,11 @@
 
 ## 阶段五：1.0 中性内核可发布（开源独立框架 · 潜伏者 / Lurker）
 
-> 阶段门 1.0-M1「中性内核可发布」：`lurker-core-contract`、`lurker-core-ports`、`lurker-profile-store`、`mihomo-rs`、`singbox-rs`、`lurker-engine-runtime` 六个中性 crate 各自 `cargo publish --dry-run` 通过，且不依赖任何产品私有 crate。UI 呈现标准化（PUB-004）、四套模板（PUB-005）、crates.io 自动发布（PUB-006）留在未来佛。中性 crate 采用「潜伏者 / Lurker」品牌前缀，单向权威、不做 re-export 兼容层。
+> 阶段门 1.0-M1「中性内核可发布」：`lurker-core-contract`、`lurker-core-ports`、`lurker-profile-store`、`mihomo-rs`、`singbox-rs`、`lurker-engine-runtime` 六个中性 crate 按依赖顺序（contract → ports/profile-store → engines → runtime）`cargo package` 通过；`lurker-core-contract` 首发布后，其余五个 `cargo publish --dry-run` 通过，且不依赖任何产品私有 crate。注意：Cargo 的 dry-run 会去 registry 解析中性依赖，故 contract 未实际上架前其余 crate 的 dry-run 必然失败——这是发布顺序门，不是代码缺陷。UI 呈现标准化（PUB-004）、四套模板（PUB-005）、crates.io 自动发布（PUB-006）留在未来佛。中性 crate 采用「潜伏者 / Lurker」品牌前缀，单向权威、不做 re-export 兼容层。
 
 ### 5.1 基础契约与中性端口解耦（3条 / 7pt）
 
-- [ ] PUB-001.1 [kind: mechanism] [priority: P1] [points: 2] [owner: contract] [status: Ready] 抽取零外部重依赖的通用 `lurker-core-contract`
+- [ ] PUB-001.1 [kind: mechanism] [priority: P1] [points: 2] [owner: contract] [status: InProgress] 抽取零外部重依赖的通用 `lurker-core-contract`
   - 产物：独立 crate，只收敛 EngineId、CoreLifecycle、Outbound/Group 模型、RoutingIntent、CoreScope 与 typed Failure；剔除全部产品私有字段与 UI 类型。
   - 前置实测：`infiltrator-contract` 现仅经 `src/connection_search.rs` 依赖 `zhuge-ui-core::text::SearchTextRun`，必须先迁出该耦合，`infiltrator-contract` 改为依赖本 crate（不反向转发）。
   - 依赖：双后端 Core 契约稳定（已满足）。

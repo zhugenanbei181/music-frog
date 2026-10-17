@@ -12,10 +12,10 @@ use infiltrator_contract::android_control::{
     validate_android_control_terminal_readback, validate_android_vpn_stop_terminal_readback,
 };
 use infiltrator_contract::command::CommandResult;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::vpn::VpnStopTarget;
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum AndroidControlIntent {

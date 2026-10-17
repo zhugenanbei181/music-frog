@@ -4,14 +4,15 @@ use infiltrator_contract::android_control::{
     AndroidProductCommand, AndroidProductCommandOutcome, AndroidProductCommandRequest,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
-use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreScope};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::core_identity::CoreCommandOutcome;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
 };
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_slint::age_action::execute_slint_age_action;
 use infiltrator_slint::{SlintAction, SlintProductHost};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 
 pub(super) struct AndroidSlintHost;
 

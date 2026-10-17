@@ -1,9 +1,9 @@
 //! One semantic fold for live rule rows and unsaved editor rows on either UI.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::rules::types::{RuleType, parse_rule_str};
 use infiltrator_domain::sub_rules::format_ast;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub struct RuleRowFacts {
     pub rule_type: String,

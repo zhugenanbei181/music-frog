@@ -1,11 +1,11 @@
 //! Safe engine-scoped profile document paths.
 
 use crate::store::EngineProfileStore;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use tokio::fs;

@@ -8,8 +8,6 @@ use iced_runtime::{Action, task::into_stream};
 use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
 use infiltrator_iced::state::AppState;
@@ -17,6 +15,8 @@ use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 fn terminal(task: Task<Message>) -> Message {

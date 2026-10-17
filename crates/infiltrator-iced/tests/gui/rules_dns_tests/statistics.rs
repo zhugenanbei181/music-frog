@@ -10,11 +10,11 @@ use crate::view_root::modals::rule_statistics::statistics_confirmation;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_presentation::rule_statistics_inspector_projection::project_inspector;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::error::ErrorCode;
 use std::sync::atomic::Ordering;
 use tokio::runtime::Builder;
 

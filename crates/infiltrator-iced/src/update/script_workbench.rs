@@ -4,11 +4,11 @@ use crate::types::message::Message;
 use crate::types::script::ScriptAction;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::ScriptEditorField;
 use infiltrator_presentation::script_workbench::ScriptPending;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl AppState {
     pub(crate) fn update_script_workbench(&mut self, message: Message) -> Task<Message> {

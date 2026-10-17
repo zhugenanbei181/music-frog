@@ -11,12 +11,12 @@ use crate::types::runtime::ConfigurationSaveState;
 use iced::Task;
 use iced::widget::text_editor::Content;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate,
 };
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rules_workspace::RulesJsonSection;
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use std::time::Instant;
 use tokio::time;
 use tokio::time::sleep;

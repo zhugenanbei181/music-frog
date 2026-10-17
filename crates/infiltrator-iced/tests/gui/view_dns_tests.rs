@@ -4,8 +4,8 @@ use crate::view::dns_form_panel::{
 };
 use infiltrator_contract::dns::DnsServerTag;
 use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::dns_settings_projection::form_issue;
+use lurker_core_contract::error::{ErrorCode, Failure};
 #[test]
 fn test_dns_protocol_chip_mappings() {
     assert_eq!(dns_protocol_chip("https://dns.google/dns-query"), "DoH");

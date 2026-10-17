@@ -26,9 +26,9 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 

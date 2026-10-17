@@ -3,17 +3,7 @@ use crate::android_control::{
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
     VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
-#[cfg(test)]
-use crate::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use crate::error::FailureReason;
 use crate::offline_startup::StartupNetworkPolicy;
-use crate::outbound::details::{OutboundDetailsSnapshot, OutboundDetailsState};
-use crate::outbound::identity::SnapshotRevision;
-use crate::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
-};
 use crate::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -26,6 +16,16 @@ use crate::rule_trace_run::{
 use crate::runtime_status::{CoreProcessObservation, ProxyEffectivenessObservation};
 use crate::snapshot::CoreLifecycleSnapshot;
 use crate::vpn::VpnGeneration;
+use lurker_core_contract::error::FailureReason;
+#[cfg(test)]
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::details::{OutboundDetailsSnapshot, OutboundDetailsState};
+use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+};
 #[cfg(test)]
 use lurker_core_contract::session::SessionToken;
 

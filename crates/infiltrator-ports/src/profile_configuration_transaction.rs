@@ -8,9 +8,9 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
 /// Exact codec scope serviced by one native configuration transaction owner.

@@ -2,8 +2,8 @@
 
 use crate::host::storage::settings_store;
 use infiltrator_application::settings_application::SettingsApplication;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::AppSettings;
+use lurker_core_contract::error::InfiltratorError;
 
 async fn application() -> Result<SettingsApplication, InfiltratorError> {
     let store = settings_store()

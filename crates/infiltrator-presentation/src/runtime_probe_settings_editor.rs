@@ -5,8 +5,8 @@
 mod tests;
 
 use crate::runtime_probe_settings::parse_draft;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RuntimeProbeSettingsDraft {

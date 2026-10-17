@@ -61,12 +61,12 @@
   - 依赖：BANDROID-044.1~044.4。
   - 验收：正反例验证任务注册/排除/放行/拒绝；真实执行后才称质量门接通。
 
-## 四、开源独立发布与多 UI 模板框架架构（10条 / 20pt）
+## 四、开源独立发布与多 UI 模板框架架构（13条 / 24pt）
 
 > 1.0 中性内核（原 4.1–4.3，PUB-001～003）已迁入[现在佛](CODE_TODO.md)作为 1.0 主工作流；本板保留 UI 呈现标准化、四套模板脚手架与开源发布自动化。
 
 ### 4.4 UI 消费端管道标准化与 Presentation 纯净化（3条 / 6pt）
-- [ ] PUB-004.1 [kind: mechanism] [priority: P1] [points: 2] [owner: presentation] 跨 UI 纯视图模型投影 `proxy-ui-presentation` 独立化
+- [ ] PUB-004.1 [kind: mechanism] [priority: P1] [points: 2] [owner: presentation] 跨 UI 纯视图模型投影 `lurker-ui-presentation` 独立化
   - 产物：纯数据模型与国际化文案折叠库，零 UI 框架依赖，仅负责将底层快照转换为各表面易读的 ViewModel。
   - 依赖：PUB-001.1。
   - 验收：`cargo check` 零图形库依赖；单元测试覆盖各页面状态折叠，禁止私有逻辑残留。
@@ -101,7 +101,7 @@
   - 依赖：PUB-005.1～PUB-005.4。
   - 验收：执行 `cargo generate` 挑选单一 UI 框架后，生成的子项目立即可编译运行且无其他 UI 残留。
 
-### 4.6 开源合规发布与交付文档（2条 / 3pt）
+### 4.6 开源合规发布与交付文档（5条 / 7pt）
 - [ ] PUB-006.1 [kind: infra] [priority: P1] [points: 2] [owner: CI] Crates.io 自动化发布 CI 工作流
   - 产物：GitHub Actions 发布流水线；包含发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布。
   - 依赖：PUB-001.1～PUB-003.3。
@@ -110,3 +110,15 @@
   - 产物：编写顶层架构说明、开发者接入指南、以及各 UI（Slint/Iced/Bevy/Android）在性能与开销上的选型对比。
   - 依赖：PUB-005.1～PUB-005.5。
   - 验收：文档包含快速上手代码、架构图与不同 UI 内存/包体 benchmark 详实数据。
+- [ ] PUB-006.3 [kind: infra] [priority: P1] [points: 2] [owner: release] 开源合规与可发布基线
+  - 产物：根 `LICENSE-MIT` + `LICENSE-APACHE`（MIT OR Apache-2.0）；每个中性 crate 的 `description`/`license`/`repository`/`README`；产品 crate 全量 `publish = false` 审计；中性 crate 独立版本拓扑（1.0.x，产品保持 0.4x）与发布顺序。
+  - 依赖：PUB-001.1～PUB-003.3。
+  - 验收：`cargo package --list` 无产品私有文件；每个中性 crate `cargo publish --dry-run` 通过；`cargo metadata` 证明中性 crate 不依赖任何产品 crate。
+- [ ] PUB-006.4 [kind: evidence] [priority: P1] [points: 1] [owner: docs] 开源仓库治理文档
+  - 产物：README（快速上手/特性/截图）、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT，以及从产品仓迁移到中立内核的迁移指南。
+  - 依赖：PUB-006.2、PUB-005.5。
+  - 验收：文档链接全部可解析；新开发者按 README 能在干净环境跑通 example 与模板。
+- [ ] PUB-006.5 [kind: evidence] [priority: P1] [points: 1] [owner: release] 1.0.0 首发布回执
+  - 产物：`v1.0.0` tag、release notes、crates.io 六个中性 crate（contract/ports/profile-store/mihomo-rs/singbox-rs/engine-runtime）顺序发布回执与 docs.rs 构建链接。
+  - 依赖：PUB-006.1、PUB-006.3、PUB-006.4。
+  - 验收：crates.io 六 crate 版本严格对齐；docs.rs 六页构建成功；回执绑定 tag 与 commit。

@@ -12,9 +12,6 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::active_profile_reference_store::{
@@ -30,6 +27,9 @@ use infiltrator_ports::engine_backend_factory::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;

@@ -1,10 +1,10 @@
 //! UWP loopback use-cases over the runtime-neutral host port.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
 use infiltrator_domain::uwp::validate_app_container_sid;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::uwp_loopback::UwpLoopbackPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

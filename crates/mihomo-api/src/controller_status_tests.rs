@@ -4,9 +4,9 @@ use crate::error::MihomoError;
 use crate::network_error::network_error;
 use crate::types::ConfigResponse;
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mockito::Server;
 use serde_json::json;
 

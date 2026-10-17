@@ -3,11 +3,11 @@
 use crate::manager::ConfigManager;
 #[cfg(test)]
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mihomo_api::error::MihomoError;
 use std::io::ErrorKind;
 

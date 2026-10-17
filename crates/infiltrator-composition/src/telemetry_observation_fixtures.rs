@@ -4,13 +4,13 @@ use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use infiltrator_ports::surface::SurfaceReader;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 #[derive(Default)]
 pub struct TelemetryObservationReader {

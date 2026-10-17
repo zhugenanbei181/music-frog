@@ -2,8 +2,8 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
+use lurker_core_contract::identity::CoreScope;
 
 /// One controller Fake-IP flush tied to the Core owner activation and command.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::settings_io::{save_settings, settings_path};
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::filter::{
     ContentDedupStrategy, DeduplicationStrategy, NodeMutatorConfig, NodeSortOrder,
     SubscriptionFilterPipeline,
@@ -14,6 +13,7 @@ use infiltrator_domain::profile_options::{
 };
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::paths::{get_home_dir, set_home_dir_override};
+use lurker_core_contract::identity::EngineId;
 use mihomo_config::manager::paths::{CONFIGS_DIR_ENV, engine_config_dir};
 use mihomo_config::profile_option_store::{delete_options, load_options, save_options};
 use serde_yaml_ng::Value;

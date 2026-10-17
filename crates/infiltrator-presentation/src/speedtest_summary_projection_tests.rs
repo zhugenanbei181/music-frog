@@ -1,6 +1,6 @@
 use super::{dead_archive, history_lines, metrics_label, node_metrics};
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::outbound::identity::OutboundId;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::OutboundId;
 use infiltrator_contract::speedtest::{
     HistoricalSpeedtestRecord, SpeedtestConcurrency, SpeedtestOutboundResult,
     SpeedtestResultState, SpeedtestRunId, SpeedtestSampleOutcome, SpeedtestSnapshot,

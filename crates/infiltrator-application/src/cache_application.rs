@@ -1,7 +1,7 @@
 //! Cache maintenance use-cases over host-provided cache ports.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

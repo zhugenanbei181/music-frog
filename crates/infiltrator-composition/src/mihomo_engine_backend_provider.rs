@@ -1,6 +1,5 @@
 //! Shared production Mihomo engine backend provider.
 
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineBackendProvider, EngineOperationPort,
@@ -13,6 +12,7 @@ use infiltrator_ports::profile_configuration_transaction::{
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::outbound::MihomoOutboundAdapter;

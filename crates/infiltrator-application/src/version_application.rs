@@ -1,8 +1,6 @@
 //! Engine-scoped core-version use-cases over host-provided version ports.
 
 use futures_util::future::join_all;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseSummary, CoreRollbackSnapshot, CoreVersionSnapshot, EngineNeutralReleaseChannel,
@@ -14,6 +12,8 @@ use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionProgressSink,
     VersionRollbackRequest, VersionUninstallRequest,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use std::sync::Arc;
 
 #[derive(Clone)]

@@ -4,8 +4,8 @@
 //! the core adapter; this module exposes only the port object to UI handlers.
 
 use crate::host::storage::profile_store;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::error::InfiltratorError;
 use std::path::PathBuf;
 use std::sync::Arc;
 

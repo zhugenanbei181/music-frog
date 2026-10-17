@@ -17,8 +17,8 @@ use bevy::picking::events::{Pointer, PointerClick, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_widgets::modal::ModalScrim;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
+use lurker_core_contract::error::ErrorCode;
 use std::time::Duration;
 
 #[derive(SystemParam)]

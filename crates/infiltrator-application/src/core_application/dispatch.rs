@@ -3,8 +3,8 @@ use super::execution::closed_failure;
 use super::{CoreApplication, DispatchedCommand, DispatchedMessage};
 use infiltrator_contract::command::{CommandResult, RequestId};
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreEvent;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Receiver, Sender, TrySendError, channel};
 

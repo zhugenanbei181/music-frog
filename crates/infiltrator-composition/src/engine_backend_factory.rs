@@ -1,8 +1,5 @@
 //! Engine selection for product composition roots.
 
-use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::core_process::CoreReadiness;
@@ -20,6 +17,9 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use singbox_api::clash_api::SingBoxClashApiClient;
 use singbox_api::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
@@ -258,11 +258,11 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::capability::Capability;
-    use infiltrator_contract::core_identity::{
+    use infiltrator_ports::core_scope::CoreScopeObservation;
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
     };
-    use infiltrator_contract::routing_intent::RoutingIntent;
-    use infiltrator_ports::core_scope::CoreScopeObservation;
+    use lurker_core_contract::routing_intent::RoutingIntent;
     use singbox_api::http::{
         SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
     };

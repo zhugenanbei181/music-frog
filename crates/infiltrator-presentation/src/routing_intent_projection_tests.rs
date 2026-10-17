@@ -1,13 +1,13 @@
 //! test-intent: behavior
 use super::*;
 use crate::routing_intent_actions::RoutingIntentFinishOutcome;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::EngineDefinedRoutingIntent;
-use infiltrator_contract::routing_intent::RoutingIntentExtensionId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::routing_intent::EngineDefinedRoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntentExtensionId;
 
 #[test]
 fn captions_use_the_shared_typed_intent_and_status() {

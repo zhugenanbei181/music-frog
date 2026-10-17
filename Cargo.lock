@@ -6453,6 +6453,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-desktop",
  "infiltrator-ports",
+ "lurker-core-contract",
 ]
 
 [[package]]
@@ -6511,6 +6512,7 @@ dependencies = [
  "infiltrator-http",
  "infiltrator-platform",
  "infiltrator-ports",
+ "lurker-core-contract",
  "mihomo-api",
  "mihomo-config",
  "mihomo-process",
@@ -6739,6 +6741,7 @@ dependencies = [
  "infiltrator-application",
  "infiltrator-contract",
  "infiltrator-ports",
+ "lurker-core-contract",
  "mihomo-api",
  "tokio",
 ]
@@ -6811,6 +6814,7 @@ dependencies = [
  "infiltrator-platform",
  "infiltrator-ports",
  "log",
+ "lurker-core-contract",
  "ring",
  "serde",
  "serde_json",
@@ -6844,6 +6848,7 @@ dependencies = [
  "infiltrator-presentation",
  "infiltrator-shared",
  "infiltrator-test-support",
+ "lurker-core-contract",
  "openssl",
  "rfd",
  "serde_json",
@@ -7584,8 +7589,10 @@ checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
 name = "lurker-core-contract"
 version = "0.42.5"
 dependencies = [
+ "anyhow",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -7777,6 +7784,7 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ports",
  "log",
+ "lurker-core-contract",
  "mockito",
  "reqwest",
  "serde",
@@ -7824,6 +7832,7 @@ dependencies = [
  "infiltrator-ports",
  "libc",
  "log",
+ "lurker-core-contract",
  "sysinfo",
  "tempfile",
  "tokio",
@@ -7841,6 +7850,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-platform",
  "log",
+ "lurker-core-contract",
  "mihomo-api",
  "mockito",
  "reqwest",
@@ -10675,6 +10685,7 @@ dependencies = [
  "async-trait",
  "infiltrator-contract",
  "infiltrator-ports",
+ "lurker-core-contract",
  "reqwest",
  "serde",
  "serde_json",
@@ -10704,6 +10715,7 @@ dependencies = [
  "async-trait",
  "infiltrator-contract",
  "infiltrator-ports",
+ "lurker-core-contract",
  "tokio",
 ]
 
@@ -10716,6 +10728,7 @@ dependencies = [
  "futures-util",
  "infiltrator-contract",
  "infiltrator-ports",
+ "lurker-core-contract",
  "reqwest",
  "serde",
  "serde_json",

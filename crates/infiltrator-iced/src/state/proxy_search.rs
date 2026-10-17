@@ -3,8 +3,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 
 #[derive(Clone, Debug, Default)]
 pub enum ProxySearchPhase {

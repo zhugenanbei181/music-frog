@@ -1,12 +1,12 @@
 //! Tests for Core lifecycle, command sequences, and network mode switching in infiltrator-slint.
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 fn default_settings_snapshot() -> SettingsPageSnapshot {
     SettingsPageSnapshot {

@@ -6,12 +6,12 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_domain::rules::RuleEntry;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::BTreeMap;
 
 pub struct RuleWorkspace {

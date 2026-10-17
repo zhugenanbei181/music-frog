@@ -2,10 +2,6 @@
 use super::{build_settings_page, build_sync_page};
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_domain::settings::AppSettings;
@@ -13,6 +9,10 @@ use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::session::SessionToken;
 

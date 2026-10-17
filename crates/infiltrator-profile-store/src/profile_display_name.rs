@@ -6,7 +6,6 @@ use crate::reset_fence::{
     acquire_reset_fenced_profile_mutation_for_dir, initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayName, ProfileDisplayNameMutation, ProfileDisplayNameObservation,
     ProfileDisplayNameTarget,
@@ -14,6 +13,7 @@ use infiltrator_contract::profile_display_name::{
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl<S: SecureStore> EngineProfileStore<S> {
     pub async fn profile_display_name(

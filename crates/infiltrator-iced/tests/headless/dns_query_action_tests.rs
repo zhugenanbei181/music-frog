@@ -8,7 +8,6 @@ use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::DnsRecordType;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
@@ -18,6 +17,7 @@ use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 use infiltrator_presentation::dns_query_projection::project_query;
 use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
+use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

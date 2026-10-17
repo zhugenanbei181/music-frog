@@ -1,12 +1,12 @@
 //! System HTTP/SOCKS proxy use-case over a host-owned port.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
     SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus, SystemProxySnapshot,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

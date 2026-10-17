@@ -9,8 +9,9 @@ use infiltrator_contract::core_capabilities::{
     ProfileOperation, ProviderOperation, ProxyControlOperation, RulesOperation,
     SubscriptionOperation, TunOperation, VersionOperation,
 };
-use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreScope};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::core_identity::CoreCommandOutcome;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandCapabilityRoute {

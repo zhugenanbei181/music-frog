@@ -3,11 +3,11 @@
 //! Also resolves the configs storage directory (cloud-sync redirect).
 
 use super::ConfigManager;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::error::{MihomoError, Result};
 use std::env::{home_dir, var};
 use std::io::{self, ErrorKind};

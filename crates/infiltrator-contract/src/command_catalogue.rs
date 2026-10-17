@@ -11,8 +11,8 @@
 //! is *not* smuggled into this list; a surface appends its own entry after
 //! the shared catalogue and the ledger records the deviation.
 
-use crate::routing_intent::RoutingIntent;
 use crate::shortcuts::ShortcutAction;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 /// A page both surfaces can navigate to by a stable, shared id.
 ///

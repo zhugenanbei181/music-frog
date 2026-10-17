@@ -5,13 +5,13 @@ use crate::core_capability_application::{
     CoreCommandEffect,
 };
 use infiltrator_contract::core_capabilities::{CoreOperation, ProviderOperation};
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_provider_runtime::{
     RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayloadSnapshot,
     RuleProviderRefreshReceipt, RuleProviderRevision,
 };
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::Arc;
 
 const LIST_RULE_PROVIDERS: CoreCapabilityRequirement = CoreCapabilityRequirement::new(
@@ -176,15 +176,15 @@ mod tests {
     use super::RuleProviderRuntimeApplication;
     use crate::core_capability_application::CoreCapabilityApplication;
     use crate::core_capability_test_support::{capability_application, core_scope};
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
     use infiltrator_contract::rule_provider_runtime::{
         RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayload,
         RuleProviderPayloadSnapshot, RuleProviderRefreshReceipt, RuleProviderRevision,
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+    };
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

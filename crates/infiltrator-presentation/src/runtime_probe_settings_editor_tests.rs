@@ -1,8 +1,8 @@
 use crate::runtime_probe_settings_editor::{
     RuntimeProbeSettingsEditor, RuntimeProbeSettingsWriteOutcome,
 };
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
+use lurker_core_contract::error::Failure;
 
 fn available(settings: RuntimeProbeSettings) -> RuntimeProbeSettingsState {
     RuntimeProbeSettingsState::Available { settings }

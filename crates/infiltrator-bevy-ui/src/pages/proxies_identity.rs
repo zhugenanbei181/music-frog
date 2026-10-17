@@ -4,7 +4,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::system::Query;
-use infiltrator_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::identity::OutboundId;
 
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProxyGroupIdentity(pub String);

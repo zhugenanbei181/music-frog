@@ -16,14 +16,14 @@ use infiltrator_contract::core_capabilities::{
     HostCapabilityDecision,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::fs;
 use std::sync::Arc;
 use tempfile::tempdir;

@@ -1,7 +1,7 @@
 //! Typed process ownership context shared by the Core application and host adapters.
 
-use crate::core_identity::{CoreGeneration, CoreIdentity};
-use lurker_core_contract::session::SessionToken;
+use crate::identity::{CoreGeneration, CoreIdentity};
+use crate::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
 /// Explicit owner context supplied for every process launch.

@@ -1,6 +1,6 @@
 //! Capture-only typed preference owner for native interaction replays.
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::{
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::{
     identity::SnapshotRevision,
     preferences::{
         OutboundFavoriteState, OutboundGroupExpansion, OutboundUiPreferenceIntent,

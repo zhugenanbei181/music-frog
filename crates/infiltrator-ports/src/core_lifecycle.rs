@@ -2,8 +2,8 @@ use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreIdentity;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::session::SessionToken;
 use std::time::Duration;
 

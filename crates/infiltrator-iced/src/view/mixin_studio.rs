@@ -10,13 +10,13 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{editor_viewport, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinComposition,
     ProfileMixinPreflight, ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
 use infiltrator_presentation::mixin_studio_projection;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 fn chip_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |t: &Theme, status| {

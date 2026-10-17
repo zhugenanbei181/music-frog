@@ -24,9 +24,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
 use infiltrator_presentation::dns_cache_projection::project_cache;
+use lurker_core_contract::error::{ErrorCode, Failure};
 #[derive(Resource, Default)]
 pub struct CacheConfirmation {
     pub model: DnsCacheActions,

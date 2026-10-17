@@ -7,11 +7,11 @@ use crate::types::message::Message;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason, InfiltratorError};
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason, InfiltratorError};
+use lurker_core_contract::identity::EngineId;
 use tokio::runtime::Builder;
 
 fn notice(task: Task<Message>) -> (String, ToastStatus) {

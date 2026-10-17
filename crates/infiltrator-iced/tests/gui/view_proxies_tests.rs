@@ -1,7 +1,7 @@
 use super::*;
 use crate::view::proxies::node_cards::{format_protocol_chip, group_icon};
 use crate::view::proxies_controls::{SORT_LABEL_KEYS, SORT_ORDERS};
-use infiltrator_contract::outbound::preferences::OutboundSortOrder;
+use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 
 #[test]
 fn test_group_icon_mapping() {

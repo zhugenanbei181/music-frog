@@ -1,6 +1,6 @@
 //! Toolkit-neutral lifecycle controls. Labels and actions are projected from actual host facts.
 use crate::command::CommandIntent;
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

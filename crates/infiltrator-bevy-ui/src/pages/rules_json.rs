@@ -680,11 +680,11 @@ pub fn rules_json_keyboard_input(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
         ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
     };
+    use lurker_core_contract::identity::EngineId;
 
     fn identity(revision: &str) -> ProfileDocumentIdentity {
         ProfileDocumentIdentity::new(

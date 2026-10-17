@@ -1,9 +1,9 @@
 //! Validation and projection for the Core-owned latency-probe settings.
 
 use crate::runtime_probe_settings_editor::RuntimeProbeSettingsDraft;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_domain::settings::AppSettings;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 fn invalid(message: &str) -> Failure {
     Failure::new(ErrorCode::InvalidInput, message, false)

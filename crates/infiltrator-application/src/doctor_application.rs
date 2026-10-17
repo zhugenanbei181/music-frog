@@ -4,9 +4,9 @@ use futures_util::lock;
 use infiltrator_contract::doctor::{
     BootstrapReport, DoctorCheckMeta, DoctorFixReport, DoctorObservation, DoctorReport,
 };
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use infiltrator_ports::doctor::DoctorPort;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
 use std::collections::HashSet;
 use std::fmt;
 use std::sync::{Arc, Mutex};

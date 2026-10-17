@@ -12,11 +12,11 @@
 //! reader. Preparing a review freezes bytes without saving; only confirmation
 //! may call the host. Results cannot be read from another product's memory.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::{
     ScriptExportOutcome, ScriptExportRequest, ScriptExportSnapshot,
 };
 use infiltrator_domain::script_engine::{ExtensionPackage, ScriptEngine};
+use lurker_core_contract::error::{ErrorCode, Failure};
 mod review;
 use infiltrator_contract::script_export_review::{ScriptExportReview, ScriptExportSaved};
 use infiltrator_domain::script_export::{

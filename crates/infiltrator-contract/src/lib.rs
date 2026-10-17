@@ -22,7 +22,6 @@ pub mod controller;
 pub mod core_capabilities;
 pub mod core_control;
 pub mod core_identity;
-pub mod core_process;
 pub mod design_tokens;
 pub mod dialer_chain;
 pub mod dns;
@@ -36,7 +35,6 @@ pub mod dns_query;
 pub mod dns_self_heal;
 pub mod doctor;
 pub mod editor_viewport;
-pub mod error;
 pub mod fixture_identities;
 pub mod geo_database;
 pub mod ime;
@@ -51,7 +49,6 @@ pub mod mtu;
 pub mod named_override;
 pub mod network_roaming;
 pub mod offline_startup;
-pub mod outbound;
 pub mod overview_layout;
 pub mod pac;
 pub mod parity;
@@ -94,7 +91,6 @@ pub mod public_ip;
 pub mod reconnect_mask;
 pub mod resources;
 pub mod responsive_viewport;
-pub mod routing_intent;
 pub mod rule_condition;
 pub mod rule_document;
 pub mod rule_edit;
@@ -154,9 +150,9 @@ mod tests {
     use super::command::{CommandIntent, CommandKind, CoreLogLevel};
     use super::ipv6::Ipv6RoutingSnapshot;
     use super::lan::LanCredentials;
-    use super::routing_intent::RoutingIntent;
     use super::surface::HostKind;
     use super::tun::TunStack;
+    use lurker_core_contract::routing_intent::RoutingIntent;
 
     #[test]
     fn command_kind_is_stable_and_transport_free() {

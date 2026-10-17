@@ -22,9 +22,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsRecordType};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::dns_query_actions::{DnsQueryActions, QuerySection};
 use infiltrator_presentation::dns_query_projection::project_query;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
 pub struct QueryPanel {

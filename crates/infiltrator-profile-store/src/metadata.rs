@@ -3,10 +3,10 @@
 use crate::document_store::write_document_bytes_durable;
 use crate::store::EngineProfileStore;
 use chrono::{DateTime, Utc};
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::EngineId;
 use std::io::ErrorKind;
 use std::path::Path;
 use tokio::fs;

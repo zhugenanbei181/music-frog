@@ -12,14 +12,14 @@
 //!    its authoritative facts (`core_generation`, `vpn_generation`, `outbound_id`);
 //! 8. Unobserved or stopped state maps to `Unknown`.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::runtime_status::{
     ControllerApiObservation, CoreProcessObservation, ProxyEffectivenessObservation,
     RuntimeStatusSnapshot, TunDataPlaneObservation, VpnAuthorizationObservation,
 };
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::identity::OutboundId;
 
 /// The 8 unified runtime status semantics shared across Bevy, Compose, and Slint (BANDROID-029.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -229,10 +229,10 @@ pub fn format_unified_status(status: &UnifiedRuntimeStatus, language: &str) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::EngineId;
-    use infiltrator_contract::error::ErrorCode;
     use infiltrator_contract::surface::{HostKind, SurfaceKind};
     use infiltrator_contract::vpn::VpnGeneration;
+    use lurker_core_contract::error::ErrorCode;
+    use lurker_core_contract::identity::EngineId;
 
     #[test]
     fn demo_origin_is_explicitly_flagged_and_never_masquerades_as_running() {

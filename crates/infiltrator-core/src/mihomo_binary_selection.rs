@@ -2,13 +2,13 @@
 
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionPort,
     CoreBinarySelectionRequest, CoreBinarySelectionSource,
 };
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use mihomo_api::error::MihomoError;
 use mihomo_version::bundled_kernel::{bundled_binary_sha256, copy_bundled_binary};
 use mihomo_version::engine;

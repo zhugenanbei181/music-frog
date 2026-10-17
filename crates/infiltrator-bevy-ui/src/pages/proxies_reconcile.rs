@@ -12,7 +12,7 @@ use bevy::ecs::query::{QueryData, QueryFilter, With, Without};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::CommandsSceneExt;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::identity::OutboundId;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

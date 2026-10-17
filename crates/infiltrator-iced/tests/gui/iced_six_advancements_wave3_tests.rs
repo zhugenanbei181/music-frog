@@ -11,7 +11,6 @@ use crate::types::message::Message;
 use crate::view::speedtest_modal::speedtest_card;
 use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
 use infiltrator_composition::capture_fixtures::list_document;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::speedtest::SpeedtestConcurrency;
 use infiltrator_contract::speedtest::SpeedtestStartReceipt;
 use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
@@ -21,6 +20,7 @@ use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::speedtest_summary_projection::history_lines;
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::error::Failure;
 use std::fs::read;
 
 fn apply_speedtest_snapshot(state: &mut AppState, snapshot: SpeedtestSnapshot) {

@@ -1,12 +1,12 @@
 //! Tests for Outbound proxy selection, probing/speedtest, sorting, and search preferences in infiltrator-slint.
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
-use infiltrator_contract::outbound::preferences::{
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
+use lurker_core_contract::outbound::preferences::{
     OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
 };
-use infiltrator_contract::outbound::probe::{
+use lurker_core_contract::outbound::probe::{
     OutboundProbeBatchScope, OutboundProbeConcurrency, OutboundSelectionRequest,
     ProbeOutboundBatchRequest, ProbeOutboundRequest,
 };

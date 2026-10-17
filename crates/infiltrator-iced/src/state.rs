@@ -27,25 +27,9 @@ use crate::utils::sanitize_ui_text;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_application::ScopedCoreCommandClient;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, ProfileChoice};
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
-use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
-use infiltrator_contract::outbound::identity::SnapshotRevision;
-use infiltrator_contract::outbound::preferences::OutboundFavoriteState;
-use infiltrator_contract::outbound::preferences::OutboundGroupExpansion;
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
-use infiltrator_contract::outbound::{
-    details::{OutboundDetail, OutboundDetailsSnapshot},
-    identity::OutboundId,
-    inventory::{OutboundInventorySnapshot, OutboundInventoryState, SelectionAvailability},
-    preferences::{
-        OutboundHealthFilter, OutboundLayout, OutboundUiPreferencesSnapshot,
-        OutboundUiPreferencesValues,
-    },
-    probe::OutboundSelectionRequest,
-};
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
@@ -61,6 +45,22 @@ use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::system_toggle_projection;
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::outbound::preferences::OutboundFavoriteState;
+use lurker_core_contract::outbound::preferences::OutboundGroupExpansion;
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::outbound::{
+    details::{OutboundDetail, OutboundDetailsSnapshot},
+    identity::OutboundId,
+    inventory::{OutboundInventorySnapshot, OutboundInventoryState, SelectionAvailability},
+    preferences::{
+        OutboundHealthFilter, OutboundLayout, OutboundUiPreferencesSnapshot,
+        OutboundUiPreferencesValues,
+    },
+    probe::OutboundSelectionRequest,
+};
 use std::sync::Arc;
 
 pub mod core_control;

@@ -1,5 +1,5 @@
 //! Supported persisted language choices, independent of UI and system locale detection.
-use crate::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

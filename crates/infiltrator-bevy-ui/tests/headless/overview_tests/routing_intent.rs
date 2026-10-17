@@ -6,7 +6,7 @@ use infiltrator_bevy_ui::app::RoutingIntentActionState;
 use infiltrator_bevy_ui::pages::overview_cards::{
     OverviewRoutingIntentSegmentPill, RoutingIntentSegmentCard,
 };
-use infiltrator_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[test]
 fn overview_routing_intent_submits_the_shared_typed_command() {

@@ -4,9 +4,9 @@ use crate::error::PortError;
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::Failure;
 use infiltrator_domain::runtime::TrafficData;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeStreamEvent<T> {

@@ -3,7 +3,6 @@ use super::{
     roaming_event, roaming_interfaces, roaming_mtu, roaming_route, roaming_status,
     system_proxy_status,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::network_roaming::{
     NetworkRoamingEvent, NetworkRoamingSnapshot, NetworkRoamingStatus,
 };
@@ -11,6 +10,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxySnapshot, SystemProxyStatus,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn missing_network_facts_are_unknown_and_observed_zero_is_preserved() {

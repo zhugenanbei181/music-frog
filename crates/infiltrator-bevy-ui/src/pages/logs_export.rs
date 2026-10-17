@@ -20,8 +20,8 @@ use bevy::input_focus::InputFocus;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, sync_button_disabled};
 use infiltrator_contract::command::{CommandIntent, RequestId};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::log_export_actions::{LogExportActions, LogExportPending};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
 pub struct LogsExportState {

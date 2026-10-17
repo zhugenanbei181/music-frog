@@ -25,11 +25,11 @@ use infiltrator_bevy_widgets::button::{
 use infiltrator_bevy_widgets::interaction_block::sync_inputs;
 use infiltrator_bevy_widgets::multiline_editor::{MultilineEditorPlugin, MultilineModeSet};
 use infiltrator_contract::command::{CommandIntent, RequestId};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::ScriptEditorField;
 use infiltrator_presentation::script_workbench::{ScriptPending, ScriptWorkbench};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mem::take;
 use std::mem;
 

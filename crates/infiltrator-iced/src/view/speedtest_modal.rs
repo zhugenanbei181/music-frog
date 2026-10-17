@@ -14,9 +14,6 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     PacketLossRating, SpeedtestOutboundResult, SpeedtestRounds, SpeedtestTarget,
 };
@@ -24,6 +21,9 @@ use infiltrator_presentation::speedtest_summary_projection::{
     dead_archive, history_lines, node_metrics, rating_label,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
 fn loss_badge(rating: Option<PacketLossRating>, lang: &Lang<'_>) -> Element<'static, Message> {
     let kind = match rating {

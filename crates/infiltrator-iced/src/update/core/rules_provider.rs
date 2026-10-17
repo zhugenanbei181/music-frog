@@ -16,8 +16,6 @@ use iced::Task;
 use infiltrator_application::rule_provider_application::{
     ProviderUnpackPlan, RuleProviderApplication, RuleProviderRuntimeAccess,
 };
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderCachePurge;
 use infiltrator_contract::rule_provider_runtime::RuleProviderPayload;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
@@ -25,6 +23,8 @@ use infiltrator_domain::rules::provider_store::{
     RuleProviderDeclaration, deconstruct_provider_payload, parse_rule_provider_declarations,
 };
 use infiltrator_domain::rules::{RuleProviders, diff_rule_provider_contents};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
     /// DUAL-11-06/07: the single entry point for every provider maintenance

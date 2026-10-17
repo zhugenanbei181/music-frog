@@ -3,7 +3,7 @@
     clippy::io_other_error,
     clippy::collapsible_if
 )]
-use infiltrator_contract::core_identity::EngineId;
+use lurker_core_contract::identity::EngineId;
 
 pub mod endpoint;
 pub mod manager;

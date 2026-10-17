@@ -22,8 +22,8 @@ use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::Response;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use log::{info, warn};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 use std::time::Instant;
 

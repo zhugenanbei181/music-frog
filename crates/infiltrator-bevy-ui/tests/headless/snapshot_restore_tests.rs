@@ -20,7 +20,7 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_composition::snapshot_restore_fixture::{AFTER, BEFORE, SnapshotRestoreFixture};
-use infiltrator_contract::error::ErrorCode;
+use lurker_core_contract::error::ErrorCode;
 use std::mem::discriminant;
 use std::sync::Arc;
 use std::thread::yield_now;

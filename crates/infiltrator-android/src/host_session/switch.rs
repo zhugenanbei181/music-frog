@@ -579,7 +579,7 @@ async fn require_owner_recovery(previous: &Arc<SharedCore>, failure: FfiStatus) 
 mod tests {
     use super::*;
     use infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision;
-    use infiltrator_contract::core_identity::EngineId;
+    use lurker_core_contract::identity::EngineId;
 
     #[test]
     fn different_mihomo_profile_uses_profile_activation() {

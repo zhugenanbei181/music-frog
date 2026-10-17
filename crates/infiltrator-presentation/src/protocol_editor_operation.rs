@@ -2,8 +2,8 @@
 
 use crate::protocol_form::draft_from_uri;
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::mem;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -33,10 +33,10 @@ use infiltrator_bevy_widgets::text_input::{
     TextField, TextFieldFocused, text_field_with_placeholder_scene,
 };
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::runtime_probe_settings_editor::{
     RuntimeProbeSettingsEditor, RuntimeProbeSettingsWriteOutcome,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ProbeSettingsDialogState {

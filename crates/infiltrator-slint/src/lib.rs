@@ -26,16 +26,8 @@ use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
 };
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::named_override::NamedOverrideId;
-use infiltrator_contract::outbound::identity::OutboundContractError;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::preferences::{
-    OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
-};
-use infiltrator_contract::outbound::probe::OutboundSelectionRequest;
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeCredentialMutation, ProfileAgeCredentialObservation,
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
@@ -43,7 +35,6 @@ use infiltrator_contract::profile_age_credential::{
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
@@ -51,6 +42,15 @@ use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_shared::locales::{Lang, Localizer, resolve_language_code};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::OutboundContractError;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::preferences::{
+    OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
+};
+use lurker_core_contract::outbound::probe::OutboundSelectionRequest;
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -743,11 +743,11 @@ fn probe_action(
     group: &str,
     node: &str,
 ) -> Result<SlintAction, Failure> {
-    use infiltrator_contract::outbound::probe::{
+    use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
+    use lurker_core_contract::outbound::probe::{
         OutboundProbeBatchScope, OutboundProbeConcurrency, ProbeOutboundBatchRequest,
         ProbeOutboundRequest,
     };
-    use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
 
     let snapshot = require_snapshot(latest)?;
     let inventory = snapshot.outbound_inventory.data.as_ref().ok_or_else(|| {

@@ -38,19 +38,19 @@ use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::outbound::inventory::OutboundInventorySnapshot;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::outbound::inventory::OutboundInventorySnapshot;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::{
     details::{
         OutboundDetailsSnapshot, OutboundDetailsState, OutboundObservation, OutboundSnapshot,
     },
     identity::SnapshotRevision,
     preferences::{OutboundUiPreferenceIntent, OutboundUiPreferenceRequest},
 };
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
-use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};

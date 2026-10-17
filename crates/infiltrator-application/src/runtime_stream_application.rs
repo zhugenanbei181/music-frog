@@ -2,12 +2,12 @@
 
 use crate::runtime_scope::active_scope;
 use futures_util::{StreamExt, stream::unfold};
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::Arc;
 
 pub(crate) fn scope_checked<T>(

@@ -10,12 +10,12 @@ use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::{Json, extract};
 use chrono::Utc;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
 use infiltrator_domain::subscription::mask_subscription_url;
 use infiltrator_domain::subscription_scheduler_policy::{CronSchedule, SubscriptionSchedule};
 use log::info;
+use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
 
 pub async fn list_profiles_http<C: AdminApiContext>(

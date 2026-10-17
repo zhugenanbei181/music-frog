@@ -1,14 +1,20 @@
 //! Typed outbound observations used by explicit Iced demo captures.
 
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::fixture_identities::{
     AI, AUTO, CAMPUS, DIRECT_GROUP, GAMING, HK_PRIMARY, HK_SECONDARY, JP, PROXIES, SG, US,
 };
-use infiltrator_contract::outbound::details::OutboundFeature;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::resources::{
+    CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
+};
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::details::OutboundFeature;
+use lurker_core_contract::outbound::{
     details::{
         OutboundCollectionKind, OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState,
         OutboundEndpoint, OutboundHealthObservation, OutboundLatencySample, OutboundObservation,
@@ -25,13 +31,7 @@ use infiltrator_contract::outbound::{
         OutboundUiPreferencesValues,
     },
 };
-use infiltrator_contract::resources::{
-    CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
-};
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::session::SessionToken;
 
 const GLOBAL: &str = "GLOBAL";

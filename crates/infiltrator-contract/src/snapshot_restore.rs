@@ -1,7 +1,7 @@
 //! Frozen snapshot restoration reviews and actual source-bound terminal receipts.
-use crate::error::{ErrorCode, Failure};
 use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

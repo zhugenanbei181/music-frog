@@ -1,7 +1,7 @@
 //! Actual local-statistics reset boundary, independent of any UI or runtime.
-use crate::error::{ErrorCode, Failure};
 use crate::rule_hit_audit::{RuleHitAuditSnapshot, RuleHitSummary};
 use crate::rule_source::RuleSourceIdentity;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

@@ -16,8 +16,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeContentDecryption, ProfileAgeCredentialMutation,
     ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
@@ -29,6 +27,8 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use serde::{Deserialize, Serialize};
 use std::ptr;
 use std::str;

@@ -9,9 +9,6 @@ use infiltrator_contract::android_control::core_launch::AndroidCoreBinaryTarget;
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
-use infiltrator_contract::core_identity::CoreGeneration;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_platform::android_bridge::AndroidBridge;
@@ -25,6 +22,9 @@ use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::identity::CoreGeneration;
+use lurker_core_contract::identity::EngineId;
 use mihomo_config::manager::ConfigManager;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;

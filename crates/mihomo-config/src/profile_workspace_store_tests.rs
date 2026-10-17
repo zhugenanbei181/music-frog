@@ -6,8 +6,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -33,6 +31,8 @@ use infiltrator_profile_store::profile_reset::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
 use infiltrator_profile_store::workspace::{document_revision, publish_document_pair, sha256_hex};
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use std::collections::HashMap;
 use std::str;
 use std::sync::{Arc, Mutex};

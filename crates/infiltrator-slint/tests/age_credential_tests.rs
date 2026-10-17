@@ -14,10 +14,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, AgePrivateKeyError, ProfileAgeCredentialMutation,
     ProfileAgeCredentialObservation, ProfileAgeCredentialOwnerReadback,
@@ -31,6 +27,10 @@ use infiltrator_contract::surface_snapshot::{
     PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_slint::{SlintAction, SlintProductHost};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
 use serde_json::json;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};

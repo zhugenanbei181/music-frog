@@ -2,8 +2,8 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 
 /// The four stat chips carry labeled Group semantics ("name value") that
 /// the refresh observer restamps, and the banner's state word carries a

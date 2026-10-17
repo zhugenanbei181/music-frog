@@ -1,9 +1,9 @@
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_presentation::shell_readout::observed_rate;
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {

@@ -2,13 +2,13 @@ use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
     ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
 use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 use infiltrator_test_support::dns_cache_fixtures::test_core_scope;
+use lurker_core_contract::error::ErrorCode;
 
 #[derive(Clone, Copy)]
 enum FakeFlushBehavior {

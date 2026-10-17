@@ -2,10 +2,10 @@ use crate::log_export_actions::{LogExportActions, LogExportPhase};
 use crate::log_export_projection::project_log_export;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::log_export::{LogExportReceipt, LogExportSummary};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_domain::log_export::prepare_log_export;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 
 fn summary() -> LogExportSummary {

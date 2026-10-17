@@ -5,7 +5,6 @@ use crate::core_capability_test_support::capability_application;
 use crate::geo_database_application::GeoDatabaseApplication;
 use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rule_provider_runtime::{
@@ -15,6 +14,7 @@ use infiltrator_contract::rule_provider_runtime::{
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
+use lurker_core_contract::identity::CoreScope;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;

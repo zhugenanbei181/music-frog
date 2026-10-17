@@ -2,12 +2,12 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot,
     EngineNeutralReleaseChannel, EngineReleaseChannel, InstalledCoreVersion,
     VersionDownloadProgress,
 };
+use lurker_core_contract::identity::EngineId;
 use std::sync::Arc;
 
 pub trait VersionProgressSink: Send + Sync {

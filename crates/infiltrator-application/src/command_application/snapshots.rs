@@ -2,10 +2,10 @@
 use super::CommandApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::snapshot_history::{
     SNAPSHOT_DEFAULT_KEEP, SnapshotCreatedReceipt, SnapshotPruneSource, SnapshotPrunedReceipt,
 };
+use lurker_core_contract::error::Failure;
 use std::path::Path;
 impl CommandApplication {
     pub(super) async fn execute_snapshot_output(

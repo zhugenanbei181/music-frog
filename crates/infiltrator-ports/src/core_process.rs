@@ -1,8 +1,8 @@
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreVersion};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::identity::{CoreIdentity, CoreVersion};
 
 /// Admission observed before a managed launch is persisted and dispatched.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,9 +61,7 @@ pub trait CoreReadiness: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::CoreProcessStartContext;
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
-    };
+    use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
     use lurker_core_contract::session::SessionToken;
 
     #[test]

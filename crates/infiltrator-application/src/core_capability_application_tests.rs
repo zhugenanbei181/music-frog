@@ -4,11 +4,11 @@ use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreOperation,
     EngineBinaryTarget, EngineCapabilityDecision, HostCapabilityDecision, ProfileOperation,
 };
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProviderError;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 
 struct FixedMatrixProvider(CoreCapabilityMatrix);
 

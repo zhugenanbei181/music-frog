@@ -7,8 +7,8 @@ use crate::core_capability_application::{
     CoreCapabilityApplication, CoreCapabilityGateFailure, CoreCapabilityRequirement,
 };
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::CoreIdentity;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreIdentity;
 use std::sync::atomic::Ordering;
 
 impl CoreApplication {

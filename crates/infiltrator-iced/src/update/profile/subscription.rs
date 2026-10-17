@@ -13,7 +13,6 @@ use chrono::Utc;
 use iced::Task;
 use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionContentEffectOutcome, SubscriptionScheduleDraft,
     SubscriptionUpdateOutcome, SubscriptionUpdateReport,
@@ -22,6 +21,7 @@ use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 
 /// Install this surface's active profile applier for exact selected-workspace

@@ -8,10 +8,6 @@ use crate::types::runtime::RuntimeStatus;
 use async_trait::async_trait;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState,
 };
@@ -36,6 +32,10 @@ use infiltrator_ports::application_runtime::{
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::surface::SurfaceReader;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
 use lurker_core_contract::session::SessionToken;
 use std::sync::Arc;
 use std::thread::yield_now;

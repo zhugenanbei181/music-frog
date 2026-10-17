@@ -1,7 +1,6 @@
 //! Default shared Settings projection used by demo and empty compositions.
 
 use super::settings_core::SettingsProjection;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::lan::DEFAULT_BIND_ADDRESS;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
@@ -14,6 +13,7 @@ use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProx
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use lurker_core_contract::identity::EngineId;
 
 impl SettingsProjection {
     pub fn demo() -> Self {

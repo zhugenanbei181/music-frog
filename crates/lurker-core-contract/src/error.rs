@@ -1,4 +1,4 @@
-use crate::active_profile_reference::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
+use crate::owner_switch::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::{error, fmt, io};

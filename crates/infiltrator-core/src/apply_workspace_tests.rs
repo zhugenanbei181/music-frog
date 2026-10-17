@@ -4,11 +4,11 @@ use crate::apply_workspace::apply_confirmed_workspace;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+use lurker_core_contract::identity::EngineId;
 use std::fmt::Debug;
 use std::future::{Future, poll_fn};
 use std::pin::Pin;

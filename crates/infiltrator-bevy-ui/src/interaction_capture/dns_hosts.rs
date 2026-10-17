@@ -21,10 +21,10 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
+use lurker_core_contract::error::ErrorCode;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 #[derive(Resource)]

@@ -1,8 +1,8 @@
 //! Port-conflict use-cases over a host-provided adapter.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_ports::port_conflict::PortConflictPort;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

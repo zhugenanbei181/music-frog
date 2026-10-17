@@ -13,7 +13,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::profile_document_identity::ProfileId;
@@ -41,6 +40,7 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_contract::session::SessionToken;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;

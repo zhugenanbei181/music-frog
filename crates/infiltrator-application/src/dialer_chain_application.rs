@@ -17,11 +17,11 @@ use infiltrator_contract::dialer_chain::{
     DialerChainEnd, DialerChainReport, DialerChainView, DialerHopKind, DialerHopView,
     DialerLoopFinding, DialerLoopKind, hop_type_label, loop_message,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::proxy_nodes::dialer;
 use infiltrator_domain::proxy_nodes::dialer::{
     DialerCycle, DialerCycleKind, DialerGraphFacts, DialerTopology, ResolvedDialerChain,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// DUAL-05-09/10 shared analyzer.
 pub struct DialerChainApplication;

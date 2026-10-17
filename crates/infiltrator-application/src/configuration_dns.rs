@@ -4,12 +4,12 @@ use super::ConfigurationApplication;
 use crate::profile_application::ProfileRuntimeAccess;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::{DnsHostsProfile, validate_hosts};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::dns::DnsConfig;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl ConfigurationApplication {
     pub async fn load_hosts_profile(&self) -> Result<DnsHostsProfile, Failure> {

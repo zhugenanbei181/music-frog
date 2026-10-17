@@ -19,12 +19,12 @@ use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::settings_application::SettingsApplication;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_core::factory_reset::execute;
 use infiltrator_core::profile_reset::reset_profiles_to_default;
 use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::language_choice::{LanguageChoicePhase, project_language};
+use lurker_core_contract::error::InfiltratorError;
 use std::fs::{create_dir_all, write};
 use std::sync::Arc;
 

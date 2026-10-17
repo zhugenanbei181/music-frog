@@ -9,7 +9,7 @@ use super::core_capabilities::{
     FakeIpCacheOperation, GeoOperation, LogsOperation, OutboundOperation, ProfileOperation,
     ProviderOperation, ProxyControlOperation, RulesOperation, SubscriptionOperation, TunOperation,
 };
-use super::core_identity::{CoreVersion, EngineId};
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
 
 const MIHOMO_DECLARATION: &str =

@@ -1,8 +1,8 @@
 //! Real isolated host files; no invented receipt paths or overwritten documents.
 use super::DesktopLogExportPort;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::logs::LogSession;
 use infiltrator_domain::log_export::prepare_log_export;
+use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::session::SessionToken;
 use std::fs;
 use tempfile::tempdir;

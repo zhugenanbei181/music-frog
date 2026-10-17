@@ -1,11 +1,11 @@
 //! test-intent: real_process
 
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationApplication;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::runtime_configuration::{MihomoRuntimeConfigurationAdapter, RuntimeScopeResolver};
 use std::env;

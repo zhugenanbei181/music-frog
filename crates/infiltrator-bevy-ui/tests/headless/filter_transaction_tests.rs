@@ -24,13 +24,13 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
+use lurker_core_contract::error::ErrorCode;
 use std::future::Future;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

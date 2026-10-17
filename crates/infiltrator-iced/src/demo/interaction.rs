@@ -4,11 +4,8 @@ use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use infiltrator_composition::capture_fixtures::grouping_surface;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::fixture_identities::HK_PRIMARY;
-use infiltrator_contract::outbound::details::OutboundObservation;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
@@ -22,6 +19,9 @@ use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_test_support::doctor_capture_fixtures::CHECK_ID;
 use infiltrator_test_support::filter_capture_store::{FILTER_POLICY, FILTER_PROFILE};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::details::OutboundObservation;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 pub(super) fn parse(raw: &str) -> FeatureId {
     FeatureId::ALL

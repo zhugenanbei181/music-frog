@@ -1,6 +1,6 @@
 //! Shared contract for destructive/privileged network transaction tests.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// Privileged network surfaces that a host test adapter may exercise.

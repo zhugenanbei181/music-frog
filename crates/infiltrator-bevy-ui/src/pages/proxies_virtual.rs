@@ -461,8 +461,8 @@ mod tests {
     use super::*;
     use crate::pages::proxies::{ProxyGroup, ProxyNode};
     use bevy::ecs::world::World;
-    use infiltrator_contract::outbound::details::OutboundHealthObservation;
     use infiltrator_contract::proxies::ProxyGroupClassification;
+    use lurker_core_contract::outbound::details::OutboundHealthObservation;
 
     fn projection_with(count: usize) -> ProxiesProjection {
         ProxiesProjection {

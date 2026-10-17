@@ -14,11 +14,7 @@ use infiltrator_contract::android_control::{
     validate_android_vpn_stop_terminal_readback,
 };
 use infiltrator_contract::command::{CommandResult, RequestId};
-use infiltrator_contract::core_identity::{
-    CoreCommandOutcome, CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
+use infiltrator_contract::core_identity::CoreCommandOutcome;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnGeneration, VpnOwnerStopReceipt,
@@ -26,6 +22,11 @@ use infiltrator_contract::vpn::{
 };
 use infiltrator_platform::android_bridge::{
     AndroidBridge, AndroidBridgeResult, CoreProcessStartReceipt, CoreProcessStopReceipt,
+};
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use lurker_core_contract::session::SessionToken;
 use std::path::PathBuf;

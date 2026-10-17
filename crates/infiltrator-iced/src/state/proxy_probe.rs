@@ -8,10 +8,11 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityStatus, CoreOperation, OutboundOperation,
 };
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::{
     details::{
         OutboundDetailsSnapshot, OutboundDetailsState, OutboundObservation,
         OutboundProbeAvailability,
@@ -23,7 +24,6 @@ use infiltrator_contract::outbound::{
         ProbeOutboundBatchRequest, ProbeOutboundRequest,
     },
 };
-use infiltrator_contract::surface_snapshot::PageStatus;
 use std::collections::HashSet;
 
 /// Iced's readback state for a typed outbound probe batch.

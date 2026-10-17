@@ -7,9 +7,9 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 
 /// Durable owner-switch progress. Each variant is a legal transaction stage;
 /// the store persists it so a process restart cannot erase an unfinished

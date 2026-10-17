@@ -27,9 +27,9 @@ use infiltrator_bevy_ui::host_capabilities::{
     HostPreferenceIntent, HostPreferences, MotionPreference,
 };
 use infiltrator_contract::connection::ConnectionRateObservation;
-use infiltrator_contract::outbound::details::OutboundHealthObservation;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
+use lurker_core_contract::outbound::details::OutboundHealthObservation;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
 use crate::support::allow_outbound_probe;
 use infiltrator_bevy_ui::pages::connections_row::connection_row_scene;

@@ -49,9 +49,6 @@ use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::connection::{ConnectionRateObservation, ConnectionStreamPhase};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, FakeIpMappingPool,
 };
@@ -64,7 +61,6 @@ use infiltrator_contract::doctor::DoctorStatus;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
-use infiltrator_contract::outbound::details::OutboundHealthObservation;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
@@ -82,6 +78,10 @@ use infiltrator_contract::version::{
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::details::OutboundHealthObservation;
 
 fn create_test_app() -> App {
     let mut app = App::new();

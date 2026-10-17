@@ -1,9 +1,9 @@
 //! Shared subscription filter draft and correlated command state.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
 use infiltrator_contract::subscription_import::{SubscriptionFilterDedup, SubscriptionFilterDraft};
 use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingFilterChange {

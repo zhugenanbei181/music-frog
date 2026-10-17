@@ -15,8 +15,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -55,6 +53,8 @@ use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::runtime_configuration::MihomoRuntimeConfigurationAdapter;

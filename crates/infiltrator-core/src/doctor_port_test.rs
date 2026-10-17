@@ -1,6 +1,6 @@
 //! test-intent: behavior
 use super::*;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mihomo_api::error::MihomoError;
 use std::fs::{read, write};
 use tempfile::tempdir;

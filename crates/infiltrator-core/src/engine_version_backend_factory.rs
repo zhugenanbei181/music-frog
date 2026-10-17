@@ -3,13 +3,13 @@
 use crate::mihomo_binary_selection::MihomoBinarySelectionAdapter;
 use crate::version_port::MihomoVersionPort;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::core_binary_selection::CoreBinarySelectionPort;
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::VersionPort;
+use lurker_core_contract::identity::EngineId;
 use mihomo_version::manager::VersionManager;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -161,7 +161,6 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-    use infiltrator_contract::core_identity::CoreVersion;
     use infiltrator_contract::version::{
         CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot, EngineReleaseChannel,
         InstalledCoreVersion,
@@ -174,6 +173,7 @@ mod tests {
         VersionActivationRequest, VersionInstallRequest, VersionRollbackRequest,
         VersionUninstallRequest,
     };
+    use lurker_core_contract::identity::CoreVersion;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
 

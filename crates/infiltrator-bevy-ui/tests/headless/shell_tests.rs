@@ -40,8 +40,8 @@ use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::theme::ThemePreference;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 fn mounted_shell() -> App {
     let mut app = App::new();

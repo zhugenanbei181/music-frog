@@ -1,7 +1,7 @@
 //! Typed, owner-scoped core resource observations.
 
-use crate::core_identity::CoreScope;
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
 use serde::{Deserialize, Serialize};
 
 pub const CORE_MEMORY_SOFT_LIMIT_BYTES: u64 = 512 * 1024 * 1024;

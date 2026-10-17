@@ -9,10 +9,10 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Json, extract};
 use futures_util::StreamExt;
 use infiltrator_contract::resources::CoreResourceSnapshot;
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_domain::runtime::ConnectionsResponse;
 use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use log::warn;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::convert::Infallible;
 use std::time::Duration;
 

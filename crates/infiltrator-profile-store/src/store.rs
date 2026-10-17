@@ -2,13 +2,13 @@
 
 use crate::namespace::ProfileNamespaceInitialization;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};

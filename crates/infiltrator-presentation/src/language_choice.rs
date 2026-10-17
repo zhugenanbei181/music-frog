@@ -1,7 +1,7 @@
 //! One language transition owner; only a correlated durable success publishes a choice.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::{LanguagePreference, LanguageSettingsSnapshot};
 use infiltrator_domain::settings::AppSettings;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub fn project_language(
     settings: Option<&Result<AppSettings, Failure>>,

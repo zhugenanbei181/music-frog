@@ -85,10 +85,10 @@ pub fn project_script_export(model: &ScriptWorkbench, language: &str) -> ScriptE
 mod tests {
     use super::*;
     use crate::script_workbench::{ScriptExportPhase, ScriptWorkbench};
-    use infiltrator_contract::error::Failure;
     use infiltrator_contract::script_export_review::{
         ScriptExportDraft, ScriptExportValidationScope,
     };
+    use lurker_core_contract::error::Failure;
 
     fn draft() -> ScriptExportDraft {
         ScriptExportDraft {

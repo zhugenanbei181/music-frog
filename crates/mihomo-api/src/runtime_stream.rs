@@ -6,14 +6,14 @@ use crate::runtime_configuration::RuntimeScopeResolver;
 use async_trait::async_trait;
 use futures_util::{StreamExt, stream::unfold};
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal, ScopedRuntimeStream,
     ScopedRuntimeStreamEvent,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::convert::identity;
 use tokio::sync::mpsc::UnboundedReceiver;
 

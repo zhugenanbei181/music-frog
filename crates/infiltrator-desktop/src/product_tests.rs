@@ -27,8 +27,7 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
     HostCapabilityDecision, ProfileOperation,
 };
-use infiltrator_contract::core_identity::{CoreCommandRequest, CoreVersion, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -51,6 +50,8 @@ use infiltrator_ports::runtime_http_proxy_endpoint::{
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;

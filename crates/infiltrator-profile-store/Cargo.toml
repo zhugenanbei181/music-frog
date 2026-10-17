@@ -6,6 +6,7 @@ publish = false
 description = "Engine-neutral durable profile persistence for MusicFrog Infiltrator."
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 age = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }

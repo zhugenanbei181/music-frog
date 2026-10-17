@@ -19,12 +19,12 @@ use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationActivationOutcome, AggregationDraft, AggregationReport,
     AggregationTemplate, GeneratedGroupSnapshot, RegionalClusterSnapshot,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::filter::{ContentDedupStrategy, DeduplicationStrategy, NodeSortOrder};
 use infiltrator_domain::profile_aggregator::{AggregationPlan, ProfileAggregator};
 use infiltrator_domain::profile_converter::{AggregationOptions, SourceSubscription};
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]

@@ -6,8 +6,8 @@ use infiltrator_contract::dns_query::{
     DnsQueryOperation, DnsQueryOperationId, DnsQueryReport, DnsQueryRequest, DnsQueryResponse,
     DnsQuerySnapshot, DnsQuestion, DnsRecord, DnsRecordType,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_shared::dns_observation::DnsObservationTone;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 fn request() -> DnsQueryRequest {
     DnsQueryRequest {

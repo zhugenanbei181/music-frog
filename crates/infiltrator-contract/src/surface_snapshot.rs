@@ -24,7 +24,6 @@ use crate::dns_leak::DnsLeakReport;
 use crate::dns_query::DnsQuerySnapshot;
 use crate::dns_self_heal::DnsSelfHealSnapshot;
 use crate::doctor::{DoctorCheckKind, DoctorStatus};
-use crate::error::{ErrorCode, Failure};
 use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::LanSecuritySnapshot;
 use crate::language::LanguageSettingsSnapshot;
@@ -35,9 +34,6 @@ use crate::mtu::MtuNegotiationSnapshot;
 use crate::named_override::NamedOverrideCatalog;
 use crate::network_roaming::NetworkRoamingSnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
-use crate::outbound::details::OutboundDetailsSnapshot;
-use crate::outbound::inventory::{OutboundInventorySnapshot, OutboundInventoryState};
-use crate::outbound::preferences::OutboundUiPreferencesSnapshot;
 use crate::overview_layout::OverviewLayoutSnapshot;
 use crate::pac::PacSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
@@ -51,7 +47,6 @@ use crate::public_ip::PublicIpProbeSnapshot;
 use crate::reconnect_mask::ReconnectMaskSnapshot;
 use crate::resources::CoreResourceSnapshot;
 use crate::responsive_viewport::ResponsiveViewportSnapshot;
-use crate::routing_intent::RoutingIntentSnapshot;
 use crate::rule_document::RuleDocumentSnapshot;
 use crate::rule_hit_audit::RuleHitAuditSnapshot;
 use crate::rule_provider_snapshot::RuleProviderSnapshot;
@@ -83,6 +78,13 @@ use crate::uwp::UwpLoopbackSnapshot;
 use crate::version::CoreVersionSnapshot;
 use crate::vpn::VpnSurfaceObservation;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::details::OutboundDetailsSnapshot;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState,
+};
+use lurker_core_contract::outbound::preferences::OutboundUiPreferencesSnapshot;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use serde::{Deserialize, Serialize};
 
 /// Canonical page vocabulary shared by the two primary UI surfaces.

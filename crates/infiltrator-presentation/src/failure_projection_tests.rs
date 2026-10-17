@@ -1,7 +1,5 @@
 use super::*;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileRecoveryOutcome, CoreApplyFailureKind,
-};
+use lurker_core_contract::owner_switch::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
 
 #[test]
 fn serialized_reason_changes_language_without_reinterpreting_diagnostic_data() {

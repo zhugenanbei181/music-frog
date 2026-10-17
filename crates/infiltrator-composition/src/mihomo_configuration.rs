@@ -7,8 +7,6 @@ use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
 #[cfg(feature = "capture-fixtures")]
-use infiltrator_contract::core_identity::EngineId;
-#[cfg(feature = "capture-fixtures")]
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -26,6 +24,8 @@ use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 #[cfg(feature = "capture-fixtures")]
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
+#[cfg(feature = "capture-fixtures")]
+use lurker_core_contract::identity::EngineId;
 #[cfg(feature = "capture-fixtures")]
 use mihomo_config::profile_option_store::{delete_options, save_options};
 #[cfg(feature = "capture-fixtures")]

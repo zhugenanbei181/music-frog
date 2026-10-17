@@ -1,10 +1,10 @@
 //! YAML-backed rule workspace fixtures; compiled only with application unit tests.
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::rules::source_identity::identify_rules_document;
 use infiltrator_domain::rules::{load_rules_from_yaml, parse_rule_entry};
 use infiltrator_ports::rule_tracer::RuleWorkspace;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde_yaml_ng::Value;
 use std::collections::BTreeMap;
 

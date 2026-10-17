@@ -2,7 +2,7 @@
 
 use crate::host::storage::port_conflict;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 
 pub fn application() -> Result<PortConflictApplication, InfiltratorError> {

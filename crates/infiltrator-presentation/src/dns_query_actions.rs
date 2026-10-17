@@ -2,7 +2,7 @@
 use infiltrator_contract::dns_query::{
     DnsQueryOperationId, DnsQueryRequest, DnsQuerySnapshot, DnsRecord, DnsRecordType,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_OPERATION: AtomicU64 = AtomicU64::new(1);

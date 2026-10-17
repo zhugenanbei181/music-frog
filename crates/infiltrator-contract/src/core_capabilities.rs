@@ -1,8 +1,8 @@
 //! Engine-neutral, operation-level capability declarations.
 
 use crate::adapter_operation_declaration::AdapterOperationOwner;
-use crate::core_identity::{CoreVersion, EngineId};
 use crate::surface::HostKind;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;

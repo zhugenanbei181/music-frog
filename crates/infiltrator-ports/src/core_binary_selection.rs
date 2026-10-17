@@ -4,8 +4,8 @@ use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::version::CoreArtifactVerification;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::path::PathBuf;
 
 /// Search roots supplied by the host package composition for a bundled engine.

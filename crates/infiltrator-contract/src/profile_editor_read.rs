@@ -1,8 +1,8 @@
 //! Independent document/options read status and source verification for native editors.
-use crate::error::Failure;
 use crate::profile_document::ProfileDocumentSnapshot;
 use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_options::ProfileOptionsSnapshot;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// Raw editor-session feedback supplied to a presentation surface.

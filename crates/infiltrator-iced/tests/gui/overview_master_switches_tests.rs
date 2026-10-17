@@ -1,5 +1,5 @@
 use super::*;
-use infiltrator_contract::error::Failure;
+use lurker_core_contract::error::Failure;
 
 #[test]
 fn unsupported_master_control_is_not_offered_as_an_action() {

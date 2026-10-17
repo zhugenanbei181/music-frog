@@ -7,10 +7,10 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
+use lurker_core_contract::identity::EngineId;
 
 /// 仅在宿主提供的活动引擎 owner 与 revision 授权精确匹配时应用配置。
 #[async_trait]

@@ -12,11 +12,11 @@
 //! Red line: everything in this module is pure data plus pure functions —
 //! no app-state access, no I/O, no backend calls.
 
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::tray_status::TrayRateBadge;
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_shared::assets::product_icon_png;
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env::{current_dir, current_exe};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;

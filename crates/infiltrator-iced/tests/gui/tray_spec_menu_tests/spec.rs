@@ -2,8 +2,8 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[test]
 fn spec_layout_mirrors_the_full_feature_menu() {

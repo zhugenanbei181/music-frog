@@ -2,8 +2,8 @@ use super::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest, ProfileCatalogOrderValidationError,
     ProfileCatalogSnapshot,
 };
-use crate::core_identity::EngineId;
 use crate::profile_document_identity::ProfileId;
+use lurker_core_contract::identity::EngineId;
 
 fn profile(name: &str) -> ProfileId {
     ProfileId::new(name).unwrap()

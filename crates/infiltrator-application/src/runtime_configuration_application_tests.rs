@@ -1,10 +1,6 @@
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::error::PortError;
@@ -12,6 +8,10 @@ use infiltrator_ports::runtime_configuration::{
     ConfigurationRevision, Ipv6ConfigurationPort, LanAuthenticationState, LanConfigurationPort,
     LanSecurityConfiguration, LanSecurityUpdate, LanSharingConfiguration, LanSharingUpdate,
     SnifferConfigurationPort, TunConfigurationPort,
+};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::session::SessionToken;
 use std::sync::{Arc, Mutex};

@@ -9,8 +9,6 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::{Failure, InfiltratorError};
 use infiltrator_contract::speedtest::SpeedtestCancelOutcome;
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
 use infiltrator_domain::backup::{BackupBundle, export_encrypted_bundle};
@@ -20,6 +18,8 @@ use infiltrator_domain::rules::logical::{
 };
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::{Failure, InfiltratorError};
 use std::fs::write;
 
 fn map_uwp_snapshot(

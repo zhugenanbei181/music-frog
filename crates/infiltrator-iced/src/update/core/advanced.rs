@@ -10,7 +10,7 @@ use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn reset_dns_lazy_state(&mut self) {

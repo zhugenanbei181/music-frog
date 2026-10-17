@@ -6,8 +6,6 @@ use infiltrator_contract::android_control::{
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -23,6 +21,8 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use singbox_process::process::SingBoxCoreOperationGate;
 use std::path::PathBuf;
 use std::result;

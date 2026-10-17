@@ -17,10 +17,10 @@ use iced_runtime::task::into_stream;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProxyControlOperation};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_test_support::routing_intent_fixtures::RoutingIntentScenarioController;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

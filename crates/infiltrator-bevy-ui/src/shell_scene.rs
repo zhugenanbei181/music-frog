@@ -56,10 +56,10 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_bevy_widgets::tooltip::TooltipBubble;
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_presentation::system_toggle_projection::compact_label;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 /// The root shell scene.
 pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {

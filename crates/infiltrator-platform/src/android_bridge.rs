@@ -6,7 +6,6 @@ use infiltrator_contract::android_control::{
     AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
     AndroidHostProcessRole, VpnAuthorizationState, VpnOwnerSnapshot,
 };
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerSubmission,
@@ -16,6 +15,7 @@ use infiltrator_contract::vpn::{
     VpnStopTarget,
 };
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::result;

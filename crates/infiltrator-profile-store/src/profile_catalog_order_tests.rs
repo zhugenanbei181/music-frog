@@ -1,5 +1,4 @@
 use crate::store::{EngineProfileStore, ProfileDocumentExtension};
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest, ProfileCatalogSnapshot,
 };
@@ -13,6 +12,7 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::EngineId;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

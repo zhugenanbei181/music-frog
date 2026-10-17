@@ -26,11 +26,11 @@ use infiltrator_bevy_widgets::button::{ButtonDisabled, sync_button_disabled};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::rule_statistics_inspector_projection::StatisticsRowKey;
 use infiltrator_presentation::rule_statistics_workbench::{
     RuleStatisticsWorkbench, StatisticsResetRequest, StatisticsTab,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
 pub struct RulesStatisticsState {

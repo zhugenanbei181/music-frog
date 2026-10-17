@@ -4,7 +4,7 @@ use crate::types::dns_query::QueryAction;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 impl AppState {
     pub(super) fn update_dns_query(&mut self, action: QueryAction) -> Task<Message> {
         let command_ingress = self.command_ingress();

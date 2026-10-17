@@ -59,13 +59,13 @@ use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
-use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_presentation::shell_readout::observed_rate;
+use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::sync::Arc;
 use std::time::Duration;
 

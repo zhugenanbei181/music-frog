@@ -42,7 +42,7 @@ fn failure_and_unsupported_are_localized_without_inventing_success_or_translatin
 #[cfg(test)]
 mod retained_tests {
     use super::*;
-    use infiltrator_contract::error::{ErrorCode, Failure};
+    use lurker_core_contract::error::{ErrorCode, Failure};
     #[test]
     fn retained_zero_keeps_geometry_and_is_visibly_stale_in_both_locales() {
         let snapshot = SubscriptionQuotaSnapshot {

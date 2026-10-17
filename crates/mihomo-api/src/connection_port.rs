@@ -6,9 +6,6 @@ use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::runtime_stream::scope_stream;
 use futures_util::{StreamExt, stream};
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
@@ -18,6 +15,9 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 
@@ -304,10 +304,8 @@ mod tests {
     use futures_util::SinkExt;
     use futures_util::StreamExt;
     use infiltrator_contract::connection::ConnectionId;
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
-    };
     use infiltrator_domain::runtime::Connection;
+    use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tokio::net::TcpListener;

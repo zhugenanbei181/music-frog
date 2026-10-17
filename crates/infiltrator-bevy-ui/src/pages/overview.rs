@@ -82,7 +82,6 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::resources::ResourceAvailability;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::system_toggle::SystemToggleState;
@@ -94,6 +93,7 @@ use infiltrator_presentation::routing_intent_projection::routing_intent_status_c
 use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[path = "overview_reactive.rs"]
 pub mod overview_reactive;

@@ -1,11 +1,11 @@
 //! Typed snapshot restoration phases; SnapshotApplication retains all I/O ownership.
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot_restore::{
     SnapshotRestoreIdentity, SnapshotRestoreReceipt, SnapshotRestoreReview, SnapshotRestoreTarget,
 };
 use infiltrator_domain::profile_source::hash_document_bytes;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RestorePending {

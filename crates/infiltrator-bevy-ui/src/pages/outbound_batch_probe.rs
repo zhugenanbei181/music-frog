@@ -13,17 +13,17 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityStatus, CoreOperation, OutboundOperation,
 };
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::{
+use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
+use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::{
     inventory::OutboundInventoryState,
     probe::{
         OutboundProbeBatchScope, OutboundProbeBatchSnapshot, OutboundProbeConcurrency,
         ProbeOutboundBatchRequest,
     },
 };
-use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
-use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
 use std::collections::HashMap;
 use std::collections::HashSet;
 

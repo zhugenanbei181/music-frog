@@ -11,7 +11,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 #[derive(SystemParam)]
 pub struct HostNativeInputs<'w, 's> {
     wrappers: Query<'w, 's, (&'static Children, Has<DnsHostsEditorField>), HostFieldWrappers>,

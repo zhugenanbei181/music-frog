@@ -9,16 +9,16 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::traffic_history::{
     ClosedConnectionSnapshot, ClosedConnectionsSnapshot, TrafficBarSnapshot, TrafficHistorySnapshot,
 };
 use infiltrator_slint::{SlintAction, SlintProductHost};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
 use std::sync::Mutex;
 
 struct TrafficTestHost {

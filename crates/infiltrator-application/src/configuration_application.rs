@@ -2,7 +2,6 @@
 
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use infiltrator_contract::dns_hosts::DnsHostEntry;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_configuration;
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, SnifferConfiguration,
@@ -20,6 +19,7 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorks
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 #[cfg(test)]
 use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
+use lurker_core_contract::error::{ErrorCode, Failure};
 #[cfg(test)]
 use std::sync::Arc;
 

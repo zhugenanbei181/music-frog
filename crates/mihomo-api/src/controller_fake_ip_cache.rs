@@ -3,12 +3,12 @@
 use crate::client::MihomoClient;
 use crate::network_error::network_error;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
     ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::identity::CoreScope;
 
 #[derive(Clone)]
 pub struct MihomoControllerFakeIpCacheAdapter {
@@ -54,10 +54,10 @@ fn ensure_mihomo_scope(scope: &CoreScope) -> Result<(), PortError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::{
+    use infiltrator_contract::dns_cache::DnsCacheOperationId;
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
     };
-    use infiltrator_contract::dns_cache::DnsCacheOperationId;
     use mockito::Server;
 
     fn scope(engine: &str) -> CoreScope {

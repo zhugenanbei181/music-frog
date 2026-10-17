@@ -2,11 +2,11 @@ use super::*;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::CoreInstanceId;
 use infiltrator_contract::profile_selection_clear::{
     ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
     UnselectedProfileSelectionReadback,
 };
+use lurker_core_contract::identity::CoreInstanceId;
 
 fn clear_request(expected: ActiveProfileReferenceState) -> ClearActiveProfileSelectionRequest {
     ClearActiveProfileSelectionRequest::new(

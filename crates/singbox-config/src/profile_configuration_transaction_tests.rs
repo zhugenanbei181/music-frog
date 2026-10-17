@@ -6,7 +6,6 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
     ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
@@ -23,6 +22,7 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspacePurpose;
 use infiltrator_ports::profile_workspace::ProfileWorkspaceUpdate;
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_contract::session::SessionToken;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::collections::VecDeque;

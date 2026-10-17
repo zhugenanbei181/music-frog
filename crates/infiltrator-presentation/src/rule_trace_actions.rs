@@ -1,5 +1,4 @@
 //! Shared draft and terminal correlation for the two rule simulation surfaces.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceExecution, RuleTraceOperationId, RuleTraceRequest,
@@ -8,6 +7,7 @@ use infiltrator_contract::rule_tracer::{
     RuleTracerSnapshot, TracerRuleOverride, TrafficContextSnapshot,
 };
 use infiltrator_domain::rules::tracer::TrafficContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::sync::atomic::{AtomicU64, Ordering};

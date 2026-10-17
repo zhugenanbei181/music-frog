@@ -2,8 +2,8 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::snapshots::SnapshotMeta;
+use lurker_core_contract::identity::EngineId;
 use std::path::Path;
 
 #[async_trait]

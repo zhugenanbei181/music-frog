@@ -47,7 +47,6 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
@@ -58,6 +57,7 @@ use infiltrator_presentation::profile_edit_session::ProfileEditObservation;
 use infiltrator_presentation::profile_editor_projection;
 use infiltrator_presentation::subscription_filter_copy::status;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
+use lurker_core_contract::error::Failure;
 
 /// Which document the editor card shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

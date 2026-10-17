@@ -9,7 +9,6 @@
 #[cfg(feature = "script-engine-boa")]
 use crate::script_engine_boa::BoaScriptEngine;
 use crate::script_engine_direct::DirectiveDslScriptEngine;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_run::{
     ScriptClearReceipt, ScriptOperationId, ScriptRunObservation, ScriptRunRequest, ScriptRunResult,
 };
@@ -24,6 +23,7 @@ use infiltrator_domain::script_engine::{
     ScriptExecutionResult, ScriptValidationResult,
 };
 use infiltrator_ports::script_engine::ScriptEnginePort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 

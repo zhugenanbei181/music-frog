@@ -7,7 +7,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -22,6 +21,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::session::SessionToken;
 use mihomo_config::manager::ConfigManager;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;

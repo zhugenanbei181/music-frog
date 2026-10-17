@@ -104,10 +104,10 @@ fn storage(error: io::Error) -> PortError {
 mod tests {
     use super::*;
     #[cfg(test)]
-    use infiltrator_contract::error::ErrorCode;
-    #[cfg(test)]
     use infiltrator_contract::script_export::DIRECTIVE_DSL_JS_HEADER;
     use infiltrator_contract::script_export::ScriptExportKind;
+    #[cfg(test)]
+    use lurker_core_contract::error::ErrorCode;
     #[cfg(test)]
     use std::env;
     #[cfg(test)]

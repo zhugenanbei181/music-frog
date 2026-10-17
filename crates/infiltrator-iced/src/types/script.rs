@@ -1,9 +1,9 @@
 //! Script workbench native actions have one owner and one TEA entry.
 use iced::widget::text_editor;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_run::ScriptEditorField;
+use lurker_core_contract::error::Failure;
 
 #[derive(Clone, Debug)]
 pub enum ScriptAction {

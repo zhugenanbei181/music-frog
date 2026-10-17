@@ -34,7 +34,6 @@ use infiltrator_composition::active_profile_backend::{
     ActiveProfileSelectionPreflight, SelectedActiveProfileBackend,
 };
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
@@ -56,6 +55,7 @@ use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTr
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;

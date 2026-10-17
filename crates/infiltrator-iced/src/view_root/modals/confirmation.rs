@@ -12,11 +12,11 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, SP_SM, SP_XS, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_presentation::rule_condition_projection::location_text;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::ErrorCode;
 
 pub fn confirmation_modal<'a>(
     state: &'a AppState,

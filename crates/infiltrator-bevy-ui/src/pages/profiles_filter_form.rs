@@ -16,11 +16,11 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::subscription_filter_copy::status;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct FilterText(pub FilterField);

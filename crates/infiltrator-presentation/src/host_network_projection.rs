@@ -268,13 +268,13 @@ mod tests {
         VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
         VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
     };
-    use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-    use infiltrator_contract::error::{ErrorCode, Failure};
     use infiltrator_contract::privileged_network::{
         PrivilegedNetworkSnapshot, PrivilegedNetworkState,
     };
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
+    use lurker_core_contract::error::{ErrorCode, Failure};
+    use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
     use lurker_core_contract::session::SessionToken;
 
     #[test]

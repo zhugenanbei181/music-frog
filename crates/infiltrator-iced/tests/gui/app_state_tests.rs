@@ -21,14 +21,7 @@ use infiltrator_application::runtime_configuration_application::RuntimeConfigura
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_control::CoreControlLabel;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
-use infiltrator_contract::routing_intent::RoutingIntentStatus;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -45,6 +38,13 @@ use infiltrator_ports::runtime_configuration::{
 use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
+use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
+use lurker_core_contract::routing_intent::RoutingIntentStatus;
 use lurker_core_contract::session::SessionToken;
 use std::path::PathBuf;
 use std::sync::Arc;

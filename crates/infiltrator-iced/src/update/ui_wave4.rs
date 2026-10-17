@@ -10,7 +10,6 @@ use infiltrator_application::network_roaming_application::NetworkRoamingApplicat
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
@@ -21,6 +20,7 @@ use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
 use std::fs::write;
 
 fn split_pac_domains(value: &str) -> Vec<String> {

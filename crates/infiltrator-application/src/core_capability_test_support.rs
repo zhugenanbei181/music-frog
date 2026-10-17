@@ -12,14 +12,14 @@ use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreCapabilityMatrix,
     CoreCapabilityScope, CoreOperation, EngineCapabilityDecision, HostCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
+};
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use std::sync::Arc;
 

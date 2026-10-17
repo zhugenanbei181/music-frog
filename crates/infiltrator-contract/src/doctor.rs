@@ -1,7 +1,7 @@
 //! Cross-surface doctor and bootstrap results.
 
 use crate::command::CommandIntent;
-use crate::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -188,7 +188,7 @@ impl DoctorObservation {
 mod observation_tests {
     use super::{DoctorObservation, DoctorReport};
     use crate::doctor::DoctorCheckResult;
-    use crate::error::{ErrorCode, Failure};
+    use lurker_core_contract::error::{ErrorCode, Failure};
 
     fn report() -> DoctorReport {
         DoctorReport {

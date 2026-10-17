@@ -1,10 +1,10 @@
 //! Native sing-box JSON validation and exact config-file readback.
 
 use crate::profile_document_codec::SingBoxProfileDocumentCodec;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use singbox_process::command::{NativeConfigCheck, SingBoxCommandPort, TokioSingBoxCommandPort};
 #[cfg(test)]
 use std::ffi::OsStr;

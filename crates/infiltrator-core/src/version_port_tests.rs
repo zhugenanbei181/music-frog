@@ -2,9 +2,9 @@
 //! test-intent: behavior
 use super::*;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{VersionInstallRequest, VersionPort, VersionProgressSink};
+use lurker_core_contract::identity::EngineId;
 use mihomo_version::manager::VersionManager;
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;

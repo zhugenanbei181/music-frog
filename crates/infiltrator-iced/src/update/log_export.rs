@@ -2,8 +2,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::log_export_actions::LogExportPending;
+use lurker_core_contract::error::{ErrorCode, Failure};
 impl AppState {
     pub(super) fn update_log_export(&mut self, message: Message) -> Task<Message> {
         let request = match message {

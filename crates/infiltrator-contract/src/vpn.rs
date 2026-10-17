@@ -1,8 +1,8 @@
 //! Shared Android VpnService session contract.
 
 use crate::android_control::VpnOwnerSnapshot;
-use crate::core_identity::CoreScope;
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
 use serde::{Deserialize, Serialize};
 
 pub const MIN_VPN_MTU_BYTES: u32 = 1280;
@@ -350,7 +350,7 @@ mod tests {
         VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
         VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
     };
-    use crate::error::{ErrorCode, Failure};
+    use lurker_core_contract::error::{ErrorCode, Failure};
 
     #[test]
     fn stop_target_wire_fields_preserve_current_and_generation_semantics() {

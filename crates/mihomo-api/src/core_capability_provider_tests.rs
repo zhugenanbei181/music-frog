@@ -15,9 +15,9 @@ use infiltrator_contract::core_capabilities::{
     ProviderOperation, ProxyControlOperation, RulesOperation, SubscriptionOperation, TunOperation,
     VersionOperation,
 };
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
 
 fn locked_versions_and_operations() -> Vec<(String, String, u64, Vec<String>)> {

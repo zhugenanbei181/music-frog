@@ -21,9 +21,6 @@ use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::core_identity::{CoreGeneration, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
 #[cfg(test)]
 use infiltrator_contract::mtu::MtuProbeState;
 #[cfg(test)]
@@ -43,6 +40,9 @@ use infiltrator_contract::vpn::{
 use infiltrator_platform::android_bridge::AndroidBridgeResult;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcessStartAdmission, CoreReadiness};
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, EngineId};
 use lurker_core_contract::session::SessionToken;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use std::collections::HashMap;

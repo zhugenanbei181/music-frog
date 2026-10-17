@@ -7,12 +7,12 @@
 //! [`MiniHudHostOutcome::Unsupported`] — it never claims the window moved.
 
 use crate::settings_application::SettingsApplication;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::mini_hud::{
     MiniHudDisplay, MiniHudHostOutcome, MiniHudPlacement, MiniHudSnapPlacement,
 };
 use infiltrator_ports::mini_hud_window::MiniHudWindowPort;
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 /// Edge-snap threshold in logical pixels: an 8px approach to a screen edge

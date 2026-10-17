@@ -51,11 +51,11 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::render::sync_text_fields;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_contract::yaml_snippets::column_of_byte_offset;
 use infiltrator_presentation::profile_edit_session::ProfileEditReadTarget;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// Toggle each pane area to the active pane and restamp the switcher chips.
 pub fn sync_profile_editor_pane_areas(

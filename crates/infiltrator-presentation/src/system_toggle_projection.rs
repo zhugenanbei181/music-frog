@@ -1,12 +1,12 @@
 //! Shared labels for system controls; failures retain their reported reason.
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// Fold only verified host observations into the compact toggle read model.
 pub fn from_surface(snapshot: &SurfaceSnapshot) -> SystemToggleSnapshot {

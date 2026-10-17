@@ -13,31 +13,12 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
     HostCapabilityDecision, OutboundOperation,
 };
-use infiltrator_contract::core_identity::{
-    CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
     NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
 };
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
-use infiltrator_contract::outbound::inventory::OutboundSelectionState;
-use infiltrator_contract::outbound::inventory::SelectionAvailability;
-use infiltrator_contract::outbound::{
-    details::{
-        OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
-        OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation,
-        OutboundSnapshot, OutboundUdpSupport,
-    },
-    identity::{OutboundId, SnapshotRevision},
-    inventory::{
-        OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot,
-        OutboundSelectionSet,
-    },
-};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::privileged_network::PrivilegedNetworkState;
 use infiltrator_contract::runtime_status::{
@@ -78,6 +59,25 @@ use infiltrator_ports::version::{
 };
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
 use infiltrator_test_support::doctor_capture_fixtures::DoctorCapturePort;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{
+    CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::inventory::OutboundSelectionState;
+use lurker_core_contract::outbound::inventory::SelectionAvailability;
+use lurker_core_contract::outbound::{
+    details::{
+        OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
+        OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation,
+        OutboundSnapshot, OutboundUdpSupport,
+    },
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot,
+        OutboundSelectionSet,
+    },
+};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::runtime::Builder;

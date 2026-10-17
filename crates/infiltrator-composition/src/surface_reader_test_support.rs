@@ -6,12 +6,13 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
     HostCapabilityDecision,
 };
-use infiltrator_contract::core_identity::CoreVersion;
-use infiltrator_contract::core_identity::{CoreCommandRequest, EngineId};
+use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::identity::CoreVersion;
+use lurker_core_contract::identity::EngineId;
 use std::sync::Arc;
 
 struct TestLifecycleCapabilityProvider;

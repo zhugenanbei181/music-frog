@@ -8,8 +8,8 @@
 use crate::host::storage::settings_store;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::shortcut_application::ShortcutApplication;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord, ShortcutRegistry};
+use lurker_core_contract::error::InfiltratorError;
 
 async fn application() -> Result<ShortcutApplication, InfiltratorError> {
     let store = settings_store()

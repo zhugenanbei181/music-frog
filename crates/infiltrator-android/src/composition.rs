@@ -28,7 +28,6 @@ use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
     OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
@@ -51,6 +50,7 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;

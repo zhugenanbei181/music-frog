@@ -1,9 +1,9 @@
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceSnapshot, NetworkRoamingRepairRequest,
 };
 use infiltrator_domain::network_roaming::NetworkRoamingDecision;
 use infiltrator_ports::runtime_configuration::{ObservedValue, TunConfiguration};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Copy)]
 pub(super) enum ReconcileIntent {

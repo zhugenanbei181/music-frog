@@ -1,7 +1,7 @@
 //! TEA terminal identity for an explicit shared simulation command.
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rule_trace_run::RuleTraceOperationId;
+use lurker_core_contract::error::Failure;
 #[derive(Clone, Debug)]
 pub enum RuleTraceAction {
     ToggleSandbox,

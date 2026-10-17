@@ -2,7 +2,7 @@
 
 use crate::host::storage::app_routing_store;
 use infiltrator_application::routing_application::RoutingApplication;
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 
 pub async fn application() -> Result<RoutingApplication, InfiltratorError> {

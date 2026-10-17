@@ -8,10 +8,10 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
+use lurker_core_contract::error::ErrorCode;
 
 #[test]
 fn test_rules_hit_audit_projection_and_clear_command() {

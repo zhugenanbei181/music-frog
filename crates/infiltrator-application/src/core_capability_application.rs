@@ -4,11 +4,11 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityMatrix, CoreCapabilityResolution,
     CoreCapabilityScope, CoreCapabilityStatus, CoreOperation, EngineBinaryTarget,
 };
-use infiltrator_contract::core_identity::{CoreScope, CoreVersion, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreScope, CoreVersion, EngineId};
 use std::sync::Arc;
 
 #[derive(Clone)]

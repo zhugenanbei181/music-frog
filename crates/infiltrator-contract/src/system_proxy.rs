@@ -1,6 +1,6 @@
 //! Shared system HTTP/SOCKS proxy observation and application state.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

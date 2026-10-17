@@ -1,8 +1,8 @@
 use super::identity::{
     OutboundCipherId, OutboundContractError, OutboundId, OutboundProtocolId, SnapshotRevision,
 };
-use crate::core_identity::CoreScope;
 use crate::error::Failure;
+use crate::identity::CoreScope;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;

@@ -12,8 +12,8 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::stun_probe_application::NO_STUN_PORT_REASON;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
+use lurker_core_contract::error::Failure;
 
 impl AppState {
     /// Publish the shared STUN report into the render state. A probe in flight

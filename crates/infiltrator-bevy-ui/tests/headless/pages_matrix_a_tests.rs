@@ -96,7 +96,6 @@ use infiltrator_contract::aggregator::{
     AggregationTemplate,
 };
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
@@ -114,6 +113,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 use std::sync::Mutex;
 

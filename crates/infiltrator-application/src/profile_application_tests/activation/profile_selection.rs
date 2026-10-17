@@ -2,9 +2,9 @@
 
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
-use infiltrator_contract::error::FailureReason;
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use lurker_core_contract::error::FailureReason;
+use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 
 #[tokio::test]
 async fn activation_stale_revision_does_not_dispatch_or_overwrite_the_winner() {

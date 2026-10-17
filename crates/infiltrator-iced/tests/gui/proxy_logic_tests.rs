@@ -15,9 +15,9 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
-use infiltrator_contract::outbound::preferences::OutboundFavoriteState;
-use infiltrator_contract::outbound::preferences::OutboundLayout;
-use infiltrator_contract::outbound::preferences::{
+use lurker_core_contract::outbound::preferences::OutboundFavoriteState;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
+use lurker_core_contract::outbound::preferences::{
     OutboundHealthFilter, OutboundSortOrder, OutboundUiPreferenceIntent,
 };
 use std::sync::Arc;

@@ -10,7 +10,6 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_core::app_routing_io::FileAppRoutingStore;
 use infiltrator_core::doctor_port::MihomoDoctor;
 use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
@@ -24,6 +23,7 @@ use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_presentation::failure_projection::{FailureLocalizationKey, project_failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
@@ -232,7 +232,7 @@ fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
 #[cfg(test)]
 mod failure_localization_tests {
     use super::*;
-    use infiltrator_contract::error::FailureReason;
+    use lurker_core_contract::error::FailureReason;
 
     #[test]
     fn application_failure_keeps_machine_code_diagnostic_and_typed_reason() {

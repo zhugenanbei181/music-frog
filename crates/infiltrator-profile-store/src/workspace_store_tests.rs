@@ -2,8 +2,6 @@ use crate::document_store::write_document_bytes_durable;
 use crate::file_lock::lock_profile_writes_for_dir;
 use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use crate::workspace_store::ProfileWorkspacePublicationTarget;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -15,6 +13,8 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::EngineId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;

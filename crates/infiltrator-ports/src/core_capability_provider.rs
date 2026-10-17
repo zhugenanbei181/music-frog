@@ -2,7 +2,7 @@
 //! current Core owner.
 
 use infiltrator_contract::core_capabilities::CoreCapabilityMatrix;
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 

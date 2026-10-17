@@ -33,7 +33,6 @@ use crate::types::runtime::RuntimeStatus;
 use iced::widget::text_editor::Content;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::{DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode};
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::network_roaming::{
@@ -42,7 +41,6 @@ use infiltrator_contract::network_roaming::{
 };
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
@@ -57,6 +55,8 @@ use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::traffic_scale::compute;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_test_support::subscription_filter_fixture::observation;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use std::path::PathBuf;
 use std::time;
 use std::time::Instant;

@@ -3,8 +3,8 @@ use super::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot,
     OutboundSelectionState,
 };
-use crate::core_identity::CoreScope;
 use crate::error::Failure;
+use crate::identity::CoreScope;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;

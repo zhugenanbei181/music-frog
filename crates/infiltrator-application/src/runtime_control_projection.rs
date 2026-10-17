@@ -1,11 +1,11 @@
 //! One fold for typed configuration observations; missing reads never become disabled facts.
 
 use crate::runtime_configuration_application::RuntimeConfigurationReadout;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::LanSecuritySnapshot;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_ports::runtime_configuration::{LanAuthenticationState, ObservedValue};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
 pub fn ipv6_observation(readout: &RuntimeConfigurationReadout) -> Option<Ipv6RoutingSnapshot> {
@@ -122,14 +122,14 @@ mod tests {
     use super::*;
     use crate::runtime_configuration_application::RuntimeConfigurationReadout;
     use infiltrator_contract::command::CoreLogLevel;
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
     use infiltrator_ports::runtime_configuration::{
         ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration,
         Ipv6Configuration, LanAuthenticationState, LanSecurityConfiguration,
         LanSharingConfiguration, ObservedValue, ProxyPortsConfiguration, SnifferConfiguration,
         TunConfiguration,
+    };
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
 

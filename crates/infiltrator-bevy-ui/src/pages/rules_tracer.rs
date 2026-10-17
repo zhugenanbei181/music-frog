@@ -36,7 +36,6 @@ use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_trace_run::RuleTraceOperationId;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -44,6 +43,7 @@ use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
 use infiltrator_presentation::rule_trace_projection::{
     stage_text, trace_headline, trace_provenance, trace_status,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
 pub struct RulesTraceState {

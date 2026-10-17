@@ -10,7 +10,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
@@ -38,6 +37,7 @@ use infiltrator_test_support::profile_document_codec_test_support::TestProfileDo
 use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

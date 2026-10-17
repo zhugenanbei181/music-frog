@@ -1,9 +1,9 @@
 use crate::connection_port::ConnectionRevisionState;
 use crate::error::{MihomoError, Result};
 use crate::types::*;
-use infiltrator_contract::error::Failure;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::runtime_stream::RuntimeStreamTerminal;
+use lurker_core_contract::error::Failure;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;

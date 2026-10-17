@@ -3,12 +3,12 @@ use crate::rule_list_editor::RuleListEditor;
 use crate::rule_statistics_projection::{
     can_audit_rows, clear_source, disable_zero_hit_rows, zero_hit_rows,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_statistics::RuleStatisticsResetReceipt;
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus, RulesPageSnapshot};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
 

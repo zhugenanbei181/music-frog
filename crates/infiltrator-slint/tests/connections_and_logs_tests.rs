@@ -3,13 +3,13 @@
 use std::cmp::Reverse;
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot, PageData,
     SurfaceSnapshot,
 };
 use infiltrator_contract::traffic_history::{ClosedConnectionSnapshot, ClosedConnectionsSnapshot};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 fn setup_connections_and_logs_snapshot() -> SurfaceSnapshot {
     let mut snapshot = SurfaceSnapshot::unavailable(

@@ -2,8 +2,8 @@ use super::*;
 use crate::active_profile_backend::SelectedActiveProfileBackend;
 use crate::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_contract::core_capabilities::AdapterRevision;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use tokio::time::timeout;
 
 pub(crate) struct FakeProfileStore {

@@ -5,9 +5,9 @@ use super::surface_projection_defaults::{
 use super::surface_settings::empty_settings;
 use super::*;
 use crate::pages::app_routing::AppItem;
-use infiltrator_contract::outbound::details::OutboundDetail;
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::preferences::OutboundLayout;
+use lurker_core_contract::outbound::details::OutboundDetail;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -21,7 +21,12 @@ use crate::pages::sync::{ConflictingKey, SnapshotItem, SyncConflictInfo};
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::proxies::ProxyGroupClassification;
+use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_presentation::routing_intent_projection;
+use infiltrator_presentation::system_toggle_projection;
+use lurker_core_contract::outbound::{
     details::{
         OutboundCollectionKind, OutboundDetailsState, OutboundFeature, OutboundHealthObservation,
         OutboundObservation, OutboundProtocolObservation, OutboundSnapshot,
@@ -29,11 +34,6 @@ use infiltrator_contract::outbound::{
     inventory::{OutboundInventoryState, OutboundSelectionState, SelectionAvailability},
     preferences::{OutboundHealthFilter, OutboundSortOrder},
 };
-use infiltrator_contract::proxies::ProxyGroupClassification;
-use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_presentation::routing_intent_projection;
-use infiltrator_presentation::system_toggle_projection;
 use std::time;
 
 pub(super) fn overview_projection(

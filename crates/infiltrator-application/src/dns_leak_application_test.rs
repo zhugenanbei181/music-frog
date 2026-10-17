@@ -4,7 +4,7 @@ use super::*;
 use infiltrator_contract::dns_leak::{
     DnsLeakConclusion, DnsLeakEchoRecord, DnsLeakEchoReport, DnsLeakProbeName,
 };
-use infiltrator_contract::error::ErrorCode;
+use lurker_core_contract::error::ErrorCode;
 struct RecordingEcho {
     seen: Mutex<Vec<DnsLeakEchoRequest>>,
     responder: Box<dyn Fn(&DnsLeakEchoProbe) -> DnsLeakObservationOutcome + Send + Sync>,

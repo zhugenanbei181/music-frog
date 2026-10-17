@@ -3,15 +3,6 @@ use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::details::{OutboundDetailsSnapshot, OutboundDetailsState};
-use infiltrator_contract::outbound::identity::SnapshotRevision;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
-};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{
@@ -26,6 +17,15 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::details::{OutboundDetailsSnapshot, OutboundDetailsState};
+use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+};
 use lurker_core_contract::session::SessionToken;
 use std::collections::BTreeMap;
 use std::path::PathBuf;

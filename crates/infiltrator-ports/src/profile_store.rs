@@ -10,7 +10,6 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
@@ -24,6 +23,7 @@ use infiltrator_contract::profile_display_name::{
 };
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use lurker_core_contract::identity::EngineId;
 use std::path::PathBuf;
 
 /// Active-workspace transaction outcome when a conditional restoration finds

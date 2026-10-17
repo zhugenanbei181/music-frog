@@ -24,9 +24,9 @@ use super::spec::{
     TrayProxyGroup, TrayProxyNode, TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba,
     tray_status_key,
 };
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 /// Translation closure type shared by the section builders below.
 type Tr<'a> = &'a (dyn Fn(&str) -> String + 'a);

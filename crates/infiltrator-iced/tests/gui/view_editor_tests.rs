@@ -7,12 +7,12 @@ use iced::widget::text_editor::{Action, Cursor, Motion, Position};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::profile_document::DocumentDiagnosticSnapshot;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_test_support::dns_hosts_fixtures::HostsCaptureStore;
+use lurker_core_contract::error::InfiltratorError;
 use std::path::PathBuf;
 use std::sync::Arc;
 

@@ -9,8 +9,8 @@ use super::{
     ProxyControlOperation, RulesOperation, SubscriptionOperation, TunOperation, VersionOperation,
 };
 use crate::adapter_operation_declaration::AdapterOperationOwner;
-use crate::core_identity::{CoreVersion, EngineId};
 use crate::surface::HostKind;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 
 fn scope_for(engine_id: &str, version: Option<&str>) -> CoreCapabilityScope {
     CoreCapabilityScope::new_for_target(

@@ -4,21 +4,15 @@ use crate::command_output::CommandOutput;
 use crate::dns::DnsSettingsPatch;
 use crate::dns_cache::DnsCacheOperationId;
 use crate::dns_query::{DnsQueryOperationId, DnsQueryRequest};
-use crate::error::{ErrorCode, Failure};
 use crate::lan::LanCredentials;
 use crate::language::LanguagePreference;
 use crate::log_export::LogExportIdentity;
-use crate::outbound::preferences::OutboundUiPreferenceRequest;
-use crate::outbound::probe::{
-    OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest,
-};
 use crate::overview_layout::OverviewCardKind;
 use crate::profile_configuration::ProfileConfigurationRequest;
 use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_protection::ProfileWriteAuthorization;
 use crate::protocol_fidelity::ProtocolDraft;
 use crate::protocol_trust::TlsTrustParams;
-use crate::routing_intent::RoutingIntent;
 use crate::rule_document::RuleListCommit;
 use crate::rule_edit::RuleMoveDirection;
 use crate::rule_provider_snapshot::RuleProviderControllerReference;
@@ -34,6 +28,12 @@ use crate::subscription_import::{
     SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
 use crate::tun::TunStack;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceRequest;
+use lurker_core_contract::outbound::probe::{
+    OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest,
+};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

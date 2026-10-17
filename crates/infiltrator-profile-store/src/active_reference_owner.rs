@@ -4,10 +4,10 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 

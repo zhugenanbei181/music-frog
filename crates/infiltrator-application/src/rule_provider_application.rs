@@ -6,8 +6,6 @@
 //! provider payload or claim a cleanup that never happened.
 
 use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::provider_cache::{
     ProviderCacheFingerprint, ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint,
     RuleProviderCacheSnapshot,
@@ -18,6 +16,8 @@ use infiltrator_domain::rules::provider_store::{
     RuleProviderDeclaration, deconstruct_provider_payload, unpack_provider_rules_with_behavior,
 };
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

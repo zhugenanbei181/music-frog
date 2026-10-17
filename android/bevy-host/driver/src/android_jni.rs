@@ -7,7 +7,7 @@ use crate::insets::{
 use crate::owner_client::OwnerTransport;
 use android_activity::AndroidApp;
 use infiltrator_contract::android_control::VpnOwnerSnapshot;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::vpn::VpnOwnerStopReceipt;
 use jni::JavaVM;
 use jni::NativeMethod;

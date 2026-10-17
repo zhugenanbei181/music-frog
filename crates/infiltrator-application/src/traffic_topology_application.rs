@@ -1,14 +1,14 @@
 //! Application seam for the shared live traffic topology.
 
 use crate::runtime_configuration_application::RuntimeConfigurationReadout;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::outbound::inventory::OutboundObservationSnapshot;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_domain::traffic_topology::{TrafficTopologyInput, derive};
 use infiltrator_ports::connection::ConnectionObservationSnapshot;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::outbound::inventory::OutboundObservationSnapshot;
 
 /// Converts composed controller observations into one immutable topology
 /// snapshot. UI surfaces never call a gateway or infer the routing chain.

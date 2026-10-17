@@ -18,14 +18,14 @@ use infiltrator_bevy_ui::pages::settings::settings_core::{
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::session::SessionToken;
 use std::sync::Arc;

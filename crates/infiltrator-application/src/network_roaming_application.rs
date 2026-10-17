@@ -3,7 +3,6 @@
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::runtime_scope::active_scope;
 use futures_util::lock::Mutex;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkObservation, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
@@ -15,6 +14,7 @@ use infiltrator_domain::network_roaming::{
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 mod route_repair;
@@ -298,10 +298,6 @@ mod tests {
     use async_trait::async_trait;
     use infiltrator_contract::capability::Capability;
     #[cfg(test)]
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
-    #[cfg(test)]
     use infiltrator_contract::network_roaming::{
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
         NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
@@ -312,6 +308,10 @@ mod tests {
     use infiltrator_ports::runtime_configuration::{
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
         RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
+    };
+    #[cfg(test)]
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
     #[cfg(test)]

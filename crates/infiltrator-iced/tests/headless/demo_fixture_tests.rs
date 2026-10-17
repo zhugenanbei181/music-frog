@@ -3,11 +3,11 @@
 //! test-intent: behavior
 
 use crate::test_support::{DEFAULT_WINDOW, demo_state};
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_iced::types::runtime::RuntimeStatus;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::inventory::SelectionAvailability;
 
 #[test]
 fn demo_fixture_inventory_matches_the_demo_contract() {

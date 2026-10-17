@@ -9,16 +9,6 @@ use infiltrator_contract::adapter_operation_declaration::{
 use infiltrator_contract::core_capabilities::{
     AdapterRevision, CoreOperation, EngineBinaryTarget, OutboundOperation, ProxyControlOperation,
 };
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::details::OutboundDetailsState;
-use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
-};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
@@ -26,7 +16,6 @@ use infiltrator_contract::profile_document_identity::{
     ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
@@ -42,6 +31,17 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::outbound::details::OutboundDetailsState;
+use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
+};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_contract::session::SessionToken;
 use std::collections::HashSet;
 use std::path::PathBuf;

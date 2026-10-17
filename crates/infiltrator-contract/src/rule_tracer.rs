@@ -1,13 +1,13 @@
 //! Shared read model and decision tree replay contract for the Live Rule Tracer (交互式分流追踪器).
 
-use crate::error::{ErrorCode, Failure};
-use crate::outbound::identity::{OutboundId, SnapshotRevision};
 use crate::rule_condition::{ConditionOutcome, EvaluationNodeKind, RuleEvaluationNode};
 #[cfg(test)]
 use crate::rule_hit_audit::{RuleDeadReason, RuleHitAuditSnapshot};
 use crate::rule_location::RulePathEntry;
 use crate::rule_source::RuleSourceIdentity;
 use crate::rule_trace_facts::DecisionStageFacts;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
 use serde::{Deserialize, Serialize};
 
 /// Status of the Live Rule Tracer engine.

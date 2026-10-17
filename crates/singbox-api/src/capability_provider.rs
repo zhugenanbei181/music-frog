@@ -8,11 +8,11 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreOperation, CoreVersionRequirement, EngineBinaryTarget,
     HostCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
 use std::sync::OnceLock;
 

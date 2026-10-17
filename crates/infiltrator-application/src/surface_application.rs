@@ -4,12 +4,12 @@
 //! [`SurfaceReader`] and one [`ApplicationRuntime`]; Iced and Bevy only drain
 //! owned `SurfaceSnapshot` values and project them into their native widgets.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{SurfaceEvent, SurfaceSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::surface::SurfaceReader;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{
     Receiver, RecvTimeoutError, SyncSender, TrySendError, channel, sync_channel,

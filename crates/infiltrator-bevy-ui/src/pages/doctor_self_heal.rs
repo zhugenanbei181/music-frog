@@ -43,9 +43,9 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::outbound::{identity::OutboundId, inventory::OutboundInventoryState};
 use infiltrator_contract::speedtest::SpeedtestOutboundResult;
 use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use lurker_core_contract::outbound::{identity::OutboundId, inventory::OutboundInventoryState};
 use std::collections::HashMap;
 
 /// Marker on the self-heal card root.
@@ -441,8 +441,13 @@ pub fn on_apply_best_node(
 mod tests {
     use super::*;
     use crate::surface::{DemoSurfaceSource, SurfaceSource};
-    use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
-    use infiltrator_contract::outbound::{
+    use infiltrator_contract::speedtest::{
+        SpeedtestOutboundResult, SpeedtestProgress, SpeedtestResultState, SpeedtestRounds,
+        SpeedtestRunId, SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestTarget,
+    };
+    use infiltrator_contract::surface_snapshot::PageData;
+    use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
+    use lurker_core_contract::outbound::{
         details::OutboundSnapshot,
         identity::{OutboundId, SnapshotRevision},
         inventory::{
@@ -450,11 +455,6 @@ mod tests {
             SelectionAvailability,
         },
     };
-    use infiltrator_contract::speedtest::{
-        SpeedtestOutboundResult, SpeedtestProgress, SpeedtestResultState, SpeedtestRounds,
-        SpeedtestRunId, SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestTarget,
-    };
-    use infiltrator_contract::surface_snapshot::PageData;
 
     fn observed_surface() -> SurfaceSnapshot {
         let mut snapshot = DemoSurfaceSource::running().surface_snapshot();

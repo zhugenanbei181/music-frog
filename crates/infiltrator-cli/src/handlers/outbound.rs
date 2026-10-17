@@ -5,7 +5,7 @@ use infiltrator_application::core_capability_application::{
     CoreCapabilityGateFailure, CoreCapabilityRequirement, CoreCommandEffect,
 };
 use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
-use infiltrator_contract::outbound::{
+use lurker_core_contract::outbound::{
     details::OutboundSnapshot,
     identity::OutboundId,
     inventory::{

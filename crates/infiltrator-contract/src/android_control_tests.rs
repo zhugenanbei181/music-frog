@@ -9,14 +9,14 @@ use super::{
     validate_android_control_terminal_readback,
 };
 use crate::command::{CommandIntent, CommandResult, RequestId};
-use crate::core_identity::{
-    CoreCommandOutcome, CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
-    EngineId,
-};
-use crate::core_process::CoreProcessStartContext;
-use crate::error::{ErrorCode, Failure, FailureReason};
+use crate::core_identity::CoreCommandOutcome;
 use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use crate::vpn::VpnGeneration;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use lurker_core_contract::session::SessionToken;
 
 #[test]

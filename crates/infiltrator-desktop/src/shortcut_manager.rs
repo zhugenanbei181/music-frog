@@ -1,5 +1,5 @@
 use anyhow::{Result, bail};
-use infiltrator_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntent;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::{error, fmt};

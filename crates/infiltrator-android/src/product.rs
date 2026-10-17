@@ -27,7 +27,6 @@ use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 #[cfg(test)]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 #[cfg(test)]
@@ -40,6 +39,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_scope::CoreScopeSource;
 #[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
@@ -370,8 +370,6 @@ mod tests {
         AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, VpnOwnerCoreReadback,
         VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
     };
-    use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-    use infiltrator_contract::core_process::CoreProcessStartContext;
     use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
     use infiltrator_contract::vpn::VpnGeneration;
     use infiltrator_platform::android_bridge::{
@@ -380,6 +378,8 @@ mod tests {
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
+    use lurker_core_contract::core_process::CoreProcessStartContext;
+    use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
     use mihomo_config::manager::ConfigManager;
     use std::env;
     use std::fs;

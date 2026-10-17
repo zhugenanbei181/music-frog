@@ -2,7 +2,6 @@
 use super::SnapshotApplication;
 use crate::profile_application::ProfileRuntimeAccess;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot_restore::{
     SnapshotRestoreCancelled, SnapshotRestoreIdentity, SnapshotRestoreReceipt,
@@ -15,6 +14,7 @@ use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceA
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};

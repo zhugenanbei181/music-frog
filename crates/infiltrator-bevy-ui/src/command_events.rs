@@ -11,7 +11,7 @@ use crate::command::UiCommand;
 use bevy::ecs::event::Event;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::Failure;
+use lurker_core_contract::error::Failure;
 
 /// Notification severity level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

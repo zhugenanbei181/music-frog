@@ -8,11 +8,11 @@ use crate::view::theme::{self, tokens};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_contract::outbound::{
-    inventory::OutboundInventoryState, preferences::OutboundSortOrder,
-};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::{
+    inventory::OutboundInventoryState, preferences::OutboundSortOrder,
+};
 
 /// Product outbound sorting uses the shared typed preference vocabulary.
 pub(super) const SORT_ORDERS: [OutboundSortOrder; 4] = [

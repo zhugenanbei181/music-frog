@@ -1,5 +1,4 @@
 //! Product-local, request-fenced quota observations; failed same-source reads retain actual facts.
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::subscription_quota::{
     QuotaProfileIdentity, SubscriptionQuotaSnapshot, SubscriptionQuotaSource,
@@ -8,6 +7,7 @@ use infiltrator_contract::subscription_quota::{
 use infiltrator_domain::profile_source::hash_document_bytes;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::subscription_quota::derive;
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};

@@ -3,10 +3,10 @@
 //! sibling section modules and composed into one page-level scrollable.
 
 use crate::view::pcap_panel::pcap_card;
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
 use infiltrator_presentation::routing_intent_projection::{
     routing_intent_copy, routing_intent_status_copy,
 };
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
 use std::fmt::{self, Display, Formatter};
 pub(crate) mod connection_search;
 mod connections;
@@ -30,8 +30,8 @@ use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::inventory::SelectionAvailability;
 
 /// Localized common routing choice for the pick-list.
 #[derive(Clone, PartialEq)]

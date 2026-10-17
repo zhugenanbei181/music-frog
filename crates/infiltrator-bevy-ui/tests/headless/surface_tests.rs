@@ -12,11 +12,11 @@ use infiltrator_bevy_ui::surface::{
     SurfaceSource, SurfaceStatusBanner, core_lifecycle_projection, doctor_projection,
     overview_projection, settings_projection,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::surface_snapshot::{PageData, PageId, SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 
 struct StaticSurface {

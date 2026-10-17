@@ -3,7 +3,6 @@
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_option_store;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion,
 };
@@ -26,6 +25,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecScope, ProfileFilterMutation, ProfileMixinMutation,
     ProfileOptionsCodecScope, ProfileOptionsProjection,
 };
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use std::fmt::Display;
 use std::path::Path;
 use std::str;

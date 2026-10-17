@@ -1,7 +1,6 @@
 //! test-intent: behavior
 //! Inspection consumes the shared fold without running probes or commands.
 use crate::test_support::demo_env;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_contract::speedtest::{SpeedtestRunState, SpeedtestSnapshot};
 use infiltrator_iced::state::AppState;
@@ -9,6 +8,7 @@ use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_presentation::speedtest_detail_projection::{listing, project_details};
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::Failure;
 
 #[test]
 fn speedtest_detail_preserves_shared_facts_and_closes_without_effects() {

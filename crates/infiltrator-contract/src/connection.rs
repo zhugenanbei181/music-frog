@@ -7,8 +7,8 @@
 //! stream badge on either surface means the same thing.
 
 use crate::capability::Availability;
-use crate::core_identity::EngineId;
 use crate::surface_snapshot::PageStatus;
+use lurker_core_contract::identity::EngineId;
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -199,7 +199,7 @@ pub fn timing_availability() -> Availability {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Failure;
+    use lurker_core_contract::error::Failure;
 
     #[test]
     fn rate_observation_serializes_as_a_typed_state() {

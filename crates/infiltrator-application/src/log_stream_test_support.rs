@@ -2,7 +2,6 @@
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use futures_util::stream::{BoxStream, pending};
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -11,6 +10,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
+use lurker_core_contract::identity::CoreScope;
 use mem::take;
 use std::collections::VecDeque;
 use std::mem;

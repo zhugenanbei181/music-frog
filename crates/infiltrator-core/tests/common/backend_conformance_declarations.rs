@@ -7,7 +7,7 @@ use infiltrator_contract::core_capabilities::{
     AdapterRevision, CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, OutboundOperation,
     ProfileOperation, ProxyControlOperation, VersionOperation,
 };
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
 
 const MIHOMO_DECLARATION: &str =

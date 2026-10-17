@@ -2,8 +2,6 @@
 
 use crate::version_application::VersionApplication;
 use futures_util::FutureExt;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::version::{
     CoreVersionInstallCancelOutcome, CoreVersionInstallContext, CoreVersionInstallId,
     CoreVersionInstallObservation, CoreVersionInstallReceipt, CoreVersionInstallState,
@@ -15,6 +13,8 @@ use infiltrator_ports::application_runtime::{
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::version::VersionProgressSink;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use std::collections::{HashMap, VecDeque};
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard};

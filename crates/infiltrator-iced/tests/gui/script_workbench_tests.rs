@@ -12,8 +12,8 @@ use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::script_export::ScriptExportKind;
+use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

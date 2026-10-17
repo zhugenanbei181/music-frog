@@ -29,10 +29,6 @@ use axum::response::{IntoResponse, Response};
 use iced_runtime::task::into_stream;
 use infiltrator_application::profile_application::ProfileRuntimeAccess;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
@@ -42,6 +38,10 @@ use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::session::SessionToken;
 use std::collections::{BTreeMap, HashSet};

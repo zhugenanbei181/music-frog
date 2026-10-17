@@ -10,7 +10,6 @@ use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -20,6 +19,7 @@ use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_test_support::dns_leak_fixtures::{EchoMode, IsolatedEcho};
+use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 fn terminal(task: Task<Message>) -> Message {

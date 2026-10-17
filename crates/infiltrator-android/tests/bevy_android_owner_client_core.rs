@@ -56,7 +56,7 @@ pub mod command_events {
     use crate::command::UiCommand;
     use infiltrator_contract::command::RequestId;
     use infiltrator_contract::command_output::CommandOutput;
-    use infiltrator_contract::error::Failure;
+    use lurker_core_contract::error::Failure;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct CommandExecutedEvent {

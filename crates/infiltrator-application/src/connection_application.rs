@@ -3,9 +3,6 @@
 use crate::runtime_scope::active_scope;
 use crate::runtime_stream_application::scope_checked;
 use infiltrator_contract::connection::ConnectionId;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_ports::connection::{
@@ -14,6 +11,9 @@ use infiltrator_ports::connection::{
 };
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 

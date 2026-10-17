@@ -28,7 +28,6 @@ use infiltrator_contract::android_control::{
     AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
     AndroidHostProcessRole, VpnAuthorizationState, VpnOwnerSnapshot,
 };
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerSubmission,
 };
@@ -49,6 +48,7 @@ use jni::signature::RuntimeMethodSignature;
 use jni::strings::JNIString;
 use jni::sys::{jfloat, jint, jlong, jstring};
 use jni::{Env, EnvUnowned, JavaVM, errors};
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;

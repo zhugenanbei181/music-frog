@@ -1,9 +1,9 @@
 use super::{ProfileApplication, valid_name};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl ProfileApplication {
     /// Read the presentation label independently from the stable profile ID.

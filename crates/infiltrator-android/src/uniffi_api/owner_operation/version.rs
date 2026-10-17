@@ -4,13 +4,13 @@ use super::{AndroidOwnerDataMutation, AndroidOwnerRevisionTransition};
 use crate::core_version_owner::core_version_management_application;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::map_application_failure;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::version::{
     CoreRelease, CoreReleaseSummary, CoreVersionInstallCancelOutcome, CoreVersionInstallContext,
     CoreVersionInstallId, CoreVersionInstallObservation, CoreVersionInstallState,
     CoreVersionManagementAction, CoreVersionManagementRequest, CoreVersionManagementResult,
     EngineNeutralReleaseChannel, InstalledCoreVersion, VersionDownloadProgress,
 };
+use lurker_core_contract::identity::EngineId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]

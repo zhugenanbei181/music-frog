@@ -1,7 +1,7 @@
 use crate::command::{CommandKind, RequestId};
-use crate::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
-use crate::error::Failure;
-use crate::routing_intent::RoutingIntentSnapshot;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
@@ -13,15 +13,6 @@ pub enum CoreLifecycle {
     Ready,
     Running,
     Stopping,
-    Failed,
-}
-
-/// Exact inactive lifecycle fact carried by operations that persist selected
-/// profile content without starting or applying Core.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CoreInactiveLifecycle {
-    Stopped,
     Failed,
 }
 

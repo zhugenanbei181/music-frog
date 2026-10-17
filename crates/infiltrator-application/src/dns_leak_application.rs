@@ -17,9 +17,9 @@ use infiltrator_contract::dns_leak::{
     DnsLeakProbeSource, DnsLeakProbeTransport, DnsLeakReport, DnsLeakStatus, MAX_ECHO_TIMEOUT_MS,
     MAX_PROBE_NAME_LEN,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::dns_leak::{DnsLeakEchoPort, DnsLeakProbePort};
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::fmt;
 use std::process::id;
 use std::sync::atomic::{AtomicU64, Ordering};

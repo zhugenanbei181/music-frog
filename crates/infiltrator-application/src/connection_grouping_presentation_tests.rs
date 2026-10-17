@@ -1,13 +1,13 @@
 //! test-intent: behavior
 use crate::connection_grouping_capture_tests::grouping_surface;
 use crate::connection_rate_application::project_connection;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::{self, ConnectionGroupingMode, ConnectionSortKey};
 use infiltrator_presentation::connection_grouping::ConnectionGroupingState;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use lurker_core_contract::error::Failure;
 
 #[test]
 fn grouping_preserves_all_buckets_and_identical_projection_semantics() {

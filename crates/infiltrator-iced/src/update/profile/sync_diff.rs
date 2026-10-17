@@ -18,12 +18,12 @@ use crate::types::options::{SyncDiffBundle, SyncDiffState};
 use crate::update::core::profile_apply::runtime_access;
 use crate::update::core::profile_apply::save_profile_content;
 use iced::Task;
-use infiltrator_contract::error::{InfiltratorError, from_backend};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
 use infiltrator_domain::sync::diff_yaml_configs;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{InfiltratorError, from_backend};
 use std::collections::HashSet;
 
 impl AppState {

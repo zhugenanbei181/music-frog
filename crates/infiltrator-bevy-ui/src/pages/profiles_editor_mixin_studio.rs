@@ -31,12 +31,12 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition,
     ProfileMixinPreflight, ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleObservation,
 };
 use infiltrator_presentation::mixin_studio_projection;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// One common-overlay toggle chip (index into the shared catalogue).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]

@@ -13,10 +13,10 @@ use iced::widget::operation::{scroll_to, snap_to};
 use iced::widget::scrollable::{AbsoluteOffset, RelativeOffset};
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
 use std::time::Instant;
 
 impl AppState {

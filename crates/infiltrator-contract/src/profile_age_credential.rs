@@ -3,8 +3,8 @@
 use crate::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use crate::core_identity::{CoreScope, EngineId};
 use crate::profile_document_identity::ProfileId;
+use lurker_core_contract::identity::{CoreScope, EngineId};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error;
@@ -508,8 +508,10 @@ mod tests {
     use crate::active_profile_reference::{
         ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     };
-    use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId};
     use crate::profile_document_identity::ProfileId;
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+    };
 
     #[test]
     fn age_private_key_debug_is_redacted_and_not_serializable() {

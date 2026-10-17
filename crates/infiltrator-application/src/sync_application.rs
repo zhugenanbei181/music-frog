@@ -1,9 +1,9 @@
 //! WebDAV synchronization use-cases over a host-provided port.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::sync::{SyncReport, SyncTransferReport};
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 #[derive(Clone)]

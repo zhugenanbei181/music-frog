@@ -1,7 +1,6 @@
 //! Preparation never calls the host; confirmation writes the exact reviewed bytes.
 use super::{ExportReviewState, ExportState, ScriptExportApplication};
 use crate::profile_options_application::ProfileOptionsApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::{
     ScriptExportKind, ScriptExportOutcome, ScriptExportRequest, ScriptExportSnapshot,
 };
@@ -14,6 +13,7 @@ use infiltrator_domain::script_export::{
     compose_mixin_overlay_export,
 };
 use infiltrator_domain::script_export_review::{content_sha256, draft_package};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Mutex;
 
 struct SavingGuard<'a> {

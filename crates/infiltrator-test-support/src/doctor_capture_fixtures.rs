@@ -4,9 +4,9 @@ use infiltrator_contract::doctor::{
     BootstrapReport, DoctorCheckMeta, DoctorCheckResult, DoctorFixReport, DoctorReport,
     DoctorStatus,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub const CHECK_ID: &str = "capture.configuration";

@@ -17,14 +17,14 @@ use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_presentation::failure_projection::failure_message;
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
 };
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl AppState {
     pub(super) fn update_options(&mut self, message: Message) -> Task<Message> {

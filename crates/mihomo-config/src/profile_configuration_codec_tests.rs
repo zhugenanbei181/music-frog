@@ -2,10 +2,8 @@
 //! test-intent: behavior
 
 use super::{apply, read, read_rule_workspace};
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::DnsHostEntry;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -18,6 +16,8 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
     ProfileRuleWorkspaceUpdate,
 };
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::EngineId;
 use std::collections::BTreeMap;
 
 fn identity(engine: &str, format: &str, schema: u32) -> ProfileDocumentIdentity {

@@ -20,11 +20,11 @@ use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationActivationOutcome, AggregationCustomGroup,
     AggregationDraft, AggregationRenameRule,
 };
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 use std::sync::Arc;
 
 type AggregationOutcome = AggregatedProfileOutcome;

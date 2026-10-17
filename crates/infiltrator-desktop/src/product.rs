@@ -9,12 +9,12 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::host_runtime::HostRuntime;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::mem;

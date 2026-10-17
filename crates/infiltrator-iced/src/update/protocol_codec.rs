@@ -16,11 +16,11 @@ use infiltrator_application::protocol_codec_application::{
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::dialer_chain::DialerChainReport;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::CaTrustReport;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_presentation::protocol_form::{ProtocolInputs, draft_from_uri, uri_from_draft};
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 
 /// DUAL-05-09/10: load the active profile and run the shared dialer analyzer.

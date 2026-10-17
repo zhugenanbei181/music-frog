@@ -11,9 +11,6 @@ use infiltrator_contract::core_capabilities::{
     OutboundOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandOutcome;
-use infiltrator_contract::core_identity::CoreVersion;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::SpeedtestConcurrency;
 use infiltrator_contract::speedtest::SpeedtestRunId;
 use infiltrator_contract::speedtest::{
@@ -27,6 +24,9 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::identity::CoreVersion;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};

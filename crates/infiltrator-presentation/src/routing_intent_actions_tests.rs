@@ -1,7 +1,7 @@
 //! test-intent: behavior
 use super::*;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::routing_intent::{EngineDefinedRoutingIntent, RoutingIntentExtensionId};
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::routing_intent::{EngineDefinedRoutingIntent, RoutingIntentExtensionId};
 
 fn common_target() -> RoutingIntent {
     RoutingIntent::RouteAllThroughProxy

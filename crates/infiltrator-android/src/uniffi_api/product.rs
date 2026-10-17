@@ -7,8 +7,8 @@ use infiltrator_contract::android_control::{
     AndroidProductCommandRequest,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_platform::android_bridge::get_android_bridge;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// Execute a Serde-tagged Rust product command in the `:vpn` owner and return
 /// its typed terminal outcome. The UI process forwards the unchanged payload.

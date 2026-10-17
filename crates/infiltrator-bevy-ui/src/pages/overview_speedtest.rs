@@ -32,8 +32,6 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestPhase, SpeedtestRounds, SpeedtestTarget,
 };
@@ -43,6 +41,8 @@ use infiltrator_presentation::speedtest_summary_projection::{
     dead_archive, history_caption, metrics_label,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
 /// Marker on the speedtest detail's scroll area.
 #[derive(Component, Clone, Copy, Debug, Default)]

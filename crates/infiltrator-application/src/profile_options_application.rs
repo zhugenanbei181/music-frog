@@ -8,7 +8,6 @@
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess, valid_name};
 use crate::profile_document_application::document_snapshot;
 use crate::profile_editor_observations::EditorFacet;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::ProfileWorkspaceReceipt;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
@@ -22,6 +21,7 @@ use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceA
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// Resolve the sidecar profile: an explicit name, or the active profile.
 async fn resolve_profile(

@@ -5,12 +5,12 @@
 use super::MihomoClient;
 use crate::resource_port::MihomoRuntimeResourcePort;
 use crate::runtime_configuration::RuntimeScopeResolver;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use mockito::Server;
 use serde_json::json;
 use std::sync::Arc;

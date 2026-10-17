@@ -1,6 +1,5 @@
 //! Source-bound local trace statistics, copied once for each reader projection.
 use super::RuleTracerApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_hit_audit::{
     RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleHitSummary,
 };
@@ -11,6 +10,7 @@ use infiltrator_contract::rule_statistics::{
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::analyzer::{ShadowReason, find_shadowed_rules};
 use infiltrator_domain::rules::tracer::RuleTraceMatch;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 

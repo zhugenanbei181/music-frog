@@ -3,7 +3,6 @@ use crate::store::{EngineProfileStore, ProfileDocumentExtension};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -13,6 +12,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::EngineId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;

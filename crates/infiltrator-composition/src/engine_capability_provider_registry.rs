@@ -1,11 +1,11 @@
 //! Dispatches capability declarations by the selected engine identity.
 
 use infiltrator_contract::core_capabilities::CoreCapabilityMatrix;
-use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::collections::HashMap;
 use std::sync::Arc;
 

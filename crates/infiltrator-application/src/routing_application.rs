@@ -1,10 +1,10 @@
 //! Per-app routing use-cases over the routing persistence port.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::app_routing::{
     AppRoutingConfig, AppRoutingMode, AppRoutingPackageSelection, AppRoutingRule,
 };
 use infiltrator_ports::app_routing_store::AppRoutingStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 #[derive(Clone)]

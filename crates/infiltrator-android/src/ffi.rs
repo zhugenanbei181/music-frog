@@ -1,4 +1,4 @@
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize, serde::Deserialize)]
 #[repr(u32)]

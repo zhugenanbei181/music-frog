@@ -85,8 +85,8 @@ pub fn format_protocol_chip(raw_type: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::outbound::details::OutboundHealthObservation;
     use infiltrator_shared::country_flags::node_flag_emoji;
+    use lurker_core_contract::outbound::details::OutboundHealthObservation;
 
     #[test]
     fn test_node_flag_extraction() {

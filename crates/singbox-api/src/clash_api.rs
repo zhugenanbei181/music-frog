@@ -5,8 +5,8 @@ use crate::http::{
     ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse,
     SingBoxControllerAuthorization, endpoint_with_path, parse_loopback_endpoint,
 };
-use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::identity::CoreVersion;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 use std::time::Duration;

@@ -30,11 +30,11 @@ use iced_runtime::task::into_stream;
 use infiltrator_application::profile_options_application::ProfileOptionsApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_mixin_studio::{ProfileMixinComposition, ProfileMixinToggleId};
 use infiltrator_contract::subscription_filter_form::FilterObservation;
 use infiltrator_desktop::script_export::DesktopScriptExportPort;
+use lurker_core_contract::error::ErrorCode;
 use std::fs::read_to_string;
 use std::sync::Arc;
 

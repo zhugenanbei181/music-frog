@@ -2,7 +2,11 @@
 //! Group expansion and identity are stored in typed outbound preferences.
 use crate::test_support::demo_env;
 use iced::advanced::widget::Tree;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_iced::state::AppState;
+use infiltrator_iced::types::app::Route;
+use infiltrator_iced::types::message::Message;
+use lurker_core_contract::outbound::{
     details::OutboundSnapshot,
     identity::{OutboundId, SnapshotRevision},
     inventory::{
@@ -10,10 +14,6 @@ use infiltrator_contract::outbound::{
         OutboundSelectionState, SelectionAvailability,
     },
 };
-use infiltrator_contract::surface_snapshot::PageData;
-use infiltrator_iced::state::AppState;
-use infiltrator_iced::types::app::Route;
-use infiltrator_iced::types::message::Message;
 
 fn mounted_nodes(tree: &Tree) -> usize {
     1 + tree.children.iter().map(mounted_nodes).sum::<usize>()

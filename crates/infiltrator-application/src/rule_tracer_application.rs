@@ -2,12 +2,6 @@
 
 use self::statistics::TraceStatistics;
 use futures_util::lock;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::details::{OutboundObservation, OutboundProtocolObservation};
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventoryState, OutboundObservationSnapshot, OutboundSelectionState,
-};
 use infiltrator_contract::rule_condition::{ConditionIssue, RuleTraceIssue};
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::RuleTraceRequest;
@@ -27,6 +21,12 @@ use infiltrator_ports::rule_tracer::RuleOverridePort;
 #[cfg(test)]
 use infiltrator_test_support::rule_trace_fixtures::{
     rule_trace_test_scope, unknown_rule_trace_observation,
+};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::details::{OutboundObservation, OutboundProtocolObservation};
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventoryState, OutboundObservationSnapshot, OutboundSelectionState,
 };
 use std::collections::BTreeMap;
 use std::fmt;

@@ -2,16 +2,16 @@
 use async_trait::async_trait;
 use futures_util::future::pending;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
     ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

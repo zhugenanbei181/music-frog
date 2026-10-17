@@ -5,11 +5,11 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_test_support::routing_intent_fixtures::RoutingIntentScenarioController;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message> {

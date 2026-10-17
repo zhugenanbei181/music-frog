@@ -4,10 +4,10 @@
 use super::*;
 use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
 use infiltrator_composition::capture_fixtures::list_document;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderContentOrigin;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
+use lurker_core_contract::error::InfiltratorError;
 
 /// DUAL-11-06: the surface never invents a provider payload. The shared
 /// application reads the declaration's inline payload and the accepted plan

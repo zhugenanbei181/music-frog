@@ -177,9 +177,9 @@ impl MrsAccelerationApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::mrs_acceleration::MrsAccelerationStatus;
     use infiltrator_contract::rule_provider_runtime::RuleProviderId;
+    use lurker_core_contract::identity::EngineId;
 
     fn provider(
         name: &str,

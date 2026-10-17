@@ -50,12 +50,7 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::core_identity::{CoreCommandRequest, CoreScope};
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::{
-    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
-};
+use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_desktop::editor::open_profile_in_editor;
 use infiltrator_desktop::product::{DesktopProductSessionAction, DesktopProductSessionHandle};
@@ -68,6 +63,12 @@ use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_shared::autostart::{is_autostart_enabled, set_autostart_enabled};
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::routing_intent::{
+    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+};
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, mpsc};

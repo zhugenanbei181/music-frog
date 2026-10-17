@@ -3,12 +3,12 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::{LanguagePreference, LanguageSettingsSnapshot};
 use infiltrator_presentation::language_choice::{
     LanguageChoiceFinish, LanguageChoicePhase, LanguageReadPhase,
 };
 use infiltrator_shared::locales::resolve_language_code;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::env;
 
 impl AppState {

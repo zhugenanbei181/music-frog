@@ -1,7 +1,7 @@
 //! Profile reset use-case over a host-provided reset port.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_ports::profile_reset::ProfileResetPort;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

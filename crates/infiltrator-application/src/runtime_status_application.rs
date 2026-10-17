@@ -4,7 +4,6 @@ use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceKind, VpnOwnerResourceState,
     VpnOwnerSnapshot,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::runtime_status::{
     ControlServiceObservation, ControllerApiObservation, CoreProcessObservation,
     ProxyEffectivenessObservation, ProxyReadinessBlocker, RuntimeStatusSnapshot,
@@ -15,6 +14,7 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStatus};
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub fn project_runtime_status(
     host: HostKind,

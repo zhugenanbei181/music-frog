@@ -33,7 +33,6 @@ use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -41,6 +40,7 @@ use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::rule_trace_fixtures::{
     NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
 };
+use lurker_core_contract::error::ErrorCode;
 use std::mem::discriminant;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

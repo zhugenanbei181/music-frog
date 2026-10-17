@@ -1,6 +1,6 @@
 //! Neutral log semantics and session-fenced stream observations.
-use crate::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};
 use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
@@ -169,7 +169,9 @@ pub struct LogFactsSnapshot {
 #[cfg(test)]
 mod tests {
     use super::LogSession;
-    use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId};
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+    };
     use lurker_core_contract::session::SessionToken;
 
     #[test]

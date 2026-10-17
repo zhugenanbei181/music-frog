@@ -1,7 +1,7 @@
 use super::channel::{Channel, fetch_asset_digest, fetch_latest};
 use super::download::{DownloadProgress, Downloader};
 use crate::engine;
-use infiltrator_contract::core_identity::EngineId;
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::error::{MihomoError, Result};
 use serde::{Deserialize, Serialize};
 use std::env::temp_dir;

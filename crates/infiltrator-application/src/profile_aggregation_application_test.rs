@@ -13,10 +13,10 @@ use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationRenameRule, AggregationTemplate,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::identity::EngineId;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

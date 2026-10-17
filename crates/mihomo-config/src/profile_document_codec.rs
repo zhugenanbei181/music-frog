@@ -1,7 +1,6 @@
 //! Mihomo YAML document inspection adapter.
 
 use crate::{profile_configuration_codec, profile_options_codec};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
@@ -20,6 +19,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileOptionsProjection, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
     ProfileRuleWorkspaceUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::str::from_utf8;
 use yaml_rust2::YamlLoader;
 

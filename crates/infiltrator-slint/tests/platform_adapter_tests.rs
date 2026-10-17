@@ -9,8 +9,6 @@
 use infiltrator_slint::age_action::execute_slint_age_action;
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::SubscriptionImportChannel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -18,6 +16,8 @@ use infiltrator_slint::{
     BatteryOptimizationOutcome, NotificationPermissionOutcome, SlintAction, SlintProductHost,
     VpnPermissionOutcome,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use std::sync::Mutex;
 
 #[derive(Default)]

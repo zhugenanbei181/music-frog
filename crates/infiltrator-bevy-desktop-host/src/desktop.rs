@@ -2,9 +2,9 @@ use crate::command_sink::DesktopCommandSink;
 use crate::surface::DesktopSurfaceSource;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_bevy_ui::surface::host_insets::window_insets_input_channel;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_desktop::product::DesktopProductSession;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 use std::time::Duration;
 

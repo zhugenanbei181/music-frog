@@ -20,12 +20,12 @@ use infiltrator_composition::capture_fixtures::populate_logs;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

@@ -1,7 +1,7 @@
 //! Persist the shared runtime probe settings before publishing an applied fact.
 use super::CommandApplication;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
+use lurker_core_contract::error::Failure;
 
 impl CommandApplication {
     pub(super) async fn save_runtime_probe_settings(

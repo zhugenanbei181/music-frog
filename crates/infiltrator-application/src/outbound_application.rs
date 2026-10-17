@@ -1,10 +1,11 @@
 //! Shared outbound inventory, selection, and probe use-cases.
 
 use futures_util::stream::{self, StreamExt};
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::inventory::OutboundProbeState;
-use infiltrator_contract::outbound::{
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::inventory::OutboundProbeState;
+use lurker_core_contract::outbound::{
     details::{
         OutboundDetailsSnapshot, OutboundDetailsState, OutboundObservation,
         OutboundProbeAvailability,
@@ -25,7 +26,6 @@ use infiltrator_contract::outbound::{
         ProbeOutboundRequest,
     },
 };
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 

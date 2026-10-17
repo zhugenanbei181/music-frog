@@ -9,10 +9,10 @@ use iced::advanced::widget::Tree;
 use iced::mouse::{self, Button, Cursor, ScrollDelta};
 use iced::widget::{Space, button, mouse_area, stack};
 use iced::{Element, Event, Length, Point, Rectangle, Size, Theme};
-use infiltrator_contract::core_identity::{
+use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
-use infiltrator_contract::outbound::{
+use lurker_core_contract::outbound::{
     identity::{OutboundId, SnapshotRevision},
     probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
 };

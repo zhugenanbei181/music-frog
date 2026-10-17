@@ -125,11 +125,11 @@ pub struct RulesJsonDocumentSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core_identity::EngineId;
     use crate::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
         ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
     };
+    use lurker_core_contract::identity::EngineId;
 
     fn document_identity() -> ProfileDocumentIdentity {
         ProfileDocumentIdentity::new(

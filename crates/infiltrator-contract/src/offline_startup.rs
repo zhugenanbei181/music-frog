@@ -5,7 +5,7 @@
 //! validate its packaged assets and report the same value as the desktop
 //! host, while both UI surfaces render the same degraded/blocked decision.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// Network policy for the first core start.
@@ -120,7 +120,7 @@ impl OfflineStartupSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::{ErrorCode, Failure};
+    use lurker_core_contract::error::{ErrorCode, Failure};
 
     #[test]
     fn missing_geoip_is_degraded_but_startable() {

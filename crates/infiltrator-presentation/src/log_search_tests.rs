@@ -1,8 +1,8 @@
 //! test-intent: behavior
 use crate::log_search::LogSearchState;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 
 fn observed_page(rows: &[(&str, &str, &str, &str)]) -> PageData<LogsPageSnapshot> {

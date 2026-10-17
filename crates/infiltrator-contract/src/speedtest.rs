@@ -1,13 +1,15 @@
 //! Shared contracts and models for latency testing, jitter variance analysis,
 //! packet-loss classification, and identity-fenced result histories.
 
-use crate::core_identity::CoreScope;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 #[cfg(test)]
-use crate::core_identity::EngineId;
-use crate::error::{ErrorCode, Failure};
-use crate::outbound::identity::{OutboundContractError, OutboundId, SnapshotRevision};
-use crate::outbound::inventory::OutboundProbeState;
-use crate::outbound::probe::OutboundProbeBatchScope;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::{
+    OutboundContractError, OutboundId, SnapshotRevision,
+};
+use lurker_core_contract::outbound::inventory::OutboundProbeState;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::error::Error;
@@ -710,7 +712,9 @@ impl SpeedtestSnapshot {
     /// Deterministic typed fixture for demo/capture surfaces. Product surfaces
     /// must consume an owner-authored snapshot instead of using this fixture.
     pub fn demo_fixture() -> Self {
-        use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+        use lurker_core_contract::identity::{
+            CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
+        };
 
         let core_scope = CoreScope {
             identity: CoreIdentity::new(

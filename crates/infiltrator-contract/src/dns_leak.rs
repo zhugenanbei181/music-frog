@@ -18,7 +18,7 @@
 //!
 //! Everything both surfaces render comes from these types.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// Per-source deadline shared by the UDP/DoH/system transports.

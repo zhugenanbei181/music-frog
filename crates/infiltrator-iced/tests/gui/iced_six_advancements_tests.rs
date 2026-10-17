@@ -14,11 +14,11 @@ use crate::types::rule_trace::RuleTraceAction;
 use crate::types::script::ScriptAction;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use lurker_core_contract::error::ErrorCode;
 use std::sync::atomic::Ordering;
 use zhuge_ui_core::virtual_list::VirtualListConfig;
 

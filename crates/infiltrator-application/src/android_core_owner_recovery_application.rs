@@ -5,15 +5,15 @@ use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
 };
-use infiltrator_contract::core_identity::CoreIdentity;
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
     ActiveProfileReferenceStore,
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreIdentity;
 use std::sync::Arc;
 
 #[cfg(test)]

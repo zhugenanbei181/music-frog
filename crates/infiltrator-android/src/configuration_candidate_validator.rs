@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::android_control::core_launch::CoreLaunchConfigurationIdentity;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileWorkspaceIdentity,
 };
@@ -16,6 +15,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process;
@@ -255,7 +255,6 @@ fn map_outcome(outcome: AndroidCoreConfigurationValidationOutcome) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::profile_document_identity::{
         ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
         ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -263,6 +262,7 @@ mod tests {
     };
     use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationCandidateValidatorPort;
     use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+    use lurker_core_contract::identity::EngineId;
     use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
     use std::fs;
     use std::io::ErrorKind;

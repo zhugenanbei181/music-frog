@@ -1,8 +1,6 @@
 //! Scope-bound live configuration use-cases.
 
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mtu::{MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
@@ -16,6 +14,8 @@ use infiltrator_ports::runtime_configuration::{
     ObservedValue, ProxyPortsConfiguration, RuntimeConfigurationPorts, SnifferConfiguration,
     SnifferConfigurationUpdate, TunConfiguration, TunConfigurationUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::fmt::Debug;
 use std::net::IpAddr;
 

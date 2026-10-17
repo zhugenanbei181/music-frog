@@ -2,8 +2,8 @@
 //! snapshot and configuration-save status.
 
 use infiltrator_contract::connection::ConnectionStreamPhase;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use lurker_core_contract::error::InfiltratorError;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

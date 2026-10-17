@@ -6,17 +6,7 @@
 //! - Command routing, state transitions, typed failures, publication limits
 //! - Explicit `Unsupported` outcomes for features without a desktop platform owner
 
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
-use infiltrator_contract::outbound::identity::SnapshotRevision;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState,
-};
-use infiltrator_contract::outbound::preferences::OutboundSortOrder;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -26,6 +16,16 @@ use infiltrator_contract::surface_snapshot::{
 use infiltrator_presentation::core_status_projection::lifecycle_copy;
 use infiltrator_presentation::failure_projection::failure_message;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
+use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState,
+};
+use lurker_core_contract::outbound::preferences::OutboundSortOrder;
+use lurker_core_contract::routing_intent::RoutingIntent;
 use serde_json::json;
 
 fn test_scope() -> CoreScope {

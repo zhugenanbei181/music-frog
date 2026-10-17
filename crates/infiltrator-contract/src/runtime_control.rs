@@ -1,7 +1,7 @@
 //! Controller observations independent of successful preference reads.
-use crate::error::Failure;
 use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::LanSecuritySnapshot;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

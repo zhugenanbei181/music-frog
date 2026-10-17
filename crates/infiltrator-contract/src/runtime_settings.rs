@@ -1,6 +1,6 @@
 //! Engine-neutral runtime settings shared by persistence and every UI surface.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;

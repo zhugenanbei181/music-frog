@@ -15,9 +15,6 @@ use infiltrator_contract::command_output::CommandOutput;
 #[cfg(feature = "capture-tools")]
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
 #[cfg(feature = "capture-tools")]
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
-#[cfg(feature = "capture-tools")]
 use infiltrator_contract::profile_document::DocumentInspection;
 #[cfg(feature = "capture-tools")]
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
@@ -29,6 +26,9 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_ports::core_scope::CoreScopeObservation;
 #[cfg(feature = "capture-tools")]
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+#[cfg(feature = "capture-tools")]
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
 #[cfg(feature = "capture-tools")]
 use std::collections::HashMap;
 use std::mem;
@@ -307,7 +307,7 @@ mod tests {
     use super::UnavailableCommandSink;
     use crate::command::{UiCommand, UiCommandSink};
     use infiltrator_contract::command::RequestId;
-    use infiltrator_contract::error::{ErrorCode, Failure};
+    use lurker_core_contract::error::{ErrorCode, Failure};
 
     #[test]
     fn unavailable_sink_returns_one_typed_failure_per_request() {

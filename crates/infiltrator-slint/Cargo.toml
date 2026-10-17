@@ -26,6 +26,7 @@ capture-tools = [
 static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow.workspace = true
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }

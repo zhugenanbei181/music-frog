@@ -22,15 +22,15 @@ use crate::view::{proxies_controls, svg_icons, theme};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme, Vector, border};
-use infiltrator_contract::outbound::details::OutboundCollectionKind;
-use infiltrator_contract::outbound::details::OutboundObservation;
-use infiltrator_contract::outbound::{
-    inventory::{OutboundInventoryState, SelectionAvailability},
-    probe::{OutboundProbeBatchOutcome, OutboundProbeBatchScope},
-};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::details::OutboundCollectionKind;
+use lurker_core_contract::outbound::details::OutboundObservation;
+use lurker_core_contract::outbound::{
+    inventory::{OutboundInventoryState, SelectionAvailability},
+    probe::{OutboundProbeBatchOutcome, OutboundProbeBatchScope},
+};
 
 pub mod node_cards;
 use node_cards::{node_compact_list, node_grid};
@@ -523,7 +523,7 @@ fn outbound_group_status(group: &OutboundGroupView, lang: &Lang<'_>) -> String {
 }
 
 fn outbound_group_icon(group: &OutboundGroupView) -> Icon {
-    use infiltrator_contract::outbound::details::{OutboundCollectionKind, OutboundObservation};
+    use lurker_core_contract::outbound::details::{OutboundCollectionKind, OutboundObservation};
     match &group.collection_kind {
         OutboundObservation::Observed(OutboundCollectionKind::AutomaticSelection) => Icon::Zap,
         OutboundObservation::Observed(OutboundCollectionKind::Failover) => Icon::Shield,

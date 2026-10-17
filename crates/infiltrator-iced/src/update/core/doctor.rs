@@ -11,12 +11,12 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::admin_client::AdminApiClient;
 use infiltrator_presentation::doctor_actions::DoctorActionFinish;
 use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
     /// 内嵌 admin server 的 API 基址：实际绑定地址优先（端口被占时会向上

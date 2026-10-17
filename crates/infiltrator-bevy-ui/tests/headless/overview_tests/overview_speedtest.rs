@@ -14,10 +14,10 @@ use infiltrator_bevy_ui::pages::overview_speedtest::{
 };
 use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestProgress, SpeedtestRunId, SpeedtestRunState, SpeedtestSnapshot,
 };
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use std::sync::Arc;
 
 struct EmptySpeedtestSource;

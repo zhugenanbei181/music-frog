@@ -14,9 +14,9 @@
 //! host port reports a typed unsupported when the platform cannot move the
 //! HUD window (see [`MiniHudHostOutcome`]).
 
-use crate::routing_intent::RoutingIntentSnapshot;
 use crate::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 use crate::traffic_waveform::TrafficWaveformSnapshot;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use serde::{Deserialize, Serialize};
 
 /// Persisted Mini HUD placement (logical pixels, screen coordinates).

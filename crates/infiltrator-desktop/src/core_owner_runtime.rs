@@ -15,7 +15,6 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -33,6 +32,7 @@ use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
+use lurker_core_contract::identity::EngineId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;

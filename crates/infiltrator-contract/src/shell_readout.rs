@@ -1,6 +1,6 @@
 //! Observed shell facts; unavailable observations never become believable defaults.
-use crate::error::Failure;
 use crate::mini_hud::MiniHudWaveformStrip;
+use lurker_core_contract::error::Failure;
 use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 

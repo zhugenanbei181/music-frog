@@ -1,5 +1,5 @@
 //! Native adapters correlate terminal DNS probe feedback without completing writes on snapshots.
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum DnsLeakActionPhase {
     #[default]

@@ -1,6 +1,6 @@
 //! Honest result of asking a core to refresh its GeoIP/GeoSite databases.
 
-use crate::core_identity::CoreScope;
+use lurker_core_contract::identity::CoreScope;
 use serde::{Deserialize, Serialize};
 
 /// Mihomo acknowledges this asynchronously; Accepted never means that new

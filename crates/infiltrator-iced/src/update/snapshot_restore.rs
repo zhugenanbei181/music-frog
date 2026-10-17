@@ -3,8 +3,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
 use iced::Task;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::snapshot_restore_workbench::RestorePending;
+use lurker_core_contract::error::{ErrorCode, Failure};
 impl AppState {
     pub(crate) fn update_snapshot_restore(&mut self, action: RestoreAction) -> Task<Message> {
         let pending = match action {

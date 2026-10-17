@@ -1,11 +1,11 @@
 //! test-intent: behavior
 use super::*;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::core_identity::{
+use infiltrator_contract::resources::ResourceAvailability;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::resources::ResourceAvailability;
 
 #[test]
 fn resource_copy_uses_the_observed_limit_and_distinguishes_zero_missing_and_unsampled() {

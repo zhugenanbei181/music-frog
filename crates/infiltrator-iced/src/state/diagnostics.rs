@@ -14,7 +14,6 @@ use crate::types::perf::PerfSnapshot;
 use crate::types::runtime::{LogFilterState, PcapCaptureState, RuntimeStreamState};
 use infiltrator_application::connection_rate_application::ConnectionRateApplication;
 use infiltrator_contract::dns_cache::DnsCacheFlushReport;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
@@ -22,6 +21,7 @@ use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_domain::runtime::{ConnectionSnapshot, TrafficData};
 use infiltrator_presentation::connection_grouping::ConnectionGroupingState;
+use lurker_core_contract::error::Failure;
 use std::collections::VecDeque;
 use std::time::Instant;
 

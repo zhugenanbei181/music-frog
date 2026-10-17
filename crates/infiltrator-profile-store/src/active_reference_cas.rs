@@ -4,10 +4,10 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 
 /// Current owner authorization projection derived while its owner-state lock
 /// is held. This is a transient decision input, not a second persisted state.

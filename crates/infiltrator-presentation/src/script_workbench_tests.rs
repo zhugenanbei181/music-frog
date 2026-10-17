@@ -1,7 +1,6 @@
 use crate::script_workbench::{ScriptExportPhase, ScriptWorkbench};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::{
     ScriptExportKind, ScriptExportOutcome, ScriptExportSnapshot,
 };
@@ -10,6 +9,7 @@ use infiltrator_contract::script_export_review::{
     ScriptExportValidationScope,
 };
 use infiltrator_domain::script_export_review::content_sha256;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 fn draft() -> ScriptExportDraft {
     ScriptExportDraft {

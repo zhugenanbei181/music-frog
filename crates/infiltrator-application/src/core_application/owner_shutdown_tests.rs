@@ -3,9 +3,6 @@ use crate::core_application::CoreApplication;
 use crate::core_application::ReadinessPolicy;
 use crate::core_owner_shutdown_application::CoreOwnerShutdownApplication;
 use crate::vpn_application::VpnServiceApplication;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
@@ -15,6 +12,9 @@ use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use std::collections::VecDeque;
 use std::future::pending;
 use std::mem;

@@ -8,10 +8,10 @@ use infiltrator_bevy_ui::pages::overview_speedtest::{
 };
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCloseButton, ModalState};
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_presentation::speedtest_detail_projection::{listing, project_details};
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::Failure;
 
 fn activate<T: Component>(app: &mut App) {
     let entity = app

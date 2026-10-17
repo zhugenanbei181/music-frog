@@ -23,12 +23,6 @@ use infiltrator_bevy_ui::surface::{
 };
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::feathers_theme::Token;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntentStatus;
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::runtime_configuration::{
@@ -36,6 +30,12 @@ use infiltrator_ports::runtime_configuration::{
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::routing_intent::RoutingIntentStatus;
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use lurker_core_contract::session::SessionToken;
 
 fn tun_readout() -> RuntimeConfigurationReadout {

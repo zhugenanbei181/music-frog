@@ -1,6 +1,6 @@
 //! Owner- and revision-fenced observations of controller rule providers.
 
-use crate::core_identity::{CoreScope, EngineId};
+use lurker_core_contract::identity::{CoreScope, EngineId};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -339,7 +339,7 @@ mod tests {
         RuleProviderContractError, RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot,
         RuleProviderRevision,
     };
-    use crate::core_identity::{
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
 

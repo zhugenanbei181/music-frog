@@ -1,7 +1,7 @@
 //! Shared read model for the currently selected Mihomo outbound node.
 
-use crate::core_identity::EngineId;
-use crate::outbound::identity::OutboundId;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::OutboundId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

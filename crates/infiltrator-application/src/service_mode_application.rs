@@ -1,8 +1,8 @@
 //! Service-mode privilege use-cases over a host-provided port.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_ports::service_mode::ServiceModePort;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

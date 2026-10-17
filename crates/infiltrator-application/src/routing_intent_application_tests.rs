@@ -5,18 +5,18 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreOperation, EngineCapabilityDecision, HostCapabilityDecision,
     ProxyControlOperation,
 };
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::routing_intent::RoutingIntentStatus;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntentStatus;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 

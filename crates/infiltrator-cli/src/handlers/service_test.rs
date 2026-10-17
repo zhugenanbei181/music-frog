@@ -1,10 +1,10 @@
 use super::{Lifecycle, run_lifecycle, status_message};
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Mock controller mirroring ProcessCoreController semantics: start fails

@@ -5,16 +5,16 @@ use crate::core_capability_test_support::{execute_core_command, with_test_capabi
 use crate::log_application::{LOG_CAPACITY, LogApplication};
 use crate::log_application::{LogBindingIntent, LogBindingOutcome, LogIngestOutcome};
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogObservationSnapshot, LogSession, LogStreamState,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use lurker_core_contract::session::SessionToken;
 
 fn bind(logs: &LogApplication, session: LogSession) {

@@ -3,8 +3,6 @@ use crate::snapshot_restore_workbench::{
 };
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
@@ -16,6 +14,8 @@ use infiltrator_contract::snapshot_restore::{
 };
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::profile_source::hash_document_bytes;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 
 fn review(
     target: SnapshotRestoreTarget,

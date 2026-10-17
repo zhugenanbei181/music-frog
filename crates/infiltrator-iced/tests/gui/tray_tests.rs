@@ -16,10 +16,15 @@ use crate::state::AppState;
 use crate::tray::spec::TrayActionId;
 use crate::types::app::Route;
 use crate::types::message::Message;
-use infiltrator_contract::core_identity::{
+use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
-use infiltrator_contract::outbound::{
+use lurker_core_contract::outbound::{
     details::OutboundSnapshot,
     identity::{OutboundId, SnapshotRevision},
     inventory::{
@@ -27,12 +32,7 @@ use infiltrator_contract::outbound::{
         OutboundSelectionState, SelectionAvailability,
     },
 };
-use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::surface_snapshot::PageData;
-use infiltrator_contract::version::InstalledCoreVersion;
-use infiltrator_domain::profiles::ProfileInfo;
-use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::mpsc;
 
 // Pure spec-side coverage (layout, labels, codecs, resolution).

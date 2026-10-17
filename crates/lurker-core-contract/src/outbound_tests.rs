@@ -20,8 +20,8 @@ use super::probe::{
     OutboundProbeBatchScope, OutboundProbeBatchSnapshot, OutboundProbeConcurrency,
     OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest,
 };
-use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId};
 use crate::error::{ErrorCode, Failure};
+use crate::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId};
 use serde_json::{Value, json};
 
 fn scope(engine: &str) -> CoreScope {

@@ -8,12 +8,7 @@ use crate::protocol_codec_application::ProtocolCodecApplication;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::core_identity::CoreGeneration;
-use infiltrator_contract::core_identity::CoreIdentity;
-use infiltrator_contract::core_identity::CoreInstanceId;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_configuration;
 use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::profile_document_identity::{
@@ -34,6 +29,11 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreGeneration;
+use lurker_core_contract::identity::CoreIdentity;
+use lurker_core_contract::identity::CoreInstanceId;
+use lurker_core_contract::identity::EngineId;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;

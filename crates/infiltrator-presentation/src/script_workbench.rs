@@ -1,12 +1,12 @@
 //! Runtime-neutral script editor and reviewed-export transitions for both peers.
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::ScriptExportSnapshot;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportReview};
 use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_domain::script_engine::ScriptEngine;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScriptPending {

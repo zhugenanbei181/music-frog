@@ -38,7 +38,6 @@ use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -49,6 +48,7 @@ use infiltrator_test_support::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use lurker_core_contract::error::ErrorCode;
 use std::sync::{Arc, Mutex, RwLock, atomic::Ordering};
 
 #[derive(Resource)]

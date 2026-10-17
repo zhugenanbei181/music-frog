@@ -15,7 +15,7 @@ use crate::profile_document_codec::ProfileDocumentCodecPort;
 use crate::routing_intent::RoutingIntentPort;
 use crate::rule_provider_runtime::{RuleProviderPort, UnsupportedRuleProviderPort};
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreScope, EngineId};
+use lurker_core_contract::identity::{CoreIdentity, CoreScope, EngineId};
 use std::fmt::{self, Debug, Formatter};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -485,11 +485,11 @@ mod tests {
     use crate::core_scope::CoreScopeObservation;
     use crate::profile_document_codec::ProfileDocumentCodecScope;
     use async_trait::async_trait;
-    use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
-    use infiltrator_contract::core_process::CoreProcessStartContext;
     use infiltrator_contract::profile_document::DocumentValidation;
     use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use infiltrator_contract::snapshot::CoreLifecycle;
+    use lurker_core_contract::core_process::CoreProcessStartContext;
+    use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
 
     struct FakeProcess {
         identity: CoreIdentity,

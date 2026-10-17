@@ -23,8 +23,8 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct ProxySearchInput;

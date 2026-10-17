@@ -2,9 +2,9 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::resources::ResourceAvailability;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScopedResourceObservation {

@@ -282,8 +282,8 @@ pub enum AndroidProfileSelectionTarget {
 impl AndroidProfileSelectionTarget {
     pub(super) fn into_reference_target(self) -> Result<ActiveProfileReferenceTarget, FfiStatus> {
         use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
-        use infiltrator_contract::core_identity::EngineId;
         use infiltrator_contract::profile_document_identity::ProfileId;
+        use lurker_core_contract::identity::EngineId;
 
         let (engine_id, profile_id) = match self {
             Self::Mihomo { profile_id } => (EngineId::mihomo(), profile_id),

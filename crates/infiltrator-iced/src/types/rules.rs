@@ -1,8 +1,8 @@
 //! Rules-domain types: the rules load bundle, page tabs, tracer state,
 //! and the rendered rule rows consumed by the rules view.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_domain::rules::tracer::RuleTraceMatch;
+use lurker_core_contract::error::Failure;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuleBadgeKind {

@@ -1,12 +1,12 @@
 //! Pure sing-box JSON document inspection.
 
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_core_contract::identity::EngineId;
 
 pub const PROFILE_FORMAT: &str = "sing-box-json";
 pub const PROFILE_SCHEMA_VERSION: u32 = 1;

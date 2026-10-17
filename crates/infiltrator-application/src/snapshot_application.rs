@@ -1,7 +1,6 @@
 //! Configuration snapshot use-cases over profile and snapshot ports.
 
 use crate::profile_application::ProfileApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot_history::{
     SNAPSHOT_DEFAULT_KEEP, SnapshotEntry, SnapshotHistorySnapshot, SnapshotPruneReport,
     SnapshotPruneSource,
@@ -12,6 +11,7 @@ use infiltrator_domain::myers_diff;
 use infiltrator_domain::snapshots::{SnapshotMeta, content_hash};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::snapshot_store::SnapshotStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;

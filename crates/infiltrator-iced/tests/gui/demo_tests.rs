@@ -11,10 +11,10 @@ use crate::view::theme::{FOREST, forest_theme, is_forest, theme_to_name, tokens}
 use iced::Size;
 use iced::window::Screenshot;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::resources::ResourceAvailability;
-use infiltrator_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, read_to_string, remove_dir_all};
 use std::process::id;

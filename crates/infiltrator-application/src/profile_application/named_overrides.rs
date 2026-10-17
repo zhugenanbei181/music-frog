@@ -1,8 +1,8 @@
 //! ProfileApplication methods for Named Overrides (SLINT-004).
 
 use super::ProfileApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::named_override::{NamedOverride, NamedOverrideCatalog, NamedOverrideId};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl ProfileApplication {
     pub async fn load_named_override_catalog(&self) -> Result<NamedOverrideCatalog, Failure> {

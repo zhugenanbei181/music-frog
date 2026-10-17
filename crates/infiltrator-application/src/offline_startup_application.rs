@@ -1,8 +1,8 @@
 //! Offline-first startup use-case over a host validation port.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

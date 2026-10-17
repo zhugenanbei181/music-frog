@@ -15,9 +15,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
@@ -49,6 +46,9 @@ use infiltrator_test_support::profile_document_codec_test_support::TestProfileDo
 use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

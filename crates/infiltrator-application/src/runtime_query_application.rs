@@ -3,12 +3,12 @@
 use crate::runtime_scope::active_scope;
 use crate::runtime_stream_application::scope_checked;
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, ScopedRuntimeStream};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

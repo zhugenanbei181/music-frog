@@ -34,11 +34,11 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 
 /// Marker on active exit node card (BEVY-GAP-019).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

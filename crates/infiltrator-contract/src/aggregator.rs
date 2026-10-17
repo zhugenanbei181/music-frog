@@ -6,7 +6,7 @@
 //! reader, and both UI surfaces. No surface re-implements clustering or
 //! group synthesis.
 
-use crate::snapshot::CoreInactiveLifecycle;
+use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 use serde::{Deserialize, Serialize};
 
 /// DUAL-08-08: one user-authored regular-expression rename rule applied to

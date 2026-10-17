@@ -12,8 +12,6 @@ use async_trait::async_trait;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
-use infiltrator_contract::core_identity::CoreIdentity;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -25,6 +23,8 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::identity::CoreIdentity;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -304,7 +304,7 @@ mod tests {
     use infiltrator_contract::core_capabilities::{
         CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
     };
-    use infiltrator_contract::core_identity::{CoreCommandRequest, CoreInstanceId, EngineId};
+    use infiltrator_contract::core_identity::CoreCommandRequest;
     #[cfg(test)]
     use infiltrator_contract::mtu::MtuProbeState;
     #[cfg(test)]
@@ -319,6 +319,7 @@ mod tests {
     };
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
     use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+    use lurker_core_contract::identity::{CoreInstanceId, EngineId};
     use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
     use std::sync::Mutex;
     #[cfg(test)]

@@ -1,20 +1,20 @@
 //! test-intent: behavior
 use super::*;
 use crate::shell_readout::{count_copy, profile_name, profile_percent, profile_usage, rate_copy};
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::details::OutboundSnapshot;
-use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
-    OutboundSelectionState, SelectionAvailability,
-};
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     PageId, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
+};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
+use lurker_core_contract::outbound::details::OutboundSnapshot;
+use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+    OutboundSelectionState, SelectionAvailability,
 };
 use lurker_core_contract::session::SessionToken;
 use serde_json::{from_value, json};

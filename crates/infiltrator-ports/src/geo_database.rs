@@ -2,9 +2,9 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
 
 #[async_trait]
 pub trait GeoDatabasePort: Send + Sync {

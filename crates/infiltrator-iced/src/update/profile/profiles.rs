@@ -13,9 +13,9 @@ use crate::update::core::profile_apply::runtime_access;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 
 impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {

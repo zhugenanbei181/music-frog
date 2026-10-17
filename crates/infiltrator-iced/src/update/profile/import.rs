@@ -16,14 +16,14 @@ use infiltrator_application::profile_application::{
 };
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 use std::path;
 use tokio::task::spawn_blocking;
 

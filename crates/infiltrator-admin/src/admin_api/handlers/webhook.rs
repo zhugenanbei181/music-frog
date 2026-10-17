@@ -13,8 +13,8 @@ use crate::admin_api::models::{
 use crate::admin_api::state::{AdminApiContext, AdminApiState, CoreOwnerAction};
 use crate::scheduler::subscription::update_all_subscriptions;
 use axum::{Json, extract};
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use log::info;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 
 pub async fn handle_webhook_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,

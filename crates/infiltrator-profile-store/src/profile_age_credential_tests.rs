@@ -6,7 +6,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeContentDecryption, ProfileAgeCredentialMutation,
     ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
@@ -24,6 +23,7 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

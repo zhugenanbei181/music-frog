@@ -4,7 +4,6 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::map_port_error;
 use infiltrator_application::core_version_management_application::CoreVersionManagementApplication;
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_core::engine_version_backend_factory::{
     EngineVersionBackendFactoryRegistry, MihomoEngineVersionBackendFactory,
 };
@@ -13,6 +12,7 @@ use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::core_binary_selection::CoreBinarySelectionPort;
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::identity::EngineId;
 use singbox_version::version::SingBoxEngineVersionBackendFactory;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};

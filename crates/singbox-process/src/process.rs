@@ -5,12 +5,12 @@ use crate::command::{
     TokioSingBoxCommandPort,
 };
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use std::mem;
 use std::net::SocketAddr;
 use std::path::PathBuf;

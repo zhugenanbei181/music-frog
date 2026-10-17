@@ -8,7 +8,7 @@ use crate::core_capabilities::{
     AdapterRevision, CoreOperation, CoreVersionRequirement, EngineBinaryTarget,
     EngineCapabilityDecision,
 };
-use crate::core_identity::{CoreVersion, EngineId};
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};

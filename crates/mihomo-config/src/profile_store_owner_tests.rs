@@ -6,11 +6,11 @@
 use crate::manager::ConfigManager;
 use crate::profile_option_store::{delete_options, load_options, save_options};
 use infiltrator_contract::aggregator::{AggregationDraft, AggregationTemplate};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions, options_path};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::fs::{create_dir_all, read, read_dir, read_to_string, remove_dir, write};

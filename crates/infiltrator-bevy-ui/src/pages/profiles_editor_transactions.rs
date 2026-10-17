@@ -27,10 +27,10 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditFinish, ProfileEditOperationPhase,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub fn submit_document(state: &mut ProfileEditorState, handle: &CommandSinkHandle) {
     let pending = match state

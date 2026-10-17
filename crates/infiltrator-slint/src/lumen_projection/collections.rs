@@ -6,17 +6,17 @@ use crate::{
 };
 use infiltrator_contract::active_exit::ActiveExitStatus;
 use infiltrator_contract::logs::LogStreamState;
-use infiltrator_contract::outbound::details::{
-    OutboundCollectionKind, OutboundDetailsState, OutboundObservation,
-};
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventoryState, OutboundSelectionSet, OutboundSelectionState,
-};
-use infiltrator_contract::outbound::preferences::OutboundSortOrder;
 use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::details::{
+    OutboundCollectionKind, OutboundDetailsState, OutboundObservation,
+};
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventoryState, OutboundSelectionSet, OutboundSelectionState,
+};
+use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
@@ -488,9 +488,9 @@ fn log_level_key(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::log_stream_status;
-    use infiltrator_contract::error::Failure;
     use infiltrator_contract::logs::LogStreamState;
     use infiltrator_shared::locales::Lang;
+    use lurker_core_contract::error::Failure;
 
     #[test]
     fn unsupported_and_cancelled_log_streams_project_localized_terminal_copy() {

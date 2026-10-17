@@ -85,7 +85,7 @@ pub mod vpn_service;
 mod tests {
     use super::error::PortError;
     use infiltrator_contract::capability::Capability;
-    use infiltrator_contract::error::{ErrorCode, Failure};
+    use lurker_core_contract::error::{ErrorCode, Failure};
 
     #[test]
     fn adapter_error_maps_to_contract_failure_without_runtime_types() {

@@ -10,12 +10,9 @@ use crate::state::proxy_probe;
 use crate::types::message::Message;
 use crate::types::message::mtu_probe::MtuProbeCompletion;
 use infiltrator_composition::capture_fixtures::list_document;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
-use infiltrator_contract::outbound::details::OutboundLatencySample;
-use infiltrator_contract::outbound::details::OutboundObservation;
 use infiltrator_contract::provider_cache::ProviderCachePurge;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
@@ -34,6 +31,9 @@ use infiltrator_iced::demo::DemoEnv;
 use infiltrator_iced::types::app;
 use infiltrator_iced::types::options;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::details::OutboundLatencySample;
+use lurker_core_contract::outbound::details::OutboundObservation;
 
 fn rules_page_with_hit_audit(
     mut audit: RuleHitAuditSnapshot,

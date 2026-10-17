@@ -3,7 +3,6 @@ use anyhow::anyhow;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_reset::ProfileResetPort;
@@ -11,6 +10,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::profile_reset::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
+use lurker_core_contract::identity::EngineId;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::port::find_available_port;
 

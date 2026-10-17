@@ -1,6 +1,6 @@
 //! Shared physical-link roaming and default-gateway recovery contract.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// Host-independent classification used to rank physical egress links.

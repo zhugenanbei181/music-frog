@@ -1,5 +1,4 @@
 //! One draft, cancellation and source-fence model for either native rules surface.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_document::{
     RuleDocumentSnapshot, RuleListCommit, RuleListOperationId, RuleRowId,
 };
@@ -11,6 +10,7 @@ use infiltrator_domain::rules::edit::{
     build_custom_rule, move_rule, prepend_rules, toggle_rule_enabled,
 };
 use infiltrator_domain::rules::game_routing_presets;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 

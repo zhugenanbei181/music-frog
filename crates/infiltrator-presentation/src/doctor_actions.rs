@@ -1,6 +1,6 @@
 //! Correlated doctor command state shared by native adapters; telemetry does not complete writes.
 use infiltrator_contract::doctor::DoctorAction;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingDoctorAction {

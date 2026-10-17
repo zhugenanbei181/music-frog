@@ -62,21 +62,14 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilitySnapshot, CoreCapabilityStatus, CoreOperation,
     OutboundOperation,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::named_override::NamedOverrideCatalog;
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
-    SelectionAvailability,
-};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
-use infiltrator_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
@@ -95,6 +88,13 @@ use infiltrator_presentation::log_projection::project_log_facts;
 use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::runtime_probe_settings::project_settings;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+    SelectionAvailability,
+};
+use lurker_core_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
 use lurker_core_contract::session::SessionToken;
 use outbound_observation::{
     SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,

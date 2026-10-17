@@ -1,16 +1,4 @@
 use super::*;
-use infiltrator_contract::core_identity::CoreGeneration;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::outbound::details::{
-    OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEgressSample,
-    OutboundHealthObservation, OutboundObservation, OutboundProbeAvailability,
-    OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
-};
-use infiltrator_contract::outbound::identity::{OutboundId, OutboundProtocolId, SnapshotRevision};
-use infiltrator_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
-    OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
-};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_condition::{ConditionIssue, TrafficField};
 use infiltrator_contract::rule_trace_facts::DecisionStageFacts;
@@ -29,6 +17,18 @@ use infiltrator_presentation::rule_trace_projection::present_chain;
 use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
 use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use infiltrator_test_support::rule_workspace_test_support::rule_workspace;
+use lurker_core_contract::identity::CoreGeneration;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::details::{
+    OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEgressSample,
+    OutboundHealthObservation, OutboundObservation, OutboundProbeAvailability,
+    OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
+};
+use lurker_core_contract::outbound::identity::{OutboundId, OutboundProtocolId, SnapshotRevision};
+use lurker_core_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+    OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn scoped_for_test(

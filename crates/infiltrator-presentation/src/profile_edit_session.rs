@@ -1,12 +1,12 @@
 //! Shared source and terminal-result state for the two native YAML editors.
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::profile_editor_read::{
     ProfileEditStatusFact, ProfileEditorReadSnapshot, ProfileReadStatus,
 };
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Baseline {

@@ -3,7 +3,6 @@
 
 use super::*;
 use infiltrator_contract::command::{CommandIntent, CommandKind};
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate, SnifferConfiguration,
 };
@@ -11,6 +10,7 @@ use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
 };
+use lurker_core_contract::identity::EngineId;
 
 #[test]
 fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {

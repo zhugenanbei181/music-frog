@@ -13,7 +13,6 @@ use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{
     DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
     DocumentValidation, ProfileDocumentSnapshot,
@@ -28,6 +27,7 @@ use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_presentation::profile_edit_session::{ProfileEditObservation, ProfileEditSession};
 use infiltrator_presentation::profile_edit_status_projection;
 use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the
 /// scene module docs). The window follows the cursor, so editing never leaves

@@ -23,12 +23,12 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_presentation::language_choice::{
     LanguageChoiceFinish, LanguageChoicePhase, LanguageChoiceState, LanguagePersistence,
     LanguageReadPhase,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Component, Clone, Copy, Default)]
 #[require(Button)]

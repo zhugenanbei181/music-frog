@@ -1,8 +1,6 @@
 //! Owner-scoped Core resource observation and memory soft-quota reclamation.
 
 use crate::runtime_scope::active_scope;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
@@ -10,6 +8,8 @@ use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::resources::{
     CoreResourcePort, GarbageCollectionOutcome, ScopedResourceObservation,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -212,7 +212,7 @@ fn ensure_scope(expected: &CoreScope, observed: &CoreScope) -> Result<(), Failur
 
 #[cfg(test)]
 mod tests {
-    use infiltrator_contract::core_identity::{
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
 

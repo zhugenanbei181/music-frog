@@ -3,8 +3,8 @@ use futures_util::lock;
 use infiltrator_contract::dns_query::{
     DnsQueryOperation, DnsQueryOperationId, DnsQueryReport, DnsQueryRequest, DnsQuerySnapshot,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::dns_query::DnsQueryPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]

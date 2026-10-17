@@ -13,8 +13,6 @@ use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::subscription_import_application::SubscriptionImportApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::android_control::VpnAuthorizationState;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::named_override::NamedOverrideId;
 use infiltrator_contract::network_roaming::NetworkRoamingStatus;
 use infiltrator_contract::pac::PacRequest;
@@ -33,6 +31,8 @@ use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::CoreScope;
 use std::sync::Arc;
 
 impl CommandApplication {

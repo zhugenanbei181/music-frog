@@ -1,9 +1,9 @@
 //! Bind each isolated demo capture owner through its accepted shared surface.
 use crate::state::AppState;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub(super) fn attach_capture_owner(state: &mut AppState, application: CoreApplication) {
     let snapshot = SurfaceSnapshot::unavailable(

@@ -4,7 +4,6 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::android_control::core_launch::AndroidCoreBinaryTarget;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileDocument;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::{
@@ -12,6 +11,7 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::engine_backend_factory::EngineOperationPorts;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionBinding;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_config::config::SingBoxProfileConfigurationAdapter;
 use singbox_config::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;

@@ -1,14 +1,14 @@
 //! Behavior tests for scoped raw-log display projection.
 use super::{page_from_log_records, parse_structured_log, project_log_facts};
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
     LogStreamState, RawLogRecord,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
 use lurker_core_contract::session::SessionToken;
 use std::iter::empty;
 

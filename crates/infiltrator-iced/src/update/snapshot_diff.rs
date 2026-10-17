@@ -11,8 +11,8 @@ use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
+use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn update_snapshot_diff(&mut self, message: Message) -> Task<Message> {

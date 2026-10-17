@@ -12,7 +12,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::app_routing::AppRoutingRule;
@@ -23,6 +22,7 @@ use infiltrator_platform::android_bridge::{
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::identity::EngineId;
 use mihomo_config::manager::ConfigManager;
 use std::collections::BTreeMap;
 use std::env::temp_dir;

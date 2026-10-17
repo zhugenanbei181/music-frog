@@ -1,5 +1,4 @@
 use super::ProfileApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{
     DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
     DocumentInspectionUnsupportedReason, DocumentValidation,
@@ -20,6 +19,7 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::RuleWorkspace;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 impl ProfileApplication {

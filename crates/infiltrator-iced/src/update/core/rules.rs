@@ -16,8 +16,6 @@ use iced::widget::Id;
 use iced::widget::operation::scroll_to;
 use iced::widget::scrollable::AbsoluteOffset;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_domain::rules::view::{
@@ -26,6 +24,8 @@ use infiltrator_domain::rules::view::{
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::rule_list_projection::draft_page;
 use infiltrator_presentation::rule_row_projection::rule_row;
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::time::Instant;
 
 impl AppState {

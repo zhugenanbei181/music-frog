@@ -23,7 +23,6 @@ pub mod paths;
 pub(crate) mod profiles;
 
 use crate::profile_document_codec::MihomoProfileDocumentCodec;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::secure_store::SecureStore;
@@ -36,6 +35,7 @@ use infiltrator_profile_store::reset_fence::{
     ensure_reset_not_pending_for_dir,
 };
 use infiltrator_profile_store::store::{EngineProfileStore, ProfileDocumentExtension};
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::error::{MihomoError, Result};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

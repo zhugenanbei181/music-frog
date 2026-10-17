@@ -12,9 +12,9 @@ use crate::update::core::dns_leak_commands::DnsLeakProbeAdmission;
 use iced::Task;
 use infiltrator_application::dns_leak_application::NO_ECHO_PORT_REASON;
 use infiltrator_contract::dns_leak::DnsLeakReport;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use infiltrator_presentation::dns_leak_actions::{DnsLeakActionPhase, DnsLeakFinish};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
 
 impl AppState {
     /// Publish the shared leak report into the render state. A probe in

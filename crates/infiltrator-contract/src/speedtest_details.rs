@@ -1,7 +1,7 @@
 //! Toolkit-neutral rows for one accepted typed speedtest snapshot.
 
-use crate::outbound::identity::OutboundId;
 use crate::speedtest::{SpeedtestPhase, SpeedtestResultState, SpeedtestSampleOutcome};
+use lurker_core_contract::outbound::identity::OutboundId;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpeedtestDetailRow {

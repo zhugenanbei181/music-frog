@@ -1,6 +1,6 @@
 //! Typed observation of the active Core owner's scope.
 
-use infiltrator_contract::core_identity::CoreScope;
+use lurker_core_contract::identity::CoreScope;
 
 /// The owner either has a usable scope or has no scope to publish.
 #[derive(Clone, Debug, PartialEq, Eq)]

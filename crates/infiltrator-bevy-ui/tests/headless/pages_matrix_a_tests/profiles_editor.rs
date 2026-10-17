@@ -8,7 +8,6 @@ use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::profiles_editor_transactions::EditorDiscardButton;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{
     DocumentDiagnosticSnapshot, DocumentInspection, DocumentValidation,
 };
@@ -21,6 +20,7 @@ use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn test_profiles_editor_runs_the_shared_preflight_and_formatter() {

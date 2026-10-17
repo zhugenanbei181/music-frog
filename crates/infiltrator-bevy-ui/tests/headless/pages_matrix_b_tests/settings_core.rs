@@ -3,7 +3,7 @@
 
 use super::*;
 use bevy::ecs::query::With;
-use infiltrator_contract::core_identity::EngineId;
+use lurker_core_contract::identity::EngineId;
 
 #[test]
 fn test_settings_core_rollback_button_submits_shared_command() {

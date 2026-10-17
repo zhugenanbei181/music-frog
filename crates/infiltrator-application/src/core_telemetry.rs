@@ -1,9 +1,9 @@
 //! Session-fenced telemetry reads use the composed port and share the existing rate fold.
 use super::CoreApplication;
 use crate::overview::rates_from_totals;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_ports::overview::OverviewSample;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 use std::sync::atomic::Ordering;
 use std::time::Instant;

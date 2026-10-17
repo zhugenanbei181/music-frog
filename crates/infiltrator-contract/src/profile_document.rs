@@ -1,11 +1,11 @@
 //! Shared profile-document read model with engine-authored inspection facts.
 
-use crate::core_identity::EngineId;
 use crate::profile_document_identity::{
     ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
 };
 use crate::profile_options::ProfileOptionsSnapshot;
 use crate::profile_protection::ProfileWriteProtection;
+use lurker_core_contract::identity::EngineId;
 use serde::{Deserialize, Serialize};
 
 /// Format-neutral diagnostic emitted by a document codec.

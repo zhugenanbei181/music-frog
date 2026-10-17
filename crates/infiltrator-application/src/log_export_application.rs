@@ -1,12 +1,12 @@
 //! Prepared exports freeze redacted shared facts until the user confirms or cancels.
 use crate::log_application::LogApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::log_export::{
     LogExportArtifact, LogExportIdentity, LogExportReceipt, LogExportSummary,
 };
 use infiltrator_domain::log_export::prepare_log_export;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::log_export::LogExportPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]

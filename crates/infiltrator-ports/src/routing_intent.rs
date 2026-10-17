@@ -2,8 +2,8 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 /// Observes and applies a shared routing intent through one engine adapter.
 ///

@@ -1,6 +1,6 @@
 //! Correlated sandbox requests and monotonic session observations.
-use crate::error::{ErrorCode, Failure};
 use crate::script_sandbox::ScriptSandboxSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_SCRIPT_INPUT_BYTES: usize = 8 * 1024 * 1024;

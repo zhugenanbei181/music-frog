@@ -10,9 +10,9 @@ use infiltrator_bevy_ui::pages::profiles_editor_panes::{
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
+use lurker_core_contract::error::ErrorCode;
 
 fn mount() -> (App, Arc<DemoCommandSink>, ProfileOptionsSnapshot) {
     let sink = Arc::new(DemoCommandSink::accepting());

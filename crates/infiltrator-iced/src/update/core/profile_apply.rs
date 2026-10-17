@@ -13,9 +13,9 @@ use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileRuntimeAccess,
 };
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 
 /// Convert the host's optional capability slot at the Iced-to-application

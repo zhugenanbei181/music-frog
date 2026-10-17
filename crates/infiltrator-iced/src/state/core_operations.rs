@@ -1,7 +1,7 @@
 //! Typed local phases for core update checks and downloads.
 
 use crate::types::app::CoreDownloadProgress;
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

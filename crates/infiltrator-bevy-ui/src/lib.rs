@@ -68,8 +68,8 @@ use crate::surface::host_insets::WindowInsetsInputReceiver;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 use std::time::Duration;
 

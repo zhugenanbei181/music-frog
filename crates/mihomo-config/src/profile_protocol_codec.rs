@@ -1,7 +1,6 @@
 //! Mihomo-owned custom protocol node and CA trust-anchor YAML operations.
 
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_fidelity::{
     CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFamily,
 };
@@ -15,6 +14,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationReadout, ProfileProtocolNodeMutationReadback,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde_yaml_ng::{Mapping, Value};
 use std::fmt::Display;
 use std::str::from_utf8;

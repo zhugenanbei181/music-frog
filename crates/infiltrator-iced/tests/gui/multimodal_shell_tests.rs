@@ -17,9 +17,6 @@ use iced::window::Id;
 use infiltrator_contract::command_catalogue::{CommandTarget, ShellPage};
 use infiltrator_contract::design_tokens::type_scale;
 use infiltrator_contract::mini_hud::{MiniHudPlacement, MiniHudWaveformStrip};
-use infiltrator_contract::routing_intent::{
-    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
-};
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -27,6 +24,9 @@ use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::system_toggle_projection::compact_status_line;
+use lurker_core_contract::routing_intent::{
+    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 

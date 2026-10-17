@@ -1,9 +1,9 @@
 //! Settings use-cases over the runtime-neutral settings store port.
 
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 #[derive(Clone)]

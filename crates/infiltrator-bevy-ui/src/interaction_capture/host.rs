@@ -7,7 +7,7 @@ use infiltrator_application::command_application::handler::CommandHandler;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use mem::take;
 use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -131,8 +131,8 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
 
     block_on(async {
         use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
-        use infiltrator_contract::error::ErrorCode;
         use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
+        use lurker_core_contract::error::ErrorCode;
 
         let manager = config_manager().await.unwrap();
         let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();

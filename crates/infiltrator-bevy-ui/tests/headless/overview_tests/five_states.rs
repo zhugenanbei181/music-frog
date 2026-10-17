@@ -12,9 +12,9 @@ use infiltrator_bevy_ui::pages::overview::{
     banner_state_text, card_fill, state_ink, status_dot_color,
 };
 use infiltrator_bevy_widgets::button::ButtonDisabled;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
+use lurker_core_contract::error::Failure;
 
 fn make_projection(
     origin: OverviewOrigin,

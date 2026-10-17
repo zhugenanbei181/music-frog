@@ -17,12 +17,12 @@ use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::cadence::RenderCadence;
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStreamEvent,
 };
+use lurker_core_contract::identity::CoreScope;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::{Duration, Instant};

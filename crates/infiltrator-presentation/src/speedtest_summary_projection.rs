@@ -1,12 +1,12 @@
 //! Shared fact-to-copy projection for typed multi-round speedtest results.
 
 use chrono::{DateTime, Utc};
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     PacketLossRating, SpeedtestOutboundResult, SpeedtestSnapshot,
 };
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NodeMetrics {

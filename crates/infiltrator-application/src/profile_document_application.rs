@@ -10,7 +10,6 @@
 
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess, valid_name};
 use crate::profile_editor_observations::EditorFacet;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{DocumentInspection, ProfileDocumentSnapshot};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
@@ -23,6 +22,7 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Clone)]
 pub struct ProfileDocumentApplication {

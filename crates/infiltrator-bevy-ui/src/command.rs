@@ -19,14 +19,9 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest};
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::log_export::LogExportIdentity;
-use infiltrator_contract::outbound::{
-    preferences::OutboundUiPreferenceRequest,
-    probe::{OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest},
-};
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::profile_document::DocumentInspection;
@@ -46,7 +41,6 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::rule_document::RuleListCommit;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
@@ -61,6 +55,12 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::outbound::{
+    preferences::OutboundUiPreferenceRequest,
+    probe::{OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest},
+};
+use lurker_core_contract::routing_intent::RoutingIntent;
 #[cfg(any(feature = "capture-tools", test))]
 use std::collections::VecDeque;
 #[cfg(any(feature = "capture-tools", test))]

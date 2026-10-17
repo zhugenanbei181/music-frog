@@ -5,8 +5,7 @@
 use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
 use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
-use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreScope};
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::core_identity::CoreCommandOutcome;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
@@ -15,6 +14,8 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
 
 #[derive(Clone)]
 pub(crate) struct CoreCommandIngress {

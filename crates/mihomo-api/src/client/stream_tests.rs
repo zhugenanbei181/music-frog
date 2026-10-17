@@ -2,12 +2,12 @@
 use crate::client::MihomoClient;
 use crate::runtime_stream::MihomoRuntimeStreamPort;
 use futures_util::StreamExt;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
+};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use mockito::{Matcher, Server};
 use std::sync::Arc;

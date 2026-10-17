@@ -1,10 +1,8 @@
 //! Active-profile reference recovery and concurrency behavior.
 
 use super::*;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileRecoveryOutcome, CoreApplyFailureKind,
-};
-use infiltrator_contract::error::FailureReason;
+use lurker_core_contract::error::FailureReason;
+use lurker_core_contract::owner_switch::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
 use tokio::sync::Barrier;
 
 #[tokio::test]

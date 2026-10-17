@@ -1,11 +1,11 @@
 //! Public-egress network use-cases over an injected probe port.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::PublicIpSnapshot;
 use infiltrator_ports::public_ip_probe::{PublicIpProbe, PublicIpProbeRoute};
 use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 #[derive(Clone)]

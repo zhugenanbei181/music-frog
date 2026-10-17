@@ -1,10 +1,10 @@
 use super::{read_profile_metadata, write_profile_metadata};
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::identity::EngineId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use toml::map::Map;

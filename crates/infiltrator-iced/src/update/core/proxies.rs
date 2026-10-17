@@ -10,12 +10,15 @@ use crate::update::core::profile_apply::save_task;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::identity::SnapshotRevision;
-use infiltrator_contract::outbound::preferences::OutboundGroupExpansion;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::speedtest::SpeedtestConcurrency;
+use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::outbound::preferences::OutboundGroupExpansion;
+use lurker_core_contract::outbound::{
     inventory::{
         OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionState,
         SelectionAvailability,
@@ -25,9 +28,6 @@ use infiltrator_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
-use infiltrator_contract::speedtest::SpeedtestConcurrency;
-use infiltrator_contract::surface_snapshot::PageData;
-use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
 
 const DEFAULT_RUNTIME_CONNECTION_SORT: &str = "download_desc";
 

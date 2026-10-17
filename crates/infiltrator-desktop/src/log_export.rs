@@ -1,10 +1,10 @@
 //! Durable, non-overwriting desktop log exports under the host's config directory.
 use async_trait::async_trait;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::log_export::{LogExportArtifact, LogExportReceipt, MAX_LOG_EXPORT_BYTES};
 use infiltrator_domain::profile_source::hash_document_bytes;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};

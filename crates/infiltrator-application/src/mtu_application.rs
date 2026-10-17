@@ -1,8 +1,6 @@
 //! Physical-link to TUN MTU negotiation use-case.
 
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mtu::{
     MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES, MtuNegotiationSnapshot, MtuProbeState,
 };
@@ -10,6 +8,8 @@ use infiltrator_domain::mtu_optimizer::MtuOptimizer;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

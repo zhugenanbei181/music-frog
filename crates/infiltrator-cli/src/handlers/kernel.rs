@@ -164,8 +164,8 @@ pub(crate) fn truncate(input: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{split_target, truncate, version_row};
-    use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::version::InstalledCoreVersion;
+    use lurker_core_contract::identity::EngineId;
 
     #[test]
     fn channel_targets_are_recognized_case_insensitively() {

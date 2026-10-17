@@ -1,10 +1,10 @@
 //! An explicit simulation request and its independently readable, correlated result.
-use crate::core_identity::CoreScope;
-use crate::error::{ErrorCode, Failure};
-use crate::outbound::inventory::OutboundObservationSnapshot;
 use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::rule_condition::RuleTraceIssue;
 use crate::rule_tracer::{RuleTracerSnapshot, TrafficContextSnapshot};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::inventory::OutboundObservationSnapshot;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, SocketAddr};
 

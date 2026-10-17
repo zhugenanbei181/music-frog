@@ -51,8 +51,6 @@ use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::{CoreScope, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mtu::MtuProbeState;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord};
@@ -72,6 +70,8 @@ use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
 use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreScope, EngineId};
 use std::sync::Arc;
 
 mod composition;

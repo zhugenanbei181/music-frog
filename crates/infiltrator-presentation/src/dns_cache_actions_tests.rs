@@ -4,7 +4,7 @@ use crate::dns_cache_projection::project_cache;
 use infiltrator_contract::dns_cache::{
     DnsCacheFlushReport, DnsCacheOperation, DnsCacheOperationId, DnsCacheSnapshot, DnsFlushOutcome,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn cancellation_duplicate_submit_reader_replay_and_wrong_terminal_are_inert() {

@@ -9,6 +9,7 @@ description = "iOS host adapter seams for NetworkExtension and Swift/Objective-C
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 async-trait = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-contract = { path = "../infiltrator-contract" }

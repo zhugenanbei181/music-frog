@@ -1,6 +1,6 @@
 //! Shared subscription quota dashboard read model.
 
-use crate::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 

@@ -55,12 +55,12 @@ use infiltrator_bevy_widgets::localization::{
     LocaleCopySet, LocalizedText, WidgetLocalizationPlugin,
 };
 use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, PullPhase,
     SafeAreaInsets, TouchGestureSupport,
 };
 use infiltrator_shared::i18n_interpolator::localize;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use std::collections::BTreeMap;
 
 /// Maximum simultaneous touches tracked; extra fingers are ignored so the

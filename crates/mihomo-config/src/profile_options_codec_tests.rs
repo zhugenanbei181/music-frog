@@ -3,8 +3,6 @@
 
 use super::*;
 use crate::profile_document_codec::MihomoProfileDocumentCodec;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
     ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
@@ -17,6 +15,8 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::EngineId;
 use std::str;
 
 fn identity(engine: &str, format: &str, schema: u32) -> ProfileDocumentIdentity {

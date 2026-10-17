@@ -2,15 +2,15 @@ use crate::scheduler::subscription::SubscriptionUpdateSummary;
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::doctor::{DoctorFixAction, DoctorReport};
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::script_engine::{
     ExtensionPackage, HookStage, PluginManifest, ScriptPreset,
 };
 use infiltrator_domain::settings::WebDavConfig;
 use log::warn;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

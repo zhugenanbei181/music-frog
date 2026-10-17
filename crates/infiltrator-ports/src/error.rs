@@ -1,5 +1,5 @@
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::fmt::{Display, Formatter};
 use std::{error, fmt, io};
 

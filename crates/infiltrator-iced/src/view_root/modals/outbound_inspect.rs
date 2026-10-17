@@ -8,8 +8,10 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::{
+use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::Localizer;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::{
     details::{
         OutboundDetail, OutboundHealthObservation, OutboundObservation,
         OutboundProtocolObservation, OutboundRttStatistics, OutboundUdpSupport,
@@ -17,8 +19,6 @@ use infiltrator_contract::outbound::{
     identity::OutboundCipherId,
     inventory::OutboundProbeState,
 };
-use infiltrator_shared::locales::Lang;
-use infiltrator_shared::locales::Localizer;
 
 pub fn inspect_outbound_modal<'a>(
     state: &'a AppState,

@@ -5,7 +5,7 @@ use crate::active_reference_owner::{
     ActiveProfileReferenceRecord,
 };
 use crate::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use tempfile::TempDir;
 
 #[tokio::test]

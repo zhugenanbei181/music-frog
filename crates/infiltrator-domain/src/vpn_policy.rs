@@ -75,11 +75,11 @@ pub fn validate_configuration(configuration: &VpnConfiguration) -> Result<(), St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
     use infiltrator_contract::vpn::{
         PreparedVpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute, VpnStartRequest,
+    };
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
 

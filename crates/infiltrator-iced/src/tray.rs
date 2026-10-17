@@ -41,10 +41,10 @@ use crate::types::runtime::RuntimeStatus;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
-use infiltrator_contract::outbound::inventory::{
+use infiltrator_contract::tray_status;
+use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundSelectionState, SelectionAvailability,
 };
-use infiltrator_contract::tray_status;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 

@@ -1,10 +1,10 @@
 use super::{listing, project_details};
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::speedtest::{
     SpeedtestOutboundResult, SpeedtestResultState, SpeedtestSampleOutcome, SpeedtestSnapshot,
 };
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::OutboundId;
 
 fn result(id: &str, name: &str, delay: u32) -> SpeedtestOutboundResult {
     SpeedtestOutboundResult {

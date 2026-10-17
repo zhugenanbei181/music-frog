@@ -47,7 +47,6 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_core::settings_io::app_config_manager;
@@ -57,6 +56,7 @@ use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::resources::CoreResourcePort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;

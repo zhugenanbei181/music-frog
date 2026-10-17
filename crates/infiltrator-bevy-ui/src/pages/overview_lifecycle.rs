@@ -27,10 +27,10 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::core_control::{
     CoreControlAction, CoreControlLabel, CoreControlProjection,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_presentation::core_control_projection::project_core_control;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlButton;

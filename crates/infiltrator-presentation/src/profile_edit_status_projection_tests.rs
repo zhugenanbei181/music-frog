@@ -1,5 +1,5 @@
 use super::*;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 
 #[test]
 fn editor_failure_copy_localizes_typed_reason_and_keeps_raw_diagnostic() {

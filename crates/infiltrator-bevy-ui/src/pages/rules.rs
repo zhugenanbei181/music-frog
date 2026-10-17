@@ -77,7 +77,6 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::{
     KernelEtagSupportSnapshot, ProviderCacheFingerprint, RuleProviderCacheSnapshot,
@@ -95,6 +94,7 @@ use infiltrator_presentation::rule_provider_projection::{
 use infiltrator_presentation::rule_row_projection::row_hits_key;
 use infiltrator_presentation::rule_statistics_projection::project_statistics;
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::error::Failure;
 
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]

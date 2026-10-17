@@ -18,11 +18,11 @@ use infiltrator_bevy_widgets::button::{
     sync_button_disabled, sync_control_labels, sync_control_visuals,
 };
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_presentation::snapshot_restore_workbench::{
     RestorePending, SnapshotRestoreWorkbench,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Event)]
 pub struct OpenSnapshotRestore(pub SnapshotRestoreTarget);

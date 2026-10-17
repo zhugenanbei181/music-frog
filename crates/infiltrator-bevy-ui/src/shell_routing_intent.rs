@@ -25,13 +25,13 @@ use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_presentation::routing_intent_actions::{
     RoutingIntentActions, RoutingIntentFinishOutcome,
 };
 use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[derive(QueryData)]
 #[query_data(mutable)]

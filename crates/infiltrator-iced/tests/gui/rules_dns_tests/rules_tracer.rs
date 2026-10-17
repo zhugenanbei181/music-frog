@@ -18,13 +18,13 @@ use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::rule_trace_fixtures::{
     NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
 };
+use lurker_core_contract::error::ErrorCode;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 

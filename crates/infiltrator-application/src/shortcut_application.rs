@@ -5,9 +5,9 @@
 //! a conflicting capture into a typed [`Failure`] the surfaces can toast.
 
 use crate::settings_application::SettingsApplication;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord, ShortcutRegistry};
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 #[derive(Clone)]

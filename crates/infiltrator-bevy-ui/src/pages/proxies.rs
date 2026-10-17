@@ -42,7 +42,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::latency_display::LatencyBand;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
+use infiltrator_contract::proxies::ProxyGroupClassification;
+use lurker_core_contract::outbound::{
     details::OutboundHealthObservation,
     identity::OutboundId,
     inventory::{OutboundInventoryState, SelectionAvailability},
@@ -53,8 +55,6 @@ use infiltrator_contract::outbound::{
     },
     probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
 };
-use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
-use infiltrator_contract::proxies::ProxyGroupClassification;
 use std::collections::BTreeMap;
 use zhuge_ui_core::text::SearchTextRun;
 

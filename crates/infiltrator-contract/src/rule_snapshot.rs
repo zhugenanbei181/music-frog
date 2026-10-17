@@ -1,6 +1,6 @@
 //! One rule row's source, semantic facts and explicit parse failure.
-use crate::error::Failure;
 use crate::rule_document::RuleRowId;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuleSnapshot {

@@ -1,11 +1,11 @@
 //! Typed protocol-field folding. Invalid edits preserve the previous value.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
 use infiltrator_contract::protocol_form::ProtocolField;
 use infiltrator_contract::protocol_params::EchParams;
 use infiltrator_contract::protocol_params_ext::{PluginOptValue, TransportParams};
 use infiltrator_domain::protocol_draft_codec;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 

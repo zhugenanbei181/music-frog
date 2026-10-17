@@ -2,12 +2,12 @@
 
 use crate::manager::ConfigManager;
 use async_trait::async_trait;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 use yaml_rust2::YamlLoader;
 

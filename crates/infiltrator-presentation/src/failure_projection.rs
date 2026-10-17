@@ -1,6 +1,6 @@
 //! One localization boundary for typed product reasons and opaque adapter details.
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_shared::i18n_interpolator::localize;
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FailureLocalizationKey {

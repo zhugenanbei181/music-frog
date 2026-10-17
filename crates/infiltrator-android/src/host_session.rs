@@ -26,11 +26,8 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::snapshot::{CoreInactiveLifecycle, CoreLifecycle};
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_active_profile_reference,
     failure_from_apply_error,
@@ -49,6 +46,10 @@ use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use std::sync::{Arc, OnceLock};

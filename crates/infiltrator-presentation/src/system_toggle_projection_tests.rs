@@ -1,12 +1,12 @@
 use super::{compact_label, compact_status_line, from_surface, intent};
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn surface_fold_preserves_unobserved_and_failure_states() {

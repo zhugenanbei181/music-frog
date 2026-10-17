@@ -1,6 +1,6 @@
 //! Shared state and policy vocabulary for the system-level quick toggles.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 /// The system-owned controls exposed in both primary UI sidebars.

@@ -3,9 +3,6 @@ use infiltrator_contract::android_control::{
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
     VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::runtime_status::ControlServiceObservation;
 use infiltrator_contract::runtime_status::RuntimeStatusSnapshot;
 use infiltrator_contract::runtime_status::{
@@ -17,6 +14,9 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStatus};
 use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::session::SessionToken;
 
 fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {

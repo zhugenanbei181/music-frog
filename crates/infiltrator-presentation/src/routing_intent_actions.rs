@@ -1,6 +1,6 @@
 //! Typed presentation transitions for user-requested routing intent changes.
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::{
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
 

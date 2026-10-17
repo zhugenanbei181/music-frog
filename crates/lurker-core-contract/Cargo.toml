@@ -3,9 +3,13 @@ name = "lurker-core-contract"
 version.workspace = true
 edition = "2024"
 description = "Engine-neutral proxy core contract: identity, lifecycle, outbound, routing intent and typed failure."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zhugenanbei181/music-frog"
 
 [dependencies]
+anyhow = { workspace = true }
 serde = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

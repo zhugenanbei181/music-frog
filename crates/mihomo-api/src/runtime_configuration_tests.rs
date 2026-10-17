@@ -1,6 +1,6 @@
 use super::*;
 use crate::types::{DnsConfig, SnifferConfig, TunConfig};
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 
 struct FixedOwner(CoreScopeObservation);
 

@@ -2,11 +2,11 @@ use super::ProfileApplication;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_selection_clear::{
     ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
     UnselectedProfileSelectionReadback,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl ProfileApplication {
     /// Read the current active profile selection reference.

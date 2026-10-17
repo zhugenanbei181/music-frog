@@ -5,9 +5,9 @@ use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
 use iced::Task;
 use infiltrator_contract::core_control::CoreControlAction;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_shared::autostart;
+use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
     pub fn cancel_all_tasks(&mut self) {

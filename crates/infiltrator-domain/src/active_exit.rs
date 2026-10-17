@@ -2,10 +2,10 @@
 
 use crate::filter::extract_country_code;
 use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
-use infiltrator_contract::outbound::details::{
+use lurker_core_contract::outbound::details::{
     OutboundHealthObservation, OutboundObservation, OutboundProtocolObservation,
 };
-use infiltrator_contract::outbound::inventory::{
+use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundObservationSnapshot, OutboundSelectionState,
 };
 
@@ -135,18 +135,18 @@ pub fn derive(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::{
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
     };
-    use infiltrator_contract::outbound::details::{
+    use lurker_core_contract::outbound::details::{
         OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
         OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation,
         OutboundRttStatistics, OutboundSnapshot, OutboundUdpSupport,
     };
-    use infiltrator_contract::outbound::identity::{
+    use lurker_core_contract::outbound::identity::{
         OutboundId, OutboundProtocolId, SnapshotRevision,
     };
-    use infiltrator_contract::outbound::inventory::{
+    use lurker_core_contract::outbound::inventory::{
         OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
         OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
     };

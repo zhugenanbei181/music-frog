@@ -1,6 +1,6 @@
 //! Engine- and source-bound identity for opaque profile documents.
 
-use crate::core_identity::EngineId;
+use lurker_core_contract::identity::EngineId;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;
@@ -322,7 +322,7 @@ mod tests {
         ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
         ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
     };
-    use crate::core_identity::EngineId;
+    use lurker_core_contract::identity::EngineId;
 
     fn identity(
         engine_id: &str,

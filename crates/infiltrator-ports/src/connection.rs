@@ -7,9 +7,9 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::connection::{
     ConnectionContractError, ConnectionId, validate_connection_ids,
 };
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_domain::runtime::ConnectionSnapshot;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
@@ -232,10 +232,8 @@ impl ConnectionPort for UnsupportedConnectionPort {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
-    };
     use infiltrator_domain::runtime::Connection;
+    use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 
     fn scope(engine: &str) -> CoreScope {
         CoreScope {

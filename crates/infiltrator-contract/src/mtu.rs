@@ -1,6 +1,6 @@
 //! Shared physical-link to TUN MTU negotiation contract.
 
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_TUN_OVERHEAD_BYTES: u32 = 80;

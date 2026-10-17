@@ -135,10 +135,10 @@ impl StunEgressProbePort for StunProbeApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::error::ErrorCode;
     use infiltrator_contract::stun_probe::{
         StunEgressComparison, StunProbeObservation, StunProbeTransport,
     };
+    use lurker_core_contract::error::ErrorCode;
 
     struct StubProbe {
         outcome: StunProbeObservation,

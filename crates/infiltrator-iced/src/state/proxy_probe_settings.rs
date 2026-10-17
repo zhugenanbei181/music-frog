@@ -3,8 +3,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl AppState {
     pub(crate) fn applied_runtime_probe_settings(&self) -> Result<RuntimeProbeSettings, Failure> {

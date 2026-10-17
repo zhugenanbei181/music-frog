@@ -18,8 +18,6 @@ use infiltrator_contract::android_control::{
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::capability::Capability;
 #[cfg(any(target_os = "android", test))]
-use infiltrator_contract::error::{ErrorCode, Failure};
-#[cfg(any(target_os = "android", test))]
 use infiltrator_contract::vpn::VpnSessionState;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnStartRequest, VpnSurfaceObservation,
@@ -31,6 +29,8 @@ use infiltrator_contract::vpn::{
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+#[cfg(any(target_os = "android", test))]
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 #[cfg(target_os = "android")]
 use std::thread::Builder;

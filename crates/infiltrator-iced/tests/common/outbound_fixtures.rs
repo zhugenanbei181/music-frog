@@ -1,10 +1,14 @@
 //! Typed owner snapshots used by product-path outbound UI tests.
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::core_capabilities::CoreCapabilitySnapshot;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::outbound::preferences::OutboundLayout;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_iced::state::AppState;
+use infiltrator_iced::types::message;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
+use lurker_core_contract::outbound::{
     details::{
         OutboundCollectionKind, OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState,
         OutboundEndpoint, OutboundHealthObservation, OutboundLatencySample, OutboundObservation,
@@ -21,10 +25,6 @@ use infiltrator_contract::outbound::{
         OutboundUiPreferencesValues,
     },
 };
-use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
-use infiltrator_iced::state::AppState;
-use infiltrator_iced::types::message;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]

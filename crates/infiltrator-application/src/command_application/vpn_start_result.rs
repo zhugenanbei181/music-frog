@@ -1,5 +1,5 @@
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 pub(super) fn confirmed(snapshot: VpnSessionSnapshot) -> Result<(), Failure> {
     match snapshot.state {

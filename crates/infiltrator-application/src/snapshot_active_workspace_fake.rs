@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
@@ -13,6 +12,7 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
 use tokio::sync::OwnedMutexGuard;
 
 pub(super) struct FakeActiveWorkspaceWriteLease<'a> {

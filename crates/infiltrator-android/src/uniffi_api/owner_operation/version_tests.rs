@@ -1,6 +1,6 @@
 use super::*;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::version::CoreVersionInstallId;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn version_operation_maps_to_engine_scoped_application_action() {

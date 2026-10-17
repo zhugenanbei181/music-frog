@@ -2,8 +2,6 @@
 
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::runtime_scope::active_scope;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
 use infiltrator_domain::pac_policy::normalize_bypass_domains;
@@ -11,6 +9,8 @@ use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::pac::PacServicePort;
 use infiltrator_ports::runtime_configuration::ObservedValue;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -175,10 +175,6 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     #[cfg(test)]
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
-    #[cfg(test)]
     use infiltrator_contract::pac::PacServiceState;
     #[cfg(test)]
     use infiltrator_domain::rules::RuleEntry;
@@ -188,6 +184,10 @@ mod tests {
     use infiltrator_ports::runtime_configuration::{
         ConfigurationObservation, ConfigurationRevision, PacRuleReadPort, ProxyPortsConfiguration,
         ProxyPortsReadPort, RuntimeConfigurationPorts,
+    };
+    #[cfg(test)]
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
 

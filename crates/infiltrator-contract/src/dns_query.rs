@@ -1,5 +1,5 @@
 //! Neutral DNS controller query identity, complete response and operation facts.
-use crate::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::Add;

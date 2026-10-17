@@ -1,15 +1,15 @@
 use super::*;
 use infiltrator_contract::android_control::AndroidControlIntent;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::identity::SnapshotRevision;
-use infiltrator_contract::outbound::preferences::OutboundSortOrder;
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceRequest;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
-use infiltrator_contract::outbound::probe::OutboundProbeConcurrency;
-use infiltrator_contract::outbound::probe::ProbeOutboundBatchRequest;
-use infiltrator_contract::outbound::probe::ProbeOutboundRequest;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::outbound::preferences::OutboundSortOrder;
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceRequest;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
+use lurker_core_contract::outbound::probe::OutboundProbeConcurrency;
+use lurker_core_contract::outbound::probe::ProbeOutboundBatchRequest;
+use lurker_core_contract::outbound::probe::ProbeOutboundRequest;
 
 #[test]
 fn demo_command_sink_records_and_clears() {

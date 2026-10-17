@@ -1,10 +1,10 @@
 //! Atomic source-bound root-list commits shared by both product surfaces.
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_document::{RuleDocumentSnapshot, RuleListCommit};
 use infiltrator_domain::rules::document::{definitions_from_entries, entries_from_definitions};
 use infiltrator_domain::rules::types::{RuleType, parse_rule_str};
 use infiltrator_domain::sub_rules::LogicalRuleAst;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]

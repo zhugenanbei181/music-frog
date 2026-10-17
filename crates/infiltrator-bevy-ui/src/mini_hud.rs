@@ -433,10 +433,10 @@ mod tests {
     use bevy::scene::{CommandsSceneExt, ScenePlugin};
     use infiltrator_bevy_widgets::palette::UiPalette;
     use infiltrator_bevy_widgets::theme::Theme;
-    use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
     use infiltrator_contract::system_toggle::SystemToggleSnapshot;
     #[cfg(test)]
     use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+    use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 
     fn model() -> MiniHudReadModel {
         let snapshot = SystemToggleSnapshot::from_legacy(true, Some(true), 2);

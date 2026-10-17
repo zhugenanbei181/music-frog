@@ -5,10 +5,10 @@ use crate::admin_api::events::{AdminEvent, EVENT_OUTBOUND_CHANGED};
 use crate::admin_api::models::ApiError;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use axum::{Json, extract};
-use infiltrator_contract::outbound::inventory::{
+use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundObservationSnapshot, OutboundProbeSnapshot,
 };
-use infiltrator_contract::outbound::probe::{
+use lurker_core_contract::outbound::probe::{
     OutboundProbeBatchSnapshot, OutboundSelectionRequest, ProbeOutboundBatchRequest,
     ProbeOutboundRequest,
 };

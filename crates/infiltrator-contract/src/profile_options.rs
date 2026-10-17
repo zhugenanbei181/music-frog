@@ -57,12 +57,12 @@ mod tests {
     use super::*;
     use crate::subscription_import::SubscriptionFilterDraft;
     fn source() -> ProfileWorkspaceIdentity {
-        use crate::core_identity::EngineId;
         use crate::profile_document_identity::{
             ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
             ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
             ProfileSidecarRevision, ProfileSourceId,
         };
+        use lurker_core_contract::identity::EngineId;
 
         ProfileWorkspaceIdentity::new(
             ProfileDocumentIdentity::new(

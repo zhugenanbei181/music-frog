@@ -3,13 +3,13 @@
 use crate::client::MihomoClient;
 use crate::network_error::network_error;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreScope, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::routing_intent::{
-    EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
-};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreScope, EngineId};
+use lurker_core_contract::routing_intent::{
+    EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
+};
 use serde_json::json;
 
 #[derive(Clone)]
@@ -125,7 +125,7 @@ fn unsupported_engine_defined_intent(extension: &EngineDefinedRoutingIntent) -> 
 mod tests {
     use super::*;
     use crate::types::ConfigResponse;
-    use infiltrator_contract::core_identity::{
+    use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion,
     };
     use mockito::{Matcher, Server};

@@ -2,11 +2,6 @@ use super::*;
 use crate::resource_application::ResourceApplication;
 use async_trait::async_trait;
 use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
@@ -19,6 +14,11 @@ use infiltrator_ports::resources::{
 };
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamPort, ScopedRuntimeStream, UnsupportedRuntimeStreamPort,
+};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

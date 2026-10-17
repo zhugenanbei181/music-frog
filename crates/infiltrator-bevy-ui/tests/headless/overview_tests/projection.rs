@@ -5,13 +5,13 @@ use super::*;
 use bevy::scene::{CommandsSceneExt, bsn};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{OverviewPageSnapshot, PageData};
 use infiltrator_contract::traffic_waveform::TrafficSample;
 use infiltrator_domain::traffic_waveform::display_series;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
+use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 
 /// A projection event restamps texts, inks, pill selection, the banner's
 /// stored state and the chip values in place — every restampable entity

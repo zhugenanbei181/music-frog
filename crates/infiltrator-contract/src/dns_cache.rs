@@ -1,5 +1,5 @@
 //! Typed independent DNS cache facts; configuration reads never author flush outcomes.
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 

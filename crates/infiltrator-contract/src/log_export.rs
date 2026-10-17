@@ -1,6 +1,6 @@
 //! Source-bound prepared log exports and actual host write receipts.
-use crate::error::{ErrorCode, Failure};
 use crate::logs::LogSession;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_LOG_EXPORT_BYTES: usize = 8 * 1024 * 1024;

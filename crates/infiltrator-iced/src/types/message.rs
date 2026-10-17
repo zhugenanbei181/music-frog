@@ -26,17 +26,15 @@ use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
-use infiltrator_contract::outbound::{identity, inventory, preferences, probe};
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::{
-    aggregator, command_catalogue, command_output, core_control, core_identity, dialer_chain, dns,
-    dns_latency, dns_leak, doctor, error, ime, lan, mini_hud, network_roaming, overview_layout,
-    pac, port_conflict, privileged_network, profile_protection, protocol_fidelity, protocol_form,
-    provider_cache, routing_intent, rule_document, rules_workspace, runtime_settings, service_mode,
-    shortcuts, snapshot, snapshot_history, speedtest, stun_probe, subscription_filter_form,
-    subscription_filter_result, subscription_import, surface_snapshot, system_proxy, uwp, version,
-    vpn, yaml_ast_diff,
+    aggregator, command_catalogue, command_output, core_control, dialer_chain, dns, dns_latency,
+    dns_leak, doctor, ime, lan, mini_hud, network_roaming, overview_layout, pac, port_conflict,
+    privileged_network, profile_protection, protocol_fidelity, protocol_form, provider_cache,
+    rule_document, rules_workspace, runtime_settings, service_mode, shortcuts, snapshot,
+    snapshot_history, speedtest, stun_probe, subscription_filter_form, subscription_filter_result,
+    subscription_import, surface_snapshot, system_proxy, uwp, version, vpn, yaml_ast_diff,
 };
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::{
@@ -50,6 +48,10 @@ use infiltrator_domain::{
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::routing_intent_actions::PendingRoutingIntentChange;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
+use lurker_core_contract::error;
+use lurker_core_contract::identity::{CoreScope, EngineId};
+use lurker_core_contract::outbound::{identity, inventory, preferences, probe};
+use lurker_core_contract::routing_intent;
 use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;
 use mtu_probe::MtuProbeCompletion;
@@ -81,8 +83,8 @@ pub enum Message {
         action: core_control::CoreControlAction,
         token: u64,
         result: Result<(), error::Failure>,
-        requested_scope: Option<core_identity::CoreScope>,
-        terminal_scope: Option<core_identity::CoreScope>,
+        requested_scope: Option<CoreScope>,
+        terminal_scope: Option<CoreScope>,
         snapshot: Box<snapshot::CoreSnapshot>,
     },
     SettingsLoaded(Result<AppSettings, error::InfiltratorError>),
@@ -139,56 +141,56 @@ pub enum Message {
     ProfilesCleared(Result<(), error::InfiltratorError>),
     RefreshOutboundInventory,
     SelectOutbound {
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         request: probe::OutboundSelectionRequest,
     },
     PrepareRuntimeOutboundSelection {
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         request: probe::OutboundSelectionRequest,
     },
     OutboundInventoryReadFinished {
-        requested_scope: Option<core_identity::CoreScope>,
-        terminal_scope: Option<core_identity::CoreScope>,
+        requested_scope: Option<CoreScope>,
+        terminal_scope: Option<CoreScope>,
         result: Result<inventory::OutboundInventorySnapshot, error::Failure>,
     },
     OutboundSelectionFinished {
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         collection_id: identity::OutboundId,
         outbound_id: identity::OutboundId,
         expected_revision: identity::SnapshotRevision,
-        terminal_scope: Option<core_identity::CoreScope>,
+        terminal_scope: Option<CoreScope>,
         result: Result<inventory::OutboundInventorySnapshot, error::Failure>,
     },
     ProbeInspectedOutbound,
     StartOutboundProbe {
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         request: probe::ProbeOutboundRequest,
     },
     StartOutboundProbeBatch {
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         target_scope: probe::OutboundProbeBatchScope,
         expected_inventory_revision: identity::SnapshotRevision,
     },
     OutboundProbeFinished {
         token: u64,
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         request: probe::ProbeOutboundRequest,
-        terminal_scope: Option<core_identity::CoreScope>,
+        terminal_scope: Option<CoreScope>,
         result: Result<inventory::OutboundProbeSnapshot, error::Failure>,
     },
     OutboundProbeBatchFinished {
         token: u64,
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         request: probe::ProbeOutboundBatchRequest,
-        terminal_scope: Option<core_identity::CoreScope>,
+        terminal_scope: Option<CoreScope>,
         result: Result<probe::OutboundProbeBatchSnapshot, error::Failure>,
     },
     DismissOutboundProbeBatch,
     OutboundUiPreferenceFinished {
         token: u64,
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         request: preferences::OutboundUiPreferenceRequest,
-        terminal_scope: Option<core_identity::CoreScope>,
+        terminal_scope: Option<CoreScope>,
         result: Result<preferences::OutboundUiPreferencesSnapshot, error::Failure>,
     },
     FilterProxies(String),
@@ -227,12 +229,12 @@ pub enum Message {
     IpInfoReceived(Result<IpProbeResult, error::InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
-    RuntimeStreamLogReceived(core_identity::CoreScope, String),
-    RuntimeStreamTrafficReceived(core_identity::CoreScope, TrafficData),
-    RuntimeStreamConnectionsReceived(core_identity::CoreScope, ConnectionSnapshot),
+    RuntimeStreamLogReceived(CoreScope, String),
+    RuntimeStreamTrafficReceived(CoreScope, TrafficData),
+    RuntimeStreamConnectionsReceived(CoreScope, ConnectionSnapshot),
     RuntimeStreamStateChanged {
         kind: RuntimeStreamKind,
-        scope: core_identity::CoreScope,
+        scope: CoreScope,
         state: RuntimeStreamState,
     },
     ClearRuntimeLogs,
@@ -554,7 +556,7 @@ pub enum Message {
     },
     CoreDownloadFinished {
         result: Result<String, error::Failure>,
-        engine_id: Option<core_identity::EngineId>,
+        engine_id: Option<EngineId>,
         run_id: CoreDownloadRunId,
     },
     CancelCoreDownload,

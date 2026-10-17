@@ -3,7 +3,7 @@
 #[cfg(any(target_os = "android", test))]
 use infiltrator_bevy_ui::surface::host_insets::WindowInsetsInputSender;
 use infiltrator_bevy_ui::surface::host_insets::{EdgeInsets, WindowInsets};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use serde::Deserialize;
 #[cfg(target_os = "android")]
 use std::sync::OnceLock;

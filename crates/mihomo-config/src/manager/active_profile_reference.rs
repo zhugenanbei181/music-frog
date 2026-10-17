@@ -11,10 +11,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
-#[cfg(test)]
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 #[cfg(test)]
@@ -57,6 +53,10 @@ use infiltrator_profile_store::reset_fence::{
 };
 #[cfg(test)]
 use infiltrator_profile_store::workspace::sha256_hex;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
+#[cfg(test)]
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use mihomo_api::error::MihomoError;
 use std::fmt::Display;
 #[cfg(test)]

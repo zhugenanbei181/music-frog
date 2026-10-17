@@ -1,7 +1,7 @@
 //! Native restoration actions keep every completion correlated with the shared transaction.
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
+use lurker_core_contract::error::Failure;
 #[derive(Clone, Debug)]
 pub enum RestoreAction {
     Open(SnapshotRestoreTarget),

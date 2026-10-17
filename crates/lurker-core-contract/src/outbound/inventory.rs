@@ -1,8 +1,8 @@
 use super::details::OutboundSnapshot;
 use super::details::{OutboundDetailsSnapshot, OutboundDetailsState};
 use super::identity::{OutboundContractError, OutboundId, SnapshotRevision};
-use crate::core_identity::CoreScope;
 use crate::error::Failure;
+use crate::identity::CoreScope;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;

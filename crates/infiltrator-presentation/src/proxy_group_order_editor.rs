@@ -1,6 +1,6 @@
 //! Shared typed group-order draft, inventory fence, and correlated receipt reducer.
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

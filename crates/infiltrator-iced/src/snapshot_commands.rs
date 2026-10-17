@@ -2,7 +2,7 @@
 use crate::command_ingress::CoreCommandIngress;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::InfiltratorError;
+use lurker_core_contract::error::InfiltratorError;
 
 pub(crate) async fn execute(
     commands: Option<CoreCommandIngress>,

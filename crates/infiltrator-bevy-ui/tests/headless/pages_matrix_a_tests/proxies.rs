@@ -20,12 +20,16 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::latency_display::LatencyBand;
-use infiltrator_contract::outbound::details::OutboundHealthObservation;
-use infiltrator_contract::outbound::preferences::OutboundUiPreferenceRequest;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_presentation::latency_projection::project_proxy_latency;
+use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::outbound::details::OutboundHealthObservation;
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceRequest;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
+use lurker_core_contract::outbound::{
     details::OutboundSnapshot,
     identity::{OutboundId, SnapshotRevision},
     inventory::{
@@ -38,10 +42,6 @@ use infiltrator_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
-use infiltrator_contract::surface_snapshot::PageData;
-use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_presentation::latency_projection::project_proxy_latency;
-use infiltrator_shared::locales::{Lang, Localizer};
 
 fn set_outbound_inventory(
     snapshot: &mut SurfaceSnapshot,

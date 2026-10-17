@@ -5,12 +5,12 @@
 //! accepted response from the running Mihomo process. The asynchronous
 //! database fetch and installation are deliberately outside this evidence.
 
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-};
 use infiltrator_contract::geo_database::GeoDatabaseTriggerState;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::geo_database::GeoDatabasePort;
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use std::env;

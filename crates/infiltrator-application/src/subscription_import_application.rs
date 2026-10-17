@@ -8,13 +8,13 @@
 //! surfaces a typed unsupported error instead of a fake success.
 
 use crate::profile_application::ProfileApplication;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionImportReport,
 };
 use infiltrator_domain::subscription::extract_subscription_url;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 
 /// Shared channel dispatch for subscription imports.

@@ -1,7 +1,7 @@
 //! Cross-surface core-version values.
 
-use crate::core_identity::EngineId;
-use crate::error::Failure;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::EngineId;
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use std::error::Error;

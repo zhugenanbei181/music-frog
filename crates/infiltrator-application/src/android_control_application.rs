@@ -3,9 +3,10 @@
 use crate::core_application::CoreApplication;
 use infiltrator_contract::android_control::AndroidProductControlIntent;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
-use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest, CoreScope};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::mpsc::Receiver;
 
 #[derive(Clone)]

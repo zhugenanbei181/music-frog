@@ -9,7 +9,6 @@ use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationApplication;
-use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::privileged_network::{
@@ -18,6 +17,7 @@ use infiltrator_contract::privileged_network::{
 use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 
 impl AppState {
     fn run_privileged_network_regression(&mut self) -> Task<Message> {

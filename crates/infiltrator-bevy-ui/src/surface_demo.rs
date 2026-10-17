@@ -11,36 +11,15 @@ use crate::pages::sync::SyncProjection;
 use crate::projection::DemoOverviewSource;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
 use infiltrator_contract::dns::parse_server_list;
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_hosts::DnsHostsProfile;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
-use infiltrator_contract::outbound::details::OutboundLatencySample;
-use infiltrator_contract::outbound::preferences::OutboundHealthFilter;
-use infiltrator_contract::outbound::preferences::OutboundLayout;
-use infiltrator_contract::outbound::{
-    details::{
-        OutboundCollectionKind, OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState,
-        OutboundEndpoint, OutboundFeature, OutboundHealthObservation, OutboundObservation,
-        OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot,
-        OutboundUdpSupport,
-    },
-    identity::{OutboundCipherId, OutboundId, OutboundProtocolId, SnapshotRevision},
-    inventory::{
-        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
-        OutboundSelectionState, SelectionAvailability,
-    },
-    preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues},
-};
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
@@ -63,6 +42,27 @@ use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
+use lurker_core_contract::outbound::details::OutboundLatencySample;
+use lurker_core_contract::outbound::preferences::OutboundHealthFilter;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
+use lurker_core_contract::outbound::{
+    details::{
+        OutboundCollectionKind, OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState,
+        OutboundEndpoint, OutboundFeature, OutboundHealthObservation, OutboundObservation,
+        OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot,
+        OutboundUdpSupport,
+    },
+    identity::{OutboundCipherId, OutboundId, OutboundProtocolId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+    preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues},
+};
 
 #[path = "surface_demo/projections.rs"]
 mod projections;

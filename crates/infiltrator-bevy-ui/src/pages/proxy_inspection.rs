@@ -35,21 +35,21 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::details::OutboundEgressSample;
-use infiltrator_contract::outbound::details::OutboundProtocolObservation;
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
+use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::details::OutboundEgressSample;
+use lurker_core_contract::outbound::details::OutboundProtocolObservation;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::{
     details::{
         OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
         OutboundObservation, OutboundRttStatistics, OutboundUdpSupport,
     },
     identity::SnapshotRevision,
 };
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
-use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Presentation rows projected from the engine-neutral outbound details snapshot.
 /// This belongs to the page because it defines labels, not backend data.

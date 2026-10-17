@@ -1,7 +1,6 @@
 //! Engine-neutral identity and fencing types for a single active core.
 
-use crate::command::{CommandIntent, CommandResult};
-use lurker_core_contract::session::SessionToken;
+use crate::session::SessionToken;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;
@@ -203,20 +202,6 @@ pub struct CoreScope {
     pub identity: CoreIdentity,
     pub generation: CoreGeneration,
     pub session_token: Option<SessionToken>,
-}
-
-/// User intent bound to the engine instance observed by the requesting surface.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CoreCommandRequest {
-    pub scope: CoreScope,
-    pub intent: CommandIntent,
-}
-
-/// Terminal result plus the scope observed after execution or rejection.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CoreCommandOutcome {
-    pub scope: Option<CoreScope>,
-    pub result: CommandResult,
 }
 
 #[cfg(test)]

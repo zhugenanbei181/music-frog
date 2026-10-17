@@ -1,6 +1,6 @@
 use super::*;
 use ActiveProfileOwnerLease;
-use infiltrator_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use tokio::sync::{self, OwnedMutexGuard};
 
 #[derive(Clone)]

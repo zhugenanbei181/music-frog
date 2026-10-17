@@ -4,11 +4,11 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::core_binary_selection::{
     BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProviderError;
+use lurker_core_contract::identity::EngineId;
 use std::env;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

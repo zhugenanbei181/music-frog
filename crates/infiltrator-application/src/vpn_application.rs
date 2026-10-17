@@ -1,13 +1,13 @@
 //! Runtime-neutral VpnService lifecycle use-case.
 
 use infiltrator_contract::android_control::VpnAuthorizationState;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
     VpnSurfaceObservation,
 };
 use infiltrator_domain::vpn_policy::{validate_configuration, validate_start_request};
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -148,14 +148,14 @@ impl VpnServiceApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
     use infiltrator_contract::vpn::{
         PreparedVpnConfiguration, VpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute,
         VpnSessionState, VpnStartRequest,
     };
     use infiltrator_ports::error::PortError;
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+    };
     use lurker_core_contract::session::SessionToken;
     #[cfg(test)]
     use std::sync;

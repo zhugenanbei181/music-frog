@@ -1,9 +1,9 @@
 use crate::commands::ServiceAction;
 use crate::context::Runtime;
 use crate::handlers::telemetry;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use mihomo_process::desktop::ProcessCoreController;
 use std::time;
 use tokio::time::sleep;

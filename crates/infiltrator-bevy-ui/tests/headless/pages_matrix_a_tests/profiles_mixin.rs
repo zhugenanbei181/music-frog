@@ -3,9 +3,9 @@
 
 use super::*;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
+use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// DUAL-10-08/10/11: the Bevy Mixin pane renders the shared preflight verdict,
 /// the shared preset-toggle chips and the real cascade pipeline strip, flips a

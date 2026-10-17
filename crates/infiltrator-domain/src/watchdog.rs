@@ -5,8 +5,8 @@
 //! the policy therefore remains usable by desktop, Android, iOS and any
 //! future native surface without selecting an executor.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 use std::fmt::{Display, Formatter};
 use std::time::Duration;

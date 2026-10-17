@@ -1,4 +1,4 @@
-use crate::core_identity::EngineId;
+use crate::identity::EngineId;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;

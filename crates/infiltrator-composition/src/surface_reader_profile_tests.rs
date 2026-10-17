@@ -2,14 +2,14 @@
 use super::*;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaStatus;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::EngineId;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 

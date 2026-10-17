@@ -8,9 +8,9 @@
 //! rollback — never a raw file overwrite.
 
 use chrono::Utc;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::backup;
 use infiltrator_domain::snapshots::{SnapshotMeta, content_hash, parse_snapshot_name};
+use lurker_core_contract::identity::EngineId;
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_config::manager::paths::scope_config_dir;
 use std::cmp::Reverse;

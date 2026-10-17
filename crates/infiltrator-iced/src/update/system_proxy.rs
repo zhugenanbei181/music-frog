@@ -4,7 +4,6 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::system_proxy::{
     SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxySnapshot, SystemProxyStatus,
@@ -14,6 +13,7 @@ use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_presentation::system_toggle_projection;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
     pub(super) fn set_system_proxy(&mut self, enabled: bool) -> Task<Message> {

@@ -9,8 +9,8 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::version_application::normalized_release_channel;
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::WebDavConfig;
+use lurker_core_contract::error::InfiltratorError;
 use std::path::PathBuf;
 
 impl AppState {

@@ -1,5 +1,5 @@
 use super::*;
-use infiltrator_contract::core_identity::EngineId;
+use lurker_core_contract::identity::EngineId;
 
 fn id(value: &str) -> OutboundId {
     OutboundId::new(EngineId::new("mihomo").unwrap(), value).unwrap()

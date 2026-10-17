@@ -5,8 +5,6 @@ use crate::log_application::{
 use crate::runtime_stream_application::scope_checked;
 use futures_util::future::{AbortHandle, Abortable};
 use futures_util::{FutureExt, StreamExt, select};
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
@@ -14,6 +12,8 @@ use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::CoreScope;
 use std::sync::Arc;
 use std::thread::{Builder, JoinHandle, current};
 use std::time::Duration;

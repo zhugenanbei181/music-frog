@@ -14,7 +14,6 @@ use crate::uniffi_api::owner_operation::{
 };
 use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
-use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::profile_age_credential::ProfileAgeCredentialReadOutcome;
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeCredentialMutation, ProfileAgeCredentialOwnerMetadata,
@@ -24,6 +23,7 @@ use infiltrator_contract::profile_age_credential::{
 };
 use infiltrator_platform::android_bridge::get_android_bridge;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use lurker_core_contract::identity::CoreScope;
 use serde::{Deserialize, Serialize};
 use std::mem;
 use std::ptr::write_volatile;
@@ -606,14 +606,14 @@ mod tests {
     use infiltrator_contract::active_profile_reference::{
         ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     };
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-    };
     use infiltrator_contract::profile_age_credential::{
         AgePrivateKey, ProfileAgeCredentialObservation, ProfileAgeCredentialOwnerMetadata,
         ProfileAgeCredentialOwnerRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
     };
     use infiltrator_contract::profile_document_identity::ProfileId;
+    use lurker_core_contract::identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+    };
 
     fn scope(generation: u64) -> CoreScope {
         CoreScope {

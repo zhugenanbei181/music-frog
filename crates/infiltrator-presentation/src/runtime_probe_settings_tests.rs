@@ -1,8 +1,8 @@
 use crate::runtime_probe_settings::{parse_draft, project_settings};
 use crate::runtime_probe_settings_editor::RuntimeProbeSettingsDraft;
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_domain::settings::{AppSettings, RuntimePanelConfig};
+use lurker_core_contract::error::ErrorCode;
 
 #[test]
 fn draft_validation_is_engine_neutral_and_does_not_invent_blank_values() {

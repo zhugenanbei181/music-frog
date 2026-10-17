@@ -18,11 +18,11 @@ use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_test_support::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
+use lurker_core_contract::error::ErrorCode;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 use tokio::runtime::Builder;

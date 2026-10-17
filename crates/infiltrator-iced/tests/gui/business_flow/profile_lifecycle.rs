@@ -24,7 +24,6 @@ use infiltrator_composition::mihomo_configuration::{
     delete_profile_options_fixture, save_profile_options_fixture,
 };
 use infiltrator_contract::core_control::CoreControlLabel;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionContentEffectOutcome, SubscriptionFilterDraft,
@@ -43,6 +42,7 @@ use infiltrator_ports::subscription_source::{
 };
 use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use lurker_core_contract::error::InfiltratorError;
 use std::fs::write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};

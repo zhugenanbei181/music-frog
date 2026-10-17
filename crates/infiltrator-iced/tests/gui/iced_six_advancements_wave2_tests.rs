@@ -10,13 +10,13 @@ use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationTemplate,
 };
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::error::InfiltratorError;
 
 /// DUAL-14-08: the surface drives the shared cross-source probe through the
 /// host port and renders the shared report verbatim. No host runtime means no

@@ -14,10 +14,10 @@ use infiltrator_shared::locales::Lang;
 /// publish-truncation fact are projected from one surface snapshot.
 #[test]
 fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
-    use infiltrator_contract::error::{ErrorCode, Failure};
     use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
     use infiltrator_contract::surface::{HostKind, SurfaceKind};
     use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot, SurfaceSnapshot};
+    use lurker_core_contract::error::{ErrorCode, Failure};
 
     let (mut state, _) = AppState::new();
     let mut snapshot = SurfaceSnapshot::unavailable(

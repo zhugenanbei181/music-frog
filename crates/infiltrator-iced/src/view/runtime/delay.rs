@@ -15,13 +15,13 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_contract::outbound::details::OutboundObservation;
-use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::outbound::details::OutboundObservation;
+use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 

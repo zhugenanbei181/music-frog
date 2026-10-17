@@ -22,7 +22,6 @@
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use futures_util::stream;
 use futures_util::stream::StreamExt;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionContentEffectOutcome, SubscriptionUpdateOutcome,
     SubscriptionUpdateReport,
@@ -35,6 +34,7 @@ use infiltrator_ports::subscription_notification::{
     SubscriptionNotification, SubscriptionNotificationKind, SubscriptionNotificationPort,
 };
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};

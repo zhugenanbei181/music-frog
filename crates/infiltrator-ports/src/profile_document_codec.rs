@@ -2,7 +2,6 @@
 
 use crate::error::PortError;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::DnsHostEntry;
 use infiltrator_contract::profile_document::DocumentValidation;
@@ -20,6 +19,7 @@ use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::subscription_filter_result::FilterReport;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
+use lurker_core_contract::identity::EngineId;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

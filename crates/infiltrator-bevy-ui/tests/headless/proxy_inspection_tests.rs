@@ -41,12 +41,16 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreCapabilitySnapshot, CoreOperation, EngineCapabilityDecision,
     HostCapabilityDecision, OutboundOperation,
 };
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::core_identity::{CoreScope, CoreVersion};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::details::OutboundProbeAvailability;
-use infiltrator_contract::outbound::preferences::OutboundLayout;
-use infiltrator_contract::outbound::{
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
+use infiltrator_contract::surface::HostKind;
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::identity::{CoreScope, CoreVersion};
+use lurker_core_contract::outbound::details::OutboundProbeAvailability;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
+use lurker_core_contract::outbound::{
     details::{
         OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEgressSample,
         OutboundEndpoint, OutboundFeature, OutboundHealthObservation, OutboundLatencySample,
@@ -64,10 +68,6 @@ use infiltrator_contract::outbound::{
     },
     probe::ProbeOutboundRequest,
 };
-use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
-use infiltrator_contract::surface::HostKind;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
-use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use mem::take;
 use std::collections::VecDeque;
 use std::mem;

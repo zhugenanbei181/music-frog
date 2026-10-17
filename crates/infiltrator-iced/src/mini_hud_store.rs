@@ -9,9 +9,9 @@ use crate::host::mini_hud::window_port;
 use crate::host::storage::settings_store;
 use infiltrator_application::mini_hud_application::MiniHudApplication;
 use infiltrator_application::settings_application::SettingsApplication;
-use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::mini_hud::{MiniHudDisplay, MiniHudPlacement};
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_contract::error::InfiltratorError;
 use std::sync::Arc;
 
 /// The shared application facade over the desktop host's floating-window port.

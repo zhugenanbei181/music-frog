@@ -5,10 +5,10 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
-use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 
 fn unselected(revision: u64) -> ActiveProfileReferenceState {
     ActiveProfileReferenceState::Unselected {

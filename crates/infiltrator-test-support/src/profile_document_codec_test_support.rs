@@ -1,9 +1,7 @@
 use crate::rule_workspace_test_support::rule_workspace_with_identity;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
@@ -27,6 +25,8 @@ use infiltrator_ports::profile_document_codec::{
     ProfileOptionsProjection, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
     ProfileRuleWorkspaceUpdate,
 };
+use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::identity::EngineId;
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::str::from_utf8;

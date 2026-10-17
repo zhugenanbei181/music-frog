@@ -12,25 +12,15 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::core_control::CoreControlAction;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
-use infiltrator_contract::outbound::{
-    details::OutboundDetailsSnapshot,
-    identity::OutboundId,
-    inventory::{OutboundInventorySnapshot, OutboundProbeSnapshot},
-    preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot},
-    probe::OutboundSelectionRequest,
-};
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
 use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
@@ -54,6 +44,16 @@ use infiltrator_presentation::protocol_form::ProtocolInputs;
 use infiltrator_presentation::proxy_group_order_editor::ProxyGroupOrderEditor;
 use infiltrator_presentation::routing_intent_actions::RoutingIntentActions;
 use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsEditor;
+use lurker_core_contract::error::Failure;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::outbound::{
+    details::OutboundDetailsSnapshot,
+    identity::OutboundId,
+    inventory::{OutboundInventorySnapshot, OutboundProbeSnapshot},
+    preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot},
+    probe::OutboundSelectionRequest,
+};
+use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use lurker_core_contract::session::SessionToken;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;

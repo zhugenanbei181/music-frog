@@ -1,13 +1,13 @@
 //! Runtime-neutral privileged network transaction and rollback use-case.
 
 use futures_util::lock::Mutex;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
 use infiltrator_domain::privileged_network_policy::validate_request;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
 struct State {
