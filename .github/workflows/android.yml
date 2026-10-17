@@ -60,6 +60,20 @@ jobs:
         with:
           cmdline-tools-version: ${{ steps.android-toolchain.outputs.android_cmdline_tools_revision }}
 
+      # setup-android installs the pinned build under `cmdline-tools/<version>`
+      # but leaves a preinstalled `latest` symlink pointing at the image's newer
+      # tools. Repoint `latest` so every sdkmanager call and the toolchain check
+      # use the registered version.
+      - name: Pin Android command-line tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLS="$ANDROID_HOME/cmdline-tools/${{ steps.android-toolchain.outputs.android_cmdline_tools_version }}"
+          test -d "$TOOLS"
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          ln -s "$TOOLS" "$ANDROID_HOME/cmdline-tools/latest"
+          cat "$ANDROID_HOME/cmdline-tools/latest/source.properties"
+
       # Pin the SDK packages used by APK builds and the Gradle Managed Device.
       - name: Install Android platform, emulator, and system image
         shell: bash

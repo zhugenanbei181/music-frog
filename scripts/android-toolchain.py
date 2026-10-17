@@ -405,6 +405,7 @@ def github_outputs(values: Mapping[str, str], destination: Path) -> None:
         "android_emulator_image": values["android.emulator.image"],
         "android_ndk_version": values["android.ndk.version"],
         "android_cmdline_tools_revision": values["android.cmdline.tools.revision"],
+        "android_cmdline_tools_version": values["android.cmdline.tools.version"],
     }
     with destination.open("a", encoding="utf-8") as output:
         for key, value in output_values.items():
