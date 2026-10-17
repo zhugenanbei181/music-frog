@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
+      # 像素验收要编译全部产品并构建 niri 合成器，托管 runner 根分区约 14 GB 装不下；
+      # 先回收本 job 用不到的重型工具链（见 scripts/ci-free-disk.sh）。
+      - name: Free runner disk space
+        shell: bash
+        run: bash scripts/ci-free-disk.sh
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"

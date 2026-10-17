@@ -116,6 +116,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # Linux 腿在同一台机上编译 iced + bevy + slint 三个 release 二进制并打包；
+      # 托管 runner 根分区约 14 GB 装不下缓存恢复 + 构建，先回收用不到的重型工具链。
+      - name: Free runner disk space
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash scripts/ci-free-disk.sh
+
       - name: Verify release version and product identity
         shell: bash
         run: python3 scripts/quality/android-product-identity-guard.py --release-tag "$GITHUB_REF_NAME"
@@ -387,6 +394,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      # Android 发布腿要装 SDK/NDK 并做三 flavor 的 Gradle 构建，根分区约 14 GB
+      # 装不下；先回收本 job 用不到的重型工具链，但保留 Android SDK。
+      - name: Free runner disk space
+        shell: bash
+        run: bash scripts/ci-free-disk.sh --keep-android
 
       - name: Verify Android product identity registry and release tag
         shell: bash

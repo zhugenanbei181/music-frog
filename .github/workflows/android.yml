@@ -39,6 +39,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # 托管 runner 根分区约 14 GB，Android SDK/NDK + 模拟器 + 双 ABI cargo 构建装不下；
+      # 先回收本 job 用不到的重型工具链，但保留 Android SDK（见 scripts/ci-free-disk.sh）。
+      - name: Free runner disk space
+        shell: bash
+        run: bash scripts/ci-free-disk.sh --keep-android
+
       - name: Resolve pinned Android toolchain
         id: android-toolchain
         run: python3 scripts/android-toolchain.py github-output "$GITHUB_OUTPUT"

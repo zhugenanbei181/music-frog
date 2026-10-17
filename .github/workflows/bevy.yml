@@ -33,6 +33,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # 托管 runner 根分区约 14 GB，恢复缓存 + 编译 bevy 图形栈会写爆磁盘；先回收
+      # 本 job 用不到的重型工具链（见 scripts/ci-free-disk.sh）。
+      - name: Free runner disk space
+        shell: bash
+        run: bash scripts/ci-free-disk.sh
+
       # Bevy workspace membership, the exact `bevy` version pin and the naga
       # coexistence workaround are structural invariants enforced by
       # scripts/quality/workspace-pin-guard.py (via `test-bevy.sh
