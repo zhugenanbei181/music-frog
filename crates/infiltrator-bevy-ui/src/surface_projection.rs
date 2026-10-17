@@ -8,6 +8,8 @@ use crate::pages::app_routing::AppItem;
 use lurker_core_contract::outbound::details::OutboundDetail;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
+#[cfg(any(feature = "capture-tools", test))]
+use lurker_core_contract::page::SurfaceOrigin;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -79,13 +81,10 @@ pub(super) fn overview_projection(
             #[cfg(any(feature = "capture-tools", test))]
             {
                 match snapshot.origin {
-                    surface_snapshot::SurfaceOrigin::Demo
-                        if snapshot.surface == SurfaceKind::BevyDesktop =>
-                    {
+                    SurfaceOrigin::Demo if snapshot.surface == SurfaceKind::BevyDesktop => {
                         OverviewOrigin::Demo
                     }
-                    surface_snapshot::SurfaceOrigin::Demo
-                    | surface_snapshot::SurfaceOrigin::Live => OverviewOrigin::LiveCore,
+                    SurfaceOrigin::Demo | SurfaceOrigin::Live => OverviewOrigin::LiveCore,
                 }
             }
             #[cfg(not(any(feature = "capture-tools", test)))]
@@ -125,7 +124,7 @@ pub(super) fn proxies_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ProxiesProjection {
     use crate::pages::proxies_filter::{matches_proxy_filter, name_runs};
-    use infiltrator_contract::surface_snapshot::PageStatus;
+    use lurker_core_contract::page::PageStatus;
 
     let scope = snapshot.core.scope();
     let inventory = matches!(

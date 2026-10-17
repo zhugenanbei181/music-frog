@@ -16,10 +16,10 @@ use infiltrator_contract::dns_latency::DnsLatencyReport;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
-use infiltrator_contract::surface_snapshot;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
+use lurker_core_contract::page::PageStatus;
 
 pub(super) fn empty_profiles() -> ProfilesProjection {
     ProfilesProjection {
@@ -78,7 +78,7 @@ pub(super) fn empty_connections() -> ConnectionsProjection {
 
 pub(super) fn empty_logs() -> LogsProjection {
     LogsProjection {
-        status: surface_snapshot::PageStatus::Loading,
+        status: PageStatus::Loading,
         generation: 0,
         session_token: None,
         total_entries: 0,
@@ -119,7 +119,7 @@ pub(super) fn empty_doctor() -> DoctorProjection {
 pub(super) fn empty_sync() -> SyncProjection {
     SyncProjection {
         status: SyncStatus::Unknown,
-        history_status: surface_snapshot::PageStatus::Loading,
+        history_status: PageStatus::Loading,
         server_url: String::new(),
         username: String::new(),
         last_sync: None,

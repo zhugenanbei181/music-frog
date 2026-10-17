@@ -1,7 +1,7 @@
 //! Shared in-app notification contract: severity vocabulary plus the
 //! dedup/capacity policy behind the toast stack.
 //!
-//! Text redaction intentionally stays with `infiltrator_domain::redact`
+//! Text redaction intentionally stays with `lurker_core_contract::redact`
 //! (both surfaces already depend on it and Iced routes every toast through
 //! it); this module owns the part both surfaces must agree on numerically —
 //! which severities exist, how long an identical toast is coalesced, and how

@@ -58,3 +58,5 @@ infiltrator-application = { path = "../infiltrator-application" }
 singbox-api = { path = "../singbox-api" }
 singbox-driver = { path = "../singbox-driver" }
 infiltrator-composition = { path = "../infiltrator-composition" }
+# Integration tests run the neutral adapter conformance kit.
+lurker-engine-runtime = { path = "../lurker-engine-runtime", features = ["conformance"] }

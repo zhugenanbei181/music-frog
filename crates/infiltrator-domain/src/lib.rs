@@ -50,7 +50,6 @@ pub mod proxy_nodes;
 pub mod proxy_observation;
 pub mod proxy_providers;
 pub mod proxy_serialization;
-pub mod redact;
 pub mod rule_hit_counter;
 pub mod rules;
 pub mod runtime;

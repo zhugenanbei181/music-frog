@@ -25,9 +25,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::surface_snapshot::PageStatus;
-use infiltrator_presentation::settings_preference_projection::project;
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::page::PageStatus;
+use lurker_ui_presentation::settings_preference_projection::project;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum PreferenceKind {

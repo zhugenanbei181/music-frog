@@ -11,7 +11,6 @@ use iced::Task;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::speedtest::SpeedtestConcurrency;
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -28,6 +27,7 @@ use lurker_core_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::page::PageData;
 
 const DEFAULT_RUNTIME_CONNECTION_SORT: &str = "download_desc";
 

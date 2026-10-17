@@ -8,12 +8,12 @@ use infiltrator_contract::network_roaming::{
 };
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::page::PageStatus;
 
 impl SettingsProjection {
     pub fn demo() -> Self {

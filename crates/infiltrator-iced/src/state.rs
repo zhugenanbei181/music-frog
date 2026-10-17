@@ -32,9 +32,7 @@ use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::surface_snapshot::{
-    PageData, PageStatus, SurfaceOrigin, SurfaceSnapshot,
-};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_desktop::product::DesktopProductSessionHandle;
 use infiltrator_domain::runtime::TrafficData;
@@ -60,6 +58,7 @@ use lurker_core_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::page::{PageData, PageStatus, SurfaceOrigin};
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use std::sync::Arc;
 

@@ -28,7 +28,6 @@ use infiltrator_contract::runtime_status::{
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::SystemProxyObservation;
 use infiltrator_contract::version::{
     CoreChannelStatus, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot, EngineReleaseChannel,
@@ -76,6 +75,7 @@ use lurker_core_contract::outbound::{
         OutboundSelectionSet,
     },
 };
+use lurker_core_contract::page::PageStatus;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

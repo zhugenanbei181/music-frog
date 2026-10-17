@@ -3,7 +3,7 @@ use infiltrator_contract::rule_document::{
     RuleDocumentSnapshot, RuleListCommit, RuleListOperationId, RuleRowId,
 };
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus, RulesPageSnapshot};
+use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::document::{definitions_from_entries, entries_from_definitions};
 use infiltrator_domain::rules::edit::{
@@ -11,6 +11,7 @@ use infiltrator_domain::rules::edit::{
 };
 use infiltrator_domain::rules::game_routing_presets;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::{PageData, PageStatus};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 

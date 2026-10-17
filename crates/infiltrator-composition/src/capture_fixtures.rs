@@ -9,7 +9,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::rule_document::RuleDocumentSnapshot;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
@@ -18,6 +18,7 @@ use infiltrator_test_support::log_capture_fixtures::LOG_RECORDS;
 use infiltrator_test_support::rule_list_fixtures::list_workspace;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::{PageData, SurfaceOrigin};
 
 pub fn grouping_surface(mut surface: SurfaceSnapshot) -> SurfaceSnapshot {
     let connections = grouping_snapshot();

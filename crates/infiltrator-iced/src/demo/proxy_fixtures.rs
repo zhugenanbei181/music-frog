@@ -7,7 +7,7 @@ use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -31,6 +31,7 @@ use lurker_core_contract::outbound::{
         OutboundUiPreferencesValues,
     },
 };
+use lurker_core_contract::page::{PageData, SurfaceOrigin};
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::session::SessionToken;
 

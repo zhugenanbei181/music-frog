@@ -82,18 +82,18 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::resources::ResourceAvailability;
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::system_toggle::SystemToggleState;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
-use infiltrator_presentation::core_status_projection::{
-    OverviewBannerVerdict, banner_verdict_copy, failure_copy, project_banner_verdict, source_copy,
-};
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::SurfaceOrigin;
 use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_ui_presentation::core_status_projection::{
+    OverviewBannerVerdict, banner_verdict_copy, failure_copy, project_banner_verdict, source_copy,
+};
 
 #[path = "overview_reactive.rs"]
 pub mod overview_reactive;

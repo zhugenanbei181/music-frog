@@ -7,8 +7,8 @@
 //! stream badge on either surface means the same thing.
 
 use crate::capability::Availability;
-use crate::surface_snapshot::PageStatus;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::page::PageStatus;
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

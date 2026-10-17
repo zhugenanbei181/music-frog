@@ -1,7 +1,7 @@
 //! Shared synchronization presentation. Configuration is not proof of a connection.
 use crate::text::localize;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
+use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::copy::TextCatalog;
 
 pub fn status_key(status: SyncStatus) -> &'static str {

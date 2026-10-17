@@ -16,7 +16,7 @@ use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::page::PageStatus;
 
 #[derive(Clone, Copy)]
 pub enum RuntimeField {

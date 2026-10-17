@@ -2,8 +2,8 @@
 use crate::text::localize;
 use infiltrator_contract::subscription_import::{SubscriptionFilterDedup, SubscriptionFilterDraft};
 use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
-use infiltrator_domain::redact::redact_line;
 use lurker_core_contract::error::Failure;
+use lurker_core_contract::redact::redact_line;
 use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

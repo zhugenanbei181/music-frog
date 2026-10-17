@@ -20,7 +20,6 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityStatus, CoreOperation, OutboundOperation,
 };
 use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::{
@@ -28,6 +27,7 @@ use lurker_core_contract::outbound::{
     inventory::{OutboundInventoryState, OutboundProbeState},
     probe::ProbeOutboundRequest,
 };
+use lurker_core_contract::page::PageStatus;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingProxyProbe {
@@ -366,7 +366,7 @@ enum ProbeCapability {
 }
 
 fn probe_capability(snapshot: &SurfaceSnapshot) -> ProbeCapability {
-    use infiltrator_contract::surface_snapshot::PageStatus;
+    use lurker_core_contract::page::PageStatus;
 
     if snapshot.core_capability_snapshot.status != PageStatus::Ready {
         return ProbeCapability::Unavailable;

@@ -3,8 +3,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::doctor::DoctorAction;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
+use lurker_core_contract::page::PageStatus;
 
 #[derive(Clone, Copy)]
 enum DoctorActionAvailability {

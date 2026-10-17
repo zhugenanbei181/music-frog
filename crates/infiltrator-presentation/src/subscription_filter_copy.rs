@@ -1,7 +1,7 @@
 //! One localized status fold for both native filter editors.
 use crate::subscription_filter_editor::SubscriptionFilterEditor;
 use crate::text::localize;
-use infiltrator_domain::redact::redact_line;
+use lurker_core_contract::redact::redact_line;
 use lurker_ui_presentation::copy::TextCatalog;
 
 pub fn status(editor: &SubscriptionFilterEditor, catalog: &dyn TextCatalog) -> String {

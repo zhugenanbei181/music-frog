@@ -1,6 +1,6 @@
 //! Preference observations preserve unknown and stale facts independently of runtime controls.
-use infiltrator_contract::surface_snapshot::PageStatus;
-use lurker_ui_presentation::copy::TextCatalog;
+use crate::copy::TextCatalog;
+use lurker_core_contract::page::PageStatus;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreferencePresentation {

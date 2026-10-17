@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
@@ -12,6 +12,7 @@ use lurker_core_contract::identity::{
     CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::SurfaceOrigin;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };

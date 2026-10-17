@@ -45,10 +45,10 @@ use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
+use lurker_core_contract::page::SurfaceOrigin;
 use std::mem::discriminant;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 

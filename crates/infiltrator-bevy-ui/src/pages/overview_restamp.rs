@@ -44,12 +44,12 @@ use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
-use infiltrator_presentation::core_status_projection::failure_copy;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_presentation::subscription_quota_projection::{QuotaPresentation, project_quota};
 use infiltrator_presentation::system_toggle_projection;
 use infiltrator_presentation::system_toggle_projection::{action_label, status_label};
+use lurker_ui_presentation::core_status_projection::failure_copy;
 
 /// Marker on the high-fidelity active-exit card's mutable facts.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

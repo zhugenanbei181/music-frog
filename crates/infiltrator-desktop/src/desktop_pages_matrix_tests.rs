@@ -10,9 +10,8 @@ use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
-    PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
+    ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
-use infiltrator_presentation::core_status_projection::lifecycle_copy;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -25,7 +24,9 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState,
 };
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
+use lurker_core_contract::page::PageData;
 use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_ui_presentation::core_status_projection::lifecycle_copy;
 use lurker_ui_presentation::failure_projection::failure_message;
 use serde_json::json;
 

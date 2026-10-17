@@ -79,10 +79,9 @@ use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::OutboundDetailsSnapshot;
-use lurker_core_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState,
-};
+use lurker_core_contract::outbound::inventory::OutboundInventorySnapshot;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferencesSnapshot;
+use lurker_core_contract::page::{PageData, PageStatus, SurfaceOrigin, outbound_page_status};
 use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
@@ -133,97 +132,6 @@ impl PageId {
             Self::AppRouting => "app_routing",
             Self::Sync => "sync",
             Self::Settings => "settings",
-        }
-    }
-}
-
-/// State of one page read model. `Unavailable` is different from an empty
-/// result: a surface must tell the user why a host capability is absent.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PageStatus {
-    Loading,
-    Ready,
-    Empty,
-    Unavailable { failure: Failure },
-    Failed { failure: Failure },
-}
-
-/// Whether a surface snapshot is an explicit fixture or a host/application
-/// observation. This is data, not something a UI may infer from empty fields.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SurfaceOrigin {
-    Demo,
-    Live,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PageData<T> {
-    pub status: PageStatus,
-    pub data: Option<T>,
-}
-
-impl<T> PageData<T> {
-    pub fn loading() -> Self {
-        Self {
-            status: PageStatus::Loading,
-            data: None,
-        }
-    }
-
-    pub fn ready(data: T) -> Self {
-        Self {
-            status: PageStatus::Ready,
-            data: Some(data),
-        }
-    }
-
-    pub fn empty(data: T) -> Self {
-        Self {
-            status: PageStatus::Empty,
-            data: Some(data),
-        }
-    }
-
-    pub fn unavailable(failure: Failure) -> Self {
-        Self {
-            status: PageStatus::Unavailable { failure },
-            data: None,
-        }
-    }
-
-    pub fn failed(failure: Failure) -> Self {
-        Self {
-            status: PageStatus::Failed { failure },
-            data: None,
-        }
-    }
-}
-
-fn outbound_page_status(page: &PageData<OutboundInventorySnapshot>) -> PageStatus {
-    match &page.status {
-        PageStatus::Loading => PageStatus::Loading,
-        PageStatus::Unavailable { failure } => PageStatus::Unavailable {
-            failure: failure.clone(),
-        },
-        PageStatus::Failed { failure } => PageStatus::Failed {
-            failure: failure.clone(),
-        },
-        PageStatus::Ready | PageStatus::Empty => {
-            let Some(inventory) = page.data.as_ref() else {
-                return PageStatus::Loading;
-            };
-            match inventory.inventory() {
-                OutboundInventoryState::Unknown => PageStatus::Loading,
-                OutboundInventoryState::Ready { .. } => PageStatus::Ready,
-                OutboundInventoryState::Empty => PageStatus::Empty,
-                OutboundInventoryState::Unsupported => PageStatus::Unavailable {
-                    failure: Failure::unsupported("outbound inventory is unsupported"),
-                },
-                OutboundInventoryState::Failed { failure } => PageStatus::Failed {
-                    failure: failure.clone(),
-                },
-            }
         }
     }
 }

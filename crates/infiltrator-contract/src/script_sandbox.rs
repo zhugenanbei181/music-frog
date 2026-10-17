@@ -138,6 +138,13 @@ impl ScriptEngineKind {
     pub const fn is_real_javascript(self) -> bool {
         matches!(self, Self::JavascriptEngine)
     }
+
+    pub const fn label_key(self) -> &'static str {
+        match self {
+            Self::DirectiveDsl => "script_engine_directive_dsl",
+            Self::JavascriptEngine => "script_engine_javascript",
+        }
+    }
 }
 
 /// The capability negotiation reported next to [`ScriptEngineKind`].
@@ -202,6 +209,14 @@ impl ScriptEngineCapabilities {
             "JavaScript syntax supported"
         } else {
             "No JavaScript syntax (directive DSL only)"
+        }
+    }
+
+    pub const fn bottom_line_key(self) -> &'static str {
+        if self.supports_javascript_syntax {
+            "script_capabilities_standard"
+        } else {
+            "script_capabilities_restricted"
         }
     }
 }
@@ -433,6 +448,14 @@ impl ScriptSandboxSnapshot {
     /// The same capability bottom line in English.
     pub fn engine_capability_label_en(&self) -> &'static str {
         self.engine_capabilities.bottom_line_en()
+    }
+
+    pub fn engine_label_key(&self) -> &'static str {
+        self.engine_kind.label_key()
+    }
+
+    pub fn engine_capability_label_key(&self) -> &'static str {
+        self.engine_capabilities.bottom_line_key()
     }
 
     /// `true` when the reported kind agrees with the negotiated capabilities.

@@ -32,11 +32,11 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_test_support::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::page::SurfaceOrigin;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
 #[derive(Resource)]

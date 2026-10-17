@@ -21,6 +21,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -101,7 +102,7 @@ pub fn observe(
             return None;
         }
         let (label, text) = surface.texts.single().ok()?;
-        let expected = routing_intent_failure_copy(state, surface.locale.code());
+        let expected = routing_intent_failure_copy(state, &Lang(surface.locale.code()));
         if text.0 != expected {
             return None;
         }

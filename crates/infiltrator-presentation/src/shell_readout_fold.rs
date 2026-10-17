@@ -3,12 +3,13 @@ use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile, ShellReadoutSnapshot};
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaStatus;
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState,
 };
+use lurker_core_contract::page::{PageData, PageStatus};
 use std::mem;
 use std::sync::{Arc, Mutex};
 

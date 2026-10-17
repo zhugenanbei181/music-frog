@@ -16,9 +16,10 @@ use infiltrator_contract::runtime_status::{
     ControllerApiObservation, CoreProcessObservation, ProxyEffectivenessObservation,
     RuntimeStatusSnapshot, TunDataPlaneObservation, VpnAuthorizationObservation,
 };
-use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::page::SurfaceOrigin;
 use lurker_ui_presentation::copy::TextCatalog;
 
 /// The 8 unified runtime status semantics shared across Bevy, Compose, and Slint (BANDROID-029.2).

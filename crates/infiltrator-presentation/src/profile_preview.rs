@@ -3,7 +3,7 @@
 //! The source document remains owner-authored and unchanged. This projection
 //! masks credential-bearing YAML values before a UI displays a preview.
 
-use infiltrator_domain::redact::redact_line;
+use lurker_core_contract::redact::redact_line;
 use serde_yaml_ng::Value;
 
 /// Return a display-only copy of a profile document with common Mihomo and

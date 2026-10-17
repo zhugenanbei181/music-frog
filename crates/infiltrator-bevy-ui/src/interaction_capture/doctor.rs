@@ -24,11 +24,11 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_test_support::doctor_capture_fixtures::{CHECK_ID, DoctorCapturePort};
 use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::page::PageStatus;
 use std::sync::Arc;
 #[derive(Resource)]
 struct CaptureDoctor {

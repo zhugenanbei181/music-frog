@@ -12,7 +12,7 @@ use crate::pages::logs::{LogEntry, LogsProjection};
 use bevy::ecs::resource::Resource;
 use infiltrator_bevy_widgets::chart::ring_buffer::FixedRingBuffer;
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::page::PageStatus;
 use lurker_core_contract::session::SessionToken;
 
 /// Maximum number of log entries the UI layer keeps in memory. The shared

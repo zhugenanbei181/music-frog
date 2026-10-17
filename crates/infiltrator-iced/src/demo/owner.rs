@@ -2,8 +2,9 @@
 use crate::state::AppState;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::SurfaceOrigin;
 
 pub(super) fn attach_capture_owner(state: &mut AppState, application: CoreApplication) {
     let snapshot = SurfaceSnapshot::unavailable(

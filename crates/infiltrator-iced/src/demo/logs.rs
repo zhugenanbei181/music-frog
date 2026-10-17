@@ -14,9 +14,9 @@ use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::{LOG_QUERY, LogCaptureProcess};
+use lurker_core_contract::page::SurfaceOrigin;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message> {

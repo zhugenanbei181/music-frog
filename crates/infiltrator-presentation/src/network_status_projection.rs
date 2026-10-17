@@ -6,7 +6,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxySnapshot, SystemProxyStatus,
 };
-use infiltrator_domain::redact::redact_line;
+use lurker_core_contract::redact::redact_line;
 use lurker_ui_presentation::copy::TextCatalog;
 use lurker_ui_presentation::copy::interpolate;
 

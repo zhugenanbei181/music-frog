@@ -2,10 +2,11 @@
 use infiltrator_contract::logs::RawLogRecord;
 use infiltrator_contract::logs::{LogFactsSnapshot, LogLevel, LogSession, LogStreamState};
 use infiltrator_contract::snapshot::CoreSnapshot;
-use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
+use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
 use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::{PageData, PageStatus};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructuredLogLine {

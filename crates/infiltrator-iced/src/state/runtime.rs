@@ -25,7 +25,6 @@ use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
 use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
@@ -51,6 +50,7 @@ use lurker_core_contract::outbound::{
     preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot},
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::page::PageData;
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use lurker_core_contract::session::SessionToken;
 use lurker_ui_presentation::proxy_group_order_editor::ProxyGroupOrderEditor;

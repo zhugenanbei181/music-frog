@@ -16,11 +16,11 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::doctor::DoctorAction;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::doctor_actions::{
     DoctorActionFinish, DoctorActionPhase, DoctorActionState,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::PageStatus;
 
 #[derive(Resource, Default)]
 pub struct DoctorActions {

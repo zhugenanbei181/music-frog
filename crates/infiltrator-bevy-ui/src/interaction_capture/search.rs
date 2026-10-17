@@ -24,8 +24,8 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::surface_snapshot::PageData;
 use lurker_core_contract::outbound::inventory::SelectionAvailability;
+use lurker_core_contract::page::PageData;
 use std::sync::Arc;
 
 #[derive(Resource)]

@@ -90,6 +90,7 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     SelectionAvailability,
 };
+use lurker_core_contract::page::{PageData, PageStatus, SurfaceOrigin};
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
@@ -201,9 +202,9 @@ impl SurfaceReader for ProductSurfaceReader {
                 .core_capability_application()
                 .matrix_for(&identity.engine, identity.version.as_ref())
                 .map(|matrix| CoreCapabilitySnapshot::from_matrix(&matrix))
-                .map(surface_snapshot::PageData::ready)
-                .unwrap_or_else(surface_snapshot::PageData::unavailable),
-            None => surface_snapshot::PageData::unavailable(Failure::new(
+                .map(PageData::ready)
+                .unwrap_or_else(PageData::unavailable),
+            None => PageData::unavailable(Failure::new(
                 ErrorCode::NotReady,
                 "active core identity is unavailable",
                 true,
@@ -264,58 +265,53 @@ impl SurfaceReader for ProductSurfaceReader {
         };
         let (outbound_inventory, outbound_details) = match outbound_observation.as_ref() {
             Some(Ok(observation)) => (
-                surface_snapshot::PageData::ready(observation.inventory().clone()),
-                surface_snapshot::PageData::ready(observation.details().clone()),
+                PageData::ready(observation.inventory().clone()),
+                PageData::ready(observation.details().clone()),
             ),
             Some(Err(failure)) => (
-                surface_snapshot::PageData::failed(failure.clone()),
-                surface_snapshot::PageData::failed(failure.clone()),
+                PageData::failed(failure.clone()),
+                PageData::failed(failure.clone()),
             ),
             None => {
                 let failure = missing("outbound port");
                 (
-                    surface_snapshot::PageData::unavailable(failure.clone()),
-                    surface_snapshot::PageData::unavailable(failure),
+                    PageData::unavailable(failure.clone()),
+                    PageData::unavailable(failure),
                 )
             }
         };
         let outbound_ui_preferences = match (&self.outbound_ui_preferences, core.scope()) {
             (Some(preferences), Some(scope)) => match preferences.snapshot(&scope) {
-                Ok(snapshot) => surface_snapshot::PageData::ready(snapshot),
-                Err(failure) => surface_snapshot::PageData::failed(failure),
+                Ok(snapshot) => PageData::ready(snapshot),
+                Err(failure) => PageData::failed(failure),
             },
-            (Some(_), None) => {
-                surface_snapshot::PageData::unavailable(core.failure.clone().unwrap_or_else(|| {
-                    Failure::new(
-                        ErrorCode::NotReady,
-                        "active core scope is unavailable for outbound preferences",
-                        true,
-                    )
-                }))
-            }
-            (None, _) => surface_snapshot::PageData::unavailable(Failure::unsupported(
+            (Some(_), None) => PageData::unavailable(core.failure.clone().unwrap_or_else(|| {
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "active core scope is unavailable for outbound preferences",
+                    true,
+                )
+            })),
+            (None, _) => PageData::unavailable(Failure::unsupported(
                 "engine-scoped outbound UI preferences have not been migrated from legacy storage",
             )),
         };
-        let protocol_studio = studio_snapshot()
-            .map(surface_snapshot::PageData::ready)
-            .unwrap_or_else(|| {
-                surface_snapshot::PageData::unavailable(Failure::new(
-                    ErrorCode::NotReady,
-                    "protocol studio has not published an observation",
-                    true,
-                ))
-            });
+        let protocol_studio = studio_snapshot().map(PageData::ready).unwrap_or_else(|| {
+            PageData::unavailable(Failure::new(
+                ErrorCode::NotReady,
+                "protocol studio has not published an observation",
+                true,
+            ))
+        });
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
-        pages.overview =
-            surface_snapshot::PageData::ready(surface_snapshot::OverviewPageSnapshot {
-                routing_intent: core.routing_intent.clone(),
-                upload_bps: core.upload_bps,
-                download_bps: core.download_bps,
-                active_connections: core.active_connections,
-                core_version: core.core_version.clone(),
-            });
+        pages.overview = PageData::ready(surface_snapshot::OverviewPageSnapshot {
+            routing_intent: core.routing_intent.clone(),
+            upload_bps: core.upload_bps,
+            download_bps: core.download_bps,
+            active_connections: core.active_connections,
+            core_version: core.core_version.clone(),
+        });
 
         let runtime_config = match (&self.runtime_configuration_ports, core.scope()) {
             (Some(ports), Some(scope)) => Some(
@@ -351,7 +347,7 @@ impl SurfaceReader for ProductSurfaceReader {
         );
         let runtime_status = project_runtime_status(
             self.capabilities.host,
-            surface_snapshot::SurfaceOrigin::Live,
+            SurfaceOrigin::Live,
             &core,
             telemetry.as_ref(),
             &vpn_authorization,
@@ -451,7 +447,7 @@ impl SurfaceReader for ProductSurfaceReader {
             };
             pages.profiles = match profile_result {
                 Some(Ok(items)) if items.is_empty() => {
-                    surface_snapshot::PageData::empty(surface_snapshot::ProfilesPageSnapshot {
+                    PageData::empty(surface_snapshot::ProfilesPageSnapshot {
                         profiles: Vec::new(),
                         auto_update_interval_hours: 0,
                         updating: false,
@@ -541,7 +537,7 @@ impl SurfaceReader for ProductSurfaceReader {
                             write_protection,
                         });
                     }
-                    surface_snapshot::PageData::ready(surface_snapshot::ProfilesPageSnapshot {
+                    PageData::ready(surface_snapshot::ProfilesPageSnapshot {
                         profiles: snapshots,
                         auto_update_interval_hours,
                         updating: false,
@@ -556,19 +552,19 @@ impl SurfaceReader for ProductSurfaceReader {
                         named_overrides,
                     })
                 }
-                Some(Err(failure)) => surface_snapshot::PageData::failed(failure),
-                None => surface_snapshot::PageData::unavailable(missing("profile application")),
+                Some(Err(failure)) => PageData::failed(failure),
+                None => PageData::unavailable(missing("profile application")),
             };
         }
 
         if let Err(failure) = snapshot_views {
-            pages.profiles.status = surface_snapshot::PageStatus::Failed { failure };
+            pages.profiles.status = PageStatus::Failed { failure };
         }
 
         let dns_hosts = match self.configuration.as_ref() {
             Some(configuration) => match configuration.load_hosts_profile().await {
-                Ok(profile) => surface_snapshot::PageData::ready(profile),
-                Err(failure) => surface_snapshot::PageData::failed(failure),
+                Ok(profile) => PageData::ready(profile),
+                Err(failure) => PageData::failed(failure),
             },
             None => surface_snapshot::unobserved_hosts(),
         };
@@ -632,11 +628,8 @@ impl SurfaceReader for ProductSurfaceReader {
         let uwp_loopback = self.read_uwp_loopback().await;
         if let Some(routing) = &self.routing {
             pages.app_routing = match routing.load() {
-                Ok(config) => surface_snapshot::PageData::ready(app_routing_page(
-                    config,
-                    uwp_loopback.clone(),
-                )),
-                Err(failure) => surface_snapshot::PageData::failed(failure),
+                Ok(config) => PageData::ready(app_routing_page(config, uwp_loopback.clone())),
+                Err(failure) => PageData::failed(failure),
             };
         }
 
@@ -675,7 +668,7 @@ impl SurfaceReader for ProductSurfaceReader {
                 .unwrap_or_else(DnsCacheSnapshot::unavailable),
             dns_hosts,
             surface: self.surface,
-            origin: surface_snapshot::SurfaceOrigin::Live,
+            origin: SurfaceOrigin::Live,
             generation: core.generation,
             revision,
             core,

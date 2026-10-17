@@ -8,10 +8,11 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::PageData;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 

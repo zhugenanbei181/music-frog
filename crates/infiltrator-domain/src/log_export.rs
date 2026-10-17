@@ -1,11 +1,11 @@
 //! One redacted byte projection for every log export surface and host.
 use crate::profile_source::hash_document_bytes;
-use crate::redact::redact_line;
 use infiltrator_contract::log_export::{
     LogExportArtifact, LogExportIdentity, LogExportSummary, MAX_LOG_EXPORT_BYTES,
 };
 use infiltrator_contract::logs::LogSession;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::redact::redact_line;
 
 pub fn prepare_log_export(
     session: LogSession,

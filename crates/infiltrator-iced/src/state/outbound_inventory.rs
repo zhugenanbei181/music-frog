@@ -3,7 +3,6 @@
 //! Product and demo rows are built from typed inventory, details and
 //! preference observations.
 
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::outbound::{
@@ -19,6 +18,7 @@ use lurker_core_contract::outbound::{
     },
     preferences::{OutboundHealthFilter, OutboundSortOrder, OutboundUiPreferencesSnapshot},
 };
+use lurker_core_contract::page::{PageData, PageStatus};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use zhuge_ui_core::text::{CaseSensitivity, SearchTextRun, project_text_runs};

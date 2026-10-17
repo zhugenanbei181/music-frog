@@ -33,7 +33,6 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::identity::EngineId;
@@ -42,6 +41,7 @@ use lurker_core_contract::outbound::{
     inventory::OutboundInventoryState,
     preferences::{OutboundUiPreferenceIntent, OutboundUiPreferenceRequest},
 };
+use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::proxy_group_order_editor::{
     GroupMove, GroupOrderFinish, GroupOrderOperation, ProxyGroupOrderEditor,
 };

@@ -14,7 +14,7 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityStatus, CoreOperation, OutboundOperation,
 };
 use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
-use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::{
@@ -24,6 +24,7 @@ use lurker_core_contract::outbound::{
         ProbeOutboundBatchRequest,
     },
 };
+use lurker_core_contract::page::PageStatus;
 use std::collections::HashMap;
 use std::collections::HashSet;
 

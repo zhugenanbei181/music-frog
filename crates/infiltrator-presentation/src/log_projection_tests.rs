@@ -5,11 +5,11 @@ use infiltrator_contract::logs::{
     LogStreamState, RawLogRecord,
 };
 use infiltrator_contract::snapshot::CoreSnapshot;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::PageStatus;
 use lurker_core_contract::session::SessionToken;
 use std::iter::empty;
 

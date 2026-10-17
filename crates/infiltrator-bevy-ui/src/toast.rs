@@ -3,7 +3,7 @@
 //! The widget layer owns the toast cards, timers and the `ToastQueue`
 //! resource. This module adds the two shell-level responsibilities the
 //! surfaces must agree on: text redaction before anything enters the queue
-//! (via the shared `infiltrator_domain::redact` engine) and the shared
+//! (via the shared `lurker_core_contract::redact` engine) and the shared
 //! dedup/capacity policy from `infiltrator_contract::toast`.
 
 use crate::a11y::semantic_node;
@@ -23,7 +23,7 @@ use infiltrator_bevy_widgets::toast::{
 };
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::toast::{ToastAdmission, ToastGate, ToastSeverity};
-use infiltrator_domain::redact::redact_line;
+use lurker_core_contract::redact::redact_line;
 
 /// The shared dedup gate plus the shell's toast clock.
 #[derive(Resource, Clone, Debug, Default)]

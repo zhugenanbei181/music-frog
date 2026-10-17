@@ -11,8 +11,10 @@
 //! catalog, which implements [`copy::TextCatalog`].
 
 pub mod copy;
+pub mod core_status_projection;
 pub mod dns_leak_actions;
 pub mod failure_projection;
 pub mod log_follow;
 pub mod proxy_group_order_editor;
 pub mod routing_intent_actions;
+pub mod settings_preference_projection;

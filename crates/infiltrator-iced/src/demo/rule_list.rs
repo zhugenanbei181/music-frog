@@ -13,9 +13,9 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use lurker_core_contract::page::SurfaceOrigin;
 use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

@@ -8,6 +8,9 @@ use super::*;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use lurker_core_contract::page::PageData;
+#[cfg(test)]
+use lurker_core_contract::page::PageStatus;
 
 pub(super) fn missing(what: &str) -> Failure {
     Failure::new(
@@ -33,18 +36,18 @@ pub(super) fn page_from_result<T, U, E>(
     result: Option<Result<T, E>>,
     map: impl FnOnce(T) -> U,
     what: &str,
-) -> surface_snapshot::PageData<U>
+) -> PageData<U>
 where
     E: Into<Failure>,
 {
     match result {
-        Some(Ok(value)) => surface_snapshot::PageData::ready(map(value)),
+        Some(Ok(value)) => PageData::ready(map(value)),
         Some(Err(error)) => {
             let mut failure = error.into();
             failure.message = format!("{what}: {}", failure.message);
-            surface_snapshot::PageData::failed(failure)
+            PageData::failed(failure)
         }
-        None => surface_snapshot::PageData::unavailable(missing(what)),
+        None => PageData::unavailable(missing(what)),
     }
 }
 
@@ -59,12 +62,12 @@ mod tests {
             Failure::new(ErrorCode::Permission, "read denied", false),
             Failure::new(ErrorCode::Network, "connection lost", true),
         ] {
-            let page: surface_snapshot::PageData<u32> = page_from_result(
+            let page: PageData<u32> = page_from_result(
                 Some(Err::<u32, _>(failure.clone())),
                 |value| value,
                 "proxy read",
             );
-            let surface_snapshot::PageStatus::Failed { failure: actual } = page.status else {
+            let PageStatus::Failed { failure: actual } = page.status else {
                 panic!("read must remain failed")
             };
             assert_eq!(actual.code, failure.code);
@@ -72,14 +75,14 @@ mod tests {
             assert_eq!(actual.message, format!("proxy read: {}", failure.message));
             assert_eq!(page.data, None);
         }
-        let page: surface_snapshot::PageData<u32> = page_from_result(
+        let page: PageData<u32> = page_from_result(
             Some(Err::<u32, _>(PortError::PermissionDenied(
                 "grant permission".into(),
             ))),
             |value| value,
             "proxy read",
         );
-        let surface_snapshot::PageStatus::Failed { failure } = page.status else {
+        let PageStatus::Failed { failure } = page.status else {
             panic!("permission read must remain failed")
         };
         assert_eq!(failure.code, ErrorCode::Permission);

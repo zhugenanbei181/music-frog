@@ -1,8 +1,8 @@
 //! Shared copy for already-folded shell observations; toolkit layers only replay it.
 use infiltrator_contract::shell_readout::{ShellObservation, ShellReadoutSnapshot};
 use infiltrator_contract::surface_snapshot::PageId;
-use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::byte_units::format_bytes;
+use lurker_core_contract::redact::redact_line;
 use lurker_ui_presentation::copy::TextCatalog;
 use lurker_ui_presentation::copy::interpolate;
 

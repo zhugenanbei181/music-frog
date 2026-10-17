@@ -148,7 +148,7 @@ pub fn inspect_outbound_modal<'a>(
 }
 
 fn details_status(state: &AppState) -> String {
-    use infiltrator_contract::surface_snapshot::PageStatus;
+    use lurker_core_contract::page::PageStatus;
     match &state.runtime.outbound_details.status {
         PageStatus::Loading => "Outbound details are loading".to_owned(),
         PageStatus::Ready | PageStatus::Empty => "Outbound details are unknown".to_owned(),

@@ -1,6 +1,6 @@
 //! Frontend-neutral synchronization page observations.
-use crate::surface_snapshot::PageStatus;
 use crate::sync::SyncStatus;
+use lurker_core_contract::page::PageStatus;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

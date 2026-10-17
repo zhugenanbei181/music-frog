@@ -22,8 +22,8 @@ use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::surface_snapshot::PageData;
 use lurker_core_contract::outbound::inventory::SelectionAvailability;
+use lurker_core_contract::page::PageData;
 use std::sync::Arc;
 
 #[derive(Resource)]

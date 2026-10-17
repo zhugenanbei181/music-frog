@@ -13,11 +13,12 @@ use iced::border::Radius;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
-use infiltrator_contract::surface_snapshot::{DoctorCheckSnapshot, PageStatus};
+use infiltrator_contract::surface_snapshot::DoctorCheckSnapshot;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::doctor_projection::{check_detail, check_name, status_key, summary};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::page::PageStatus;
 
 /// Doctor check status badge coloring.
 pub(crate) fn status_badge_kind(status: DoctorStatus) -> BadgeKind {

@@ -9,9 +9,10 @@ use iced::Task;
 use iced::widget::text_editor::Content;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
-use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot};
+use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use infiltrator_presentation::rule_form_binding::default_form_target;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::PageData;
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 
 impl AppState {

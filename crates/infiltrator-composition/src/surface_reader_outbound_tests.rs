@@ -201,10 +201,7 @@ async fn surface_reader_publishes_the_typed_outbound_inventory_for_its_core_scop
     let snapshot = reader.read().await.expect("surface read");
 
     assert_eq!(port.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        snapshot.outbound_inventory.status,
-        surface_snapshot::PageStatus::Ready
-    );
+    assert_eq!(snapshot.outbound_inventory.status, PageStatus::Ready);
     let inventory = snapshot
         .outbound_inventory
         .data
@@ -257,8 +254,7 @@ async fn surface_reader_denies_unregistered_outbound_list_before_adapter_io() {
     let snapshot = reader.read().await.expect("surface read");
 
     assert_eq!(port.calls.load(Ordering::SeqCst), 0);
-    let surface_snapshot::PageStatus::Failed { failure } = snapshot.outbound_inventory.status
-    else {
+    let PageStatus::Failed { failure } = snapshot.outbound_inventory.status else {
         panic!("unsupported outbound list must be a failed page");
     };
     assert_eq!(failure.code, ErrorCode::Unsupported);

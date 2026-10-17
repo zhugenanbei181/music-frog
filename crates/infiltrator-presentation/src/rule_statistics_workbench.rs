@@ -7,8 +7,9 @@ use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_statistics::RuleStatisticsResetReceipt;
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus, RulesPageSnapshot};
+use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::{PageData, PageStatus};
 use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
 

@@ -31,11 +31,11 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::protocol_editor_operation::ProtocolEditorEffect;
 use infiltrator_presentation::protocol_form::{field_projection, uri_from_draft};
 use infiltrator_presentation::protocol_studio_projection::slot_text;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::page::PageStatus;
 
 /// Marker for custom node editor card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

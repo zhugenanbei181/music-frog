@@ -5,6 +5,7 @@
 
 use super::projections::missing;
 use super::*;
+use PageData;
 use infiltrator_application::rule_list_application::document_snapshot;
 use infiltrator_application::rule_provider_application::RuleProviderApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
@@ -33,13 +34,13 @@ pub(super) async fn build_rules_page(
     tracer_replay: RulesTracerReplay<'_>,
     mrs_acceleration: MrsAccelerationSnapshot,
     provider_cache: RuleProviderCacheSnapshot,
-) -> surface_snapshot::PageData<surface_snapshot::RulesPageSnapshot> {
+) -> PageData<surface_snapshot::RulesPageSnapshot> {
     let Some(configuration) = configuration else {
-        return surface_snapshot::PageData::unavailable(missing("configuration application"));
+        return PageData::unavailable(missing("configuration application"));
     };
     let workspace = match configuration.load_rule_workspace().await {
         Ok(workspace) => workspace,
-        Err(error) => return surface_snapshot::PageData::failed(error),
+        Err(error) => return PageData::failed(error),
     };
     let document = document_snapshot(&workspace);
     let rules = workspace.rules;
@@ -103,7 +104,7 @@ pub(super) async fn build_rules_page(
             }
             snapshots
         }
-        Some(Err(error)) => return surface_snapshot::PageData::failed(error),
+        Some(Err(error)) => return PageData::failed(error),
         None => Vec::new(),
     };
 
@@ -158,8 +159,8 @@ pub(super) async fn build_rules_page(
         json_documents,
     };
     if total_rules == 0 {
-        surface_snapshot::PageData::empty(data)
+        PageData::empty(data)
     } else {
-        surface_snapshot::PageData::ready(data)
+        PageData::ready(data)
     }
 }

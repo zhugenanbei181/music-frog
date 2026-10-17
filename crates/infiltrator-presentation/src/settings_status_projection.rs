@@ -18,7 +18,7 @@ use infiltrator_contract::service_mode::{
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
-use infiltrator_domain::redact::redact_line;
+use lurker_core_contract::redact::redact_line;
 use lurker_ui_presentation::copy::TextCatalog;
 
 fn tr(catalog: &dyn TextCatalog, key: &str) -> String {

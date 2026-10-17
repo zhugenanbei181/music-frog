@@ -1,8 +1,8 @@
 //! Actual byte projection, structural credentials and source identity.
 use super::prepare_log_export;
 use crate::profile_source::hash_document_bytes;
-use crate::redact::redact_line;
 use infiltrator_contract::logs::LogSession;
+use lurker_core_contract::redact::redact_line;
 use lurker_core_contract::session::SessionToken;
 
 #[test]

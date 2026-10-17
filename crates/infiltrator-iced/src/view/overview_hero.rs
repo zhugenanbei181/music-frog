@@ -11,11 +11,11 @@ use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::core_control::CoreControlAction;
-use infiltrator_presentation::core_status_projection::lifecycle_copy;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
+use lurker_ui_presentation::core_status_projection::lifecycle_copy;
 
 /// Accent hero: status dot + localized status, routing intent / core-version meta row
 /// and the prominent start/stop control.

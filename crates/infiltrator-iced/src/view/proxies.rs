@@ -22,7 +22,6 @@ use crate::view::{proxies_controls, svg_icons, theme};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme, Vector, border};
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::details::OutboundCollectionKind;
@@ -31,6 +30,7 @@ use lurker_core_contract::outbound::{
     inventory::{OutboundInventoryState, SelectionAvailability},
     probe::{OutboundProbeBatchOutcome, OutboundProbeBatchScope},
 };
+use lurker_core_contract::page::PageStatus;
 
 pub mod node_cards;
 use node_cards::{node_compact_list, node_grid};

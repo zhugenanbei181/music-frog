@@ -1,6 +1,7 @@
 //! Shared regex compilation, filtering, highlight spans and source availability.
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
+use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
+use lurker_core_contract::page::{PageData, PageStatus};
 use lurker_core_contract::session::SessionToken;
 use lurker_ui_presentation::log_follow::LogFollowState;
 use regex::{Regex, RegexBuilder};

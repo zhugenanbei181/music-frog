@@ -26,8 +26,9 @@ use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholde
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk, TextRunsSet};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::logs::LogStreamState;
-use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData};
+use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
 use infiltrator_presentation::log_search::LogSearchState;
+use lurker_core_contract::page::PageData;
 
 #[derive(Resource, Default)]
 pub struct LogsViewState(pub LogSearchState);

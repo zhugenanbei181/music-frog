@@ -6,7 +6,7 @@ use crate::{
 };
 use infiltrator_contract::active_exit::ActiveExitStatus;
 use infiltrator_contract::logs::LogStreamState;
-use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::details::{
@@ -17,6 +17,7 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundSelectionSet, OutboundSelectionState,
 };
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
+use lurker_core_contract::page::PageStatus;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 

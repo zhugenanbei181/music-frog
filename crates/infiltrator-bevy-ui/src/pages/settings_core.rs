@@ -41,7 +41,6 @@ use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::{CoreArtifactVerification, CoreVersionSnapshot};
@@ -51,6 +50,7 @@ use infiltrator_presentation::settings_status_projection::{
     format_rollback_target, format_runtime_status, format_service_mode, optional_copy,
 };
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::page::PageStatus;
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

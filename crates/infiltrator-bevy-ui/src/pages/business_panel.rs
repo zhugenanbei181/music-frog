@@ -20,7 +20,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::page::PageStatus;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PanelKind {

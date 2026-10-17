@@ -673,7 +673,7 @@ pub(crate) fn outbound_selection_request(
     collection_id: &OutboundId,
     outbound_id: &OutboundId,
 ) -> Option<OutboundSelectionRequest> {
-    use infiltrator_contract::surface_snapshot::PageStatus;
+    use lurker_core_contract::page::PageStatus;
 
     if !matches!(
         snapshot.outbound_inventory.status,
@@ -712,7 +712,7 @@ pub(crate) fn outbound_selection_request(
 pub(crate) fn outbound_ui_preferences(
     snapshot: &SurfaceSnapshot,
 ) -> Option<&OutboundUiPreferencesSnapshot> {
-    use infiltrator_contract::surface_snapshot::PageStatus;
+    use lurker_core_contract::page::PageStatus;
 
     if !matches!(
         snapshot.outbound_ui_preferences.status,

@@ -26,7 +26,7 @@ use lurker_core_contract::engine_switch::{
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_ports::engine_switch::{
-    EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+    EngineOwnerLease, EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
     OwnerRecoveryEvidence, OwnerRecoveryOutcome,
 };
 use lurker_core_ports::error::PortError;
@@ -251,7 +251,13 @@ impl<S: SecureStore> EngineSwitchJournal for EngineProfileStore<S> {
         _selection: ActiveProfileReferenceState,
         _identity: CoreIdentity,
         _generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+    ) -> Result<
+        (
+            EngineSwitchSnapshot<ActiveProfileReferenceState>,
+            Box<dyn EngineOwnerLease>,
+        ),
+        PortError,
+    > {
         Err(PortError::unsupported(
             Capability::Profiles,
             "direct engine-switch owner binding is unavailable; bind through the active-profile selection lease",

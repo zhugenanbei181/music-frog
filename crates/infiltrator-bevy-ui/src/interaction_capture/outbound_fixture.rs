@@ -1,5 +1,5 @@
 //! Typed outbound observations used only by explicit interaction-capture scenarios.
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::outbound::{
     details::{
@@ -14,6 +14,7 @@ use lurker_core_contract::outbound::{
         OutboundSelectionState, SelectionAvailability,
     },
 };
+use lurker_core_contract::page::PageData;
 use std::collections::HashSet;
 
 pub(super) const INSPECTION_NODE: &str = "Inspection node";

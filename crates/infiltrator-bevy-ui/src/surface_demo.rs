@@ -63,6 +63,7 @@ use lurker_core_contract::outbound::{
     },
     preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues},
 };
+use lurker_core_contract::page::{PageData, SurfaceOrigin};
 
 #[path = "surface_demo/projections.rs"]
 mod projections;
@@ -122,16 +123,16 @@ fn snapshot_from_overview_fixture(
     let pages = match fixture {
         OverviewFixture::DemoPages => demo_pages_with_overview(overview_data),
         OverviewFixture::OverviewOnly => surface_snapshot::SurfacePages {
-            overview: surface_snapshot::PageData::ready(overview_data),
-            profiles: surface_snapshot::PageData::unavailable(page_not_composed()),
-            rules: surface_snapshot::PageData::unavailable(page_not_composed()),
-            connections: surface_snapshot::PageData::unavailable(page_not_composed()),
-            logs: surface_snapshot::PageData::unavailable(page_not_composed()),
-            dns: surface_snapshot::PageData::unavailable(page_not_composed()),
-            doctor: surface_snapshot::PageData::unavailable(page_not_composed()),
-            app_routing: surface_snapshot::PageData::unavailable(page_not_composed()),
-            sync: surface_snapshot::PageData::unavailable(page_not_composed()),
-            settings: surface_snapshot::PageData::unavailable(page_not_composed()),
+            overview: PageData::ready(overview_data),
+            profiles: PageData::unavailable(page_not_composed()),
+            rules: PageData::unavailable(page_not_composed()),
+            connections: PageData::unavailable(page_not_composed()),
+            logs: PageData::unavailable(page_not_composed()),
+            dns: PageData::unavailable(page_not_composed()),
+            doctor: PageData::unavailable(page_not_composed()),
+            app_routing: PageData::unavailable(page_not_composed()),
+            sync: PageData::unavailable(page_not_composed()),
+            settings: PageData::unavailable(page_not_composed()),
         },
     };
     let runtime_control = match fixture {
@@ -155,7 +156,7 @@ fn snapshot_from_overview_fixture(
         rule_trace: Default::default(),
         dns_query: DnsQuerySnapshot::unavailable(),
         dns_hosts: match fixture {
-            OverviewFixture::DemoPages => surface_snapshot::PageData::ready(DnsHostsProfile {
+            OverviewFixture::DemoPages => PageData::ready(DnsHostsProfile {
                 profile: "demo".into(),
                 entries: DnsProjection::demo().hosts,
                 legacy_entries: Vec::new(),
@@ -168,14 +169,14 @@ fn snapshot_from_overview_fixture(
         },
         surface: SurfaceKind::BevyDesktop,
         origin: match fixture {
-            OverviewFixture::DemoPages => surface_snapshot::SurfaceOrigin::Demo,
-            OverviewFixture::OverviewOnly => surface_snapshot::SurfaceOrigin::Live,
+            OverviewFixture::DemoPages => SurfaceOrigin::Demo,
+            OverviewFixture::OverviewOnly => SurfaceOrigin::Live,
         },
         generation: core.generation,
         revision: core.revision,
         core,
         capabilities: CapabilitySnapshot::new(HostKind::Desktop, 1, Vec::new()),
-        core_capability_snapshot: surface_snapshot::PageData::unavailable(Failure::unsupported(
+        core_capability_snapshot: PageData::unavailable(Failure::unsupported(
             "demo Core capabilities are unavailable",
         )),
         failure: overview
@@ -223,36 +224,20 @@ fn snapshot_from_overview_fixture(
         traffic_history: Default::default(),
         active_exit: overview.active_exit.clone(),
         outbound_inventory: match fixture {
-            OverviewFixture::DemoPages => {
-                surface_snapshot::PageData::ready(demo_outbound_inventory())
-            }
-            OverviewFixture::OverviewOnly => {
-                surface_snapshot::PageData::unavailable(page_not_composed())
-            }
+            OverviewFixture::DemoPages => PageData::ready(demo_outbound_inventory()),
+            OverviewFixture::OverviewOnly => PageData::unavailable(page_not_composed()),
         },
         outbound_details: match fixture {
-            OverviewFixture::DemoPages => {
-                surface_snapshot::PageData::ready(demo_outbound_details())
-            }
-            OverviewFixture::OverviewOnly => {
-                surface_snapshot::PageData::unavailable(page_not_composed())
-            }
+            OverviewFixture::DemoPages => PageData::ready(demo_outbound_details()),
+            OverviewFixture::OverviewOnly => PageData::unavailable(page_not_composed()),
         },
         outbound_ui_preferences: match fixture {
-            OverviewFixture::DemoPages => {
-                surface_snapshot::PageData::ready(demo_outbound_preferences())
-            }
-            OverviewFixture::OverviewOnly => {
-                surface_snapshot::PageData::unavailable(page_not_composed())
-            }
+            OverviewFixture::DemoPages => PageData::ready(demo_outbound_preferences()),
+            OverviewFixture::OverviewOnly => PageData::unavailable(page_not_composed()),
         },
         protocol_studio: match fixture {
-            OverviewFixture::DemoPages => {
-                surface_snapshot::PageData::ready(ProtocolStudioSnapshot::default())
-            }
-            OverviewFixture::OverviewOnly => {
-                surface_snapshot::PageData::unavailable(page_not_composed())
-            }
+            OverviewFixture::DemoPages => PageData::ready(ProtocolStudioSnapshot::default()),
+            OverviewFixture::OverviewOnly => PageData::unavailable(page_not_composed()),
         },
         public_ip: overview.public_ip.clone(),
         overview_layout: overview.layout.clone(),
@@ -297,18 +282,18 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         rule_trace: Default::default(),
         dns_query: DnsQuerySnapshot::unavailable(),
         dns_leak: DnsProjection::demo().leak,
-        dns_hosts: surface_snapshot::PageData::ready(DnsHostsProfile {
+        dns_hosts: PageData::ready(DnsHostsProfile {
             profile: "demo".into(),
             entries: DnsProjection::demo().hosts,
             legacy_entries: Vec::new(),
         }),
         surface: SurfaceKind::BevyDesktop,
-        origin: surface_snapshot::SurfaceOrigin::Demo,
+        origin: SurfaceOrigin::Demo,
         generation: core.generation,
         revision: core.revision,
         core,
         capabilities: CapabilitySnapshot::new(HostKind::Desktop, 1, Vec::new()),
-        core_capability_snapshot: surface_snapshot::PageData::unavailable(Failure::unsupported(
+        core_capability_snapshot: PageData::unavailable(Failure::unsupported(
             "demo Core capabilities are unavailable",
         )),
         failure: None,
@@ -341,10 +326,10 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         closed_connections: Default::default(),
         traffic_history: Default::default(),
         active_exit: overview.active_exit.clone(),
-        outbound_inventory: surface_snapshot::PageData::ready(demo_outbound_inventory()),
-        outbound_details: surface_snapshot::PageData::ready(demo_outbound_details()),
-        outbound_ui_preferences: surface_snapshot::PageData::ready(demo_outbound_preferences()),
-        protocol_studio: surface_snapshot::PageData::ready(ProtocolStudioSnapshot::default()),
+        outbound_inventory: PageData::ready(demo_outbound_inventory()),
+        outbound_details: PageData::ready(demo_outbound_details()),
+        outbound_ui_preferences: PageData::ready(demo_outbound_preferences()),
+        protocol_studio: PageData::ready(ProtocolStudioSnapshot::default()),
         public_ip: overview.public_ip.clone(),
         overview_layout: overview.layout.clone(),
         reconnect_mask: overview.reconnect_mask.clone(),
@@ -578,16 +563,16 @@ fn demo_pages_with_overview(
     let sync: SyncPageSnapshot = SyncProjection::demo().into();
     let settings: surface_snapshot::SettingsPageSnapshot = SettingsProjection::demo().into();
     surface_snapshot::SurfacePages {
-        overview: surface_snapshot::PageData::ready(overview),
-        profiles: surface_snapshot::PageData::ready(profiles),
-        rules: surface_snapshot::PageData::ready(rules),
-        connections: surface_snapshot::PageData::ready(connections),
-        logs: surface_snapshot::PageData::ready(logs),
-        dns: surface_snapshot::PageData::ready(dns),
-        doctor: surface_snapshot::PageData::ready(doctor),
-        app_routing: surface_snapshot::PageData::ready(app_routing),
-        sync: surface_snapshot::PageData::ready(sync),
-        settings: surface_snapshot::PageData::ready(settings),
+        overview: PageData::ready(overview),
+        profiles: PageData::ready(profiles),
+        rules: PageData::ready(rules),
+        connections: PageData::ready(connections),
+        logs: PageData::ready(logs),
+        dns: PageData::ready(dns),
+        doctor: PageData::ready(doctor),
+        app_routing: PageData::ready(app_routing),
+        sync: PageData::ready(sync),
+        settings: PageData::ready(settings),
     }
 }
 
@@ -601,8 +586,8 @@ fn page_not_composed() -> Failure {
 
 fn fill_demo_runtime_fields(snapshot: &mut surface_snapshot::SurfaceSnapshot) {
     match snapshot.origin {
-        surface_snapshot::SurfaceOrigin::Demo => {}
-        surface_snapshot::SurfaceOrigin::Live => return,
+        SurfaceOrigin::Demo => {}
+        SurfaceOrigin::Live => return,
     }
     let Some(settings) = &snapshot.pages.settings.data else {
         return;

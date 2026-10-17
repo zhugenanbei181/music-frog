@@ -2,9 +2,9 @@
 use crate::pages::settings::settings_core::SettingsProjection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::page::PageStatus;
 
 pub(crate) fn empty_settings() -> SettingsProjection {
     SettingsProjection {

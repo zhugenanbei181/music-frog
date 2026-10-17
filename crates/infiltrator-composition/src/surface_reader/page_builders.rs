@@ -20,7 +20,6 @@ use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_contract::sync_snapshot::{SnapshotItemSnapshot, SyncPageSnapshot};
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
@@ -29,6 +28,7 @@ use infiltrator_domain::app_routing::AppRoutingConfig;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::connection::ConnectionObservationSnapshot;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use lurker_core_contract::page::{PageData, PageStatus};
 
 #[cfg(test)]
 #[path = "settings_observation_tests.rs"]
@@ -42,7 +42,7 @@ pub(super) async fn build_dns_page(
     stun_probe: Option<&StunProbeApplication>,
     runtime_connections: Option<&Result<ConnectionObservationSnapshot, PortError>>,
     port_conflicts: &PortConflictSnapshot,
-) -> surface_snapshot::PageData<surface_snapshot::DnsPageSnapshot> {
+) -> PageData<surface_snapshot::DnsPageSnapshot> {
     let latency = latency_report(dns_latency);
     let stun = stun_report(stun_probe);
     let connections = runtime_connections
@@ -64,7 +64,7 @@ pub(super) async fn build_dns_page(
             snapshot.stun = stun.clone();
             snapshot.self_heal =
                 dns_self_heal_snapshot(&dns, dns_listen_conflict(port_conflicts), &latency);
-            return surface_snapshot::PageData::ready(snapshot);
+            return PageData::ready(snapshot);
         }
     }
     match runtime_config {
@@ -72,7 +72,7 @@ pub(super) async fn build_dns_page(
             let nameserver = match &config.dns.value.nameserver {
                 ObservedValue::Reported(nameserver) => nameserver.clone(),
                 ObservedValue::Unreported => {
-                    return surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {
+                    return PageData::empty(surface_snapshot::DnsPageSnapshot {
                         enhanced_mode: DnsEnhancedMode::Unmapped,
                         latency,
                         stun,
@@ -88,7 +88,7 @@ pub(super) async fn build_dns_page(
                 ObservedValue::Reported(mode) => Some(mode.as_str()),
                 ObservedValue::Unreported => None,
             };
-            surface_snapshot::PageData::ready(surface_snapshot::DnsPageSnapshot {
+            PageData::ready(surface_snapshot::DnsPageSnapshot {
                 enhanced_mode: DnsEnhancedMode::from_config_value(enhanced_mode),
                 servers: dns_servers_from_lists(nameserver, fallback),
                 latency: latency.clone(),
@@ -96,8 +96,8 @@ pub(super) async fn build_dns_page(
                 ..surface_snapshot::DnsPageSnapshot::default()
             })
         }
-        Some(Err(failure)) => surface_snapshot::PageData::failed(failure.clone()),
-        None => surface_snapshot::PageData::unavailable(missing("DNS reader")),
+        Some(Err(failure)) => PageData::failed(failure.clone()),
+        None => PageData::unavailable(missing("DNS reader")),
     }
 }
 
@@ -138,11 +138,11 @@ pub(super) async fn build_sync_page(
     settings: Option<&Result<AppSettings, Failure>>,
     profiles: Option<&ProfileApplication>,
     snapshots: Option<&SnapshotApplication>,
-) -> surface_snapshot::PageData<SyncPageSnapshot> {
+) -> PageData<SyncPageSnapshot> {
     let settings = match settings {
         Some(Ok(settings)) => settings,
-        Some(Err(failure)) => return surface_snapshot::PageData::failed(failure.clone()),
-        None => return surface_snapshot::PageData::unavailable(missing("settings application")),
+        Some(Err(failure)) => return PageData::failed(failure.clone()),
+        None => return PageData::unavailable(missing("settings application")),
     };
     let mut snapshot_items = Vec::new();
     let history_status = if let (Some(profiles), Some(snapshots)) = (profiles, snapshots) {
@@ -174,7 +174,7 @@ pub(super) async fn build_sync_page(
             failure: missing("snapshot history application"),
         }
     };
-    surface_snapshot::PageData::ready(SyncPageSnapshot {
+    PageData::ready(SyncPageSnapshot {
         status: if settings.webdav.enabled {
             SyncStatus::Configured
         } else {
@@ -195,19 +195,19 @@ pub(super) fn build_settings_page(
     observed: &RuntimeControlSnapshot,
     system_proxy: &SystemProxySnapshot,
     pac: PacSnapshot,
-) -> surface_snapshot::PageData<surface_snapshot::SettingsPageSnapshot> {
+) -> PageData<surface_snapshot::SettingsPageSnapshot> {
     let settings = match settings {
         Some(Ok(settings)) => settings,
         Some(Err(error)) => {
-            return surface_snapshot::PageData::failed(Failure::new(
+            return PageData::failed(Failure::new(
                 ErrorCode::Storage,
                 error.message.clone(),
                 true,
             ));
         }
-        None => return surface_snapshot::PageData::unavailable(missing("settings application")),
+        None => return PageData::unavailable(missing("settings application")),
     };
-    surface_snapshot::PageData::ready(surface_snapshot::SettingsPageSnapshot {
+    PageData::ready(surface_snapshot::SettingsPageSnapshot {
         close_to_tray: Some(settings.close_to_tray),
         notifications_enabled: Some(settings.notifications_enabled),
         language: settings.language.clone(),

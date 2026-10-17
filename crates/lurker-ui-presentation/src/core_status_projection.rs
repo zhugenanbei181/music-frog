@@ -1,9 +1,9 @@
 //! Shared lifecycle and source copy; native products replay the same observed facts.
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
-use infiltrator_domain::redact::redact_line;
+use crate::copy::TextCatalog;
+use crate::copy::interpolate;
 use lurker_core_contract::lifecycle::CoreLifecycle;
-use lurker_ui_presentation::copy::TextCatalog;
-use lurker_ui_presentation::copy::interpolate;
+use lurker_core_contract::page::SurfaceOrigin;
+use lurker_core_contract::redact::redact_line;
 
 pub fn lifecycle_copy(lifecycle: &CoreLifecycle, catalog: &dyn TextCatalog) -> String {
     let key = match lifecycle {

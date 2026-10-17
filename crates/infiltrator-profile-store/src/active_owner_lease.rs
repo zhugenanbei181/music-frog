@@ -271,6 +271,7 @@ fn release_owner_after_terminal(
 /// The neutral binding lease view of a live owner. Product release semantics
 /// stay on `ActiveProfileOwnerLease`; this only exposes the exact fence the
 /// neutral journal needs.
+#[async_trait::async_trait]
 impl EngineOwnerLease for ActiveCoreOwnerLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
@@ -278,5 +279,12 @@ impl EngineOwnerLease for ActiveCoreOwnerLease {
 
     fn generation(&self) -> CoreGeneration {
         self.generation
+    }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError> {
+        <Self as ActiveProfileOwnerLease>::release_after_terminal(self, terminal).await
     }
 }

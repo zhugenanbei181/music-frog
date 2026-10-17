@@ -8,13 +8,13 @@
 //!
 //! Features:
 //! - **Sanitization**: All titles, bodies, and subtitles are passed through
-//!   [`infiltrator_domain::redact::redact_line`] to redact subscription tokens, passwords,
+//!   [`lurker_core_contract::redact::redact_line`] to redact subscription tokens, passwords,
 //!   and secrets before reaching the OS.
 //! - **Throttling**: Throttled error/warning logging and dispatch rate limiting to prevent
 //!   spamming the notification daemon.
 //! - **Timeout**: Guarded process execution with timeouts to prevent UI hangs.
 
-use infiltrator_domain::redact::redact_line;
+use lurker_core_contract::redact::redact_line;
 use std::io::Result;
 use std::process::Command;
 #[cfg(all(unix, not(target_os = "macos")))]

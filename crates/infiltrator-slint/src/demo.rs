@@ -13,8 +13,8 @@ use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
-    OverviewPageSnapshot, PageData, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
-    SettingsPageSnapshot, SurfaceOrigin, SurfaceSnapshot,
+    OverviewPageSnapshot, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
+    SettingsPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxySnapshot};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
@@ -37,6 +37,7 @@ use lurker_core_contract::outbound::preferences::{
     OutboundHealthFilter, OutboundLayout, OutboundSortOrder, OutboundUiPreferencesSnapshot,
     OutboundUiPreferencesValues,
 };
+use lurker_core_contract::page::{PageData, SurfaceOrigin};
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::env;

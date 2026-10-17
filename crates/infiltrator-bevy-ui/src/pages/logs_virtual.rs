@@ -343,7 +343,7 @@ mod tests {
     use crate::pages::logs::LogsProjection;
     use bevy::ecs::world::World;
     use infiltrator_contract::logs::LogLevel;
-    use infiltrator_contract::surface_snapshot::PageStatus;
+    use lurker_core_contract::page::PageStatus;
 
     fn entry(index: usize) -> LogEntry {
         LogEntry {

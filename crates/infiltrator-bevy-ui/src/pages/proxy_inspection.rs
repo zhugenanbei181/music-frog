@@ -35,7 +35,6 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -50,6 +49,7 @@ use lurker_core_contract::outbound::{
     },
     identity::SnapshotRevision,
 };
+use lurker_core_contract::page::{PageData, PageStatus};
 
 /// Presentation rows projected from the engine-neutral outbound details snapshot.
 /// This belongs to the page because it defines labels, not backend data.

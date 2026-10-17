@@ -142,8 +142,9 @@ use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command_catalogue::ShellPage;
-use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::{PageId, SurfaceSnapshot};
 use infiltrator_presentation::system_toggle_projection;
+use lurker_core_contract::page::PageStatus;
 use std::collections::HashSet;
 use std::sync::Arc;
 

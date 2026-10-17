@@ -5,9 +5,8 @@ use infiltrator_contract::doctor::{
     DoctorCheckKind, DoctorCheckMeta, DoctorObservation, DoctorReport, DoctorStatus,
 };
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
-use infiltrator_contract::surface_snapshot::{
-    DoctorCheckSnapshot, DoctorPageSnapshot, PageData, PageStatus,
-};
+use infiltrator_contract::surface_snapshot::{DoctorCheckSnapshot, DoctorPageSnapshot};
+use lurker_core_contract::page::{PageData, PageStatus};
 use lurker_ui_presentation::copy::TextCatalog;
 
 pub const fn status_key(status: DoctorStatus) -> &'static str {

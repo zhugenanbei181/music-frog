@@ -137,7 +137,7 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
     };
     // DUAL-10-01: the engine that produced this result and its negotiated
     // capability limits, both straight from the shared read model.
-    let view = project_report(snapshot, lang.0);
+    let view = project_report(snapshot, lang);
     let engine_label = view.engine;
     let engine_capability_label = view.capabilities;
 

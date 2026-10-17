@@ -17,10 +17,10 @@ use crate::localized_widgets::localized_checkbox_scene;
 use crate::pages::snapshot_restore::OpenSnapshotRestore;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_presentation::sync_projection;
 use infiltrator_shared::byte_units::format_bytes;
+use lurker_core_contract::page::PageStatus;
 
 use crate::pages::sync_merge::{
     SyncMergeRowsCache, replay_availability, replay_fields, sync_three_way_merge_scene,

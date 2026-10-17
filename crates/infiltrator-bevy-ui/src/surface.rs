@@ -42,6 +42,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_contract::page::PageStatus;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -83,47 +84,47 @@ pub fn core_lifecycle_projection(
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct SurfaceStatusBanner {
     pub page: surface_snapshot::PageId,
-    pub status: surface_snapshot::PageStatus,
+    pub status: PageStatus,
 }
 
 impl Default for SurfaceStatusBanner {
     fn default() -> Self {
         Self {
             page: surface_snapshot::PageId::Overview,
-            status: surface_snapshot::PageStatus::Loading,
+            status: PageStatus::Loading,
         }
     }
 }
 
 pub fn status_banner_scene(
     page: surface_snapshot::PageId,
-    status: &surface_snapshot::PageStatus,
+    status: &PageStatus,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let (label, fill) = match status {
-        surface_snapshot::PageStatus::Loading => (
+        PageStatus::Loading => (
             LocalizedText::plain("surface_loading"),
             palette.surface_elevated,
         ),
-        surface_snapshot::PageStatus::Empty => (
+        PageStatus::Empty => (
             LocalizedText::plain("surface_empty"),
             palette.surface_elevated,
         ),
-        surface_snapshot::PageStatus::Unavailable { failure } => (
+        PageStatus::Unavailable { failure } => (
             LocalizedText::new(
                 "surface_host_unavailable",
                 vec![("message", failure.message.clone())],
             ),
             palette.warning,
         ),
-        surface_snapshot::PageStatus::Failed { failure } => (
+        PageStatus::Failed { failure } => (
             LocalizedText::new(
                 "surface_read_failed",
                 vec![("message", failure.message.clone())],
             ),
             palette.danger,
         ),
-        surface_snapshot::PageStatus::Ready => (
+        PageStatus::Ready => (
             LocalizedText::new("common_message", vec![("message", String::new())]),
             palette.surface_elevated,
         ),

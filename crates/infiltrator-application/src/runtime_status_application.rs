@@ -11,11 +11,11 @@ use infiltrator_contract::runtime_status::{
 };
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::HostKind;
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStatus};
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::SurfaceOrigin;
 
 pub fn project_runtime_status(
     host: HostKind,
