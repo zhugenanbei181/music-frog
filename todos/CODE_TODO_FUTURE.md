@@ -61,61 +61,9 @@
   - 依赖：BANDROID-044.1~044.4。
   - 验收：正反例验证任务注册/排除/放行/拒绝；真实执行后才称质量门接通。
 
-## 四、开源独立发布与多 UI 模板框架架构（22条 / 49pt）
+## 四、开源独立发布与多 UI 模板框架架构（10条 / 20pt）
 
-### 4.1 基础契约与中性端口解耦（3条 / 7pt）
-- [ ] PUB-001.1 [kind: mechanism] [priority: P1] [points: 2] [owner: contract] 抽取零外部重依赖的通用 `proxy-core-contract`
-  - 产物：独立契约 crate，收敛 EngineId、CoreLifecycle、Outbound/Group 模型、RoutingIntent、CoreScope 与 Failure；完全剔除应用私有字段。
-  - 依赖：当前双后端 Core 契约稳定。
-  - 验收：仅保留 serde 等轻量依赖；`cargo check -p proxy-core-contract` 独立通过，无任何产品私有符号。
-- [ ] PUB-001.2 [kind: mechanism] [priority: P1] [points: 2] [owner: ports] 抽取中性端口 `proxy-core-ports`
-  - 产物：独立端口 crate，定义 CoreProcess、CoreReadiness、OutboundPort、RoutingIntentPort 与 ProfileDocumentCodecPort 等 Trait。
-  - 依赖：PUB-001.1。
-  - 验收：纯 Trait 定义，不引入任何 Tokio runtime、channel 或 UI 类型，多引擎端口可独立实现。
-- [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] 抽象通用 ProfileStore 与租约并发接口
-  - 产物：解耦产品私有 Age 凭据与硬编码路径，提取基于 CAS 与版本租约锁的通用 `proxy-profile-store` 存储与事务接口。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突与安全原子替换，无业务私有路径泄露。
-
-### 4.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
-- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-api + mihomo-process] Mihomo 进程与 API 客户端整合为独立 `mihomo-rs`
-  - 产物：输出独立 `mihomo-rs` crate；内聚 HTTP REST、WS 流式日志/连接、进程探测、PID 与精确终态管理；通过 feature 按需裁剪。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：提供无侵入纯客户端使用方式，在无上层包装下通过真实与 mock 进程/API 单元测试。
-- [ ] PUB-002.2 [kind: mechanism] [priority: P1] [points: 2] [owner: mihomo-config] Mihomo YAML 配置 Codec 与校验独立化
-  - 产物：独立的配置处理模块，支持内存 AST 解析、配置合法性校验及 Mihomo 原生 dry-run 检查。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：纯内存解析通过标准与畸形 YAML 校验，输出精确的 typed DocumentValidation 结果。
-- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-api + singbox-process] sing-box 进程与 Clash API 客户端整合为独立 `singbox-rs`
-  - 产物：输出独立 `singbox-rs` crate；实现 Clash API 通信、进程启动/停止、child process 守护与信号回收。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：独立拉起 sing-box 二进制、探测 readiness、通过 Clash API 切换 Selector 节点并安全退出。
-- [ ] PUB-002.4 [kind: mechanism] [priority: P1] [points: 2] [owner: singbox-config] sing-box JSON 配置 Codec 与校验独立化
-  - 产物：支持 sing-box 原生 JSON 配置模型、schema 校验及原生二进制 `check` 命令事务适配。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：单测覆盖合法 JSON 接受与非法规则/端口拦截，返回结构化诊断信息。
-- [ ] PUB-002.5 [kind: evidence] [priority: P1] [points: 1] [owner: mihomo-* + singbox-*] 双引擎独立 crate 最小可用 example 与单测
-  - 产物：为 `mihomo-rs` 与 `singbox-rs` 各编写独立的 `examples/`（命令行拉起与节点查询），补齐独立 nextest 覆盖。
-  - 依赖：PUB-002.1～PUB-002.4。
-  - 验收：在完全脱离本仓库其他包的环境下，`cargo run --example` 成功演示内核生命周期。
-
-### 4.3 统一双引擎调度器与高层 Facade SDK（4条 / 11pt）
-- [ ] PUB-003.1 [kind: mechanism] [priority: P1] [points: 3] [owner: composition::factory] 双引擎工厂注册器 `EngineBackendFactoryRegistry` 泛型化
-  - 产物：抽象动态引擎注册机制，解耦编译期硬编码，允许应用自由注入单引擎或双引擎 adapter。
-  - 依赖：PUB-001.2、PUB-002.1、PUB-002.3。
-  - 验收：注册器支持动态挂载/卸载引擎，对未注册引擎强类型 fail-closed 拦截并拒绝操作。
-- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: application::owner_switch] 双引擎原子切换事务抽象为通用的 `EngineSwitchCoordinator`
-  - 产物：将基于 CAS 租约与 Generation/Revision 围栏的无缝切换抽象为独立通用组件；支持切换失败时的原主自动恢复。
-  - 依赖：PUB-003.1。
-  - 验收：nextest 覆盖正常切换与注入故障回滚，证明新旧进程生命周期严格互斥且终态可查。
-- [ ] PUB-003.3 [kind: mechanism] [priority: P1] [points: 3] [owner: runtime facade] 开发者友好的高层 Facade SDK `proxy-engine-runtime`
-  - 产物：提供开箱即用的 Builder 模式 API（如 `ProxyRuntimeBuilder`）；隐藏复杂的 Token/Generation 传递细节，对外暴露直观的异步操控入口。
-  - 依赖：PUB-003.2。
-  - 验收：第三方开发者在 10 行以内完成初始化并监听状态流，单测与文档示例验证通过。
-- [ ] PUB-003.4 [kind: evidence] [priority: P1] [points: 2] [owner: test-support] 双引擎 Conformance 跨平台验证测试套件
-  - 产物：抽取通用的适配器一致性测试套件；规范进程状态机、配置应用、节点读写、错误回读的测试断言。
-  - 依赖：PUB-003.1～PUB-003.3。
-  - 验收：Conformance 覆盖 Mihomo 与 sing-box 真实与 fake 适配器，第三方适配器跑通即可证明兼容。
+> 1.0 中性内核（原 4.1–4.3，PUB-001～003）已迁入[现在佛](CODE_TODO.md)作为 1.0 主工作流；本板保留 UI 呈现标准化、四套模板脚手架与开源发布自动化。
 
 ### 4.4 UI 消费端管道标准化与 Presentation 纯净化（3条 / 6pt）
 - [ ] PUB-004.1 [kind: mechanism] [priority: P1] [points: 2] [owner: presentation] 跨 UI 纯视图模型投影 `proxy-ui-presentation` 独立化
