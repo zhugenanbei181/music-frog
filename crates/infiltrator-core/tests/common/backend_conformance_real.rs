@@ -2,8 +2,8 @@ use super::backend_conformance::profile_support::{
     ConformanceLifecycleSession, ConformanceProfileStore,
 };
 use super::backend_conformance::{
-    BackendConformanceCase, BackendConformancePorts, DetailsBehavior, ProbeBehavior,
-    RoutingBehavior, RunningProfileTransactionBehavior, run_backend_conformance,
+    BackendConformanceCase, BackendConformancePorts, RunningProfileTransactionBehavior,
+    conformance_engine_backend, run_backend_conformance,
 };
 use super::backend_conformance_declarations;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
@@ -38,6 +38,7 @@ use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::engine_backend::EngineBackendProvider;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::{OutboundProbeRequest, ProbeTarget};
+use lurker_engine_runtime::conformance::case::{DetailsBehavior, ProbeBehavior, RoutingBehavior};
 use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -432,7 +433,6 @@ rules:
         .backend(&case.engine)
         .map_err(|error| format!("create production Mihomo backend ports: {error}"))?;
     let process = backend.process();
-    let readiness = backend.readiness();
     let scope = conformance_scope(
         case.engine.clone(),
         "desktop-active",
@@ -474,13 +474,6 @@ rules:
         .configuration_transaction_binding()
         .bind(transaction)
         .map_err(|error| format!("bind production Mihomo profile transaction: {error}"))?;
-    let operations = backend.core_operations();
-    let outbound = operations
-        .outbound()
-        .map_err(|error| format!("resolve production Mihomo outbound port: {error}"))?;
-    let routing = operations
-        .routing_intent()
-        .map_err(|error| format!("resolve production Mihomo routing port: {error}"))?;
     let transaction = backend.configuration_transaction();
 
     let _home_guard = infiltrator_platform::TEST_LOCK.lock().await;
@@ -489,18 +482,21 @@ rules:
         return Err("could not install isolated Mihomo home override".to_owned());
     }
     let declarations = backend_conformance_declarations::declarations_for_engine(&case.engine);
+    let conformance_backend = conformance_engine_backend(
+        &case.engine,
+        backend.process(),
+        backend.readiness(),
+        backend.configuration(),
+        backend.core_operations(),
+    )?;
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,
         &BackendConformancePorts {
-            process: process.as_ref(),
-            readiness: readiness.as_ref(),
-            codec: codec.as_ref(),
+            backend: &conformance_backend,
             configuration_transaction: transaction.as_ref(),
             profile_store: profile_store.engine_profile_store(),
             transaction_owner: transaction_owner.as_ref(),
-            outbound: outbound.as_ref(),
-            routing: routing.as_ref(),
         },
     )
     .await;
@@ -610,7 +606,6 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         .backend(&case.engine)
         .map_err(|error| format!("create production sing-box backend ports: {error}"))?;
     let process = backend.process();
-    let readiness = backend.readiness();
     let codec = backend.configuration();
     let profile_store = Arc::new(ConformanceProfileStore::new(
         &codec.scope(),
@@ -637,27 +632,23 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
     provider
         .bind_core_owner_scope(&backend, scope_source)
         .map_err(|error| format!("bind production sing-box Core scope: {error}"))?;
-    let operations = backend.core_operations();
-    let outbound = operations
-        .outbound()
-        .map_err(|error| format!("resolve production sing-box outbound port: {error}"))?;
-    let routing = operations
-        .routing_intent()
-        .map_err(|error| format!("resolve production sing-box routing port: {error}"))?;
     let transaction = backend.configuration_transaction();
     let declarations = backend_conformance_declarations::declarations_for_engine(&case.engine);
+    let conformance_backend = conformance_engine_backend(
+        &case.engine,
+        backend.process(),
+        backend.readiness(),
+        backend.configuration(),
+        backend.core_operations(),
+    )?;
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,
         &BackendConformancePorts {
-            process: process.as_ref(),
-            readiness: readiness.as_ref(),
-            codec: codec.as_ref(),
+            backend: &conformance_backend,
             configuration_transaction: transaction.as_ref(),
             profile_store: profile_store.as_ref(),
             transaction_owner: transaction_owner.as_ref(),
-            outbound: outbound.as_ref(),
-            routing: routing.as_ref(),
         },
     )
     .await;

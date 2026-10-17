@@ -1,18 +1,22 @@
+//! Product fake adapters for the shared conformance suite.
+//!
+//! The pure adapter fakes come from the neutral conformance kit. This module
+//! keeps only the product-owned native configuration transaction and profile
+//! store fixtures, then runs the same product wrapper the real engines use.
+
 use super::backend_conformance::profile_support::{
     ConformanceLifecycleSession, ConformanceProfileStore,
 };
 use super::backend_conformance::{
-    BackendConformanceCase, BackendConformancePorts, DetailsBehavior, OperationDeclarationState,
-    ProbeBehavior, RoutingBehavior, RunningProfileTransactionBehavior,
-    assert_declared_operation_differences_match_case, assert_evidence_open_or_unsupported,
-    expected_support, run_backend_conformance,
+    BackendConformanceCase, BackendConformancePorts, OperationDeclarationState,
+    RunningProfileTransactionBehavior, assert_declared_operation_differences_match_case,
+    assert_evidence_open_or_unsupported, expected_support, run_backend_conformance,
 };
 use super::backend_conformance_declarations::{
     declarations_for_engine, mihomo_declarations, sing_box_declarations,
     supported_engine_operations, unsupported_engine_operations,
     unsupported_profile_transaction_operations,
 };
-use async_trait::async_trait;
 use infiltrator_contract::adapter_operation_declaration::{
     AdapterOperationOwner, AdapterOperationSupport,
 };
@@ -22,45 +26,28 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use infiltrator_ports::profile_store::ProfileStore;
-use lurker_core_contract::capability::Capability;
-use lurker_core_contract::core_process::CoreProcessStartContext;
-use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::lifecycle::CoreLifecycle;
-use lurker_core_contract::outbound::details::{
-    OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
-    OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot,
-    OutboundUdpSupport,
-};
-use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
-use lurker_core_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot, OutboundProbeState,
-    OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
-};
-use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
-use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
-use lurker_core_ports::error::PortError;
-use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
-use lurker_core_ports::profile_document_codec::{
-    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+use lurker_core_ports::engine_backend::{
+    EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineOperationPorts,
 };
-use lurker_core_ports::routing_intent::RoutingIntentPort;
-use std::sync::{Arc, Mutex};
+use lurker_core_ports::outbound::{OutboundProbeRequest, ProbeTarget};
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
+use lurker_engine_runtime::conformance::case::{DetailsBehavior, ProbeBehavior, RoutingBehavior};
+use lurker_engine_runtime::conformance::fake::{FakeCodec, FakeOutbound, FakeProcess, FakeRouting};
+use std::sync::Arc;
 use tokio::runtime::Builder;
 
 #[path = "backend_conformance_fake_transaction.rs"]
 mod fake_transaction;
 use fake_transaction::FakeNativeProfile;
-
-#[path = "backend_conformance_fakes/outbound_routing.rs"]
-mod outbound_routing;
-use outbound_routing::*;
 
 #[derive(Clone, Copy)]
 enum FakeBackendKind {
@@ -70,14 +57,10 @@ enum FakeBackendKind {
 
 struct FakeBackend {
     case: BackendConformanceCase,
-    process: FakeProcess,
-    readiness: FakeReadiness,
-    codec: FakeCodec,
+    backend: EngineBackendPorts,
     configuration_transaction: FakeNativeProfile,
     profile_store: Arc<ConformanceProfileStore>,
     transaction_owner: Arc<ConformanceLifecycleSession>,
-    outbound: FakeOutbound,
-    routing: FakeRouting,
 }
 
 impl FakeBackend {
@@ -173,81 +156,64 @@ impl FakeBackend {
             collection_id: collection_id.clone(),
             initial_member_id: initial_member_id.clone(),
             alternate_member_id: alternate_member_id.clone(),
-            probe_outbound_id: probe_outbound_id.clone(),
+            probe_outbound_id,
             probe_request,
-            details: details.clone(),
-            probe: probe.clone(),
+            details,
+            probe,
             routing: routing.clone(),
             running_profile_transaction: match kind {
                 FakeBackendKind::MihomoLike => RunningProfileTransactionBehavior::NotExercised,
                 FakeBackendKind::SingBoxLike => RunningProfileTransactionBehavior::Unsupported,
             },
         };
-        let phase = Arc::new(Mutex::new(FakeProcessPhase::Stopped));
-        let profile_store = Arc::new(ConformanceProfileStore::new(
-            &ProfileDocumentCodecPort::scope(&FakeCodec {
-                engine: engine.clone(),
-                valid_profile: valid_profile.clone(),
-                native_invalid_profile: native_invalid_profile.clone(),
-            }),
-            &valid_profile,
-        ));
-        let process = FakeProcess {
-            identity,
-            phase: Arc::clone(&phase),
+        let codec_scope = ProfileDocumentCodecScope {
+            engine_id: engine.clone(),
+            format_id: ProfileFormatId::new(format!("{engine_name}-fake"))
+                .expect("fake format ID is valid"),
+            schema_version: ProfileSchemaVersion::new(1).expect("fake schema version is valid"),
         };
-        let transaction_owner = Arc::new(
-            ConformanceLifecycleSession::for_process(&process, expected_version.clone())
-                .expect("fake process and transaction owner share a typed identity"),
+        let adapter_case = case.adapter_case(&codec_scope);
+        let process = Arc::new(FakeProcess::new(identity));
+        let readiness = Arc::new(process.readiness(expected_version.clone()));
+        let codec = Arc::new(FakeCodec::new(
+            codec_scope.clone(),
+            &case.valid_profile,
+            &case.native_invalid_profile,
+        ));
+        let outbound = Arc::new(FakeOutbound::new(scope.clone(), &adapter_case));
+        let routing_port = Arc::new(FakeRouting::new(scope, case.routing.clone()));
+        let operations = EngineOperationPorts::available(
+            outbound,
+            routing_port,
+            Arc::new(EngineBackendOwnerScopeBinding::new(engine.clone())),
         );
-        let routing_scope = scope.clone();
-        let outbound = FakeOutbound {
-            engine: engine.clone(),
-            expected_scope: scope,
-            collection_id,
-            members: vec![initial_member_id, alternate_member_id],
-            selected: Mutex::new(case.initial_member_id.clone()),
-            revision: Mutex::new(1),
-            probe_id: probe_outbound_id,
-            details_behavior: details,
-            probe_behavior: probe,
+        let backend =
+            EngineBackendPorts::new(engine, process.clone(), readiness, codec, operations)
+                .expect("fake engine backend is coherent");
+        let transaction_owner = Arc::new(
+            ConformanceLifecycleSession::for_process(
+                process.as_ref(),
+                case.expected_version.clone(),
+            )
+            .expect("fake process and transaction owner share a typed identity"),
+        );
+        let profile_store = Arc::new(ConformanceProfileStore::new(
+            &codec_scope,
+            &case.valid_profile,
+        ));
+        let configuration_transaction = FakeNativeProfile {
+            scope: ProfileConfigurationTransactionScope::new(codec_scope),
+            valid_profile: case.valid_profile.clone(),
+            native_invalid_profile: case.native_invalid_profile.clone(),
+            store: Arc::clone(&profile_store),
+            transaction_owner: Arc::clone(&transaction_owner),
         };
         Self {
-            process,
-            readiness: FakeReadiness {
-                phase: Arc::clone(&phase),
-                version: expected_version,
-            },
-            codec: FakeCodec {
-                engine: engine.clone(),
-                valid_profile: valid_profile.clone(),
-                native_invalid_profile: native_invalid_profile.clone(),
-            },
-            configuration_transaction: FakeNativeProfile {
-                scope: ProfileConfigurationTransactionScope::new(ProfileDocumentCodecPort::scope(
-                    &FakeCodec {
-                        engine: engine.clone(),
-                        valid_profile: valid_profile.clone(),
-                        native_invalid_profile: native_invalid_profile.clone(),
-                    },
-                )),
-                valid_profile,
-                native_invalid_profile,
-                store: Arc::clone(&profile_store),
-                transaction_owner: Arc::clone(&transaction_owner),
-            },
-            outbound,
-            routing: FakeRouting {
-                expected_scope: routing_scope,
-                behavior: routing.clone(),
-                current: Mutex::new(match routing {
-                    RoutingBehavior::Writable { initial, .. }
-                    | RoutingBehavior::ReadOnlyUnsupported { initial, .. } => initial,
-                }),
-            },
+            case,
+            backend,
+            configuration_transaction,
             profile_store,
             transaction_owner,
-            case,
         }
     }
 
@@ -257,133 +223,13 @@ impl FakeBackend {
             &self.case,
             &declarations,
             &BackendConformancePorts {
-                process: &self.process,
-                readiness: &self.readiness,
-                codec: &self.codec,
+                backend: &self.backend,
                 configuration_transaction: &self.configuration_transaction,
                 profile_store: self.profile_store.as_ref(),
                 transaction_owner: self.transaction_owner.as_ref(),
-                outbound: &self.outbound,
-                routing: &self.routing,
             },
         )
         .await
-    }
-}
-
-#[derive(Clone, Copy)]
-enum FakeProcessPhase {
-    Stopped,
-    Running,
-}
-
-struct FakeProcess {
-    identity: CoreIdentity,
-    phase: Arc<Mutex<FakeProcessPhase>>,
-}
-
-#[async_trait]
-impl CoreProcess for FakeProcess {
-    fn core_identity(&self) -> Option<CoreIdentity> {
-        Some(self.identity.clone())
-    }
-
-    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
-        let mut phase = self.phase.lock().expect("fake process phase lock");
-        match *phase {
-            FakeProcessPhase::Stopped => {
-                *phase = FakeProcessPhase::Running;
-                Ok(())
-            }
-            FakeProcessPhase::Running => {
-                Err(PortError::Failed("fake process already running".into()))
-            }
-        }
-    }
-
-    async fn stop(&self) -> Result<(), PortError> {
-        *self.phase.lock().expect("fake process phase lock") = FakeProcessPhase::Stopped;
-        Ok(())
-    }
-
-    async fn status(&self) -> Result<CoreLifecycle, PortError> {
-        match *self.phase.lock().expect("fake process phase lock") {
-            FakeProcessPhase::Stopped => Ok(CoreLifecycle::Stopped),
-            FakeProcessPhase::Running => Ok(CoreLifecycle::Running),
-        }
-    }
-
-    fn controller_endpoint(&self) -> Option<String> {
-        Some("http://127.0.0.1:0".to_owned())
-    }
-}
-
-struct FakeReadiness {
-    phase: Arc<Mutex<FakeProcessPhase>>,
-    version: CoreVersion,
-}
-
-#[async_trait]
-impl CoreReadiness for FakeReadiness {
-    async fn probe(&self) -> Result<String, PortError> {
-        match *self.phase.lock().expect("fake process phase lock") {
-            FakeProcessPhase::Stopped => Err(PortError::Network("fake process is stopped".into())),
-            FakeProcessPhase::Running => Ok("fake-loopback-controller".to_owned()),
-        }
-    }
-
-    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
-        match *self.phase.lock().expect("fake process phase lock") {
-            FakeProcessPhase::Stopped => Ok(None),
-            FakeProcessPhase::Running => Ok(Some(self.version.clone())),
-        }
-    }
-}
-
-struct FakeCodec {
-    engine: EngineId,
-    valid_profile: Vec<u8>,
-    native_invalid_profile: Vec<u8>,
-}
-
-impl ProfileDocumentCodecPort for FakeCodec {
-    fn scope(&self) -> ProfileDocumentCodecScope {
-        ProfileDocumentCodecScope {
-            engine_id: self.engine.clone(),
-            format_id: ProfileFormatId::new(format!("{}-fake", self.engine.as_str()))
-                .expect("fake format ID is valid"),
-            schema_version: ProfileSchemaVersion::new(1).expect("fake schema version is valid"),
-        }
-    }
-
-    fn inspect(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, PortError> {
-        if raw_bytes == self.valid_profile || raw_bytes == self.native_invalid_profile {
-            Ok(DocumentValidation::Valid)
-        } else {
-            Ok(DocumentValidation::Invalid {
-                diagnostics: vec![],
-            })
-        }
-    }
-}
-
-fn fake_detail(id: OutboundId) -> OutboundDetail {
-    OutboundDetail {
-        id,
-        protocol: OutboundProtocolObservation::Unknown,
-        protocol_display_name: None,
-        cipher: OutboundObservation::Unknown,
-        cipher_display_name: None,
-        collection_kind: OutboundObservation::Unknown,
-        features: OutboundObservation::Unknown,
-        endpoint: OutboundObservation::Unknown,
-        udp: OutboundUdpSupport::Unknown,
-        health: OutboundHealthObservation::Unknown,
-        current_latency_ms: OutboundObservation::Unknown,
-        latency_history: OutboundObservation::Unknown,
-        rtt: OutboundObservation::Unknown,
-        historical_egress: OutboundObservation::Unknown,
-        probe_availability: OutboundProbeAvailability::Unknown,
     }
 }
 
@@ -408,7 +254,7 @@ pub fn fake_mihomo_and_sing_box_profiles_use_the_same_typed_behavior_suite() {
         assert_eq!(backend.profile_store.writes(), 1);
         assert_eq!(
             runtime
-                .block_on(backend.process.status())
+                .block_on(backend.backend.process().status())
                 .expect("fake process state is available"),
             CoreLifecycle::Stopped
         );

@@ -163,7 +163,7 @@ pub fn render(mut view: ScriptView, mut commands: Commands) {
             view.focus.set(entity, FocusCause::Navigated);
         }
     }
-    let mut rows = report_rows(view.state.model.snapshot(), view.locale.code());
+    let mut rows = report_rows(view.state.model.snapshot(), &Lang(view.locale.code()));
     if view.state.model.is_running() {
         rows.insert(
             0,

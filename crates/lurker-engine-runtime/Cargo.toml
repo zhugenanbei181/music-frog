@@ -6,6 +6,11 @@ description = "Engine-neutral backend registry, owner-switch coordinator and run
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
+[features]
+# Neutral adapter and owner-switch conformance kit. Opt-in: product hosts do
+# not compile the kit unless they explicitly run conformance.
+conformance = []
+
 [dependencies]
 lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
 lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
@@ -18,3 +23,7 @@ futures-timer = "3.0"
 
 [dev-dependencies]
 futures-executor = "0.3"
+
+[[test]]
+name = "third_party_adapter"
+required-features = ["conformance"]

@@ -4,6 +4,8 @@
 //! product crate or a UI toolkit. Callers compose this registry with the
 //! providers and drivers they support.
 
+#[cfg(feature = "conformance")]
+pub mod conformance;
 pub mod error;
 pub mod facade;
 pub mod registry;

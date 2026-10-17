@@ -1,16 +1,43 @@
-use super::*;
+use super::{BackendConformanceCase, BackendConformancePorts};
+use async_trait::async_trait;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::profile_configuration_transaction::{
+    ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
+    ProfileConfigurationTransactionRequest,
+};
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
-    ActiveProfileWorkspaceWriteLease,
+    ActiveProfileWorkspaceWriteLease, ProfileStore,
 };
-use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::capability::Capability;
-use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreIdentity, CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId, ProfileWorkspaceIdentity,
+};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
+use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::core_process::CoreProcess;
+use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 pub(crate) trait ConformanceLifecycleControl: CoreLifecyclePort {
@@ -404,14 +431,15 @@ pub(super) async fn verify_native_profile_behavior(
     ports: &BackendConformancePorts<'_>,
 ) -> Result<(), String> {
     let transaction_scope = ports.configuration_transaction.scope();
-    if transaction_scope.document != ports.codec.scope() {
+    let codec = ports.backend.configuration();
+    if transaction_scope.document != codec.scope() {
         return Err(format!(
             "{} typed transaction scope differs from its codec scope",
             case.engine.as_str()
         ));
     }
 
-    match ports.codec.inspect(&case.native_invalid_profile) {
+    match codec.inspect(&case.native_invalid_profile) {
         Ok(DocumentValidation::Valid) => {}
         Ok(other) => {
             return Err(format!(

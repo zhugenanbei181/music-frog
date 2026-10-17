@@ -18,19 +18,19 @@ mod backend_conformance_fakes;
 mod backend_conformance_real;
 
 #[test]
-fn fake_mihomo_and_sing_box_profiles_use_the_same_typed_behavior_suite() {
+fn backend_conformance_fake_engines_use_the_same_typed_behavior_suite() {
     backend_conformance_fakes::fake_mihomo_and_sing_box_profiles_use_the_same_typed_behavior_suite(
     );
 }
 
 #[test]
-fn declaration_matrix_keeps_evidence_open_and_unsupported_out_of_verified_support() {
+fn backend_conformance_declaration_matrix_keeps_evidence_out_of_verified_support() {
     backend_conformance_fakes::declaration_matrix_keeps_evidence_open_and_unsupported_out_of_verified_support();
 }
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked Mihomo Linux amd64 real-process smoke"]
-async fn locked_real_mihomo_runs_the_shared_core_conformance_suite() {
+async fn backend_conformance_locked_real_mihomo_runs_the_shared_suite() {
     backend_conformance_real::locked_real_mihomo_runs_the_shared_core_conformance_suite()
         .await
         .unwrap_or_else(|error| panic!("locked real Mihomo conformance failed: {error}"));
@@ -38,7 +38,7 @@ async fn locked_real_mihomo_runs_the_shared_core_conformance_suite() {
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked sing-box Linux amd64 real-process smoke"]
-async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() {
+async fn backend_conformance_locked_real_sing_box_runs_the_shared_suite() {
     backend_conformance_real::locked_real_sing_box_runs_the_shared_core_conformance_suite()
         .await
         .unwrap_or_else(|error| panic!("locked real sing-box conformance failed: {error}"));

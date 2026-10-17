@@ -1,3 +1,10 @@
+//! Product wrapper over the neutral adapter conformance kit.
+//!
+//! The neutral checks live in `lurker_engine_runtime::conformance`. This file
+//! keeps only product-owned facts: reflection operation declarations, evidence
+//! locks, the selected profile store, the native configuration transaction and
+//! the unsupported-live-save assertion.
+
 use async_trait::async_trait;
 use infiltrator_contract::adapter_operation_declaration::{
     AdapterOperationSupport, ValidatedAdapterOperationDeclarations,
@@ -5,57 +12,44 @@ use infiltrator_contract::adapter_operation_declaration::{
 use infiltrator_contract::core_capabilities::{
     AdapterRevision, CoreOperation, EngineBinaryTarget, OutboundOperation, ProxyControlOperation,
 };
-use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::profile_configuration_transaction::{
-    ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
 };
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::profile_workspace::{
-    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
-};
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use lurker_core_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceWriteAuthorization,
+    ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use lurker_core_contract::core_process::CoreProcessStartContext;
-use lurker_core_contract::error::{ErrorCode, Failure};
-use lurker_core_contract::identity::{
-    CoreGeneration, CoreIdentity, CoreScope, CoreVersion, EngineId,
-};
+use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::identity::{CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
-use lurker_core_contract::outbound::details::OutboundDetailsState;
-use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
-use lurker_core_contract::outbound::inventory::{
-    OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
-};
-use lurker_core_contract::profile_document::DocumentValidation;
-use lurker_core_contract::profile_document_identity::{
-    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
-    ProfileSourceId,
-};
-use lurker_core_contract::profile_protection::ProfileWriteProtection;
+use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::routing_intent::RoutingIntent;
-use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
-use lurker_core_ports::error::PortError;
-use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
-use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
-use lurker_core_ports::routing_intent::RoutingIntentPort;
+use lurker_core_ports::engine_backend::{
+    EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineOperationPorts,
+};
+use lurker_core_ports::outbound::OutboundProbeRequest;
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+};
+use lurker_engine_runtime::conformance::case::{
+    AdapterConformanceCase, DetailsBehavior, LifecycleExpectation, ProbeBehavior, RoutingBehavior,
+};
+use lurker_engine_runtime::conformance::failure::{ConformanceCheck, ConformanceFailure};
+use lurker_engine_runtime::conformance::group::ConformanceGroup;
+use lurker_engine_runtime::conformance::runner::{
+    AdapterConformanceRunningCheck, run_adapter_conformance_with_running_check,
+};
 use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::{sleep, timeout};
 
 #[path = "backend_conformance_profile.rs"]
 pub(crate) mod profile_support;
-#[path = "backend_conformance_runtime.rs"]
-mod runtime;
 
 pub const REAL_READINESS_TIMEOUT: Duration = Duration::from_secs(10);
-const READINESS_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OperationDeclarationState {
@@ -69,30 +63,6 @@ pub enum OperationDeclarationState {
 pub struct DeclaredOperationExpectation {
     pub operation: CoreOperation,
     pub state: OperationDeclarationState,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DetailsBehavior {
-    Ready,
-    Unsupported,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProbeBehavior {
-    Measured,
-    Unsupported,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RoutingBehavior {
-    Writable {
-        initial: RoutingIntent,
-        requested: RoutingIntent,
-    },
-    ReadOnlyUnsupported {
-        initial: RoutingIntent,
-        requested: RoutingIntent,
-    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,15 +97,76 @@ pub struct BackendConformanceCase {
     pub running_profile_transaction: RunningProfileTransactionBehavior,
 }
 
+impl BackendConformanceCase {
+    pub(super) fn adapter_case(&self, scope: &ProfileDocumentCodecScope) -> AdapterConformanceCase {
+        AdapterConformanceCase {
+            engine: self.engine.clone(),
+            expected_version: self.expected_version.clone(),
+            profile_format: scope.format_id.clone(),
+            profile_schema: scope.schema_version,
+            valid_document: self.valid_profile.clone(),
+            invalid_document: self.invalid_profile.clone(),
+            native_invalid_document: self.native_invalid_profile.clone(),
+            collection_id: self.collection_id.clone(),
+            initial_member_id: self.initial_member_id.clone(),
+            alternate_member_id: self.alternate_member_id.clone(),
+            probe_outbound_id: self.probe_outbound_id.clone(),
+            probe_request: self.probe_request.clone(),
+            details: self.details,
+            probe: self.probe,
+            routing: self.routing.clone(),
+            lifecycle: LifecycleExpectation::ManagedStartStop,
+            readiness_timeout: REAL_READINESS_TIMEOUT,
+        }
+    }
+}
+
 pub(super) struct BackendConformancePorts<'a> {
-    pub process: &'a dyn CoreProcess,
-    pub readiness: &'a dyn CoreReadiness,
-    pub codec: &'a dyn ProfileDocumentCodecPort,
+    pub backend: &'a EngineBackendPorts,
     pub configuration_transaction: &'a dyn ProfileConfigurationTransactionPort,
     pub profile_store: &'a dyn ProfileStore,
     pub transaction_owner: &'a dyn profile_support::ConformanceLifecycleControl,
-    pub outbound: &'a dyn OutboundPort,
-    pub routing: &'a dyn RoutingIntentPort,
+}
+
+/// Rebuild the neutral core bundle from a product provider's already-composed
+/// ports.
+///
+/// Product bundles bind their owner-scope source when the host attaches the
+/// single Core owner, so a second `EngineBackendPorts::new` cannot reuse that
+/// binding. The conformance runner passes explicit scopes to the outbound and
+/// routing ports, and the fresh fence is intentionally left unbound.
+pub fn conformance_engine_backend(
+    engine: &EngineId,
+    process: Arc<dyn CoreProcess>,
+    readiness: Arc<dyn CoreReadiness>,
+    configuration: Arc<dyn ProfileDocumentCodecPort>,
+    operations: EngineOperationPorts,
+) -> Result<EngineBackendPorts, String> {
+    let operations = match operations {
+        EngineOperationPorts::Available {
+            outbound,
+            routing_intent,
+            ..
+        } => EngineOperationPorts::available(
+            outbound,
+            routing_intent,
+            Arc::new(EngineBackendOwnerScopeBinding::new(engine.clone())),
+        ),
+        EngineOperationPorts::Unsupported { reason } => EngineOperationPorts::unsupported(reason),
+    };
+    EngineBackendPorts::new(
+        engine.clone(),
+        process,
+        readiness,
+        configuration,
+        operations,
+    )
+    .map_err(|error| {
+        format!(
+            "construct conformance engine bundle for {}: {error}",
+            engine.as_str()
+        )
+    })
 }
 
 pub async fn run_backend_conformance(
@@ -145,44 +176,35 @@ pub async fn run_backend_conformance(
 ) -> Result<(), String> {
     verify_operation_declarations(case, declarations)?;
     verify_engine_bindings(case, ports)?;
-    verify_initial_process_state(ports.process).await?;
-    verify_document_inspection(case, ports)?;
-    profile_support::verify_native_profile_behavior(case, ports).await?;
+    profile_support::verify_native_profile_behavior(case, ports)
+        .await
+        .map_err(|error| {
+            format!(
+                "{} native profile behavior failed: {error}",
+                case.engine.as_str()
+            )
+        })?;
 
-    let start_context = ports
-        .process
-        .core_identity()
-        .map(CoreProcessStartContext::standalone)
-        .ok_or_else(|| "backend process has no stable identity for start".to_owned())?;
-    match ports.process.start(start_context).await {
-        Ok(()) => {}
-        Err(start_error) => {
-            let stop_result = ports.process.stop().await;
-            let stopped_result = runtime::verify_stopped(ports.process).await;
-            return match (stop_result, stopped_result) {
-                (Ok(()), Ok(())) => Err(format!("process start failed: {start_error}")),
-                (Err(stop_error), Ok(())) => Err(format!(
-                    "process start failed: {start_error}; cleanup after failed start also failed: {stop_error}"
-                )),
-                (Ok(()), Err(status_error)) => Err(format!(
-                    "process start failed: {start_error}; stopped-state verification failed: {status_error}"
-                )),
-                (Err(stop_error), Err(status_error)) => Err(format!(
-                    "process start failed: {start_error}; cleanup failed: {stop_error}; stopped-state verification failed: {status_error}"
-                )),
-            };
-        }
-    }
-
-    let running_result = runtime::run_while_process_is_running(case, ports).await;
-    let stop_result = ports.process.stop().await;
-    let stopped_result = runtime::verify_stopped(ports.process).await;
-    if stopped_result.is_ok() {
-        ports
-            .transaction_owner
-            .update_observed_lifecycle(CoreLifecycle::Stopped);
-    }
-    runtime::combine_run_and_cleanup(running_result, stop_result, stopped_result)
+    let adapter_case = case.adapter_case(&ports.backend.configuration().scope());
+    let live_save = LiveSaveUnsupportedCheck { case, ports };
+    let while_running: Option<&dyn AdapterConformanceRunningCheck> =
+        match case.running_profile_transaction {
+            RunningProfileTransactionBehavior::Unsupported => Some(&live_save),
+            RunningProfileTransactionBehavior::NotExercised => None,
+        };
+    run_adapter_conformance_with_running_check(
+        &adapter_case,
+        ports.backend,
+        &ConformanceGroup::ALL,
+        while_running,
+    )
+    .await
+    .map_err(|failure| {
+        format!(
+            "{} adapter conformance failed: {failure}",
+            case.engine.as_str()
+        )
+    })
 }
 
 fn verify_operation_declarations(
@@ -252,8 +274,16 @@ fn verify_engine_bindings(
     case: &BackendConformanceCase,
     ports: &BackendConformancePorts<'_>,
 ) -> Result<(), String> {
+    if ports.backend.engine_id() != &case.engine {
+        return Err(format!(
+            "backend engine {} does not match conformance engine {}",
+            ports.backend.engine_id().as_str(),
+            case.engine.as_str()
+        ));
+    }
     let process_identity = ports
-        .process
+        .backend
+        .process()
         .core_identity()
         .ok_or_else(|| "process adapter has no owner-authored CoreIdentity".to_owned())?;
     if process_identity.engine != case.engine {
@@ -275,7 +305,7 @@ fn verify_engine_bindings(
             case.engine.as_str()
         ));
     }
-    let codec_engine = ports.codec.scope().engine_id;
+    let codec_engine = ports.backend.configuration().scope().engine_id;
     if codec_engine != case.engine {
         return Err(format!(
             "document codec engine {} does not match conformance engine {}",
@@ -319,45 +349,109 @@ fn verify_engine_bindings(
     Ok(())
 }
 
-fn verify_document_inspection(
-    case: &BackendConformanceCase,
-    ports: &BackendConformancePorts<'_>,
-) -> Result<(), String> {
-    match ports.codec.inspect(&case.valid_profile) {
-        Ok(DocumentValidation::Valid) => {}
-        Ok(other) => {
-            return Err(format!(
-                "valid {} profile was not accepted by its codec: {other:?}",
-                case.engine.as_str()
-            ));
-        }
-        Err(error) => {
-            return Err(format!(
-                "valid {} profile inspection failed: {error}",
-                case.engine.as_str()
-            ));
-        }
-    }
-    match ports.codec.inspect(&case.invalid_profile) {
-        Ok(DocumentValidation::Invalid { .. }) => Ok(()),
-        Ok(other) => Err(format!(
-            "invalid {} profile was not rejected by its codec: {other:?}",
-            case.engine.as_str()
-        )),
-        Err(error) => Err(format!(
-            "invalid {} profile inspection failed unexpectedly: {error}",
-            case.engine.as_str()
-        )),
-    }
+struct LiveSaveUnsupportedCheck<'a> {
+    case: &'a BackendConformanceCase,
+    ports: &'a BackendConformancePorts<'a>,
 }
 
-async fn verify_initial_process_state(process: &dyn CoreProcess) -> Result<(), String> {
-    match process.status().await {
-        Ok(CoreLifecycle::Stopped) => Ok(()),
-        Ok(status) => Err(format!(
-            "conformance requires an initially stopped process, observed {status:?}"
-        )),
-        Err(error) => Err(format!("could not observe initial process state: {error}")),
+#[async_trait]
+impl AdapterConformanceRunningCheck for LiveSaveUnsupportedCheck<'_> {
+    async fn check(&self) -> Result<(), ConformanceFailure> {
+        self.ports
+            .transaction_owner
+            .update_observed_lifecycle(CoreLifecycle::Running);
+        let before = self
+            .ports
+            .profile_store
+            .load_active_workspace()
+            .await
+            .map_err(|error| {
+                ConformanceFailure::port_error(
+                    ConformanceCheck::RunningObserver,
+                    "the active workspace is readable",
+                    "the workspace read before the live-save check failed",
+                    &error,
+                )
+            })?;
+        let expected_reference = match self
+            .ports
+            .profile_store
+            .read_active_profile_reference()
+            .await
+            .map_err(|error| {
+                ConformanceFailure::port_error(
+                    ConformanceCheck::RunningObserver,
+                    "the active reference is readable",
+                    "the active reference read before the live-save check failed",
+                    &error,
+                )
+            })? {
+            ActiveProfileReferenceState::Selected(reference) => reference,
+            ActiveProfileReferenceState::Unselected { .. } => {
+                return Err(ConformanceFailure::state(
+                    ConformanceCheck::RunningObserver,
+                    "a selected active profile reference",
+                    "unselected",
+                    "the live-save check has no selected profile reference",
+                ));
+            }
+        };
+        let result = self
+            .ports
+            .configuration_transaction
+            .transact(ProfileConfigurationTransactionRequest {
+                expected_reference,
+                expected: before.identity(),
+                update: ProfileWorkspaceUpdate {
+                    purpose: ProfileWorkspacePurpose::Derived,
+                    document_bytes: self.case.valid_profile.clone(),
+                    sidecar_bytes: before.sidecar_bytes.clone(),
+                },
+                authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
+                strategy: ApplyStrategy::PreferReload,
+            })
+            .await;
+        match result {
+            Err(error) if error.error_code() == ErrorCode::Unsupported => {}
+            Err(error) => {
+                return Err(ConformanceFailure::adapter_error(
+                    ConformanceCheck::RunningObserver,
+                    "a typed Unsupported error",
+                    error.to_string(),
+                    "the live profile save returned the wrong typed error",
+                ));
+            }
+            Ok(_) => {
+                return Err(ConformanceFailure::state(
+                    ConformanceCheck::RunningObserver,
+                    "a typed Unsupported error",
+                    "live save accepted",
+                    "the live profile save was accepted despite the provider contract",
+                ));
+            }
+        }
+        let after = self
+            .ports
+            .profile_store
+            .load_active_workspace()
+            .await
+            .map_err(|error| {
+                ConformanceFailure::port_error(
+                    ConformanceCheck::RunningObserver,
+                    "the active workspace is readable",
+                    "the workspace read after the live-save check failed",
+                    &error,
+                )
+            })?;
+        if after != before {
+            return Err(ConformanceFailure::state(
+                ConformanceCheck::RunningObserver,
+                "an unchanged active workspace",
+                "workspace changed",
+                "an unsupported live profile save changed the workspace",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -365,7 +459,6 @@ pub fn expected_support(
     declarations: &ValidatedAdapterOperationDeclarations,
     operation: CoreOperation,
 ) -> OperationDeclarationState {
-    use infiltrator_contract::adapter_operation_declaration::AdapterOperationSupport;
     match declarations.support(operation) {
         AdapterOperationSupport::Supported { .. } => OperationDeclarationState::Supported,
         AdapterOperationSupport::OwnerManaged { .. } => OperationDeclarationState::OwnerManaged,
