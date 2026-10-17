@@ -65,6 +65,7 @@
 
 - [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: InProgress] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
   - 拆批：2a 中立契约/端口/协调器 + 内存 journal（fake 测试）；2b 产品迁移（ActiveProfileReferenceStore 实现中性 journal、composition selector 改用 coordinator）；2c profile-store part 3（CAS/租约/owner/reset 下沉）。
+  - 进度（2026-10-17，本地 L）：2a 完成 —— `EngineSwitchStage<S>`/`Snapshot`/`Recovery`/`FailurePhase`/`Disposition` 入中立契约，journal/lease traits 入中立端口，`EngineSwitchCoordinator` + 内存 journal 完成；10 个调用顺序/回滚/恢复/陈旧租约测试，三包 80/80 nextest。
   - 产物：基于 CAS 租约与 Generation/Revision 围栏的无缝切换组件；失败时原主自动恢复。
   - 裁决：中性 `EngineSwitchStage<S>` + 持久化 wire 枚举只做一对一映射（不改 serde 名，免 schema 迁移）；旧 owner 终态之后只能 `RecoveryRequired`，禁止伪造自动恢复。
   - 依赖：PUB-003.1；PUB-001.3 需先裁决 store 是否对 selection 泛型（否则用产品本地 newtype 实现中性 journal）。

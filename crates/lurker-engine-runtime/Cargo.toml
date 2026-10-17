@@ -10,3 +10,6 @@ repository = "https://github.com/zhugenanbei181/music-frog"
 lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
 lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
 async-trait = { workspace = true }
+
+[dev-dependencies]
+futures-executor = "0.3"

@@ -7,6 +7,7 @@
 pub mod active_profile_reference;
 pub mod capability;
 pub mod core_process;
+pub mod engine_switch;
 pub mod error;
 pub mod identity;
 pub mod lifecycle;

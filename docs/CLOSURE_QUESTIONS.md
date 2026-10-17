@@ -27,7 +27,7 @@
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 中性内核 x64/arm64 四个目标通过；产品层只有 x86_64-linux；`aarch64-pc-windows-msvc` 未纳入本地矩阵 |
+| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部 `cargo check --locked` 通过；产品层仍只有 x86_64-linux，aarch64 产品包未验证 |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物） |
 | 3 | 部分 | L | Android 源码级接通，APK 在 v0.42.6 失败且修复未取证，真机 0；iOS `Unsupported`（626 行 stub） |
 | 4 | 部分 | L | Iced/Bevy 深接入；Slint 最小接入（5.0k 行/16 文件，无共享 kit）；Android 基础页 |
@@ -38,7 +38,7 @@
 
 ## 最近一批问答（2026-10-17）
 
-1. x86_64/aarch64：中性内核 4 个目标通过，产品层仅 x86_64-linux，`aarch64-pc-windows-msvc` 未验证 → 部分（L）。
+1. x86_64/aarch64：中性内核 8 个组合（Windows/Linux/macOS/Android × x64/arm64）全部 `cargo check --locked` 通过（macOS 仅编译检查，无产物）；产品层仍只有 x86_64-linux → 部分（L）。
 2. Windows/Linux/macOS：Windows/Linux 有旧 commit 的 CI 腿，macOS 无产物 → 部分（C 旧 + L）。
 3. Android/iOS：Android APK 无当前证据、真机 0；iOS 只有 host stub → 部分 / 缺失（L）。
 4. 各 UI：Iced 59.6k 行、Bevy 72.8k 行、Slint 5.0k 行、Android 23.6k 行，全部参与编译，但只有前两者是深接入 → 部分（L）。

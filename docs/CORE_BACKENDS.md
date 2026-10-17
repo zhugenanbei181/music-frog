@@ -18,6 +18,16 @@ Mihomo 的订阅 `Import`、`UpdateProfile`、`UpdateAllSubscriptions` 现由共
 
 产品契约 [`infiltrator-contract`](../crates/infiltrator-contract/Cargo.toml) 与产品 port [`infiltrator-ports`](../crates/infiltrator-ports/Cargo.toml) 单向依赖中性层：它们可以增加产品语义（例如 `Availability`/`CapabilitySnapshot`、workspace identity、typed profile configuration），但中性类型只保留一个定义处，不得再导出同名副本。`scripts/quality/core-boundary-guard.py` 与 `scripts/quality/lurker-neutrality-guard.py` 共同守住该方向。
 
+## Engine switch protocol
+
+`lurker-*` 中性层的 owner 替换协议分三层落地，三者只按 contract → ports → runtime 单向依赖：
+
+- 契约 [`engine_switch`](../crates/lurker-core-contract/src/engine_switch.rs)：`EngineSwitchRevision`（checked `next()`）、`EngineSwitchTarget<S>`、唯一的四阶段 `EngineSwitchStage<S>`（`ClosingOld` → `OldStopped` → `SelectionChanged` → `BindingNew`）、`EngineOwnerState<S>`、`EngineSwitchSnapshot<S>`、`EngineSwitchFailurePhase`（`BeforeReservation`/`ReservationPending`/`OwnerTerminationUnconfirmed`/`OldOwnerClosed`）与 `EngineSwitchDisposition<S>`（`RolledBackToPrevious`/`RecoveryRequired`）。
+- 端口 [`engine_switch`](../crates/lurker-core-ports/src/engine_switch.rs)：`EngineSwitchJournal::{snapshot, bind_owner, begin_owner_switch, recover_owner_switch, recover_old_owner_after_terminal, recover_candidate_after_terminal}` 与 `EngineOwnerLease`/`EngineOwnerSwitchLease`/`EngineOwnerStoppedSwitchLease`/`EngineSwitchSelectionChangedLease`/`EngineOwnerBindingLease` 逐阶段 lease。每个 lease 绑定签发时的 revision 与 exact generation，过期 lease 只能得到 stale 拒绝。
+- runtime [`switch`](../crates/lurker-engine-runtime/src/switch)：`EngineSwitchCoordinator<B, J>` 固定 validate → snapshot（必须 `Bound` + `Selected`）→ registry dispatch 与 candidate prepare（都在 reservation 之前）→ `begin_owner_switch` → 旧 owner exact terminal → `compare_and_set_target` → `reserve_new_owner` → apply → `finalize`；`MemoryEngineSwitchJournal` 是 facade 与 fake 测试用的内存 journal。
+
+旧 owner terminal 之前失败可 `cancel_before_old_owner_close` 回到原绑定；terminal 之后任何失败只返回 `OldOwnerClosed` + `RecoveryRequired`，由 journal 中保留的 stage 与 terminal generation 续跑，绝不伪造自动恢复。`EngineSwitchRecovery<S>` 是纯 tagged enum、不携带 port trait object，以保持 contract 不依赖 ports；可恢复 lease 由 journal 的 `recover_old_owner_after_terminal` 与 `recover_candidate_after_terminal` 在拿到 terminal 证据后单独返回。本小节只覆盖 PUB-003.2a 的中立协议、coordinator 与 fake/内存 journal；产品 `ActiveProfileReferenceStore`/composition 迁移属于 PUB-003.2b。
+
 ## Adapter crate owner
 
 每个引擎都按稳定职责边界拆包；能力尚未验证的操作仍在所属 adapter 中返回 typed `Unsupported`，不能因此把多个职责并回一个 engine umbrella crate。
