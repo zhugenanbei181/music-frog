@@ -28,7 +28,9 @@ use singbox_driver::api::http::SingBoxControllerAuthorization;
 use singbox_driver::driver::SingBoxProcess;
 use singbox_driver::outbound::SingBoxOutboundAdapter;
 use singbox_driver::readiness::SingBoxControllerReadiness;
+use std::env::var;
 use std::error::Error;
+use std::fs::read;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -60,7 +62,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> ExampleResult<()> {
-    match plan::resolve_plan(|key| std::env::var(key).ok())? {
+    match plan::resolve_plan(|key| var(key).ok())? {
         plan::LifecyclePlan::NotConfigured { missing } => {
             print_not_configured(&missing);
             Ok(())
@@ -134,7 +136,7 @@ async fn run_configured(target: &plan::EngineTarget) -> ExampleResult<()> {
 }
 
 fn load_controller(target: &plan::EngineTarget) -> ExampleResult<SingBoxControllerConfiguration> {
-    let raw = std::fs::read(target.config())?;
+    let raw = read(target.config())?;
     let controller = SingBoxControllerConfiguration::from_profile_json(&raw)?;
 
     if controller.address() != target.controller() {

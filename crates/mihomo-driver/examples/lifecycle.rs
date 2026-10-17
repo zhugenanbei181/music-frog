@@ -25,6 +25,7 @@ use lurker_core_ports::outbound::OutboundPort;
 use mihomo_driver::api::client::MihomoClient;
 use mihomo_driver::driver::{ControllerReadiness, ProcessCoreController};
 use mihomo_driver::outbound::MihomoOutboundAdapter;
+use std::env::var;
 use std::error::Error;
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -57,7 +58,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> ExampleResult<()> {
-    match plan::resolve_plan(|key| std::env::var(key).ok())? {
+    match plan::resolve_plan(|key| var(key).ok())? {
         plan::LifecyclePlan::NotConfigured { missing } => {
             print_not_configured(&missing);
             Ok(())

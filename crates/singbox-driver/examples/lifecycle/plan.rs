@@ -5,6 +5,8 @@
 //! example resolves the engine target from the environment, then hands it to
 //! the driver's neutral ports.
 
+use std::error::Error;
+use std::fmt;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -88,8 +90,8 @@ pub enum PlanError {
     EphemeralControllerPort(String),
 }
 
-impl std::fmt::Display for PlanError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for PlanError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingEnv(key) => {
                 write!(formatter, "the engine is configured but {key} is not set")
@@ -110,7 +112,7 @@ impl std::fmt::Display for PlanError {
     }
 }
 
-impl std::error::Error for PlanError {}
+impl Error for PlanError {}
 
 /// Resolves the example target from an environment lookup.
 ///
