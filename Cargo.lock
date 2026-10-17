@@ -6356,6 +6356,7 @@ dependencies = [
  "infiltrator-platform",
  "infiltrator-ports",
  "infiltrator-shared",
+ "infiltrator-test-support",
  "log",
  "mihomo-api",
  "mihomo-config",

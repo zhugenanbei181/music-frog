@@ -28,6 +28,7 @@ url = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
 infiltrator-core = { path = "../infiltrator-core" }
+infiltrator-test-support = { path = "../infiltrator-test-support" }
 mihomo-api = { path = "../mihomo-api" }
 tempfile = { workspace = true }
 mockito = { workspace = true }

@@ -9,6 +9,7 @@ pub mod doctor_capture_fixtures;
 pub mod filter_capture_store;
 pub mod language_choice_fixtures;
 pub mod log_capture_fixtures;
+pub mod memory_credential_store;
 pub mod profile_document_codec_test_support;
 pub mod profile_workspace_test_support;
 pub mod routing_intent_fixtures;

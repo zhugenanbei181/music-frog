@@ -25,7 +25,11 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_platform::credentials::{
+    clear_credential_store_override, set_credential_store_override,
+};
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_test_support::memory_credential_store::MemoryCredentialStore;
 use infiltrator_ports::profile_store::ProfileStore;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
@@ -100,6 +104,10 @@ impl TempHome {
             set_home_dir_override(dir.clone()),
             "home override must install while HOME_LOCK is held"
         );
+        assert!(
+            set_credential_store_override(Arc::new(MemoryCredentialStore::new())),
+            "credential override must install while HOME_LOCK is held"
+        );
         let profile_config_dir = block_on(config_manager())
             .expect("Mihomo profile store is available for this temporary home")
             .config_dir();
@@ -155,6 +163,7 @@ impl TempHome {
 impl Drop for TempHome {
     fn drop(&mut self) {
         clear_home_dir_override();
+        clear_credential_store_override();
         let _ = remove_dir_all(&self.dir);
     }
 }

@@ -49,6 +49,9 @@ mod tests {
     #[cfg(test)]
     use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
     use infiltrator_platform::TEST_LOCK;
+    use infiltrator_platform::credentials::{
+        clear_credential_store_override, set_credential_store_override,
+    };
     use infiltrator_platform::defaults::DefaultCredentialStore;
     #[cfg(test)]
     use infiltrator_platform::paths::clear_home_dir_override;
@@ -57,6 +60,7 @@ mod tests {
     use infiltrator_ports::profile_store::ProfileStore;
     #[cfg(test)]
     use infiltrator_ports::subscription_source::SubscriptionSource;
+    use infiltrator_test_support::memory_credential_store::MemoryCredentialStore;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     #[cfg(test)]
@@ -239,6 +243,10 @@ mod tests {
             .unwrap();
         clear_home_dir_override();
         set_home_dir_override(temp_dir.path().to_path_buf());
+        assert!(
+            set_credential_store_override(Arc::new(MemoryCredentialStore::new())),
+            "credential override must install while TEST_LOCK is held"
+        );
         let saved_env = test_env::clear_configs_dir_env();
         let manager = app_config_manager().await.unwrap();
 
@@ -290,6 +298,7 @@ mod tests {
 
         test_env::restore_configs_dir_env(saved_env);
         clear_home_dir_override();
+        clear_credential_store_override();
     }
 
     #[tokio::test]
@@ -581,6 +590,10 @@ mod tests {
             let temp = tempfile::Builder::new().prefix(prefix).tempdir().unwrap();
             clear_home_dir_override();
             set_home_dir_override(temp.path().to_path_buf());
+            assert!(
+                set_credential_store_override(Arc::new(MemoryCredentialStore::new())),
+                "credential override must install while TEST_LOCK is held"
+            );
             let saved_env = test_env::clear_configs_dir_env();
             let cloud = temp.path().join("cloud");
             create_dir_all(&cloud).unwrap();
@@ -601,6 +614,7 @@ mod tests {
         fn restore(self) {
             test_env::restore_configs_dir_env(self.saved_env);
             clear_home_dir_override();
+            clear_credential_store_override();
         }
     }
 

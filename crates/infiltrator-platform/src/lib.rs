@@ -3,6 +3,7 @@ use tokio::sync::Mutex;
 pub mod android;
 pub mod android_bridge;
 pub mod crash_reporter;
+pub mod credentials;
 pub mod defaults;
 #[cfg(not(target_os = "android"))]
 pub mod desktop;
@@ -30,8 +31,6 @@ pub fn apply_data_dir_override<P: DataDirProvider>(provider: &P) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(not(target_os = "android"))]
-    use crate::desktop::DesktopDataDirProvider;
     use std::path::PathBuf;
 
     struct MockProvider {

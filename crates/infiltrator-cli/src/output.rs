@@ -86,7 +86,7 @@ fn pad(text: &str, target: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{pad, print_json, print_table, width};
+    use super::{pad, width};
 
     #[test]
     fn width_counts_characters_not_bytes() {

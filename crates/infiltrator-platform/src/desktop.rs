@@ -1,3 +1,4 @@
+use crate::credentials::credential_store_override;
 use crate::paths::get_home_dir;
 use async_trait::async_trait;
 use infiltrator_ports::data_dir::DataDirProvider;
@@ -18,6 +19,9 @@ impl Default for KeyringCredentialStore {
 #[async_trait]
 impl SecureStore for KeyringCredentialStore {
     async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
+        if let Some(store) = credential_store_override() {
+            return store.get(service, key).await;
+        }
         let service = service.to_string();
         let key = key.to_string();
         spawn_blocking(move || -> result::Result<Option<String>, PortError> {
@@ -42,6 +46,9 @@ impl SecureStore for KeyringCredentialStore {
     }
 
     async fn set(&self, service: &str, key: &str, value: &str) -> result::Result<(), PortError> {
+        if let Some(store) = credential_store_override() {
+            return store.set(service, key, value).await;
+        }
         let service = service.to_string();
         let key = key.to_string();
         let value = value.to_string();
@@ -58,6 +65,9 @@ impl SecureStore for KeyringCredentialStore {
     }
 
     async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
+        if let Some(store) = credential_store_override() {
+            return store.delete(service, key).await;
+        }
         let service = service.to_string();
         let key = key.to_string();
         spawn_blocking(move || -> result::Result<(), PortError> {
