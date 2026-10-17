@@ -1,8 +1,7 @@
 //! Scope-fenced Mihomo log and traffic stream adapter.
 
-use crate::client::{MihomoClient, StreamEvent};
-use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
+use crate::runtime_wire::traffic_data;
 use async_trait::async_trait;
 use futures_util::{StreamExt, stream::unfold};
 use infiltrator_domain::runtime::TrafficData;
@@ -14,6 +13,8 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::{MihomoClient, StreamEvent, StreamTerminal};
+use mihomo_driver::network_error::network_error;
 use std::convert::identity;
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -102,7 +103,15 @@ impl RuntimeStreamPort for MihomoRuntimeStreamPort {
                 "Mihomo stream access has no Core scope resolver",
             )
         })?;
-        Ok(scope_stream(receiver, scope, resolver, Into::into))
+        Ok(scope_stream(receiver, scope, resolver, traffic_data))
+    }
+}
+
+fn map_terminal(terminal: StreamTerminal) -> RuntimeStreamTerminal {
+    match terminal {
+        StreamTerminal::Cancelled => RuntimeStreamTerminal::Cancelled,
+        StreamTerminal::Failed(failure) => RuntimeStreamTerminal::Failed(failure),
+        StreamTerminal::Unsupported(failure) => RuntimeStreamTerminal::Unsupported(failure),
     }
 }
 
@@ -165,7 +174,7 @@ where
                                     RuntimeStreamEvent::Reconnecting(failure)
                                 }
                                 StreamEvent::Terminal(terminal) => {
-                                    RuntimeStreamEvent::Terminal(terminal)
+                                    RuntimeStreamEvent::Terminal(map_terminal(terminal))
                                 }
                             };
                             let progress = if matches!(&event, RuntimeStreamEvent::Terminal(_)) {
@@ -272,3 +281,7 @@ enum StreamMapProgress {
     Receiving,
     Terminated,
 }
+
+#[cfg(test)]
+#[path = "runtime_stream_tests.rs"]
+mod tests;

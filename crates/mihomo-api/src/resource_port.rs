@@ -1,8 +1,5 @@
 //! Owner-scoped Mihomo memory/GC adapter with verified post-GC readback.
 
-use crate::client::MihomoClient;
-use crate::error::MihomoError;
-use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_ports::resources::{
@@ -13,6 +10,9 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::error::MihomoError;
+use mihomo_driver::network_error::network_error;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -117,3 +117,7 @@ fn stale_scope() -> PortError {
         false,
     ))
 }
+
+#[cfg(test)]
+#[path = "resource_port_tests.rs"]
+mod tests;

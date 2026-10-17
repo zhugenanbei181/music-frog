@@ -38,18 +38,19 @@ use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
+use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
-use mihomo_api::readiness::ControllerReadiness;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_api::runtime_configuration::{
     MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
 };
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::driver::ControllerReadiness;
+use mihomo_driver::routing_intent::MihomoRoutingIntentAdapter;
 use std::num::NonZeroU64;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -483,7 +484,9 @@ where
             ))
             .with_runtime_queries(
                 RuntimeQueryApplication::new(scope_source, runtime_stream_port)
-                    .with_core_log_level_port(Arc::new(client.clone())),
+                    .with_core_log_level_port(Arc::new(MihomoCoreLogLevelAdapter::new(
+                        client.clone(),
+                    ))),
             )
             .with_runtime_configuration_ports(configuration_ports)
             .with_application_runtime(runtime)

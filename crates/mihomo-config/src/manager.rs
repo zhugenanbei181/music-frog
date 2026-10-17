@@ -36,7 +36,7 @@ use lurker_profile_store::namespace::{
     LegacyProfileNamespaceMigrationV1, ProfileNamespaceInitialization,
 };
 use lurker_profile_store::store::ProfileDocumentExtension;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 

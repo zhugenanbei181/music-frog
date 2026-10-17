@@ -1,7 +1,37 @@
 //! Engine driver for the mihomo (Clash.Meta) core.
 //!
-//! The driver owns the engine-specific control API client, configuration
-//! document codec and process supervision behind `lurker-core-ports`. It
-//! carries no product type, platform host or UI dependency.
+//! The driver owns the engine-specific control API client, WebSocket streams,
+//! process supervision and version knowledge behind `lurker-core-ports`. It
+//! carries no product type, platform host or UI dependency: every product
+//! surface consumes these types and implements its own product-level ports on
+//! top of them.
 //!
-//! Implementation lands with PUB-002.1/002.2.
+//! Feature layout:
+//! * `http` — REST controller client, log/connection/traffic WebSocket streams,
+//!   outbound inventory probes, routing-intent switching and controller
+//!   readiness probing.
+//! * `process` — desktop process supervision: spawn, readiness, PID ownership,
+//!   exact terminal readback and child reaping.
+
+#[cfg(feature = "http")]
+pub mod api;
+pub mod driver;
+pub mod error;
+#[cfg(feature = "http")]
+pub mod network_error;
+#[cfg(feature = "http")]
+pub mod outbound;
+#[cfg(feature = "process")]
+mod process;
+#[cfg(feature = "http")]
+pub mod routing_intent;
+#[cfg(feature = "http")]
+pub mod types;
+pub mod version;
+
+#[cfg(test)]
+#[path = "error_test.rs"]
+mod error_test;
+#[cfg(all(test, feature = "http"))]
+#[path = "types_test.rs"]
+mod types_test;

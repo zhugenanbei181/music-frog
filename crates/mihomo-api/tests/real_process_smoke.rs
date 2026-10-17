@@ -28,15 +28,17 @@ use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use lurker_core_ports::routing_intent::RoutingIntentPort;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
-use mihomo_api::outbound::MihomoOutboundAdapter;
+use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
+use mihomo_api::dns_query::MihomoDnsQueryAdapter;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::outbound::MihomoOutboundAdapter;
+use mihomo_driver::routing_intent::MihomoRoutingIntentAdapter;
 use std::env;
 use std::fs;
 use std::sync::Arc;
@@ -86,7 +88,8 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         name: "core-smoke.test".to_owned(),
         record_type: DnsRecordType::A,
     };
-    let dns_response = DnsQueryPort::query(&client, &dns_request)
+    let dns = MihomoDnsQueryAdapter::new(client.clone());
+    let dns_response = DnsQueryPort::query(&dns, &dns_request)
         .await
         .expect("typed DNS query against the running Mihomo controller");
     assert_eq!(dns_response.status, 0, "fixture DNS query is successful");
@@ -175,9 +178,11 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     } else {
         CoreLogLevel::Debug
     };
+    let log_level_port = MihomoCoreLogLevelAdapter::new(client.clone());
     let changed_log_level =
-        CoreLogLevelPort::set_core_log_level(&client, requested_log_level).await;
-    let restored_log_level = CoreLogLevelPort::set_core_log_level(&client, prior_log_level).await;
+        CoreLogLevelPort::set_core_log_level(&log_level_port, requested_log_level).await;
+    let restored_log_level =
+        CoreLogLevelPort::set_core_log_level(&log_level_port, prior_log_level).await;
     assert_eq!(
         changed_log_level.expect("typed core log-level write and readback"),
         requested_log_level

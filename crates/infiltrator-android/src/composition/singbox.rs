@@ -12,12 +12,12 @@ use infiltrator_ports::engine_backend_factory::EngineOperationPorts;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionBinding;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document_identity::ProfileDocument;
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_config::config::SingBoxProfileConfigurationAdapter;
 use singbox_config::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_process::command::SingBoxCommandPort;
-use singbox_process::process::SingBoxCoreOperationGate;
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_driver::codec::config::SingBoxProfileConfigurationAdapter;
+use singbox_driver::driver::SingBoxCoreOperationGate;
+use singbox_driver::process::command::SingBoxCommandPort;
 use std::path::PathBuf;
 
 /// Assemble the Android :vpn lifecycle owner for one already selected,
@@ -174,7 +174,8 @@ where
         launch_spec_source,
         Arc::clone(&operation_gate),
     ));
-    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
+    let codec: Arc<dyn ProfileConfigurationCodecPort> =
+        Arc::new(SingBoxProfileConfigurationCodec::new());
     let transaction_binding = Arc::new(ProfileConfigurationTransactionBinding::new(
         ProfileConfigurationTransactionScope::new(codec.scope()),
     ));

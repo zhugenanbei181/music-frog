@@ -4,14 +4,13 @@
 //! on Linux/macOS) between the unprivileged GUI client and the background privileged
 //! service helper (TUN route injection, system proxy override, and power/status telemetry).
 
-#[cfg(unix)]
 use infiltrator_platform::paths::get_home_dir;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::core_process::CoreProcess;
 use lurker_core_ports::error::PortError;
-use mihomo_api::error;
-use mihomo_process::desktop::ProcessCoreController;
+use mihomo_driver::driver::ProcessCoreController;
+use mihomo_driver::error;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(unix)]
@@ -58,8 +57,13 @@ pub struct ServiceManager {
 
 impl ServiceManager {
     pub fn new(binary_path: PathBuf, config_path: PathBuf) -> Self {
+        let home = get_home_dir().unwrap_or_else(|_| PathBuf::from("."));
         Self {
-            controller: Arc::new(ProcessCoreController::new(binary_path.clone(), config_path)),
+            controller: Arc::new(ProcessCoreController::with_home(
+                binary_path.clone(),
+                config_path,
+                home,
+            )),
             binary_path,
         }
     }

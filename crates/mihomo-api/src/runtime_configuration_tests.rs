@@ -1,6 +1,6 @@
 use super::*;
-use crate::types::{DnsConfig, SnifferConfig, TunConfig};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use mihomo_driver::types::{DnsConfig, SnifferConfig, TunConfig};
 
 struct FixedOwner(CoreScopeObservation);
 

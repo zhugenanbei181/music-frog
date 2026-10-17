@@ -1,9 +1,5 @@
 //! Mihomo rule-provider adapter with owner and observation revision fences.
 
-use crate::client::MihomoClient;
-use crate::error::MihomoError;
-use crate::network_error::network_error;
-use crate::types::RuleProvider;
 use async_trait::async_trait;
 use infiltrator_contract::rule_provider_runtime::{
     RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayload,
@@ -14,6 +10,10 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::error::MihomoError;
+use mihomo_driver::network_error::network_error;
+use mihomo_driver::types::RuleProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -306,8 +306,6 @@ fn stale_revision() -> PortError {
 #[cfg(test)]
 mod tests {
     use super::{MihomoRuleProviderAdapter, MihomoRuleProviderApi};
-    use crate::error::MihomoError;
-    use crate::types::RuleProvider;
     use async_trait::async_trait;
     use infiltrator_contract::rule_provider_runtime::{
         RuleProviderId, RuleProviderPayload, RuleProviderRevision,
@@ -318,6 +316,8 @@ mod tests {
     };
     use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use lurker_core_ports::error::PortError;
+    use mihomo_driver::error::MihomoError;
+    use mihomo_driver::types::RuleProvider;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};

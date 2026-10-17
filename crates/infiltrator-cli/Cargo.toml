@@ -21,9 +21,9 @@ infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-driver = { version = "0.42.6", path = "../mihomo-driver" }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
-mihomo-process = { path = "../mihomo-process" }
 mihomo-version = { path = "../mihomo-version" }
 serde = { workspace = true }
 serde_json = { workspace = true }

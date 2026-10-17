@@ -6,8 +6,8 @@ use lurker_core_contract::identity::{
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::outbound::OutboundPort;
-use mihomo_api::client::MihomoClient;
-use mihomo_api::outbound::MihomoOutboundAdapter;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::outbound::MihomoOutboundAdapter;
 use serde_json::json;
 use std::env;
 use std::sync::Arc;

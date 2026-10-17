@@ -24,12 +24,14 @@ use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_api::http::{
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_driver::api::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
+use singbox_driver::process::command::{
+    NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort,
+};
 use std::path::Path;
 use std::str::from_utf8;
 use std::sync::Arc;
@@ -156,7 +158,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
             home.path().to_path_buf(),
             None,
             TestCredentialStore,
-            Arc::new(SingBoxProfileDocumentCodec),
+            Arc::new(SingBoxProfileConfigurationCodec::new()),
             ProfileDocumentExtension::Json,
         )
         .expect("production engine-scoped profile store"),

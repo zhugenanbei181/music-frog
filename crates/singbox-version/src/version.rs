@@ -4,9 +4,10 @@ mod state;
 
 use asset::LockedSingBoxRelease;
 use install::{
-    HttpSingBoxArchiveDownloader, InstallPlan, InstallStage, ProcessSingBoxBinaryInspector,
-    PublishedInstall, SingBoxArchiveDownloader, SingBoxBinaryInspector,
+    HttpSingBoxArchiveDownloader, InstallPlan, InstallStage, PublishedInstall,
+    SingBoxArchiveDownloader,
 };
+use singbox_driver::version::{ProcessSingBoxBinaryInspector, SingBoxBinaryInspector};
 use state::{
     InstalledSingBoxReceipt, VerifiedInstalledBinary, VersionSelectionJournal,
     VersionSelectionState, unique_path, write_json_atomically,
@@ -29,9 +30,10 @@ use infiltrator_ports::version::{
 };
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
-use lurker_core_contract::identity::{CoreVersion, EngineId};
+use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
 use sha2::{Digest, Sha256};
+use singbox_driver::version::validate_version;
 use std::collections::BTreeSet;
 use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
@@ -630,30 +632,6 @@ pub(super) fn valid_digest(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
-
-pub(super) fn validate_version(version: &str) -> Result<(), PortError> {
-    let canonical = version.strip_prefix('v').ok_or_else(|| {
-        invalid_installation("sing-box version must use the canonical v<version> form")
-    })?;
-    let numeric = canonical.split(['-', '+']).next().unwrap_or_default();
-    let components: Vec<&str> = numeric.split('.').collect();
-    if canonical.is_empty()
-        || components.len() != 3
-        || components.iter().any(|component| {
-            component.is_empty() || !component.bytes().all(|byte| byte.is_ascii_digit())
-        })
-        || !canonical
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'))
-    {
-        return Err(invalid_installation(
-            "sing-box version contains invalid filesystem or identity characters",
-        ));
-    }
-    CoreVersion::new(version.to_owned())
-        .map(|_| ())
-        .map_err(|error| invalid_installation(error.to_string()))
 }
 
 pub(super) fn ensure_engine(engine: &EngineId) -> Result<(), PortError> {

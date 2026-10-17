@@ -1,9 +1,8 @@
-use super::{
-    EMBEDDED_ASSET_LOCK, SingBoxBinaryTarget, invalid_lock, valid_digest, validate_version,
-};
+use super::{EMBEDDED_ASSET_LOCK, SingBoxBinaryTarget, invalid_lock, valid_digest};
 use lurker_core_contract::capability::Capability;
 use lurker_core_ports::error::PortError;
 use serde::Deserialize;
+use singbox_driver::version::validate_version;
 use std::collections::BTreeSet;
 use std::path::Path;
 use url::Url;

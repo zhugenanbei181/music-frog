@@ -6362,6 +6362,7 @@ dependencies = [
  "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
+ "mihomo-driver",
  "mockito",
  "serde",
  "serde_json",
@@ -6401,6 +6402,7 @@ dependencies = [
  "lurker-profile-store",
  "mihomo-api",
  "mihomo-config",
+ "mihomo-driver",
  "reqwest",
  "rustls",
  "serde",
@@ -6409,7 +6411,7 @@ dependencies = [
  "sha2 0.11.0",
  "singbox-api",
  "singbox-config",
- "singbox-process",
+ "singbox-driver",
  "singbox-version",
  "slint",
  "syn 3.0.6",
@@ -6522,7 +6524,7 @@ dependencies = [
  "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
- "mihomo-process",
+ "mihomo-driver",
  "mihomo-version",
  "serde",
  "serde_json",
@@ -6549,12 +6551,12 @@ dependencies = [
  "lurker-profile-store",
  "mihomo-api",
  "mihomo-config",
- "mihomo-process",
+ "mihomo-driver",
  "mockito",
  "serde_json",
  "singbox-api",
  "singbox-config",
- "singbox-process",
+ "singbox-driver",
  "tempfile",
  "tokio",
  "url",
@@ -6595,7 +6597,7 @@ dependencies = [
  "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
- "mihomo-process",
+ "mihomo-driver",
  "mihomo-version",
  "mockito",
  "regex",
@@ -6605,6 +6607,7 @@ dependencies = [
  "serde_yaml_ng",
  "sha2 0.11.0",
  "singbox-api",
+ "singbox-driver",
  "state-store",
  "sync-engine",
  "sysinfo",
@@ -6641,7 +6644,7 @@ dependencies = [
  "lurker-profile-store",
  "mihomo-api",
  "mihomo-config",
- "mihomo-process",
+ "mihomo-driver",
  "mihomo-version",
  "reqwest",
  "serde",
@@ -6649,7 +6652,7 @@ dependencies = [
  "sha2 0.11.0",
  "singbox-api",
  "singbox-config",
- "singbox-process",
+ "singbox-driver",
  "singbox-version",
  "sysinfo",
  "tempfile",
@@ -7828,18 +7831,15 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-ports",
- "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "mihomo-driver",
  "mockito",
- "reqwest",
  "serde",
  "serde_json",
- "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",
  "url",
- "yaml-rust2",
 ]
 
 [[package]]
@@ -7858,7 +7858,7 @@ dependencies = [
  "lurker-core-contract",
  "lurker-core-ports",
  "lurker-profile-store",
- "mihomo-api",
+ "mihomo-driver",
  "ring",
  "serde",
  "serde_json",
@@ -7873,23 +7873,25 @@ dependencies = [
 [[package]]
 name = "mihomo-driver"
 version = "0.42.6"
-
-[[package]]
-name = "mihomo-process"
-version = "0.1.0"
 dependencies = [
  "async-trait",
- "infiltrator-contract",
- "infiltrator-platform",
- "infiltrator-ports",
+ "futures-util",
  "libc",
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "mockito",
+ "reqwest",
+ "serde",
+ "serde_json",
  "sysinfo",
  "tempfile",
+ "thiserror 2.0.21",
  "tokio",
+ "tokio-tungstenite",
+ "url",
  "windows-sys 0.61.2",
+ "yaml-rust2",
 ]
 
 [[package]]
@@ -7904,7 +7906,7 @@ dependencies = [
  "infiltrator-platform",
  "log",
  "lurker-core-contract",
- "mihomo-api",
+ "mihomo-driver",
  "mockito",
  "reqwest",
  "serde",
@@ -10735,16 +10737,10 @@ dependencies = [
 name = "singbox-api"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "infiltrator-contract",
  "infiltrator-ports",
  "lurker-core-contract",
- "lurker-core-ports",
- "reqwest",
- "serde",
  "serde_json",
- "tokio",
- "url",
 ]
 
 [[package]]
@@ -10757,8 +10753,7 @@ dependencies = [
  "infiltrator-ports",
  "lurker-core-contract",
  "lurker-core-ports",
- "serde_json",
- "singbox-process",
+ "singbox-driver",
  "tempfile",
  "tokio",
 ]
@@ -10766,17 +10761,16 @@ dependencies = [
 [[package]]
 name = "singbox-driver"
 version = "0.42.6"
-
-[[package]]
-name = "singbox-process"
-version = "0.1.0"
 dependencies = [
  "async-trait",
- "infiltrator-contract",
- "infiltrator-ports",
  "lurker-core-contract",
  "lurker-core-ports",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -10794,6 +10788,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "singbox-driver",
  "tar",
  "tempfile",
  "tokio",

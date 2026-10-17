@@ -1,10 +1,9 @@
-#![allow(clippy::useless_conversion)]
-use lurker_core_contract::identity::EngineId;
+//! Product-owned sing-box profile transaction.
+//!
+//! The neutral engine codec, native `check` hook and exact config-file readback
+//! live in `singbox-driver`. This crate keeps only the product-level workspace
+//! CAS transaction that binds that codec to a `ProfileStore` and the Core
+//! lifecycle owner.
 
-pub mod config;
 pub mod profile_configuration_transaction;
 pub mod profile_document_codec;
-
-pub fn engine_id() -> EngineId {
-    EngineId::sing_box()
-}

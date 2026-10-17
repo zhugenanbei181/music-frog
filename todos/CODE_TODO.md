@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v207`：当前现在佛 28 pt（13 条）/ 过去佛 49 pt（18 条）/ 未来佛 47 pt（24 条），联合未办结分母 124 pt；已归档交付 635 pt（239 条）；累计 759 pt，严格归档完成率 83.7%。
+- Point 基线 `musicfrog-todo-20261017-v208`：当前现在佛 20 pt（10 条）/ 过去佛 49 pt（18 条）/ 未来佛 47 pt（24 条），联合未办结分母 116 pt；已归档交付 643 pt（242 条）；累计 759 pt，严格归档完成率 84.7%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -54,29 +54,17 @@
 
 - [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: InProgress] 抽象通用 `lurker-profile-store` 与租约并发接口
   - 产物：基于 CAS 与版本租约锁的通用存储/事务接口；剥离产品私有 Age 凭据、`infiltrator-platform` 依赖与硬编码路径。
-  - 进度：文件系统内核（原子替换/跨进程锁/opaque document store）、`ProfileStoreCore`、settings/namespace 已迁入 `lurker-profile-store`；产品包装 `EngineProfileStore` API 不变、历史磁盘布局逐字钉死、`ring`→`getrandom`。
-  - 阻塞：剩余 `document_path`/`profile_files`/`workspace`/CAS/租约/owner/reset 依赖 `ProfileId`/workspace/protection/active-reference 契约类型，须先迁入 `lurker-core-contract`（下一刀）。
+  - 进度：part 1 文件系统内核/`ProfileStoreCore`/settings/namespace；part 2 `document_path`/`profile_files`/`workspace`/`workspace_store`（`ProfileDeletionParticipant`、`ProfileSourceFacts` 注入，`EngineProfileStore` 公开 API 不变）均已迁入 `lurker-profile-store`。
+  - 裁决：part 3（CAS/租约/owner-switch/reset）与 PUB-003.2 的中性 `EngineSwitchStage<S>` 是同一份抽象，禁止设计两遍；part 3 随 PUB-003.2 一并落地并由其验收覆盖。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突、安全原子替换；零业务私有路径；`cargo package` 通过（dry-run 待 contract 上架）。
 
 ### 5.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
 
-- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-api + mihomo-process] [status: InProgress] Mihomo 驱动整合为独立 `mihomo-driver`
-  - 产物：内聚 HTTP REST、WS 流式日志/连接、进程探测、PID 与精确终态管理；按 feature 裁剪（HTTP-only / process）。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：无上层包装的纯客户端用法；真实 + mock 进程/API 单测通过；`cargo publish --dry-run` 无产品路径依赖。
 - [ ] PUB-002.2 [kind: mechanism] [priority: P1] [points: 2] [owner: mihomo-config] [status: Planned] Mihomo YAML 配置 Codec 独立化
   - 产物：独立配置模块，内存 AST 解析、合法性校验、Mihomo 原生 dry-run 检查。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：标准与畸形 YAML 校验通过并输出精确 typed DocumentValidation；`cargo publish --dry-run` 通过。
-- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-api + singbox-process] [status: InProgress] sing-box 驱动整合为独立 `singbox-driver`
-  - 产物：Clash API 通信、进程启动/停止、child 守护与信号回收；按 feature 裁剪。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：独立拉起 sing-box 二进制、探测 readiness、Clash API 切换 Selector 并安全退出；`cargo publish --dry-run` 通过。
-- [ ] PUB-002.4 [kind: mechanism] [priority: P1] [points: 2] [owner: singbox-config] [status: InProgress] sing-box JSON 配置 Codec 独立化
-  - 产物：sing-box 原生 JSON 模型、schema 校验、原生 `check` 事务适配。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：合法 JSON 接受、非法规则/端口拦截并返回结构化诊断；`cargo publish --dry-run` 通过。
 - [ ] PUB-002.5 [kind: evidence] [priority: P1] [points: 1] [owner: mihomo-driver + singbox-driver] [status: Planned] 双引擎独立 example 与 nextest
   - 产物：`mihomo-driver`、`singbox-driver` 各含 `examples/`（命令行拉起 + 节点查询）与独立 nextest。
   - 依赖：PUB-002.1～PUB-002.4。

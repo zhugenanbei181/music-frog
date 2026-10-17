@@ -43,12 +43,12 @@ use lurker_core_contract::routing_intent::{
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
-use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::runtime_configuration::scope_resolver_from_owner;
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::outbound::MihomoOutboundAdapter;
 use std::collections::HashMap;
 #[cfg(unix)]
 use std::fs::Permissions;

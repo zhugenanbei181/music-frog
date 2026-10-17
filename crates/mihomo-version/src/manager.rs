@@ -1,8 +1,8 @@
 use super::channel::{Channel, fetch_asset_digest, fetch_latest};
 use super::download::{DownloadProgress, Downloader};
-use crate::engine;
 use lurker_core_contract::identity::EngineId;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
+use mihomo_driver::version::engine;
 use serde::{Deserialize, Serialize};
 use std::env::temp_dir;
 use std::io::ErrorKind;

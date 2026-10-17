@@ -53,11 +53,11 @@ use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_api::readiness::SingBoxControllerReadiness;
-use singbox_config::config::SingBoxProfileConfigurationAdapter;
-use singbox_process::command::TokioSingBoxCommandPort;
-use singbox_process::process::SingBoxCoreOperationGate;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_driver::codec::config::SingBoxProfileConfigurationAdapter;
+use singbox_driver::driver::SingBoxCoreOperationGate;
+use singbox_driver::process::command::TokioSingBoxCommandPort;
+use singbox_driver::readiness::SingBoxControllerReadiness;
 use std::path::PathBuf;
 use std::sync::Arc;
 

@@ -1,5 +1,5 @@
 use super::evaluate_mihomo_connections;
-use mihomo_api::types::{Connection, ConnectionMetadata};
+use mihomo_driver::types::{Connection, ConnectionMetadata};
 
 #[test]
 fn test_privacy_leak_mihomo_conversion() {

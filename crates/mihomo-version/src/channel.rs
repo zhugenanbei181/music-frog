@@ -1,4 +1,4 @@
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use serde::{Deserialize, Serialize};
 use std::result;
 use std::str::FromStr;

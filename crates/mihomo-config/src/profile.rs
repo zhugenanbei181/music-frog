@@ -1,6 +1,6 @@
 use crate::yaml;
 use chrono::{DateTime, Utc};
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::path::PathBuf;
 use tokio::fs::{copy, read_to_string};
 

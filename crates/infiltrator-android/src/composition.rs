@@ -51,17 +51,18 @@ use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
+use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
-use mihomo_api::readiness::ControllerReadiness;
 use mihomo_api::runtime_configuration::{
     MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
 };
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::driver::ControllerReadiness;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -519,7 +520,8 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         )));
     match controller_adapters {
         AndroidControllerAdapters::Available { client } => {
-            let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
+            let core_log_level_port: Arc<dyn CoreLogLevelPort> =
+                Arc::new(MihomoCoreLogLevelAdapter::new(client.clone()));
             let operations = backend_operations;
             let scope_source: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
             let scope_resolver = scope_resolver_from_owner(scope_source.clone());

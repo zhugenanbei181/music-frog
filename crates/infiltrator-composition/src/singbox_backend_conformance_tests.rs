@@ -9,19 +9,19 @@ use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use serde_json::Value;
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_api::controller_configuration::SingBoxControllerConfigurationError;
-use singbox_api::http::{
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfigurationError;
+use singbox_driver::api::http::{
     ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse,
     SingBoxControllerAuthorization,
 };
-use singbox_api::readiness::SingBoxControllerReadiness;
-use singbox_config::config::SingBoxProfileConfigurationAdapter;
-use singbox_config::profile_document_codec::{PROFILE_FORMAT, SingBoxProfileDocumentCodec};
-use singbox_process::command::{
+use singbox_driver::codec::config::SingBoxProfileConfigurationAdapter;
+use singbox_driver::codec::profile_document_codec::{PROFILE_FORMAT, SingBoxProfileDocumentCodec};
+use singbox_driver::driver::SingBoxProcess;
+use singbox_driver::process::command::{
     NativeConfigCheck, SingBoxChildPoll, SingBoxChildProcess, SingBoxCommandPort,
 };
-use singbox_process::process::SingBoxProcess;
+use singbox_driver::readiness::SingBoxControllerReadiness;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{self, Arc};

@@ -24,9 +24,9 @@ use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_presentation::failure_projection::{FailureLocalizationKey, project_failure};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_driver::error::MihomoError;
 use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
 pub(super) fn get_runtime() -> &'static Runtime {

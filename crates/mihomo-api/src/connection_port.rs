@@ -1,9 +1,8 @@
 //! Scope- and revision-fenced connection port for the Mihomo controller.
 
-use crate::client::MihomoClient;
-use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::runtime_stream::scope_stream;
+use crate::runtime_wire::{connection_snapshot, streamed_connection_snapshot};
 use futures_util::{StreamExt, stream};
 use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_ports::connection::{
@@ -18,6 +17,8 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::network_error::network_error;
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 
@@ -89,7 +90,7 @@ pub struct MihomoConnectionPort {
 impl MihomoConnectionPort {
     pub fn new(client: MihomoClient, scope_resolver: Option<RuntimeScopeResolver>) -> Self {
         Self {
-            revision_state: client.connection_revision_state(),
+            revision_state: Arc::new(Mutex::new(ConnectionRevisionState::default())),
             client,
             scope_resolver,
         }
@@ -131,7 +132,7 @@ impl MihomoConnectionPort {
             .client
             .get_connections()
             .await
-            .map(Into::into)
+            .map(connection_snapshot)
             .map_err(network_error)?;
         self.validate_scope(&scope)?;
         let revision = revision_state.advance(&scope, &snapshot)?;
@@ -164,7 +165,7 @@ impl ConnectionPort for MihomoConnectionPort {
                 "Mihomo connection streaming has no Core scope resolver",
             )
         })?;
-        let stream = scope_stream(receiver, scope, resolver, Into::into);
+        let stream = scope_stream(receiver, scope, resolver, streamed_connection_snapshot);
         let revision_state = self.revision_state.clone();
         let observed = stream::unfold(
             (stream, revision_state, ConnectionStreamProgress::Receiving),

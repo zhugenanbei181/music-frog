@@ -1,10 +1,10 @@
 //! Mihomo REST adapter for the runtime-neutral OverviewReader port.
 
-use crate::client::MihomoClient;
-use crate::network_error::network_error;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::network_error::network_error;
 use std::time;
 
 /// Reads the minimal set of controller endpoints required by the Overview

@@ -40,13 +40,13 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::core_scope::CoreScopeSource;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_api::runtime_configuration::{
     MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
 };
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::routing_intent::MihomoRoutingIntentAdapter;
 use std::mem;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;

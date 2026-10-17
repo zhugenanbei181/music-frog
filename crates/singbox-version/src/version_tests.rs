@@ -2,13 +2,12 @@
 
 use super::asset::LockedSingBoxAsset;
 use super::engine_id;
-use super::install::parse_binary_version;
 use super::{
     CoreBinarySelectionPolicy, CoreBinarySelectionPort, CoreBinarySelectionRequest,
     EngineVersionBackendFactory, ErrorCode, LockedSingBoxRelease, SingBoxArchiveDownloader,
-    SingBoxBinaryInspector, SingBoxBinaryTarget, SingBoxEngineVersionBackendFactory,
-    SingBoxVersionBackend, VersionActivationRequest, VersionInstallRequest, VersionPort,
-    VersionProgressSink, VersionRollbackRequest, VersionUninstallRequest, sha256_hex,
+    SingBoxBinaryTarget, SingBoxEngineVersionBackendFactory, SingBoxVersionBackend,
+    VersionActivationRequest, VersionInstallRequest, VersionPort, VersionProgressSink,
+    VersionRollbackRequest, VersionUninstallRequest, sha256_hex,
 };
 use async_trait::async_trait;
 use flate2::Compression;
@@ -19,6 +18,7 @@ use infiltrator_ports::core_binary_selection::{BundledBinarySource, CoreBinarySe
 use lurker_core_contract::identity::CoreVersion;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
+use singbox_driver::version::SingBoxBinaryInspector;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
@@ -449,16 +449,6 @@ fn embedded_release_lock_is_target_and_adapter_revision_bound() {
         assert_eq!(asset.adapter_revision, 1);
         assert_eq!(asset.archive_sha256.len(), 64);
     }
-}
-
-#[test]
-fn binary_version_probe_requires_sing_box_identity_and_canonical_version() {
-    let version =
-        parse_binary_version("sing-box version 1.14.3\nEnvironment: go1.25.0 linux/amd64\n")
-            .unwrap();
-    assert_eq!(version.raw(), "v1.14.3");
-    assert!(parse_binary_version("mihomo version v1.14.3").is_err());
-    assert!(parse_binary_version("sing-box version unknown").is_err());
 }
 
 #[tokio::test]

@@ -8,8 +8,9 @@ use lurker_core_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
 };
+use singbox_driver::codec::profile_document_codec::PROFILE_FORMAT;
 
-fn identity(codec: &SingBoxProfileDocumentCodec) -> ProfileDocumentIdentity {
+fn identity(codec: &SingBoxProfileConfigurationCodec) -> ProfileDocumentIdentity {
     let scope = codec.scope();
     ProfileDocumentIdentity::new(
         ProfileId::new("sing-box-profile").unwrap(),
@@ -25,8 +26,28 @@ fn identity(codec: &SingBoxProfileDocumentCodec) -> ProfileDocumentIdentity {
 }
 
 #[test]
+fn product_codec_delegates_to_the_sing_box_json_inspection() {
+    let codec = SingBoxProfileConfigurationCodec::new();
+    let scope = codec.scope();
+    assert_eq!(scope.engine_id.as_str(), "sing-box");
+    assert_eq!(scope.format_id.as_str(), PROFILE_FORMAT);
+    assert_eq!(
+        codec.inspect(br#"{"log":{"level":"warn"}}"#).unwrap(),
+        DocumentValidation::Valid
+    );
+    assert!(matches!(
+        codec.insert_snippet(
+            "{}",
+            "mihomo-only",
+            ProfileDocumentCaret { line: 1, column: 0 }
+        ),
+        Err(PortError::Unsupported { .. })
+    ));
+}
+
+#[test]
 fn mihomo_only_profile_queries_fail_closed_for_sing_box() {
-    let codec = SingBoxProfileDocumentCodec;
+    let codec = SingBoxProfileConfigurationCodec::new();
     let identity = identity(&codec);
 
     for query in [
@@ -42,7 +63,7 @@ fn mihomo_only_profile_queries_fail_closed_for_sing_box() {
 
 #[test]
 fn mihomo_only_profile_updates_fail_closed_for_sing_box() {
-    let codec = SingBoxProfileDocumentCodec;
+    let codec = SingBoxProfileConfigurationCodec::new();
     let identity = identity(&codec);
 
     for update in [

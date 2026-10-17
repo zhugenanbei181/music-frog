@@ -56,14 +56,15 @@ use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use lurker_core_contract::active_profile_reference::ActiveProfileReference;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::dns_query::MihomoDnsQueryAdapter;
 use mihomo_api::runtime_configuration::{RuntimeScopeResolver, scope_resolver_from_owner};
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::yaml;
-use mihomo_version::engine::engine_id;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_driver::version::engine::engine_id;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time;
@@ -487,7 +488,8 @@ async fn prepare_mihomo_runtime(
         .with_history_store(history_store);
     let rule_tracer = RuleTracerApplication::new();
     let rule_list = RuleListApplication::default();
-    let dns_query = DnsQueryApplication::new(Some(Arc::new(client.clone())));
+    let dns_query =
+        DnsQueryApplication::new(Some(Arc::new(MihomoDnsQueryAdapter::new(client.clone()))));
     let dns_cache = DnsCacheApplication::new(
         Some(Arc::new(MihomoControllerFakeIpCacheAdapter::new(
             client.clone(),

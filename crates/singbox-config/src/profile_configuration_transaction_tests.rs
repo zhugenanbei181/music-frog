@@ -1,5 +1,4 @@
 use super::*;
-use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -25,7 +24,10 @@ use lurker_core_contract::profile_document_identity::{
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::session::SessionToken;
-use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
+use singbox_driver::codec::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
+use singbox_driver::process::command::{
+    NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort,
+};
 use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};

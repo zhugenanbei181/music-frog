@@ -15,7 +15,8 @@ use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
-use singbox_config::profile_document_codec::{PROFILE_FORMAT, SingBoxProfileDocumentCodec};
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::codec::profile_document_codec::PROFILE_FORMAT;
 use std::str::from_utf8;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -48,7 +49,7 @@ fn singbox_store(home: &TempDir) -> ConfigManager<TestCredentialStore> {
         home.path().to_path_buf(),
         None,
         TestCredentialStore,
-        Arc::new(SingBoxProfileDocumentCodec),
+        Arc::new(SingBoxProfileConfigurationCodec::new()),
         ProfileDocumentExtension::Json,
     )
     .expect("sing-box profile store")
@@ -61,7 +62,7 @@ fn engine_store_can_reuse_an_exact_shared_configs_root_path() {
     let singbox = ConfigManager::with_profile_codec_and_store_at_root(
         configs_root.clone(),
         TestCredentialStore,
-        Arc::new(SingBoxProfileDocumentCodec),
+        Arc::new(SingBoxProfileConfigurationCodec::new()),
         ProfileDocumentExtension::Json,
     )
     .expect("construct sing-box manager using the resolved root");

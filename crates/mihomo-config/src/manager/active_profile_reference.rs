@@ -57,7 +57,7 @@ use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
-use mihomo_api::error::MihomoError;
+use mihomo_driver::error::MihomoError;
 use std::fmt::Display;
 #[cfg(test)]
 use std::path::Path;

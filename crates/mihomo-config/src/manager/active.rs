@@ -6,7 +6,7 @@ use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceSto
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::path::PathBuf;
 use tokio::fs;
 

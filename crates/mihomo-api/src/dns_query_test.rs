@@ -28,7 +28,9 @@ async fn loopback_controller_query_sends_exact_identity_auth_and_preserves_every
         .with_body(payload().to_string())
         .create_async()
         .await;
-    let client = MihomoClient::new(&server.url(), Some("fixture-only".into())).unwrap();
+    let client = MihomoDnsQueryAdapter::new(
+        MihomoClient::new(&server.url(), Some("fixture-only".into())).unwrap(),
+    );
     let response = DnsQueryPort::query(&client, &request()).await.unwrap();
     expected.assert_async().await;
     assert_eq!(
@@ -51,7 +53,7 @@ async fn loopback_controller_query_sends_exact_identity_auth_and_preserves_every
 #[tokio::test]
 async fn malformed_or_unrelated_controller_answers_and_http_refusals_keep_typed_failure_identity() {
     let mut server = Server::new_async().await;
-    let client = MihomoClient::new(&server.url(), None).unwrap();
+    let client = MihomoDnsQueryAdapter::new(MihomoClient::new(&server.url(), None).unwrap());
     for (status, body, code) in [
         (401, "{}", ErrorCode::Authentication),
         (403, "{}", ErrorCode::Permission),
@@ -121,7 +123,7 @@ async fn a_negative_dns_response_and_omitted_empty_sections_are_observed_facts_n
         .with_body(answer.to_string())
         .create_async()
         .await;
-    let client = MihomoClient::new(&server.url(), None).unwrap();
+    let client = MihomoDnsQueryAdapter::new(MihomoClient::new(&server.url(), None).unwrap());
     let response = DnsQueryPort::query(&client, &request()).await.unwrap();
     expected.assert_async().await;
     assert_eq!(response.status, 3);

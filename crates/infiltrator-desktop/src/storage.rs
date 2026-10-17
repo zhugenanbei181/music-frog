@@ -46,7 +46,7 @@ use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_option_store::{load_options, save_options};
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
 use singbox_version::version::SingBoxEngineVersionBackendFactory;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -89,7 +89,7 @@ pub fn engine_profile_stores(
     let sing_box_manager = Arc::new(ConfigManager::with_profile_codec_and_store_at_root(
         mihomo.config_root().to_path_buf(),
         DefaultCredentialStore::default(),
-        Arc::new(SingBoxProfileDocumentCodec),
+        Arc::new(SingBoxProfileConfigurationCodec::new()),
         ProfileDocumentExtension::Json,
     )?);
     let stores: [Arc<dyn ProfileStore>; 2] = [

@@ -1,10 +1,9 @@
 use super::asset::LockedSingBoxRelease;
-use super::{
-    SingBoxBinaryTarget, VERSION_STATE_SCHEMA, engine_id, invalid_journal, validate_version,
-};
+use super::{SingBoxBinaryTarget, VERSION_STATE_SCHEMA, engine_id, invalid_journal};
 use lurker_core_contract::identity::CoreVersion;
 use lurker_core_ports::error::PortError;
 use serde::{Deserialize, Serialize};
+use singbox_driver::version::validate_version;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::atomic::{AtomicU64, Ordering};

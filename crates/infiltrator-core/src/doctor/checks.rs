@@ -4,8 +4,8 @@
 use super::pidfile::{PidFileState, ProcessState, read_pid_state, service_running};
 use super::{ActiveProfileObservation, DoctorCheckResult, DoctorEnv, DoctorStatus};
 use crate::settings_io::parse_settings_toml;
-use mihomo_api::client::MihomoClient;
-use mihomo_api::error::MihomoError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::error::MihomoError;
 use mihomo_version::manager::DefaultBinaryObservation;
 use std::fs::metadata;
 use std::io::ErrorKind;

@@ -1,12 +1,13 @@
 //! test-intent: behavior
-use crate::client::MihomoClient;
-use crate::error::MihomoError;
-use crate::network_error::network_error;
-use crate::types::ConfigResponse;
+use crate::core_log_level_port::MihomoCoreLogLevelAdapter;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::error::MihomoError;
+use mihomo_driver::network_error::network_error;
+use mihomo_driver::types::ConfigResponse;
 use mockito::Server;
 use serde_json::json;
 
@@ -16,9 +17,9 @@ async fn controller_permission_denial_is_typed_even_when_the_body_contains_valid
     let mock = server
         .mock("GET", "/proxies")
         .with_status(401)
-        .with_body(include_str!(
-            "../tests/fixtures/runtime-proxies-v1.19.18.json"
-        ))
+        .with_body(
+            r#"{"proxies":{"node":{"type":"Shadowsocks","name":"node","server":"1.2.3.4","port":8388,"cipher":"aes-256-gcm"},"GLOBAL":{"type":"Selector","name":"GLOBAL","now":"node","all":["node"]}}}"#,
+        )
         .create_async()
         .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
@@ -88,7 +89,8 @@ async fn core_log_level_port_uses_mihomo_wire_and_reads_back_a_typed_level() {
         .create_async()
         .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
-    let observed = CoreLogLevelPort::set_core_log_level(&client, CoreLogLevel::Warn)
+    let port = MihomoCoreLogLevelAdapter::new(client);
+    let observed = CoreLogLevelPort::set_core_log_level(&port, CoreLogLevel::Warn)
         .await
         .unwrap();
     assert_eq!(observed, CoreLogLevel::Warn);
@@ -118,7 +120,8 @@ async fn core_log_level_port_rejects_unknown_mihomo_readback() {
         .create_async()
         .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
-    let failure = CoreLogLevelPort::set_core_log_level(&client, CoreLogLevel::Debug)
+    let port = MihomoCoreLogLevelAdapter::new(client);
+    let failure = CoreLogLevelPort::set_core_log_level(&port, CoreLogLevel::Debug)
         .await
         .unwrap_err();
     assert!(matches!(failure, PortError::Failed(_)));

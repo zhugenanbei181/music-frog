@@ -11,8 +11,8 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
+use mihomo_driver::api::client::MihomoClient;
 use std::env;
 use std::net::IpAddr;
 use std::path::PathBuf;

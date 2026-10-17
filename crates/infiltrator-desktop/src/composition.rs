@@ -86,15 +86,16 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
+use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::runtime_configuration::{
     MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
 };
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use mihomo_config::manager::ConfigManager;
+use mihomo_driver::api::client::MihomoClient;
 use mihomo_version::bundled_kernel::packaged_candidates;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use std::collections::HashMap;
@@ -691,7 +692,8 @@ pub fn desktop_command_application(
         backend_ports.operations().geo_database(),
         core_capabilities.clone(),
     );
-    let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
+    let core_log_level_port: Arc<dyn CoreLogLevelPort> =
+        Arc::new(MihomoCoreLogLevelAdapter::new(client.clone()));
     let connections = ConnectionApplication::new(
         core_scope_source.clone(),
         Arc::new(MihomoConnectionPort::new(

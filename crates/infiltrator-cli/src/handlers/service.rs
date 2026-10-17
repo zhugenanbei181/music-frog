@@ -4,7 +4,7 @@ use crate::handlers::telemetry;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::core_process::CoreProcess;
-use mihomo_process::desktop::ProcessCoreController;
+use mihomo_driver::driver::ProcessCoreController;
 use std::time;
 use tokio::time::sleep;
 

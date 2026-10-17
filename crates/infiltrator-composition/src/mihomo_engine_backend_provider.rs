@@ -13,12 +13,12 @@ use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
-use mihomo_api::outbound::MihomoOutboundAdapter;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::outbound::MihomoOutboundAdapter;
+use mihomo_driver::routing_intent::MihomoRoutingIntentAdapter;
 use std::sync::Arc;
 
 /// The controller can be unavailable during host setup. Keep that state

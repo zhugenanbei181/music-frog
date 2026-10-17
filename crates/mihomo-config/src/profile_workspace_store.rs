@@ -8,7 +8,7 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::MihomoError;
+use mihomo_driver::error::MihomoError;
 use std::io::ErrorKind;
 
 impl<S: SecureStore> ConfigManager<S> {

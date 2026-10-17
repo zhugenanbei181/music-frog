@@ -6,8 +6,8 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::session::SessionToken;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::runtime_configuration::{MihomoRuntimeConfigurationAdapter, RuntimeScopeResolver};
+use mihomo_driver::api::client::MihomoClient;
 use std::env;
 use std::sync::Arc;
 

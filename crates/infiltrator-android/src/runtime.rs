@@ -22,7 +22,7 @@ use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
 use lurker_core_ports::error::PortError;
-use singbox_process::process::SingBoxCoreOperationGate;
+use singbox_driver::driver::SingBoxCoreOperationGate;
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;

@@ -17,7 +17,7 @@ use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::metadata::delete_subscription_url;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::path::PathBuf;
 use std::result;
 

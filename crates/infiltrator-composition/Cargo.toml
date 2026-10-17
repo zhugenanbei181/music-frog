@@ -23,16 +23,16 @@ lurker-profile-store = { path = "../lurker-profile-store" }
 infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-driver = { version = "0.42.6", path = "../mihomo-driver" }
 mihomo-config = { path = "../mihomo-config" }
 singbox-api = { path = "../singbox-api" }
 singbox-config = { path = "../singbox-config" }
-singbox-process = { path = "../singbox-process" }
+singbox-driver = { path = "../singbox-driver" }
 tokio = { workspace = true }
 
 [dev-dependencies]
 mockito = { workspace = true }
 infiltrator-test-support = { path = "../infiltrator-test-support" }
-mihomo-process = { path = "../mihomo-process" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 url = { workspace = true }

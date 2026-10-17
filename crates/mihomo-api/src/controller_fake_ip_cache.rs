@@ -1,7 +1,5 @@
 //! Mihomo controller adapter for the scoped Fake-IP cache operation.
 
-use crate::client::MihomoClient;
-use crate::network_error::network_error;
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
     ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
@@ -9,6 +7,8 @@ use infiltrator_ports::controller_fake_ip_cache::{
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::network_error::network_error;
 
 #[derive(Clone)]
 pub struct MihomoControllerFakeIpCacheAdapter {

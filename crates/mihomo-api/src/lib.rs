@@ -1,31 +1,22 @@
-mod api;
-pub mod client;
+//! Product adapters for the Mihomo (Clash.Meta) core.
+//!
+//! The engine-neutral controller client, wire types and process supervision
+//! live in `mihomo-driver`. This crate only owns the product adapters that
+//! implement `infiltrator-ports` on top of those neutral types: connection
+//! control and streaming, runtime configuration, rule providers, Geo database
+//! triggers, DNS queries, resource observation, capability declarations and
+//! owner-scope binding.
+
 pub mod connection_port;
 pub mod controller_fake_ip_cache;
 pub mod core_capability_provider;
 mod core_log_level;
-mod core_log_level_port;
-pub mod error;
+pub mod core_log_level_port;
+pub mod dns_query;
 pub mod geo_database;
-mod network_error;
-pub mod outbound;
 pub mod overview;
-#[cfg(test)]
-mod proxy;
-pub mod readiness;
 pub mod resource_port;
-pub mod routing_intent;
 pub mod rule_provider;
 pub mod runtime_configuration;
-pub mod runtime_proxy;
 pub mod runtime_stream;
-pub mod types;
-
-#[cfg(test)]
-mod error_test;
-#[cfg(test)]
-mod readiness_tests;
-#[cfg(test)]
-mod types_test;
-
-pub mod dns_query;
+mod runtime_wire;

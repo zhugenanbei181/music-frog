@@ -20,16 +20,17 @@ use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
-use singbox_api::clash_api::SingBoxClashApiClient;
-use singbox_api::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_api::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
-use singbox_api::readiness::SingBoxControllerReadiness;
-use singbox_config::config::SingBoxProfileConfigurationAdapter;
 use singbox_config::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_process::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
-use singbox_process::process::{SingBoxCoreOperationGate, SingBoxProcess};
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::api::clash_api::SingBoxClashApiClient;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_driver::api::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
+use singbox_driver::codec::config::SingBoxProfileConfigurationAdapter;
+use singbox_driver::driver::{SingBoxCoreOperationGate, SingBoxProcess};
+use singbox_driver::outbound::SingBoxOutboundAdapter;
+use singbox_driver::process::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
+use singbox_driver::readiness::SingBoxControllerReadiness;
+use singbox_driver::routing_intent::SingBoxRoutingIntentAdapter;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -143,7 +144,8 @@ impl SingBoxEngineBackendProvider {
         let api = SingBoxClashApiClient::new(controller.clone(), Arc::clone(&http))?;
         let readiness: Arc<dyn CoreReadiness> =
             Arc::new(SingBoxControllerReadiness::new(controller, http)?);
-        let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
+        let codec: Arc<dyn ProfileConfigurationCodecPort> =
+            Arc::new(SingBoxProfileConfigurationCodec::new());
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
         ));
@@ -263,10 +265,12 @@ mod tests {
     };
     use lurker_core_contract::routing_intent::RoutingIntent;
     use lurker_core_ports::core_scope::CoreScopeObservation;
-    use singbox_api::http::{
+    use singbox_driver::api::http::{
         SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
     };
-    use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
+    use singbox_driver::process::command::{
+        NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort,
+    };
     use std::path::Path;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};

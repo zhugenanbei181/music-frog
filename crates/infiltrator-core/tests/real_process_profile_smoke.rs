@@ -42,10 +42,11 @@ use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
+use mihomo_api::dns_query::MihomoDnsQueryAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_driver::api::client::MihomoClient;
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -517,8 +518,9 @@ async fn profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transa
             .expect("read back the DNS-updated workspace"),
         dns_applied
     );
+    let dns_port = MihomoDnsQueryAdapter::new(client.clone());
     let dns_runtime_readback = DnsQueryPort::query(
-        &client,
+        &dns_port,
         &DnsQueryRequest {
             name: "core-smoke-dns-updated.test".to_owned(),
             record_type: DnsRecordType::A,
@@ -552,7 +554,7 @@ async fn profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transa
         dns_restored
     );
     let restored_dns = DnsQueryPort::query(
-        &client,
+        &dns_port,
         &DnsQueryRequest {
             name: "core-smoke-dns-restored.test".to_owned(),
             record_type: DnsRecordType::A,

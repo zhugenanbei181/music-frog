@@ -6,4 +6,32 @@ description = "Engine driver for the sing-box core: control API, configuration c
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
+[features]
+default = ["http", "process", "codec"]
+# Clash API transport, controller preflight, readiness, routing intent and
+# outbound inventory/selection.
+http = ["dep:reqwest", "dep:url", "dep:serde", "dep:serde_json"]
+# Native process supervision: spawn, stop, child polling and pid readback.
+process = []
+# Native JSON codec plus the native `check` transaction hook. The codec drives
+# the `process` command boundary, so it always enables process supervision.
+codec = ["process", "dep:serde_json"]
+
 [dependencies]
+lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
+lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
+async-trait = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+reqwest = { workspace = true, default-features = false, optional = true }
+tokio = { workspace = true }
+url = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"], optional = true }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["native-tls"], optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

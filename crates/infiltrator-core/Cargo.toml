@@ -28,6 +28,7 @@ mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-driver = { version = "0.42.6", path = "../mihomo-driver" }
 mihomo-version = { path = "../mihomo-version" }
 infiltrator-http = { path = "../infiltrator-http" }
 ring = "0.17"
@@ -53,5 +54,5 @@ mockito = { workspace = true }
 tempfile = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
 singbox-api = { path = "../singbox-api" }
+singbox-driver = { path = "../singbox-driver" }
 infiltrator-composition = { path = "../infiltrator-composition" }
-mihomo-process = { path = "../mihomo-process" }

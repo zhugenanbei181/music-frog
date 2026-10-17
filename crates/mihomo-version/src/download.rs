@@ -1,6 +1,6 @@
 use crate::verify;
 use futures_util::StreamExt;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::env::consts::{ARCH, OS};
 use std::path::Path;
 use std::process::id;

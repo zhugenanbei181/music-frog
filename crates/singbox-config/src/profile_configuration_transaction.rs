@@ -1,7 +1,5 @@
 //! Engine-scoped sing-box profile CAS and native config-file transaction.
 
-use crate::config::{SingBoxConfigFileState, SingBoxProfileConfigurationAdapter};
-use crate::profile_document_codec::SingBoxProfileDocumentCodec;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
@@ -23,7 +21,9 @@ use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, Documen
 use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
-use singbox_process::process::SingBoxCoreOperationGate;
+use singbox_driver::codec::config::{SingBoxConfigFileState, SingBoxProfileConfigurationAdapter};
+use singbox_driver::codec::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_driver::driver::SingBoxCoreOperationGate;
 use std::fmt::Display;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -145,11 +145,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             ));
         }
         self.verify_active_process_instance()?;
-        let previous = self
-            .profile_store
-            .load_active_workspace()
-            .await
-            .map_err(PortError::from)?;
+        let previous = self.profile_store.load_active_workspace().await?;
         if previous.identity() != request.expected {
             return Err(rejected(
                 ErrorCode::NotReady,
@@ -202,13 +198,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             }
         }
         self.verify_active_process_instance()?;
-        if self
-            .profile_store
-            .load_active_workspace()
-            .await
-            .map_err(PortError::from)?
-            != previous
-        {
+        if self.profile_store.load_active_workspace().await? != previous {
             return Err(rejected(
                 ErrorCode::NotReady,
                 "sing-box profile workspace changed during native candidate validation",

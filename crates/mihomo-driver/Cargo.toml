@@ -6,4 +6,64 @@ description = "Engine driver for the mihomo (Clash.Meta) core: control API, conf
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
+[features]
+# HTTP-only builds may omit process supervision entirely (for example the
+# Android host, which owns its own VPN service process).
+default = ["http", "process"]
+http = ["dep:tokio-tungstenite"]
+process = ["dep:sysinfo", "dep:libc", "dep:windows-sys"]
+
 [dependencies]
+lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
+lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+yaml-rust2 = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = [
+  "json",
+  "socks",
+  "stream",
+  "http2",
+] }
+sysinfo = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { workspace = true, default-features = false, features = [
+  "rustls-no-provider",
+] }
+# The Android build only uses plaintext (ws://) controller websockets;
+# connect_async / accept_async need no TLS backend, and the workspace
+# tokio-tungstenite enables native-tls which would drag OpenSSL into the NDK
+# build.
+tokio-tungstenite = { version = "0.30", optional = true, default-features = false, features = [
+  "connect",
+] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = [
+  "native-tls",
+] }
+tokio-tungstenite = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, optional = true, features = [
+  "Win32_System_Threading",
+  "Win32_System_JobObjects",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+] }
+
+[dev-dependencies]
+mockito = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }

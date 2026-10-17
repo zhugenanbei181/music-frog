@@ -9,9 +9,9 @@ use infiltrator_ports::core_binary_selection::{
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::MihomoError;
+use mihomo_driver::error::MihomoError;
+use mihomo_driver::version::engine;
 use mihomo_version::bundled_kernel::{bundled_binary_sha256, copy_bundled_binary};
-use mihomo_version::engine;
 use mihomo_version::manager::{VersionInfo, VersionManager};
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};

@@ -5,7 +5,7 @@
 //! missing, malformed, or mismatching digest is always an error: an
 //! unverified binary never reaches the versions directory.
 
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use sha2::{Digest, Sha256};
 
 /// Expected digest prefix used by the GitHub release API.

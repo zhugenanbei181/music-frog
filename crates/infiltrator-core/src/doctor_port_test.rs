@@ -1,7 +1,7 @@
 //! test-intent: behavior
 use super::*;
 use lurker_core_contract::error::{ErrorCode, Failure};
-use mihomo_api::error::MihomoError;
+use mihomo_driver::error::MihomoError;
 use std::fs::{read, write};
 use tempfile::tempdir;
 

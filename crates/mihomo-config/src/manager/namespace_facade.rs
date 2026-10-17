@@ -4,7 +4,7 @@ use super::{ConfigManager, lock_reset_fenced_profile_mutation_for_dir};
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::io::{Error, ErrorKind};
 
 fn namespace_error(error: PortError) -> MihomoError {

@@ -1,8 +1,5 @@
 //! Mihomo GeoIP/GeoSite trigger adapter.
 
-use crate::client::MihomoClient;
-use crate::error::MihomoError;
-use crate::network_error::network_error;
 use async_trait::async_trait;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 use infiltrator_ports::geo_database::GeoDatabasePort;
@@ -10,6 +7,9 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::error::MihomoError;
+use mihomo_driver::network_error::network_error;
 use std::sync::Arc;
 
 #[async_trait]
@@ -82,7 +82,6 @@ fn rejected(code: ErrorCode, message: impl Into<String>) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::{MihomoGeoDatabaseAdapter, MihomoGeoDatabaseApi};
-    use crate::error::MihomoError;
     use async_trait::async_trait;
     use infiltrator_contract::geo_database::GeoDatabaseTriggerState;
     use infiltrator_ports::geo_database::GeoDatabasePort;
@@ -90,6 +89,7 @@ mod tests {
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+    use mihomo_driver::error::MihomoError;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

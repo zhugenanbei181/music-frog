@@ -27,10 +27,10 @@ use lurker_core_ports::core_process::CoreReadiness;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_api::readiness::SingBoxControllerReadiness;
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_process::command::TokioSingBoxCommandPort;
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_driver::process::command::TokioSingBoxCommandPort;
+use singbox_driver::readiness::SingBoxControllerReadiness;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -189,7 +189,7 @@ pub(super) async fn profile_store_at_root(
         ConfigManager::with_profile_codec_and_store_at_root(
             config_root,
             DefaultCredentialStore::default(),
-            Arc::new(SingBoxProfileDocumentCodec),
+            Arc::new(SingBoxProfileConfigurationCodec::new()),
             ProfileDocumentExtension::Json,
         )
         .map_err(map_mihomo_error)?,

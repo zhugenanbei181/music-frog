@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
+lurker-core-ports = { path = "../lurker-core-ports" }
 async-trait = { workspace = true }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
@@ -15,6 +15,7 @@ reqwest = { workspace = true, default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+singbox-driver = { path = "../singbox-driver", default-features = false }
 tar = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }

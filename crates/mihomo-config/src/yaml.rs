@@ -1,4 +1,4 @@
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use yaml_rust2::{Yaml, YamlEmitter, YamlLoader};
 
 /// Parse a profile without performing any network or core-controller work.

@@ -9,8 +9,8 @@ use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
 use lurker_core_contract::capability::Capability;
 use lurker_core_ports::core_process::CoreReadiness;
 use lurker_core_ports::error::PortError;
-use mihomo_api::client::MihomoClient;
-use mihomo_api::readiness::ControllerReadiness;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::driver::ControllerReadiness;
 use std::sync::Arc;
 
 pub(crate) struct DesktopMihomoBackend {

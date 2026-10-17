@@ -31,12 +31,12 @@ use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use reqwest::Url;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
-use singbox_api::controller_configuration::SingBoxControllerConfigurationError;
-use singbox_api::http::{
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfigurationError;
+use singbox_driver::api::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_process::command::{
+use singbox_driver::process::command::{
     NativeConfigCheck, SingBoxChildPoll, SingBoxChildProcess, SingBoxCommandPort,
 };
 use std::path::{Path, PathBuf};
@@ -60,7 +60,7 @@ impl SelectedSingBoxFixture {
             ConfigManager::with_profile_codec_and_store_at_root(
                 home.path().join("configs"),
                 DefaultCredentialStore::default(),
-                Arc::new(SingBoxProfileDocumentCodec),
+                Arc::new(SingBoxProfileConfigurationCodec::new()),
                 ProfileDocumentExtension::Json,
             )
             .expect("create sing-box JSON profile manager"),

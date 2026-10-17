@@ -31,15 +31,15 @@ use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
-use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
-use mihomo_process::desktop::ProcessCoreController;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::driver::ControllerReadiness;
+use mihomo_driver::driver::ProcessCoreController;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
-use singbox_api::controller_configuration::SingBoxControllerConfiguration;
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
 use std::env;
 use std::mem;
 use std::net::TcpListener;
@@ -272,7 +272,7 @@ async fn run_owner_switch_smoke(
     let sing_box_manager = ConfigManager::with_profile_codec_and_store_at_root(
         configs_root,
         SmokeSecureStore,
-        Arc::new(SingBoxProfileDocumentCodec),
+        Arc::new(SingBoxProfileConfigurationCodec::new()),
         ProfileDocumentExtension::Json,
     )
     .map_err(|error| format!("construct sing-box profile store: {error}"))?;

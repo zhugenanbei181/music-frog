@@ -8,7 +8,7 @@ use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_name::validate_profile_name;
 use lurker_core_ports::error::PortError;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_driver::error::{MihomoError, Result};
 use std::env::{home_dir, var};
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};

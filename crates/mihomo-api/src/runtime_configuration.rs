@@ -1,9 +1,6 @@
 //! Scope and revision fenced Mihomo configuration ports.
 
-use crate::client::MihomoClient;
 use crate::core_log_level::decode_mihomo_log_level;
-use crate::network_error::network_error;
-use crate::types::{ConfigResponse, Rule};
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::mtu::{MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
 use infiltrator_contract::tun::TunStack;
@@ -23,6 +20,9 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::network_error::network_error;
+use mihomo_driver::types::{ConfigResponse, Rule};
 use serde_json::{Value, json};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Debug;

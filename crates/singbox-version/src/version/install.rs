@@ -4,21 +4,20 @@ use super::state::{InstalledSingBoxReceipt, write_json_atomically};
 use super::unsupported_target;
 use super::{
     MAX_ARCHIVE_BYTES, SingBoxBinaryTarget, SingBoxVersionBackend, cancelled_install, engine_id,
-    invalid_installation, sha256_hex, unique_path, validate_version,
+    invalid_installation, sha256_hex, unique_path,
 };
 use async_trait::async_trait;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use infiltrator_contract::version::VersionDownloadProgress;
 use infiltrator_ports::version::VersionProgressSink;
-use lurker_core_contract::identity::CoreVersion;
 use lurker_core_ports::error::PortError;
+use singbox_driver::version::SingBoxBinaryInspector;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 use tokio::fs;
-use tokio::process::Command;
 
 #[async_trait]
 pub(super) trait SingBoxArchiveDownloader: Send + Sync {
@@ -75,50 +74,6 @@ impl SingBoxArchiveDownloader for HttpSingBoxArchiveDownloader {
         }
         Ok(bytes)
     }
-}
-
-#[async_trait]
-pub(super) trait SingBoxBinaryInspector: Send + Sync {
-    async fn version(&self, binary: &Path) -> Result<CoreVersion, PortError>;
-}
-
-pub(super) struct ProcessSingBoxBinaryInspector;
-
-#[async_trait]
-impl SingBoxBinaryInspector for ProcessSingBoxBinaryInspector {
-    async fn version(&self, binary: &Path) -> Result<CoreVersion, PortError> {
-        let output = Command::new(binary)
-            .arg("-v")
-            .output()
-            .await
-            .map_err(|error| PortError::Failed(format!("run sing-box version probe: {error}")))?;
-        if !output.status.success() {
-            return Err(PortError::Failed(format!(
-                "sing-box version probe exited with {}",
-                output.status
-            )));
-        }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        parse_binary_version(&stdout)
-    }
-}
-
-pub(super) fn parse_binary_version(output: &str) -> Result<CoreVersion, PortError> {
-    let first_line = output.lines().next().unwrap_or_default().trim();
-    let version = first_line
-        .strip_prefix("sing-box version ")
-        .or_else(|| first_line.strip_prefix("sing-box "))
-        .ok_or_else(|| {
-            PortError::Failed("sing-box version output has an unexpected engine identity".into())
-        })?;
-    let version = version.split_whitespace().next().unwrap_or_default();
-    let canonical = if version.starts_with('v') {
-        version.to_owned()
-    } else {
-        format!("v{version}")
-    };
-    validate_version(&canonical)?;
-    CoreVersion::new(canonical).map_err(|error| PortError::Failed(error.to_string()))
 }
 
 pub(super) struct InstallPlan {

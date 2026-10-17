@@ -27,8 +27,10 @@ use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
-use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
+use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
+use singbox_driver::process::command::{
+    NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort,
+};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -142,7 +144,7 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
             home.0.clone(),
             None,
             TestCredentialStore,
-            Arc::new(SingBoxProfileDocumentCodec),
+            Arc::new(SingBoxProfileConfigurationCodec::new()),
             ProfileDocumentExtension::Json,
         )
         .expect("sing-box profile manager"),

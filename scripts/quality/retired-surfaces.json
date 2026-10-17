@@ -578,8 +578,8 @@
       "text": "MAX_PROBE_TIMEOUT_MS",
       "rationale": "The engine-specific signed timeout cap now belongs to the Mihomo adapter instead of the neutral contract.",
       "replacement_behavior_tests": [
-        "crates/mihomo-api/src/client_tests.rs",
-        "crates/mihomo-api/src/outbound_tests.rs"
+        "crates/mihomo-driver/src/api/client_tests.rs",
+        "crates/mihomo-driver/src/outbound_tests.rs"
       ]
     },
     {
@@ -1251,8 +1251,8 @@
       "rationale": "Active Core scope ownership is shared across runtime capabilities and now uses CoreScopeSource with explicit Unavailable or Observed state.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/core_application/ownership_tests.rs",
-        "crates/mihomo-api/src/outbound_tests.rs",
-        "crates/singbox-api/src/clash_runtime_tests.rs"
+        "crates/mihomo-driver/src/outbound_tests.rs",
+        "crates/singbox-driver/src/outbound_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-ports/src",
@@ -1329,7 +1329,7 @@
       "text": "ProxyManager",
       "rationale": "The unscoped name-based proxy facade was replaced by owner- and revision-fenced OutboundPort operations.",
       "replacement_behavior_tests": [
-        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/mihomo-driver/src/outbound_tests.rs",
         "crates/infiltrator-application/src/outbound_application_tests.rs"
       ],
       "source_roots": [
@@ -1343,7 +1343,7 @@
       "text": "MihomoApi",
       "rationale": "The broad public trait was narrowed to private MihomoOutboundApi operations behind the typed OutboundPort adapter.",
       "replacement_behavior_tests": [
-        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/mihomo-driver/src/outbound_tests.rs",
         "crates/infiltrator-application/src/outbound_application_tests.rs"
       ],
       "source_roots": [
@@ -1357,7 +1357,7 @@
       "text": "get_proxy",
       "rationale": "Single-node name lookup was removed; consumers read the typed owner-scoped outbound inventory and details.",
       "replacement_behavior_tests": [
-        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/mihomo-driver/src/outbound_tests.rs",
         "crates/infiltrator-application/src/outbound_application_tests.rs"
       ],
       "source_roots": [
@@ -1372,7 +1372,7 @@
       "rationale": "Controller capabilities are injected as narrow typed ports; callers cannot query a generic runtime facade.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
-        "crates/mihomo-api/src/client_auth_test.rs"
+        "crates/mihomo-driver/src/api/client_auth_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-ports/src",
@@ -1389,7 +1389,7 @@
       "rationale": "The generic controller facade module is retired; typed capabilities live in their own port modules.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
-        "crates/mihomo-api/src/client_auth_test.rs"
+        "crates/mihomo-driver/src/api/client_auth_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-ports/src",
@@ -1404,7 +1404,7 @@
       "rationale": "Mihomo configuration capabilities are constructed through the explicit typed adapter API.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
-        "crates/mihomo-api/src/client_auth_test.rs"
+        "crates/mihomo-driver/src/api/client_auth_tests.rs"
       ],
       "source_roots": [
         "crates/mihomo-api/src"
@@ -1417,7 +1417,7 @@
       "text": "with_configuration_scope_resolver",
       "rationale": "Typed controller adapters receive owner scope explicitly instead of storing a resolver on the HTTP client.",
       "replacement_behavior_tests": [
-        "crates/mihomo-api/src/client_auth_test.rs"
+        "crates/mihomo-driver/src/api/client_auth_tests.rs"
       ],
       "source_roots": [
         "crates/mihomo-api/src"
@@ -1430,7 +1430,7 @@
       "text": "set_configuration_scope_resolver",
       "rationale": "Mutable owner resolver state was removed from the HTTP client; typed adapters receive scope explicitly.",
       "replacement_behavior_tests": [
-        "crates/mihomo-api/src/client_auth_test.rs"
+        "crates/mihomo-driver/src/api/client_auth_tests.rs"
       ],
       "source_roots": [
         "crates/mihomo-api/src"
@@ -1444,7 +1444,7 @@
       "rationale": "The unscoped selector was removed; selection is issued through revision-fenced OutboundPort requests.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/command_outbound_tests.rs",
-        "crates/mihomo-api/src/outbound_tests.rs"
+        "crates/mihomo-driver/src/outbound_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-ports/src",
@@ -1461,7 +1461,7 @@
       "rationale": "The unscoped delay probe was removed; probes use a validated outbound ID and observed inventory revision.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/command_outbound_tests.rs",
-        "crates/mihomo-api/src/outbound_tests.rs"
+        "crates/mihomo-driver/src/outbound_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-ports/src",

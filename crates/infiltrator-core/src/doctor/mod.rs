@@ -20,7 +20,7 @@ use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceSto
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document_identity::ProfileId;
-use mihomo_api::error;
+use mihomo_driver::error;
 mod checks;
 #[cfg(test)]
 #[path = "doctor_test.rs"]

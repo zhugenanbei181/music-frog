@@ -1,11 +1,11 @@
 //! Exact v1.19.18 controller response decoding at the outbound boundary.
-use crate::client::MihomoClient;
-use crate::error::MihomoError;
-use crate::network_error::network_error;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsQueryResponse, DnsQuestion, DnsRecord};
 use infiltrator_ports::dns_query::DnsQueryPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use mihomo_driver::api::client::MihomoClient;
+use mihomo_driver::error::MihomoError;
+use mihomo_driver::network_error::network_error;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -72,11 +72,24 @@ fn records(rows: Vec<Record>) -> Vec<DnsRecord> {
         })
         .collect()
 }
+/// Product DNS-query port over one controller client.
+#[derive(Clone)]
+pub struct MihomoDnsQueryAdapter {
+    client: MihomoClient,
+}
+
+impl MihomoDnsQueryAdapter {
+    pub fn new(client: MihomoClient) -> Self {
+        Self { client }
+    }
+}
+
 #[async_trait::async_trait]
-impl DnsQueryPort for MihomoClient {
+impl DnsQueryPort for MihomoDnsQueryAdapter {
     async fn query(&self, request: &DnsQueryRequest) -> Result<DnsQueryResponse, PortError> {
         request.validate().map_err(PortError::Rejected)?;
         let value = self
+            .client
             .get_dns_query(&request.name, request.record_type.wire())
             .await
             .map_err(query_error)?;

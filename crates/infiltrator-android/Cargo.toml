@@ -32,12 +32,15 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-driver = { version = "0.42.6", path = "../mihomo-driver", default-features = false, features = [
+  "http",
+] }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 singbox-api = { path = "../singbox-api" }
 singbox-config = { path = "../singbox-config" }
-singbox-process = { path = "../singbox-process" }
+singbox-driver = { path = "../singbox-driver" }
 singbox-version = { path = "../singbox-version" }
 infiltrator-core = { path = "../infiltrator-core" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }

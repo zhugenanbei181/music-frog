@@ -19,13 +19,13 @@ infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 lurker-profile-store = { path = "../lurker-profile-store" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-driver = { version = "0.42.6", path = "../mihomo-driver" }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
-mihomo-process = { path = "../mihomo-process" }
 mihomo-version = { path = "../mihomo-version" }
 singbox-api = { path = "../singbox-api" }
 singbox-config = { path = "../singbox-config" }
-singbox-process = { path = "../singbox-process" }
+singbox-driver = { path = "../singbox-driver" }
 singbox-version = { path = "../singbox-version" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::engine;
+use mihomo_driver::version::engine;
 #[cfg(test)]
 #[cfg(unix)]
 use std::fs::Permissions;
