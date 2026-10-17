@@ -85,6 +85,11 @@
   - 产物：`LurkerRuntimeBuilder` 式 Builder API，隐藏 Token/Generation 细节，暴露直观异步操控入口。
   - 依赖：PUB-003.2。
   - 验收：第三方 10 行内完成初始化并监听状态流；单测与文档示例验证；`cargo publish --dry-run` 通过。
+- [ ] PUB-003.3.1 [kind: mechanism] [priority: P1] [points: 1] [owner: lurker-core-ports::engine_switch] [status: Planned] `bind_owner` 必须交付 owner 租约
+  - 现状：`EngineSwitchJournal::bind_owner` 只返回 `EngineSwitchSnapshot`，不返回 `EngineOwnerLease`；`EngineOwnerLease` 也没有 release 方法。导致 facade `stop()` 后同一 journal 再次 `start()` 会在 `bind_owner` fail-closed，start→stop→start 不可用。
+  - 产物：`bind_owner` 返回 `(snapshot, Box<dyn EngineOwnerLease>)`（或新增 `release_bound_owner`），facade 在精确终态后释放租约；崩溃后仍走现有 recovery。
+  - 依赖：PUB-003.3。
+  - 验收：facade 测试覆盖 start→stop→start；无活 owner 时 journal 不得残留不可恢复的 Bound；recovery 路径不回归。
 - [ ] PUB-003.4 [kind: evidence] [priority: P1] [points: 2] [owner: test-support] [status: Planned] 双引擎 Conformance 跨平台验证套件
   - 产物：通用适配器一致性测试套件，规范进程状态机、配置应用、节点读写、错误回读断言。
   - 依赖：PUB-003.1～PUB-003.3。
