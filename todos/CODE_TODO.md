@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v215`：当前现在佛 24 pt（11 条）/ 过去佛 60 pt（23 条）/ 未来佛 68 pt（30 条），联合未办结分母 152 pt；已归档交付 642 pt（242 条）；累计 794 pt，严格归档完成率 80.9%。
+- Point 基线 `musicfrog-todo-20261017-v216`：当前现在佛 27 pt（12 条）/ 过去佛 60 pt（23 条）/ 未来佛 68 pt（30 条），联合未办结分母 155 pt；已归档交付 642 pt（242 条）；累计 797 pt，严格归档完成率 80.6%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -70,6 +70,12 @@
   - 裁决：中性 `EngineSwitchStage<S>` + 持久化 wire 枚举只做一对一映射（不改 serde 名，免 schema 迁移）；旧 owner 终态之后只能 `RecoveryRequired`，禁止伪造自动恢复。
   - 依赖：PUB-003.1；PUB-001.3 需先裁决 store 是否对 selection 泛型（否则用产品本地 newtype 实现中性 journal）。
   - 验收：nextest 覆盖正常切换与注入故障回滚，证明新旧进程生命周期严格互斥且终态可查。
+- [ ] PUB-003.2.1 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: InProgress] 让协调器支持延迟 apply 交接
+  - 背景：PUB-003.2b 落地时发现 `EngineSwitchCoordinator::finalize_switch` 自己执行 `apply_candidate` 且只返回快照，`reserve_switch` 也不暴露已分派的 bundle 与 binding lease；而 Desktop/Android 必须先拿到 `BindingNew` 准入、自行构造 `CoreApplication`、再 finalize，因此产品只能绕过协调器直接驱动 journal 租约 —— 003.2 的目标未达成。
+  - 产物：运行时新增 `reserve_switch`-家族 API，停在 `BindingNew` 并暴露 backend 与 binding lease（或等价 apply seam）；产品 selector 改为经由 `EngineSwitchCoordinator`，不再自己编排前向事务。
+  - 依赖：PUB-003.2b。
+  - 验收：composition/desktop/android 的前向切换全部走协调器；调用顺序测试仍证明旧 owner 终态早于新进程启动；失败回滚与 `RecoveryRequired` 语义不变。
+  - 待裁决：2b 把 provider 分派从「保留前」移到了「CAS 之后、持久化候选保留之前」（因为 `reserve_new_owner` 需要候选 `CoreIdentity`）。若分派失败会留下已改选择的 `SelectionChanged` journal。003.2.1 必须决定是恢复「保留前 prepare」还是在协调器 API 里显式建模该状态，不得默认接受。
 - [ ] PUB-003.3 [kind: mechanism] [priority: P1] [points: 3] [owner: runtime facade] [status: Planned] 高层 Facade SDK `lurker-engine-runtime`
   - 产物：`LurkerRuntimeBuilder` 式 Builder API，隐藏 Token/Generation 细节，暴露直观异步操控入口。
   - 依赖：PUB-003.2。
