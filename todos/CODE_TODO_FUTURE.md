@@ -66,9 +66,11 @@
 > 1.0 中性内核（原 4.1–4.3，PUB-001～003）已迁入[现在佛](CODE_TODO.md)作为 1.0 主工作流；本板保留 UI 呈现标准化、四套模板脚手架与开源发布自动化。
 
 ### 4.4 UI 消费端管道标准化与 Presentation 纯净化（3条 / 6pt）
-- [ ] PUB-004.1 [kind: mechanism] [priority: P1] [points: 2] [owner: presentation] 跨 UI 纯视图模型投影 `lurker-ui-presentation` 独立化
+- [ ] PUB-004.1 [kind: mechanism] [priority: P1] [points: 2] [owner: presentation] [status: InProgress] 跨 UI 纯视图模型投影 `lurker-ui-presentation` 独立化
   - 产物：纯数据模型与国际化文案折叠库，零 UI 框架依赖，仅负责将底层快照转换为各表面易读的 ViewModel。
+  - 裁决：`infiltrator-presentation` 82 个生产模块中只有 5 个（1,063 行）当前零契约改动；其余 77 个依赖 36k 行 `infiltrator-contract`。本条目只交付「种子 crate + `TextCatalog` 端口」，全量迁移拆为 B2 文案统一 / B3 `surface_snapshot` 契约下移，禁止在 PUB-004.1 内承诺 20.4k 行迁移。
   - 依赖：PUB-001.1。
+  - 进度（2026-10-17，本地 L）：B1 完成 —— `lurker-ui-presentation` 已建（仅依赖 `lurker-core-contract`），迁入 `failure_projection`/`proxy_group_order_editor`/`routing_intent_actions`/`log_follow`/`dns_leak_actions` 与 `TextCatalog` 端口，26 个消费文件已改接；中性 crate 21 测试、六表面 1246 passed / 2 skipped。B2（45 个 i18n 模块统一 `&dyn TextCatalog`）与 B3（`PageStatus`/`PageData`/`PageId`/`SurfaceOrigin` 下移中立契约）未开始。
   - 验收：`cargo check` 零图形库依赖；单元测试覆盖各页面状态折叠，禁止私有逻辑残留。
 - [ ] PUB-004.2 [kind: mechanism] [priority: P1] [points: 2] [owner: contract] 标准单向 UI 通信管道协议规范化
   - 产物：固化 `SurfaceReader`（只读快照流）与 `CommandSink`（强类型意图通道），作为模板框架的唯一前后端接口。

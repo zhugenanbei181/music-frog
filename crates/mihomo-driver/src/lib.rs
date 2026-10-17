@@ -12,9 +12,14 @@
 //!   readiness probing.
 //! * `process` — desktop process supervision: spawn, readiness, PID ownership,
 //!   exact terminal readback and child reaping.
+//! * `codec` — native Mihomo YAML codec (inspection and editor snippet splice)
+//!   plus the native `-t` configuration dry-run, which drives the process
+//!   command boundary.
 
 #[cfg(feature = "http")]
 pub mod api;
+#[cfg(feature = "codec")]
+pub mod codec;
 pub mod driver;
 pub mod error;
 #[cfg(feature = "http")]
@@ -22,7 +27,7 @@ pub mod network_error;
 #[cfg(feature = "http")]
 pub mod outbound;
 #[cfg(feature = "process")]
-mod process;
+pub mod process;
 #[cfg(feature = "http")]
 pub mod routing_intent;
 #[cfg(feature = "http")]

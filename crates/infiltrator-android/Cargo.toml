@@ -1,6 +1,7 @@
 [package]
 name = "infiltrator-android"
 version.workspace = true
+publish = false
 edition = "2024"
 
 [lib]
@@ -38,6 +39,7 @@ mihomo-driver = { version = "0.42.6", path = "../mihomo-driver", default-feature
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
+lurker-ui-presentation = { version = "0.42.6", path = "../lurker-ui-presentation" }
 singbox-api = { path = "../singbox-api" }
 singbox-config = { path = "../singbox-config" }
 singbox-driver = { path = "../singbox-driver" }

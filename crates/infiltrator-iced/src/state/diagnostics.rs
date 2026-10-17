@@ -2,11 +2,11 @@
 
 use infiltrator_application::dns_leak_application::DnsLeakApplication;
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionState;
 use infiltrator_presentation::dns_query_actions::DnsQueryActions;
 use infiltrator_presentation::log_export_actions::LogExportActions;
 use infiltrator_presentation::log_projection::page_from_log_records;
 use infiltrator_presentation::log_search::LogSearchState;
+use lurker_ui_presentation::dns_leak_actions::DnsLeakActionState;
 
 use crate::types::app::Route;
 use crate::types::doctor::{CrashWatchdogState, DoctorPanelState};

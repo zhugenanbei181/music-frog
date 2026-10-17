@@ -1,4 +1,6 @@
 use std::time;
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::Message;
@@ -458,4 +460,59 @@ fn test_group_name_is_percent_encoded_in_delay_url() {
         "http://127.0.0.1:9090/group/My%20Group%20%231/delay?url=https%3A%2F%2Fexample.com%2Fping&timeout=3000",
         "group segment must be encoded while query pairs use form encoding"
     );
+}
+
+#[test]
+fn controller_must_be_an_explicit_http_loopback_endpoint() {
+    for accepted in [
+        "http://127.0.0.1:9090",
+        "http://[::1]:9090",
+        "http://127.0.0.2:1234",
+    ] {
+        assert!(MihomoClient::new(accepted, None).is_ok(), "{accepted}");
+    }
+    for rejected in [
+        "https://127.0.0.1:9090",
+        "http://192.168.1.5:9090",
+        "http://0.0.0.0:9090",
+        "http://localhost:9090",
+        "http://user:pass@127.0.0.1:9090",
+        "http://127.0.0.1:9090/proxies",
+        "http://127.0.0.1:9090?x=1",
+        "http://127.0.0.1:9090#frag",
+        "http://127.0.0.1",
+        "http://127.0.0.1:0",
+    ] {
+        assert!(MihomoClient::new(rejected, None).is_err(), "{rejected}");
+    }
+}
+
+#[tokio::test]
+async fn controller_redirects_are_never_followed() {
+    let sink = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let sink_address = sink.local_addr().unwrap();
+    let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target_address = target.local_addr().unwrap();
+
+    let redirect = tokio::spawn(async move {
+        let (mut socket, _) = target.accept().await.unwrap();
+        let mut buffer = [0u8; 1024];
+        let _ = socket.read(&mut buffer).await;
+        let response = format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://{sink_address}/steal\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        socket.write_all(response.as_bytes()).await.unwrap();
+    });
+
+    let client = MihomoClient::new(
+        &format!("http://{target_address}"),
+        Some("secret".to_owned()),
+    )
+    .expect("loopback client");
+    assert!(client.get_version().await.is_err());
+    redirect.await.unwrap();
+
+    timeout(Duration::from_millis(200), sink.accept())
+        .await
+        .expect_err("a controller redirect must not be followed");
 }

@@ -24,6 +24,7 @@ PURE_NEUTRAL = (
     "lurker-core-contract",
     "lurker-core-ports",
     "lurker-profile-store",
+    "lurker-ui-presentation",
     "lurker-engine-runtime",
 )
 # Engine drivers: may own per-OS process code, but stay product/UI neutral.
@@ -43,6 +44,32 @@ ENGINE_ADAPTER_IMPORT = re.compile(
     r"\b(?:mihomo|singbox)_(?:api|config|process|version)::"
 )
 
+# Drivers speak plaintext http/ws to a loopback controller only. Linking a TLS
+# backend would silently widen the transport contract and drag OpenSSL into
+# every target build, so it is rejected outright.
+TLS_DEPENDENCIES = {
+    "native-tls",
+    "openssl",
+    "openssl-sys",
+    "rustls",
+    "rustls-native-certs",
+    "schannel",
+    "security-framework",
+}
+
+
+def effective_features(
+    dependency: str, spec: dict, workspace_dependencies: dict
+) -> set[str]:
+    """Features merged from the workspace spec and the crate-level override."""
+    features: set[str] = set()
+    if spec.get("workspace") is True:
+        workspace_spec = workspace_dependencies.get(dependency, {})
+        if isinstance(workspace_spec, dict):
+            features.update(workspace_spec.get("features", []))
+    features.update(spec.get("features", []))
+    return features
+
 
 def check(root: Path = ROOT) -> list[str]:
     problems: list[str] = []
@@ -56,13 +83,29 @@ def check(root: Path = ROOT) -> list[str]:
         dependencies: dict[str, object] = {}
         for section in ("dependencies", "dev-dependencies", "build-dependencies"):
             dependencies.update(manifest.get(section, {}))
-        for dependency in dependencies:
+        workspace_dependencies = tomllib.loads(
+            (root / "Cargo.toml").read_text(encoding="utf-8")
+        ).get("workspace", {}).get("dependencies", {})
+        for dependency, spec in dependencies.items():
             if dependency.startswith("infiltrator-"):
                 problems.append(f"{name}: must not depend on product crate `{dependency}`")
+            if not isinstance(spec, dict):
+                continue
             if name in DRIVERS and dependency.startswith(ENGINE_ADAPTER_PREFIXES):
                 problems.append(
                     f"{name}: driver must not depend on engine adapter crate `{dependency}`"
                 )
+            if name in DRIVERS:
+                if dependency in TLS_DEPENDENCIES:
+                    problems.append(
+                        f"{name}: driver must not link a TLS backend (`{dependency}`)"
+                    )
+                features = effective_features(dependency, spec, workspace_dependencies)
+                tls_features = sorted(f for f in features if "tls" in f.lower())
+                if tls_features:
+                    problems.append(
+                        f"{name}: dependency `{dependency}` enables TLS feature(s) {tls_features}"
+                    )
 
         for source in sorted(crate.rglob("*.rs")):
             text = source.read_text(encoding="utf-8", errors="ignore")
@@ -98,6 +141,10 @@ def self_test() -> int:
     assert ENGINE_ADAPTER_IMPORT.search("mihomo_api::client::Client")
     assert ENGINE_ADAPTER_IMPORT.search("singbox_config::model::Options")
     assert not ENGINE_ADAPTER_IMPORT.search("mihomo_driver::api::Client")
+    workspace = {"tokio-tungstenite": {"version": "0.30", "features": ["native-tls"]}}
+    merged = effective_features("tokio-tungstenite", {"workspace": True, "features": ["connect"]}, workspace)
+    assert "native-tls" in merged and "connect" in merged
+    assert any("tls" in feature for feature in merged)
     print("lurker neutrality guard self-test: PASS")
     return 0
 

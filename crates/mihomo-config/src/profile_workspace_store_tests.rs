@@ -1,6 +1,5 @@
 //! test-intent: behavior
 use super::*;
-use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use async_trait::async_trait;
 use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -34,6 +33,7 @@ use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, Profil
 use lurker_profile_store::document_store::{
     read_optional_bytes, write_document, write_document_bytes,
 };
+use mihomo_driver::codec::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use std::collections::HashMap;
 use std::str;
 use std::sync::{Arc, Mutex};

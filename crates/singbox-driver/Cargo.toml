@@ -27,11 +27,9 @@ reqwest = { workspace = true, default-features = false, optional = true }
 tokio = { workspace = true }
 url = { workspace = true, optional = true }
 
-[target.'cfg(target_os = "android")'.dependencies]
-reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"], optional = true }
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
-reqwest = { workspace = true, default-features = false, features = ["native-tls"], optional = true }
+# The controller is a loopback plaintext http admin API, so no TLS backend is
+# linked: this keeps OpenSSL out of Linux and NDK builds and lets the driver
+# cross-compile without a target OpenSSL toolchain.
 
 [dev-dependencies]
 tempfile = { workspace = true }

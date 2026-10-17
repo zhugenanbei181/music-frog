@@ -25,7 +25,7 @@ use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use mihomo_driver::api::client::MihomoClient;
 use mihomo_driver::outbound::MihomoOutboundAdapter;
 use std::collections::HashMap;
@@ -144,8 +144,8 @@ async fn rule_trace_uses_the_live_profile_workspace_and_mihomo_outbound_observat
     );
 
     let store: Arc<dyn ProfileStore> = config.shared_engine_profile_store();
-    let profiles =
-        ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let profiles = ProfileApplication::new(store)
+        .with_document_codec(Arc::new(MihomoProfileConfigurationCodec));
     let workspace = profiles
         .load_workspace(&profile_id)
         .await

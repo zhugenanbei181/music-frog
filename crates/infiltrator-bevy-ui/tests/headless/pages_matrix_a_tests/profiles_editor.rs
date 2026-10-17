@@ -12,14 +12,16 @@ use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_contract::yaml_snippets::{SnippetCaret, YAML_SNIPPETS, insert_at_caret};
+use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
+use lurker_core_ports::profile_document_codec::ProfileDocumentCaret;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use mihomo_driver::codec::snippet::splice_at_caret;
 
 #[test]
 fn test_profiles_editor_runs_the_shared_preflight_and_formatter() {
@@ -304,18 +306,18 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
         state.buffer.cursor_col = state.buffer.lines[1].len();
     }
     let first = YAML_SNIPPETS.first().expect("catalogue");
-    let fixture_insertion = insert_at_caret(
+    let fixture_insertion = splice_at_caret(
         "proxies:\n  - name: keep\n",
         first.id,
-        SnippetCaret {
+        first.body,
+        ProfileDocumentCaret {
             line: 2,
             column: "  - name: keep".len(),
         },
-    )
-    .expect("snippet fixture");
+    );
     sink.queue_profile_snippet(Ok(ProfileDocumentSnippetOutcome::Inserted(
         ProfileDocumentSnippetInsertion {
-            snippet_id: fixture_insertion.snippet_id.to_owned(),
+            snippet_id: fixture_insertion.snippet_id,
             content: fixture_insertion.content,
             cursor_line: fixture_insertion.cursor_line,
             cursor_column: fixture_insertion.cursor_column,

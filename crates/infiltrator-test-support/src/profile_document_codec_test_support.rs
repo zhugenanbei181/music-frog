@@ -3,7 +3,7 @@ use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
+use infiltrator_contract::yaml_snippets::yaml_snippet;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::filter::SubscriptionFilterPipeline;
 use infiltrator_domain::filter_policy_form;
@@ -30,6 +30,7 @@ use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCaret, ProfileDocumentCodecPort, ProfileDocumentCodecScope,
     ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
 };
+use mihomo_driver::codec::snippet::splice_at_caret;
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::str::from_utf8;
@@ -146,16 +147,10 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
     ) -> Result<ProfileDocumentSnippetOutcome, PortError> {
         self.insertions.fetch_add(1, Ordering::SeqCst);
         let previous = self.inspect(content.as_bytes())?;
-        let insertion = insert_at_caret(
-            content,
-            snippet_id,
-            SnippetCaret {
-                line: caret.line,
-                column: caret.column,
-            },
-        )
-        .map_err(|error| PortError::Failed(error.to_string()))?;
-        let validation = self.inspect(insertion.content.as_bytes())?;
+        let snippet = yaml_snippet(snippet_id)
+            .ok_or_else(|| PortError::Failed(format!("未知配置片段：{snippet_id}")))?;
+        let spliced = splice_at_caret(content, snippet_id, snippet.body, caret);
+        let validation = self.inspect(spliced.content.as_bytes())?;
         if matches!(&previous, DocumentValidation::Valid)
             && matches!(&validation, DocumentValidation::Invalid { .. })
         {
@@ -163,10 +158,10 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
         }
         Ok(ProfileDocumentSnippetOutcome::Inserted(
             ProfileDocumentSnippetInsertion {
-                snippet_id: insertion.snippet_id.to_owned(),
-                content: insertion.content,
-                cursor_line: insertion.cursor_line,
-                cursor_column: insertion.cursor_column,
+                snippet_id: spliced.snippet_id,
+                content: spliced.content,
+                cursor_line: spliced.cursor_line,
+                cursor_column: spliced.cursor_column,
                 validation,
             },
         ))

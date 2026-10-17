@@ -1,11 +1,11 @@
 //! One native-independent presentation of optional quota observations for both peer products.
-use crate::failure_projection::failure_message;
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::failure_projection::failure_message;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuotaGrade {
     Unknown,
@@ -97,7 +97,7 @@ pub fn project_quota(snapshot: &SubscriptionQuotaSnapshot, locale: &str) -> Quot
                 snapshot
                     .failure
                     .as_ref()
-                    .map(|failure| failure_message(failure, locale))
+                    .map(|failure| failure_message(failure, &lang))
                     .unwrap_or_else(|| lang.tr("quota_reason_unreported").into_owned()),
             )],
         )

@@ -1,61 +1,64 @@
-//! Mihomo YAML document inspection adapter.
+//! Product-level typed configuration extension for the Mihomo YAML codec.
+//!
+//! The neutral inspection implementation (`scope`/`inspect`/`insert_snippet`)
+//! is owned by `mihomo_driver::codec::profile_document_codec`. This newtype
+//! only exists because the product `ProfileConfigurationCodecPort` extension is
+//! a foreign trait: the orphan rule requires a product-local type. It delegates
+//! every neutral operation to that single driver implementation and only adds
+//! the product-owned typed workspace, mixin and filter operations.
+//!
+//! The shared editor snippet catalogue is a product/UI asset, so this adapter
+//! injects it into the neutral driver codec as data; the driver owns the splice
+//! mechanics but no snippet body.
 
 use crate::{profile_configuration_codec, profile_options_codec};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
+use infiltrator_contract::yaml_snippets::yaml_snippet;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationCodecPort, ProfileConfigurationMutation, ProfileConfigurationQuery,
     ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileFilterMutation,
     ProfileMixinMutation, ProfileOptionsCodecScope, ProfileOptionsProjection,
     ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
 };
-use lurker_core_contract::error::{ErrorCode, Failure};
-use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileWorkspaceIdentity,
 };
-use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCaret, ProfileDocumentCodecPort, ProfileDocumentCodecScope,
-    ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
+    ProfileDocumentSnippetOutcome,
 };
-use std::str::from_utf8;
-use yaml_rust2::YamlLoader;
-
-pub(crate) const PROFILE_FORMAT: &str = "mihomo-yaml";
-pub(crate) const PROFILE_SCHEMA_VERSION: u32 = 1;
+use mihomo_driver::codec::profile_document_codec::MihomoProfileDocumentCodec;
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MihomoProfileDocumentCodec;
+pub struct MihomoProfileConfigurationCodec;
 
-impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
+impl MihomoProfileConfigurationCodec {
+    pub const fn new() -> Self {
+        Self
+    }
+
+    /// The driver codec with the shared snippet catalogue injected.
+    const fn document_codec() -> MihomoProfileDocumentCodec {
+        MihomoProfileDocumentCodec::with_snippets(snippet_body)
+    }
+}
+
+fn snippet_body(snippet_id: &str) -> Option<&'static str> {
+    yaml_snippet(snippet_id).map(|snippet| snippet.body)
+}
+
+impl ProfileDocumentCodecPort for MihomoProfileConfigurationCodec {
     fn scope(&self) -> ProfileDocumentCodecScope {
-        ProfileDocumentCodecScope {
-            engine_id: crate::engine_id(),
-            format_id: ProfileFormatId::new(PROFILE_FORMAT)
-                .expect("static Mihomo format ID is valid"),
-            schema_version: ProfileSchemaVersion::new(PROFILE_SCHEMA_VERSION)
-                .expect("Mihomo schema version is positive"),
-        }
+        Self::document_codec().scope()
     }
 
     fn inspect(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, PortError> {
-        let content = from_utf8(raw_bytes)
-            .map_err(|error| PortError::Failed(format!("Mihomo YAML is not UTF-8: {error}")))?;
-        match inspect_mihomo_yaml(content) {
-            Ok(()) => Ok(DocumentValidation::Valid),
-            Err(diagnostic) => Ok(DocumentValidation::Invalid {
-                diagnostics: vec![DocumentDiagnosticSnapshot {
-                    line: Some(diagnostic.line),
-                    column: Some(diagnostic.column),
-                    message: diagnostic.message,
-                }],
-            }),
-        }
+        Self::document_codec().inspect(raw_bytes)
     }
 
     fn insert_snippet(
@@ -64,41 +67,11 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
         snippet_id: &str,
         caret: ProfileDocumentCaret,
     ) -> Result<ProfileDocumentSnippetOutcome, PortError> {
-        let previous = self.inspect(content.as_bytes())?;
-        let insertion = insert_at_caret(
-            content,
-            snippet_id,
-            SnippetCaret {
-                line: caret.line,
-                column: caret.column,
-            },
-        )
-        .map_err(|error| {
-            PortError::Rejected(Failure::new(
-                ErrorCode::InvalidInput,
-                error.to_string(),
-                false,
-            ))
-        })?;
-        let validation = self.inspect(insertion.content.as_bytes())?;
-        if matches!(&previous, DocumentValidation::Valid)
-            && matches!(&validation, DocumentValidation::Invalid { .. })
-        {
-            return Ok(ProfileDocumentSnippetOutcome::Rejected { validation });
-        }
-        Ok(ProfileDocumentSnippetOutcome::Inserted(
-            ProfileDocumentSnippetInsertion {
-                snippet_id: insertion.snippet_id.to_owned(),
-                content: insertion.content,
-                cursor_line: insertion.cursor_line,
-                cursor_column: insertion.cursor_column,
-                validation,
-            },
-        ))
+        Self::document_codec().insert_snippet(content, snippet_id, caret)
     }
 }
 
-impl ProfileConfigurationCodecPort for MihomoProfileDocumentCodec {
+impl ProfileConfigurationCodecPort for MihomoProfileConfigurationCodec {
     fn read_configuration(
         &self,
         identity: &ProfileDocumentIdentity,
@@ -192,25 +165,5 @@ impl ProfileConfigurationCodecPort for MihomoProfileDocumentCodec {
         draft: &SubscriptionFilterDraft,
     ) -> Result<ProfileFilterMutation, PortError> {
         profile_options_codec::apply_filter(identity, document_bytes, sidecar_bytes, draft)
-    }
-}
-
-struct MihomoYamlDiagnostic {
-    line: usize,
-    column: usize,
-    message: String,
-}
-
-fn inspect_mihomo_yaml(content: &str) -> Result<(), MihomoYamlDiagnostic> {
-    if content.trim().is_empty() {
-        return Ok(());
-    }
-    match YamlLoader::load_from_str(content) {
-        Ok(_) => Ok(()),
-        Err(error) => Err(MihomoYamlDiagnostic {
-            line: error.marker().line(),
-            column: error.marker().col(),
-            message: error.to_string(),
-        }),
     }
 }

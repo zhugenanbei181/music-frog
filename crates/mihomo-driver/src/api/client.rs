@@ -3,12 +3,13 @@ use crate::error::{MihomoError, Result};
 use crate::types::*;
 use lurker_core_contract::error::Failure;
 use reqwest::Client;
+use reqwest::redirect::Policy;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use url::Url;
+use url::{Host, Url};
 
 pub const MAX_MIHOMO_DELAY_TIMEOUT_MS: u32 = i16::MAX as u32;
 
@@ -39,6 +40,35 @@ pub enum StreamTerminal {
     Unsupported(Failure),
 }
 
+/// The controller is the engine's loopback admin API.
+///
+/// Accepting any other URL would send the controller secret in cleartext to a
+/// LAN or internet host, and accepting a hostname would reopen DNS rebinding.
+/// Only an explicit `http` URL whose host is an IP literal in `127.0.0.0/8` or
+/// `::1`, with a non-zero port and no userinfo/path/query/fragment, is valid.
+pub(crate) fn validate_loopback_controller(base_url: &Url) -> Result<()> {
+    let loopback_host = match base_url.host() {
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
+        Some(Host::Domain(_)) | None => false,
+    };
+    if base_url.scheme() != "http"
+        || !loopback_host
+        || !base_url.username().is_empty()
+        || base_url.password().is_some()
+        || (base_url.path() != "/" && !base_url.path().is_empty())
+        || base_url.query().is_some()
+        || base_url.fragment().is_some()
+        || base_url.port().is_none()
+        || base_url.port() == Some(0)
+    {
+        return Err(MihomoError::Config(
+            "Mihomo controller must be an explicit HTTP loopback endpoint".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Clone)]
 pub struct MihomoClient {
     pub(crate) client: Client,
@@ -49,8 +79,17 @@ pub struct MihomoClient {
 
 impl MihomoClient {
     pub fn new(base_url: &str, secret: Option<String>) -> Result<Self> {
-        let client = Client::builder().timeout(Duration::from_secs(10)).build()?;
         let base_url = Url::parse(base_url).map_err(|e| MihomoError::Config(e.to_string()))?;
+        validate_loopback_controller(&base_url)?;
+        let client = Client::builder()
+            .timeout(Duration::from_secs(10))
+            // The controller is loopback-only: an ambient HTTP proxy must never
+            // take over the request and observe the controller secret.
+            .no_proxy()
+            // Never follow redirects: a squatter on the controller port could
+            // otherwise redirect a bearer-authenticated request off-host.
+            .redirect(Policy::none())
+            .build()?;
         Ok(Self {
             client,
             base_url,

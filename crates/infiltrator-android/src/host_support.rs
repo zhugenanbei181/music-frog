@@ -21,11 +21,11 @@ use infiltrator_core::sync_port::FileWebDavSync;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use infiltrator_presentation::failure_projection::{FailureLocalizationKey, project_failure};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use lurker_ui_presentation::failure_projection::{FailureLocalizationKey, project_failure};
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use mihomo_driver::error::MihomoError;
 use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
@@ -89,7 +89,7 @@ pub(super) async fn build_configuration_application() -> Result<ConfigurationApp
 {
     let manager = build_config_manager().await?;
     let profiles = ProfileApplication::new(manager.shared_engine_profile_store())
-        .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+        .with_document_codec(Arc::new(MihomoProfileConfigurationCodec));
     Ok(ConfigurationApplication::from_profile_application(profiles))
 }
 

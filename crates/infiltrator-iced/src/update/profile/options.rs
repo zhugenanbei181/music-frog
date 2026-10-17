@@ -19,12 +19,13 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
-use infiltrator_presentation::failure_projection::failure_message;
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
 };
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_ui_presentation::failure_projection::failure_message;
 
 impl AppState {
     pub(super) fn update_options(&mut self, message: Message) -> Task<Message> {
@@ -384,7 +385,7 @@ impl AppState {
         let text = self.editor.mixin_content.text();
         if let Err(failure) = self.mixin_preflight(&text) {
             let error = failure.message.clone();
-            let message = failure_message(&failure, &self.shell.lang);
+            let message = failure_message(&failure, &Lang(&self.shell.lang));
             self.set_error(&message);
             self.editor.mixin_session.reject(failure);
             self.editor.syntax_error = Some(error);

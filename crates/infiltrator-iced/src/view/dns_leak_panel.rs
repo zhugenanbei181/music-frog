@@ -19,9 +19,9 @@ use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 #[cfg(test)]
 use infiltrator_contract::dns_leak::DnsLeakReport;
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_presentation::dns_leak_projection::{LeakDisplay, LeakTone, project_leak};
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 
 fn badge_kind(tone: LeakTone) -> BadgeKind {
     match tone {

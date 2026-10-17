@@ -12,7 +12,6 @@ use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
@@ -22,6 +21,7 @@ use infiltrator_test_support::filter_capture_store::{FILTER_POLICY, FILTER_PROFI
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::details::OutboundObservation;
 use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 
 pub(super) fn parse(raw: &str) -> FeatureId {
     FeatureId::ALL

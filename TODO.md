@@ -58,16 +58,16 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v209`）
+## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v210`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 9 | 19 |
+| 现在佛 | 8 | 17 |
 | 过去佛 | 18 | 49 |
 | 未来佛 | 24 | 47 |
-| **未办结联合分母** | **51** | **115** |
+| **未办结联合分母** | **50** | **113** |
 
-- **严格交付率：644 / 759 = 84.8%**（archived 644pt / archived + 未办结 115pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：646 / 759 = 85.1%**（archived 646pt / archived + 未办结 113pt）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -107,12 +107,13 @@
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
 | 引擎能力证据 | L | mihomo x86_64-linux adapter rev2；sing-box 手工 Linux smoke | 无跨平台、无 CI 复现 |
 
-### 已归档交付原子条目（明细 242 条 / 643 pt；累计 243 条 / 644 pt）
+### 已归档交付原子条目（明细 243 条 / 645 pt；累计 244 条 / 646 pt）
 | 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
 | `PUB-001.1` 中立契约 `lurker-core-contract` | 2 | `cargo publish --dry-run -p lurker-core-contract` 通过（25 文件 / 133.6KiB 打包并校验）；637 个消费文件迁移，无 re-export 中转；中立性门禁证明零产品/UI/OS 私有符号；全量 5082/5082 nextest、`clippy -D warnings`、结构门全绿。 |
+| `PUB-002.2` Mihomo YAML codec 独立化 | 2 | `mihomo-driver::codec` 持有中性 YAML 解析/校验、`ProfileDocumentCodecPort`、字节保真 snippet 拼接（正文由 `SnippetBodyLookup` 注入）与原生 `mihomo -t` dry-run；`mihomo-config` 只保留 `MihomoProfileConfigurationCodec` 的 typed 配置语义。driver 288 本地 nextest 通过；parity 锚点已迁到 driver。 |
 | `PUB-002.5` 双引擎独立 example | 1 | 两个 driver 各含 `examples/lifecycle.rs`（未配置时输出计划并 0 退出；配置时 start→readiness→inventory→stop→终态读回）+ `tests/example_lifecycle_smoke.rs`；README 记录运行命令与 env；driver 148 nextest 通过，零产品路径/依赖。 |
 | `PUB-002.1` 中性 `mihomo-driver` | 3 | `mihomo-api`/`mihomo-process`/`mihomo-version` 的中性实现（REST/WS controller、outbound/routing、process supervisor、version/readiness）迁入 `mihomo-driver`；空壳 `mihomo-process` 删除；driver 111 + adapter 404 nextest 通过；neutrality/core-boundary/retired-surface/import 门禁全绿。 |
 | `PUB-002.3` 中性 `singbox-driver` | 3 | Clash API/selector、process supervisor、readiness/outbound、version probe 迁入 `singbox-driver`；空壳 `singbox-process` 删除；driver 13 + adapter 18 nextest；产品侧保留 capability provider、资产锁与 orphan-rule 委托 newtype；门禁全绿。 |

@@ -51,7 +51,7 @@ use lurker_core_ports::core_process::CoreReadiness;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_driver::codec::config::SingBoxProfileConfigurationAdapter;
@@ -360,7 +360,7 @@ async fn prepare_mihomo_target(
         ConfigManager::with_profile_codec_and_store_at_root(
             config_root,
             DefaultCredentialStore::default(),
-            Arc::new(MihomoProfileDocumentCodec),
+            Arc::new(MihomoProfileConfigurationCodec),
             ProfileDocumentExtension::Yaml,
         )
         .map_err(map_mihomo_error)?,

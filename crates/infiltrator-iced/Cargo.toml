@@ -1,6 +1,7 @@
 [package]
 name = "infiltrator-iced"
 version.workspace = true
+publish = false
 edition = "2024"
 
 # Lib + thin binary: `src/lib.rs` hosts the module tree and the application
@@ -52,6 +53,7 @@ infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
+lurker-ui-presentation = { version = "0.42.6", path = "../lurker-ui-presentation" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
@@ -106,6 +108,9 @@ axum = { workspace = true }
 iced_runtime = "0.14"
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-platform = { path = "../infiltrator-platform" }
+mihomo-driver = { path = "../mihomo-driver", default-features = false, features = [
+  "codec",
+] }
 mihomo-version = { path = "../mihomo-version" }
 
 [[test]]

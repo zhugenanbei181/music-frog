@@ -3,6 +3,10 @@
 //! The Mihomo binary is selected and SHA-verified by the explicit smoke
 //! script. Subscription HTTP is restricted to a mock server bound to loopback;
 //! this test never contacts a public subscription service.
+//!
+//! Pure YAML inspection is
+//! `mihomo_driver::codec::profile_document_codec::MihomoProfileDocumentCodec`;
+//! the product newtype only adds the typed configuration extension.
 
 use async_trait::async_trait;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -27,7 +31,7 @@ use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use mockito::Matcher;
 use std::collections::HashMap;
 use std::env;
@@ -144,7 +148,7 @@ fn native_check_candidate(binary: &Path, configs_root: &Path, candidate_name: &s
 
 async fn inspect_and_check_workspace(
     profiles: &ProfileApplication,
-    codec: &MihomoProfileDocumentCodec,
+    codec: &MihomoProfileConfigurationCodec,
     binary: &Path,
     configs_root: &Path,
     candidate_name: &str,
@@ -272,7 +276,7 @@ async fn subscription_import_update_and_refresh_share_the_mihomo_profile_store()
     )
     .expect("construct the Mihomo engine-scoped profile store");
     let store: Arc<dyn ProfileStore> = config.shared_engine_profile_store();
-    let codec = MihomoProfileDocumentCodec;
+    let codec = MihomoProfileConfigurationCodec;
     let profiles = ProfileApplication::new(store).with_document_codec(Arc::new(codec));
     assert_eq!(profiles.engine_id().as_str(), "mihomo");
     assert_eq!(profiles.config_dir(), config.config_dir());

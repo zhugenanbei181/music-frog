@@ -40,8 +40,6 @@ use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_presentation::protocol_form::ProtocolInputs;
-use infiltrator_presentation::proxy_group_order_editor::ProxyGroupOrderEditor;
-use infiltrator_presentation::routing_intent_actions::RoutingIntentActions;
 use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsEditor;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
@@ -55,6 +53,8 @@ use lurker_core_contract::outbound::{
 };
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use lurker_core_contract::session::SessionToken;
+use lurker_ui_presentation::proxy_group_order_editor::ProxyGroupOrderEditor;
+use lurker_ui_presentation::routing_intent_actions::RoutingIntentActions;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;

@@ -3,7 +3,7 @@
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use std::sync::Arc;
 
 #[cfg(feature = "capture-fixtures")]
@@ -34,7 +34,7 @@ use std::path::Path;
 
 /// Construct profile use cases with the Mihomo YAML document codec.
 pub fn profiles_for_mihomo(store: Arc<dyn ProfileStore>) -> ProfileApplication {
-    ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileDocumentCodec))
+    ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileConfigurationCodec))
 }
 
 /// Construct configuration use cases with the Mihomo YAML document codec.
@@ -44,7 +44,7 @@ pub fn for_mihomo_store(store: Arc<dyn ProfileStore>) -> ConfigurationApplicatio
 
 /// Bind an existing profile use case to the Mihomo YAML document codec.
 pub fn for_mihomo_profiles(profiles: ProfileApplication) -> ConfigurationApplication {
-    let profiles = profiles.with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let profiles = profiles.with_document_codec(Arc::new(MihomoProfileConfigurationCodec));
     ConfigurationApplication::from_profile_application(profiles)
 }
 
@@ -52,7 +52,7 @@ pub fn for_mihomo_profiles(profiles: ProfileApplication) -> ConfigurationApplica
 /// adapter conformance and isolated capture fixtures.
 #[cfg(feature = "capture-fixtures")]
 pub fn profile_document_codec_fixture() -> Arc<dyn ProfileConfigurationCodecPort> {
-    Arc::new(MihomoProfileDocumentCodec)
+    Arc::new(MihomoProfileConfigurationCodec)
 }
 
 /// Parse rule workspace fixture data using the selected Mihomo codec.
@@ -112,7 +112,7 @@ pub async fn delete_profile_options_fixture(
 #[cfg(feature = "capture-fixtures")]
 pub fn mihomo_rule_trace_fixture() -> Arc<RuleTraceStore> {
     Arc::new(RuleTraceStore::with_document_codec(Arc::new(
-        MihomoProfileDocumentCodec,
+        MihomoProfileConfigurationCodec,
     )))
 }
 

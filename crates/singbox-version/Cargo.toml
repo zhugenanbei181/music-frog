@@ -2,6 +2,7 @@
 name = "singbox-version"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 [dependencies]
 lurker-core-contract = { path = "../lurker-core-contract" }

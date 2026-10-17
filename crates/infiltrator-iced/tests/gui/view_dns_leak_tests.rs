@@ -3,7 +3,7 @@ use infiltrator_contract::dns_leak::{
     DnsLeakEchoRecord, DnsLeakObservation, DnsLeakObservationOutcome, DnsLeakProbeSource,
     DnsLeakProbeTransport, DnsLeakReport,
 };
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
+use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 
 // ===========================================================================
 // DUAL-14-08: DNS leak cross-source panel

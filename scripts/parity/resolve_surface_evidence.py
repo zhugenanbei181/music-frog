@@ -98,7 +98,7 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
                 owner = discovery.get(test)
                 if owner is None:
                     dangling.append(f"{key}: {test}")
-                elif owner != SURFACES.get(row["surface"]) and not (row["level"] == "contract" and owner in {"infiltrator-contract", "lurker-core-contract", "infiltrator-domain", "infiltrator-application", "infiltrator-core", "infiltrator-presentation"}):
+                elif owner != SURFACES.get(row["surface"]) and not (row["level"] == "contract" and owner in {"infiltrator-contract", "lurker-core-contract", "infiltrator-domain", "infiltrator-application", "infiltrator-core", "infiltrator-presentation", "lurker-ui-presentation", "mihomo-driver", "singbox-driver"}):
                     invalid.append(f"wrong package for {key}: {owner}")
         if specs is not None and row["level"] == "scenario" and key[0] in specs:
             if set(row["paths"].split(",")) != set(specs[key[0]]["required_paths"]):

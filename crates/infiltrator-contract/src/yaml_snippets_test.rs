@@ -1,4 +1,7 @@
-//! DUAL-09-04: shared snippet catalogue and byte-faithful splice tests.
+//! DUAL-09-04: shared snippet catalogue tests.
+//!
+//! Splice mechanics are covered by `mihomo_driver::codec::snippet`; this test
+//! only pins the catalogue that the product adapter injects into the driver.
 
 use super::*;
 
@@ -44,78 +47,6 @@ fn every_catalogue_entry_keeps_a_real_document_parseable() {
 }
 
 #[test]
-fn insert_at_caret_splices_without_touching_the_rest_of_the_document() {
-    let content = "rules:\n  - MATCH,DIRECT";
-    let insertion = insert_at_caret(
-        content,
-        "rule-geoip",
-        SnippetCaret {
-            line: 2,
-            column: 16,
-        },
-    )
-    .expect("catalogue id");
-    assert_eq!(
-        insertion.content,
-        "rules:\n  - MATCH,DIRECT\n  - GEOIP,CN,DIRECT\n"
-    );
-    assert_eq!(insertion.snippet_id, "rule-geoip");
-    assert!(insertion.is_clean());
-    // The caret lands on the fresh line after the inserted item.
-    assert_eq!(insertion.cursor_line, 4);
-    assert_eq!(insertion.cursor_column, 0);
-}
-
-#[test]
-fn a_caret_inside_a_line_starts_a_fresh_line() {
-    let content = "proxies:\n  - name: keep\n";
-    let insertion = insert_at_caret(content, "rule-domain", SnippetCaret { line: 2, column: 4 })
-        .expect("catalogue id");
-    assert_eq!(
-        insertion.content,
-        "proxies:\n  - \n  - DOMAIN-SUFFIX,google.com,PROXIES\nname: keep\n"
-    );
-}
-
-#[test]
-fn an_empty_line_receives_the_snippet_without_a_leading_blank() {
-    let content = "proxies:\n\n";
-    let insertion =
-        insert_at_caret(content, "ss", SnippetCaret { line: 2, column: 0 }).expect("catalogue id");
-    assert_eq!(
-        insertion.content,
-        "proxies:\n  - name: SS-Node\n    type: ss\n    server: server.example.com\n    port: 8388\n    cipher: aes-256-gcm\n    password: password\n\n"
-    );
-    assert_eq!(insertion.cursor_line, 8);
-    assert_eq!(insertion.cursor_column, 0);
-}
-
-#[test]
-fn an_out_of_range_caret_is_clamped_to_the_document() {
-    let insertion = insert_at_caret(
-        "proxies:\n",
-        "ss",
-        SnippetCaret {
-            line: 99,
-            column: 99,
-        },
-    )
-    .expect("catalogue id");
-    assert_eq!(
-        insertion.content,
-        "proxies:\n  - name: SS-Node\n    type: ss\n    server: server.example.com\n    port: 8388\n    cipher: aes-256-gcm\n    password: password\n"
-    );
-}
-
-#[test]
-fn an_unknown_id_is_an_error_never_a_silent_no_op() {
-    let error = insert_at_caret("proxies:\n", "nope", SnippetCaret { line: 1, column: 0 })
-        .expect_err("unknown ids are rejected");
-    assert_eq!(error, SnippetInsertError::UnknownSnippet("nope".to_owned()));
-    assert!(error.to_string().contains("nope"));
-}
-
-#[test]
 fn byte_and_character_columns_round_trip_on_multibyte_lines() {
     let line = "  # 中文注释: ok";
     let column = 6;
@@ -126,18 +57,4 @@ fn byte_and_character_columns_round_trip_on_multibyte_lines() {
     assert_eq!(column_of_byte_offset(line, 999), line.chars().count());
     // An offset inside a character clamps back onto its boundary.
     assert_eq!(column_of_byte_offset("中", 1), 0);
-}
-
-#[test]
-fn a_multibyte_line_splices_at_the_character_column() {
-    let insertion = insert_at_caret(
-        "proxies:\n  # 手写注释\n",
-        "ss",
-        SnippetCaret { line: 2, column: 8 },
-    )
-    .expect("catalogue id");
-    assert_eq!(
-        insertion.content,
-        "proxies:\n  # 手写注释\n  - name: SS-Node\n    type: ss\n    server: server.example.com\n    port: 8388\n    cipher: aes-256-gcm\n    password: password\n\n"
-    );
 }

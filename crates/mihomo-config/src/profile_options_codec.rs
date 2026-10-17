@@ -1,6 +1,5 @@
 //! Mihomo-owned Mixin/filter sidecar schema operations.
 
-use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_option_store;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
@@ -25,6 +24,7 @@ use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
+use mihomo_driver::codec::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use std::fmt::Display;
 use std::path::Path;
 use std::str;

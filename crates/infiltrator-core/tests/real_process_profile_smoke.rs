@@ -45,7 +45,7 @@ use lurker_core_ports::error::PortError;
 use mihomo_api::dns_query::MihomoDnsQueryAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use mihomo_driver::api::client::MihomoClient;
 use std::collections::HashMap;
 use std::env;
@@ -342,7 +342,7 @@ async fn profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transa
         client: client.clone(),
     });
     let reloader: Arc<dyn ConfigReloader> = Arc::new(EndpointConfigReloader::new(endpoint_source));
-    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileDocumentCodec);
+    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileConfigurationCodec);
     let stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort> =
         Arc::new(UnavailableProfileConfigurationCandidateValidator::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),

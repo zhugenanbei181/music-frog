@@ -1,3 +1,4 @@
+use lurker_ui_presentation::copy::TextCatalog;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -49,6 +50,14 @@ pub trait Localizer {
 }
 
 pub struct Lang<'a>(pub &'a str);
+
+/// Product adapter for the neutral presentation text-catalog port: the
+/// engine/UI-neutral kernel owns the keys, this crate owns the copy.
+impl TextCatalog for Lang<'_> {
+    fn text(&self, key: &str) -> Cow<'static, str> {
+        self.tr(key)
+    }
+}
 
 static PRODUCT_ZH_CN_CATALOG: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
     parse_po(include_str!(

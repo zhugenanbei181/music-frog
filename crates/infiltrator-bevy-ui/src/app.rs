@@ -76,11 +76,11 @@ use infiltrator_contract::shell_gesture;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
-use infiltrator_presentation::routing_intent_actions::{
-    PendingRoutingIntentChange, RoutingIntentActions,
-};
 use infiltrator_presentation::system_toggle_projection;
 use infiltrator_presentation::system_toggle_projection::compact_label;
+use lurker_ui_presentation::routing_intent_actions::{
+    PendingRoutingIntentChange, RoutingIntentActions,
+};
 
 /// Sidebar rail standard width (px).
 pub const SIDEBAR_WIDTH_PX: f32 = 240.0;

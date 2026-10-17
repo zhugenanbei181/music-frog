@@ -1,6 +1,7 @@
 [package]
 name = "infiltrator-desktop"
 version.workspace = true
+publish = false
 edition = "2024"
 
 [dependencies]
@@ -46,4 +47,6 @@ windows-sys = { workspace = true, features = ["Win32_System_Threading", "Win32_S
 [dev-dependencies]
 infiltrator-composition = { path = "../infiltrator-composition", features = ["capture-fixtures"] }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
+lurker-ui-presentation = { version = "0.42.6", path = "../lurker-ui-presentation" }
+infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-test-support = { path = "../infiltrator-test-support" }

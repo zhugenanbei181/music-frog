@@ -33,7 +33,7 @@ use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use mihomo_driver::api::client::MihomoClient;
 use mihomo_driver::driver::ControllerReadiness;
 use mihomo_driver::driver::ProcessCoreController;
@@ -265,7 +265,7 @@ async fn run_owner_switch_smoke(
     let mihomo_manager = ConfigManager::with_profile_codec_and_store_at_root(
         configs_root.clone(),
         SmokeSecureStore,
-        Arc::new(MihomoProfileDocumentCodec),
+        Arc::new(MihomoProfileConfigurationCodec),
         ProfileDocumentExtension::Yaml,
     )
     .map_err(|error| format!("construct Mihomo profile store: {error}"))?;

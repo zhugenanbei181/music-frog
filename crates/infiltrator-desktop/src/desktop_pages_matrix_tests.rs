@@ -13,8 +13,8 @@ use infiltrator_contract::surface_snapshot::{
     PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_presentation::core_status_projection::lifecycle_copy;
-use infiltrator_presentation::failure_projection::failure_message;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -26,6 +26,7 @@ use lurker_core_contract::outbound::inventory::{
 };
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_ui_presentation::failure_projection::failure_message;
 use serde_json::json;
 
 fn test_scope() -> CoreScope {
@@ -241,8 +242,8 @@ fn test_typed_unsupported_outcomes_for_uncomposed_platform_features() {
     assert_eq!(unsupported_action.code, ErrorCode::Unsupported);
     assert!(!unsupported_action.retryable);
 
-    let msg_en = failure_message(&unsupported_action, "en-US");
-    let msg_zh = failure_message(&unsupported_action, "zh-CN");
+    let msg_en = failure_message(&unsupported_action, &Lang("en-US"));
+    let msg_zh = failure_message(&unsupported_action, &Lang("zh-CN"));
     assert!(msg_en.contains("not supported") || msg_en.contains("Hardware acceleration"));
     assert!(msg_zh.contains("不支持") || msg_zh.contains("Hardware acceleration"));
 }

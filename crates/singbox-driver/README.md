@@ -24,3 +24,9 @@ cargo run -p singbox-driver --example lifecycle
 | `SINGBOX_SECRET` | 否 | 须与 profile 的 `clash_api.secret` 一致 |
 
 未设置 `SINGBOX_BINARY` / `SINGBOX_CONFIG` 时，示例不启动进程，只打印“未配置”的完整执行计划并成功退出，因此干净检出与 CI 无需引擎二进制也能直接运行。
+
+## Controller 安全边界
+
+- `external_controller` 必须是 loopback IP 字面量、固定非 0 端口；域名与 `0.0.0.0` 被 typed 拒绝。
+- HTTP client 强制 `.no_proxy()` 与 `.redirect(Policy::none())`。
+- 不链接任何 TLS 后端；残留的本地端口抢占风险与缓解方式同 `mihomo-driver`。

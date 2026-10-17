@@ -23,8 +23,8 @@ use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_test_support::dns_leak_fixtures::IsolatedEcho;
+use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 use std::sync::Arc;
 #[derive(Resource)]
 struct LeakCapture {

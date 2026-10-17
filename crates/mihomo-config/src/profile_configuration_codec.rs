@@ -5,7 +5,6 @@
 //! the returned mutation against its source-bound profile workspace before
 //! committing it.
 
-use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_protocol_codec;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
@@ -23,6 +22,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
+use mihomo_driver::codec::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use serde_yaml_ng::Value;
 use std::collections::BTreeMap;
 use std::fmt::Display;

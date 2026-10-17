@@ -9,9 +9,12 @@ repository = "https://github.com/zhugenanbei181/music-frog"
 [features]
 # HTTP-only builds may omit process supervision entirely (for example the
 # Android host, which owns its own VPN service process).
-default = ["http", "process"]
+default = ["http", "process", "codec"]
 http = ["dep:tokio-tungstenite"]
 process = ["dep:sysinfo", "dep:libc", "dep:windows-sys"]
+# Native YAML codec plus the native `-t` dry-run hook. The hook drives the
+# process command boundary, so the codec always enables process supervision.
+codec = ["process"]
 
 [dependencies]
 lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
@@ -32,24 +35,11 @@ reqwest = { workspace = true, default-features = false, features = [
   "http2",
 ] }
 sysinfo = { workspace = true, optional = true }
-
-[target.'cfg(target_os = "android")'.dependencies]
-reqwest = { workspace = true, default-features = false, features = [
-  "rustls-no-provider",
-] }
-# The Android build only uses plaintext (ws://) controller websockets;
-# connect_async / accept_async need no TLS backend, and the workspace
-# tokio-tungstenite enables native-tls which would drag OpenSSL into the NDK
-# build.
+# The controller WebSocket is loopback plaintext `ws://` only, so the workspace
+# `tokio-tungstenite` default (native-tls) is overridden to link no TLS backend.
 tokio-tungstenite = { version = "0.30", optional = true, default-features = false, features = [
   "connect",
 ] }
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
-reqwest = { workspace = true, default-features = false, features = [
-  "native-tls",
-] }
-tokio-tungstenite = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true, optional = true }

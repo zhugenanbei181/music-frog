@@ -4,11 +4,11 @@ use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::surface_snapshot::PageStatus;
-use infiltrator_presentation::proxy_group_order_editor::{GroupMove, GroupOrderOperation};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_ui_presentation::proxy_group_order_editor::{GroupMove, GroupOrderOperation};
 use std::collections::HashSet;
 
 impl AppState {

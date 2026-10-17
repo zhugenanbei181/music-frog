@@ -2,6 +2,7 @@
 name = "sync-engine"
 version = "0.1.1"
 edition = "2024"
+publish = false
 
 [dependencies]
 dav-client = { path = "../dav-client" }

@@ -7,12 +7,12 @@ use iced::Task;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
-use infiltrator_presentation::proxy_group_order_editor::GroupOrderFinish;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::preferences::{
     OutboundUiPreferenceIntent, OutboundUiPreferenceRequest, OutboundUiPreferencesSnapshot,
 };
+use lurker_ui_presentation::proxy_group_order_editor::GroupOrderFinish;
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug)]

@@ -22,10 +22,10 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::version::{CoreArtifactVerification, VersionDownloadProgress};
 use infiltrator_ports::version::VersionProgressSink;
-use infiltrator_presentation::failure_projection::failure_message;
 use infiltrator_shared::autostart::set_autostart_enabled;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError, from_backend};
+use lurker_ui_presentation::failure_projection::failure_message;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -242,7 +242,7 @@ impl AppState {
                                 }
                             });
                         let cancelled = e.code == ErrorCode::Canceled;
-                        let message = failure_message(&e, &self.shell.lang);
+                        let message = failure_message(&e, &Lang(&self.shell.lang));
                         if !cancelled {
                             self.set_error(&message);
                         }

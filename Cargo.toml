@@ -41,6 +41,7 @@ members = [
   "crates/lurker-core-contract",
   "crates/lurker-core-ports",
   "crates/lurker-profile-store",
+  "crates/lurker-ui-presentation",
   "crates/mihomo-driver",
   "crates/singbox-driver"]
 

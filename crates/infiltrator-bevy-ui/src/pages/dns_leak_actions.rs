@@ -16,11 +16,11 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
-use infiltrator_presentation::dns_leak_actions::{
-    DnsLeakActionPhase, DnsLeakActionState, DnsLeakFinish,
-};
 use infiltrator_presentation::dns_leak_projection::project_leak;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_ui_presentation::dns_leak_actions::{
+    DnsLeakActionPhase, DnsLeakActionState, DnsLeakFinish,
+};
 
 #[derive(Resource, Default)]
 pub struct LeakActions {

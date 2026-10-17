@@ -35,7 +35,7 @@ use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -156,7 +156,7 @@ async fn transaction_fixture_with_store_behavior(
         fail: false,
         calls: AtomicU64::new(0),
     });
-    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileDocumentCodec);
+    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileConfigurationCodec);
     let scope = ProfileConfigurationTransactionScope::new(codec.scope());
     let validator = Arc::new(FakeStoppedValidator::new(scope, validation));
     let validator_port: Arc<dyn ProfileConfigurationCandidateValidatorPort> = validator.clone();

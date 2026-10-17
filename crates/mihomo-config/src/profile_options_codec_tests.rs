@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use crate::profile_document_codec::MihomoProfileDocumentCodec;
+use crate::profile_document_codec::MihomoProfileConfigurationCodec;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinCascadeStageId, ProfileMixinComposition,
     ProfileMixinPreflight, ProfileMixinStageDeclaration, ProfileMixinToggleId,
@@ -36,7 +36,7 @@ fn identity(engine: &str, format: &str, schema: u32) -> ProfileDocumentIdentity 
 
 #[test]
 fn scope_and_absent_empty_sidecar_states_are_explicit() {
-    let codec = MihomoProfileDocumentCodec;
+    let codec = MihomoProfileConfigurationCodec;
     let scope = codec.options_scope().unwrap();
     assert_eq!(scope.document.engine_id.as_str(), "mihomo");
     assert_eq!(scope.document.format_id.as_str(), "mihomo-yaml");
@@ -65,7 +65,7 @@ fn no_op_sidecar_encoding_preserves_absence_and_present_empty_bytes() {
 
 #[test]
 fn mixin_update_strips_old_injected_rules_preserves_filter_and_does_not_mutate_inputs() {
-    let codec = MihomoProfileDocumentCodec;
+    let codec = MihomoProfileConfigurationCodec;
     let identity = identity("mihomo", "mihomo-yaml", 1);
     let document = b"rules:\n  - DOMAIN-SUFFIX,old.example,DIRECT\n  - MATCH,DIRECT\n";
     let sidecar = b"# keep exact source on failure\r\nfilter:\r\n  include-keywords: [HK]\r\nmixin:\r\n  rules:\r\n    prepend:\r\n      - DOMAIN-SUFFIX,old.example,DIRECT\r\n";
@@ -99,7 +99,7 @@ fn mixin_update_strips_old_injected_rules_preserves_filter_and_does_not_mutate_i
 
 #[test]
 fn typed_mixin_toggle_and_studio_observation_are_pure_and_schema_scoped() {
-    let codec = MihomoProfileDocumentCodec;
+    let codec = MihomoProfileConfigurationCodec;
     let document_identity = identity("mihomo", "mihomo-yaml", 1);
     let base = b"mode: rule\nport: 7890\n";
     let mut overlay = "mode: global\n".to_string();
@@ -218,7 +218,7 @@ fn typed_mixin_toggle_and_studio_observation_are_pure_and_schema_scoped() {
 
 #[test]
 fn filter_update_returns_typed_report_and_rejects_invalid_draft_without_mutation() {
-    let codec = MihomoProfileDocumentCodec;
+    let codec = MihomoProfileConfigurationCodec;
     let identity = identity("mihomo", "mihomo-yaml", 1);
     let document = b"proxies:\n  - {name: keep, type: ss, server: 1.1.1.1, port: 443}\n  - {name: ad, type: ss, server: 8.8.8.8, port: 443}\n";
     let sidecar = b"# preserved if no semantic change\r\nmixin:\r\n  mode: rule\r\n";
@@ -258,7 +258,7 @@ fn filter_update_returns_typed_report_and_rejects_invalid_draft_without_mutation
 
 #[test]
 fn foreign_engine_format_and_schema_fail_closed_before_decoding_sidecar() {
-    let codec = MihomoProfileDocumentCodec;
+    let codec = MihomoProfileConfigurationCodec;
     let bytes = b"not yaml and must not be read";
     for foreign in [
         identity("sing-box", "mihomo-yaml", 1),

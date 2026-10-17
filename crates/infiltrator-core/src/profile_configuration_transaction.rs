@@ -25,19 +25,11 @@ use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
-use std::fs;
-use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
-use std::process;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
+use mihomo_driver::codec::config::MihomoNativeConfigCheck;
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs::{File, OpenOptions, remove_file};
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
 use tokio::sync::Mutex;
-
-static NATIVE_VALIDATION_CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Mihomo's native transaction adapter. Pure codec inspection is injected
 /// independently and is used before any workspace persistence/runtime effect.
@@ -491,8 +483,7 @@ async fn restore_published_workspace<'a>(
 /// relative resource paths resolve exactly as they will after publication.
 pub struct MihomoBinaryConfigurationCandidateValidator {
     scope: ProfileConfigurationTransactionScope,
-    binary_path: PathBuf,
-    config_dir: PathBuf,
+    native: MihomoNativeConfigCheck,
 }
 
 impl MihomoBinaryConfigurationCandidateValidator {
@@ -502,7 +493,7 @@ impl MihomoBinaryConfigurationCandidateValidator {
         config_dir: PathBuf,
     ) -> Result<Self, PortError> {
         let native_scope =
-            ProfileConfigurationTransactionScope::new(MihomoProfileDocumentCodec.scope());
+            ProfileConfigurationTransactionScope::new(MihomoProfileConfigurationCodec.scope());
         if scope != native_scope {
             return Err(PortError::unsupported(
                 Capability::Profiles,
@@ -511,8 +502,7 @@ impl MihomoBinaryConfigurationCandidateValidator {
         }
         Ok(Self {
             scope,
-            binary_path,
-            config_dir,
+            native: MihomoNativeConfigCheck::with_tokio(binary_path, config_dir),
         })
     }
 }
@@ -534,106 +524,8 @@ impl ProfileConfigurationCandidateValidatorPort for MihomoBinaryConfigurationCan
                 "Mihomo native validation request has a foreign engine, format, or schema",
             ));
         }
-        let (candidate, file) = reserve_native_validation_candidate(&self.config_dir).await?;
-        let path = candidate.0.clone();
-        let validation_path = path.clone();
-        let binary_path = self.binary_path.clone();
-        let config_dir = self.config_dir.clone();
-        let validation_bytes = document_bytes.to_vec();
-        let validation = async move {
-            let mut file = file;
-            file.write_all(&validation_bytes)
-                .await
-                .map_err(|error| PortError::Io(error.to_string()))?;
-            file.flush()
-                .await
-                .map_err(|error| PortError::Io(error.to_string()))?;
-            drop(file);
-            let output = Command::new(&binary_path)
-                .arg("-t")
-                .arg("-f")
-                .arg(&validation_path)
-                .arg("-d")
-                .arg(&config_dir)
-                .output()
-                .await
-                .map_err(|error| {
-                    PortError::Failed(format!(
-                        "run the selected Mihomo binary for native config validation: {error}"
-                    ))
-                })?;
-            if output.status.success() {
-                return Ok(());
-            }
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-            let detail = if detail.is_empty() {
-                String::from_utf8_lossy(&output.stdout).trim().to_owned()
-            } else {
-                detail
-            };
-            Err(rejected(
-                ErrorCode::Configuration,
-                if detail.is_empty() {
-                    format!(
-                        "selected Mihomo binary rejected candidate config with {}",
-                        output.status
-                    )
-                } else {
-                    format!("selected Mihomo binary rejected candidate config: {detail}")
-                },
-            ))
-        }
-        .await;
-        let cleanup = remove_file(&path).await;
-        match (validation, cleanup) {
-            (Ok(()), Ok(())) => Ok(()),
-            (Err(error), Ok(())) => Err(error),
-            (Ok(()), Err(error)) => Err(PortError::Io(format!(
-                "failed to remove Mihomo native-validation candidate: {error}"
-            ))),
-            (Err(validation), Err(cleanup)) => Err(PortError::Rejected(Failure::new(
-                ErrorCode::Configuration,
-                format!(
-                    "{}; failed to remove Mihomo native-validation candidate: {cleanup}",
-                    validation
-                ),
-                false,
-            ))),
-        }
+        self.native.validate(document_bytes).await
     }
-}
-
-struct NativeValidationCandidate(PathBuf);
-
-impl Drop for NativeValidationCandidate {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
-    }
-}
-
-async fn reserve_native_validation_candidate(
-    config_dir: &Path,
-) -> Result<(NativeValidationCandidate, File), PortError> {
-    for _ in 0..16 {
-        let sequence = NATIVE_VALIDATION_CANDIDATE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let path = config_dir.join(format!(
-            ".mihomo-profile-validation-{}-{sequence}.yaml",
-            process::id()
-        ));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-            .await
-        {
-            Ok(file) => return Ok((NativeValidationCandidate(path), file)),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(PortError::Io(error.to_string())),
-        }
-    }
-    Err(PortError::Failed(
-        "could not reserve a unique Mihomo native-validation candidate".to_owned(),
-    ))
 }
 
 #[async_trait::async_trait]

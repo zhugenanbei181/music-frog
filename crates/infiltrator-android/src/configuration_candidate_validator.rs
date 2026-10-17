@@ -264,7 +264,7 @@ mod tests {
     };
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
-    use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+    use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
     use std::fs;
     use std::io::ErrorKind;
     use std::sync::Mutex;
@@ -316,7 +316,7 @@ mod tests {
         client: Arc<dyn AndroidCoreConfigurationValidationClient>,
     ) -> AndroidProfileConfigurationCandidateValidator {
         AndroidProfileConfigurationCandidateValidator::new(
-            ProfileConfigurationTransactionScope::new(MihomoProfileDocumentCodec.scope()),
+            ProfileConfigurationTransactionScope::new(MihomoProfileConfigurationCodec.scope()),
             directory.join("files/engines/mihomo"),
             directory.join("files"),
             client,

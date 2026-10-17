@@ -1,5 +1,5 @@
 //! One localization boundary for typed product reasons and opaque adapter details.
-use infiltrator_shared::i18n_interpolator::localize;
+use crate::copy::{TextCatalog, interpolate};
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,28 +97,31 @@ fn localization_key_for_error_code(code: ErrorCode) -> FailureLocalizationKey {
     }
 }
 
-pub fn failure_message(failure: &Failure, locale: &str) -> String {
+pub fn failure_message(failure: &Failure, catalog: &dyn TextCatalog) -> String {
     if failure.reason.is_none() {
         return failure.message.clone();
     }
     let projection = project_failure(failure);
-    let mut values = Vec::new();
+    let mut values: Vec<(&str, String)> = Vec::new();
     if let Some(line) = projection.line {
         values.push(("line", line.to_string()));
     }
     if let Some(column) = projection.column {
         values.push(("column", column.to_string()));
     }
-    let title = localize(locale, projection.key.shared_key(), &values);
+    let values: Vec<(&str, &str)> = values
+        .iter()
+        .map(|(name, value)| (*name, value.as_str()))
+        .collect();
+    let title = interpolate(catalog.text(projection.key.shared_key()).as_ref(), &values);
     if failure.message.trim().is_empty() {
         title
     } else {
         format!(
             "{title}\n{}",
-            localize(
-                locale,
-                "failure_diagnostic_detail",
-                &[("detail", failure.message.clone())],
+            interpolate(
+                catalog.text("failure_diagnostic_detail").as_ref(),
+                &[("detail", failure.message.as_str())],
             )
         )
     }

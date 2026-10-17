@@ -17,7 +17,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
-use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
+use infiltrator_contract::yaml_snippets::yaml_snippet;
 use infiltrator_iced::state::AppState;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
@@ -33,8 +33,9 @@ use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
-    ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
+    ProfileDocumentCaret, ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
 };
+use mihomo_driver::codec::snippet::splice_at_caret;
 use std::collections::VecDeque;
 use std::iter::empty;
 use std::sync::{Arc, Mutex};
@@ -106,14 +107,25 @@ impl CommandHandler for RecordingHandler {
         if let Some(result) = self.4.lock().unwrap().pop_front() {
             return result;
         }
-        let insertion = insert_at_caret(content, snippet_id, SnippetCaret { line, column })
-            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        let snippet = yaml_snippet(snippet_id).ok_or_else(|| {
+            Failure::new(
+                ErrorCode::InvalidInput,
+                format!("未知配置片段：{snippet_id}"),
+                false,
+            )
+        })?;
+        let spliced = splice_at_caret(
+            content,
+            snippet_id,
+            snippet.body,
+            ProfileDocumentCaret { line, column },
+        );
         Ok(ProfileDocumentSnippetOutcome::Inserted(
             ProfileDocumentSnippetInsertion {
-                snippet_id: insertion.snippet_id.to_owned(),
-                content: insertion.content,
-                cursor_line: insertion.cursor_line,
-                cursor_column: insertion.cursor_column,
+                snippet_id: spliced.snippet_id,
+                content: spliced.content,
+                cursor_line: spliced.cursor_line,
+                cursor_column: spliced.cursor_column,
                 validation: DocumentValidation::Valid,
             },
         ))

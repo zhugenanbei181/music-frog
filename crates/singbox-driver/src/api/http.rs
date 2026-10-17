@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use lurker_core_ports::error::PortError;
 use reqwest::header::CONTENT_TYPE;
+use reqwest::redirect::Policy;
 use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;
 use url::{Host, Url};
@@ -61,6 +62,12 @@ impl SingBoxClashHttpPort for ReqwestSingBoxClashHttpPort {
     ) -> Result<SingBoxClashResponse, PortError> {
         let client = reqwest::Client::builder()
             .timeout(timeout)
+            // The controller is loopback-only: never let an ambient HTTP proxy
+            // (HTTP_PROXY/ALL_PROXY) take over the request and see the secret.
+            .no_proxy()
+            // Never follow redirects: a squatter on the controller port could
+            // otherwise redirect a bearer-authenticated request off-host.
+            .redirect(Policy::none())
             .build()
             .map_err(|_| PortError::Network("sing-box HTTP client failed".to_owned()))?;
         let request = match method {
@@ -127,4 +134,72 @@ pub(crate) fn endpoint_with_path(base: &Url, segments: &[&str]) -> Result<Url, P
         }
     }
     Ok(url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio::time::timeout;
+
+    #[test]
+    fn loopback_endpoint_accepts_only_explicit_http_loopback() {
+        for accepted in [
+            "http://127.0.0.1:9090",
+            "http://127.0.0.1:1",
+            "http://[::1]:9090",
+        ] {
+            assert!(parse_loopback_endpoint(accepted).is_ok(), "{accepted}");
+        }
+        for rejected in [
+            "https://127.0.0.1:9090",
+            "http://192.168.1.5:9090",
+            "http://0.0.0.0:9090",
+            "http://localhost:9090",
+            "http://user:pass@127.0.0.1:9090",
+            "http://127.0.0.1:9090/proxies",
+            "http://127.0.0.1:9090?x=1",
+            "http://127.0.0.1:9090#frag",
+            "http://127.0.0.1",
+        ] {
+            assert!(parse_loopback_endpoint(rejected).is_err(), "{rejected}");
+        }
+    }
+
+    #[tokio::test]
+    async fn redirects_are_never_followed() {
+        let sink = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let sink_address = sink.local_addr().unwrap();
+        let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target_address = target.local_addr().unwrap();
+
+        let redirect = tokio::spawn(async move {
+            let (mut socket, _) = target.accept().await.unwrap();
+            let mut buffer = [0u8; 1024];
+            let _ = socket.read(&mut buffer).await;
+            let response = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{sink_address}/steal\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+
+        let url = parse_loopback_endpoint(&format!("http://{target_address}")).unwrap();
+        let response = ReqwestSingBoxClashHttpPort
+            .request(
+                &url,
+                SingBoxClashMethod::Get,
+                &SingBoxControllerAuthorization::BearerToken("secret".to_owned()),
+                None,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status, 302);
+        redirect.await.unwrap();
+
+        timeout(Duration::from_millis(200), sink.accept())
+            .await
+            .expect_err("a redirect must not be followed");
+    }
 }

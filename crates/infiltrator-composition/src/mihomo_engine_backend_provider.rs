@@ -15,7 +15,7 @@ use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 use mihomo_driver::api::client::MihomoClient;
 use mihomo_driver::outbound::MihomoOutboundAdapter;
 use mihomo_driver::routing_intent::MihomoRoutingIntentAdapter;
@@ -90,7 +90,8 @@ impl EngineBackendProvider for MihomoEngineBackendProvider {
 
     fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
         let engine_id = self.engine_id();
-        let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileDocumentCodec);
+        let codec: Arc<dyn ProfileConfigurationCodecPort> =
+            Arc::new(MihomoProfileConfigurationCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
         ));

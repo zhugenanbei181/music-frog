@@ -19,12 +19,12 @@ use infiltrator_bevy_ui::surface::{
 };
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_presentation::proxy_group_order_editor::GroupMove;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_ui_presentation::proxy_group_order_editor::GroupMove;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};

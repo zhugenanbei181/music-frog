@@ -1604,7 +1604,7 @@
       "text": "failure_projection",
       "rationale": "Failure localization and display copy moved to infiltrator-presentation; application retains raw contract Failure facts.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/failure_projection_tests.rs",
+        "crates/lurker-ui-presentation/src/failure_projection_tests.rs",
         "crates/infiltrator-presentation/src/profile_edit_status_projection_tests.rs"
       ],
       "source_roots": [
@@ -1657,7 +1657,7 @@
       "text": "routing_intent_actions",
       "rationale": "The presentation-only routing-intent phase reducer moved to infiltrator-presentation; application retains command execution and verified Core readback only.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/routing_intent_actions_tests.rs"
+        "crates/lurker-ui-presentation/src/routing_intent_actions_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2219,7 +2219,7 @@
       "text": "log_follow",
       "rationale": "Shared log viewport follow policy moved to infiltrator-presentation with explicit Following, Paused, and Away states.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/log_follow_tests.rs"
+        "crates/lurker-ui-presentation/src/log_follow_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2336,7 +2336,7 @@
       "text": "dns_leak_actions",
       "rationale": "The pure correlated DNS leak action reducer moved to infiltrator-presentation; Application retains DNS probe execution.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+        "crates/lurker-ui-presentation/src/dns_leak_actions_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2349,7 +2349,7 @@
       "text": "DnsLeakActionPhase",
       "rationale": "DNS leak command phases are owned by the shared Presentation reducer, not Application.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+        "crates/lurker-ui-presentation/src/dns_leak_actions_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2362,7 +2362,7 @@
       "text": "DnsLeakActionState",
       "rationale": "DNS leak command state is shared presentation behavior used by Iced and Bevy.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+        "crates/lurker-ui-presentation/src/dns_leak_actions_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2375,7 +2375,7 @@
       "text": "DnsLeakFinish",
       "rationale": "DNS leak completion outcomes are shared typed Presentation results.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/dns_leak_actions_tests.rs"
+        "crates/lurker-ui-presentation/src/dns_leak_actions_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2557,7 +2557,7 @@
       "text": "proxy_group_order_editor",
       "rationale": "The shared typed proxy-order draft and receipt reducer moved to infiltrator-presentation.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2570,7 +2570,7 @@
       "text": "GroupMove",
       "rationale": "Proxy group movement is a shared Presentation intent used by all surfaces.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2583,7 +2583,7 @@
       "text": "GroupOrderOperation",
       "rationale": "Reorder and reset operations are shared typed Presentation state.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2596,7 +2596,7 @@
       "text": "PendingGroupOrder",
       "rationale": "Correlated group-order submission state is owned by the shared Presentation reducer.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2609,7 +2609,7 @@
       "text": "ProxyGroupOrderEditor",
       "rationale": "The proxy order state machine is shared typed Presentation behavior, not an Application API.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2622,7 +2622,7 @@
       "text": "GroupOrderFinish",
       "rationale": "Group-order terminal outcomes are explicit shared Presentation results.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2635,7 +2635,7 @@
       "text": "validate_order",
       "rationale": "Group-order validation belongs to the shared Presentation contract and reducer.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-application/src"
@@ -2687,7 +2687,7 @@
       "text": "TypedGroupOrderEditor",
       "rationale": "Bevy consumes the same shared ProxyGroupOrderEditor as Iced; the duplicate reducer is retired.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+        "crates/lurker-ui-presentation/src/proxy_group_order_editor_tests.rs"
       ],
       "source_roots": [
         "crates/infiltrator-bevy-ui/src/pages/proxy_group_order.rs"

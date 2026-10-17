@@ -16,12 +16,12 @@ use infiltrator_domain::connection_rate::PULSE_BREATH_HZ;
 use infiltrator_domain::connection_view::{ConnectionRuleSpec, append_draft_rule};
 use infiltrator_domain::yaml_edit::format::format_yaml;
 use infiltrator_presentation::profile_editor_projection;
-use infiltrator_presentation::proxy_group_order_editor::GroupMove;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{InfiltratorError, from_backend};
 use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
+use lurker_ui_presentation::proxy_group_order_editor::GroupMove;
 #[cfg(target_os = "windows")]
 use std::env::{args, current_exe};
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]

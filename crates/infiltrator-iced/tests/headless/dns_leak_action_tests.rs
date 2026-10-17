@@ -16,10 +16,10 @@ use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_test_support::dns_leak_fixtures::{EchoMode, IsolatedEcho};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::ErrorCode;
+use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 fn terminal(task: Task<Message>) -> Message {

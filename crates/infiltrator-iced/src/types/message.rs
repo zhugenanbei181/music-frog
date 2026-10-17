@@ -46,13 +46,13 @@ use infiltrator_domain::{
     settings::AppSettings,
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
-use infiltrator_presentation::routing_intent_actions::PendingRoutingIntentChange;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use lurker_core_contract::error;
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_contract::outbound::{identity, inventory, preferences, probe};
 use lurker_core_contract::profile_protection;
 use lurker_core_contract::routing_intent;
+use lurker_ui_presentation::routing_intent_actions::PendingRoutingIntentChange;
 use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;
 use mtu_probe::MtuProbeCompletion;

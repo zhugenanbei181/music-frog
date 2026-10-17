@@ -5,6 +5,8 @@
 //! controller instance owns, when a record is stale, and what counts as an
 //! exact terminal readback) lives in [`crate::driver::ProcessCoreController`].
 
+pub mod command;
+
 #[cfg(windows)]
 use std::ffi::c_void;
 use std::fs::{File, OpenOptions, canonicalize};

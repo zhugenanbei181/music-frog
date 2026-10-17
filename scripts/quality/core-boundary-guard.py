@@ -25,7 +25,11 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # Neutral framework crates must stay usable from every engine, platform and UI.
 # Any product/engine crate, runtime, transport or UI toolkit would break that.
-LURKER_NEUTRAL_CRATES = ("lurker-core-contract", "lurker-core-ports")
+LURKER_NEUTRAL_CRATES = (
+    "lurker-core-contract",
+    "lurker-core-ports",
+    "lurker-ui-presentation",
+)
 NEUTRAL_FORBIDDEN_EXACT = {"tokio", "reqwest", "bevy", "iced", "slint"}
 NEUTRAL_FORBIDDEN_PREFIXES = ("infiltrator-", "mihomo-", "singbox-")
 
@@ -170,6 +174,7 @@ NEUTRAL_SOURCE_PATTERN = re.compile(
 SOURCE_PATTERNS = {
     "lurker-core-contract": NEUTRAL_SOURCE_PATTERN,
     "lurker-core-ports": NEUTRAL_SOURCE_PATTERN,
+    "lurker-ui-presentation": NEUTRAL_SOURCE_PATTERN,
     "lurker-profile-store": re.compile(
         r"\b(?:reqwest|bevy|iced|slint"
         r"|infiltrator_[a-z0-9_]+|mihomo_[a-z0-9_]+|singbox_[a-z0-9_]+)::"

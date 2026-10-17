@@ -2,6 +2,7 @@
 name = "mihomo-api"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 [dependencies]
 lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }

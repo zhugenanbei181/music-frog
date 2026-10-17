@@ -22,7 +22,7 @@ mod namespace_facade;
 pub mod paths;
 pub(crate) mod profiles;
 
-use crate::profile_document_codec::MihomoProfileDocumentCodec;
+use crate::profile_document_codec::MihomoProfileConfigurationCodec;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::reset_fence::{
     ResetFencedProfileMutationGuard, acquire_reset_fenced_profile_mutation_for_dir,
@@ -92,7 +92,7 @@ impl<S: SecureStore> ConfigManager<S> {
             configs_dir,
             credential_store,
             crate::engine_id(),
-            Arc::new(MihomoProfileDocumentCodec),
+            Arc::new(MihomoProfileConfigurationCodec),
             ProfileDocumentExtension::Yaml,
             migration,
         )

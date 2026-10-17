@@ -6400,6 +6400,7 @@ dependencies = [
  "lurker-core-contract",
  "lurker-core-ports",
  "lurker-profile-store",
+ "lurker-ui-presentation",
  "mihomo-api",
  "mihomo-config",
  "mihomo-driver",
@@ -6482,6 +6483,8 @@ dependencies = [
  "infiltrator-test-support",
  "lurker-core-contract",
  "lurker-core-ports",
+ "lurker-ui-presentation",
+ "mihomo-driver",
  "mockito",
  "openssl",
  "serde",
@@ -6637,11 +6640,13 @@ dependencies = [
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-profile-store",
+ "infiltrator-shared",
  "infiltrator-test-support",
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
  "lurker-profile-store",
+ "lurker-ui-presentation",
  "mihomo-api",
  "mihomo-config",
  "mihomo-driver",
@@ -6727,6 +6732,8 @@ dependencies = [
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "lurker-ui-presentation",
+ "mihomo-driver",
  "mihomo-version",
  "muda",
  "naga 27.0.3",
@@ -6813,6 +6820,7 @@ dependencies = [
  "infiltrator-shared",
  "infiltrator-test-support",
  "lurker-core-contract",
+ "lurker-ui-presentation",
  "regex",
  "serde_json",
  "serde_yaml_ng",
@@ -6848,6 +6856,7 @@ name = "infiltrator-shared"
 version = "0.14.0"
 dependencies = [
  "anyhow",
+ "lurker-ui-presentation",
  "serde",
  "serde_json",
  "sys-locale",
@@ -6887,6 +6896,7 @@ dependencies = [
  "infiltrator-ports",
  "lurker-core-contract",
  "lurker-core-ports",
+ "mihomo-driver",
  "serde_json",
  "serde_yaml_ng",
 ]
@@ -7641,6 +7651,14 @@ dependencies = [
  "tokio",
  "toml 1.1.8+spec-1.1.0",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "lurker-ui-presentation"
+version = "0.42.6"
+dependencies = [
+ "lurker-core-contract",
+ "serde_json",
 ]
 
 [[package]]

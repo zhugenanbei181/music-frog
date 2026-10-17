@@ -47,7 +47,7 @@ use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
 #[cfg(test)]
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::profile_document_codec::MihomoProfileConfigurationCodec;
 
 /// Publish a typed Mihomo active-profile selection for Admin API test fixtures.
 /// Profile documents are intentionally created inactive first, so tests that
@@ -120,7 +120,7 @@ pub(crate) async fn profile_application() -> anyhow::Result<ProfileApplication> 
 #[cfg(test)]
 pub(crate) async fn configuration_application() -> anyhow::Result<ConfigurationApplication> {
     let profiles = ProfileApplication::new(open().await?)
-        .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+        .with_document_codec(Arc::new(MihomoProfileConfigurationCodec));
     Ok(ConfigurationApplication::from_profile_application(profiles))
 }
 

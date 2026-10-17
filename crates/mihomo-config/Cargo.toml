@@ -2,6 +2,7 @@
 name = "mihomo-config"
 version = "0.1.1"
 edition = "2024"
+publish = false
 
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
@@ -15,7 +16,9 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 lurker-profile-store = { path = "../lurker-profile-store" }
 log = { workspace = true }
-mihomo-driver = { version = "0.42.6", path = "../mihomo-driver", default-features = false }
+mihomo-driver = { version = "0.42.6", path = "../mihomo-driver", default-features = false, features = [
+  "codec",
+] }
 infiltrator-platform = { path = "../infiltrator-platform" }
 ring = "0.17"
 serde = { workspace = true }
