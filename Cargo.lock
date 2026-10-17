@@ -6342,7 +6342,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-admin"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6374,7 +6374,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-android"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6420,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-application"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "async-trait",
  "boa_engine",
@@ -6446,7 +6446,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-desktop-host"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "infiltrator-application",
  "infiltrator-bevy-ui",
@@ -6457,7 +6457,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-ui"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "accesskit",
  "async-trait",
@@ -6484,7 +6484,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-widgets"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "accesskit",
  "bevy",
@@ -6497,7 +6497,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-cli"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6523,7 +6523,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-composition"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "async-trait",
  "infiltrator-application",
@@ -6551,7 +6551,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-contract"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "lurker-core-contract",
@@ -6562,7 +6562,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-core"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6608,7 +6608,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-desktop"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6647,7 +6647,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-domain"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6683,7 +6683,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-iced"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6733,7 +6733,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-ios"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "async-trait",
  "infiltrator-application",
@@ -6745,7 +6745,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-platform"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6771,7 +6771,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-ports"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -6785,7 +6785,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-presentation"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "chrono",
  "infiltrator-contract",
@@ -6801,7 +6801,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-profile-store"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "age",
  "async-trait",
@@ -6834,7 +6834,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-slint"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "anyhow",
  "infiltrator-application",
@@ -6855,7 +6855,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-test-support"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -7582,7 +7582,7 @@ checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
 
 [[package]]
 name = "lurker-core-contract"
-version = "0.42.4"
+version = "0.42.5"
 dependencies = [
  "serde",
  "serde_json",
