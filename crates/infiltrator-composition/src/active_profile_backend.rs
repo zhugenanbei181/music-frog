@@ -14,9 +14,7 @@ use infiltrator_ports::active_profile_reference_store::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreOwnerTerminationPort;
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendPorts, EngineBackendProviderAvailability,
-};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use lurker_core_contract::active_profile_reference::{
@@ -29,7 +27,9 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId};
+use lurker_core_ports::engine_backend::EngineBackendProviderAvailability;
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -137,7 +137,7 @@ impl Error for ActiveProfileBackendSwitchError {
 pub struct SelectedActiveProfileBackend {
     pub reference: ActiveProfileReference,
     pub document: ProfileDocument,
-    pub backend: EngineBackendPorts,
+    pub backend: ProductEngineBackendPorts,
     pub core_identity: CoreIdentity,
     pub initial_generation: CoreGeneration,
     pub previous_owner: PreviousCoreDisposition,
@@ -357,7 +357,7 @@ impl SelectedActiveProfileBackend {
 pub struct ActiveProfileBackendSelector {
     references: Arc<dyn ActiveProfileReferenceStore>,
     profile_stores: HashMap<EngineId, Arc<dyn ProfileStore>>,
-    factory: Arc<dyn EngineBackendFactory>,
+    registry: Arc<EngineBackendProviderRegistry<ProductEngineBackendPorts>>,
     capabilities: Arc<dyn CoreCapabilityProvider>,
     selection_gate: Mutex<()>,
 }

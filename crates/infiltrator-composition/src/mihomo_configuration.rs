@@ -18,6 +18,7 @@ use infiltrator_ports::rule_tracer::RuleWorkspace;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 #[cfg(feature = "capture-fixtures")]
 use lurker_core_contract::identity::EngineId;
+#[cfg(feature = "capture-fixtures")]
 use lurker_core_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,

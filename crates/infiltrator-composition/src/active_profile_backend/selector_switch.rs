@@ -176,7 +176,7 @@ impl ActiveProfileBackendSelector {
     ) -> Result<SelectedActiveProfileBackend, PortError> {
         validate_recovery_selection(binding.state(), &target)?;
         let reference = selected_reference_from_switch_state(binding.state())?;
-        let backend = match self.factory.backend_ports(&reference.engine_id) {
+        let backend = match self.registry.backend(&reference.engine_id) {
             Ok(backend) => backend,
             Err(error) => {
                 binding.abort_before_core_application().await?;
@@ -398,7 +398,7 @@ impl ActiveProfileBackendSelector {
 
         // Provider dispatch is deliberately after both the revision CAS and
         // the durable new-owner admission reservation.
-        let backend = match self.factory.backend_ports(&target_engine) {
+        let backend = match self.registry.backend(&target_engine) {
             Ok(backend) => backend,
             Err(error) => {
                 binding.abort_before_core_application().await?;

@@ -8,10 +8,12 @@ use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPort, CoreBinarySelectionSource,
 };
-use infiltrator_ports::engine_backend_factory::EngineOperationPorts;
+use infiltrator_ports::engine_backend::{ProductEngineBackendPorts, ProductEngineOperationPorts};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionBinding;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document_identity::ProfileDocument;
+use lurker_core_ports::engine_backend::{EngineBackendProvider, EngineOperationPorts};
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use singbox_config::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;
 use singbox_config::profile_document_codec::SingBoxProfileConfigurationCodec;
 use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
@@ -60,8 +62,8 @@ where
         readiness,
     )
     .await?;
-    let factory = EngineBackendFactoryRegistry::new([Arc::clone(&provider.provider)])?;
-    let backend = factory.backend_ports(&engine_id)?;
+    let registry = EngineBackendProviderRegistry::new([Arc::clone(&provider.provider)])?;
+    let backend = registry.backend(&engine_id)?;
     core_application_from_selected_singbox_backend(
         backend,
         bridge,
@@ -75,7 +77,7 @@ where
 }
 
 pub(crate) struct AndroidSingBoxBackendProviderParts {
-    pub(crate) provider: Arc<dyn EngineBackendProvider>,
+    pub(crate) provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>,
     pub(crate) configuration: Arc<SingBoxProfileConfigurationAdapter>,
     pub(crate) operation_gate: Arc<SingBoxCoreOperationGate>,
 }
@@ -193,7 +195,7 @@ where
 }
 
 pub(crate) fn core_application_from_selected_singbox_backend<S>(
-    backend: EngineBackendPorts,
+    backend: ProductEngineBackendPorts,
     bridge: Arc<dyn AndroidBridge>,
     profile_store: Arc<ConfigManager<S>>,
     configuration: Arc<SingBoxProfileConfigurationAdapter>,
@@ -275,13 +277,13 @@ struct AndroidSingBoxBackendProvider {
     transaction_binding: Arc<ProfileConfigurationTransactionBinding>,
 }
 
-impl EngineBackendProvider for AndroidSingBoxBackendProvider {
+impl EngineBackendProvider<ProductEngineBackendPorts> for AndroidSingBoxBackendProvider {
     fn engine_id(&self) -> EngineId {
         self.engine_id.clone()
     }
 
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
-        EngineBackendPorts::new(
+    fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
+        ProductEngineBackendPorts::new(
             self.engine_id.clone(),
             Arc::clone(&self.process),
             Arc::clone(&self.readiness),
@@ -289,6 +291,9 @@ impl EngineBackendProvider for AndroidSingBoxBackendProvider {
             Arc::clone(&self.transaction_binding),
             EngineOperationPorts::unsupported(
                 "Android sing-box runtime operations are not connected",
+            ),
+            ProductEngineOperationPorts::unsupported(
+                "Android sing-box product operations are not connected",
             ),
         )
     }

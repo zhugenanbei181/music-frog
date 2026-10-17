@@ -1,0 +1,12 @@
+[package]
+name = "lurker-engine-runtime"
+version.workspace = true
+edition = "2024"
+description = "Engine-neutral backend provider registry for Lurker core hosts."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zhugenanbei181/music-frog"
+
+[dependencies]
+lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
+lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
+async-trait = { workspace = true }

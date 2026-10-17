@@ -1,10 +1,9 @@
 //! test-intent: behavior
 
-use crate::engine_backend_factory::SingBoxEngineBackendProvider;
+use crate::singbox_engine_backend_provider::SingBoxEngineBackendProvider;
 use async_trait::async_trait;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
@@ -21,6 +20,7 @@ use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::engine_backend::EngineBackendProvider;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;

@@ -28,6 +28,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 LURKER_NEUTRAL_CRATES = (
     "lurker-core-contract",
     "lurker-core-ports",
+    "lurker-engine-runtime",
     "lurker-ui-presentation",
 )
 NEUTRAL_FORBIDDEN_EXACT = {"tokio", "reqwest", "bevy", "iced", "slint"}
@@ -174,6 +175,7 @@ NEUTRAL_SOURCE_PATTERN = re.compile(
 SOURCE_PATTERNS = {
     "lurker-core-contract": NEUTRAL_SOURCE_PATTERN,
     "lurker-core-ports": NEUTRAL_SOURCE_PATTERN,
+    "lurker-engine-runtime": NEUTRAL_SOURCE_PATTERN,
     "lurker-ui-presentation": NEUTRAL_SOURCE_PATTERN,
     "lurker-profile-store": re.compile(
         r"\b(?:reqwest|bevy|iced|slint"

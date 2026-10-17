@@ -6,23 +6,21 @@ use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileSelectionPreflight, PreviousCoreOwner,
     SelectedActiveProfileBackend,
 };
-use infiltrator_composition::engine_backend_factory::{
-    EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
-};
+use infiltrator_composition::singbox_engine_backend_provider::SingBoxEngineBackendProvider;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{CoreBinarySelection, CoreBinarySelectionSource};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendPorts, EngineBackendProvider,
-};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_store::ProfileStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_ports::core_scope::CoreScopeSource;
+use lurker_core_ports::engine_backend::EngineBackendProvider;
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use singbox_api::engine_id;
 use singbox_driver::api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_driver::api::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
@@ -100,13 +98,13 @@ impl SingBoxRuntime {
             command,
             http,
         )?);
-        let factory_provider: Arc<dyn EngineBackendProvider> = provider.clone();
-        let factory: Arc<dyn EngineBackendFactory> =
-            Arc::new(EngineBackendFactoryRegistry::new([factory_provider])?);
+        let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+            provider.clone();
+        let registry = Arc::new(EngineBackendProviderRegistry::new([registry_provider])?);
         let selected = ActiveProfileBackendSelector::new(
             reference_store,
             [Arc::clone(&profile_store)],
-            factory,
+            registry,
             capability_provider,
         )
         .select_backend_from_preflight(preflight, &PreviousCoreOwner::Unowned)
@@ -198,7 +196,7 @@ impl SingBoxRuntime {
 fn bind_core(
     application: &CoreApplication,
     provider: &SingBoxEngineBackendProvider,
-    backend: &EngineBackendPorts,
+    backend: &ProductEngineBackendPorts,
     profile_store: Arc<dyn ProfileStore>,
 ) -> Result<(), PortError> {
     let owner_scope: Arc<dyn CoreScopeSource> = Arc::new(application.clone());

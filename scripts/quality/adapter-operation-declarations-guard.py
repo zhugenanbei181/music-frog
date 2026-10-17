@@ -250,7 +250,7 @@ def validate_declaration(
             continue
         if engine == "sing-box" and status in {"supported", "evidence_open"}:
             problems.append(
-                f"{record_where} has no production EngineBackendFactory composition; use Unsupported"
+                f"{record_where} has no production engine backend provider composition; use Unsupported"
             )
         if status == "supported":
             if (

@@ -26,7 +26,6 @@ use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner,
 };
-use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
@@ -41,13 +40,15 @@ use infiltrator_ports::core_binary_selection::{
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreOwnerTerminationPort;
 use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_store::ProfileStore;
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
 };
 use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::engine_backend::EngineBackendProvider;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -78,7 +79,7 @@ enum PreparedTargetRuntime {
 struct PreparedTarget {
     config: Arc<ConfigManager<DefaultCredentialStore>>,
     document: ProfileDocument,
-    provider: Arc<dyn EngineBackendProvider>,
+    provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>,
     capabilities: Arc<dyn CoreCapabilityProvider>,
     runtime: PreparedTargetRuntime,
 }
@@ -186,16 +187,20 @@ async fn replace_shared_core_owner_for_profile(target: ActiveProfileReferenceTar
     let target_profile_store: Arc<dyn ProfileStore> = prepared.config.shared_engine_profile_store();
     let reference_store: Arc<dyn ActiveProfileReferenceStore> =
         previous.config.shared_engine_profile_store();
-    let factory = match EngineBackendFactoryRegistry::new([Arc::clone(&prepared.provider)]) {
-        Ok(factory) => Arc::new(factory) as Arc<dyn EngineBackendFactory>,
+    let registry = match EngineBackendProviderRegistry::new([Arc::clone(&prepared.provider)]) {
+        Ok(registry) => Arc::new(registry),
         Err(error) => {
-            return restore_previous(&previous, map_port_error(error)).await;
+            return restore_previous(
+                &previous,
+                FfiStatus::err(FfiErrorCode::InvalidState, error.to_string()),
+            )
+            .await;
         }
     };
     let selector = ActiveProfileBackendSelector::new(
         reference_store,
         [target_profile_store],
-        factory,
+        registry,
         Arc::clone(&prepared.capabilities),
     );
     let previous_owner: Arc<dyn CoreOwnerTerminationPort> = Arc::new(previous.application.clone());

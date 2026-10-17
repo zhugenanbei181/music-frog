@@ -50,7 +50,6 @@ use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileSelectionPreflight, PreviousCoreOwner,
     authorize_lifecycle_start, preflight_active_profile_reference,
 };
-use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
@@ -73,9 +72,7 @@ use infiltrator_ports::core_binary_selection::{
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
-};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
@@ -85,7 +82,11 @@ use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::core_scope::CoreScopeSource;
+use lurker_core_ports::engine_backend::{
+    EngineBackendOwnerScopeBindingResult, EngineBackendProvider,
+};
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
@@ -547,7 +548,7 @@ pub(crate) async fn core_application(
         application
             .install_log_stream_port(runtime_stream_port)
             .map_err(|failure| anyhow::anyhow!(failure.message))?;
-        let outbound_port = ports.operations().outbound()?;
+        let outbound_port = ports.core_operations().outbound()?;
         application
             .install_outbound_port(outbound_port.clone())
             .map_err(|failure| anyhow::anyhow!(failure.message))?;
@@ -609,7 +610,7 @@ pub(crate) async fn core_application(
 pub struct DesktopCommandServices {
     pub binary_path: PathBuf,
     pub client: MihomoClient,
-    pub backend_ports: EngineBackendPorts,
+    pub backend_ports: ProductEngineBackendPorts,
     pub core_capability_provider: Arc<dyn CoreCapabilityProvider>,
     pub engines: SurfaceEngines,
     pub profile_store: Arc<dyn ProfileStore>,
@@ -713,7 +714,7 @@ pub fn desktop_command_application(
         .with_core_capabilities(core_capabilities)
         .with_rule_provider_runtime(rule_provider_runtime)
         .with_geo_database(geo_database)
-        .with_routing_intent_port(backend_ports.operations().routing_intent()?)
+        .with_routing_intent_port(backend_ports.core_operations().routing_intent()?)
         .with_connections(connections)
         .with_runtime_queries(runtime_queries)
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
@@ -817,15 +818,15 @@ pub(crate) async fn desktop_product_backend(
     let capability_provider = preflight.capability_provider();
     let (provider, client) =
         mihomo_backend::desktop_mihomo_engine_provider(service, controller_url, secret)?;
-    let factory_provider: Arc<dyn EngineBackendProvider> = provider;
-    let factory = Arc::new(EngineBackendFactoryRegistry::new([factory_provider])?);
+    let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> = provider;
+    let registry = Arc::new(EngineBackendProviderRegistry::new([registry_provider])?);
     let references: Arc<dyn ActiveProfileReferenceStore> =
         config_manager.shared_engine_profile_store();
     let profiles: Arc<dyn ProfileStore> = config_manager.shared_engine_profile_store();
     let selector = ActiveProfileBackendSelector::new(
         references,
         [profiles],
-        factory,
+        registry,
         Arc::clone(&capability_provider),
     );
     let selected = selector

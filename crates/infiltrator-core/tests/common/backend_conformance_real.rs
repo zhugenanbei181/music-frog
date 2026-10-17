@@ -6,10 +6,8 @@ use super::backend_conformance::{
     RoutingBehavior, RunningProfileTransactionBehavior, run_backend_conformance,
 };
 use super::backend_conformance_declarations;
-use infiltrator_composition::engine_backend_factory::{
-    EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
-};
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
+use infiltrator_composition::singbox_engine_backend_provider::SingBoxEngineBackendProvider;
 use infiltrator_contract::core_capabilities::{AdapterRevision, EngineBinaryTarget};
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::{
@@ -17,7 +15,7 @@ use infiltrator_core::profile_configuration_transaction::{
 };
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
 };
@@ -37,8 +35,10 @@ use lurker_core_contract::routing_intent::{
 };
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use lurker_core_ports::engine_backend::EngineBackendProvider;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::{OutboundProbeRequest, ProbeTarget};
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_driver::api::client::MihomoClient;
@@ -425,11 +425,11 @@ rules:
         MihomoEngineBackendProvider::new(Arc::clone(&host_process), Arc::clone(&readiness), client)
             .map_err(|error| format!("construct production Mihomo backend provider: {error}"))?,
     );
-    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider;
-    let factory = EngineBackendFactoryRegistry::new([provider_for_factory])
+    let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> = provider;
+    let registry = EngineBackendProviderRegistry::new([registry_provider])
         .map_err(|error| format!("register production Mihomo backend provider: {error}"))?;
-    let backend = factory
-        .backend_ports(&case.engine)
+    let backend = registry
+        .backend(&case.engine)
         .map_err(|error| format!("create production Mihomo backend ports: {error}"))?;
     let process = backend.process();
     let readiness = backend.readiness();
@@ -474,7 +474,7 @@ rules:
         .configuration_transaction_binding()
         .bind(transaction)
         .map_err(|error| format!("bind production Mihomo profile transaction: {error}"))?;
-    let operations = backend.operations();
+    let operations = backend.core_operations();
     let outbound = operations
         .outbound()
         .map_err(|error| format!("resolve production Mihomo outbound port: {error}"))?;
@@ -602,11 +602,12 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         )
         .map_err(|error| format!("construct production sing-box backend provider: {error}"))?,
     );
-    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider.clone();
-    let factory = EngineBackendFactoryRegistry::new([provider_for_factory])
+    let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+        provider.clone();
+    let registry = EngineBackendProviderRegistry::new([registry_provider])
         .map_err(|error| format!("register production sing-box backend provider: {error}"))?;
-    let backend = factory
-        .backend_ports(&case.engine)
+    let backend = registry
+        .backend(&case.engine)
         .map_err(|error| format!("create production sing-box backend ports: {error}"))?;
     let process = backend.process();
     let readiness = backend.readiness();
@@ -636,7 +637,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
     provider
         .bind_core_owner_scope(&backend, scope_source)
         .map_err(|error| format!("bind production sing-box Core scope: {error}"))?;
-    let operations = backend.operations();
+    let operations = backend.core_operations();
     let outbound = operations
         .outbound()
         .map_err(|error| format!("resolve production sing-box outbound port: {error}"))?;

@@ -1,11 +1,7 @@
-//! Engine selection for product composition roots.
+//! Shared production sing-box engine backend provider.
 
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::engine_backend_factory::{
-    ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
-    EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
-    EngineBackendProviderAvailability, EngineOperationPort, EngineOperationPorts,
-};
+use infiltrator_ports::engine_backend::{ProductEngineBackendPorts, ProductEngineOperationPorts};
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
@@ -17,6 +13,10 @@ use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_ports::core_process::CoreProcess;
 use lurker_core_ports::core_process::CoreReadiness;
 use lurker_core_ports::core_scope::CoreScopeSource;
+use lurker_core_ports::engine_backend::{
+    EngineBackendOwnerScopeBinding, EngineBackendOwnerScopeBindingResult, EngineBackendProvider,
+    EngineOperationPort, EngineOperationPorts,
+};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
@@ -31,77 +31,15 @@ use singbox_driver::outbound::SingBoxOutboundAdapter;
 use singbox_driver::process::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
 use singbox_driver::readiness::SingBoxControllerReadiness;
 use singbox_driver::routing_intent::SingBoxRoutingIntentAdapter;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-
-/// Dispatches each engine identity to its registered process/config/runtime
-/// adapter factory. A missing engine is rejected before any provider runs.
-pub struct EngineBackendFactoryRegistry {
-    providers: HashMap<EngineId, Arc<dyn EngineBackendProvider>>,
-}
-
-impl EngineBackendFactoryRegistry {
-    pub fn new(
-        providers: impl IntoIterator<Item = Arc<dyn EngineBackendProvider>>,
-    ) -> Result<Self, PortError> {
-        let mut by_engine = HashMap::new();
-        for provider in providers {
-            let engine_id = provider.engine_id();
-            if by_engine.insert(engine_id.clone(), provider).is_some() {
-                return Err(PortError::Failed(format!(
-                    "duplicate backend factory for engine {}",
-                    engine_id.as_str()
-                )));
-            }
-        }
-        Ok(Self {
-            providers: by_engine,
-        })
-    }
-}
-
-impl EngineBackendFactory for EngineBackendFactoryRegistry {
-    fn provider_availability(&self, engine_id: &EngineId) -> EngineBackendProviderAvailability {
-        match self.providers.contains_key(engine_id) {
-            true => EngineBackendProviderAvailability::Registered,
-            false => EngineBackendProviderAvailability::Unsupported {
-                reason: format!(
-                    "no process/config/runtime backend is registered for {}",
-                    engine_id.as_str()
-                ),
-            },
-        }
-    }
-
-    fn backend_ports(&self, engine_id: &EngineId) -> Result<EngineBackendPorts, PortError> {
-        let provider = self.providers.get(engine_id).ok_or_else(|| {
-            PortError::unsupported(
-                ENGINE_BACKEND_CAPABILITY,
-                format!(
-                    "no process/config/runtime backend is registered for {}",
-                    engine_id.as_str()
-                ),
-            )
-        })?;
-        let ports = provider.create_backend()?;
-        if ports.engine_id() != engine_id {
-            return Err(PortError::Failed(format!(
-                "backend factory for {} returned ports for {}",
-                engine_id.as_str(),
-                ports.engine_id().as_str()
-            )));
-        }
-        Ok(ports)
-    }
-}
 
 /// Production sing-box backend provider for one process/config/controller
 /// identity. The returned engine bundle carries scoped Clash outbound and
 /// routing ports. The host binds the Core owner and native profile transaction
 /// after constructing its lifecycle actor.
 pub struct SingBoxEngineBackendProvider {
-    ports: EngineBackendPorts,
+    ports: ProductEngineBackendPorts,
     configuration: Arc<SingBoxProfileConfigurationAdapter>,
     operation_gate: Arc<SingBoxCoreOperationGate>,
 }
@@ -161,24 +99,23 @@ impl SingBoxEngineBackendProvider {
         ));
         let routing_intent: Arc<dyn RoutingIntentPort> =
             Arc::new(SingBoxRoutingIntentAdapter::new(api, owner_scope.clone()));
-        let operations = EngineOperationPorts::available(
-            outbound,
-            routing_intent,
+        let operations = EngineOperationPorts::available(outbound, routing_intent, owner_scope);
+        let product_operations = ProductEngineOperationPorts::available(
             EngineOperationPort::unsupported(
                 "sing-box rule-provider operations have no verified adapter evidence",
             ),
             EngineOperationPort::unsupported(
                 "sing-box Geo database trigger has no verified adapter evidence",
             ),
-            owner_scope,
         );
-        let ports = EngineBackendPorts::new(
+        let ports = ProductEngineBackendPorts::new(
             engine_id,
             process,
             readiness,
             codec,
             transaction,
             operations,
+            product_operations,
         )?;
         Ok(Self {
             ports,
@@ -189,7 +126,7 @@ impl SingBoxEngineBackendProvider {
 
     pub fn bind_profile_configuration_transaction(
         &self,
-        ports: &EngineBackendPorts,
+        ports: &ProductEngineBackendPorts,
         profile_store: Arc<dyn ProfileStore>,
         session: Arc<dyn CoreLifecyclePort>,
     ) -> Result<(), PortError> {
@@ -224,14 +161,14 @@ impl SingBoxEngineBackendProvider {
 
     pub fn bind_core_owner_scope(
         &self,
-        ports: &EngineBackendPorts,
+        ports: &ProductEngineBackendPorts,
         source: Arc<dyn CoreScopeSource>,
     ) -> Result<EngineBackendOwnerScopeBindingResult, PortError> {
         self.verify_bundle(ports)?;
         ports.bind_owner_core_scope(source)
     }
 
-    fn verify_bundle(&self, ports: &EngineBackendPorts) -> Result<(), PortError> {
+    fn verify_bundle(&self, ports: &ProductEngineBackendPorts) -> Result<(), PortError> {
         let provider_binding = self.ports.configuration_transaction_binding();
         let bundle_binding = ports.configuration_transaction_binding();
         if ports.engine_id() == &self.engine_id() && Arc::ptr_eq(&provider_binding, &bundle_binding)
@@ -245,12 +182,12 @@ impl SingBoxEngineBackendProvider {
     }
 }
 
-impl EngineBackendProvider for SingBoxEngineBackendProvider {
+impl EngineBackendProvider<ProductEngineBackendPorts> for SingBoxEngineBackendProvider {
     fn engine_id(&self) -> EngineId {
         self.ports.engine_id().clone()
     }
 
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
+    fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
         Ok(self.ports.clone())
     }
 }
@@ -265,6 +202,7 @@ mod tests {
     };
     use lurker_core_contract::routing_intent::RoutingIntent;
     use lurker_core_ports::core_scope::CoreScopeObservation;
+    use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
     use singbox_driver::api::http::{
         SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
     };
@@ -276,29 +214,6 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tempfile::TempDir;
-
-    struct FakeBackendProvider {
-        engine_id: EngineId,
-        calls: Arc<AtomicUsize>,
-    }
-
-    impl EngineBackendProvider for FakeBackendProvider {
-        fn engine_id(&self) -> EngineId {
-            self.engine_id.clone()
-        }
-
-        fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            Err(PortError::unsupported(
-                Capability::CoreLifecycle,
-                "fake backend intentionally unavailable",
-            ))
-        }
-    }
-
-    fn engine_id(value: &str) -> EngineId {
-        EngineId::new(value).expect("test engine id is valid")
-    }
 
     struct FakeSingBoxCommand;
 
@@ -319,7 +234,7 @@ mod tests {
         ) -> Result<Box<dyn SingBoxChildProcess>, PortError> {
             Err(PortError::unsupported(
                 Capability::CoreLifecycle,
-                "factory test does not start Core",
+                "provider test does not start Core",
             ))
         }
     }
@@ -341,7 +256,7 @@ mod tests {
             self.requests.fetch_add(1, Ordering::SeqCst);
             Err(PortError::unsupported(
                 Capability::RoutingIntent,
-                "factory test does not dispatch HTTP",
+                "provider test does not dispatch HTTP",
             ))
         }
     }
@@ -361,76 +276,6 @@ mod tests {
                 Err(_) => CoreScopeObservation::Unavailable,
             }
         }
-    }
-
-    #[test]
-    fn unknown_engine_is_typed_unsupported_without_constructing_any_backend() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let provider: Arc<dyn EngineBackendProvider> = Arc::new(FakeBackendProvider {
-            engine_id: engine_id("mihomo"),
-            calls: Arc::clone(&calls),
-        });
-        let factory = EngineBackendFactoryRegistry::new([provider]).unwrap();
-
-        let error = match factory.backend_ports(&engine_id("sing-box")) {
-            Ok(_) => panic!("an unknown engine must not receive ports"),
-            Err(error) => error,
-        };
-
-        assert!(matches!(
-            error,
-            PortError::Unsupported {
-                capability: Capability::CoreLifecycle,
-                ..
-            }
-        ));
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[test]
-    fn registered_engine_dispatches_to_its_factory_once() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let provider: Arc<dyn EngineBackendProvider> = Arc::new(FakeBackendProvider {
-            engine_id: engine_id("mihomo"),
-            calls: Arc::clone(&calls),
-        });
-        let factory = EngineBackendFactoryRegistry::new([provider]).unwrap();
-
-        let error = match factory.backend_ports(&engine_id("mihomo")) {
-            Ok(_) => panic!("the fake provider reports an unavailable backend"),
-            Err(error) => error,
-        };
-
-        assert!(matches!(
-            error,
-            PortError::Unsupported {
-                capability: Capability::CoreLifecycle,
-                ..
-            }
-        ));
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn duplicate_engine_registration_is_rejected() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let first: Arc<dyn EngineBackendProvider> = Arc::new(FakeBackendProvider {
-            engine_id: engine_id("mihomo"),
-            calls: Arc::clone(&calls),
-        });
-        let second: Arc<dyn EngineBackendProvider> = Arc::new(FakeBackendProvider {
-            engine_id: engine_id("mihomo"),
-            calls: Arc::clone(&calls),
-        });
-        let providers = vec![first, second];
-
-        let error = match EngineBackendFactoryRegistry::new(providers) {
-            Ok(_) => panic!("duplicate engine factories must be rejected"),
-            Err(error) => error,
-        };
-
-        assert!(matches!(error, PortError::Failed(_)));
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
@@ -453,10 +298,11 @@ mod tests {
             )
             .unwrap(),
         );
-        let provider_for_factory: Arc<dyn EngineBackendProvider> = provider.clone();
-        let registry = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
+        let provider_for_registry: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+            provider.clone();
+        let registry = EngineBackendProviderRegistry::new([provider_for_registry]).unwrap();
         let engine = EngineId::sing_box();
-        let backend = registry.backend_ports(&engine).unwrap();
+        let backend = registry.backend(&engine).unwrap();
         let scope = CoreScope {
             identity: CoreIdentity::new(
                 engine.clone(),
@@ -480,7 +326,7 @@ mod tests {
         assert_eq!(backend.process().core_identity().unwrap().engine, engine);
         assert_eq!(backend.configuration().scope().engine_id, engine);
         assert!(matches!(
-            backend.operations(),
+            backend.core_operations(),
             EngineOperationPorts::Available { .. }
         ));
         let wrong_source = Arc::new(MutableScope(Mutex::new(foreign_scope.clone())));
@@ -508,7 +354,7 @@ mod tests {
         assert!(matches!(error, PortError::Rejected(_)));
         assert_eq!(requests.load(Ordering::SeqCst), 0);
 
-        let routing = backend.operations().routing_intent().unwrap();
+        let routing = backend.core_operations().routing_intent().unwrap();
         let error = routing
             .apply(&scope, RoutingIntent::FollowRules)
             .await
@@ -516,7 +362,7 @@ mod tests {
         assert!(matches!(error, PortError::Unsupported { .. }));
         assert_eq!(requests.load(Ordering::SeqCst), 0);
 
-        let outbound = backend.operations().outbound().unwrap();
+        let outbound = backend.core_operations().outbound().unwrap();
         let error = outbound.inventory(scope.clone()).await.unwrap_err();
         assert!(matches!(error, PortError::Unsupported { .. }));
         assert_eq!(requests.load(Ordering::SeqCst), 1);

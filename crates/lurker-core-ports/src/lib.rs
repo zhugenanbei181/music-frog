@@ -6,6 +6,7 @@
 
 pub mod core_process;
 pub mod core_scope;
+pub mod engine_backend;
 pub mod error;
 pub mod outbound;
 pub mod profile_document_codec;

@@ -5,7 +5,7 @@ use infiltrator_composition::active_profile_backend::SelectedActiveProfileBacken
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
-use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use lurker_core_contract::capability::Capability;
 use lurker_core_ports::core_process::CoreReadiness;
 use lurker_core_ports::error::PortError;
@@ -14,7 +14,7 @@ use mihomo_driver::driver::ControllerReadiness;
 use std::sync::Arc;
 
 pub(crate) struct DesktopMihomoBackend {
-    pub ports: EngineBackendPorts,
+    pub ports: ProductEngineBackendPorts,
     pub client: MihomoClient,
     pub capability_provider: Arc<dyn CoreCapabilityProvider>,
     pub selection: SelectedActiveProfileBackend,

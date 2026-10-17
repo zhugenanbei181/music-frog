@@ -29,7 +29,7 @@ pub mod dns_leak;
 pub mod dns_query;
 pub mod doctor;
 pub mod endpoint;
-pub mod engine_backend_factory;
+pub mod engine_backend;
 pub mod engine_version_backend_factory;
 pub mod fake_ip_cache;
 pub mod geo_database;

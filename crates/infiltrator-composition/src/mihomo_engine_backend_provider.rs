@@ -1,15 +1,16 @@
 //! Shared production Mihomo engine backend provider.
 
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineBackendProvider, EngineOperationPort,
-    EngineOperationPorts,
-};
+use infiltrator_ports::engine_backend::{ProductEngineBackendPorts, ProductEngineOperationPorts};
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
 use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::engine_backend::{
+    EngineBackendOwnerScopeBinding, EngineBackendProvider, EngineOperationPort,
+    EngineOperationPorts,
+};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
@@ -83,19 +84,19 @@ impl MihomoEngineBackendProvider {
     }
 }
 
-impl EngineBackendProvider for MihomoEngineBackendProvider {
+impl EngineBackendProvider<ProductEngineBackendPorts> for MihomoEngineBackendProvider {
     fn engine_id(&self) -> EngineId {
         mihomo_config::engine_id()
     }
 
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
+    fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
         let engine_id = self.engine_id();
         let codec: Arc<dyn ProfileConfigurationCodecPort> =
             Arc::new(MihomoProfileConfigurationCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
         ));
-        let operations = match &self.controller {
+        let (operations, product_operations) = match &self.controller {
             MihomoControllerState::Available(client) => {
                 let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(engine_id.clone()));
                 let outbound: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
@@ -112,25 +113,30 @@ impl EngineBackendProvider for MihomoEngineBackendProvider {
                     Arc::new(client.clone()),
                     owner_scope.clone(),
                 ));
-                EngineOperationPorts::available(
-                    outbound,
-                    routing,
-                    EngineOperationPort::available(rule_provider),
-                    EngineOperationPort::available(geo_database),
-                    owner_scope,
+                (
+                    EngineOperationPorts::available(outbound, routing, owner_scope),
+                    ProductEngineOperationPorts::available(
+                        EngineOperationPort::available(rule_provider),
+                        EngineOperationPort::available(geo_database),
+                    ),
                 )
             }
-            MihomoControllerState::Unavailable(reason) => EngineOperationPorts::unsupported(
-                format!("Mihomo typed engine operations are unavailable: {reason}"),
-            ),
+            MihomoControllerState::Unavailable(reason) => {
+                let reason = format!("Mihomo typed engine operations are unavailable: {reason}");
+                (
+                    EngineOperationPorts::unsupported(reason.clone()),
+                    ProductEngineOperationPorts::unsupported(reason),
+                )
+            }
         };
-        EngineBackendPorts::new(
+        ProductEngineBackendPorts::new(
             engine_id,
             Arc::clone(&self.process),
             Arc::clone(&self.readiness),
             codec,
             transaction,
             operations,
+            product_operations,
         )
     }
 }

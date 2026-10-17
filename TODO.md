@@ -58,16 +58,16 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v211`）
+## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v212`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 8 | 17 |
+| 现在佛 | 7 | 14 |
 | 过去佛 | 23 | 60 |
 | 未来佛 | 24 | 47 |
-| **未办结联合分母** | **55** | **124** |
+| **未办结联合分母** | **54** | **121** |
 
-- **严格交付率：635 / 759 = 83.7%**（archived 635pt / archived + 未办结 124pt；PUB-002 五条因验收未达成已退回过去佛）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：638 / 759 = 84.1%**（archived 638pt / archived + 未办结 121pt；PUB-002 五条因验收未达成已退回过去佛）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -114,11 +114,12 @@
 | i18n 覆盖 | — | 产品侧有 guard | `lurker-ui-presentation` 不在扫描范围 |
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
-### 已归档交付原子条目（明细 238 条 / 634 pt；累计 239 条 / 635 pt）
+### 已归档交付原子条目（明细 239 条 / 637 pt；累计 240 条 / 638 pt）
 | 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
+| `PUB-003.1` 引擎注册器与中性 backend 契约 | 3 | `lurker-engine-runtime::registry::EngineBackendProviderRegistry<B>`（未注册引擎 typed Unsupported 且零 provider 调用、bundle engine 不符拒绝、重复注册/未知注销 typed 错误）；`EngineBackendBundle`/`Provider`/`EngineBackendPorts` 下沉 `lurker-core-ports`，产品 bundle 留 `infiltrator-ports`。本地 95 nextest、四包 clippy 0、全仓 5143/5143。 |
 | `PUB-001.1` 中立契约 `lurker-core-contract` | 2 | `cargo publish --dry-run -p lurker-core-contract` 通过（25 文件 / 133.6KiB 打包并校验）；637 个消费文件迁移，无 re-export 中转；中立性门禁证明零产品/UI/OS 私有符号；全量 5082/5082 nextest、`clippy -D warnings`、结构门全绿。 |
 | `PUB-001.2` 中立端口 `lurker-core-ports` 与 codec 拆分 | 2 | 中性 `PortError`/`CoreProcess`/`CoreReadiness`/`OutboundPort`/`RoutingIntentPort`/`ProfileDocumentCodecPort`；`ProfileConfigurationCodecPort` 作产品扩展；连带 `Capability`/`CoreLifecycle`/`DocumentValidation`/`ProfileFormatId` 入中立契约；536 文件迁移；contract 打包通过、ports 打包待 contract 上架（发布顺序门）；5082/5082 nextest 全绿。 |
 | `SLINT-015` Slint 无感截图基础设施与场景矩阵 | 3 | `capture-tools` feature 与 `--demo`/`CAPTURE_READY` marker 接入；`scripts/capture-slint-matrix.sh`、`scripts/capture_slint_scenarios.tsv`（24 个场景）与 `scripts/parity/product_build.py` 接入生效；私有虚拟 Wayland 合成器（KWin + Niri IPC）实现 24/24 全量场景取证通过，manifest 100% 验证。 |

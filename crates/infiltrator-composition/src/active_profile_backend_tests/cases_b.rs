@@ -1,6 +1,4 @@
 use super::*;
-use crate::engine_backend_factory::EngineBackendFactoryRegistry;
-use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 
 #[tokio::test]
 async fn provider_prepared_from_another_document_fails_before_old_owner_close() {
@@ -292,7 +290,8 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
             Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
         let (mihomo, mihomo_counts) =
             FakeProvider::new("mihomo", "mihomo-instance", Arc::clone(&events));
-        let mut providers: Vec<Arc<dyn EngineBackendProvider>> = vec![Arc::new(mihomo)];
+        let mut providers: Vec<Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>> =
+            vec![Arc::new(mihomo)];
         let mut sing_box_counts = None;
         if target_provider_registered {
             let (sing_box, counts) =
@@ -696,16 +695,15 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
 fn registry_registration_probe_does_not_dispatch_a_provider() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let (provider, counts) = FakeProvider::new("mihomo", "mihomo-instance", events);
-    let provider: Arc<dyn EngineBackendProvider> = Arc::new(provider);
-    let registry = EngineBackendFactoryRegistry::new([provider]).unwrap();
-    let factory: &dyn EngineBackendFactory = &registry;
+    let provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> = Arc::new(provider);
+    let registry = EngineBackendProviderRegistry::new([provider]).unwrap();
 
     assert_eq!(
-        factory.provider_availability(&engine_id_value("mihomo")),
+        registry.availability(&engine_id_value("mihomo")),
         EngineBackendProviderAvailability::Registered
     );
     assert!(matches!(
-        factory.provider_availability(&engine_id_value("sing-box")),
+        registry.availability(&engine_id_value("sing-box")),
         EngineBackendProviderAvailability::Unsupported { .. }
     ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);

@@ -24,10 +24,7 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendPorts, EngineBackendProvider, EngineBackendProviderAvailability,
-    EngineOperationPorts,
-};
+use infiltrator_ports::engine_backend::{ProductEngineBackendPorts, ProductEngineOperationPorts};
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
@@ -53,10 +50,14 @@ use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::engine_backend::{
+    EngineBackendProvider, EngineBackendProviderAvailability, EngineOperationPorts,
+};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

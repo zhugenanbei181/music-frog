@@ -5,7 +5,6 @@ use super::AndroidCoreComposition;
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
-use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessObservation, AndroidHostProcessRole,
@@ -36,8 +35,7 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
-use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
@@ -60,7 +58,9 @@ use lurker_core_contract::profile_document_identity::ProfileFormatId;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::engine_backend::EngineBackendProvider;
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use mihomo_api::runtime_configuration::scope_resolver_from_owner;
 use mihomo_config::manager::ConfigManager;
 use std::env;
@@ -322,13 +322,13 @@ fn android_mihomo_backend_provider_recreates_scoped_ports_without_hidden_state()
         )
         .expect("Mihomo engine admission succeeds before controller parsing"),
     );
-    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider;
-    let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
+    let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> = provider;
+    let registry = EngineBackendProviderRegistry::new([registry_provider]).unwrap();
     let engine_id = MihomoVersionPort::engine_identifier();
 
     for _ in 0..2 {
-        let backend = factory
-            .backend_ports(&engine_id)
+        let backend = registry
+            .backend(&engine_id)
             .expect("the registered provider can repeatedly compose its ports");
         assert_eq!(backend.engine_id(), &engine_id);
         assert_eq!(backend.process().core_identity().unwrap().engine, engine_id);
@@ -351,10 +351,10 @@ fn android_core_scope_resolver_rejects_a_stopped_owner() {
         )
         .expect("Mihomo engine admission succeeds"),
     );
-    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider;
-    let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
-    let backend = factory
-        .backend_ports(&MihomoVersionPort::engine_identifier())
+    let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> = provider;
+    let registry = EngineBackendProviderRegistry::new([registry_provider]).unwrap();
+    let backend = registry
+        .backend(&MihomoVersionPort::engine_identifier())
         .expect("registered provider composes runtime ports");
     let application = CoreApplication::new_with_overview(
         backend.process(),

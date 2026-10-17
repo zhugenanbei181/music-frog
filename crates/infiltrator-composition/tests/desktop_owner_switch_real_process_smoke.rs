@@ -6,11 +6,9 @@ use infiltrator_composition::active_profile_backend::SelectedActiveProfileBacken
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner,
 };
-use infiltrator_composition::engine_backend_factory::{
-    EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
-};
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
+use infiltrator_composition::singbox_engine_backend_provider::SingBoxEngineBackendProvider;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::surface::HostKind;
@@ -19,7 +17,7 @@ use infiltrator_ports::active_profile_reference_store::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
-use infiltrator_ports::engine_backend_factory::{EngineBackendPorts, EngineBackendProvider};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::active_profile_reference::{
@@ -29,7 +27,9 @@ use lurker_core_contract::active_profile_reference::{
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_ports::engine_backend::EngineBackendProvider;
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_config::manager::ConfigManager;
@@ -66,12 +66,12 @@ impl RecoveringSingBoxProvider {
     }
 }
 
-impl EngineBackendProvider for RecoveringSingBoxProvider {
+impl EngineBackendProvider<ProductEngineBackendPorts> for RecoveringSingBoxProvider {
     fn engine_id(&self) -> EngineId {
-        EngineBackendProvider::engine_id(self.inner.as_ref())
+        <SingBoxEngineBackendProvider as EngineBackendProvider<ProductEngineBackendPorts>>::engine_id(self.inner.as_ref())
     }
 
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
+    fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
         let creation = {
             let mut state = self
                 .state
@@ -85,7 +85,7 @@ impl EngineBackendProvider for RecoveringSingBoxProvider {
             }
         };
         creation?;
-        EngineBackendProvider::create_backend(self.inner.as_ref())
+        <SingBoxEngineBackendProvider as EngineBackendProvider<ProductEngineBackendPorts>>::create_backend(self.inner.as_ref())
     }
 }
 
@@ -388,13 +388,16 @@ async fn run_owner_switch_smoke(
         EngineCoreCapabilityProviderRegistry::new(capability_providers)
             .map_err(|error| format!("construct dual-engine capability registry: {error}"))?,
     );
-    let sing_box_dispatch_provider: Arc<dyn EngineBackendProvider> = Arc::new(
-        RecoveringSingBoxProvider::new(Arc::clone(&sing_box_provider)),
-    );
-    let providers: Vec<Arc<dyn EngineBackendProvider>> =
-        vec![mihomo_provider, sing_box_dispatch_provider];
-    let factory = Arc::new(
-        EngineBackendFactoryRegistry::new(providers)
+    let sing_box_dispatch_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+        Arc::new(RecoveringSingBoxProvider::new(Arc::clone(
+            &sing_box_provider,
+        )));
+    let mihomo_dispatch_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+        mihomo_provider;
+    let providers: Vec<Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>> =
+        vec![mihomo_dispatch_provider, sing_box_dispatch_provider];
+    let registry = Arc::new(
+        EngineBackendProviderRegistry::new(providers)
             .map_err(|error| format!("construct dual-engine backend registry: {error}"))?,
     );
     let references: Arc<dyn ActiveProfileReferenceStore> = mihomo_store.clone();
@@ -407,7 +410,7 @@ async fn run_owner_switch_smoke(
     let selector = ActiveProfileBackendSelector::new(
         Arc::clone(&references),
         profile_stores,
-        factory,
+        registry,
         capabilities,
     );
 

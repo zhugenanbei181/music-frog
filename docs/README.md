@@ -26,7 +26,7 @@
 - Bevy desktop host：[infiltrator-bevy-desktop-host](../crates/infiltrator-bevy-desktop-host/README.md)。
 - Slint：[infiltrator-slint/docs/README.md](../crates/infiltrator-slint/docs/README.md)。
 - 双端共享 UI 契约：[infiltrator-contract/docs/README.md](../crates/infiltrator-contract/docs/README.md)。
-- 引擎/平台/UI 中性核心层：[lurker-core-contract](../crates/lurker-core-contract/Cargo.toml)、[lurker-core-ports](../crates/lurker-core-ports/Cargo.toml)、[lurker-profile-store](../crates/lurker-profile-store/README.md)、[lurker-ui-presentation](../crates/lurker-ui-presentation/README.md)、[mihomo-driver](../crates/mihomo-driver/README.md)、[singbox-driver](../crates/singbox-driver/README.md)。
+- 引擎/平台/UI 中性核心层：[lurker-core-contract](../crates/lurker-core-contract/Cargo.toml)、[lurker-core-ports](../crates/lurker-core-ports/Cargo.toml)、[lurker-engine-runtime](../crates/lurker-engine-runtime/README.md)、[lurker-profile-store](../crates/lurker-profile-store/README.md)、[lurker-ui-presentation](../crates/lurker-ui-presentation/README.md)、[mihomo-driver](../crates/mihomo-driver/README.md)、[singbox-driver](../crates/singbox-driver/README.md)。
 - 跨表面纯呈现投影：[infiltrator-presentation/README.md](../crates/infiltrator-presentation/README.md)。
 - 中性呈现内核（typed reducer 阶段、日志视口策略、本地化 key 端口）：[lurker-ui-presentation](../crates/lurker-ui-presentation/README.md)。
 - Android：[android/docs/README.md](../android/docs/README.md)。

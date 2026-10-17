@@ -18,7 +18,7 @@ impl ActiveProfileBackendSelector {
     pub fn new(
         references: Arc<dyn ActiveProfileReferenceStore>,
         profile_stores: impl IntoIterator<Item = Arc<dyn ProfileStore>>,
-        factory: Arc<dyn EngineBackendFactory>,
+        registry: Arc<EngineBackendProviderRegistry<ProductEngineBackendPorts>>,
         capabilities: Arc<dyn CoreCapabilityProvider>,
     ) -> Self {
         let profile_stores = profile_stores
@@ -28,7 +28,7 @@ impl ActiveProfileBackendSelector {
         Self {
             references,
             profile_stores,
-            factory,
+            registry,
             capabilities,
             selection_gate: Mutex::new(()),
         }
@@ -69,10 +69,7 @@ impl ActiveProfileBackendSelector {
         let _writer = self.selection_gate.lock().await;
         require_unowned_startup(previous_owner)?;
         validate_preflight_lease(&preflight)?;
-        match self
-            .factory
-            .provider_availability(&preflight.reference.engine_id)
-        {
+        match self.registry.availability(&preflight.reference.engine_id) {
             EngineBackendProviderAvailability::Registered => {}
             EngineBackendProviderAvailability::Unsupported { reason } => {
                 return Err(PortError::unsupported(Capability::CoreLifecycle, reason));
@@ -124,7 +121,7 @@ impl ActiveProfileBackendSelector {
         &self,
         reference: ActiveProfileReference,
     ) -> Result<ReferencedProfile, PortError> {
-        match self.factory.provider_availability(&reference.engine_id) {
+        match self.registry.availability(&reference.engine_id) {
             EngineBackendProviderAvailability::Registered => {}
             EngineBackendProviderAvailability::Unsupported { reason } => {
                 return Err(PortError::unsupported(Capability::CoreLifecycle, reason));
@@ -238,9 +235,7 @@ impl ActiveProfileBackendSelector {
         owner_admission: SelectedOwnerAdmission,
         capability_provider: Arc<dyn CoreCapabilityProvider>,
     ) -> Result<SelectedActiveProfileBackend, PortError> {
-        let backend = self
-            .factory
-            .backend_ports(&authorized.reference.engine_id)?;
+        let backend = self.registry.backend(&authorized.reference.engine_id)?;
         let core_identity = backend
             .process()
             .core_identity()

@@ -6399,6 +6399,7 @@ dependencies = [
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "lurker-engine-runtime",
  "lurker-profile-store",
  "lurker-ui-presentation",
  "mihomo-api",
@@ -6551,6 +6552,7 @@ dependencies = [
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "lurker-engine-runtime",
  "lurker-profile-store",
  "mihomo-api",
  "mihomo-config",
@@ -6598,6 +6600,7 @@ dependencies = [
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "lurker-engine-runtime",
  "mihomo-api",
  "mihomo-config",
  "mihomo-driver",
@@ -6645,6 +6648,7 @@ dependencies = [
  "log",
  "lurker-core-contract",
  "lurker-core-ports",
+ "lurker-engine-runtime",
  "lurker-profile-store",
  "lurker-ui-presentation",
  "mihomo-api",
@@ -7632,6 +7636,15 @@ dependencies = [
  "lurker-core-contract",
  "serde_json",
  "url",
+]
+
+[[package]]
+name = "lurker-engine-runtime"
+version = "0.42.6"
+dependencies = [
+ "async-trait",
+ "lurker-core-contract",
+ "lurker-core-ports",
 ]
 
 [[package]]

@@ -21,7 +21,6 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
-use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
@@ -34,10 +33,7 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
-    EngineBackendProvider,
-};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionPort,
@@ -50,7 +46,11 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::core_scope::CoreScopeSource;
+use lurker_core_ports::engine_backend::{
+    EngineBackendOwnerScopeBindingResult, EngineBackendProvider,
+};
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
@@ -136,7 +136,7 @@ impl AndroidControllerAdapters {
 
 /// Build the same controller-derived capability source used by the owner
 /// composition so launch preflight can reject an unsupported target before
-/// the backend factory is dispatched.
+/// the backend provider is dispatched.
 pub(crate) fn android_core_capability_provider(
     controller_url: &str,
     secret: Option<String>,
@@ -200,12 +200,14 @@ impl<S: SecureStore + 'static> AndroidMihomoBackendProvider<S> {
     }
 }
 
-impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendProvider<S> {
+impl<S: SecureStore + 'static> EngineBackendProvider<ProductEngineBackendPorts>
+    for AndroidMihomoBackendProvider<S>
+{
     fn engine_id(&self) -> EngineId {
         MihomoVersionPort::engine_identifier()
     }
 
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
+    fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
         let working_directory = self.bridge.data_dir().ok_or_else(|| {
             PortError::Failed("Android Core launch working directory is unavailable".to_owned())
         })?;
@@ -243,7 +245,7 @@ pub(crate) fn android_mihomo_backend_provider<S: SecureStore + 'static>(
     controller_url: &str,
     secret: Option<String>,
     readiness: Arc<dyn CoreReadiness>,
-) -> Result<Arc<dyn EngineBackendProvider>, PortError> {
+) -> Result<Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>, PortError> {
     Ok(Arc::new(AndroidMihomoBackendProvider::new(
         engine_id,
         bridge,
@@ -378,12 +380,13 @@ where
         readiness,
     )?);
     let bridge = Arc::clone(&provider.bridge);
-    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider.clone();
-    let factory = EngineBackendFactoryRegistry::new([provider_for_factory])?;
+    let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+        provider.clone();
+    let registry = EngineBackendProviderRegistry::new([registry_provider])?;
     // The registry rejects a missing engine before it invokes the provider.
     // That keeps bridge directory lookup and controller client construction
     // behind the successful engine selection.
-    let backend = factory.backend_ports(&engine_id)?;
+    let backend = registry.backend(&engine_id)?;
     let controller_adapters = &provider.controller_adapters;
     core_application_from_backend(
         backend,
@@ -395,7 +398,7 @@ where
 }
 
 pub(crate) fn core_application_from_selected_mihomo_backend<S>(
-    backend: EngineBackendPorts,
+    backend: ProductEngineBackendPorts,
     bridge: Arc<dyn AndroidBridge>,
     profile_store: Arc<ConfigManager<S>>,
     controller_url: &str,
@@ -416,7 +419,7 @@ where
 }
 
 fn core_application_from_backend<S: SecureStore + 'static>(
-    backend: EngineBackendPorts,
+    backend: ProductEngineBackendPorts,
     bridge: Arc<dyn AndroidBridge>,
     composition: AndroidCoreComposition<S>,
     controller_adapters: &AndroidControllerAdapters,
@@ -442,6 +445,7 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         EngineBackendOwnerScopeBindingResult::Bound => {}
     }
     let backend_operations = backend.operations();
+    let core_operations = backend.core_operations();
     application
         .install_rule_provider_port(backend_operations.rule_provider())
         .map_err(|failure| PortError::Failed(failure.message))?;
@@ -522,7 +526,6 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         AndroidControllerAdapters::Available { client } => {
             let core_log_level_port: Arc<dyn CoreLogLevelPort> =
                 Arc::new(MihomoCoreLogLevelAdapter::new(client.clone()));
-            let operations = backend_operations;
             let scope_source: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
             let scope_resolver = scope_resolver_from_owner(scope_source.clone());
             let configuration_ports = MihomoRuntimeConfigurationAdapter::ports(
@@ -546,8 +549,8 @@ fn core_application_from_backend<S: SecureStore + 'static>(
             handler = handler
                 .with_connections(connections)
                 .with_runtime_queries(runtime_queries)
-                .with_routing_intent_port(operations.routing_intent()?);
-            let outbound_port = operations.outbound()?;
+                .with_routing_intent_port(core_operations.routing_intent()?);
+            let outbound_port = core_operations.outbound()?;
             application
                 .install_outbound_port(outbound_port.clone())
                 .map_err(|failure| PortError::Failed(failure.message))?;

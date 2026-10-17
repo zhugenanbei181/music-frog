@@ -1,8 +1,6 @@
 use super::*;
 use crate::active_profile_backend::SelectedActiveProfileBackend;
-use crate::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_contract::core_capabilities::AdapterRevision;
-use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use tokio::time::timeout;
@@ -210,12 +208,12 @@ impl FakeProvider {
     }
 }
 
-impl EngineBackendProvider for FakeProvider {
+impl EngineBackendProvider<ProductEngineBackendPorts> for FakeProvider {
     fn engine_id(&self) -> EngineId {
         self.engine_id.clone()
     }
 
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
+    fn create_backend(&self) -> Result<ProductEngineBackendPorts, PortError> {
         self.counts.created.fetch_add(1, Ordering::SeqCst);
         self.events
             .lock()
@@ -246,13 +244,16 @@ impl EngineBackendProvider for FakeProvider {
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec_scope),
         ));
-        EngineBackendPorts::new(
+        ProductEngineBackendPorts::new(
             self.engine_id.clone(),
             process,
             Arc::new(FakeReadiness),
             codec,
             transaction,
             EngineOperationPorts::unsupported("selection test has no runtime operations"),
+            ProductEngineOperationPorts::unsupported(
+                "selection test has no product runtime operations",
+            ),
         )
     }
 }
@@ -518,13 +519,12 @@ pub(crate) fn reference(engine: &str, profile: &str, revision: u64) -> ActivePro
 pub(crate) fn selector(
     reference_store: Arc<MemoryReferenceStore>,
     stores: Vec<Arc<dyn ProfileStore>>,
-    providers: Vec<Arc<dyn EngineBackendProvider>>,
+    providers: Vec<Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>>,
     capabilities: Arc<dyn CoreCapabilityProvider>,
 ) -> ActiveProfileBackendSelector {
-    let factory = Arc::new(EngineBackendFactoryRegistry::new(providers).unwrap());
+    let registry = Arc::new(EngineBackendProviderRegistry::new(providers).unwrap());
     let reference_store: Arc<dyn ActiveProfileReferenceStore> = reference_store;
-    let factory: Arc<dyn EngineBackendFactory> = factory;
-    ActiveProfileBackendSelector::new(reference_store, stores, factory, capabilities)
+    ActiveProfileBackendSelector::new(reference_store, stores, registry, capabilities)
 }
 
 pub(crate) async fn load_prepared_profile_document(store: &dyn ProfileStore) -> ProfileDocument {

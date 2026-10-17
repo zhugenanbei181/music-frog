@@ -25,18 +25,14 @@ use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileBackendSwitchError,
     ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner, SelectedActiveProfileBackend,
 };
-use infiltrator_composition::engine_backend_factory::{
-    EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
-};
+use infiltrator_composition::singbox_engine_backend_provider::SingBoxEngineBackendProvider;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{BundledBinarySource, CoreBinarySelection};
-use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendProvider, EngineBackendProviderAvailability,
-};
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_store::ProfileStore;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceTarget;
@@ -45,7 +41,9 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId};
+use lurker_core_ports::engine_backend::{EngineBackendProvider, EngineBackendProviderAvailability};
 use lurker_core_ports::error::PortError;
+use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::yaml;
@@ -69,7 +67,7 @@ enum PreparedDesktopEngine {
         controller_url: String,
         endpoint_secret: Option<String>,
         client: MihomoClient,
-        provider: Arc<dyn EngineBackendProvider>,
+        provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>>,
         profile_document: ProfileDocument,
     },
     SingBox {
@@ -195,14 +193,16 @@ async fn prepare_desktop_switch(
         }
     };
 
-    let (engine_factory, prepared_document, capability_provider) = match &prepared {
+    let (registry, prepared_document, capability_provider) = match &prepared {
         PreparedDesktopEngine::Mihomo { provider, .. } => {
-            let provider: Arc<dyn EngineBackendProvider> = Arc::clone(provider);
-            let factory: Arc<dyn EngineBackendFactory> = Arc::new(
-                EngineBackendFactoryRegistry::new([Arc::clone(&provider)])
+            let provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+                Arc::clone(provider);
+            let registry = Arc::new(
+                EngineBackendProviderRegistry::new([Arc::clone(&provider)])
+                    .map_err(PortError::from)
                     .map_err(before_reservation)?,
             );
-            (factory, prepared_document_for(&prepared), capabilities)
+            (registry, prepared_document_for(&prepared), capabilities)
         }
         PreparedDesktopEngine::SingBox {
             provider,
@@ -210,16 +210,18 @@ async fn prepare_desktop_switch(
             ..
         } => {
             validate_selection(selection, &engine_id).map_err(before_reservation)?;
-            let factory_provider: Arc<dyn EngineBackendProvider> = provider.clone();
-            let factory: Arc<dyn EngineBackendFactory> = Arc::new(
-                EngineBackendFactoryRegistry::new([factory_provider])
+            let registry_provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> =
+                provider.clone();
+            let registry = Arc::new(
+                EngineBackendProviderRegistry::new([registry_provider])
+                    .map_err(PortError::from)
                     .map_err(before_reservation)?,
             );
-            (factory, prepared_document_for(&prepared), capabilities)
+            (registry, prepared_document_for(&prepared), capabilities)
         }
     };
     if let EngineBackendProviderAvailability::Unsupported { reason } =
-        engine_factory.provider_availability(&engine_id)
+        registry.availability(&engine_id)
     {
         return Err(before_reservation(PortError::unsupported(
             Capability::CoreLifecycle,
@@ -232,7 +234,7 @@ async fn prepare_desktop_switch(
     let selector = ActiveProfileBackendSelector::new(
         reference_store,
         profile_stores.all(),
-        engine_factory,
+        registry,
         capability_provider,
     );
     Ok(PreparedDesktopSwitch {
@@ -392,7 +394,7 @@ async fn prepare_mihomo(
         endpoint.secret.clone(),
     )
     .map_err(before_reservation)?;
-    let provider: Arc<dyn EngineBackendProvider> = provider;
+    let provider: Arc<dyn EngineBackendProvider<ProductEngineBackendPorts>> = provider;
     Ok(PreparedDesktopEngine::Mihomo {
         selection,
         config_manager,

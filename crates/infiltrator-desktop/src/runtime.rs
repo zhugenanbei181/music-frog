@@ -48,7 +48,7 @@ use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
+use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
@@ -101,7 +101,7 @@ pub(crate) struct MihomoRuntime {
     client: MihomoClient,
     core_capability_provider: Arc<dyn CoreCapabilityProvider>,
     scope_resolver: RuntimeScopeResolver,
-    backend_ports: EngineBackendPorts,
+    backend_ports: ProductEngineBackendPorts,
     service_manager: ServiceManager,
     endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
     application: Arc<CoreApplication>,
@@ -133,7 +133,7 @@ pub(crate) struct MihomoRuntime {
 }
 
 struct PreparedMihomoRuntime {
-    backend_ports: EngineBackendPorts,
+    backend_ports: ProductEngineBackendPorts,
     client: MihomoClient,
     core_capability_provider: Arc<dyn CoreCapabilityProvider>,
     configuration_transaction: Arc<dyn ProfileConfigurationTransactionPort>,
@@ -478,7 +478,7 @@ impl MihomoRuntime {
 
 async fn prepare_mihomo_runtime(
     cm: &Arc<ConfigManager<DefaultCredentialStore>>,
-    backend_ports: EngineBackendPorts,
+    backend_ports: ProductEngineBackendPorts,
     client: MihomoClient,
     core_capability_provider: Arc<dyn CoreCapabilityProvider>,
 ) -> anyhow::Result<PreparedMihomoRuntime> {

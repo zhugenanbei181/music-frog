@@ -1,24 +1,38 @@
-//! Engine-scoped process, configuration, and typed operation composition.
+//! Engine-neutral backend bundle, provider and typed operation vocabulary.
+//!
+//! A backend bundle is the small-port set for exactly one engine: Core process
+//! and readiness, pure document inspection, and scoped outbound/routing
+//! operations. Product compositions extend [`EngineBackendPorts`] with their
+//! own typed operations, but the engine identity, owner-scope binding and
+//! provider contract stay here so every host shares one definition.
 
-use crate::geo_database::{GeoDatabasePort, UnsupportedGeoDatabasePort};
-#[cfg(test)]
-use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
-use crate::profile_configuration_transaction::{
-    ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionPort,
-};
-use crate::profile_document_codec::ProfileConfigurationCodecPort;
-use crate::rule_provider_runtime::{RuleProviderPort, UnsupportedRuleProviderPort};
+use crate::core_process::CoreProcess;
+use crate::core_process::CoreReadiness;
+use crate::core_scope::CoreScopeObservation;
+use crate::core_scope::CoreScopeSource;
+use crate::error::PortError;
+use crate::outbound::OutboundPort;
+use crate::profile_document_codec::ProfileDocumentCodecPort;
+use crate::routing_intent::RoutingIntentPort;
 use lurker_core_contract::capability::Capability;
-use lurker_core_contract::identity::{CoreIdentity, CoreScope, EngineId};
-use lurker_core_ports::core_process::CoreProcess;
-use lurker_core_ports::core_process::CoreReadiness;
-use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use lurker_core_ports::error::PortError;
-use lurker_core_ports::outbound::OutboundPort;
-use lurker_core_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::identity::CoreIdentity;
+use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::identity::EngineId;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::Arc;
 use std::sync::Mutex;
+
+/// Capability reported when a composition has no adapter for the requested
+/// engine.
+pub const ENGINE_BACKEND_CAPABILITY: Capability = Capability::CoreLifecycle;
+
+/// One backend bundle that can be dispatched by an engine-keyed registry.
+///
+/// Implementations must report the identical engine identity that they were
+/// requested with; a registry rejects any other bundle.
+pub trait EngineBackendBundle: Send + Sync + 'static {
+    fn engine_id(&self) -> &EngineId;
+}
 
 /// Scope source installed by the single Core owner after its lifecycle actor
 /// has been constructed. Backend operation adapters receive this binding at
@@ -195,9 +209,9 @@ pub enum EngineBackendOwnerScopeBindingResult {
     Bound,
 }
 
-/// Typed runtime operations that are actually composed for one engine.
+/// Typed runtime operation that is actually composed for one engine.
 /// `Unsupported` has no adapter to dispatch; `Available` carries the scoped
-/// outbound, routing, provider and Geo operation owners for this backend.
+/// operation owner for this backend.
 #[derive(Clone)]
 pub enum EngineOperationPort<T> {
     Unsupported { reason: String },
@@ -216,9 +230,8 @@ impl<T> EngineOperationPort<T> {
     }
 }
 
-pub type RuleProviderOperationPort = EngineOperationPort<Arc<dyn RuleProviderPort>>;
-pub type GeoDatabaseOperationPort = EngineOperationPort<Arc<dyn GeoDatabasePort>>;
-
+/// Engine-neutral runtime operations for one composed backend. Product crates
+/// carry their own operation extensions beside this value.
 #[derive(Clone)]
 pub enum EngineOperationPorts {
     Unsupported {
@@ -227,8 +240,6 @@ pub enum EngineOperationPorts {
     Available {
         outbound: Arc<dyn OutboundPort>,
         routing_intent: Arc<dyn RoutingIntentPort>,
-        rule_provider: RuleProviderOperationPort,
-        geo_database: GeoDatabaseOperationPort,
         owner_scope: Arc<EngineBackendOwnerScopeBinding>,
     },
 }
@@ -243,15 +254,11 @@ impl EngineOperationPorts {
     pub fn available(
         outbound: Arc<dyn OutboundPort>,
         routing_intent: Arc<dyn RoutingIntentPort>,
-        rule_provider: RuleProviderOperationPort,
-        geo_database: GeoDatabaseOperationPort,
         owner_scope: Arc<EngineBackendOwnerScopeBinding>,
     ) -> Self {
         Self::Available {
             outbound,
             routing_intent,
-            rule_provider,
-            geo_database,
             owner_scope,
         }
     }
@@ -275,38 +282,6 @@ impl EngineOperationPorts {
             Self::Available { routing_intent, .. } => Ok(Arc::clone(routing_intent)),
         }
     }
-
-    pub fn rule_provider(&self) -> Arc<dyn RuleProviderPort> {
-        match self {
-            Self::Unsupported { reason } => {
-                Arc::new(UnsupportedRuleProviderPort::new(reason.clone()))
-            }
-            Self::Available {
-                rule_provider: EngineOperationPort::Unsupported { reason },
-                ..
-            } => Arc::new(UnsupportedRuleProviderPort::new(reason.clone())),
-            Self::Available {
-                rule_provider: EngineOperationPort::Available(port),
-                ..
-            } => Arc::clone(port),
-        }
-    }
-
-    pub fn geo_database(&self) -> Arc<dyn GeoDatabasePort> {
-        match self {
-            Self::Unsupported { reason } => {
-                Arc::new(UnsupportedGeoDatabasePort::new(reason.clone()))
-            }
-            Self::Available {
-                geo_database: EngineOperationPort::Unsupported { reason },
-                ..
-            } => Arc::new(UnsupportedGeoDatabasePort::new(reason.clone())),
-            Self::Available {
-                geo_database: EngineOperationPort::Available(port),
-                ..
-            } => Arc::clone(port),
-        }
-    }
 }
 
 impl Debug for EngineOperationPorts {
@@ -326,21 +301,25 @@ impl Debug for EngineOperationPorts {
 
 /// The engine-owned ports used to compose Core lifecycle and configuration.
 ///
-/// `configuration` is the pure engine document codec. `configuration_transaction`
-/// owns the separate native validate/apply/readback/rollback workflow and is
-/// scoped to the exact same engine/format/schema identity.
-/// `CoreReadiness` has no engine-ID accessor; its binding to this bundle's
-/// engine is guaranteed by the selected engine-specific provider. Typed
-/// outbound and routing operations are carried here. Broad controller
-/// operations remain separately composed at the host boundary.
+/// `configuration` is the pure engine document codec. `CoreReadiness` has no
+/// engine-ID accessor; its binding to this bundle's engine is guaranteed by
+/// the selected engine-specific provider. Typed outbound and routing
+/// operations are carried here. Broad controller operations and native
+/// configuration transactions remain separately composed at the host
+/// boundary.
 #[derive(Clone)]
 pub struct EngineBackendPorts {
     engine_id: EngineId,
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
-    configuration: Arc<dyn ProfileConfigurationCodecPort>,
-    configuration_transaction: Arc<ProfileConfigurationTransactionBinding>,
+    configuration: Arc<dyn ProfileDocumentCodecPort>,
     operations: EngineOperationPorts,
+}
+
+impl EngineBackendBundle for EngineBackendPorts {
+    fn engine_id(&self) -> &EngineId {
+        &self.engine_id
+    }
 }
 
 impl EngineBackendPorts {
@@ -348,8 +327,7 @@ impl EngineBackendPorts {
         engine_id: EngineId,
         process: Arc<dyn CoreProcess>,
         readiness: Arc<dyn CoreReadiness>,
-        configuration: Arc<dyn ProfileConfigurationCodecPort>,
-        configuration_transaction: Arc<ProfileConfigurationTransactionBinding>,
+        configuration: Arc<dyn ProfileDocumentCodecPort>,
         operations: EngineOperationPorts,
     ) -> Result<Self, PortError> {
         let process_identity = process.core_identity().ok_or_else(|| {
@@ -374,13 +352,6 @@ impl EngineBackendPorts {
                 codec_scope.engine_id.as_str()
             )));
         }
-        let transaction_scope = configuration_transaction.scope();
-        if transaction_scope.document != codec_scope {
-            return Err(PortError::Failed(format!(
-                "{} backend configuration transaction scope differs from its codec scope",
-                engine_id.as_str()
-            )));
-        }
         if let EngineOperationPorts::Available { owner_scope, .. } = &operations
             && owner_scope.engine_id() != &engine_id
         {
@@ -399,7 +370,6 @@ impl EngineBackendPorts {
             process,
             readiness,
             configuration,
-            configuration_transaction,
             operations,
         })
     }
@@ -416,16 +386,8 @@ impl EngineBackendPorts {
         Arc::clone(&self.readiness)
     }
 
-    pub fn configuration(&self) -> Arc<dyn ProfileConfigurationCodecPort> {
+    pub fn configuration(&self) -> Arc<dyn ProfileDocumentCodecPort> {
         Arc::clone(&self.configuration)
-    }
-
-    pub fn configuration_transaction(&self) -> Arc<dyn ProfileConfigurationTransactionPort> {
-        self.configuration_transaction.clone()
-    }
-
-    pub fn configuration_transaction_binding(&self) -> Arc<ProfileConfigurationTransactionBinding> {
-        Arc::clone(&self.configuration_transaction)
     }
 
     pub fn operations(&self) -> EngineOperationPorts {
@@ -448,51 +410,41 @@ impl EngineBackendPorts {
     }
 }
 
-/// Creates the small-port set for one requested engine.
-///
-/// Implementations must return `Unsupported` before adapter side effects when
-/// the requested engine is not implemented by that product composition.
-pub trait EngineBackendFactory: Send + Sync {
-    /// Inspect registration without invoking a provider. Switch coordinators
-    /// use this to reject missing engines before terminating the current Core.
-    fn provider_availability(&self, engine_id: &EngineId) -> EngineBackendProviderAvailability;
-    fn backend_ports(&self, engine_id: &EngineId) -> Result<EngineBackendPorts, PortError>;
-}
-
-/// Typed result of inspecting whether a product composition can create an
-/// engine backend. It is intentionally not a boolean readiness flag.
+/// Typed result of inspecting whether a composition can create an engine
+/// backend. It is intentionally not a boolean readiness flag.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineBackendProviderAvailability {
     Registered,
     Unsupported { reason: String },
 }
 
-/// An engine-specific factory registered in a product composition.
-/// Implementations assemble adapters only; starting a process remains an
-/// explicit application operation after the returned bundle is accepted.
-pub trait EngineBackendProvider: Send + Sync {
+/// Creates the backend bundle for one engine identity.
+///
+/// Implementations must not start a Core or touch any other adapter side
+/// effect while creating the bundle; starting remains an explicit application
+/// operation after the returned bundle is accepted.
+pub trait EngineBackendProvider<B: EngineBackendBundle>: Send + Sync {
     fn engine_id(&self) -> EngineId;
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError>;
+    fn create_backend(&self) -> Result<B, PortError>;
 }
-
-/// Capability used when a composition has no adapter for the requested engine.
-pub const ENGINE_BACKEND_CAPABILITY: Capability = Capability::CoreLifecycle;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile_document_codec::ProfileConfigurationCodecPort;
+    use crate::outbound::OutboundProbeRequest;
+    use crate::profile_document_codec::ProfileDocumentCodecPort;
+    use crate::profile_document_codec::ProfileDocumentCodecScope;
     use async_trait::async_trait;
     use lurker_core_contract::core_process::CoreProcessStartContext;
     use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
     use lurker_core_contract::lifecycle::CoreLifecycle;
+    use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
+    use lurker_core_contract::outbound::inventory::{
+        OutboundInventorySnapshot, OutboundProbeSnapshot,
+    };
     use lurker_core_contract::profile_document::DocumentValidation;
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
-    use lurker_core_ports::core_process::CoreReadiness;
-    use lurker_core_ports::core_scope::CoreScopeObservation;
-    use lurker_core_ports::profile_document_codec::{
-        ProfileDocumentCodecPort, ProfileDocumentCodecScope,
-    };
+    use lurker_core_contract::routing_intent::RoutingIntent;
 
     struct FakeProcess {
         identity: CoreIdentity,
@@ -543,8 +495,6 @@ mod tests {
             Ok(DocumentValidation::Valid)
         }
     }
-
-    impl ProfileConfigurationCodecPort for FakeConfiguration {}
 
     fn engine_id(value: &str) -> EngineId {
         EngineId::new(value).expect("test engine ID is valid")
@@ -636,28 +586,19 @@ mod tests {
                 ),
             }),
             Arc::new(FakeReadiness),
-            Arc::new(FakeConfiguration {
-                scope: codec_scope.clone(),
-            }),
-            Arc::new(ProfileConfigurationTransactionBinding::new(
-                ProfileConfigurationTransactionScope::new(codec_scope),
-            )),
+            Arc::new(FakeConfiguration { scope: codec_scope }),
             EngineOperationPorts::unsupported("fake operations are not composed"),
         )
     }
 
     #[test]
-    fn factory_bundle_accepts_matching_process_and_configuration_adapters() {
+    fn core_bundle_accepts_matching_process_and_configuration_adapters() {
         let engine = engine_id("mihomo");
         let ports = fake_ports(engine.clone(), engine.clone(), engine.clone()).unwrap();
 
         assert_eq!(ports.engine_id(), &engine);
         assert_eq!(ports.process().core_identity().unwrap().engine, engine);
         assert_eq!(ports.configuration().scope().engine_id, engine);
-        assert_eq!(
-            ports.configuration_transaction().scope().document,
-            ports.configuration().scope()
-        );
     }
 
     #[test]
@@ -693,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn factory_bundle_rejects_process_from_another_engine() {
+    fn core_bundle_rejects_process_from_another_engine() {
         let error = match fake_ports(
             engine_id("mihomo"),
             engine_id("sing-box"),
@@ -707,7 +648,7 @@ mod tests {
     }
 
     #[test]
-    fn factory_bundle_rejects_configuration_codec_from_another_engine() {
+    fn core_bundle_rejects_configuration_codec_from_another_engine() {
         let error = match fake_ports(
             engine_id("mihomo"),
             engine_id("mihomo"),
@@ -721,37 +662,100 @@ mod tests {
     }
 
     #[test]
-    fn factory_bundle_rejects_transaction_with_a_different_format_or_schema() {
+    fn core_bundle_rejects_operations_scoped_to_another_engine() {
         let engine = engine_id("mihomo");
+        let foreign_engine = engine_id("sing-box");
         let codec_scope = ProfileDocumentCodecScope {
             engine_id: engine.clone(),
             format_id: ProfileFormatId::new("fake-yaml").expect("test format is valid"),
             schema_version: ProfileSchemaVersion::new(1).expect("test schema version is valid"),
         };
-        let transaction_scope = ProfileDocumentCodecScope {
-            schema_version: ProfileSchemaVersion::new(2).expect("test schema version is valid"),
-            ..codec_scope.clone()
-        };
+        let foreign_scope = Arc::new(EngineBackendOwnerScopeBinding::new(foreign_engine));
         let error = match EngineBackendPorts::new(
             engine.clone(),
             Arc::new(FakeProcess {
                 identity: CoreIdentity::new(
-                    engine.clone(),
+                    engine,
                     CoreInstanceId::new("test-instance").expect("test instance is valid"),
                     None,
                 ),
             }),
             Arc::new(FakeReadiness),
             Arc::new(FakeConfiguration { scope: codec_scope }),
-            Arc::new(ProfileConfigurationTransactionBinding::new(
-                ProfileConfigurationTransactionScope::new(transaction_scope),
-            )),
-            EngineOperationPorts::unsupported("fake operations are not composed"),
+            EngineOperationPorts::Available {
+                outbound: Arc::new(FakeOutbound),
+                routing_intent: Arc::new(FakeRoutingIntent),
+                owner_scope: foreign_scope,
+            },
         ) {
-            Ok(_) => panic!("transaction and codec scopes must be identical"),
+            Ok(_) => panic!("operation owner scope must match the requested engine"),
             Err(error) => error,
         };
 
         assert!(matches!(error, PortError::Failed(_)));
+    }
+
+    struct FakeOutbound;
+
+    #[async_trait]
+    impl OutboundPort for FakeOutbound {
+        async fn inventory(
+            &self,
+            _scope: CoreScope,
+        ) -> Result<OutboundInventorySnapshot, PortError> {
+            Err(PortError::unsupported(
+                Capability::CoreLifecycle,
+                "test outbound is not composed",
+            ))
+        }
+
+        async fn select(
+            &self,
+            _scope: CoreScope,
+            _expected_revision: SnapshotRevision,
+            _collection_id: OutboundId,
+            _outbound_id: OutboundId,
+        ) -> Result<OutboundInventorySnapshot, PortError> {
+            Err(PortError::unsupported(
+                Capability::CoreLifecycle,
+                "test outbound is not composed",
+            ))
+        }
+
+        async fn probe(
+            &self,
+            _scope: CoreScope,
+            _expected_revision: SnapshotRevision,
+            _outbound_id: OutboundId,
+            _request: OutboundProbeRequest,
+        ) -> Result<OutboundProbeSnapshot, PortError> {
+            Err(PortError::unsupported(
+                Capability::CoreLifecycle,
+                "test outbound is not composed",
+            ))
+        }
+    }
+
+    struct FakeRoutingIntent;
+
+    #[async_trait]
+    impl RoutingIntentPort for FakeRoutingIntent {
+        async fn observe(&self, _scope: &CoreScope) -> Result<RoutingIntent, PortError> {
+            Err(PortError::unsupported(
+                Capability::RoutingIntent,
+                "test routing intent is not composed",
+            ))
+        }
+
+        async fn apply(
+            &self,
+            _scope: &CoreScope,
+            _intent: RoutingIntent,
+        ) -> Result<RoutingIntent, PortError> {
+            Err(PortError::unsupported(
+                Capability::RoutingIntent,
+                "test routing intent is not composed",
+            ))
+        }
     }
 }
