@@ -12,6 +12,7 @@ use lurker_core_contract::engine_switch::{
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_ports::engine_switch::{
     EngineOwnerBindingLease, EngineOwnerLease, EngineOwnerStoppedSwitchLease,
     EngineOwnerSwitchLease, EngineSwitchJournal, EngineSwitchSelectionChangedLease,
@@ -124,7 +125,7 @@ impl EngineSwitchJournal for MemoryEngineSwitchJournal {
         selection: EngineId,
         identity: CoreIdentity,
         generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<EngineId>, PortError> {
+    ) -> Result<(EngineSwitchSnapshot<EngineId>, Box<dyn EngineOwnerLease>), PortError> {
         let mut state = lock(&self.state)?;
         if state.revision != expected_revision {
             return Err(stale_revision(expected_revision, state.revision));
@@ -139,15 +140,24 @@ impl EngineSwitchJournal for MemoryEngineSwitchJournal {
                 "bound owner identity must match the selected engine",
             ));
         }
-        bump(&mut state)?;
+        let revision = bump(&mut state)?;
         state.selection = selection;
         state.owner = EngineOwnerState::Bound {
-            identity,
+            identity: identity.clone(),
             generation,
         };
         state.pending_target = None;
         state.reservation = None;
-        Ok(snapshot_of(&state))
+        let snapshot = snapshot_of(&state);
+        Ok((
+            snapshot,
+            Box::new(MemoryOwnerLease {
+                state: Arc::clone(&self.state),
+                expected_revision: revision,
+                identity,
+                generation,
+            }),
+        ))
     }
 
     async fn begin_owner_switch(
@@ -629,7 +639,7 @@ impl EngineOwnerBindingLease<EngineId> for MemoryOwnerBindingLease {
             EngineSwitchStage::BindingNew { selection, .. } => selection.clone(),
             _ => unreachable!("stage was checked above"),
         };
-        bump(&mut state)?;
+        let revision = bump(&mut state)?;
         state.selection = selection;
         state.owner = EngineOwnerState::Bound {
             identity: identity.clone(),
@@ -638,6 +648,8 @@ impl EngineOwnerBindingLease<EngineId> for MemoryOwnerBindingLease {
         state.pending_target = None;
         state.reservation = None;
         Ok(Box::new(MemoryOwnerLease {
+            state: Arc::clone(&self.state),
+            expected_revision: revision,
             identity,
             generation,
         }))
@@ -697,10 +709,33 @@ impl EngineOwnerBindingLease<EngineId> for MemoryOwnerBindingLease {
 }
 
 struct MemoryOwnerLease {
+    state: Arc<Mutex<MemorySwitchState>>,
+    expected_revision: EngineSwitchRevision,
     identity: CoreIdentity,
     generation: CoreGeneration,
 }
 
+fn validate_release_terminal(
+    terminal: &CoreLifecycleSnapshot,
+    identity: &CoreIdentity,
+    generation: CoreGeneration,
+) -> Result<(), PortError> {
+    if !terminal
+        .identity
+        .as_ref()
+        .is_some_and(|terminal_identity| identity.same_instance(terminal_identity))
+        || terminal.generation < generation.value()
+        || terminal.lifecycle != CoreLifecycle::Stopped
+        || terminal.session_token.is_some()
+    {
+        return Err(rejected(
+            "engine owner release requires a matching Stopped readback without a session",
+        ));
+    }
+    Ok(())
+}
+
+#[async_trait]
 impl EngineOwnerLease for MemoryOwnerLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
@@ -709,4 +744,35 @@ impl EngineOwnerLease for MemoryOwnerLease {
     fn generation(&self) -> CoreGeneration {
         self.generation
     }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError> {
+        validate_release_terminal(terminal, &self.identity, self.generation)?;
+        let mut state = lock(&self.state)?;
+        if state.revision != self.expected_revision {
+            return Err(stale_revision(self.expected_revision, state.revision));
+        }
+        match &state.owner {
+            EngineOwnerState::Bound {
+                identity,
+                generation,
+            } if identity.same_instance(&self.identity) && *generation == self.generation => {}
+            EngineOwnerState::Unowned
+            | EngineOwnerState::Bound { .. }
+            | EngineOwnerState::Switching { .. } => {
+                return Err(rejected("engine owner lease is stale or no longer bound"));
+            }
+        }
+        bump(&mut state)?;
+        state.owner = EngineOwnerState::Unowned;
+        state.pending_target = None;
+        state.reservation = None;
+        Ok(())
+    }
 }
+
+#[cfg(test)]
+#[path = "memory_journal_tests.rs"]
+mod tests;

@@ -45,7 +45,9 @@ use lurker_core_contract::engine_switch::{
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use lurker_core_ports::engine_backend::EngineBackendBundle;
-use lurker_core_ports::engine_switch::{EngineOwnerBindingLease, EngineSwitchJournal};
+use lurker_core_ports::engine_switch::{
+    EngineOwnerBindingLease, EngineOwnerLease, EngineSwitchJournal,
+};
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
@@ -327,8 +329,10 @@ where
             binding,
             ..
         } = reservation;
-        self.bind_reserved(&engine_id, &candidate, binding, identity, generation)
-            .await
+        let (snapshot, _lease) = self
+            .bind_reserved(&engine_id, &candidate, binding, identity, generation)
+            .await?;
+        Ok(snapshot)
     }
 
     /// Bind one exact reserved candidate and read the cleared journal back.
@@ -339,7 +343,13 @@ where
         binding: Box<dyn EngineOwnerBindingLease<J::Selection>>,
         identity: CoreIdentity,
         generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+    ) -> Result<
+        (
+            EngineSwitchSnapshot<J::Selection>,
+            Box<dyn EngineOwnerLease>,
+        ),
+        EngineSwitchError<J::Selection>,
+    > {
         if identity.engine != *engine_id || !identity.same_instance(candidate) {
             return Err(EngineSwitchError::recovery_required(
                 EngineSwitchFailurePhase::OldOwnerClosed,
@@ -349,7 +359,7 @@ where
                 )),
             ));
         }
-        binding
+        let lease = binding
             .finalize(identity, generation)
             .await
             .map_err(|cause| {
@@ -358,9 +368,10 @@ where
                     cause,
                 )
             })?;
-        self.journal.snapshot().await.map_err(|cause| {
+        let snapshot = self.journal.snapshot().await.map_err(|cause| {
             EngineSwitchError::recovery_required(EngineSwitchFailurePhase::OldOwnerClosed, cause)
-        })
+        })?;
+        Ok((snapshot, lease))
     }
 
     /// Release a reserved candidate that never started. The selection stays at
@@ -408,6 +419,24 @@ where
         &self,
         reservation: EngineSwitchReservation<B, J::Selection>,
     ) -> Result<EngineSwitchSnapshot<J::Selection>, EngineSwitchError<J::Selection>> {
+        self.finalize_switch_with_lease(reservation)
+            .await
+            .map(|(snapshot, _lease)| snapshot)
+    }
+
+    /// Finish a reservation and hand the exact bound owner lease back to the
+    /// host. The lease must be retained until the matching terminal; dropping
+    /// it leaves the journal bound.
+    pub async fn finalize_switch_with_lease(
+        &self,
+        reservation: EngineSwitchReservation<B, J::Selection>,
+    ) -> Result<
+        (
+            EngineSwitchSnapshot<J::Selection>,
+            Box<dyn EngineOwnerLease>,
+        ),
+        EngineSwitchError<J::Selection>,
+    > {
         let EngineSwitchReservation {
             engine_id,
             selection,

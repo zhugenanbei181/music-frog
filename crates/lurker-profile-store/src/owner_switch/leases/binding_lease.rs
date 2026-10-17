@@ -6,8 +6,10 @@ use crate::owner_switch::registry::{
     LocalOwnerRegistrationState, local_owner_registration_matches, remove_local_owner_registration,
 };
 use crate::owner_switch::stage::switch_snapshot;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::engine_switch::{EngineSwitchSnapshot, EngineSwitchStage};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 use lurker_core_ports::engine_switch::{EngineOwnerBindingLease, EngineOwnerLease};
 use lurker_core_ports::error::PortError;
 use std::marker::PhantomData;
@@ -222,6 +224,7 @@ impl OwnerFenceLease {
     }
 }
 
+#[async_trait::async_trait]
 impl EngineOwnerLease for OwnerFenceLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
@@ -229,6 +232,20 @@ impl EngineOwnerLease for OwnerFenceLease {
 
     fn generation(&self) -> CoreGeneration {
         self.generation
+    }
+
+    /// The neutral fence never owns the durable binding: the product lease
+    /// rehydrated from the same record performs the explicit release, so this
+    /// fence states that it cannot and leaves the binding to the owner-switch
+    /// recovery paths.
+    async fn release_after_terminal(
+        &self,
+        _terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            Capability::CoreLifecycle,
+            "the neutral owner fence cannot clear the product's durable binding",
+        ))
     }
 }
 

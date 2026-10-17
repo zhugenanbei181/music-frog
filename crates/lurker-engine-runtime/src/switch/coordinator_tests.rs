@@ -229,7 +229,7 @@ fn registry(
 
 fn bound_journal() -> Arc<MemoryEngineSwitchJournal> {
     let journal = Arc::new(MemoryEngineSwitchJournal::new(mihomo()));
-    block_on(journal.bind_owner(
+    let (_snapshot, _lease) = block_on(journal.bind_owner(
         EngineSwitchRevision::new(0),
         mihomo(),
         old_identity(),
@@ -542,7 +542,7 @@ fn failure_after_old_close_requires_recovery_and_resumes() {
     assert_eq!(recovered.selection, singbox());
     assert_eq!(recovered.owner, EngineOwnerState::Unowned);
 
-    let bound = block_on(fixture.journal.bind_owner(
+    let (bound, _lease) = block_on(fixture.journal.bind_owner(
         recovered.revision,
         singbox(),
         candidate_identity(&singbox()),
@@ -818,7 +818,7 @@ fn candidate_discard_and_abort_leave_explicit_states() {
     assert_eq!(aborted.owner, EngineOwnerState::Unowned);
     assert_eq!(aborted.selection, singbox());
 
-    let bound = block_on(journal.bind_owner(
+    let (bound, _lease) = block_on(journal.bind_owner(
         aborted.revision,
         singbox(),
         candidate_identity(&singbox()),

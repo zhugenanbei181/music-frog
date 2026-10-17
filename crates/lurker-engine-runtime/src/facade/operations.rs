@@ -70,8 +70,8 @@ impl LurkerRuntime {
     /// owner handle is released only after that evidence.
     pub async fn stop(&self) -> Result<(), RuntimeError> {
         let _control = self.inner.begin_control()?;
-        let active = match lock_active(&self.inner.active) {
-            Ok(active) => active.clone(),
+        let (backend, active_scope) = match lock_active(&self.inner.active) {
+            Ok(active) => (active.backend.clone(), active.scope.clone()),
             Err(cause) => {
                 self.inner.publish(LurkerRuntimeState::Failed {
                     engine: None,
@@ -81,7 +81,7 @@ impl LurkerRuntime {
                 return Err(RuntimeError::Port(cause));
             }
         };
-        let Some(backend) = active.backend else {
+        let Some(backend) = backend else {
             return match self.state() {
                 LurkerRuntimeState::Idle { .. } | LurkerRuntimeState::Stopped { .. } => Ok(()),
                 state => Err(RuntimeError::InvalidState {
@@ -90,7 +90,7 @@ impl LurkerRuntime {
             };
         };
         let engine = backend.engine_id().clone();
-        let scope = match active.scope.clone().or_else(|| {
+        let scope = match active_scope.or_else(|| {
             backend.process().core_identity().map(|identity| CoreScope {
                 identity,
                 generation: CoreGeneration::new(1),
@@ -123,10 +123,44 @@ impl LurkerRuntime {
             return Err(RuntimeError::Port(failure.cause));
         }
         let terminal = self.inner.terminal_snapshot(&scope);
+        let lease = match lock_active(&self.inner.active) {
+            Ok(mut current) => current.lease.take(),
+            Err(cause) => {
+                self.inner.publish(LurkerRuntimeState::Failed {
+                    engine: Some(engine),
+                    phase: RuntimeFailurePhase::OwnerRelease,
+                    failure: cause.clone(),
+                });
+                return Err(RuntimeError::Port(cause));
+            }
+        };
+        let Some(lease) = lease else {
+            let cause =
+                PortError::Failed("active engine backend has no owner lease to release".to_owned());
+            self.inner.publish(LurkerRuntimeState::Failed {
+                engine: Some(engine),
+                phase: RuntimeFailurePhase::OwnerRelease,
+                failure: cause.clone(),
+            });
+            return Err(RuntimeError::Port(cause));
+        };
+        if let Err(cause) = lease.release_after_terminal(&terminal).await {
+            if let Ok(mut current) = lock_active(&self.inner.active) {
+                current.lease = Some(lease);
+            }
+            self.inner.publish(LurkerRuntimeState::Failed {
+                engine: Some(engine),
+                phase: RuntimeFailurePhase::OwnerRelease,
+                failure: cause.clone(),
+            });
+            return Err(RuntimeError::Port(cause));
+        }
+        drop(lease);
         if let Ok(mut current) = lock_active(&self.inner.active) {
             current.backend = None;
             current.scope = None;
             current.version = None;
+            current.lease = None;
         }
         self.inner.publish(LurkerRuntimeState::Stopped {
             engine: Some(engine),
@@ -231,25 +265,30 @@ impl LurkerRuntime {
             to: selection.clone(),
             stage,
         });
-        match coordinator.finalize_switch(reservation).await {
-            Ok(_) => match self.inner.running_projection() {
-                Ok((scope, version)) => {
-                    self.inner.publish(LurkerRuntimeState::Running {
-                        engine: selection,
-                        scope,
-                        version,
-                    });
-                    Ok(())
+        match coordinator.finalize_switch_with_lease(reservation).await {
+            Ok((_snapshot, lease)) => {
+                if let Ok(mut active) = lock_active(&self.inner.active) {
+                    active.lease = Some(lease);
                 }
-                Err(cause) => {
-                    self.inner.publish(LurkerRuntimeState::Failed {
-                        engine: Some(selection),
-                        phase: RuntimeFailurePhase::ScopeProjection,
-                        failure: cause.clone(),
-                    });
-                    Err(RuntimeError::Port(cause))
+                match self.inner.running_projection() {
+                    Ok((scope, version)) => {
+                        self.inner.publish(LurkerRuntimeState::Running {
+                            engine: selection,
+                            scope,
+                            version,
+                        });
+                        Ok(())
+                    }
+                    Err(cause) => {
+                        self.inner.publish(LurkerRuntimeState::Failed {
+                            engine: Some(selection),
+                            phase: RuntimeFailurePhase::ScopeProjection,
+                            failure: cause.clone(),
+                        });
+                        Err(RuntimeError::Port(cause))
+                    }
                 }
-            },
+            }
             Err(error) => Err(self
                 .inner
                 .fail_switch(error, &selection, &candidate_identity)
@@ -333,7 +372,8 @@ impl RuntimeInner {
             .snapshot()
             .await
             .map_err(|cause| (RuntimeFailurePhase::JournalBindOwner, cause))?;
-        self.journal
+        let (_, lease) = self
+            .journal
             .bind_owner(
                 snapshot.revision,
                 engine.clone(),
@@ -356,6 +396,7 @@ impl RuntimeInner {
         active.backend = Some(backend);
         active.scope = Some(scope.clone());
         active.version = version.clone();
+        active.lease = Some(lease);
         drop(active);
         self.publish(LurkerRuntimeState::Running {
             engine: engine.clone(),

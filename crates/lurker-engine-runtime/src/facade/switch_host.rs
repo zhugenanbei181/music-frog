@@ -125,6 +125,7 @@ impl EngineSwitchHost<EngineBackendPorts, EngineId> for RuntimeSwitchHost {
             active.backend = None;
             active.scope = None;
             active.version = None;
+            active.lease = None;
         }
         self.inner.publish(LurkerRuntimeState::Switching {
             from: self.from.clone(),

@@ -169,6 +169,7 @@ impl ActiveProfileOwnerLease for MemoryOwnerLease {
     }
 }
 
+#[async_trait]
 impl EngineOwnerLease for MemoryOwnerLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
@@ -176,6 +177,13 @@ impl EngineOwnerLease for MemoryOwnerLease {
 
     fn generation(&self) -> CoreGeneration {
         self.generation
+    }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError> {
+        <Self as ActiveProfileOwnerLease>::release_after_terminal(self, terminal).await
     }
 }
 

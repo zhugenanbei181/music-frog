@@ -10,7 +10,7 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
@@ -20,15 +20,15 @@ use lurker_core_contract::active_profile_reference::{
 };
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::engine_switch::{
-    EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchSnapshot,
+    EngineOwnerState, EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchSnapshot,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
-use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::engine_switch::{
-    EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+    EngineOwnerLease, EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
     OwnerRecoveryEvidence, OwnerRecoveryOutcome,
 };
 use lurker_core_ports::error::PortError;
@@ -85,7 +85,82 @@ impl AndroidCoreProcessRecoveryPort for FakeProcess {
 struct FakeOwnerStore {
     outcome: Result<OwnerRecoveryOutcome<ActiveProfileReferenceState>, PortError>,
     evidence: Mutex<Option<OwnerRecoveryEvidence>>,
+    bound: Arc<Mutex<Option<(CoreIdentity, CoreGeneration)>>>,
     events: EventLog,
+}
+
+struct FakeOwnerLease {
+    identity: CoreIdentity,
+    generation: CoreGeneration,
+    bound: Arc<Mutex<Option<(CoreIdentity, CoreGeneration)>>>,
+}
+
+#[async_trait]
+impl EngineOwnerLease for FakeOwnerLease {
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> CoreGeneration {
+        self.generation
+    }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError> {
+        if !terminal
+            .identity
+            .as_ref()
+            .is_some_and(|identity| self.identity.same_instance(identity))
+            || terminal.generation < self.generation.value()
+            || terminal.lifecycle != CoreLifecycle::Stopped
+            || terminal.session_token.is_some()
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "fake owner lease requires a matching Stopped terminal without a session",
+                true,
+            )));
+        }
+        let mut bound = self.bound.lock().expect("bound owner");
+        if !bound.as_ref().is_some_and(|(identity, generation)| {
+            identity.same_instance(&self.identity) && *generation == self.generation
+        }) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "fake owner lease is stale",
+                true,
+            )));
+        }
+        *bound = None;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ActiveProfileOwnerLease for FakeOwnerLease {
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> CoreGeneration {
+        self.generation
+    }
+
+    async fn record_start_context(
+        &self,
+        _context: &CoreProcessStartContext,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError> {
+        <Self as EngineOwnerLease>::release_after_terminal(self, terminal).await
+    }
 }
 
 #[async_trait]
@@ -137,12 +212,42 @@ impl EngineSwitchJournal for FakeOwnerStore {
 
     async fn bind_owner(
         &self,
-        _expected_revision: EngineSwitchRevision,
-        _selection: ActiveProfileReferenceState,
-        _identity: CoreIdentity,
-        _generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
-        Err(unexpected_call("journal bind_owner"))
+        expected_revision: EngineSwitchRevision,
+        selection: ActiveProfileReferenceState,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<
+        (
+            EngineSwitchSnapshot<ActiveProfileReferenceState>,
+            Box<dyn EngineOwnerLease>,
+        ),
+        PortError,
+    > {
+        let mut bound = self.bound.lock().expect("bound owner");
+        if bound.is_some() {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "fake Core owner is already bound",
+                true,
+            )));
+        }
+        *bound = Some((identity.clone(), generation));
+        let lease = FakeOwnerLease {
+            identity: identity.clone(),
+            generation,
+            bound: Arc::clone(&self.bound),
+        };
+        Ok((
+            EngineSwitchSnapshot {
+                revision: expected_revision,
+                selection,
+                owner: EngineOwnerState::Bound {
+                    identity,
+                    generation,
+                },
+            },
+            Box::new(lease),
+        ))
     }
 
     async fn begin_owner_switch(
@@ -286,6 +391,7 @@ fn application(
     let store = Arc::new(FakeOwnerStore {
         outcome: owner_outcome,
         evidence: Mutex::new(None),
+        bound: Arc::new(Mutex::new(None)),
         events: events.clone(),
     });
     let vpn = VpnServiceApplication::new(Arc::new(FakeVpnPort {

@@ -15,10 +15,32 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
+use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::engine_switch::{
     EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchSnapshot, EngineSwitchStage,
 };
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+
+/// Disjoint terminal evidence accepted when reconciling a persisted Core
+/// owner after its process-local registration has disappeared.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OwnerRecoveryEvidence {
+    NeverStarted {
+        terminal: CoreLifecycleSnapshot,
+    },
+    ManagedChildExited {
+        context: CoreProcessStartContext,
+        terminal: CoreLifecycleSnapshot,
+    },
+}
+
+/// Outcome of an explicit owner-terminal reconciliation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OwnerRecoveryOutcome<S> {
+    NoRecoveryRequired,
+    Recovered(S),
+}
 
 /// Durable, revision-fenced owner-switch journal.
 ///
@@ -34,13 +56,23 @@ pub trait EngineSwitchJournal: Send + Sync {
     async fn snapshot(&self) -> Result<EngineSwitchSnapshot<Self::Selection>, PortError>;
 
     /// Bind the first owner of an unowned journal.
+    ///
+    /// The returned lease is the caller's proof of the exact binding. Dropping
+    /// it never clears the journal; after the matching terminal the caller
+    /// must invoke [`EngineOwnerLease::release_after_terminal`].
     async fn bind_owner(
         &self,
         expected_revision: EngineSwitchRevision,
         selection: Self::Selection,
         identity: CoreIdentity,
         generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<Self::Selection>, PortError>;
+    ) -> Result<
+        (
+            EngineSwitchSnapshot<Self::Selection>,
+            Box<dyn EngineOwnerLease>,
+        ),
+        PortError,
+    >;
 
     /// Reserve a durable switch while the exact previous owner is live.
     async fn begin_owner_switch(
@@ -69,7 +101,10 @@ pub trait EngineSwitchJournal: Send + Sync {
 
     /// Release a reserved candidate after its exact never-started terminal
     /// generation is known. The selection stays at the new target; the owner
-    /// becomes unowned.
+    /// becomes unowned because there is no live lease to retry. A live caller
+    /// that still holds the binding lease uses
+    /// [`EngineOwnerBindingLease::discard_unstarted_candidate`], which keeps the
+    /// retryable `SelectionChanged` stage.
     async fn recover_candidate_after_terminal(
         &self,
         expected_revision: EngineSwitchRevision,
@@ -78,9 +113,31 @@ pub trait EngineSwitchJournal: Send + Sync {
 }
 
 /// Binding of one exact owner generation.
+///
+/// The lease is a live capability, not a durable release token: dropping it
+/// must leave the journal bound so a crash still follows the recovery
+/// protocol.
+#[async_trait]
 pub trait EngineOwnerLease: Send + Sync {
     fn identity(&self) -> &CoreIdentity;
     fn generation(&self) -> CoreGeneration;
+
+    /// Clear the bound owner after the caller observed its exact terminal.
+    ///
+    /// This is the only way to remove a bound owner without a switch or
+    /// recovery. The terminal must report `Stopped` for the same
+    /// engine+instance, must not carry a session token, and must not predate
+    /// the bound generation. Any other evidence fails closed and leaves the
+    /// binding in place.
+    ///
+    /// Every implementation states its own release semantics: a lease that
+    /// owns durable state clears it, while a neutral fence whose product owns
+    /// the durable lease must say so explicitly (and leave the binding
+    /// available to the existing owner-switch recovery paths).
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> Result<(), PortError>;
 }
 
 /// Switch reservation while the previous owner may still be live.
@@ -163,7 +220,11 @@ where
 
     /// Release a reserved candidate only after its exact never-started
     /// terminal generation proves it never ran. The journal returns to
-    /// `SelectionChanged` so the caller may retry the reservation.
+    /// `SelectionChanged` so the caller may retry the reservation. This is the
+    /// live-lease discard; after a restart there is no lease to retry, so
+    /// [`EngineSwitchJournal::recover_candidate_after_terminal`] lands at
+    /// `Unowned` instead. Both paths keep the committed selection and the old
+    /// owner's exact terminal proof; neither fabricates an owner.
     async fn discard_unstarted_candidate(
         self: Box<Self>,
         terminal_generation: CoreGeneration,

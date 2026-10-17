@@ -1,6 +1,8 @@
 use super::*;
 use ActiveProfileReferenceLease;
-use lurker_core_ports::engine_switch::{EngineOwnerSwitchLease, EngineSwitchJournal};
+use lurker_core_ports::engine_switch::{
+    EngineOwnerLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+};
 use tokio::sync;
 
 pub(crate) struct MemoryReferenceStore {
@@ -311,7 +313,13 @@ impl EngineSwitchJournal for MemoryReferenceStore {
         selection: ActiveProfileReferenceState,
         identity: CoreIdentity,
         generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+    ) -> Result<
+        (
+            EngineSwitchSnapshot<ActiveProfileReferenceState>,
+            Box<dyn EngineOwnerLease>,
+        ),
+        PortError,
+    > {
         let mut state = self.state.lock().await;
         if MemoryReferenceStore::journal_revision(&state) != expected_revision {
             return Err(stale_revision_error());
@@ -347,11 +355,19 @@ impl EngineSwitchJournal for MemoryReferenceStore {
             identity: identity.clone(),
             generation,
         };
-        Ok(fake_snapshot(
+        let snapshot = fake_snapshot(
             &state,
             &self.owner.lock().expect("owner state").clone(),
             &None,
-        ))
+        );
+        let lease = Box::new(MemoryOwnerLease {
+            identity,
+            generation,
+            owner: Arc::clone(&self.owner),
+            transition: Arc::clone(&self.transition),
+            events: self.events.clone(),
+        });
+        Ok((snapshot, lease))
     }
 
     async fn begin_owner_switch(
