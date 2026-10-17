@@ -31,6 +31,7 @@
 5. **交接：**实现 + 定向单测写完 → 把该条**同次**移入过去佛，状态改 `Integrated`，写清待验证范围（含统一批次与模拟器/真机设备要求）与证据身份；纯证据/文档条（1pt）若验证同片完成则直接办结。
 6. **验证收口：**按该条验收选择最低充分证据层（统一 nextest 批次、Clippy `--all-targets -D warnings`、旧符号/文案搜索、结构门、guard、真实进程 smoke、模拟器/真机取证）。**验收一组一组做，通过统一批次集中跑全量门禁，一次性批量解锁过去佛中的关联条目。**前置未满足保持 `Integrated` 并注明依赖，不得宣称通过。
 7. **办结：**全部验收通过 → 从过去佛删除该条，在本页「已归档交付原子条目」登记（ID、pt、证据身份：run ID / guard 回执），同步更新现在佛 §0 point ledger 与本页交付率；文档状态跟随证据更新。
+8. **证据等级（强制）：**任何「通过 / 完成 / 就绪」必须标注证据等级：`L` = 本地（cargo/nextest/guard，需给命令或 run 标识）、`C` = CI（workflow run ID）、`D` = 真机或目标产物（设备/安装包回执）。没有 `C`/`D` 的条目只能写「本地通过，CI/真机未验证」，禁止简写成「已就绪」。平台能力以平台矩阵文档（由 L1 入口导航）为唯一事实源，本页与任何汇报不得高于它。
 
 ### 流转总表（状态 × 触发 × 操作）
 
@@ -88,8 +89,28 @@
 - **外部依赖**：`BANDROID-039.1`（release keystore）、`015.2`、`039.2` 需用户提供 secrets；未提供时停留 0.9x 并跳过签名腿，不阻塞其余条目。
 - **不跳档承诺**：`0.43` 的六个中性 crate 是 1.0 的硬前置；`0.44`/`0.5x`/`0.6x` 依次建立发布与模板能力，`0.9x` 才做产品级收口。
 
+## 当前证据缺口（2026-10-17，B 模式：仅本地证据）
+
+用户已明确选择「不为凑 CI 证据打 tag」。以下每一项按真实证据等级登记，直到获得新的 `C`/`D` 证据。
+
+| 能力 | 等级 | 已证实 | 未验证 / 缺失 |
+| --- | --- | --- | --- |
+| 中性内核代码（contract/ports/store/drivers） | L | 本地 5111 nextest、clippy、156 guard tests；windows-msvc / darwin-arm64 / android-arm64 交叉 check 通过 | 无 `C`；`aarch64-unknown-linux-gnu` 因 driver 走 native-tls→openssl 失败 |
+| 中性 crate 可发布 | L（部分） | 仅 `lurker-core-contract` 的 `cargo publish --dry-run` | 其余 crate 的 package/publish 未验证；0 个已发布 |
+| Windows/Linux 桌面 | L + 旧 `C` | v0.42.6 四条构建腿 success（旧 commit） | 安装器、托盘、TUN、当前 commit 的 `C` 全缺 |
+| Android | L（源码） | Rust/JVM 定向测试；交叉 check | APK 在 v0.42.6 `C` 失败，修复无任何 `C`；真机 0 |
+| macOS | 无 | — | 无 CI、无产物、无签名 |
+| iOS | 无 | 626 行 host stub | 无 target、无包、无 NetworkExtension |
+| 0.43 收口 | L（部分） | PUB-001.1/.2、002.1/.3/.4/.5 本地通过 | PUB-002.2 在途；PUB-001.3 part 3 未做；`lurker-engine-runtime` 未开始 |
+| 0.44 UI 管道 | L（部分） | presentation 5/82 模块中立 | 77 个模块依赖 36k 行产品契约；PUB-004.2/.3 未开始 |
+| 0.50 模板 / 1.0 治理 | 无 | — | PUB-005、PUB-006.1/.2/.4/.5 全部未开始 |
+| 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
+| 引擎能力证据 | L | mihomo x86_64-linux adapter rev2；sing-box 手工 Linux smoke | 无跨平台、无 CI 复现 |
+
 ### 已归档交付原子条目（明细 242 条 / 643 pt；累计 243 条 / 644 pt）
 | 条目 | pt | 证据身份 |
+
+> 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
 | `PUB-001.1` 中立契约 `lurker-core-contract` | 2 | `cargo publish --dry-run -p lurker-core-contract` 通过（25 文件 / 133.6KiB 打包并校验）；637 个消费文件迁移，无 re-export 中转；中立性门禁证明零产品/UI/OS 私有符号；全量 5082/5082 nextest、`clippy -D warnings`、结构门全绿。 |
 | `PUB-002.5` 双引擎独立 example | 1 | 两个 driver 各含 `examples/lifecycle.rs`（未配置时输出计划并 0 退出；配置时 start→readiness→inventory→stop→终态读回）+ `tests/example_lifecycle_smoke.rs`；README 记录运行命令与 env；driver 148 nextest 通过，零产品路径/依赖。 |
