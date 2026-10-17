@@ -4,16 +4,14 @@ use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
 };
-use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerRecoveryOutcome, ActiveProfileReferenceStore,
-};
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
-use lurker_core_ports::engine_switch::OwnerRecoveryEvidence;
+use lurker_core_ports::engine_switch::{OwnerRecoveryEvidence, OwnerRecoveryOutcome};
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -116,17 +114,16 @@ impl AndroidCoreOwnerRecoveryApplication {
             .map_err(Failure::from)?;
 
         match (candidate, owner_outcome) {
+            (RecoveryCandidate::NeverStarted { .. }, OwnerRecoveryOutcome::NoRecoveryRequired) => {
+                Ok(AndroidCoreOwnerRecoveryOutcome::NoPreviousOwner)
+            }
             (
                 RecoveryCandidate::NeverStarted { .. },
-                ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired,
-            ) => Ok(AndroidCoreOwnerRecoveryOutcome::NoPreviousOwner),
-            (
-                RecoveryCandidate::NeverStarted { .. },
-                ActiveProfileOwnerRecoveryOutcome::Recovered(selection),
+                OwnerRecoveryOutcome::Recovered(selection),
             ) => Ok(AndroidCoreOwnerRecoveryOutcome::Recovered(selection)),
             (
                 RecoveryCandidate::ManagedChildExited { context, .. },
-                ActiveProfileOwnerRecoveryOutcome::Recovered(selection),
+                OwnerRecoveryOutcome::Recovered(selection),
             ) => match self.process.consume_exited(&context).await {
                 Ok(AndroidCoreProcessRecoveryReceipt::Consumed)
                 | Ok(AndroidCoreProcessRecoveryReceipt::AlreadyAbsent) => {
@@ -141,7 +138,7 @@ impl AndroidCoreOwnerRecoveryApplication {
             },
             (
                 RecoveryCandidate::ManagedChildExited { .. },
-                ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired,
+                OwnerRecoveryOutcome::NoRecoveryRequired,
             ) => Err(Failure::new(
                 ErrorCode::NotReady,
                 "Android exited Core child has no matching persisted owner proof",

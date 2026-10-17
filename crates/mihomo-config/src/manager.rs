@@ -25,8 +25,7 @@ pub(crate) mod profiles;
 use crate::profile_document_codec::MihomoProfileConfigurationCodec;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::reset_fence::{
-    ResetFencedProfileMutationGuard, acquire_reset_fenced_profile_mutation_for_dir,
-    ensure_reset_not_pending_for_dir,
+    acquire_reset_fenced_profile_mutation_for_dir, ensure_reset_not_pending_for_dir,
 };
 use infiltrator_profile_store::store::EngineProfileStore;
 use lurker_core_contract::identity::EngineId;
@@ -35,6 +34,7 @@ use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use lurker_profile_store::namespace::{
     LegacyProfileNamespaceMigrationV1, ProfileNamespaceInitialization,
 };
+use lurker_profile_store::owner_switch::reset::ResetFencedProfileMutationGuard;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_driver::error::{MihomoError, Result};
 use std::path::{Path, PathBuf};

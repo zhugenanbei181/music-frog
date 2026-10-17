@@ -1,8 +1,9 @@
-use super::{
-    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof,
-    ActiveProfileReferenceRecord, LegacySelectionMigration, parse_active_core_owner_proof_record,
-};
+use super::{ActiveProfileReferenceRecord, LegacySelectionMigration};
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
+use lurker_profile_store::owner_switch::owner::{
+    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof,
+    parse_active_core_owner_proof_record,
+};
 
 #[test]
 fn legacy_bound_owner_proof_migrates_to_unverified_launch_state() {

@@ -1,12 +1,8 @@
 //! Selection fence promotion into the unique live Core owner lease.
 
 use crate::active_owner_lease::ActiveCoreOwnerLease;
-use crate::active_owner_registry::lock_local_owner_registry;
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::active_reference_owner::{
-    ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveCoreOwnerState, ActiveOwnerToken,
-    ActiveProfileReferenceRecord, transition_rejected,
-};
+use crate::active_reference_owner::ActiveProfileReferenceRecord;
 use crate::store::EngineProfileStore;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerLease, ActiveProfileReferenceLease,
@@ -18,6 +14,11 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+use lurker_profile_store::owner_switch::owner::{
+    ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveCoreOwnerState, ActiveOwnerToken,
+    transition_rejected,
+};
+use lurker_profile_store::owner_switch::registry::lock_local_owner_registry;
 use std::path::PathBuf;
 use tokio::task::spawn_blocking;
 

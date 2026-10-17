@@ -202,15 +202,13 @@ async fn persisted_owner_release_and_recovery_ignore_runtime_version_changes() {
     assert_eq!(
         manager
             .engine_profile_store()
-            .recover_bound_owner_after_terminal(
-                ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
-                    context: session_context,
-                    terminal: refreshed_terminal,
-                },
-            )
+            .recover_bound_owner_after_terminal(OwnerRecoveryEvidence::ManagedChildExited {
+                context: session_context,
+                terminal: refreshed_terminal,
+            })
             .await
             .unwrap(),
-        ActiveProfileOwnerRecoveryOutcome::Recovered(selected.clone())
+        OwnerRecoveryOutcome::Recovered(selected.clone())
     );
     let provider_lease = manager
         .engine_profile_store()
@@ -227,16 +225,13 @@ async fn never_started_terminal_evidence_is_a_noop_without_a_persisted_owner() {
 
     let outcome = manager
         .engine_profile_store()
-        .recover_bound_owner_after_terminal(ActiveProfileOwnerRecoveryEvidence::NeverStarted {
+        .recover_bound_owner_after_terminal(OwnerRecoveryEvidence::NeverStarted {
             terminal: stopped_snapshot(identity("mihomo", "android-active"), 0),
         })
         .await
         .unwrap();
 
-    assert_eq!(
-        outcome,
-        ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired
-    );
+    assert_eq!(outcome, OwnerRecoveryOutcome::NoRecoveryRequired);
 }
 
 #[tokio::test]
@@ -692,12 +687,10 @@ async fn subprocess_owner_lock_fences_cas_and_process_exit_releases_it() {
     assert!(
         manager
             .engine_profile_store()
-            .recover_bound_owner_after_terminal(
-                ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
-                    context: owner_context.clone(),
-                    terminal: stopped_snapshot(identity("engine-live", "live-owner"), 2),
-                },
-            )
+            .recover_bound_owner_after_terminal(OwnerRecoveryEvidence::ManagedChildExited {
+                context: owner_context.clone(),
+                terminal: stopped_snapshot(identity("engine-live", "live-owner"), 2),
+            })
             .await
             .is_err()
     );
@@ -729,12 +722,10 @@ async fn subprocess_owner_lock_fences_cas_and_process_exit_releases_it() {
     assert!(
         manager
             .engine_profile_store()
-            .recover_bound_owner_after_terminal(
-                ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
-                    context: wrong_session,
-                    terminal: stopped_snapshot(identity("engine-live", "live-owner"), 2),
-                },
-            )
+            .recover_bound_owner_after_terminal(OwnerRecoveryEvidence::ManagedChildExited {
+                context: wrong_session,
+                terminal: stopped_snapshot(identity("engine-live", "live-owner"), 2),
+            })
             .await
             .is_err()
     );
@@ -746,12 +737,10 @@ async fn subprocess_owner_lock_fences_cas_and_process_exit_releases_it() {
     assert!(
         manager
             .engine_profile_store()
-            .recover_bound_owner_after_terminal(
-                ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
-                    context: wrong_generation,
-                    terminal: stopped_snapshot(identity("engine-live", "live-owner"), 3),
-                },
-            )
+            .recover_bound_owner_after_terminal(OwnerRecoveryEvidence::ManagedChildExited {
+                context: wrong_generation,
+                terminal: stopped_snapshot(identity("engine-live", "live-owner"), 3),
+            })
             .await
             .is_err()
     );
@@ -759,15 +748,13 @@ async fn subprocess_owner_lock_fences_cas_and_process_exit_releases_it() {
     assert!(matches!(
         manager
             .engine_profile_store()
-            .recover_bound_owner_after_terminal(
-                ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
-                    context: owner_context,
-                    terminal: owner_terminal,
-                },
-            )
+            .recover_bound_owner_after_terminal(OwnerRecoveryEvidence::ManagedChildExited {
+                context: owner_context,
+                terminal: owner_terminal,
+            })
             .await
             .unwrap(),
-        ActiveProfileOwnerRecoveryOutcome::Recovered(_)
+        OwnerRecoveryOutcome::Recovered(_)
     ));
 
     let after_exit = manager

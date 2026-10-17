@@ -1,11 +1,11 @@
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::active_reference_owner::{
-    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof,
-    ActiveCoreOwnerProofRecord, ActiveCoreOwnerState, ActiveOwnerToken,
-    ActiveProfileReferenceRecord,
-};
+use crate::active_reference_owner::ActiveProfileReferenceRecord;
 use crate::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_profile_store::owner_switch::owner::{
+    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof,
+    ActiveCoreOwnerProofRecord, ActiveCoreOwnerState, ActiveOwnerToken,
+};
 use tempfile::TempDir;
 
 #[tokio::test]

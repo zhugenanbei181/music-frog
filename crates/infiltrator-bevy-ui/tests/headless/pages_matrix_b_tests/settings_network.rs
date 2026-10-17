@@ -6,6 +6,7 @@ use bevy::ecs::query::With;
 use infiltrator_bevy_ui::pages::settings::settings_network_roaming::NetworkRoamingRouteLine;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_presentation::network_status_projection::{roaming_interfaces, roaming_route};
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn test_settings_network_roaming_projection_and_actions_submit_shared_commands() {
@@ -44,12 +45,12 @@ fn test_settings_network_roaming_projection_and_actions_submit_shared_commands()
     assert!(subtree_has_text(
         app.world(),
         root,
-        &roaming_route(&roaming, "zh-CN")
+        &roaming_route(&roaming, &Lang("zh-CN"))
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        &roaming_interfaces(&roaming, "zh-CN")
+        &roaming_interfaces(&roaming, &Lang("zh-CN"))
     ));
 
     let route_line = app
@@ -63,7 +64,7 @@ fn test_settings_network_roaming_projection_and_actions_submit_shared_commands()
     app.update();
     assert_eq!(
         app.world().get::<Text>(route_line).unwrap().0,
-        roaming_route(&roaming, "en-US")
+        roaming_route(&roaming, &Lang("en-US"))
     );
     assert!(subtree_has_text(
         app.world(),

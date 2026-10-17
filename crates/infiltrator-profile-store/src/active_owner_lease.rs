@@ -1,14 +1,6 @@
 //! Live Core owner session proof and exact terminal release.
 
-use crate::active_owner_registry::{
-    LocalOwnerRegistrationState, local_owner_registration_matches, local_owner_registration_state,
-    remove_local_owner_registration,
-};
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::active_reference_owner::{
-    ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveOwnerToken, transition_rejected,
-};
-use crate::active_reference_owner_coordinator::validate_terminal_for_owner;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
@@ -16,6 +8,14 @@ use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 use lurker_core_ports::engine_switch::EngineOwnerLease;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+use lurker_profile_store::owner_switch::coordinator::validate_terminal_for_owner;
+use lurker_profile_store::owner_switch::owner::{
+    ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveOwnerToken, transition_rejected,
+};
+use lurker_profile_store::owner_switch::registry::{
+    LocalOwnerRegistrationState, local_owner_registration_matches, local_owner_registration_state,
+    remove_local_owner_registration,
+};
 use std::path::{Path, PathBuf};
 use tokio::task::spawn_blocking;
 

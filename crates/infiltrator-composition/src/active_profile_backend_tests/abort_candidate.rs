@@ -125,8 +125,25 @@ async fn product_root_can_close_and_discard_an_unstarted_switch_application() {
         refs.read().await.unwrap(),
         reference("sing-box", "primary", 2)
     );
-    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert_eq!(
+        *refs.transition.lock().unwrap(),
+        Some(FakeSwitch {
+            stage: EngineSwitchStage::SelectionChanged {
+                previous: reference("mihomo", "main", 1),
+                selection: reference("sing-box", "primary", 2),
+                owner_identity: before.identity.clone().expect("old owner identity"),
+                terminal_generation: CoreGeneration::new(2),
+            },
+            owner_generation: CoreGeneration::new(0),
+        })
+    );
     assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
+    assert!(matches!(
+        refs.snapshot().await.unwrap().owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::SelectionChanged { .. }
+        }
+    ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(

@@ -6,6 +6,7 @@ use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::rules::logical::{
     LOGICAL_OPERATOR_CHOICES, SUB_RULE_CONDITION_PRESETS, default_logical_draft,
 };
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn test_rules_matrix_covers_closed_items() {
@@ -62,7 +63,7 @@ fn test_rules_matrix_covers_closed_items() {
         .expect("sub-rule preview line");
     assert_eq!(
         preview,
-        project_logical_rule(&default_logical_draft(DEFAULT_RULE_TARGET), "zh-CN").preview
+        project_logical_rule(&default_logical_draft(DEFAULT_RULE_TARGET), &Lang("zh-CN")).preview
     );
     assert!(preview.contains("AND,((DOMAIN-SUFFIX,company.com),(NETWORK,TCP)),PROXY"));
 }

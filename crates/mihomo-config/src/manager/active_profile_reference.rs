@@ -3,26 +3,15 @@
 
 use super::ConfigManager;
 #[cfg(test)]
-use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileReferenceStore,
-};
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::secure_store::SecureStore;
 #[cfg(test)]
 use infiltrator_profile_store::active_owner_registry::remove_local_owner_registration;
 use infiltrator_profile_store::active_reference_file::ActiveProfileReferenceFile;
 #[cfg(test)]
+use infiltrator_profile_store::active_reference_owner::ACTIVE_CORE_OWNER_STATE_FILE;
 use infiltrator_profile_store::active_reference_owner::{
-    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ACTIVE_CORE_OWNER_STATE_FILE,
-    LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
-};
-#[cfg(test)]
-use infiltrator_profile_store::active_reference_owner::{
-    ActiveCoreOwnerProof, ActiveCoreOwnerProofRecord,
-};
-use infiltrator_profile_store::active_reference_owner::{
-    ActiveCoreOwnerState, ActiveProfileReferenceRecord, LegacySelectionMigration,
-    transition_rejected,
+    ActiveProfileReferenceRecord, LegacySelectionMigration,
 };
 use infiltrator_profile_store::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
 use infiltrator_profile_store::profile_reset::{
@@ -36,8 +25,8 @@ use infiltrator_profile_store::reset_fence::{
     parse_reset_intent_record,
 };
 use infiltrator_profile_store::reset_fence::{
-    ActiveProfileResetMutationAccess, PROFILE_RESET_PENDING_MUTATION_MESSAGE,
-    ensure_no_pending_reset_in_engine_namespaces, reset_pending_for_dir,
+    PROFILE_RESET_PENDING_MUTATION_MESSAGE, ensure_no_pending_reset_in_engine_namespaces,
+    reset_pending_for_dir,
 };
 #[cfg(test)]
 use infiltrator_profile_store::workspace::sha256_hex;
@@ -55,8 +44,18 @@ use lurker_core_contract::identity::EngineId;
 #[cfg(test)]
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_contract::profile_document_identity::ProfileId;
+#[cfg(test)]
+use lurker_core_ports::engine_switch::{OwnerRecoveryEvidence, OwnerRecoveryOutcome};
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+#[cfg(test)]
+use lurker_profile_store::owner_switch::owner::{
+    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
+};
+#[cfg(test)]
+use lurker_profile_store::owner_switch::owner::{ActiveCoreOwnerProof, ActiveCoreOwnerProofRecord};
+use lurker_profile_store::owner_switch::owner::{ActiveCoreOwnerState, transition_rejected};
+use lurker_profile_store::owner_switch::reset::ActiveProfileResetMutationAccess;
 use mihomo_driver::error::MihomoError;
 use std::fmt::Display;
 #[cfg(test)]

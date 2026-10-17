@@ -5,58 +5,77 @@
 //! process evidence, and the lease-producing entry points run only after the
 //! caller holds an exact terminal generation.
 
-use super::*;
-use crate::active_owner_switch::stage_mapping::{
-    active_reference_revision, switch_snapshot, switch_stage,
+use crate::owner_switch::codec::OwnerSwitchCodec;
+use crate::owner_switch::file::OwnerSwitchFile;
+use crate::owner_switch::leases::stopped_lease::ActiveOwnerStoppedSwitchLease;
+use crate::owner_switch::leases::{
+    sync_publish_active_core_owner_proof, sync_publish_active_profile_record,
+    sync_read_active_core_owner_proof, terminal_proof_generation, verify_terminal_generation,
 };
+use crate::owner_switch::owner::{
+    ActiveCoreOwnerProof, ActiveCoreOwnerState, ActiveOwnerSwitchStage, ActiveOwnerToken,
+    transition_rejected,
+};
+use crate::owner_switch::registry::{
+    LocalOwnerRegistrationState, local_owner_registration_matches, local_owner_registration_state,
+    remove_local_owner_registration,
+};
+use crate::owner_switch::stage::{switch_snapshot, switch_stage};
 use lurker_core_contract::engine_switch::{
     EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchSnapshot,
 };
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_ports::engine_switch::EngineOwnerStoppedSwitchLease;
+use lurker_core_ports::error::PortError;
+use std::path::{Path, PathBuf};
 
-pub(crate) async fn recover_owner_switch(
+pub async fn recover_owner_switch<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     expected_revision: EngineSwitchRevision,
-) -> Result<EngineSwitchRecovery<ActiveProfileReferenceState>, PortError> {
-    let (config_root, _root_guard) = ActiveProfileReferenceFile::new(config_root)
+) -> Result<EngineSwitchRecovery<C::Selection>, PortError> {
+    let (config_root, _root_guard) = OwnerSwitchFile::<C>::new(config_root)
         .acquire_root_lock()
         .await?;
-    let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
+    let _owner_state_guard = OwnerSwitchFile::<C>::new(config_root.clone())
         .acquire_owner_state_lock()
         .await?;
-    let record = sync_read_active_profile_record(&config_root)?;
-    if record.selection.revision() != active_reference_revision(expected_revision) {
+    let record = OwnerSwitchFile::<C>::new(config_root.clone())
+        .read_active_profile_record_sync_or_pending()?;
+    if C::selection_revision(C::selection(&record)) != expected_revision {
         return Err(PortError::Rejected(Failure::new(
             ErrorCode::NotReady,
             "active profile reference revision is stale",
             true,
         )));
     }
-    let (transition_id, owner_identity, owner_generation, owner_token, stage) = match &record.owner
-    {
-        ActiveCoreOwnerState::Unowned | ActiveCoreOwnerState::Bound { .. } => {
-            return Ok(EngineSwitchRecovery::NoPendingSwitch);
-        }
-        ActiveCoreOwnerState::Switching {
-            transition_id,
-            owner_identity,
-            owner_generation,
-            owner_token,
-            stage,
-            ..
-        } => (
-            transition_id.clone(),
-            owner_identity.clone(),
-            *owner_generation,
-            owner_token.clone(),
-            stage.clone(),
-        ),
-    };
+    let (transition_id, previous_reference, owner_identity, owner_generation, owner_token, stage) =
+        match C::owner(&record) {
+            ActiveCoreOwnerState::Unowned | ActiveCoreOwnerState::Bound { .. } => {
+                return Ok(EngineSwitchRecovery::NoPendingSwitch);
+            }
+            ActiveCoreOwnerState::Switching {
+                transition_id,
+                previous_reference,
+                owner_identity,
+                owner_generation,
+                owner_token,
+                stage,
+            } => (
+                transition_id.clone(),
+                previous_reference.clone(),
+                owner_identity.clone(),
+                *owner_generation,
+                owner_token.clone(),
+                stage.clone(),
+            ),
+        };
     match &stage {
         ActiveOwnerSwitchStage::ClosingOld => {}
         ActiveOwnerSwitchStage::OldStopped {
             terminal_generation,
         } => {
-            let proof = sync_read_active_core_owner_proof(&config_root)?;
+            let proof = sync_read_active_core_owner_proof::<C>(&config_root)?;
             let proven =
                 terminal_proof_generation(&proof, &owner_identity, owner_generation, &owner_token)?;
             if proven != *terminal_generation {
@@ -68,7 +87,7 @@ pub(crate) async fn recover_owner_switch(
         ActiveOwnerSwitchStage::ReferenceChanged {
             terminal_generation,
         } => {
-            repair_candidate_reservation_proof(
+            repair_candidate_reservation_proof::<C>(
                 &config_root,
                 &record,
                 &transition_id,
@@ -82,15 +101,8 @@ pub(crate) async fn recover_owner_switch(
     }
     let neutral = switch_stage(
         &stage,
-        match &record.owner {
-            ActiveCoreOwnerState::Switching {
-                previous_reference, ..
-            } => previous_reference,
-            ActiveCoreOwnerState::Unowned | ActiveCoreOwnerState::Bound { .. } => {
-                unreachable!("stage was matched as switching")
-            }
-        },
-        &record.selection,
+        &previous_reference,
+        C::selection(&record),
         &owner_identity,
         owner_generation,
     );
@@ -103,16 +115,16 @@ pub(crate) async fn recover_owner_switch(
 /// dispatch never received a lease, so restoring the old terminal proof is the
 /// exact inverse and lets the durable CAS stage resume.
 #[allow(clippy::too_many_arguments)]
-fn repair_candidate_reservation_proof(
+fn repair_candidate_reservation_proof<C: OwnerSwitchCodec>(
     config_root: &Path,
-    record: &ActiveProfileReferenceRecord,
+    record: &C::Record,
     transition_id: &ActiveOwnerToken,
     owner_identity: &CoreIdentity,
     owner_generation: CoreGeneration,
     owner_token: &ActiveOwnerToken,
     terminal_generation: CoreGeneration,
 ) -> Result<(), PortError> {
-    let mut proof = sync_read_active_core_owner_proof(config_root)?;
+    let mut proof = sync_read_active_core_owner_proof::<C>(config_root)?;
     if let Ok(proven) =
         terminal_proof_generation(&proof, owner_identity, owner_generation, owner_token)
     {
@@ -123,13 +135,10 @@ fn repair_candidate_reservation_proof(
         }
         return Ok(());
     }
-    let selected_engine = match &record.selection {
-        ActiveProfileReferenceState::Selected(reference) => reference.engine_id.clone(),
-        ActiveProfileReferenceState::Unselected { .. } => {
-            return Err(transition_rejected(
-                "reference-changed owner switch has no selected engine",
-            ));
-        }
+    let Some(selected_engine) = C::selection_engine(C::selection(record)) else {
+        return Err(transition_rejected(
+            "reference-changed owner switch has no selected engine",
+        ));
     };
     if !matches!(
         &proof.state,
@@ -137,7 +146,7 @@ fn repair_candidate_reservation_proof(
             transition_id: proof_transition,
             engine_id: proof_engine,
             ..
-        } if proof_transition == transition_id && proof_engine == &selected_engine
+        } if proof_transition == transition_id && proof_engine == selected_engine
     ) {
         return Err(transition_rejected(
             "persisted owner terminal generation differs from its proof",
@@ -149,22 +158,23 @@ fn repair_candidate_reservation_proof(
         terminal_generation,
         token: owner_token.clone(),
     };
-    sync_publish_active_core_owner_proof(config_root, &proof)
+    sync_publish_active_core_owner_proof::<C>(config_root, &proof)
 }
 
-pub(crate) async fn recover_old_owner_after_terminal(
+pub async fn recover_old_owner_after_terminal<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     expected_revision: EngineSwitchRevision,
     terminal_generation: CoreGeneration,
-) -> Result<Box<dyn EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState>>, PortError> {
-    let (config_root, _root_guard) = ActiveProfileReferenceFile::new(config_root)
+) -> Result<Box<dyn EngineOwnerStoppedSwitchLease<C::Selection>>, PortError> {
+    let (config_root, _root_guard) = OwnerSwitchFile::<C>::new(config_root)
         .acquire_root_lock()
         .await?;
-    let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
+    let _owner_state_guard = OwnerSwitchFile::<C>::new(config_root.clone())
         .acquire_owner_state_lock()
         .await?;
-    let mut record = sync_read_active_profile_record(&config_root)?;
-    if record.selection.revision() != active_reference_revision(expected_revision) {
+    let mut record = OwnerSwitchFile::<C>::new(config_root.clone())
+        .read_active_profile_record_sync_or_pending()?;
+    if C::selection_revision(C::selection(&record)) != expected_revision {
         return Err(PortError::Rejected(Failure::new(
             ErrorCode::NotReady,
             "active profile reference revision is stale",
@@ -179,7 +189,7 @@ pub(crate) async fn recover_old_owner_after_terminal(
         owner_token,
         persisted_terminal,
         selection_applied,
-    ) = match &record.owner {
+    ) = match C::owner(&record) {
         ActiveCoreOwnerState::Switching {
             transition_id,
             previous_reference,
@@ -227,13 +237,13 @@ pub(crate) async fn recover_old_owner_after_terminal(
         }
     }
     let closing_old = matches!(
-        record.owner,
+        C::owner(&record),
         ActiveCoreOwnerState::Switching {
             stage: ActiveOwnerSwitchStage::ClosingOld,
             ..
         }
     );
-    if closing_old && record.selection != previous_reference {
+    if closing_old && C::selection(&record) != &previous_reference {
         return Err(transition_rejected(
             "active reference changed before old-owner terminal recovery",
         ));
@@ -243,14 +253,14 @@ pub(crate) async fn recover_old_owner_after_terminal(
             "old owner still has a local registration; recover its live switch lease",
         ));
     }
-    let owner_probe = ActiveProfileReferenceFile::new(config_root.clone())
+    let owner_probe = OwnerSwitchFile::<C>::new(config_root.clone())
         .try_acquire_owner_lock()?
         .ok_or_else(|| {
             transition_rejected("old owner still holds the cross-process owner fence")
         })?;
     drop(owner_probe);
 
-    let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+    let mut proof = sync_read_active_core_owner_proof::<C>(&config_root)?;
     match proof.state.clone() {
         ActiveCoreOwnerProof::Bound {
             identity: proof_identity,
@@ -266,7 +276,7 @@ pub(crate) async fn recover_old_owner_after_terminal(
                 terminal_generation,
                 token: owner_token.clone(),
             };
-            sync_publish_active_core_owner_proof(&config_root, &proof)?;
+            sync_publish_active_core_owner_proof::<C>(&config_root, &proof)?;
         }
         ActiveCoreOwnerProof::Terminal {
             identity: proof_identity,
@@ -283,7 +293,7 @@ pub(crate) async fn recover_old_owner_after_terminal(
             ));
         }
     }
-    let persisted_stage = match (&record.owner, selection_applied) {
+    let persisted_stage = match (C::owner(&record), selection_applied) {
         (
             ActiveCoreOwnerState::Switching {
                 stage: ActiveOwnerSwitchStage::ReferenceChanged { .. },
@@ -297,50 +307,54 @@ pub(crate) async fn recover_old_owner_after_terminal(
             let stage = ActiveOwnerSwitchStage::OldStopped {
                 terminal_generation,
             };
-            record.owner = ActiveCoreOwnerState::Switching {
-                transition_id: transition_id.clone(),
-                previous_reference: previous_reference.clone(),
-                owner_identity: owner_identity.clone(),
-                owner_generation,
-                owner_token: owner_token.clone(),
-                stage: stage.clone(),
-            };
-            sync_publish_active_profile_record(&config_root, &record)?;
+            C::set_owner(
+                &mut record,
+                ActiveCoreOwnerState::Switching {
+                    transition_id: transition_id.clone(),
+                    previous_reference: previous_reference.clone(),
+                    owner_identity: owner_identity.clone(),
+                    owner_generation,
+                    owner_token: owner_token.clone(),
+                    stage: stage.clone(),
+                },
+            );
+            sync_publish_active_profile_record::<C>(&config_root, &record)?;
             stage
         }
     };
-    Ok(Box::new(ActiveOwnerStoppedSwitchLease::new(
+    Ok(Box::new(ActiveOwnerStoppedSwitchLease::<C>::new(
         config_root,
         transition_id,
         owner_token,
         switch_stage(
             &persisted_stage,
             &previous_reference,
-            &record.selection,
+            C::selection(&record),
             &owner_identity,
             owner_generation,
         ),
     )))
 }
 
-pub(crate) async fn recover_candidate_after_terminal(
+pub async fn recover_candidate_after_terminal<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     expected_revision: EngineSwitchRevision,
     terminal_generation: CoreGeneration,
-) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+) -> Result<EngineSwitchSnapshot<C::Selection>, PortError> {
     if terminal_generation != CoreGeneration::new(0) {
         return Err(transition_rejected(
             "candidate recovery requires a never-started terminal generation",
         ));
     }
-    let (config_root, _root_guard) = ActiveProfileReferenceFile::new(config_root)
+    let (config_root, _root_guard) = OwnerSwitchFile::<C>::new(config_root)
         .acquire_root_lock()
         .await?;
-    let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
+    let _owner_state_guard = OwnerSwitchFile::<C>::new(config_root.clone())
         .acquire_owner_state_lock()
         .await?;
-    let mut record = sync_read_active_profile_record(&config_root)?;
-    if record.selection.revision() != active_reference_revision(expected_revision) {
+    let mut record = OwnerSwitchFile::<C>::new(config_root.clone())
+        .read_active_profile_record_sync_or_pending()?;
+    if C::selection_revision(C::selection(&record)) != expected_revision {
         return Err(PortError::Rejected(Failure::new(
             ErrorCode::NotReady,
             "active profile reference revision is stale",
@@ -355,7 +369,7 @@ pub(crate) async fn recover_candidate_after_terminal(
         old_owner_generation,
         old_owner_token,
         old_terminal_generation,
-    ) = match &record.owner {
+    ) = match C::owner(&record) {
         ActiveCoreOwnerState::Switching {
             transition_id,
             owner_identity,
@@ -396,7 +410,7 @@ pub(crate) async fn recover_candidate_after_terminal(
                 "candidate owner registration belongs to another switch",
             ));
         }
-        if ActiveProfileReferenceFile::new(config_root.clone())
+        if OwnerSwitchFile::<C>::new(config_root.clone())
             .try_acquire_owner_lock()?
             .is_none()
         {
@@ -405,7 +419,7 @@ pub(crate) async fn recover_candidate_after_terminal(
             ));
         }
     }
-    let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+    let mut proof = sync_read_active_core_owner_proof::<C>(&config_root)?;
     match &proof.state {
         ActiveCoreOwnerProof::Reserved {
             transition_id: proof_transition,
@@ -438,11 +452,11 @@ pub(crate) async fn recover_candidate_after_terminal(
         terminal_generation: old_terminal_generation,
         token: old_owner_token,
     };
-    sync_publish_active_core_owner_proof(&config_root, &proof)?;
-    record.owner = ActiveCoreOwnerState::Unowned;
-    sync_publish_active_profile_record(&config_root, &record)?;
+    sync_publish_active_core_owner_proof::<C>(&config_root, &proof)?;
+    C::set_owner(&mut record, ActiveCoreOwnerState::Unowned);
+    sync_publish_active_profile_record::<C>(&config_root, &record)?;
     if live_local_candidate {
         remove_local_owner_registration(&config_root, &token)?;
     }
-    switch_snapshot(&record)
+    switch_snapshot::<C>(&record)
 }

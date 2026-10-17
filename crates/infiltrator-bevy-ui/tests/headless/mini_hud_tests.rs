@@ -30,6 +30,7 @@ use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::system_toggle_projection::compact_status_line;
+use infiltrator_shared::locales::Lang;
 use std::sync::Arc;
 
 fn mounted_app() -> (App, Arc<DemoCommandSink>) {
@@ -97,7 +98,7 @@ fn the_read_model_comes_from_the_live_projections() {
     app.update();
     let model = app.world().resource::<MiniHudModel>().0.clone();
     assert_eq!(model.next_value(SystemToggle::Tun), None);
-    assert!(compact_status_line(&model.system_proxy, &model.tun, "zh-CN").contains('…'));
+    assert!(compact_status_line(&model.system_proxy, &model.tun, &Lang("zh-CN")).contains('…'));
 }
 
 /// The waveform strip is a projection of the shared live samples, not a
@@ -230,7 +231,7 @@ fn the_mounted_scene_renders_the_shared_read_model() {
         texts.contains(&compact_status_line(
             &model.system_proxy,
             &model.tun,
-            "zh-CN"
+            &Lang("zh-CN")
         )),
         "the shared toggle-state line renders verbatim: {texts}"
     );
@@ -239,7 +240,10 @@ fn the_mounted_scene_renders_the_shared_read_model() {
         "the real exit node renders: {texts}"
     );
     assert!(
-        texts.contains(&routing_intent_status_copy(&model.routing_intent, "zh-CN",)),
+        texts.contains(&routing_intent_status_copy(
+            &model.routing_intent,
+            &Lang("zh-CN"),
+        )),
         "the observed routing intent renders: {texts}"
     );
 }

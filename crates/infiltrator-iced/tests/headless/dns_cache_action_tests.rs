@@ -15,6 +15,7 @@ use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::dns_cache_projection::project_cache;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
 use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
@@ -116,7 +117,7 @@ fn actual_cache_confirmation_cancel_and_navigation_touch_neither_target_and_perm
     assert_eq!(ports.contents().1, original.1);
     assert!(state.diag.dns_cache_actions.can_retry());
     assert!(
-        project_cache(&state.diag.dns_cache_actions, "en-US")
+        project_cache(&state.diag.dns_cache_actions, &Lang("en-US"))
             .status
             .contains("Allow system resolver cache access")
     );

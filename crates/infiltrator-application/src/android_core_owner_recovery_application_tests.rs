@@ -10,7 +10,7 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerRecoveryOutcome, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
@@ -27,9 +27,9 @@ use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceI
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
-use lurker_core_ports::engine_switch::OwnerRecoveryEvidence;
 use lurker_core_ports::engine_switch::{
     EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+    OwnerRecoveryEvidence, OwnerRecoveryOutcome,
 };
 use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex};
@@ -83,7 +83,7 @@ impl AndroidCoreProcessRecoveryPort for FakeProcess {
 }
 
 struct FakeOwnerStore {
-    outcome: Result<ActiveProfileOwnerRecoveryOutcome, PortError>,
+    outcome: Result<OwnerRecoveryOutcome<ActiveProfileReferenceState>, PortError>,
     evidence: Mutex<Option<OwnerRecoveryEvidence>>,
     events: EventLog,
 }
@@ -109,7 +109,7 @@ impl ActiveProfileReferenceStore for FakeOwnerStore {
     async fn recover_bound_owner_after_terminal(
         &self,
         evidence: OwnerRecoveryEvidence,
-    ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
+    ) -> Result<OwnerRecoveryOutcome<ActiveProfileReferenceState>, PortError> {
         self.events.record(RecoveryStep::RecoverOwner);
         *self.evidence.lock().expect("recovery evidence") = Some(evidence);
         self.outcome.clone()
@@ -267,7 +267,7 @@ fn managed_context() -> CoreProcessStartContext {
 
 fn application(
     observation: AndroidCoreProcessObservation,
-    owner_outcome: Result<ActiveProfileOwnerRecoveryOutcome, PortError>,
+    owner_outcome: Result<OwnerRecoveryOutcome<ActiveProfileReferenceState>, PortError>,
     stop_result: Result<VpnSessionSnapshot, PortError>,
     consume_result: Result<AndroidCoreProcessRecoveryReceipt, PortError>,
 ) -> (
@@ -315,7 +315,7 @@ fn not_ready(result: Result<AndroidCoreOwnerRecoveryOutcome, Failure>) {
 async fn never_started_stops_vpn_before_reconciling_the_unowned_proof() {
     let (application, process, store, events) = application(
         AndroidCoreProcessObservation::NeverStarted,
-        Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired),
+        Ok(OwnerRecoveryOutcome::NoRecoveryRequired),
         Ok(stopped_vpn()),
         Ok(AndroidCoreProcessRecoveryReceipt::AlreadyAbsent),
     );
@@ -355,9 +355,7 @@ async fn exited_managed_child_recovers_exact_owner_then_consumes_its_record() {
     let selected = selected_reference();
     let (application, process, store, events) = application(
         exited_observation(context.clone()),
-        Ok(ActiveProfileOwnerRecoveryOutcome::Recovered(
-            selected.clone(),
-        )),
+        Ok(OwnerRecoveryOutcome::Recovered(selected.clone())),
         Ok(stopped_vpn()),
         Ok(AndroidCoreProcessRecoveryReceipt::Consumed),
     );
@@ -408,7 +406,7 @@ async fn live_or_unobservable_child_keeps_vpn_and_owner_proof_untouched() {
     ] {
         let (application, _process, store, events) = application(
             observation,
-            Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired),
+            Ok(OwnerRecoveryOutcome::NoRecoveryRequired),
             Ok(stopped_vpn()),
             Ok(AndroidCoreProcessRecoveryReceipt::Consumed),
         );
@@ -423,7 +421,7 @@ async fn live_or_unobservable_child_keeps_vpn_and_owner_proof_untouched() {
 async fn exited_child_requires_a_matching_owner_recovery_before_record_consumption() {
     let (application, process, store, events) = application(
         exited_observation(managed_context()),
-        Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired),
+        Ok(OwnerRecoveryOutcome::NoRecoveryRequired),
         Ok(stopped_vpn()),
         Ok(AndroidCoreProcessRecoveryReceipt::Consumed),
     );
@@ -451,7 +449,7 @@ async fn exited_child_requires_a_matching_owner_recovery_before_record_consumpti
 async fn vpn_terminal_failure_prevents_owner_recovery() {
     let (application, _process, store, events) = application(
         AndroidCoreProcessObservation::NeverStarted,
-        Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired),
+        Ok(OwnerRecoveryOutcome::NoRecoveryRequired),
         Err(PortError::Failed("VPN owner unavailable".to_owned())),
         Ok(AndroidCoreProcessRecoveryReceipt::Consumed),
     );
@@ -468,7 +466,7 @@ async fn vpn_terminal_failure_prevents_owner_recovery() {
 async fn nonterminal_vpn_readback_prevents_owner_recovery() {
     let (application, _process, store, events) = application(
         AndroidCoreProcessObservation::NeverStarted,
-        Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired),
+        Ok(OwnerRecoveryOutcome::NoRecoveryRequired),
         Ok(VpnSessionSnapshot {
             state: VpnSessionState::Stopping,
             ..VpnSessionSnapshot::default()
@@ -490,9 +488,7 @@ async fn retry_accepts_already_absent_exit_record_after_exact_owner_recovery() {
     let selected = selected_reference();
     let (application, _process, _store, events) = application(
         exited_observation(context),
-        Ok(ActiveProfileOwnerRecoveryOutcome::Recovered(
-            selected.clone(),
-        )),
+        Ok(OwnerRecoveryOutcome::Recovered(selected.clone())),
         Ok(stopped_vpn()),
         Ok(AndroidCoreProcessRecoveryReceipt::AlreadyAbsent),
     );
@@ -516,9 +512,7 @@ async fn retry_accepts_already_absent_exit_record_after_exact_owner_recovery() {
 async fn mismatched_exit_record_receipt_fails_closed_after_owner_recovery() {
     let (application, process, store, events) = application(
         exited_observation(managed_context()),
-        Ok(ActiveProfileOwnerRecoveryOutcome::Recovered(
-            selected_reference(),
-        )),
+        Ok(OwnerRecoveryOutcome::Recovered(selected_reference())),
         Ok(stopped_vpn()),
         Ok(AndroidCoreProcessRecoveryReceipt::ContextMismatch),
     );
@@ -549,7 +543,7 @@ async fn standalone_exit_context_is_rejected_before_vpn_or_store_mutation() {
     let context = CoreProcessStartContext::standalone(expected_identity());
     let (application, _process, store, events) = application(
         exited_observation(context),
-        Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired),
+        Ok(OwnerRecoveryOutcome::NoRecoveryRequired),
         Ok(stopped_vpn()),
         Ok(AndroidCoreProcessRecoveryReceipt::Consumed),
     );

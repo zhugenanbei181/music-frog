@@ -4,6 +4,7 @@
 use super::*;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[test]
@@ -47,7 +48,7 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
         ]
         .into_iter()
         .map(|intent| {
-            let label = routing_intent_copy(&intent, "zh-CN");
+            let label = routing_intent_copy(&intent, &Lang("zh-CN"));
             (intent, label)
         })
         .collect::<Vec<_>>(),

@@ -1,25 +1,20 @@
 //! Typed revision compare and owner-fenced active-reference transition rules.
+//!
+//! The revision/owner-fence CAS is the neutral
+//! [`lurker_profile_store::owner_switch::cas`] machinery. This module keeps the
+//! product target payload and the product evidence enum, and adapts the neutral
+//! CAS to the product revision type.
 
+use crate::active_reference_owner::ProductCodec;
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
-use lurker_core_contract::error::{ErrorCode, Failure};
-use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_contract::engine_switch::EngineSwitchRevision;
 use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
-
-/// Current owner authorization projection derived while its owner-state lock
-/// is held. This is a transient decision input, not a second persisted state.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ActiveProfileReferenceOwnerFence {
-    Unowned,
-    Bound {
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-    },
-    Switching,
-}
+use lurker_profile_store::owner_switch::cas::{OwnerSwitchCasReady, OwnerSwitchFence};
+use lurker_profile_store::owner_switch::owner::ActiveCoreOwnerState;
 
 /// Evidence that the target document belongs to this engine-scoped store.
 /// A foreign-engine target is validated by that engine's own store.
@@ -35,7 +30,7 @@ pub enum ActiveProfileReferenceTargetEvidence {
 /// and publication.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveProfileReferenceCasReady {
-    previous: ActiveProfileReferenceState,
+    inner: OwnerSwitchCasReady<ProductCodec>,
     expected_revision: ActiveProfileReferenceRevision,
 }
 
@@ -44,73 +39,29 @@ impl ActiveProfileReferenceCasReady {
         current: &ActiveProfileReferenceState,
         expected_revision: ActiveProfileReferenceRevision,
     ) -> Result<Self, PortError> {
-        if current.revision() != expected_revision {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active profile reference revision is stale",
-                true,
-            )));
-        }
         Ok(Self {
-            previous: current.clone(),
+            inner: OwnerSwitchCasReady::<ProductCodec>::compare(
+                current,
+                EngineSwitchRevision::new(expected_revision.value()),
+            )?,
             expected_revision,
         })
     }
 
     pub fn previous(&self) -> &ActiveProfileReferenceState {
-        &self.previous
+        self.inner.previous()
     }
 
     pub fn transition(
         self,
         target: ActiveProfileReferenceTarget,
-        owner: ActiveProfileReferenceOwnerFence,
+        owner: OwnerSwitchFence,
     ) -> Result<ActiveProfileReferenceState, PortError> {
-        match (&owner, &target) {
-            (ActiveProfileReferenceOwnerFence::Unowned, _) => {}
-            (
-                ActiveProfileReferenceOwnerFence::Bound { identity, .. },
-                ActiveProfileReferenceTarget::Unselected,
-            ) if matches!(
-                &self.previous,
-                ActiveProfileReferenceState::Selected(reference)
-                    if reference.engine_id == identity.engine
-            ) => {}
-            (
-                ActiveProfileReferenceOwnerFence::Bound { identity, .. },
-                ActiveProfileReferenceTarget::Selected { engine_id, .. },
-            ) if engine_id == &identity.engine => {}
-            (
-                ActiveProfileReferenceOwnerFence::Bound {
-                    identity,
-                    generation,
-                },
-                _,
-            ) => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    format!(
-                        "active Core {} at generation {} must reach terminal before changing its engine selection",
-                        identity.instance.as_str(),
-                        generation.value()
-                    ),
-                    true,
-                )));
-            }
-            (ActiveProfileReferenceOwnerFence::Switching, _) => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "an active Core owner switch is in progress",
-                    true,
-                )));
-            }
-        }
-
         let revision = self
             .expected_revision
             .next()
             .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
-        Ok(match target {
+        let selection = match target {
             ActiveProfileReferenceTarget::Unselected => {
                 ActiveProfileReferenceState::Unselected { revision }
             }
@@ -120,7 +71,25 @@ impl ActiveProfileReferenceCasReady {
             } => ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
                 engine_id, profile_id, revision,
             )),
-        })
+        };
+        self.inner.transition(selection, owner)
+    }
+}
+
+/// The owner fence is also consumed by product recovery paths that reason in
+/// terms of the same two owner facts.
+pub fn owner_fence(owner: &ActiveCoreOwnerState<ActiveProfileReferenceState>) -> OwnerSwitchFence {
+    match owner {
+        ActiveCoreOwnerState::Unowned => OwnerSwitchFence::Unowned,
+        ActiveCoreOwnerState::Bound {
+            identity,
+            generation,
+            ..
+        } => OwnerSwitchFence::Bound {
+            identity: identity.clone(),
+            generation: *generation,
+        },
+        ActiveCoreOwnerState::Switching { .. } => OwnerSwitchFence::Switching,
     }
 }
 

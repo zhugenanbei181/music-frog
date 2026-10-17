@@ -1,45 +1,64 @@
+use super::changed_lease::ReferenceChangedLease;
 use super::*;
+use crate::owner_switch::codec::OwnerSwitchCodec;
+use crate::owner_switch::owner::transition_rejected;
+use crate::owner_switch::registry::{
+    LocalOwnerRegistrationState, local_owner_registration_matches,
+};
+use lurker_core_contract::engine_switch::EngineSwitchStage;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::{CoreGeneration, EngineId};
+use lurker_core_ports::engine_switch::{
+    EngineOwnerStoppedSwitchLease, EngineSwitchSelectionChangedLease,
+};
+use lurker_core_ports::error::PortError;
+use std::marker::PhantomData;
+use std::path::PathBuf;
 
-pub struct ActiveOwnerStoppedSwitchLease {
+pub struct ActiveOwnerStoppedSwitchLease<C: OwnerSwitchCodec> {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
     pub(crate) owner_token: ActiveOwnerToken,
-    pub(crate) stage: EngineSwitchStage<ActiveProfileReferenceState>,
+    pub(crate) stage: EngineSwitchStage<C::Selection>,
+    pub(crate) codec: PhantomData<C>,
 }
 
-impl ActiveOwnerStoppedSwitchLease {
+impl<C: OwnerSwitchCodec> ActiveOwnerStoppedSwitchLease<C> {
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,
         owner_token: ActiveOwnerToken,
-        stage: EngineSwitchStage<ActiveProfileReferenceState>,
+        stage: EngineSwitchStage<C::Selection>,
     ) -> Self {
         Self {
             config_root: config_root.into(),
             transition_id,
             owner_token,
             stage,
+            codec: PhantomData,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerStoppedSwitchLease {
-    fn stage(&self) -> &EngineSwitchStage<ActiveProfileReferenceState> {
+impl<C: OwnerSwitchCodec> EngineOwnerStoppedSwitchLease<C::Selection>
+    for ActiveOwnerStoppedSwitchLease<C>
+{
+    fn stage(&self) -> &EngineSwitchStage<C::Selection> {
         &self.stage
     }
 
     async fn compare_and_set_target(
         self: Box<Self>,
-        selection: ActiveProfileReferenceState,
+        selection: C::Selection,
         engine_id: EngineId,
-    ) -> Result<Box<dyn EngineSwitchSelectionChangedLease<ActiveProfileReferenceState>>, PortError>
-    {
+    ) -> Result<Box<dyn EngineSwitchSelectionChangedLease<C::Selection>>, PortError> {
         let Self {
             config_root,
             transition_id,
             owner_token,
             stage,
+            ..
         } = *self;
         let (
             previous_reference,
@@ -86,17 +105,14 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
             }
             _ => return Err(transition_rejected("old owner terminal stage is missing")),
         };
-        let selected_engine = match &selection {
-            ActiveProfileReferenceState::Selected(reference) => reference.engine_id.clone(),
-            ActiveProfileReferenceState::Unselected { .. } => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::InvalidState,
-                    "an owner switch must select a concrete profile before binding a provider",
-                    false,
-                )));
-            }
+        let Some(selected_engine) = C::selection_engine(&selection) else {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::InvalidState,
+                "an owner switch must select a concrete profile before binding a provider",
+                false,
+            )));
         };
-        if selected_engine != engine_id {
+        if selected_engine != &engine_id {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::InvalidState,
                 "owner switch selection must belong to the target engine",
@@ -104,12 +120,10 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
             )));
         }
         if !already_applied {
-            let Some(target_revision) = previous_reference.revision().next() else {
-                return Err(PortError::Failed(
-                    "active-profile revision exhausted".into(),
-                ));
-            };
-            if selection.revision() != target_revision {
+            let target_revision = C::selection_revision(&previous_reference)
+                .next()
+                .map_err(|error| PortError::Failed(error.to_string()))?;
+            if C::selection_revision(&selection) != target_revision {
                 return Err(PortError::Rejected(Failure::new(
                     ErrorCode::InvalidState,
                     "owner switch selection must advance exactly one revision",
@@ -117,16 +131,16 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
                 )));
             }
         }
-        let _root_guard = ActiveProfileReferenceFile::new(config_root.clone())
+        let _root_guard = OwnerSwitchFile::<C>::new(config_root.clone())
             .acquire_root_lock()
             .await?
             .1;
-        let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
+        let _owner_state_guard = OwnerSwitchFile::<C>::new(config_root.clone())
             .acquire_owner_state_lock()
             .await?;
-        let mut record = sync_read_active_profile_record(&config_root)?;
+        let mut record = sync_read_active_profile_record::<C>(&config_root)?;
         let (persisted_previous, persisted_owner, persisted_generation, persisted_token, stage) =
-            switching_state(&record, &transition_id)?;
+            switching_state::<C>(&record, &transition_id)?;
         let stage_matches = match &stage {
             ActiveOwnerSwitchStage::OldStopped {
                 terminal_generation: persisted_terminal,
@@ -137,9 +151,9 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
             ActiveOwnerSwitchStage::ClosingOld | ActiveOwnerSwitchStage::BindingNew { .. } => false,
         };
         let selection_matches = if already_applied {
-            record.selection == selection
+            C::selection(&record) == &selection
         } else {
-            record.selection == previous_reference
+            C::selection(&record) == &previous_reference
         };
         if persisted_previous != previous_reference
             || !persisted_owner.same_instance(&owner_identity)
@@ -163,7 +177,7 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
             // The old owner lease must have been released after its terminal
             // readback; the local registry keeps unconfirmed drops fail-closed.
             let owner_lock =
-                ActiveProfileReferenceFile::new(config_root.clone()).try_acquire_owner_lock()?;
+                OwnerSwitchFile::<C>::new(config_root.clone()).try_acquire_owner_lock()?;
             if owner_lock.is_none() {
                 return Err(transition_rejected(
                     "old Core owner lock is still held by another process",
@@ -175,7 +189,7 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
                 "old Core owner lease has not released its kernel fence",
             ));
         }
-        let owner_proof = sync_read_active_core_owner_proof(&config_root)?;
+        let owner_proof = sync_read_active_core_owner_proof::<C>(&config_root)?;
         if !matches!(
             owner_proof.state,
             ActiveCoreOwnerProof::Terminal {
@@ -193,21 +207,23 @@ impl EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState> for ActiveOwnerS
             ));
         }
         if !already_applied {
-            record.selection = selection.clone();
-            record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
-            record.owner = ActiveCoreOwnerState::Switching {
-                transition_id: transition_id.clone(),
-                previous_reference: previous_reference.clone(),
-                owner_identity: owner_identity.clone(),
-                owner_generation: persisted_generation,
-                owner_token: owner_token.clone(),
-                stage: ActiveOwnerSwitchStage::ReferenceChanged {
-                    terminal_generation,
+            C::set_selection(&mut record, selection.clone());
+            C::set_owner(
+                &mut record,
+                ActiveCoreOwnerState::Switching {
+                    transition_id: transition_id.clone(),
+                    previous_reference: previous_reference.clone(),
+                    owner_identity: owner_identity.clone(),
+                    owner_generation: persisted_generation,
+                    owner_token: owner_token.clone(),
+                    stage: ActiveOwnerSwitchStage::ReferenceChanged {
+                        terminal_generation,
+                    },
                 },
-            };
-            sync_publish_active_profile_record(&config_root, &record)?;
+            );
+            sync_publish_active_profile_record::<C>(&config_root, &record)?;
         }
-        Ok(Box::new(ReferenceChangedLease::new(
+        Ok(Box::new(ReferenceChangedLease::<C>::new(
             config_root,
             transition_id,
             owner_token,

@@ -5,8 +5,7 @@ use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
 };
 use crate::reset_fence::{
-    ActiveProfileResetMutationAccess, ensure_no_pending_reset_in_engine_namespaces,
-    initialize_namespace_with_reset_fence,
+    ensure_no_pending_reset_in_engine_namespaces, initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
 use crate::workspace::workspace_for_update;
@@ -30,6 +29,7 @@ use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use lurker_profile_store::file_lock::ProfileWriteGuard;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+use lurker_profile_store::owner_switch::reset::ActiveProfileResetMutationAccess;
 use lurker_profile_store::workspace::validate_workspace_identity;
 use lurker_profile_store::workspace_store::ProfileWorkspacePublicationTarget;
 

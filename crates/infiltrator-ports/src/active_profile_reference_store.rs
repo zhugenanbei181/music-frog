@@ -15,29 +15,10 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
-use lurker_core_ports::engine_switch::EngineSwitchJournal;
+use lurker_core_ports::engine_switch::{
+    EngineSwitchJournal, OwnerRecoveryEvidence, OwnerRecoveryOutcome,
+};
 use lurker_core_ports::error::PortError;
-
-/// Disjoint terminal evidence accepted when reconciling a persisted Core
-/// owner after its process-local registration has disappeared. Android's
-/// `ManagedChildExited` case is constructed only after exact child identity
-/// inspection and terminal VPN readback.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ActiveProfileOwnerRecoveryEvidence {
-    NeverStarted {
-        terminal: CoreLifecycleSnapshot,
-    },
-    ManagedChildExited {
-        context: CoreProcessStartContext,
-        terminal: CoreLifecycleSnapshot,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ActiveProfileOwnerRecoveryOutcome {
-    NoRecoveryRequired,
-    Recovered(ActiveProfileReferenceState),
-}
 
 /// Revision-fenced persistence for the unique profile reference that selects
 /// which engine provider may own the product's Core.
@@ -80,8 +61,8 @@ pub trait ActiveProfileReferenceStore:
     /// the OS lock alone is never terminal evidence.
     async fn recover_bound_owner_after_terminal(
         &self,
-        _evidence: ActiveProfileOwnerRecoveryEvidence,
-    ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
+        _evidence: OwnerRecoveryEvidence,
+    ) -> Result<OwnerRecoveryOutcome<ActiveProfileReferenceState>, PortError> {
         Err(PortError::unsupported(
             Capability::Profiles,
             "active profile owner terminal recovery is unavailable for this store",

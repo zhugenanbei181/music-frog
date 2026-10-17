@@ -3,6 +3,7 @@
 
 use super::*;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn sidebar_mounts_nav_and_routing_intent_segment() {
@@ -163,7 +164,7 @@ fn test_sidebar_modern_control_center_parity() {
         ]
         .into_iter()
         .map(|intent| {
-            let label = routing_intent_copy(&intent, "zh-CN");
+            let label = routing_intent_copy(&intent, &Lang("zh-CN"));
             (intent, label)
         })
         .collect::<Vec<_>>()

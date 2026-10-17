@@ -58,7 +58,7 @@ fn shell_routing_intent_text_and_accessibility_refresh_in_place_from_shared_copy
         .apply_preference("en-US");
     app.update();
     for ((root, _), (label, mode)) in roots.iter().zip(&labels) {
-        let expected = routing_intent_copy(mode, "en-US");
+        let expected = routing_intent_copy(mode, &Lang("en-US"));
         assert_eq!(app.world().get::<Text>(*label).unwrap().0, expected);
         assert_eq!(
             app.world().get::<AccessibilityNode>(*root).unwrap().label(),

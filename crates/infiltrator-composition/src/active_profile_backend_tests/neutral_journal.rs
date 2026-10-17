@@ -1,6 +1,32 @@
 use super::*;
 
 #[tokio::test]
+async fn crash_candidate_recovery_lands_unowned_without_a_live_lease() {
+    let selection = reference("sing-box", "primary", 5);
+    let refs = Arc::new(MemoryReferenceStore::new(selection.clone()));
+    *refs.transition.lock().expect("switch transition") = Some(FakeSwitch {
+        stage: EngineSwitchStage::BindingNew {
+            selection: selection.clone(),
+            engine_id: engine_id_value("sing-box"),
+        },
+        owner_generation: CoreGeneration::new(0),
+    });
+    *refs.owner.lock().expect("owner state") = FakeOwnerAdmission::Reserved {
+        engine_id: engine_id_value("sing-box"),
+    };
+
+    let recovered = refs
+        .recover_candidate_after_terminal(EngineSwitchRevision::new(5), CoreGeneration::new(0))
+        .await
+        .unwrap();
+
+    assert_eq!(recovered.selection, selection);
+    assert_eq!(recovered.owner, EngineOwnerState::Unowned);
+    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
+}
+
+#[tokio::test]
 async fn stale_revision_is_rejected_before_any_switch_write() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(

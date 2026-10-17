@@ -74,10 +74,10 @@ fn native_rule_facts_locale_replay_preserves_fact_entities_input_selection_ime_a
                 Some(RulesLineKind::Summary) => Some(rules_summary(
                     projection.total_rules,
                     projection.providers.len(),
-                    language,
+                    &Lang(language),
                 )),
                 Some(RulesLineKind::DefaultAction) => {
-                    Some(default_action(&projection.default_action, language))
+                    Some(default_action(&projection.default_action, &Lang(language)))
                 }
                 _ if *mrs => Some(mrs_acceleration_status_line(
                     &Lang(language),

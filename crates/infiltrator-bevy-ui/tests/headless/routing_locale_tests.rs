@@ -15,6 +15,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::app_routing::AppRoutingRule;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_presentation::routing_projection::{process_copy, routing_summary};
+use infiltrator_shared::locales::Lang;
 use std::sync::Arc;
 
 #[test]
@@ -55,9 +56,9 @@ fn native_routing_copy_matches_domain_policy_and_keeps_raw_identity_and_command_
         app.update();
         for (entity, kind) in &rows {
             let expected = match kind {
-                0 => routing_summary(facts.mode, 6, language),
+                0 => routing_summary(facts.mode, 6, &Lang(language)),
                 1 => "OS 应用 {count}".into(),
-                2 => process_copy("process-{mode}-{count}", language),
+                2 => process_copy("process-{mode}-{count}", &Lang(language)),
                 _ => {
                     if language == "en-US" {
                         "Proxy".into()

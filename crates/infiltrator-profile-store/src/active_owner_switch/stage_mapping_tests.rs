@@ -3,8 +3,7 @@ use super::{
     switch_snapshot,
 };
 use crate::active_reference_owner::{
-    ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION, ActiveCoreOwnerState, ActiveOwnerSwitchStage,
-    ActiveOwnerToken, ActiveProfileReferenceRecord, LegacySelectionMigration,
+    ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION, ActiveProfileReferenceRecord, LegacySelectionMigration,
 };
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
@@ -16,6 +15,9 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
 };
 use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_profile_store::owner_switch::owner::{
+    ActiveCoreOwnerState, ActiveOwnerSwitchStage, ActiveOwnerToken,
+};
 use serde_json::{Value, json};
 
 fn engine(value: &str) -> EngineId {
@@ -45,7 +47,7 @@ fn reference_state(engine_id: &str, profile: &str, revision: u64) -> ActiveProfi
 fn switching(
     previous_reference: ActiveProfileReferenceState,
     stage: ActiveOwnerSwitchStage,
-) -> ActiveCoreOwnerState {
+) -> ActiveCoreOwnerState<ActiveProfileReferenceState> {
     ActiveCoreOwnerState::Switching {
         transition_id: token("transition-1"),
         previous_reference,

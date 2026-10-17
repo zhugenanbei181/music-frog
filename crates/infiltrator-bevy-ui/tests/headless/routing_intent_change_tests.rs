@@ -27,6 +27,7 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -138,7 +139,7 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
     app.update();
     let expected_issue_copy = routing_intent_failure_copy(
         &app.world().resource::<RoutingIntentActionState>().0,
-        "en-US",
+        &Lang("en-US"),
     );
     assert_eq!(
         app.world().get::<Text>(issue_text).unwrap().0,

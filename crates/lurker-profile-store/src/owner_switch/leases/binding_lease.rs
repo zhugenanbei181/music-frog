@@ -1,25 +1,39 @@
 use super::*;
-use lurker_core_ports::engine_switch::EngineOwnerLease;
+use crate::owner_switch::codec::OwnerSwitchCodec;
+use crate::owner_switch::owner::transition_rejected;
+use crate::owner_switch::registry::lock_local_owner_registry;
+use crate::owner_switch::registry::{
+    LocalOwnerRegistrationState, local_owner_registration_matches, remove_local_owner_registration,
+};
+use crate::owner_switch::stage::switch_snapshot;
+use lurker_core_contract::engine_switch::{EngineSwitchSnapshot, EngineSwitchStage};
+use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_ports::engine_switch::{EngineOwnerBindingLease, EngineOwnerLease};
+use lurker_core_ports::error::PortError;
+use std::marker::PhantomData;
+use std::path::PathBuf;
 
-pub struct OwnerBindingLease {
+pub struct OwnerBindingLease<C: OwnerSwitchCodec> {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
     pub(crate) token: ActiveOwnerToken,
-    pub(crate) stage: EngineSwitchStage<ActiveProfileReferenceState>,
+    pub(crate) stage: EngineSwitchStage<C::Selection>,
+    pub(crate) codec: PhantomData<C>,
 }
 
-impl OwnerBindingLease {
+impl<C: OwnerSwitchCodec> OwnerBindingLease<C> {
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,
         token: ActiveOwnerToken,
-        stage: EngineSwitchStage<ActiveProfileReferenceState>,
+        stage: EngineSwitchStage<C::Selection>,
     ) -> Self {
         Self {
             config_root: config_root.into(),
             transition_id,
             token,
             stage,
+            codec: PhantomData,
         }
     }
 }
@@ -30,14 +44,21 @@ enum CandidateDiscardAuthorization {
     Stopped(CoreGeneration),
 }
 
-async fn clear_candidate_owner_reservation(
+/// Release the candidate admission. `BeforeCoreApplication` is the explicit
+/// pre-application abort and leaves the journal unowned. `Stopped` is
+/// [`EngineOwnerBindingLease::discard_unstarted_candidate`]: it restores the
+/// old owner's exact terminal proof and rewinds the owner state to the durable
+/// `ReferenceChanged` stage (neutral `SelectionChanged`), so the caller can
+/// retry the reservation exactly as the port documents. It never fabricates an
+/// owner or a terminal.
+async fn clear_candidate_owner_reservation<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     transition_id: ActiveOwnerToken,
     token: ActiveOwnerToken,
-    selection: ActiveProfileReferenceState,
+    selection: C::Selection,
     engine_id: EngineId,
     authorization: CandidateDiscardAuthorization,
-) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+) -> Result<EngineSwitchSnapshot<C::Selection>, PortError> {
     match authorization {
         CandidateDiscardAuthorization::BeforeCoreApplication => {}
         CandidateDiscardAuthorization::Stopped(terminal_generation) => {
@@ -48,42 +69,48 @@ async fn clear_candidate_owner_reservation(
             }
         }
     }
-    let _root_guard = ActiveProfileReferenceFile::new(config_root.clone())
+    let _root_guard = OwnerSwitchFile::<C>::new(config_root.clone())
         .acquire_root_lock()
         .await?
         .1;
-    let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
+    let _owner_state_guard = OwnerSwitchFile::<C>::new(config_root.clone())
         .acquire_owner_state_lock()
         .await?;
-    let mut record = sync_read_active_profile_record(&config_root)?;
-    let (old_owner_identity, old_owner_generation, old_owner_token, old_terminal_generation) =
-        match &record.owner {
-            ActiveCoreOwnerState::Switching {
-                transition_id: persisted_id,
-                owner_identity,
-                owner_generation,
-                owner_token,
-                stage:
-                    ActiveOwnerSwitchStage::BindingNew {
-                        engine_id: persisted_engine,
-                        token: persisted_token,
-                        terminal_generation,
-                    },
-                ..
-            } if persisted_id == &transition_id
-                && persisted_engine == &engine_id
-                && persisted_token == &token =>
-            {
-                (
-                    owner_identity.clone(),
-                    *owner_generation,
-                    owner_token.clone(),
-                    *terminal_generation,
-                )
-            }
-            _ => return Err(transition_rejected("new owner reservation is stale")),
-        };
-    if record.selection != selection
+    let mut record = sync_read_active_profile_record::<C>(&config_root)?;
+    let (
+        previous_reference,
+        old_owner_identity,
+        old_owner_generation,
+        old_owner_token,
+        old_terminal_generation,
+    ) = match C::owner(&record) {
+        ActiveCoreOwnerState::Switching {
+            transition_id: persisted_id,
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            owner_token,
+            stage:
+                ActiveOwnerSwitchStage::BindingNew {
+                    engine_id: persisted_engine,
+                    token: persisted_token,
+                    terminal_generation,
+                },
+        } if persisted_id == &transition_id
+            && persisted_engine == &engine_id
+            && persisted_token == &token =>
+        {
+            (
+                previous_reference.clone(),
+                owner_identity.clone(),
+                *owner_generation,
+                owner_token.clone(),
+                *terminal_generation,
+            )
+        }
+        _ => return Err(transition_rejected("new owner reservation is stale")),
+    };
+    if C::selection(&record) != &selection
         || !local_owner_registration_matches(
             &config_root,
             &token,
@@ -96,7 +123,7 @@ async fn clear_candidate_owner_reservation(
             "candidate owner reservation does not match the persisted switch",
         ));
     }
-    let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+    let mut proof = sync_read_active_core_owner_proof::<C>(&config_root)?;
     match (&proof.state, authorization) {
         (
             ActiveCoreOwnerProof::Reserved {
@@ -137,34 +164,77 @@ async fn clear_candidate_owner_reservation(
             ));
         }
     }
-    if let Some(probe) =
-        ActiveProfileReferenceFile::new(config_root.clone()).try_acquire_owner_lock()?
-    {
+    if let Some(probe) = OwnerSwitchFile::<C>::new(config_root.clone()).try_acquire_owner_lock()? {
         drop(probe);
         return Err(transition_rejected(
             "candidate owner kernel admission was lost",
         ));
     }
-    // Restore the exact old terminal proof before clearing the root stage.
+    // Restore the exact old terminal proof before rewinding the root stage.
     // A crash between these writes therefore leaves a BindingNew marker that
     // can still request candidate terminal evidence; it never leaves an
     // unowned root with an unproven Reserved/Bound owner proof.
     proof.state = ActiveCoreOwnerProof::Terminal {
-        identity: old_owner_identity,
+        identity: old_owner_identity.clone(),
         bound_generation: old_owner_generation,
         terminal_generation: old_terminal_generation,
-        token: old_owner_token,
+        token: old_owner_token.clone(),
     };
-    sync_publish_active_core_owner_proof(&config_root, &proof)?;
-    record.owner = ActiveCoreOwnerState::Unowned;
-    sync_publish_active_profile_record(&config_root, &record)?;
+    sync_publish_active_core_owner_proof::<C>(&config_root, &proof)?;
+    match authorization {
+        CandidateDiscardAuthorization::BeforeCoreApplication => {
+            C::set_owner(&mut record, ActiveCoreOwnerState::Unowned);
+        }
+        CandidateDiscardAuthorization::Stopped(_) => {
+            C::set_owner(
+                &mut record,
+                ActiveCoreOwnerState::Switching {
+                    transition_id,
+                    previous_reference,
+                    owner_identity: old_owner_identity,
+                    owner_generation: old_owner_generation,
+                    owner_token: old_owner_token,
+                    stage: ActiveOwnerSwitchStage::ReferenceChanged {
+                        terminal_generation: old_terminal_generation,
+                    },
+                },
+            );
+        }
+    }
+    sync_publish_active_profile_record::<C>(&config_root, &record)?;
     remove_local_owner_registration(&config_root, &token)?;
-    stage_mapping::switch_snapshot(&record)
+    switch_snapshot::<C>(&record)
+}
+
+/// The engine-neutral owner fence returned by a successful binding. The
+/// product rehydrates its own owner lease separately.
+pub struct OwnerFenceLease {
+    identity: CoreIdentity,
+    generation: CoreGeneration,
+}
+
+impl OwnerFenceLease {
+    pub fn new(identity: CoreIdentity, generation: CoreGeneration) -> Self {
+        Self {
+            identity,
+            generation,
+        }
+    }
+}
+
+impl EngineOwnerLease for OwnerFenceLease {
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> CoreGeneration {
+        self.generation
+    }
 }
 
 #[async_trait::async_trait]
-impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease {
-    fn stage(&self) -> &EngineSwitchStage<ActiveProfileReferenceState> {
+impl<C: OwnerSwitchCodec> EngineOwnerBindingLease<C::Selection> for OwnerBindingLease<C> {
+    fn stage(&self) -> &EngineSwitchStage<C::Selection> {
         &self.stage
     }
 
@@ -178,6 +248,7 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
             transition_id,
             token,
             stage,
+            ..
         } = *self;
         let (selection, engine_id) = match stage {
             EngineSwitchStage::BindingNew {
@@ -195,15 +266,15 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
                 "new Core identity does not match the reserved engine",
             ));
         }
-        let _root_guard = ActiveProfileReferenceFile::new(config_root.clone())
+        let _root_guard = OwnerSwitchFile::<C>::new(config_root.clone())
             .acquire_root_lock()
             .await?
             .1;
-        let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
+        let _owner_state_guard = OwnerSwitchFile::<C>::new(config_root.clone())
             .acquire_owner_state_lock()
             .await?;
-        let mut record = sync_read_active_profile_record(&config_root)?;
-        let stage_token = match &record.owner {
+        let mut record = sync_read_active_profile_record::<C>(&config_root)?;
+        let stage_token = match C::owner(&record) {
             ActiveCoreOwnerState::Switching {
                 transition_id: persisted_id,
                 stage:
@@ -221,7 +292,7 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
             }
             _ => return Err(transition_rejected("new owner reservation is stale")),
         };
-        if record.selection != selection || stage_token != token {
+        if C::selection(&record) != &selection || stage_token != token {
             return Err(transition_rejected(
                 "active reference changed after the new owner was reserved",
             ));
@@ -237,7 +308,7 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
                 "new owner kernel admission is no longer held by this process",
             ));
         }
-        let mut owner_proof = sync_read_active_core_owner_proof(&config_root)?;
+        let mut owner_proof = sync_read_active_core_owner_proof::<C>(&config_root)?;
         if !matches!(
             &owner_proof.state,
             ActiveCoreOwnerProof::Reserved {
@@ -253,7 +324,7 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
             ));
         }
         if let Some(probe) =
-            ActiveProfileReferenceFile::new(config_root.clone()).try_acquire_owner_lock()?
+            OwnerSwitchFile::<C>::new(config_root.clone()).try_acquire_owner_lock()?
         {
             drop(probe);
             return Err(transition_rejected("new owner kernel admission was lost"));
@@ -264,13 +335,16 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
             token: token.clone(),
         };
         owner_proof.launch = ActiveCoreOwnerLaunchProof::Unstarted;
-        sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
-        record.owner = ActiveCoreOwnerState::Bound {
-            identity: identity.clone(),
-            generation,
-            token: token.clone(),
-        };
-        sync_publish_active_profile_record(&config_root, &record)?;
+        sync_publish_active_core_owner_proof::<C>(&config_root, &owner_proof)?;
+        C::set_owner(
+            &mut record,
+            ActiveCoreOwnerState::Bound {
+                identity: identity.clone(),
+                generation,
+                token: token.clone(),
+            },
+        );
+        sync_publish_active_profile_record::<C>(&config_root, &record)?;
         {
             let mut registrations = lock_local_owner_registry()?;
             let binding_state = LocalOwnerRegistrationState::Binding {
@@ -287,23 +361,19 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
                 generation,
             )?;
         }
-        Ok(Box::new(ActiveCoreOwnerLease::new(
-            identity,
-            generation,
-            token,
-            config_root,
-        )))
+        Ok(Box::new(OwnerFenceLease::new(identity, generation)))
     }
 
     async fn discard_unstarted_candidate(
         self: Box<Self>,
         terminal_generation: CoreGeneration,
-    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+    ) -> Result<EngineSwitchSnapshot<C::Selection>, PortError> {
         let Self {
             config_root,
             transition_id,
             token,
             stage,
+            ..
         } = *self;
         let (selection, engine_id) = match stage {
             EngineSwitchStage::BindingNew {
@@ -316,7 +386,7 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
                 ));
             }
         };
-        clear_candidate_owner_reservation(
+        clear_candidate_owner_reservation::<C>(
             config_root,
             transition_id,
             token,
@@ -329,12 +399,13 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
 
     async fn abort_before_core_application(
         self: Box<Self>,
-    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+    ) -> Result<EngineSwitchSnapshot<C::Selection>, PortError> {
         let Self {
             config_root,
             transition_id,
             token,
             stage,
+            ..
         } = *self;
         let (selection, engine_id) = match stage {
             EngineSwitchStage::BindingNew {
@@ -347,7 +418,7 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease 
                 ));
             }
         };
-        clear_candidate_owner_reservation(
+        clear_candidate_owner_reservation::<C>(
             config_root,
             transition_id,
             token,

@@ -3,6 +3,7 @@
 use crate::active_owner_switch::stage_mapping::{
     active_reference_revision, engine_switch_revision,
 };
+use crate::active_reference_file::ActiveProfileReferenceFile;
 use crate::store::EngineProfileStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::secure_store::SecureStore;
@@ -24,6 +25,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::owner_switch::owner::ActiveCoreOwnerProof;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use std::collections::HashMap;
 use std::fs;
@@ -385,4 +387,121 @@ fn assert_wire_stage(config_root: &Path, expected: &str) {
         "persisted stage drift: {text}"
     );
     assert_eq!(record["owner"]["state"], "switching");
+}
+
+/// PUB-003.2.2 option A: a live discard rewinds the journal to the retryable
+/// `SelectionChanged` stage instead of inventing an unowned owner. The old
+/// owner's exact terminal proof is restored, and the caller can reserve the
+/// candidate again through the recovered stopped lease.
+#[tokio::test]
+async fn discarded_candidate_rewinds_to_selection_changed_and_can_be_retried() {
+    let directory = TempDir::new().unwrap();
+    let (store, _profile) = selected_store(&directory).await;
+    let owner_identity = identity("discard-owner");
+    let owner = store
+        .acquire_provider_selection_lease()
+        .await
+        .unwrap()
+        .into_owner_binding(owner_identity.clone(), CoreGeneration::new(0))
+        .await
+        .unwrap();
+    let initial = store.snapshot().await.unwrap();
+    let switch = store
+        .begin_owner_switch(
+            initial.revision,
+            initial.selection.clone(),
+            owner_identity.clone(),
+            CoreGeneration::new(0),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        switch.stage(),
+        EngineSwitchStage::ClosingOld { .. }
+    ));
+    owner
+        .release_after_terminal(&terminal(owner_identity.clone(), CoreGeneration::new(1)))
+        .await
+        .unwrap();
+    let stopped = store
+        .recover_old_owner_after_terminal(initial.revision, CoreGeneration::new(1))
+        .await
+        .unwrap();
+    let target_engine = EngineId::sing_box();
+    let target = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+        target_engine.clone(),
+        ProfileId::new("replacement").unwrap(),
+        ActiveProfileReferenceRevision::new(2),
+    ));
+    let changed = stopped
+        .compare_and_set_target(target.clone(), target_engine.clone())
+        .await
+        .unwrap();
+    let candidate = engine_identity(EngineId::sing_box(), "discard-candidate");
+    let binding = changed
+        .reserve_new_owner(
+            target_engine.clone(),
+            candidate.clone(),
+            CoreGeneration::new(0),
+        )
+        .await
+        .unwrap();
+    assert_wire_stage(directory.path(), "binding_new");
+
+    let discarded = binding
+        .discard_unstarted_candidate(CoreGeneration::new(0))
+        .await
+        .unwrap();
+
+    assert_eq!(discarded.selection, target);
+    assert!(matches!(
+        &discarded.owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::SelectionChanged {
+                previous,
+                selection,
+                terminal_generation,
+                ..
+            }
+        } if previous == &initial.selection
+            && selection == &target
+            && *terminal_generation == CoreGeneration::new(1)
+    ));
+    assert_wire_stage(directory.path(), "reference_changed");
+    assert!(matches!(
+        store
+            .recover_owner_switch(discarded.revision)
+            .await
+            .unwrap(),
+        EngineSwitchRecovery::ResumeSelectionChanged { .. }
+    ));
+    // The old owner proof is restored exactly, not replaced by the candidate.
+    let proof = ActiveProfileReferenceFile::new(directory.path())
+        .read_owner_proof_sync()
+        .unwrap();
+    assert!(matches!(
+        proof.state,
+        ActiveCoreOwnerProof::Terminal {
+            terminal_generation,
+            ..
+        } if terminal_generation == CoreGeneration::new(1)
+    ));
+
+    let recovered = store
+        .recover_old_owner_after_terminal(discarded.revision, CoreGeneration::new(1))
+        .await
+        .unwrap();
+    let retried = recovered
+        .compare_and_set_target(target.clone(), target_engine.clone())
+        .await
+        .unwrap();
+    let retried_binding = retried
+        .reserve_new_owner(target_engine, candidate, CoreGeneration::new(0))
+        .await
+        .unwrap();
+    assert!(matches!(
+        retried_binding.stage(),
+        EngineSwitchStage::BindingNew { .. }
+    ));
+    assert_wire_stage(directory.path(), "binding_new");
 }

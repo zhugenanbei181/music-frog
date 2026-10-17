@@ -33,6 +33,7 @@ use infiltrator_presentation::dns_health_projection::project_dns_health;
 use infiltrator_presentation::dns_latency_projection::project_dns_latency;
 use infiltrator_presentation::dns_mapping_projection::project_mappings;
 use infiltrator_presentation::stun_projection::project_stun;
+use infiltrator_shared::locales::Lang;
 
 fn setup() -> (App, DnsProjection) {
     let mut app = App::new();
@@ -157,12 +158,12 @@ fn native_fake_ip_search_and_locale_replay_preserve_the_field_and_actual_observa
     for code in ["en-US", "zh-CN"] {
         app.insert_resource(UiLocale::new(code));
         app.update();
-        let mappings = project_mappings(&projection.fake_ip_pool, "cdn", code);
+        let mappings = project_mappings(&projection.fake_ip_pool, "cdn", &Lang(code));
         assert_eq!(
             line(&mut app, DnsLineKind::FakeIpMappingCount),
             (counter, mappings.count)
         );
-        let display = project_dns_health(&projection.self_heal, code);
+        let display = project_dns_health(&projection.self_heal, &Lang(code));
         assert_eq!(
             line(&mut app, DnsLineKind::SelfHealOverall),
             (health, display.overall)
@@ -175,7 +176,7 @@ fn native_fake_ip_search_and_locale_replay_preserve_the_field_and_actual_observa
             line(&mut app, DnsLineKind::LatencyPolicy),
             (
                 policy,
-                project_dns_latency(&projection.latency, code).summary
+                project_dns_latency(&projection.latency, &Lang(code)).summary
             )
         );
         assert_eq!(
@@ -184,7 +185,7 @@ fn native_fake_ip_search_and_locale_replay_preserve_the_field_and_actual_observa
         );
         assert_eq!(
             line(&mut app, DnsLineKind::StunConclusion),
-            (stun, project_stun(&projection.stun, code).status)
+            (stun, project_stun(&projection.stun, &Lang(code)).status)
         );
         assert_eq!(search(&mut app), field);
         assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);
@@ -202,7 +203,7 @@ fn native_fake_ip_search_and_locale_replay_preserve_the_field_and_actual_observa
     let code = app.world().resource::<UiLocale>().code().to_string();
     assert_eq!(
         app.world().get::<Text>(listing).unwrap().0,
-        project_mappings(&projection.fake_ip_pool, "missing", &code).empty
+        project_mappings(&projection.fake_ip_pool, "missing", &Lang(&code)).empty
     );
     let mut changed = projection.clone();
     changed.fake_ip_pool.source = FakeIpMappingSource::Unavailable {
@@ -213,7 +214,7 @@ fn native_fake_ip_search_and_locale_replay_preserve_the_field_and_actual_observa
     app.update();
     assert_eq!(
         app.world().get::<Text>(listing).unwrap().0,
-        project_mappings(&changed.fake_ip_pool, "missing", &code).empty
+        project_mappings(&changed.fake_ip_pool, "missing", &Lang(&code)).empty
     );
     assert_eq!(
         app.world().get::<TextField>(field).unwrap().0.text(),

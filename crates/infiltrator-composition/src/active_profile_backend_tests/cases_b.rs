@@ -115,8 +115,25 @@ async fn mismatching_constructed_application_is_closed_then_explicitly_discarded
         refs.read().await.unwrap(),
         reference("sing-box", "primary", 2)
     );
-    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert_eq!(
+        *refs.transition.lock().unwrap(),
+        Some(FakeSwitch {
+            stage: EngineSwitchStage::SelectionChanged {
+                previous: reference("mihomo", "main", 1),
+                selection: reference("sing-box", "primary", 2),
+                owner_identity: before.identity.clone().expect("old owner identity"),
+                terminal_generation: CoreGeneration::new(2),
+            },
+            owner_generation: CoreGeneration::new(0),
+        })
+    );
     assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
+    assert!(matches!(
+        refs.snapshot().await.unwrap().owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::SelectionChanged { .. }
+        }
+    ));
     assert_eq!(
         events.lock().unwrap().last().map(String::as_str),
         Some("candidate-discarded")

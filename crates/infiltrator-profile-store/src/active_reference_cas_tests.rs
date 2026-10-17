@@ -1,6 +1,4 @@
-use crate::active_reference_cas::{
-    ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
-};
+use crate::active_reference_cas::ActiveProfileReferenceCasReady;
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
@@ -9,6 +7,7 @@ use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::owner_switch::cas::OwnerSwitchFence;
 
 fn unselected(revision: u64) -> ActiveProfileReferenceState {
     ActiveProfileReferenceState::Unselected {
@@ -46,7 +45,7 @@ fn revision_compare_produces_a_typed_transition_witness() {
                 EngineId::mihomo(),
                 ProfileId::new("main").unwrap(),
             ),
-            ActiveProfileReferenceOwnerFence::Unowned,
+            OwnerSwitchFence::Unowned,
         )
         .unwrap();
 
@@ -69,7 +68,7 @@ fn stale_revision_fails_before_transition() {
 
 #[test]
 fn bound_owner_can_reselect_or_clear_its_engine_without_switching_owners() {
-    let owner = ActiveProfileReferenceOwnerFence::Bound {
+    let owner = OwnerSwitchFence::Bound {
         identity: identity("mihomo"),
         generation: CoreGeneration::new(8),
     };
@@ -138,7 +137,7 @@ fn switching_owner_rejects_reference_mutations() {
     let error = ready
         .transition(
             ActiveProfileReferenceTarget::Unselected,
-            ActiveProfileReferenceOwnerFence::Switching,
+            OwnerSwitchFence::Switching,
         )
         .unwrap_err();
 

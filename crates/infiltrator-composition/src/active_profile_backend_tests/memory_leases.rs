@@ -501,6 +501,19 @@ impl EngineSwitchSelectionChangedLease<ActiveProfileReferenceState>
             )));
         }
         drop(root_state);
+        let (previous_reference, owner_identity, terminal_generation) = match &self.stage {
+            EngineSwitchStage::SelectionChanged {
+                previous,
+                owner_identity,
+                terminal_generation,
+                ..
+            } => (
+                previous.clone(),
+                owner_identity.clone(),
+                *terminal_generation,
+            ),
+            _ => unreachable!("selection-changed lease always carries its stage"),
+        };
         let stage = EngineSwitchStage::BindingNew {
             selection: self.selection().clone(),
             engine_id: engine_id.clone(),
@@ -517,6 +530,10 @@ impl EngineSwitchSelectionChangedLease<ActiveProfileReferenceState>
         Ok(Box::new(MemoryOwnerBindingLease {
             stage,
             engine_id,
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            terminal_generation,
             owner: Arc::clone(&self.owner),
             transition: Arc::clone(&self.transition),
             root_state: Arc::clone(&self.root_state),
@@ -528,6 +545,10 @@ impl EngineSwitchSelectionChangedLease<ActiveProfileReferenceState>
 pub(crate) struct MemoryOwnerBindingLease {
     pub(crate) stage: EngineSwitchStage<ActiveProfileReferenceState>,
     pub(crate) engine_id: EngineId,
+    pub(crate) previous_reference: ActiveProfileReferenceState,
+    pub(crate) owner_identity: CoreIdentity,
+    pub(crate) owner_generation: CoreGeneration,
+    pub(crate) terminal_generation: CoreGeneration,
     pub(crate) owner: Arc<Mutex<FakeOwnerAdmission>>,
     pub(crate) transition: Arc<Mutex<Option<FakeSwitch>>>,
     pub(crate) root_state: Arc<sync::Mutex<ActiveProfileReferenceState>>,
@@ -624,12 +645,25 @@ impl EngineOwnerBindingLease<ActiveProfileReferenceState> for MemoryOwnerBinding
             )));
         }
         *self.owner.lock().expect("owner state") = FakeOwnerAdmission::Unowned;
-        *self.transition.lock().expect("switch state") = None;
+        // The live-lease discard rewinds to `SelectionChanged` so the caller
+        // can retry the reservation with the committed selection and the old
+        // owner's terminal proof. `abort_before_core_application` and
+        // `recover_candidate_after_terminal` instead land at `Unowned`.
+        let transition = FakeSwitch {
+            stage: EngineSwitchStage::SelectionChanged {
+                previous: self.previous_reference.clone(),
+                selection: self.selection().clone(),
+                owner_identity: self.owner_identity.clone(),
+                terminal_generation: self.terminal_generation,
+            },
+            owner_generation: self.owner_generation,
+        };
+        *self.transition.lock().expect("switch state") = Some(transition.clone());
         record(&self.events, "candidate-discarded");
         Ok(fake_snapshot(
             &root_state,
             &self.owner.lock().expect("owner state").clone(),
-            &None,
+            &Some(transition),
         ))
     }
 

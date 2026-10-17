@@ -1,19 +1,16 @@
 //! Engine-neutral durable profile reset transaction.
 
-use crate::active_reference_file::{ActiveProfileReferenceFile, is_durability_uncertain};
-use crate::active_reference_owner::{
-    ActiveCoreOwnerState, ActiveProfileReferenceRecord, LegacySelectionMigration,
-    transition_rejected,
-};
+use crate::active_reference_file::ActiveProfileReferenceFile;
+use crate::active_reference_owner::{ActiveProfileReferenceRecord, LegacySelectionMigration};
 use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
 };
 use crate::reset_fence::{
     ACTIVE_PROFILE_RESET_COMPLETE_FILE, ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE,
     ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE, ACTIVE_PROFILE_RESET_INTENT_FILE,
-    ActiveProfileResetIntentRecord, ActiveProfileResetMutationAccess,
-    ParsedActiveProfileResetIntentRecord, ensure_no_pending_reset_in_engine_namespaces,
-    initialize_namespace_with_reset_fence, parse_reset_intent_record, reset_pending_for_dir,
+    ActiveProfileResetIntentRecord, ParsedActiveProfileResetIntentRecord,
+    ensure_no_pending_reset_in_engine_namespaces, initialize_namespace_with_reset_fence,
+    parse_reset_intent_record, reset_pending_for_dir,
 };
 use crate::store::EngineProfileStore;
 use crate::workspace::sha256_hex;
@@ -29,6 +26,9 @@ use lurker_profile_store::document_store::{
     read_optional_bytes, remove_optional_durable, write_document_bytes_durable,
 };
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+use lurker_profile_store::owner_switch::file::is_durability_uncertain;
+use lurker_profile_store::owner_switch::owner::{ActiveCoreOwnerState, transition_rejected};
+use lurker_profile_store::owner_switch::reset::ActiveProfileResetMutationAccess;
 use serde_json::to_vec_pretty;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};

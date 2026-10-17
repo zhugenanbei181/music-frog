@@ -1,13 +1,11 @@
 //! Owner-authorized, encrypted persistence for per-profile Age private keys.
 
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::active_reference_owner::ActiveCoreOwnerState;
 use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
 };
 use crate::reset_fence::{
-    ActiveProfileResetMutationAccess, ensure_no_pending_reset_in_engine_namespaces,
-    initialize_namespace_with_reset_fence,
+    ensure_no_pending_reset_in_engine_namespaces, initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
 use age::x25519::Identity;
@@ -29,6 +27,8 @@ use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::file_lock::ProfileWriteGuard;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+use lurker_profile_store::owner_switch::owner::ActiveCoreOwnerState;
+use lurker_profile_store::owner_switch::reset::ActiveProfileResetMutationAccess;
 use serde::{Deserialize, Serialize};
 use std::ptr;
 use std::str;

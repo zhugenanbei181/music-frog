@@ -1,24 +1,18 @@
 //! Product-root active-reference and owner-switch journal for engine stores.
 
 use crate::active_owner_lease::ActiveCoreOwnerLease;
-use crate::active_owner_registry::{LocalOwnerRegistrationState, local_owner_registration_matches};
-use crate::active_owner_switch::recovery::{
-    recover_candidate_after_terminal, recover_old_owner_after_terminal, recover_owner_switch,
-};
 use crate::active_owner_switch::stage_mapping::{active_reference_revision, switch_snapshot};
 use crate::active_profile_selection_lease::ActiveProfileSelectionLease;
 use crate::active_reference_cas::ActiveProfileReferenceTargetEvidence;
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::active_reference_owner::{ActiveCoreOwnerState, transition_rejected};
+use crate::active_reference_owner::ProductCodec;
 use crate::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
 use crate::reset_fence::{
-    ActiveProfileResetMutationAccess, ensure_no_pending_reset_in_engine_namespaces,
-    initialize_namespace_with_reset_fence,
+    ensure_no_pending_reset_in_engine_namespaces, initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerLease, ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::active_profile_reference::{
@@ -33,8 +27,17 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_ports::engine_switch::{
     EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+    OwnerRecoveryEvidence, OwnerRecoveryOutcome,
 };
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::owner_switch::owner::{ActiveCoreOwnerState, transition_rejected};
+use lurker_profile_store::owner_switch::recovery::{
+    recover_candidate_after_terminal, recover_old_owner_after_terminal, recover_owner_switch,
+};
+use lurker_profile_store::owner_switch::registry::{
+    LocalOwnerRegistrationState, local_owner_registration_matches,
+};
+use lurker_profile_store::owner_switch::reset::ActiveProfileResetMutationAccess;
 
 #[async_trait::async_trait]
 impl<S: SecureStore> ActiveProfileReferenceStore for EngineProfileStore<S> {
@@ -169,8 +172,8 @@ impl<S: SecureStore> ActiveProfileReferenceStore for EngineProfileStore<S> {
 
     async fn recover_bound_owner_after_terminal(
         &self,
-        evidence: ActiveProfileOwnerRecoveryEvidence,
-    ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
+        evidence: OwnerRecoveryEvidence,
+    ) -> Result<OwnerRecoveryOutcome<ActiveProfileReferenceState>, PortError> {
         ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
             .recover_bound_owner_after_terminal(evidence)
             .await
@@ -286,7 +289,8 @@ impl<S: SecureStore> EngineSwitchJournal for EngineProfileStore<S> {
         &self,
         expected_revision: EngineSwitchRevision,
     ) -> Result<EngineSwitchRecovery<ActiveProfileReferenceState>, PortError> {
-        recover_owner_switch(self.config_root().to_path_buf(), expected_revision).await
+        recover_owner_switch::<ProductCodec>(self.config_root().to_path_buf(), expected_revision)
+            .await
     }
 
     async fn recover_old_owner_after_terminal(
@@ -295,7 +299,7 @@ impl<S: SecureStore> EngineSwitchJournal for EngineProfileStore<S> {
         terminal_generation: CoreGeneration,
     ) -> Result<Box<dyn EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState>>, PortError>
     {
-        recover_old_owner_after_terminal(
+        recover_old_owner_after_terminal::<ProductCodec>(
             self.config_root().to_path_buf(),
             expected_revision,
             terminal_generation,
@@ -308,7 +312,7 @@ impl<S: SecureStore> EngineSwitchJournal for EngineProfileStore<S> {
         expected_revision: EngineSwitchRevision,
         terminal_generation: CoreGeneration,
     ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
-        recover_candidate_after_terminal(
+        recover_candidate_after_terminal::<ProductCodec>(
             self.config_root().to_path_buf(),
             expected_revision,
             terminal_generation,

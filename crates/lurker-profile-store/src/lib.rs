@@ -28,6 +28,7 @@ pub mod file_lock;
 pub mod instance_lock;
 pub mod layout;
 pub mod namespace;
+pub mod owner_switch;
 pub mod platform;
 pub mod profile_files;
 pub mod settings;

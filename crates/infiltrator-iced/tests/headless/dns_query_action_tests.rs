@@ -16,6 +16,7 @@ use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 use infiltrator_presentation::dns_query_projection::project_query;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use lurker_core_contract::error::ErrorCode;
 use std::sync::Arc;
@@ -106,26 +107,26 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
     assert_eq!(port.requests().len(), 1);
     assert_eq!(port.requests()[0].record_type, DnsRecordType::Txt);
     assert!(
-        project_query(&state.diag.dns_query, "en-US")
+        project_query(&state.diag.dns_query, &Lang("en-US"))
             .records
             .contains("observed-0 {ttl}")
     );
     let _ = send(&mut state, QueryAction::Next);
     let _ = send(&mut state, QueryAction::Next);
     assert!(
-        project_query(&state.diag.dns_query, "en-US")
+        project_query(&state.diag.dns_query, &Lang("en-US"))
             .records
             .contains("observed-17 {ttl}")
     );
     let _ = send(&mut state, QueryAction::Section(QuerySection::Authority));
     assert!(
-        project_query(&state.diag.dns_query, "en-US")
+        project_query(&state.diag.dns_query, &Lang("en-US"))
             .records
             .contains("ns.test.")
     );
     let _ = send(&mut state, QueryAction::Section(QuerySection::Additional));
     assert!(
-        project_query(&state.diag.dns_query, "en-US")
+        project_query(&state.diag.dns_query, &Lang("en-US"))
             .records
             .contains("TTL 0s")
     );
@@ -139,13 +140,13 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
         ErrorCode::Permission
     );
     assert_eq!(state.diag.dns_query.snapshot.report, previous);
-    assert!(project_query(&state.diag.dns_query, "en-US").guide);
+    assert!(project_query(&state.diag.dns_query, &Lang("en-US")).guide);
     for code in ["en-US", "zh-CN"] {
         state.shell.lang = code.into();
         tree.diff(state.view().as_widget());
         assert_eq!(state.diag.dns_query.name, "music.test");
         assert!(
-            project_query(&state.diag.dns_query, code)
+            project_query(&state.diag.dns_query, &Lang(code))
                 .status
                 .ends_with("Allow controller DNS query access {reason}")
         );
@@ -157,7 +158,7 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
     assert!(state.diag.dns_query.current_failure().is_none());
     assert_eq!(port.requests().len(), 3);
     assert!(
-        project_query(&state.diag.dns_query, "en-US")
+        project_query(&state.diag.dns_query, &Lang("en-US"))
             .records
             .contains("observed-0 {ttl}")
     );
