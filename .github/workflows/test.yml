@@ -4,9 +4,6 @@ name: test
 # 均不会启动 workspace 编译或测试。
 on:
   workflow_call:
-  # Manual dispatch so a milestone batch can be CI-verified without cutting a
-  # release tag. Ordinary pushes and pull requests stay excluded on purpose.
-  workflow_dispatch:
 
 permissions:
   contents: read
