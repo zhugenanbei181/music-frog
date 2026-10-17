@@ -39,6 +39,8 @@ python3 -m unittest discover -s scripts/packaging_tests -p 'test_*.py'
 python3 -m unittest discover -s scripts/quality/tests -p 'test_*.py'
 python3 scripts/quality/i18n-guard.py --mode enforce
 python3 scripts/quality/android-product-identity-guard.py
+python3 scripts/quality/release-build-target-guard.py --self-test
+python3 scripts/quality/release-build-target-guard.py
 python3 scripts/quality/android-mihomo-assets-guard.py
 python3 scripts/quality/apple-ci-deferral-guard.py
 python3 scripts/quality/ci-trigger-guard.py
