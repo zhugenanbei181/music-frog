@@ -12,7 +12,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     let model = &state.editor.script_sandbox;
     let lang = Lang(&state.shell.lang);
-    let view = project_script_export(model, &state.shell.lang);
+    let view = project_script_export(model, &Lang(&state.shell.lang));
     let body = column![
         text(lang.tr("script_export_title")).size(17),
         text(view.status).size(12).width(Length::Fill),

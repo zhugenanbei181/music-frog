@@ -2,6 +2,7 @@
 use super::*;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -12,27 +13,33 @@ use lurker_ui_presentation::routing_intent_actions::RoutingIntentFinishOutcome;
 #[test]
 fn captions_use_the_shared_typed_intent_and_status() {
     let mut snapshot = RoutingIntentSnapshot::default();
-    assert_eq!(routing_intent_status_copy(&snapshot, "en"), "Not observed");
+    assert_eq!(
+        routing_intent_status_copy(&snapshot, &Lang("en")),
+        "Not observed"
+    );
     snapshot.current = Some(RoutingIntent::FollowRules);
     snapshot.status = RoutingIntentStatus::Ready;
-    assert_eq!(routing_intent_status_copy(&snapshot, "en"), "Follow rules");
+    assert_eq!(
+        routing_intent_status_copy(&snapshot, &Lang("en")),
+        "Follow rules"
+    );
     snapshot.current = Some(RoutingIntent::RouteAllThroughProxy);
     assert_eq!(
-        routing_intent_status_copy(&snapshot, "en"),
+        routing_intent_status_copy(&snapshot, &Lang("en")),
         "Route all traffic through proxy"
     );
     snapshot.status = RoutingIntentStatus::Pending;
     assert_eq!(
-        routing_intent_status_copy(&snapshot, "en"),
+        routing_intent_status_copy(&snapshot, &Lang("en")),
         "Route all traffic through proxy (updating)"
     );
     snapshot.status = RoutingIntentStatus::Failed;
     assert_eq!(
-        routing_intent_status_copy(&snapshot, "en"),
+        routing_intent_status_copy(&snapshot, &Lang("en")),
         "Route all traffic through proxy (stale)"
     );
     assert_eq!(
-        routing_intent_status_copy(&snapshot, "zh-CN"),
+        routing_intent_status_copy(&snapshot, &Lang("zh-CN")),
         "全部流量经代理（已失效）"
     );
 }
@@ -43,14 +50,17 @@ fn engine_defined_readbacks_are_described_without_becoming_shared_choices() {
         EngineId::new("mihomo").unwrap(),
         RoutingIntentExtensionId::new("script").unwrap(),
     ));
-    assert_eq!(routing_intent_copy(&intent, "en"), "Engine-defined: script");
+    assert_eq!(
+        routing_intent_copy(&intent, &Lang("en")),
+        "Engine-defined: script"
+    );
     let snapshot = RoutingIntentSnapshot {
         current: Some(intent),
         status: RoutingIntentStatus::Ready,
         failure: None,
     };
     assert_eq!(
-        routing_intent_status_copy(&snapshot, "en"),
+        routing_intent_status_copy(&snapshot, &Lang("en")),
         "Engine-defined: script"
     );
     let mut actions = RoutingIntentActions::default();
@@ -69,7 +79,7 @@ fn failure_copy_uses_the_typed_requested_intent_and_redacted_reason() {
         RoutingIntentFinishOutcome::Applied
     );
     assert_eq!(
-        routing_intent_failure_copy(&actions, "en"),
+        routing_intent_failure_copy(&actions, &Lang("en")),
         "Switch to Bypass proxy failed: connection refused"
     );
 }

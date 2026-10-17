@@ -165,7 +165,7 @@ fn native_statistics_unknown_cannot_emit_a_reset_and_locale_replays_shared_copy(
     let projection = project_inspector(
         &state.editor.rule_hit_audit,
         &state.editor.rule_list,
-        &state.shell.lang,
+        &Lang(&state.shell.lang),
     );
     assert_eq!(projection.metrics.total_hits, "Not observed");
     assert!(!projection.can_reset);
@@ -173,7 +173,7 @@ fn native_statistics_unknown_cannot_emit_a_reset_and_locale_replays_shared_copy(
     let projection = project_inspector(
         &state.editor.rule_hit_audit,
         &state.editor.rule_list,
-        &state.shell.lang,
+        &Lang(&state.shell.lang),
     );
     assert_eq!(projection.metrics.total_hits, "未观测");
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);

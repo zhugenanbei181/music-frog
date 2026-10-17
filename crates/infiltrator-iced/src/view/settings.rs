@@ -250,7 +250,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         language_card,
         text(format_runtime_status(
             &state.runtime.runtime_control.status,
-            lang.0
+            &Lang(lang.0)
         ))
         .size(12),
         Space::new().height(theme::SP_LG)

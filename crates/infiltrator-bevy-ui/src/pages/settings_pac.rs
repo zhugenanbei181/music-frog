@@ -29,6 +29,7 @@ use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholde
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_presentation::host_network_projection::pac;
+use infiltrator_shared::locales::Lang;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PacToggle;
@@ -44,7 +45,7 @@ pub struct PacStatusLine;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
     let bypass = projection.pac.bypass_domains.join(", ");
-    let status = pac(&projection.pac, UiLocale::default().code());
+    let status = pac(&projection.pac, &Lang(UiLocale::default().code()));
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -197,7 +198,7 @@ pub(super) fn apply_projection(update: On<SettingsProjectionUpdated>, surface: P
             }
         }
     }
-    let status = pac(&update.0.pac, locale.code());
+    let status = pac(&update.0.pac, &Lang(locale.code()));
     for mut line in &mut status_lines {
         line.0 = status.clone();
     }

@@ -57,10 +57,10 @@ pub fn check_row_scene(
         DoctorRow({ id.clone() })
         ThemeBackgroundColor({ Token::SurfaceElevated })
         Children [
-            Text({ check_name(check.kind, &check.name, &check.category, code) })
+            Text({ check_name(check.kind, &check.name, &check.category, &Lang(code)) })
             DoctorName({ id.clone() }) TextRole(Role::BodyStrong)
             --
-            Text({ check_detail(check.detail_copy_key.as_deref(), &check.detail, code) })
+            Text({ check_detail(check.detail_copy_key.as_deref(), &check.detail, &Lang(code)) })
             CheckDetailText({ id.clone() }) TextRole(Role::Caption)
             --
             Text({ check.hint.clone().unwrap_or_default() })
@@ -110,9 +110,9 @@ fn apply_copy(
             continue;
         };
         let value = if row.name.is_some() {
-            check_name(check.kind, &check.name, &check.category, code)
+            check_name(check.kind, &check.name, &check.category, &Lang(code))
         } else if row.detail.is_some() {
-            check_detail(check.detail_copy_key.as_deref(), &check.detail, code)
+            check_detail(check.detail_copy_key.as_deref(), &check.detail, &Lang(code))
         } else if row.hint.is_some() {
             check.hint.clone().unwrap_or_default()
         } else {
@@ -218,14 +218,14 @@ pub fn replay_header(
             DoctorLineKind::Summary => summary(
                 projection.checks.iter().map(|check| check.state),
                 projection.report_finished_at,
-                code,
+                &Lang(code),
             ),
             DoctorLineKind::LastRun => localize(
                 code,
                 "doctor_last_run_value",
                 &[("time", projection.last_run.clone())],
             ),
-            DoctorLineKind::Watchdog => watchdog_status_text(&projection.watchdog, code),
+            DoctorLineKind::Watchdog => watchdog_status_text(&projection.watchdog, &Lang(code)),
         };
         if text.0 != value {
             text.0 = value;

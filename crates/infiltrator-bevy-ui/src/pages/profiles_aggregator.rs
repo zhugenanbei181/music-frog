@@ -12,6 +12,7 @@ use infiltrator_presentation::aggregation_preview_projection::{
     aggregation_counters, aggregation_custom_groups, aggregation_groups, aggregation_regions,
     aggregation_templates, aggregation_yaml_preview,
 };
+use infiltrator_shared::locales::Lang;
 
 use crate::localized_widgets::{localized_checkbox_scene, localized_field_scene};
 use crate::pages::profiles::LastProfilesProjection;
@@ -172,14 +173,14 @@ pub fn profiles_aggregator_scene(
 ) -> impl Scene + use<> {
     let locale = UiLocale::default();
     let report = projection.aggregation.as_ref();
-    let counters = aggregation_counters(report, locale.code());
-    let regions = aggregation_regions(report, locale.code());
-    let groups = aggregation_groups(report, locale.code());
-    let yaml = aggregation_yaml_preview(report, locale.code());
+    let counters = aggregation_counters(report, &Lang(locale.code()));
+    let regions = aggregation_regions(report, &Lang(locale.code()));
+    let groups = aggregation_groups(report, &Lang(locale.code()));
+    let yaml = aggregation_yaml_preview(report, &Lang(locale.code()));
     let templates = aggregation_templates(
         projection.aggregation_templates_available,
         &projection.aggregation_templates,
-        locale.code(),
+        &Lang(locale.code()),
     );
     // Mount-time view of the appended custom groups: the last shared preview
     // when there is one, otherwise an empty editor state (the wizard's own
@@ -188,7 +189,7 @@ pub fn profiles_aggregator_scene(
         report
             .map(|report| report.draft.custom_groups.as_slice())
             .unwrap_or_default(),
-        locale.code(),
+        &Lang(locale.code()),
     );
     let name = report
         .map(|report| report.draft.target_name.clone())
@@ -571,14 +572,14 @@ fn preview_line(
 ) -> String {
     let report = projection.aggregation.as_ref();
     match kind {
-        AggregatorPreviewKind::Counters => aggregation_counters(report, code),
-        AggregatorPreviewKind::Regions => aggregation_regions(report, code),
-        AggregatorPreviewKind::Groups => aggregation_groups(report, code),
-        AggregatorPreviewKind::Yaml => aggregation_yaml_preview(report, code),
+        AggregatorPreviewKind::Counters => aggregation_counters(report, &Lang(code)),
+        AggregatorPreviewKind::Regions => aggregation_regions(report, &Lang(code)),
+        AggregatorPreviewKind::Groups => aggregation_groups(report, &Lang(code)),
+        AggregatorPreviewKind::Yaml => aggregation_yaml_preview(report, &Lang(code)),
         AggregatorPreviewKind::Templates => aggregation_templates(
             projection.aggregation_templates_available,
             &projection.aggregation_templates,
-            code,
+            &Lang(code),
         ),
     }
 }
@@ -611,7 +612,7 @@ pub(crate) fn replay_aggregation_copy(
         }
     }
     if let Some(composer) = composer {
-        let value = aggregation_custom_groups(&composer.custom_groups, locale.code());
+        let value = aggregation_custom_groups(&composer.custom_groups, &Lang(locale.code()));
         for mut text in &mut custom {
             if text.0 != value {
                 text.0 = value.clone()

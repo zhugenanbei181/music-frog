@@ -33,7 +33,7 @@ fn loss_badge(rating: Option<PacketLossRating>, lang: &Lang<'_>) -> Element<'sta
         Some(PacketLossRating::Poor | PacketLossRating::Dead) => BadgeKind::Danger,
         None => BadgeKind::Neutral,
     };
-    badge(rating_label(rating, lang.0), kind)
+    badge(rating_label(rating, &Lang(lang.0)), kind)
 }
 
 fn selected_speedtest_target(state: &AppState) -> Option<SpeedtestTarget> {
@@ -206,7 +206,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     };
 
     // Fully timed-out outbound targets are shown in one explicit archive.
-    let archive = dead_archive(snapshot, lang.0);
+    let archive = dead_archive(snapshot, &Lang(lang.0));
     let dead_section: Element<'_, Message> = if archive.count == 0 {
         Space::new().height(0).into()
     } else {
@@ -232,7 +232,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     // Persisted history from the shared snapshot: every line is a real run,
     // never a UI-local record.
-    let history_lines = history_lines(snapshot, lang.0);
+    let history_lines = history_lines(snapshot, &Lang(lang.0));
     let mut history_column = column![
         text(lang.tr("speedtest_history_title").to_string())
             .size(11)

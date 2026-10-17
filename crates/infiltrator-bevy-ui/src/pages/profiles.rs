@@ -12,6 +12,7 @@ pub mod query_access;
 use self::query_access::ProfileProjectionTargets;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_contract::fixture_identities::{BACKUP_PROFILE, LOCAL_PROFILE, PRIMARY_PROFILE};
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::business_panel::{PanelKind, launcher_scene, profiles_panels};
@@ -355,7 +356,7 @@ fn auto_update_summary(projection: &ProfilesProjection, locale: &str) -> String 
                 profile.update_interval_hours,
             )
         }),
-        locale,
+        &Lang(locale),
     )
 }
 fn profile_schedule_summary(profile: &ProfileItem, locale: &str) -> String {
@@ -364,7 +365,7 @@ fn profile_schedule_summary(profile: &ProfileItem, locale: &str) -> String {
         profile.cron_expression.as_deref(),
         profile.update_interval_hours,
         profile.next_update.as_deref(),
-        locale,
+        &Lang(locale),
     )
 }
 
@@ -383,7 +384,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
     let summary = profile_metadata_projection::summary(
         projection.profiles.len(),
         projection.active_profile_name(),
-        UiLocale::default().code(),
+        &Lang(UiLocale::default().code()),
     );
     let auto_update = auto_update_summary(projection, UiLocale::default().code());
 
@@ -624,7 +625,7 @@ pub(crate) fn replay_profiles_projection(
                 text.0 = profile_metadata_projection::summary(
                     projection.profiles.len(),
                     projection.active_profile_name(),
-                    locale.code(),
+                    &Lang(locale.code()),
                 );
             }
             ProfilesLineKind::AutoUpdate => {
@@ -641,7 +642,8 @@ pub(crate) fn replay_profiles_projection(
 
     for (mut text, marker) in &mut times {
         if let Some(profile) = projection.profiles.get(marker.0) {
-            text.0 = profile_metadata_projection::updated(&profile.updated_at, locale.code());
+            text.0 =
+                profile_metadata_projection::updated(&profile.updated_at, &Lang(locale.code()));
         }
     }
 
@@ -653,14 +655,15 @@ pub(crate) fn replay_profiles_projection(
                     profile.download_bytes,
                     profile.total_bytes,
                 ),
-                locale.code(),
+                &Lang(locale.code()),
             );
         }
     }
 
     for (mut text, marker) in &mut statuses {
         if let Some(profile) = projection.profiles.get(marker.0) {
-            text.0 = profile_metadata_projection::active_status(profile.is_active, locale.code());
+            text.0 =
+                profile_metadata_projection::active_status(profile.is_active, &Lang(locale.code()));
         }
     }
 

@@ -104,15 +104,17 @@ pub fn hosts_editor_modal(state: &AppState) -> Element<'_, Message> {
             .id(InteractionRegion::HostsRows.id()),
     ]
     .spacing(8);
-    let hint = legacy_hint(editor, &state.shell.lang);
+    let hint = legacy_hint(editor, &Lang(&state.shell.lang));
     if !hint.is_empty() {
         content = content.push(text(hint).size(11));
     }
-    content = content.push(text(feedback(editor, &state.shell.lang)).size(11).style(
-        |theme: &Theme| text::Style {
-            color: Some(tokens(theme).danger),
-        },
-    ));
+    content = content.push(
+        text(feedback(editor, &Lang(&state.shell.lang)))
+            .size(11)
+            .style(|theme: &Theme| text::Style {
+                color: Some(tokens(theme).danger),
+            }),
+    );
     content = content.push(
         row![
             button(text(lang.tr("dns_hosts_clear_draft")).size(11))

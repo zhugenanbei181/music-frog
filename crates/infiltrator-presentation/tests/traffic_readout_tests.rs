@@ -3,6 +3,7 @@ use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_presentation::shell_readout::observed_rate;
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
@@ -15,7 +16,7 @@ fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {
         generation: 7,
         ..Default::default()
     };
-    let unknown = project_traffic_readout(&rates, &history, "en-US");
+    let unknown = project_traffic_readout(&rates, &history, &Lang("en-US"));
     assert_eq!(unknown.upload, "Not observed");
     assert_eq!(unknown.status, "Not observed");
     assert_eq!(unknown.freshness, TrafficFreshness::Unobserved);
@@ -28,7 +29,7 @@ fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {
         upload_bps: 0.0,
         download_bps: 0.0,
     });
-    let zero = project_traffic_readout(&rates, &history, "en-US");
+    let zero = project_traffic_readout(&rates, &history, &Lang("en-US"));
     assert_eq!(zero.upload, "0 B/s");
     assert_eq!(zero.status, "Live");
     assert_eq!(zero.upload_peak.as_deref(), Some("0 B/s"));
@@ -36,14 +37,14 @@ fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {
 
     rates.upload_bps = ShellObservation::Stale(0.0);
     rates.download_bps = ShellObservation::Stale(0.0);
-    let stale = project_traffic_readout(&rates, &history, "zh-CN");
+    let stale = project_traffic_readout(&rates, &history, &Lang("zh-CN"));
     assert_eq!(stale.upload, "0 B/s（已失效）");
     assert_eq!(stale.status, "已失效");
     assert_eq!(stale.upload_peak.as_deref(), Some("0 B/s（已失效）"));
     assert_eq!(stale.freshness, TrafficFreshness::Stale);
 
     history.generation = 6;
-    let retired = project_traffic_readout(&rates, &history, "en-US");
+    let retired = project_traffic_readout(&rates, &history, &Lang("en-US"));
     assert!(retired.upload_peak.is_none() && retired.download_peak.is_none());
     assert_eq!(retired.freshness, TrafficFreshness::Stale);
 }
@@ -57,7 +58,8 @@ fn failure_is_a_typed_terminal_even_when_last_values_remain_visible() {
     };
     rates.rate_failure = Some(Failure::new(ErrorCode::Permission, "denied", false));
 
-    let readout = project_traffic_readout(&rates, &TrafficWaveformSnapshot::default(), "en-US");
+    let readout =
+        project_traffic_readout(&rates, &TrafficWaveformSnapshot::default(), &Lang("en-US"));
     assert_eq!(readout.freshness, TrafficFreshness::Failed);
     assert_eq!(readout.upload, "5 B/s");
 }

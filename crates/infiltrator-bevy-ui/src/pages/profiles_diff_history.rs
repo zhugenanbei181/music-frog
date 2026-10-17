@@ -9,6 +9,7 @@
 #[path = "profiles_diff_history_query_access.rs"]
 pub mod query_access;
 use self::query_access::{HistoryAppearance, SnapshotHistorySelectionControls};
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::profiles::LastProfilesProjection;
@@ -167,7 +168,7 @@ pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
 }
 
 fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette) -> Box<dyn Scene> {
-    let label = snapshot_presentation::entry_label(entry, UiLocale::default().code());
+    let label = snapshot_presentation::entry_label(entry, &Lang(UiLocale::default().code()));
     let identity = SnapshotEntryLabel(entry.clone());
     let color = if selected {
         palette.accent

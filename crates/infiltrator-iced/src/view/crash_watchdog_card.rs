@@ -61,7 +61,7 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
         let (key, status) = watchdog_badge(&dog.shared.state);
         let label = lang.tr(key).into_owned();
         let kind = status_badge_kind(status);
-        let detail = watchdog_status_text(&dog.shared, lang.0);
+        let detail = watchdog_status_text(&dog.shared, &Lang(lang.0));
         row![
             badge(label.to_string(), kind),
             Space::new().width(theme::SP_SM),

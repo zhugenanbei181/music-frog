@@ -194,7 +194,7 @@ fn test_advancement_w3_3_speedtest_history_renders_shared_snapshot() {
     // The history lines are read straight off the shared snapshot's
     // `recent_history`; the view owns no store.
     let lang = Lang("zh-CN");
-    let lines = history_lines(&state.diag.speedtest, lang.0);
+    let lines = history_lines(&state.diag.speedtest, &Lang(lang.0));
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("50.5 ms"), "line={}", lines[0]);
     assert!(lines[0].contains("全部出口"), "line={}", lines[0]);

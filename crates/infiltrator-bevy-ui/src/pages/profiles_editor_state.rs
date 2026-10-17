@@ -24,6 +24,7 @@ use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
 use infiltrator_presentation::profile_edit_session::{ProfileEditObservation, ProfileEditSession};
 use infiltrator_presentation::profile_edit_status_projection;
 use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
@@ -361,11 +362,11 @@ pub(crate) fn status_line(
             notice: state.notice.as_deref(),
             transaction: projection.and_then(|projection| projection.apply_transaction.as_ref()),
         },
-        locale,
+        &Lang(locale),
     );
     let session_status = profile_edit_status_projection::status(
         &state.session.status_fact(&state.buffer.full_text()),
-        locale,
+        &Lang(locale),
     );
     [status, session_status]
         .into_iter()
@@ -380,12 +381,12 @@ pub(crate) fn diagnostic_line(
     match state.validation_source {
         ProfileValidationSource::Snapshot => profile_editor_projection::document_inspection(
             state.document_inspection.as_ref(),
-            locale,
+            &Lang(locale),
         ),
         ProfileValidationSource::LocalYamlBuffer | ProfileValidationSource::MixinDraft => {
             profile_editor_projection::document_inspection(
                 state.document_inspection.as_ref(),
-                locale,
+                &Lang(locale),
             )
         }
     }
@@ -398,13 +399,13 @@ pub(crate) fn diagnostic_label(
 ) -> String {
     match source {
         ProfileValidationSource::Snapshot => {
-            profile_editor_projection::document_validation_label(status, locale)
+            profile_editor_projection::document_validation_label(status, &Lang(locale))
         }
         ProfileValidationSource::LocalYamlBuffer => {
-            profile_editor_projection::syntax_label(status, locale)
+            profile_editor_projection::syntax_label(status, &Lang(locale))
         }
         ProfileValidationSource::MixinDraft => {
-            profile_editor_projection::document_validation_label(status, locale)
+            profile_editor_projection::document_validation_label(status, &Lang(locale))
         }
     }
 }
@@ -423,7 +424,7 @@ pub(crate) fn protection_toggle_visual(
         palette.warning
     };
     (
-        profile_editor_projection::protection_action(protection, unlocked, locale),
+        profile_editor_projection::protection_action(protection, unlocked, &Lang(locale)),
         fill,
     )
 }

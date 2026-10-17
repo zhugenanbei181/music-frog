@@ -3,6 +3,7 @@ use super::*;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::rule_trace_fixtures::NAMED_TRACE_DOCUMENT;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 
@@ -30,7 +31,7 @@ async fn named_leaf_report_confirmation_and_commit_preserve_parent_tables_and_so
     );
     assert_eq!(chain.matched_rule_raw, "DOMAIN-SUFFIX,google.com,PROXY");
     assert_eq!(chain.target_proxy, "PROXY");
-    let copy = present_chain(chain, "en-US");
+    let copy = present_chain(chain, &Lang("en-US"));
     assert!(
         copy.nodes[2]
             .sub_evaluations

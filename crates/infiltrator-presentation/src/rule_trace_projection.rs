@@ -1,20 +1,24 @@
 //! One localized fold of simulation provenance and all five stage facts.
 use crate::rule_condition_projection::{evaluation_text, issue_text, location_text};
 use crate::rule_trace_actions::RuleTraceActions;
+use crate::text::localize;
 use infiltrator_contract::rule_trace_facts::DecisionStageFacts;
 use infiltrator_contract::rule_tracer::{
     DecisionChainNode, DecisionChainSnapshot, DecisionNodeStatus,
 };
-use infiltrator_shared::i18n_interpolator::localize;
+use lurker_ui_presentation::copy::TextCatalog;
 
-pub fn present_chain(chain: &DecisionChainSnapshot, code: &str) -> DecisionChainSnapshot {
+pub fn present_chain(
+    chain: &DecisionChainSnapshot,
+    catalog: &dyn TextCatalog,
+) -> DecisionChainSnapshot {
     let mut display = chain.clone();
     for node in &mut display.nodes {
-        present_node(node, code);
+        present_node(node, catalog);
     }
     display
 }
-pub fn trace_status(state: &RuleTraceActions, code: &str) -> String {
+pub fn trace_status(state: &RuleTraceActions, catalog: &dyn TextCatalog) -> String {
     if let Some(issue) = state
         .snapshot
         .issue
@@ -22,39 +26,39 @@ pub fn trace_status(state: &RuleTraceActions, code: &str) -> String {
         .filter(|_| state.snapshot.operation_id == state.requested_operation())
     {
         let message = localize(
-            code,
+            catalog,
             "rule_trace_issue_at",
             &[
                 ("index", (issue.index + 1).to_string()),
-                ("reason", issue_text(&issue.issue, code)),
+                ("reason", issue_text(&issue.issue, catalog)),
             ],
         );
         match &issue.location {
-            Some(location) => format!("{} · {message}", location_text(location, code)),
+            Some(location) => format!("{} · {message}", location_text(location, catalog)),
             None => message,
         }
     } else if let Some(failure) = state.current_failure() {
         localize(
-            code,
+            catalog,
             "rule_trace_failure",
             &[("reason", failure.message.clone())],
         )
     } else if state.busy() {
-        localize(code, "rule_trace_running", &[])
+        localize(catalog, "rule_trace_running", &[])
     } else if state.requested_operation().is_some()
         && state.requested_operation() != state.snapshot.report_id
     {
-        localize(code, "rule_trace_waiting", &[])
+        localize(catalog, "rule_trace_waiting", &[])
     } else {
-        localize(code, "rule_trace_simulation_notice", &[])
+        localize(catalog, "rule_trace_simulation_notice", &[])
     }
 }
-pub fn trace_provenance(state: &RuleTraceActions, code: &str) -> String {
+pub fn trace_provenance(state: &RuleTraceActions, catalog: &dyn TextCatalog) -> String {
     let Some(report) = &state.snapshot.report else {
         return String::new();
     };
     localize(
-        code,
+        catalog,
         if state.current_failure().is_some()
             || state.busy()
             || state.requested_operation() != state.snapshot.report_id
@@ -67,10 +71,10 @@ pub fn trace_provenance(state: &RuleTraceActions, code: &str) -> String {
         &[],
     )
 }
-pub fn trace_headline(chain: Option<&DecisionChainSnapshot>, code: &str) -> String {
+pub fn trace_headline(chain: Option<&DecisionChainSnapshot>, catalog: &dyn TextCatalog) -> String {
     match chain {
         Some(chain) if !chain.is_fallback => localize(
-            code,
+            catalog,
             "rule_trace_matched",
             &[
                 (
@@ -85,17 +89,17 @@ pub fn trace_headline(chain: Option<&DecisionChainSnapshot>, code: &str) -> Stri
             ],
         ),
         Some(chain) => localize(
-            code,
+            catalog,
             "rule_trace_fallback",
             &[("target", chain.target_proxy.clone())],
         ),
-        None => localize(code, "rule_trace_no_report", &[]),
+        None => localize(catalog, "rule_trace_no_report", &[]),
     }
 }
-pub fn stage_text(node: &DecisionChainNode, code: &str) -> String {
+pub fn stage_text(node: &DecisionChainNode, catalog: &dyn TextCatalog) -> String {
     let mut node = node.clone();
-    present_node(&mut node, code);
-    let status = localize(code, status_key(node.status), &[]);
+    present_node(&mut node, catalog);
+    let status = localize(catalog, status_key(node.status), &[]);
     let mut lines = vec![format!("{} · {}", node.title, status), node.detail];
     if let Some(badge) = node.badge {
         lines.push(badge);
@@ -103,13 +107,13 @@ pub fn stage_text(node: &DecisionChainNode, code: &str) -> String {
     lines.extend(node.sub_evaluations);
     lines.join("\n")
 }
-fn present_node(node: &mut DecisionChainNode, code: &str) {
-    let unknown = || localize(code, "rule_trace_unknown", &[]);
+fn present_node(node: &mut DecisionChainNode, catalog: &dyn TextCatalog) {
+    let unknown = || localize(catalog, "rule_trace_unknown", &[]);
     let optional = |value: &Option<String>| value.clone().unwrap_or_else(unknown);
     let port = |value: Option<u16>| value.map(|value| value.to_string()).unwrap_or_else(unknown);
     let Some(facts) = &node.facts else {
-        node.title = localize(code, "rule_trace_legacy_stage", &[]);
-        node.detail = localize(code, "rule_trace_unknown", &[]);
+        node.title = localize(catalog, "rule_trace_legacy_stage", &[]);
+        node.detail = localize(catalog, "rule_trace_unknown", &[]);
         node.badge = None;
         node.sub_evaluations.clear();
         node.status = DecisionNodeStatus::Neutral;
@@ -117,9 +121,9 @@ fn present_node(node: &mut DecisionChainNode, code: &str) {
     };
     match facts {
         DecisionStageFacts::Inbound(context) => {
-            node.title = localize(code, "rule_trace_inbound", &[]);
+            node.title = localize(catalog, "rule_trace_inbound", &[]);
             node.detail = localize(
-                code,
+                catalog,
                 "rule_trace_inbound_values",
                 &[
                     ("ip", optional(&context.src_ip)),
@@ -138,12 +142,12 @@ fn present_node(node: &mut DecisionChainNode, code: &str) {
             ip,
             port: destination,
         } => {
-            node.title = localize(code, "rule_trace_sniffer", &[]);
-            node.detail = localize(code, "rule_trace_sniffer_not_observed", &[]);
+            node.title = localize(catalog, "rule_trace_sniffer", &[]);
+            node.detail = localize(catalog, "rule_trace_sniffer_not_observed", &[]);
             node.status = DecisionNodeStatus::Neutral;
             node.badge = None;
             node.sub_evaluations = vec![localize(
-                code,
+                catalog,
                 "rule_trace_query_values",
                 &[
                     ("domain", optional(domain)),
@@ -160,10 +164,10 @@ fn present_node(node: &mut DecisionChainNode, code: &str) {
             evaluations,
             path,
         } => {
-            node.title = localize(code, "rule_trace_rule", &[]);
+            node.title = localize(catalog, "rule_trace_rule", &[]);
             node.detail = match index {
                 Some(index) => localize(
-                    code,
+                    catalog,
                     "rule_trace_rule_values",
                     &[
                         ("index", (index + 1).to_string()),
@@ -171,23 +175,27 @@ fn present_node(node: &mut DecisionChainNode, code: &str) {
                         ("target", target.clone()),
                     ],
                 ),
-                None => localize(code, "rule_trace_implicit_direct", &[]),
+                None => localize(catalog, "rule_trace_implicit_direct", &[]),
             };
             node.badge = no_resolve.map(|value| format!("no-resolve={value}"));
             node.sub_evaluations = evaluations
                 .iter()
-                .map(|row| evaluation_text(row, code))
+                .map(|row| evaluation_text(row, catalog))
                 .collect();
             if path.iter().any(|entry| entry.location.table.is_some()) {
                 node.sub_evaluations.extend(path.iter().map(|entry| {
-                    format!("{} · {}", location_text(&entry.location, code), entry.raw)
+                    format!(
+                        "{} · {}",
+                        location_text(&entry.location, catalog),
+                        entry.raw
+                    )
                 }));
             }
         }
         DecisionStageFacts::Policy { target, selected } => {
-            node.title = localize(code, "rule_trace_policy", &[]);
+            node.title = localize(catalog, "rule_trace_policy", &[]);
             node.detail = localize(
-                code,
+                catalog,
                 "rule_trace_policy_values",
                 &[("target", target.clone()), ("selected", optional(selected))],
             );
@@ -200,9 +208,9 @@ fn present_node(node: &mut DecisionChainNode, code: &str) {
             delay_ms,
             country,
         } => {
-            node.title = localize(code, "rule_trace_outbound", &[]);
+            node.title = localize(catalog, "rule_trace_outbound", &[]);
             node.detail = localize(
-                code,
+                catalog,
                 "rule_trace_outbound_values",
                 &[
                     ("name", optional(name)),

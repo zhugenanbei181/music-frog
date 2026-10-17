@@ -13,6 +13,7 @@ use self::query_access::{
     TunStackControlItem,
 };
 use infiltrator_shared::assets::harmonyos_font_license_text;
+use infiltrator_shared::locales::Lang;
 
 use crate::appearance::{refresh_tonal_ladder_preview, tonal_ladder_preview_scene};
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -329,9 +330,11 @@ pub fn general_card_scene(
     )
     .expect("core channel copy");
     let core_versions_str =
-        format_core_versions(&projection.core_versions, UiLocale::default().code());
-    let core_integrity_str =
-        format_integrity(&projection.core_integrity, UiLocale::default().code());
+        format_core_versions(&projection.core_versions, &Lang(UiLocale::default().code()));
+    let core_integrity_str = format_integrity(
+        &projection.core_integrity,
+        &Lang(UiLocale::default().code()),
+    );
 
     surface_scene(
         vec![

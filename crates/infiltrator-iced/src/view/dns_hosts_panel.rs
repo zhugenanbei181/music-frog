@@ -62,7 +62,7 @@ pub(crate) fn latency_policy_line<'a>(
     probing: bool,
     lang: &Lang<'_>,
 ) -> Element<'a, Message> {
-    let display = project_dns_latency(report, lang.0);
+    let display = project_dns_latency(report, &Lang(lang.0));
     let label = display.summary;
     let kind = observation_badge(display.tone);
     let mut body = column![
@@ -99,7 +99,7 @@ pub(crate) fn self_heal_panel<'a>(
     snapshot: &DnsSelfHealSnapshot,
     lang: &Lang<'_>,
 ) -> Element<'a, Message> {
-    let display = project_dns_health(snapshot, lang.0);
+    let display = project_dns_health(snapshot, &Lang(lang.0));
     let overall = display.overall.clone();
     let kind = observation_badge(display.tone);
     let mut body = column![
@@ -160,7 +160,7 @@ pub(crate) fn fake_ip_pool_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> El
     let display = project_mappings(
         &state.editor.dns_fake_ip_pool,
         &state.editor.dns_fake_ip_query,
-        lang.0,
+        &Lang(lang.0),
     );
     let source_line: Element<'_, Message> = text(display.source.clone()).size(11).into();
 
@@ -232,8 +232,8 @@ pub(crate) fn hosts_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'
     card(
         Some(lang.tr("dns_hosts_title").into_owned()),
         column![
-            text(summary(editor, lang.0)).size(12),
-            text(feedback(editor, lang.0)).size(11),
+            text(summary(editor, &Lang(lang.0))).size(12),
+            text(feedback(editor, &Lang(lang.0))).size(11),
             text_btn(
                 lang.tr("dns_hosts_open").into_owned(),
                 style_accent,

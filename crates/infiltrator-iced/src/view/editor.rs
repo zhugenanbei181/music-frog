@@ -99,13 +99,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 icon_themed(Icon::Shield, 14.0, |t: &Theme| tokens(t).warning),
                 Space::new().width(theme::SP_SM),
                 column![
-                    text(protection_label(protection, lang.0))
+                    text(protection_label(protection, &Lang(lang.0)))
                         .size(12)
                         .font(FONT_SEMIBOLD)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_primary),
                         }),
-                    text(protection_hint(protection, lang.0))
+                    text(protection_hint(protection, &Lang(lang.0)))
                         .size(11)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
@@ -563,14 +563,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .editor
                 .document_session
                 .status_fact(&state.editor.editor_content.text()),
-            &state.shell.lang,
+            &Lang(&state.shell.lang),
         ),
         EditorPane::Mixin => status(
             &state
                 .editor
                 .mixin_session
                 .status_fact(&state.editor.mixin_content.text()),
-            &state.shell.lang,
+            &Lang(&state.shell.lang),
         ),
         _ => String::new(),
     };

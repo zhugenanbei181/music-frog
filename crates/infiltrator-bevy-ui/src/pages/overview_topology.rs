@@ -42,6 +42,7 @@ use infiltrator_contract::traffic_topology::{
 };
 use infiltrator_presentation::traffic_topology_projection;
 use infiltrator_presentation::traffic_topology_projection::status_label;
+use infiltrator_shared::locales::Lang;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 #[cfg(any(feature = "capture-tools", test))]
@@ -57,7 +58,7 @@ pub fn topology_chain_scene_with_snapshot(
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
     header_a11y.set_label(UiLocale::default().text("overview_topology_label"));
-    let header = status_label(snapshot, UiLocale::default().code());
+    let header = status_label(snapshot, &Lang(UiLocale::default().code()));
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -350,7 +351,7 @@ pub(crate) fn topology_text_value(
     locale: &str,
 ) -> String {
     if marker.kind == TopologyTextKind::HeaderBadge {
-        return status_label(snapshot, locale);
+        return status_label(snapshot, &Lang(locale));
     }
 
     let Some(node) = snapshot.node(marker.stage) else {

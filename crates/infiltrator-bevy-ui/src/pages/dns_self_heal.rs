@@ -28,13 +28,14 @@ use infiltrator_presentation::dns_health_projection::project_dns_health;
 use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_presentation::stun_projection::project_stun;
 use infiltrator_shared::dns_observation::DnsObservationTone;
+use infiltrator_shared::locales::Lang;
 
 /// The DNS self-heal card (overall state + one row per check).
 pub fn dns_self_heal_card_scene(
     projection: &DnsProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let display = project_dns_health(&projection.self_heal, UiLocale::default().code());
+    let display = project_dns_health(&projection.self_heal, &Lang(UiLocale::default().code()));
     let overall_label = display.overall.clone();
     let listing = display.listing();
     let overall_color = observation_color(display.tone, palette);
@@ -95,11 +96,11 @@ pub fn sync_dns_observation_lines(
     let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) else {
         return;
     };
-    let display = project_dns_health(&projection.self_heal, locale.code());
+    let display = project_dns_health(&projection.self_heal, &Lang(locale.code()));
     let listing = display.listing();
-    let latency = project_dns_latency(&projection.latency, locale.code());
+    let latency = project_dns_latency(&projection.latency, &Lang(locale.code()));
     let latency_listing = latency.listing();
-    let stun = project_stun(&projection.stun, locale.code());
+    let stun = project_stun(&projection.stun, &Lang(locale.code()));
     for (mut text, mut color, line) in &mut lines {
         let (wanted, tone) = match line.0 {
             DnsLineKind::StunConclusion => (stun.status.clone(), stun.tone),
@@ -113,7 +114,7 @@ pub fn sync_dns_observation_lines(
                     continue;
                 };
                 (
-                    server_tags_text(&server.tags, locale.code()),
+                    server_tags_text(&server.tags, &Lang(locale.code())),
                     DnsObservationTone::Neutral,
                 )
             }
@@ -193,7 +194,7 @@ mod tests {
         ]);
         let projection = projection(snapshot);
         assert_eq!(
-            project_dns_health(&projection.self_heal, "zh-CN").overall,
+            project_dns_health(&projection.self_heal, &Lang("zh-CN")).overall,
             "故障"
         );
         let palette = UiPalette::new(&Theme::dark());
@@ -204,7 +205,7 @@ mod tests {
     fn an_unobserved_snapshot_renders_unknown() {
         let projection = projection(DnsSelfHealSnapshot::default());
         assert_eq!(
-            project_dns_health(&projection.self_heal, "zh-CN").overall,
+            project_dns_health(&projection.self_heal, &Lang("zh-CN")).overall,
             "未观测"
         );
         let palette = UiPalette::new(&Theme::dark());

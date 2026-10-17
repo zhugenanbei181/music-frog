@@ -19,7 +19,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         uwp_summary(
             &uwp.availability,
             uwp.apps.iter().map(|app| app.is_exempt),
-            lang.0,
+            &Lang(lang.0),
         )
     });
 

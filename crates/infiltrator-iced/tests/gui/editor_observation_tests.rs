@@ -17,6 +17,7 @@ use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_presentation::profile_edit_status_projection::status;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::future::Future;
@@ -82,7 +83,7 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
     assert!(
         status(
             &state.editor.document_session.status_fact(&initial),
-            "en-US"
+            &Lang("en-US")
         )
         .starts_with("Editor read failed:")
     );

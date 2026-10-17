@@ -251,7 +251,7 @@ impl RulesJsonState {
                 .unwrap_or(false),
             self.published_document().is_some(),
             self.status,
-            language,
+            &Lang(language),
         )
     }
 }

@@ -5,8 +5,7 @@ use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
 };
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileReferenceStore,
+    ActiveProfileOwnerRecoveryOutcome, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
@@ -14,6 +13,7 @@ use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_ports::engine_switch::OwnerRecoveryEvidence;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -99,13 +99,11 @@ impl AndroidCoreOwnerRecoveryApplication {
 
         self.vpn.stop().await?;
         let evidence = match &candidate {
-            RecoveryCandidate::NeverStarted { terminal } => {
-                ActiveProfileOwnerRecoveryEvidence::NeverStarted {
-                    terminal: terminal.clone(),
-                }
-            }
+            RecoveryCandidate::NeverStarted { terminal } => OwnerRecoveryEvidence::NeverStarted {
+                terminal: terminal.clone(),
+            },
             RecoveryCandidate::ManagedChildExited { context, terminal } => {
-                ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+                OwnerRecoveryEvidence::ManagedChildExited {
                     context: context.clone(),
                     terminal: terminal.clone(),
                 }

@@ -2,12 +2,12 @@
 
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::redact::redact_line;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 use lurker_ui_presentation::routing_intent_actions::RoutingIntentActions;
 
 pub fn from_surface(snapshot: &SurfaceSnapshot) -> RoutingIntentSnapshot {
@@ -64,41 +64,45 @@ pub fn routing_intent_copy_key(intent: &RoutingIntent) -> &'static str {
     }
 }
 
-pub fn routing_intent_copy(intent: &RoutingIntent, locale: &str) -> String {
+pub fn routing_intent_copy(intent: &RoutingIntent, catalog: &dyn TextCatalog) -> String {
     match intent {
         RoutingIntent::EngineDefined(extension) => interpolate(
-            Lang(locale).tr(routing_intent_copy_key(intent)).as_ref(),
+            catalog.text(routing_intent_copy_key(intent)).as_ref(),
             &[("extension", extension.extension_id().as_str())],
         ),
-        _ => Lang(locale)
-            .tr(routing_intent_copy_key(intent))
-            .into_owned(),
+        _ => catalog.text(routing_intent_copy_key(intent)).into_owned(),
     }
 }
 
-pub fn routing_intent_failure_copy(actions: &RoutingIntentActions, locale: &str) -> String {
+pub fn routing_intent_failure_copy(
+    actions: &RoutingIntentActions,
+    catalog: &dyn TextCatalog,
+) -> String {
     let Some(failure) = actions.failure() else {
         return String::new();
     };
     let target = actions
         .requested_target()
-        .map(|intent| routing_intent_copy(intent, locale))
-        .unwrap_or_else(|| Lang(locale).tr("shell_readout_unknown").into_owned());
+        .map(|intent| routing_intent_copy(intent, catalog))
+        .unwrap_or_else(|| catalog.text("shell_readout_unknown").into_owned());
     let reason = redact_line(&failure.message, &[]);
     interpolate(
-        Lang(locale).tr("routing_intent_change_failed").as_ref(),
+        catalog.text("routing_intent_change_failed").as_ref(),
         &[("target", &target), ("reason", &reason)],
     )
 }
 
-pub fn routing_intent_status_copy(snapshot: &RoutingIntentSnapshot, locale: &str) -> String {
+pub fn routing_intent_status_copy(
+    snapshot: &RoutingIntentSnapshot,
+    catalog: &dyn TextCatalog,
+) -> String {
     let value = snapshot
         .current
         .as_ref()
-        .map(|intent| routing_intent_copy(intent, locale));
+        .map(|intent| routing_intent_copy(intent, catalog));
     let key = match snapshot.status {
         RoutingIntentStatus::Ready => {
-            return value.unwrap_or_else(|| Lang(locale).tr("shell_readout_unknown").into_owned());
+            return value.unwrap_or_else(|| catalog.text("shell_readout_unknown").into_owned());
         }
         RoutingIntentStatus::Pending => "routing_intent_pending",
         RoutingIntentStatus::Unobserved
@@ -111,8 +115,8 @@ pub fn routing_intent_status_copy(snapshot: &RoutingIntentSnapshot, locale: &str
             }
         }
     };
-    let value = value.unwrap_or_else(|| Lang(locale).tr("shell_readout_unknown").into_owned());
-    interpolate(Lang(locale).tr(key).as_ref(), &[("value", &value)])
+    let value = value.unwrap_or_else(|| catalog.text("shell_readout_unknown").into_owned());
+    interpolate(catalog.text(key).as_ref(), &[("value", &value)])
 }
 
 #[cfg(test)]

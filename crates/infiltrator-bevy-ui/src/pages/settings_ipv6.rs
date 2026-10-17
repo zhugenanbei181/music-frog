@@ -24,13 +24,17 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::settings_status_projection::format_ipv6;
+use infiltrator_shared::locales::Lang;
 
 /// Parent marker for the top-level Mihomo IPv6 policy checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Ipv6RoutingToggle;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    let status = format_ipv6(projection.ipv6_routing.as_ref(), UiLocale::default().code());
+    let status = format_ipv6(
+        projection.ipv6_routing.as_ref(),
+        &Lang(UiLocale::default().code()),
+    );
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -89,7 +93,10 @@ pub(super) fn apply_projection(
     mut commands: Commands,
 ) {
     let wanted = update.0.ipv6_routing.is_some_and(|value| value.enabled);
-    let status = format_ipv6(update.0.ipv6_routing.as_ref(), UiLocale::default().code());
+    let status = format_ipv6(
+        update.0.ipv6_routing.as_ref(),
+        &Lang(UiLocale::default().code()),
+    );
     for (mut text, line) in &mut lines {
         if line.0 == SettingsLineKind::Ipv6Routing {
             text.0 = status.clone();

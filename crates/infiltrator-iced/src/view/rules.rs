@@ -102,7 +102,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
 
-    let preview = editor_preview(&state.editor.rule_list, &state.shell.lang).join("\n");
+    let preview = editor_preview(&state.editor.rule_list, &Lang(&state.shell.lang)).join("\n");
     let controls = row![
         save_rules_action,
         discard,
@@ -118,8 +118,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .wrap();
     let draft_panel = container(
         column![
-            container(text(editor_status(&state.editor.rule_list, &state.shell.lang)).size(12))
-                .id(InteractionRegion::RuleListStatus.id()),
+            container(
+                text(editor_status(
+                    &state.editor.rule_list,
+                    &Lang(&state.shell.lang)
+                ))
+                .size(12)
+            )
+            .id(InteractionRegion::RuleListStatus.id()),
             container(text(preview).size(12)).id(InteractionRegion::RuleListPreview.id()),
             controls
         ]

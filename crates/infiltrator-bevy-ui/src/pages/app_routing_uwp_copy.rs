@@ -46,10 +46,10 @@ pub fn sync(
                     .packages
                     .iter()
                     .map(|package| package.loopback_exempt),
-                locale.code(),
+                &Lang(locale.code()),
             )
         } else if line.empty {
-            uwp_empty(&snapshot.availability, locale.code())
+            uwp_empty(&snapshot.availability, &Lang(locale.code()))
         } else if let Some(marker) = line.name {
             snapshot
                 .packages

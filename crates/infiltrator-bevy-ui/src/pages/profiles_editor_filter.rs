@@ -23,6 +23,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_presentation::subscription_filter_copy::status;
+use infiltrator_shared::locales::Lang;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct EditorFilterText(pub FilterField);
@@ -180,7 +181,7 @@ pub(super) fn render_status(
             palette.border
         });
     }
-    let value = status(&options.filter, locale.code());
+    let value = status(&options.filter, &Lang(locale.code()));
     for mut text in &mut labels {
         if text.0 != value {
             text.0.clone_from(&value);

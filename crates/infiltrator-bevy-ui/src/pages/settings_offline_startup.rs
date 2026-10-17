@@ -19,12 +19,13 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_presentation::settings_status_projection::format_offline_startup;
+use infiltrator_shared::locales::Lang;
 
 pub(super) fn offline_startup_row_scene(
     snapshot: &OfflineStartupSnapshot,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let status = format_offline_startup(snapshot, UiLocale::default().code());
+    let status = format_offline_startup(snapshot, &Lang(UiLocale::default().code()));
     Box::new(bsn! {
             Node {
                 width: percent(100),

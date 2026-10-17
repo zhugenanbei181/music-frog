@@ -5,6 +5,7 @@
 #[path = "overview_restamp_query_access.rs"]
 pub mod query_access;
 use self::query_access::{OverviewDynamicTextItem, OverviewProjectionTargets};
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{
@@ -205,8 +206,8 @@ pub(crate) fn master_switch_text_value(
     locale: &str,
 ) -> String {
     match kind {
-        OverviewMasterSwitchTextKind::Status => status_label(snapshot.state(toggle), locale),
-        OverviewMasterSwitchTextKind::Action => action_label(snapshot.state(toggle), locale),
+        OverviewMasterSwitchTextKind::Status => status_label(snapshot.state(toggle), &Lang(locale)),
+        OverviewMasterSwitchTextKind::Action => action_label(snapshot.state(toggle), &Lang(locale)),
     }
 }
 
@@ -296,7 +297,7 @@ pub(crate) fn apply_overview_projection(
     let projection = &update.0;
     let palette = &appearance.palette;
     let language = appearance.locale.code();
-    let quota_presentation = project_quota(&projection.subscription_quota, language);
+    let quota_presentation = project_quota(&projection.subscription_quota, &Lang(language));
     for (mut text, mut ink, line, semantic) in &mut lines {
         match line.0 {
             OverviewLineKind::State => {
@@ -308,27 +309,30 @@ pub(crate) fn apply_overview_projection(
                 }
             }
             OverviewLineKind::Upload => {
-                text.0 = format!("↑ {}", rate_copy(&projection.readout.upload_bps, language));
+                text.0 = format!(
+                    "↑ {}",
+                    rate_copy(&projection.readout.upload_bps, &Lang(language))
+                );
                 ink.0 = palette.success;
             }
             OverviewLineKind::Download => {
                 text.0 = format!(
                     "↓ {}",
-                    rate_copy(&projection.readout.download_bps, language)
+                    rate_copy(&projection.readout.download_bps, &Lang(language))
                 );
             }
             OverviewLineKind::TelemetryFailure => {
-                text.0 = rate_status(&projection.readout, language)
+                text.0 = rate_status(&projection.readout, &Lang(language))
             }
             OverviewLineKind::Failure => {
                 text.0 = failure_copy(
                     &projection.lifecycle,
                     projection.failure.as_deref(),
-                    language,
+                    &Lang(language),
                 )
             }
             OverviewLineKind::RoutingIntentChip => {
-                text.0 = routing_intent_status_copy(&projection.routing_intent, language)
+                text.0 = routing_intent_status_copy(&projection.routing_intent, &Lang(language))
             }
             OverviewLineKind::BannerNote => text.0 = banner_note(projection, language),
             OverviewLineKind::Scale => text.0 = format_scale(&projection.traffic_scale),
@@ -342,8 +346,10 @@ pub(crate) fn apply_overview_projection(
             OverviewChipKind::Connections => projection.active_connections.to_string(),
             OverviewChipKind::Memory => format_memory(&projection.memory_bytes),
             OverviewChipKind::Cpu => format_cpu(&projection.cpu_percent),
-            OverviewChipKind::Upload => rate_copy(&projection.readout.upload_bps, language),
-            OverviewChipKind::Download => rate_copy(&projection.readout.download_bps, language),
+            OverviewChipKind::Upload => rate_copy(&projection.readout.upload_bps, &Lang(language)),
+            OverviewChipKind::Download => {
+                rate_copy(&projection.readout.download_bps, &Lang(language))
+            }
             OverviewChipKind::TotalTraffic => format_total_traffic(projection.total_traffic_bytes),
         };
         if let Some(mut node) = semantic {

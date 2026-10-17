@@ -41,8 +41,9 @@ use infiltrator_contract::doctor::{DoctorCheckKind, DoctorStatus};
 use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
 use infiltrator_presentation::doctor_projection::{summary, watchdog_status_text};
 use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::Lang;
 #[cfg(any(feature = "capture-tools", test))]
-use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_shared::locales::Localizer;
 
 #[path = "doctor_self_heal.rs"]
 pub mod self_heal;
@@ -265,14 +266,14 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
     let summary = summary(
         projection.checks.iter().map(|check| check.state),
         projection.report_finished_at,
-        code.code(),
+        &Lang(code.code()),
     );
     let last_run_str = localize(
         code.code(),
         "doctor_last_run_value",
         &[("time", projection.last_run.clone())],
     );
-    let watchdog_str = watchdog_status_text(&projection.watchdog, code.code());
+    let watchdog_str = watchdog_status_text(&projection.watchdog, &Lang(code.code()));
 
     let check_scenes: Vec<Box<dyn Scene>> = projection
         .checks
@@ -432,7 +433,7 @@ pub(crate) fn apply_doctor_projection(
                 text.0 = summary(
                     projection.checks.iter().map(|check| check.state),
                     projection.report_finished_at,
-                    code,
+                    &Lang(code),
                 );
             }
             DoctorLineKind::LastRun => {
@@ -443,7 +444,7 @@ pub(crate) fn apply_doctor_projection(
                 );
             }
             DoctorLineKind::Watchdog => {
-                text.0 = watchdog_status_text(&projection.watchdog, code);
+                text.0 = watchdog_status_text(&projection.watchdog, &Lang(code));
             }
         }
     }

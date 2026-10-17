@@ -19,7 +19,7 @@ pub fn routing_intent_issue(state: &AppState) -> Element<'_, Message> {
         column![
             text(routing_intent_failure_copy(
                 &state.runtime.routing_intent_actions,
-                lang.0,
+                &Lang(lang.0),
             ))
             .size(12)
             .style(|theme: &Theme| text::Style {

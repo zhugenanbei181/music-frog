@@ -8,6 +8,7 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::document::definitions_from_entries;
 use infiltrator_presentation::rule_form_binding::RuleFormBinding;
 use infiltrator_presentation::rule_list_editor::{RuleListEditor, RuleListReadback};
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use infiltrator_test_support::rule_workspace_test_support::rule_workspace;
 use std::sync::atomic::Ordering;
@@ -248,7 +249,7 @@ fn unsent_form_source_is_retained_across_refresh_and_only_explicit_reset_rebinds
         form.require_current(&editor).unwrap_err().code,
         ErrorCode::NotReady
     );
-    assert!(form.status(&editor, "en-US").contains("first.yaml"));
+    assert!(form.status(&editor, &Lang("en-US")).contains("first.yaml"));
     form.edit(&editor);
     assert!(
         !form.current(&editor),
@@ -269,7 +270,7 @@ fn unsent_form_source_is_retained_across_refresh_and_only_explicit_reset_rebinds
     editor.begin().unwrap();
     assert!(!form.current(&editor));
     assert_eq!(
-        form.status(&editor, "en-US"),
+        form.status(&editor, &Lang("en-US")),
         "",
         "an in-flight save is not a changed form source"
     );

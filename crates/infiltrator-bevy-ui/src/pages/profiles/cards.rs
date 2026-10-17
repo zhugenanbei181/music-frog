@@ -27,6 +27,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::profile_editor_projection::protection_label;
 use infiltrator_presentation::profile_metadata_projection;
+use infiltrator_shared::locales::Lang;
 
 pub(super) fn header_card_scene(
     summary: String,
@@ -111,16 +112,17 @@ pub(super) fn profile_card_scene(
     let name = profile.name.clone();
     let url = profile.url.clone();
     let locale = UiLocale::default();
-    let updated = profile_metadata_projection::updated(&profile.updated_at, locale.code());
+    let updated = profile_metadata_projection::updated(&profile.updated_at, &Lang(locale.code()));
     let traffic_str = profile_metadata_projection::traffic_caption(
         &profile_metadata_projection::traffic(
             profile.upload_bytes,
             profile.download_bytes,
             profile.total_bytes,
         ),
-        locale.code(),
+        &Lang(locale.code()),
     );
-    let status_str = profile_metadata_projection::active_status(profile.is_active, locale.code());
+    let status_str =
+        profile_metadata_projection::active_status(profile.is_active, &Lang(locale.code()));
     let schedule_str = profile_schedule_summary(profile, locale.code());
     let btn_bg = if profile.is_active {
         palette.success
@@ -154,7 +156,7 @@ pub(super) fn profile_card_scene(
                             --
                             Text(url) TextRole(Role::Caption)
                             --
-                            Text({ protection_label(profile.write_protection, locale.code()) })
+                            Text({ protection_label(profile.write_protection, &Lang(locale.code())) })
                             ProfileProtectionText(idx)
                             TextRole(Role::Caption)
                             --

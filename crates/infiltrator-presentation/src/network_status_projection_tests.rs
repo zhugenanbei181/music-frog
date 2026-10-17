@@ -10,32 +10,33 @@ use infiltrator_contract::system_proxy::{
     SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxySnapshot, SystemProxyStatus,
 };
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn missing_network_facts_are_unknown_and_observed_zero_is_preserved() {
     let mut snapshot = NetworkRoamingSnapshot::default();
     assert_eq!(
-        roaming_mtu(&snapshot, "en-US"),
+        roaming_mtu(&snapshot, &Lang("en-US")),
         "Physical MTU — → TUN — · MSS —"
     );
     assert_eq!(
-        roaming_interfaces(&snapshot, "en-US"),
+        roaming_interfaces(&snapshot, &Lang("en-US")),
         "Interface facts not observed"
     );
     assert_eq!(
-        roaming_route(&snapshot, "en-US"),
+        roaming_route(&snapshot, &Lang("en-US")),
         "Active interface — · Gateway — · Physical MTU — → TUN — · MSS — · No recent event"
     );
     snapshot.physical_mtu = Some(1500);
     snapshot.recommended_tun_mtu = Some(1420);
     snapshot.tcp_mss = Some(0);
     assert_eq!(
-        roaming_mtu(&snapshot, "en-US"),
+        roaming_mtu(&snapshot, &Lang("en-US")),
         "Physical MTU 1500 → TUN 1420 · MSS 0"
     );
     assert_eq!(
-        roaming_mtu(&snapshot, "zh-CN"),
+        roaming_mtu(&snapshot, &Lang("zh-CN")),
         "物理 MTU 1500 → TUN 1420 · MSS 0"
     );
     assert_eq!(snapshot.tcp_mss, Some(0));
@@ -50,7 +51,7 @@ fn gateway_changes_keep_both_interfaces_and_addresses_without_reinterpreting_dat
         new_gateway_ip: Some("192.0.2.2".into()),
     };
     assert_eq!(
-        roaming_event(&event, "en-US"),
+        roaming_event(&event, &Lang("en-US")),
         "Gateway changed eth{gateway} → wlan{event} (192.0.2.1 → 192.0.2.2)"
     );
     let snapshot = NetworkRoamingSnapshot {
@@ -59,7 +60,7 @@ fn gateway_changes_keep_both_interfaces_and_addresses_without_reinterpreting_dat
         ..Default::default()
     };
     assert_eq!(
-        roaming_route(&snapshot, "en-US"),
+        roaming_route(&snapshot, &Lang("en-US")),
         "Active interface {mtu} · Gateway — · Physical MTU — → TUN — · MSS — · Gateway changed eth{gateway} → wlan{event} (192.0.2.1 → 192.0.2.2)"
     );
 }
@@ -72,7 +73,7 @@ fn network_failure_reason_is_redacted_and_unsupported_stays_distinct() {
             &NetworkRoamingStatus::Failed {
                 failure: failure.clone()
             },
-            "en-US"
+            &Lang("en-US")
         ),
         "Repair failed · token=*** {status}"
     );
@@ -81,12 +82,15 @@ fn network_failure_reason_is_redacted_and_unsupported_stays_distinct() {
             &NetworkRoamingStatus::Unsupported {
                 reason: "adapter missing".into()
             },
-            "en-US"
+            &Lang("en-US")
         ),
         "Host unsupported · adapter missing"
     );
     assert_eq!(
-        roaming_event(&NetworkRoamingEvent::RepairFailed { failure }, "en-US"),
+        roaming_event(
+            &NetworkRoamingEvent::RepairFailed { failure },
+            &Lang("en-US")
+        ),
         "Repair failed · token=*** {status}"
     );
 }
@@ -101,25 +105,25 @@ fn system_proxy_ownership_and_recovery_replay_the_same_facts_in_both_locales() {
     };
     let mut recovery = SystemProxyRecoverySnapshot::default();
     assert_eq!(
-        system_proxy_status(&snapshot, &recovery, "en-US"),
+        system_proxy_status(&snapshot, &recovery, &Lang("en-US")),
         "Owned · 127.0.0.1:7890"
     );
     assert_eq!(
-        system_proxy_status(&snapshot, &recovery, "zh-CN"),
+        system_proxy_status(&snapshot, &recovery, &Lang("zh-CN")),
         "已接管 · 127.0.0.1:7890"
     );
     recovery.status = SystemProxyRecoveryStatus::Failed {
         failure: Failure::new(ErrorCode::Storage, "password=privatevalue {status}", false),
     };
     assert_eq!(
-        system_proxy_status(&snapshot, &recovery, "en-US"),
+        system_proxy_status(&snapshot, &recovery, &Lang("en-US")),
         "Startup recovery failed · password=*** {status}"
     );
     assert_eq!(
         system_proxy_status(
             &SystemProxySnapshot::default(),
             &SystemProxyRecoverySnapshot::default(),
-            "en-US"
+            &Lang("en-US")
         ),
         "Not probed"
     );

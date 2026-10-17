@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn captions_preserve_missing_stages_actual_line_counts_and_blocking_causes() {
@@ -9,7 +10,7 @@ fn captions_preserve_missing_stages_actual_line_counts_and_blocking_causes() {
         line_count: 1,
     };
     assert_eq!(
-        column_caption(&columns, "en-US"),
+        column_caption(&columns, &Lang("en-US")),
         "Mixin overlay · 1 lines · editable"
     );
     let report = ProfileMixinCascade::Merged {
@@ -27,10 +28,10 @@ fn captions_preserve_missing_stages_actual_line_counts_and_blocking_causes() {
         ],
         line_count: 2,
     };
-    assert!(cascade_caption(&report, "en-US").contains("Subscription (not declared)"));
-    assert!(cascade_caption(&report, "zh-CN").contains("未声明"));
+    assert!(cascade_caption(&report, &Lang("en-US")).contains("Subscription (not declared)"));
+    assert!(cascade_caption(&report, &Lang("zh-CN")).contains("未声明"));
     assert_eq!(
-        composed_error(Some("cause {error}/中文🙂"), "en-US"),
+        composed_error(Some("cause {error}/中文🙂"), &Lang("en-US")),
         "Composition blocked: cause {error}/中文🙂"
     );
 }

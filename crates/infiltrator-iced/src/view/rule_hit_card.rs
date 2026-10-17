@@ -22,7 +22,7 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
     lang: &Lang<'_>,
 ) -> Element<'a, Message, Theme, R> {
     let model = &state.editor.rule_hit_audit;
-    let display = project_inspector(model, &state.editor.rule_list, &state.shell.lang);
+    let display = project_inspector(model, &state.editor.rule_list, &Lang(&state.shell.lang));
     let mut tabs = row![];
     for tab in StatisticsTab::ALL {
         let region = match tab {

@@ -73,7 +73,7 @@ pub fn build_tray_spec(ctx: &TraySpecContext<'_>) -> TraySpec {
 /// Localized display text for the current routing intent (`-` when unset).
 fn routing_intent_text(ctx: &TraySpecContext<'_>) -> String {
     ctx.routing_intent
-        .map(|intent| routing_intent_copy(intent, ctx.lang))
+        .map(|intent| routing_intent_copy(intent, &Lang(ctx.lang)))
         .unwrap_or_else(|| "-".to_string())
 }
 
@@ -130,7 +130,7 @@ fn routing_intent_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem
             .into_iter()
             .map(|(id, intent)| {
                 let active = ctx.routing_intent == Some(&intent);
-                let label = routing_intent_copy(&intent, ctx.lang);
+                let label = routing_intent_copy(&intent, &Lang(ctx.lang));
                 TrayMenuItem::Action {
                     id,
                     label: if active {

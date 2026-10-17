@@ -379,7 +379,7 @@ mod ksni_mapping {
                             label,
                             &format!(
                                 "● {}",
-                                routing_intent_copy(&RoutingIntent::BypassProxy, "zh-CN")
+                                routing_intent_copy(&RoutingIntent::BypassProxy, &Lang("zh-CN"))
                             )
                         )
                     }

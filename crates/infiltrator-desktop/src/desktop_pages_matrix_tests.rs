@@ -143,8 +143,8 @@ fn test_overview_page_shared_presentation_and_lifecycle_semantics() {
     let snapshot = desktop_surface_snapshot();
 
     // 1. Lifecycle projection reflects true Running state across locales
-    let status_en = lifecycle_copy(&snapshot.core.lifecycle, "en-US");
-    let status_zh = lifecycle_copy(&snapshot.core.lifecycle, "zh-CN");
+    let status_en = lifecycle_copy(&snapshot.core.lifecycle, &Lang("en-US"));
+    let status_zh = lifecycle_copy(&snapshot.core.lifecycle, &Lang("zh-CN"));
     assert!(!status_en.is_empty());
     assert!(!status_zh.is_empty());
 
@@ -193,8 +193,8 @@ fn test_routing_and_network_page_shared_intents() {
         RoutingIntent::BypassProxy,
     ];
     for intent in intents {
-        let label_en = routing_intent_copy(&intent, "en-US");
-        let label_zh = routing_intent_copy(&intent, "zh-CN");
+        let label_en = routing_intent_copy(&intent, &Lang("en-US"));
+        let label_zh = routing_intent_copy(&intent, &Lang("zh-CN"));
         assert!(!label_en.is_empty());
         assert!(!label_zh.is_empty());
     }

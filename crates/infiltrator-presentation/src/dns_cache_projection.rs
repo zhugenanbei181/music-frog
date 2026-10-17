@@ -1,9 +1,9 @@
 //! One localized fold for the confirmation and per-target facts on both peers.
 use crate::dns_cache_actions::DnsCacheActions;
+use crate::text::localize;
 use infiltrator_contract::dns_cache::DnsCacheOperation;
 use infiltrator_contract::dns_cache::{DnsCacheFlushReport, DnsFlushOutcome};
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachePresentation {
     pub status: String,
@@ -16,35 +16,35 @@ pub struct CachePresentation {
     pub close: bool,
 }
 
-pub fn flush_outcome(outcome: &DnsFlushOutcome, code: &str) -> String {
+pub fn flush_outcome(outcome: &DnsFlushOutcome, catalog: &dyn TextCatalog) -> String {
     match outcome {
-        DnsFlushOutcome::NotRequested => Lang(code).tr("dns_flush_not_requested").into_owned(),
-        DnsFlushOutcome::Flushed => Lang(code).tr("dns_flush_flushed").into_owned(),
+        DnsFlushOutcome::NotRequested => catalog.text("dns_flush_not_requested").into_owned(),
+        DnsFlushOutcome::Flushed => catalog.text("dns_flush_flushed").into_owned(),
         DnsFlushOutcome::Unsupported { reason } => localize(
-            code,
+            catalog,
             "dns_flush_unsupported_detail",
             &[("reason", reason.clone())],
         ),
         DnsFlushOutcome::Failed { failure } => localize(
-            code,
+            catalog,
             "dns_flush_failed_detail",
             &[("reason", failure.message.clone())],
         ),
     }
 }
 
-pub fn flush_summary(report: &DnsCacheFlushReport, code: &str) -> String {
+pub fn flush_summary(report: &DnsCacheFlushReport, catalog: &dyn TextCatalog) -> String {
     localize(
-        code,
+        catalog,
         "dns_flush_summary",
         &[
-            ("fakeip", flush_outcome(&report.fake_ip, code)),
-            ("os", flush_outcome(&report.os_cache, code)),
+            ("fakeip", flush_outcome(&report.fake_ip, catalog)),
+            ("os", flush_outcome(&report.os_cache, catalog)),
         ],
     )
 }
 
-pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
+pub fn project_cache(state: &DnsCacheActions, catalog: &dyn TextCatalog) -> CachePresentation {
     let requested = state.requested_operation();
     let confirmed = state.is_confirmed();
     let pending = state.is_pending();
@@ -70,18 +70,18 @@ pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
     });
     let status = if confirmed && let Some(failure) = failure {
         localize(
-            code,
+            catalog,
             "dns_cache_failure_detail",
             &[("reason", failure.message.clone())],
         )
     } else {
-        localize(code, key, &[])
+        localize(catalog, key, &[])
     };
     CachePresentation {
         status,
         error: confirmed && failure.is_some(),
         results_label: localize(
-            code,
+            catalog,
             if confirmed && requested == state.snapshot.report_id {
                 "dns_cache_this_request"
             } else {
@@ -90,19 +90,19 @@ pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
             &[],
         ),
         fake_ip: localize(
-            code,
+            catalog,
             "dns_cache_fake_ip_result",
             &[(
                 "result",
-                flush_outcome(&state.snapshot.report.fake_ip, code),
+                flush_outcome(&state.snapshot.report.fake_ip, catalog),
             )],
         ),
         system: localize(
-            code,
+            catalog,
             "dns_cache_system_result",
             &[(
                 "result",
-                flush_outcome(&state.snapshot.report.os_cache, code),
+                flush_outcome(&state.snapshot.report.os_cache, catalog),
             )],
         ),
         confirm: state.is_open() && !confirmed && !pending,

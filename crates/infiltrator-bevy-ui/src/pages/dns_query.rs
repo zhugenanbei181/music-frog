@@ -24,6 +24,7 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsRecordType};
 use infiltrator_presentation::dns_query_actions::{DnsQueryActions, QuerySection};
 use infiltrator_presentation::dns_query_projection::project_query;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
@@ -260,7 +261,7 @@ pub fn render(
     mut controls: Query<QueryControl, (Without<QueryModalRoot>, Without<QueryTypeMenu>)>,
     mut lines: Query<(&QueryLine, &mut Text, &mut TextColor)>,
 ) {
-    let view = project_query(&state.model, locale.code());
+    let view = project_query(&state.model, &Lang(locale.code()));
     for mut node in &mut roots {
         let display = if state.model.is_open() {
             Display::Flex

@@ -13,6 +13,7 @@ use infiltrator_contract::network_roaming::{
 };
 use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_shared::locales::Lang;
 use std::fs::read;
 
 #[test]
@@ -153,7 +154,7 @@ fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
         state.runtime.subscription_quota.status,
         SubscriptionQuotaStatus::Unknown
     );
-    let unknown = project_quota(&state.runtime.subscription_quota, "en-US");
+    let unknown = project_quota(&state.runtime.subscription_quota, &Lang("en-US"));
     assert_eq!(unknown.used, "—");
     assert_eq!(unknown.total, "—");
     assert_eq!(unknown.fraction, None);
@@ -177,7 +178,7 @@ fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
     assert_eq!(state.runtime.subscription_quota.used_bytes, Some(0));
     assert_eq!(state.runtime.subscription_quota.total_bytes, Some(100));
     assert_eq!(
-        project_quota(&state.runtime.subscription_quota, "en-US").usage,
+        project_quota(&state.runtime.subscription_quota, &Lang("en-US")).usage,
         "0.0%"
     );
     assert_eq!(
@@ -188,7 +189,7 @@ fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
     );
     assert_eq!(state.profile.subscription_update_interval_hours, "6");
     assert_eq!(
-        project_quota(&state.runtime.subscription_quota, "zh-CN").profile,
+        project_quota(&state.runtime.subscription_quota, &Lang("zh-CN")).profile,
         "provider {usage}"
     );
 }

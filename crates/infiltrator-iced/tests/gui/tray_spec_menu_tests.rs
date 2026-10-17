@@ -23,7 +23,7 @@ use crate::tray::spec::{
     TRAY_SUBMENU_ROUTING_INTENT, TRAY_SUBMENU_SYNC, TrayCoreStatus, TrayEvent, TrayEventContext,
     TrayIntent, TrayMenuItem, decode_pair_payload, encode_pair_payload, resolve_tray_event_in,
 };
-use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_shared::locales::Localizer;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[path = "tray_spec_menu_tests/every.rs"]

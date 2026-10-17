@@ -115,7 +115,7 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
 pub fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let lifecycle = state.core_lifecycle_snapshot().lifecycle;
     let running = matches!(lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready);
-    let status_text = lifecycle_copy(&lifecycle, lang.0);
+    let status_text = lifecycle_copy(&lifecycle, &Lang(lang.0));
 
     let projection = state.core_control_projection();
     let stop = projection.action == Some(CoreControlAction::Stop);
@@ -169,7 +169,7 @@ fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let mut meta = row![].spacing(theme::SP_SM).align_y(Alignment::Center);
 
     if let Some(intent) = state.runtime.routing_intent.as_ref() {
-        meta = meta.push(chip(routing_intent_copy(intent, lang.0)));
+        meta = meta.push(chip(routing_intent_copy(intent, &Lang(lang.0))));
     }
 
     if let Some(version) = default_core_version(state) {

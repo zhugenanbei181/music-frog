@@ -40,6 +40,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rule_edit::LogicalDraft;
 use infiltrator_domain::rules::{edit, logical};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
+use infiltrator_shared::locales::Lang;
 
 /// Marker for the sub-rule builder card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -105,7 +106,7 @@ impl Default for RulesSubRuleState {
 /// draft it is built with; the interaction observer restamps and, when the
 /// condition rows change, rebuilds the list body from the same reduction.
 pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> impl Scene + use<> {
-    let display = project_logical_rule(&state.draft, "en-US");
+    let display = project_logical_rule(&state.draft, &Lang("en-US"));
     let chips: Vec<Box<dyn Scene>> = logical::LOGICAL_OPERATOR_CHOICES
         .iter()
         .enumerate()

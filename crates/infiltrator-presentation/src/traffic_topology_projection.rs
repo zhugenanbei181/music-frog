@@ -1,17 +1,17 @@
 //! Localized topology status from explicit observations, shared by both peers.
+use crate::text::localize;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TrafficTopologyNavigationTarget, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus,
 };
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
-pub fn status_label(snapshot: &TrafficTopologySnapshot, locale: &str) -> String {
+pub fn status_label(snapshot: &TrafficTopologySnapshot, catalog: &dyn TextCatalog) -> String {
     let key = match snapshot.status {
         TrafficTopologyStatus::Ready => {
             return localize(
-                locale,
+                catalog,
                 "overview_topology_flowing",
                 &[("count", snapshot.active_connections.to_string())],
             );
@@ -21,7 +21,7 @@ pub fn status_label(snapshot: &TrafficTopologySnapshot, locale: &str) -> String 
         TrafficTopologyStatus::Unsupported => "overview_topology_unavailable",
         TrafficTopologyStatus::Failed => "overview_topology_failed",
     };
-    Lang(locale).tr(key).into_owned()
+    catalog.text(key).into_owned()
 }
 
 pub const fn navigation_target_for_stage(

@@ -260,7 +260,7 @@ fn add_rule_panel<'a>(
                 state
                     .editor
                     .rule_form_binding
-                    .status(&state.editor.rule_list, &state.shell.lang)
+                    .status(&state.editor.rule_list, &Lang(&state.shell.lang))
             )
             .size(12),
             reset,
@@ -369,7 +369,7 @@ pub(super) fn rules_list_view<'a>(
                 item.source_ip,
                 item.no_resolve,
                 item.failure.as_ref(),
-                &state.shell.lang,
+                &Lang(&state.shell.lang),
             );
 
             rules_list = rules_list.push(
@@ -428,7 +428,7 @@ pub(super) fn rules_list_view<'a>(
                             item.hit_count,
                             is_enabled,
                             item.is_shadowed,
-                            &state.shell.lang
+                            &Lang(&state.shell.lang)
                         ))
                         .size(11),
                         Space::new().width(theme::SP_MD),

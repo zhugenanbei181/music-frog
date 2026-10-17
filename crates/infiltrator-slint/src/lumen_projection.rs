@@ -121,7 +121,7 @@ pub(super) fn project_snapshot(
         CoreLifecycle::Stopped => "Stopped",
         CoreLifecycle::Failed => "Failed",
     };
-    let profile = profile_name(&snapshot.shell_readout, &language);
+    let profile = profile_name(&snapshot.shell_readout, &lang);
     let current_profile = snapshot.shell_readout.profile.current_value().is_some();
     let active_node = if snapshot.active_exit.is_drawable() {
         snapshot
@@ -132,11 +132,8 @@ pub(super) fn project_snapshot(
     } else {
         lang.tr("未知").into_owned()
     };
-    let traffic = project_traffic_readout(
-        &snapshot.shell_readout,
-        &snapshot.traffic_waveform,
-        &language,
-    );
+    let traffic =
+        project_traffic_readout(&snapshot.shell_readout, &snapshot.traffic_waveform, &lang);
 
     window.set_runtime_status(lifecycle.into());
     let runtime_detail = snapshot

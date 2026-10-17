@@ -98,7 +98,7 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
                 .size(11)
                 .width(Length::Fill),
             container(
-                text(status(&state.editor.filter_editor, lang.0))
+                text(status(&state.editor.filter_editor, &Lang(lang.0)))
                     .size(12)
                     .width(Length::Fill)
             )

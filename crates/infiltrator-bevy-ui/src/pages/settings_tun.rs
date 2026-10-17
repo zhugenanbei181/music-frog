@@ -26,9 +26,13 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::settings_status_projection::optional_copy;
+use infiltrator_shared::locales::Lang;
 
 pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let stack_str = optional_copy(projection.tun_stack.as_ref(), UiLocale::default().code());
+    let stack_str = optional_copy(
+        projection.tun_stack.as_ref(),
+        &Lang(UiLocale::default().code()),
+    );
 
     surface_scene(
         vec![

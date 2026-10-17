@@ -9,6 +9,7 @@
 #[path = "profiles_diff_query_access.rs"]
 pub mod query_access;
 use self::query_access::{SnapshotDiffModeControls, SnapshotDiffTargets};
+use infiltrator_shared::locales::Lang;
 
 use super::profiles_diff_history::{
     SnapshotHistoryBody, SnapshotHistorySummaryText, backup_button, history_refresh_button,
@@ -117,7 +118,7 @@ pub fn snapshot_diff_scene(
 ) -> impl Scene + use<> {
     let summary = snapshot_presentation::diff_summary(
         projection.yaml_ast_diff.as_ref(),
-        UiLocale::default().code(),
+        &Lang(UiLocale::default().code()),
     );
     let diff_available = projection
         .yaml_ast_diff
@@ -133,7 +134,7 @@ pub fn snapshot_diff_scene(
     let history_summary = snapshot_presentation::history_summary(
         history.as_ref(),
         SNAPSHOT_DEFAULT_KEEP,
-        UiLocale::default().code(),
+        &Lang(UiLocale::default().code()),
     );
     let initial_history_rows = history_rows_scene(history.as_ref(), None, palette);
 
@@ -442,8 +443,10 @@ pub(super) fn sync_snapshot_diff(
     } = targets;
 
     let projection = &update.0;
-    let summary_text =
-        snapshot_presentation::diff_summary(projection.yaml_ast_diff.as_ref(), locale.code());
+    let summary_text = snapshot_presentation::diff_summary(
+        projection.yaml_ast_diff.as_ref(),
+        &Lang(locale.code()),
+    );
     for mut text in &mut summary {
         text.0 = summary_text.clone();
     }
@@ -469,7 +472,7 @@ pub(super) fn sync_snapshot_diff(
     let history_summary_text = snapshot_presentation::history_summary(
         projection.snapshot_history.as_ref(),
         view.prune_keep,
-        locale.code(),
+        &Lang(locale.code()),
     );
     for mut text in &mut history_summaries {
         if text.0 != history_summary_text {

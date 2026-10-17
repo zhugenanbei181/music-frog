@@ -9,6 +9,7 @@
 #[path = "profiles_subscription_policy_query_access.rs"]
 pub mod query_access;
 use self::query_access::{SubscriptionPolicyControls, SubscriptionPolicyTargets};
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
@@ -120,10 +121,10 @@ fn policy_status(profile: Option<&ProfileItem>, locale: &str) -> String {
         profile.and_then(|profile| profile.cron_expression.as_deref()),
         profile.and_then(|profile| profile.update_interval_hours),
     )
-    .render(locale)
+    .render(&Lang(locale))
 }
 fn auto_reload_status(profile: Option<&ProfileItem>, locale: &str) -> String {
-    reload_status(profile.map(|profile| profile.auto_reload_core)).render(locale)
+    reload_status(profile.map(|profile| profile.auto_reload_core)).render(&Lang(locale))
 }
 
 /// Subscription update-policy card scene.

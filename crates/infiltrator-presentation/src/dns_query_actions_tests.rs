@@ -7,6 +7,7 @@ use infiltrator_contract::dns_query::{
     DnsQuerySnapshot, DnsQuestion, DnsRecord, DnsRecordType,
 };
 use infiltrator_shared::dns_observation::DnsObservationTone;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 fn request() -> DnsQueryRequest {
@@ -88,7 +89,7 @@ fn query_draft_command_tabs_pagination_and_retry_follow_correlated_contract_snap
     assert!(model.finish(operation, Ok(())));
 
     for code in ["zh-CN", "en-US"] {
-        let display = project_query(&model, code);
+        let display = project_query(&model, &Lang(code));
         assert_eq!(display.tone, DnsObservationTone::Success);
         assert!(display.records.contains("observed-0 {ttl}"));
         assert!(!display.records.contains("observed-8 {ttl}"));
@@ -98,18 +99,26 @@ fn query_draft_command_tabs_pagination_and_retry_follow_correlated_contract_snap
     }
     assert_eq!(model.page, 2);
     assert!(
-        project_query(&model, "en-US")
+        project_query(&model, &Lang("en-US"))
             .records
             .contains("observed-17 {ttl}")
     );
-    assert!(!project_query(&model, "en-US").next);
+    assert!(!project_query(&model, &Lang("en-US")).next);
     model.next();
     assert_eq!(model.page, 2, "pagination cannot pass the last page");
     model.select(QuerySection::Authority);
     assert_eq!(model.page, 0);
-    assert!(project_query(&model, "en-US").records.contains("ns.test."));
+    assert!(
+        project_query(&model, &Lang("en-US"))
+            .records
+            .contains("ns.test.")
+    );
     model.select(QuerySection::Additional);
-    assert!(project_query(&model, "en-US").records.contains("192.0.2.1"));
+    assert!(
+        project_query(&model, &Lang("en-US"))
+            .records
+            .contains("192.0.2.1")
+    );
 
     let permission = Failure::new(ErrorCode::Permission, "query permission denied", true);
     let (retry, _) = model.begin().unwrap();
@@ -120,7 +129,7 @@ fn query_draft_command_tabs_pagination_and_retry_follow_correlated_contract_snap
     failed_snapshot.failure = Some(permission.clone());
     model.observe(&failed_snapshot);
     assert!(model.can_retry());
-    let failed_display = project_query(&model, "en-US");
+    let failed_display = project_query(&model, &Lang("en-US"));
     assert!(failed_display.status.contains("query permission denied"));
     assert!(
         failed_display

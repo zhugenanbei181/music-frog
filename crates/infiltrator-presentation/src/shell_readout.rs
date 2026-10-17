@@ -3,37 +3,41 @@ use infiltrator_contract::shell_readout::{ShellObservation, ShellReadoutSnapshot
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::byte_units::format_bytes;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
 pub fn observation_copy<T>(
     observation: &ShellObservation<T>,
-    lang: &str,
+    catalog: &dyn TextCatalog,
     format: impl FnOnce(&T) -> String,
 ) -> String {
     match observation {
         ShellObservation::Current(value) => format(value),
         ShellObservation::Stale(value) => interpolate(
-            Lang(lang).tr("shell_readout_stale").as_ref(),
+            catalog.text("shell_readout_stale").as_ref(),
             &[("value", format(value).as_str())],
         ),
         ShellObservation::Unobserved | ShellObservation::CurrentEmpty => {
-            Lang(lang).tr("shell_readout_unknown").into_owned()
+            catalog.text("shell_readout_unknown").into_owned()
         }
     }
 }
-pub fn count_copy(snapshot: &ShellReadoutSnapshot, page: PageId, lang: &str) -> String {
+pub fn count_copy(
+    snapshot: &ShellReadoutSnapshot,
+    page: PageId,
+    catalog: &dyn TextCatalog,
+) -> String {
     let count = match page {
         PageId::Proxies => &snapshot.proxies,
         PageId::Rules => &snapshot.rules,
         PageId::Connections => &snapshot.connections,
         PageId::Dns => &snapshot.dns,
-        _ => return Lang(lang).tr("shell_readout_unknown").into_owned(),
+        _ => return catalog.text("shell_readout_unknown").into_owned(),
     };
-    observation_copy(count, lang, usize::to_string)
+    observation_copy(count, catalog, usize::to_string)
 }
-pub fn rate_copy(rate: &ShellObservation<f64>, lang: &str) -> String {
-    observation_copy(rate, lang, |rate| {
+pub fn rate_copy(rate: &ShellObservation<f64>, catalog: &dyn TextCatalog) -> String {
+    observation_copy(rate, catalog, |rate| {
         format!("{}/s", format_bytes(*rate as u64))
     })
 }
@@ -45,29 +49,29 @@ pub fn observed_rate(value: Option<f64>) -> ShellObservation<f64> {
         None => ShellObservation::Unobserved,
     }
 }
-pub fn rate_status(snapshot: &ShellReadoutSnapshot, lang: &str) -> String {
+pub fn rate_status(snapshot: &ShellReadoutSnapshot, catalog: &dyn TextCatalog) -> String {
     snapshot
         .rate_failure
         .as_ref()
         .map(|failure| {
             let reason = redact_line(&failure.message, &[]);
             interpolate(
-                Lang(lang).tr("shell_rate_read_failed").as_ref(),
+                catalog.text("shell_rate_read_failed").as_ref(),
                 &[("reason", reason.as_str())],
             )
         })
         .unwrap_or_default()
 }
-pub fn profile_name(snapshot: &ShellReadoutSnapshot, lang: &str) -> String {
+pub fn profile_name(snapshot: &ShellReadoutSnapshot, catalog: &dyn TextCatalog) -> String {
     match &snapshot.profile {
-        ShellObservation::CurrentEmpty => return Lang(lang).tr("no_profiles").into_owned(),
+        ShellObservation::CurrentEmpty => return catalog.text("no_profiles").into_owned(),
         ShellObservation::Unobserved
         | ShellObservation::Current(_)
         | ShellObservation::Stale(_) => {}
     }
-    observation_copy(&snapshot.profile, lang, |profile| profile.name.clone())
+    observation_copy(&snapshot.profile, catalog, |profile| profile.name.clone())
 }
-pub fn profile_kind(snapshot: &ShellReadoutSnapshot, lang: &str) -> String {
+pub fn profile_kind(snapshot: &ShellReadoutSnapshot, catalog: &dyn TextCatalog) -> String {
     let key = snapshot
         .profile
         .value()
@@ -78,23 +82,23 @@ pub fn profile_kind(snapshot: &ShellReadoutSnapshot, lang: &str) -> String {
                 "sidebar_local_profile"
             }
         });
-    Lang(lang).tr(key).into_owned()
+    catalog.text(key).into_owned()
 }
-pub fn profile_usage(snapshot: &ShellReadoutSnapshot, lang: &str) -> String {
-    observation_copy(&snapshot.profile, lang, |profile| {
+pub fn profile_usage(snapshot: &ShellReadoutSnapshot, catalog: &dyn TextCatalog) -> String {
+    observation_copy(&snapshot.profile, catalog, |profile| {
         match (profile.used_bytes, profile.total_bytes) {
             (Some(used), Some(total)) => {
                 format!("{} / {}", format_bytes(used), format_bytes(total))
             }
-            _ => Lang(lang).tr("shell_readout_unknown").into_owned(),
+            _ => catalog.text("shell_readout_unknown").into_owned(),
         }
     })
 }
-pub fn profile_percent(snapshot: &ShellReadoutSnapshot, lang: &str) -> String {
-    observation_copy(&snapshot.profile, lang, |profile| {
+pub fn profile_percent(snapshot: &ShellReadoutSnapshot, catalog: &dyn TextCatalog) -> String {
+    observation_copy(&snapshot.profile, catalog, |profile| {
         profile
             .usage_fraction
             .map(|value| format!("{:.0}%", value * 100.0))
-            .unwrap_or_else(|| Lang(lang).tr("shell_readout_unknown").into_owned())
+            .unwrap_or_else(|| catalog.text("shell_readout_unknown").into_owned())
     })
 }

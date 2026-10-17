@@ -7,44 +7,43 @@ use infiltrator_contract::system_proxy::{
     SystemProxySnapshot, SystemProxyStatus,
 };
 use infiltrator_domain::redact::redact_line;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
-fn reason_copy(locale: &str, key: &str, reason: &str) -> String {
+fn reason_copy(catalog: &dyn TextCatalog, key: &str, reason: &str) -> String {
     interpolate(
-        Lang(locale).tr("network_status_reason").as_ref(),
+        catalog.text("network_status_reason").as_ref(),
         &[
-            ("status", Lang(locale).tr(key).as_ref()),
+            ("status", catalog.text(key).as_ref()),
             ("reason", &redact_line(reason, &[])),
         ],
     )
 }
-pub fn roaming_status(status: &NetworkRoamingStatus, locale: &str) -> String {
+pub fn roaming_status(status: &NetworkRoamingStatus, catalog: &dyn TextCatalog) -> String {
     let key = match status {
         NetworkRoamingStatus::Unknown => "net_roam_status_unknown",
         NetworkRoamingStatus::Stable => "net_roam_status_stable",
         NetworkRoamingStatus::Recovering => "net_roam_status_recovering",
         NetworkRoamingStatus::Degraded { reason } => {
-            return reason_copy(locale, "net_roam_status_degraded", reason);
+            return reason_copy(catalog, "net_roam_status_degraded", reason);
         }
         NetworkRoamingStatus::Unsupported { reason } => {
-            return reason_copy(locale, "net_roam_status_unsupported", reason);
+            return reason_copy(catalog, "net_roam_status_unsupported", reason);
         }
         NetworkRoamingStatus::Failed { failure } => {
-            return reason_copy(locale, "net_roam_status_failed", &failure.message);
+            return reason_copy(catalog, "net_roam_status_failed", &failure.message);
         }
     };
-    Lang(locale).tr(key).into_owned()
+    catalog.text(key).into_owned()
 }
-pub fn roaming_event(event: &NetworkRoamingEvent, locale: &str) -> String {
-    let lang = Lang(locale);
+pub fn roaming_event(event: &NetworkRoamingEvent, catalog: &dyn TextCatalog) -> String {
     match event {
         NetworkRoamingEvent::InitialObservation {
             interface,
             gateway_ip,
         } => format!(
             "{} {} / {}",
-            lang.tr("net_roam_event_initial"),
+            catalog.text("net_roam_event_initial"),
             interface.as_deref().unwrap_or("—"),
             gateway_ip.as_deref().unwrap_or("—")
         ),
@@ -55,14 +54,14 @@ pub fn roaming_event(event: &NetworkRoamingEvent, locale: &str) -> String {
             new_gateway_ip,
         } => format!(
             "{} {} → {} ({} → {})",
-            lang.tr("net_roam_event_gateway_changed"),
+            catalog.text("net_roam_event_gateway_changed"),
             old_interface.as_deref().unwrap_or("—"),
             new_interface.as_deref().unwrap_or("—"),
             old_gateway_ip.as_deref().unwrap_or("—"),
             new_gateway_ip.as_deref().unwrap_or("—")
         ),
         NetworkRoamingEvent::InterfaceAddressChanged { interface } => {
-            reason_copy(locale, "net_roam_event_address_changed", interface)
+            reason_copy(catalog, "net_roam_event_address_changed", interface)
         }
         NetworkRoamingEvent::RoutesRepaired {
             physical_interface,
@@ -71,23 +70,21 @@ pub fn roaming_event(event: &NetworkRoamingEvent, locale: &str) -> String {
         } => {
             format!(
                 "{} · {physical_interface} → {tun_interface} · {}",
-                lang.tr("net_roam_event_routes_repaired"),
+                catalog.text("net_roam_event_routes_repaired"),
                 redact_line(detail, &[])
             )
         }
         NetworkRoamingEvent::RepairSkipped { reason } => {
-            reason_copy(locale, "net_roam_event_repair_skipped", reason)
+            reason_copy(catalog, "net_roam_event_repair_skipped", reason)
         }
         NetworkRoamingEvent::RepairFailed { failure } => {
-            reason_copy(locale, "net_roam_event_repair_failed", &failure.message)
+            reason_copy(catalog, "net_roam_event_repair_failed", &failure.message)
         }
     }
 }
-pub fn roaming_interfaces(snapshot: &NetworkRoamingSnapshot, locale: &str) -> String {
+pub fn roaming_interfaces(snapshot: &NetworkRoamingSnapshot, catalog: &dyn TextCatalog) -> String {
     if snapshot.interfaces.is_empty() {
-        return Lang(locale)
-            .tr("net_roam_interfaces_unobserved")
-            .into_owned();
+        return catalog.text("net_roam_interfaces_unobserved").into_owned();
     }
     snapshot
         .interfaces
@@ -104,7 +101,7 @@ pub fn roaming_interfaces(snapshot: &NetworkRoamingSnapshot, locale: &str) -> St
         .collect::<Vec<_>>()
         .join(" · ")
 }
-pub fn roaming_mtu(snapshot: &NetworkRoamingSnapshot, locale: &str) -> String {
+pub fn roaming_mtu(snapshot: &NetworkRoamingSnapshot, catalog: &dyn TextCatalog) -> String {
     let physical = snapshot
         .physical_mtu
         .map_or_else(|| "—".to_owned(), |value| value.to_string());
@@ -115,21 +112,21 @@ pub fn roaming_mtu(snapshot: &NetworkRoamingSnapshot, locale: &str) -> String {
         .tcp_mss
         .map_or_else(|| "—".to_owned(), |value| value.to_string());
     interpolate(
-        Lang(locale).tr("net_roam_mtu_detail").as_ref(),
+        catalog.text("net_roam_mtu_detail").as_ref(),
         &[("physical", &physical), ("tun", &tun), ("mss", &mss)],
     )
 }
-pub fn roaming_route(snapshot: &NetworkRoamingSnapshot, locale: &str) -> String {
+pub fn roaming_route(snapshot: &NetworkRoamingSnapshot, catalog: &dyn TextCatalog) -> String {
     let active = snapshot.active_interface.as_deref().unwrap_or("—");
     let gateway = snapshot.default_gateway.as_deref().unwrap_or("—");
     let event = snapshot
         .last_event
         .as_ref()
-        .map(|event| roaming_event(event, locale))
-        .unwrap_or_else(|| Lang(locale).tr("net_roam_no_event").into_owned());
-    let mtu = roaming_mtu(snapshot, locale);
+        .map(|event| roaming_event(event, catalog))
+        .unwrap_or_else(|| catalog.text("net_roam_no_event").into_owned());
+    let mtu = roaming_mtu(snapshot, catalog);
     interpolate(
-        Lang(locale).tr("net_roam_route_detail").as_ref(),
+        catalog.text("net_roam_route_detail").as_ref(),
         &[
             ("active", active),
             ("gateway", gateway),
@@ -141,14 +138,13 @@ pub fn roaming_route(snapshot: &NetworkRoamingSnapshot, locale: &str) -> String 
 pub fn system_proxy_status(
     snapshot: &SystemProxySnapshot,
     recovery: &SystemProxyRecoverySnapshot,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
-    let lang = Lang(locale);
     let recovery_key = match &recovery.status {
         SystemProxyRecoveryStatus::Restored { .. } => Some("system_proxy_recovery_restored"),
         SystemProxyRecoveryStatus::SkippedExternal { .. } => Some("system_proxy_recovery_external"),
         SystemProxyRecoveryStatus::Failed { failure, .. } => {
-            return reason_copy(locale, "system_proxy_recovery_failed", &failure.message);
+            return reason_copy(catalog, "system_proxy_recovery_failed", &failure.message);
         }
         SystemProxyRecoveryStatus::SkippedLiveOwner { .. } => {
             Some("system_proxy_recovery_live_owner")
@@ -156,7 +152,7 @@ pub fn system_proxy_status(
         SystemProxyRecoveryStatus::Unknown | SystemProxyRecoveryStatus::NotNeeded => None,
     };
     if let Some(key) = recovery_key {
-        return lang.tr(key).into_owned();
+        return catalog.text(key).into_owned();
     }
     let key = match &snapshot.status {
         SystemProxyStatus::Unknown => "system_proxy_status_unknown",
@@ -164,7 +160,7 @@ pub fn system_proxy_status(
         SystemProxyStatus::Enabled => match snapshot.ownership {
             SystemProxyOwnership::Repaired => "system_proxy_status_repaired",
             SystemProxyOwnership::Owned => {
-                let status = lang.tr("system_proxy_status_owned");
+                let status = catalog.text("system_proxy_status_owned");
                 return snapshot.endpoint.as_ref().map_or_else(
                     || status.clone().into_owned(),
                     |endpoint| format!("{status} · {endpoint}"),
@@ -173,13 +169,13 @@ pub fn system_proxy_status(
             _ => "system_proxy_status_enabled",
         },
         SystemProxyStatus::Unsupported { failure } => {
-            return reason_copy(locale, "system_proxy_status_unsupported", &failure.message);
+            return reason_copy(catalog, "system_proxy_status_unsupported", &failure.message);
         }
         SystemProxyStatus::Failed { failure } => {
-            return reason_copy(locale, "system_proxy_status_failed", &failure.message);
+            return reason_copy(catalog, "system_proxy_status_failed", &failure.message);
         }
     };
-    lang.tr(key).into_owned()
+    catalog.text(key).into_owned()
 }
 
 #[cfg(test)]

@@ -26,6 +26,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
+use infiltrator_shared::locales::Lang;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct RoutingIntentIssueRoot;
@@ -107,7 +108,7 @@ pub fn sync(
         };
     }
     for mut text in &mut texts {
-        let caption = routing_intent_failure_copy(&state.0, locale.code());
+        let caption = routing_intent_failure_copy(&state.0, &Lang(locale.code()));
         text.semantic.0.set_label(caption.clone());
         text.text.0 = caption;
         text.color.0 = palette.ink;

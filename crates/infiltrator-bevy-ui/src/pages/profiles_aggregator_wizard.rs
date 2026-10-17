@@ -12,6 +12,7 @@ use self::query_access::{
     AggregationTemplateLoadControls, AggregationTemplateSaveControls,
     OnAddAggregatorCustomGroupCustomLinesFilter, OnPreviewAggregationStatusFilter,
 };
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::profiles::LastProfilesProjection;
@@ -79,7 +80,7 @@ fn refresh_custom_groups_text(
     groups: &[AggregationCustomGroup],
     lines: &mut Query<&mut Text, OnAddAggregatorCustomGroupCustomLinesFilter>,
 ) {
-    let text = aggregation_custom_groups(groups, UiLocale::default().code());
+    let text = aggregation_custom_groups(groups, &Lang(UiLocale::default().code()));
     for mut line in lines.iter_mut() {
         line.0 = text.clone();
     }

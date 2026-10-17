@@ -15,7 +15,7 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
     state: &'a AppState,
 ) -> Element<'a, Message, Theme, R> {
     let model = &state.diag.log_export;
-    let view = project_log_export(model, &state.shell.lang);
+    let view = project_log_export(model, &Lang(&state.shell.lang));
     let lang = Lang(&state.shell.lang);
     let status = container(text(view.status).size(12).width(Length::Fill))
         .padding(8)

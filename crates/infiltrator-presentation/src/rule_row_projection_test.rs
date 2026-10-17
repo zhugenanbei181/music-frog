@@ -2,26 +2,33 @@
 //! Rule rows preserve native syntax while sharing copy for observed hit counts.
 
 use super::*;
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn unknown_zero_disabled_and_shadowed_local_trace_counts_have_shared_copy() {
-    assert_eq!(row_hits_copy(None, true, false, "en-US"), "Not observed");
     assert_eq!(
-        row_hits_copy(None, false, false, "en-US"),
+        row_hits_copy(None, true, false, &Lang("en-US")),
+        "Not observed"
+    );
+    assert_eq!(
+        row_hits_copy(None, false, false, &Lang("en-US")),
         "Not observed · Disabled"
     );
-    assert_eq!(row_hits_copy(None, true, true, "zh-CN"), "未观测 · 被遮蔽");
+    assert_eq!(
+        row_hits_copy(None, true, true, &Lang("zh-CN")),
+        "未观测 · 被遮蔽"
+    );
 
     assert_eq!(
-        row_hits_copy(Some(0), true, false, "en-US"),
+        row_hits_copy(Some(0), true, false, &Lang("en-US")),
         "0 local trace hits"
     );
     assert_eq!(
-        row_hits_copy(Some(5), false, false, "en-US"),
+        row_hits_copy(Some(5), false, false, &Lang("en-US")),
         "5 local trace hits · Disabled"
     );
     assert_eq!(
-        row_hits_copy(Some(12), true, true, "zh-CN"),
+        row_hits_copy(Some(12), true, true, &Lang("zh-CN")),
         "12 次本地追踪命中 · 被遮蔽"
     );
 }

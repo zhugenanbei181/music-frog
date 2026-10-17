@@ -4,14 +4,14 @@ use iced::widget::text;
 use iced::{Element, Theme};
 use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
-use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_shared::locales::Lang;
 
 pub fn latency_badge<'a, Message: 'a>(
     delay: Option<u32>,
     language: &Lang<'_>,
 ) -> Element<'a, Message> {
     let caption = project_proxy_latency(delay);
-    let label = caption.render(&|key| language.tr(key).into_owned());
+    let label = caption.render(language);
     let band = caption.band;
     text(label)
         .size(12)

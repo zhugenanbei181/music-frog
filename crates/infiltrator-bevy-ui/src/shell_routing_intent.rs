@@ -27,6 +27,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_ui_presentation::routing_intent_actions::{
@@ -67,7 +68,7 @@ pub fn sync_segments(
 ) {
     let state = actions.0.render_snapshot();
     for mut caption in &mut captions {
-        caption.0 = routing_intent_status_copy(&state, locale.code());
+        caption.0 = routing_intent_status_copy(&state, &Lang(locale.code()));
     }
     for (intent, mut background) in &mut controls {
         background.0 = if state.current.as_ref() == Some(&intent.0) {
@@ -110,7 +111,7 @@ pub fn sync(
             control.disabled.0 = !state.is_intent_selectable(&intent);
         }
     }
-    let caption = routing_intent_status_copy(&state, locale.code());
+    let caption = routing_intent_status_copy(&state, &Lang(locale.code()));
     for children in &capsules {
         for child in children.iter() {
             if let Ok(mut text) = labels.get_mut(*child) {

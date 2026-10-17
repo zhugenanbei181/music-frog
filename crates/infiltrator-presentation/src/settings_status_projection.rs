@@ -1,4 +1,5 @@
 //! Single fold of settings observations into localized peer-product status text.
+use crate::text::localize;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::LanSecuritySnapshot;
@@ -18,56 +19,55 @@ use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelStatus, CoreVersionSnapshot,
 };
 use infiltrator_domain::redact::redact_line;
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
-fn tr(code: &str, key: &str) -> String {
-    Lang(code).tr(key).into_owned()
+fn tr(catalog: &dyn TextCatalog, key: &str) -> String {
+    catalog.text(key).into_owned()
 }
 
-pub fn optional_copy<T: ToString>(value: Option<&T>, code: &str) -> String {
+pub fn optional_copy<T: ToString>(value: Option<&T>, catalog: &dyn TextCatalog) -> String {
     value
         .map(ToString::to_string)
-        .unwrap_or_else(|| tr(code, "shell_readout_unknown"))
+        .unwrap_or_else(|| tr(catalog, "shell_readout_unknown"))
 }
 
-pub fn format_runtime_status(status: &RuntimeControlStatus, code: &str) -> String {
+pub fn format_runtime_status(status: &RuntimeControlStatus, catalog: &dyn TextCatalog) -> String {
     match status {
-        RuntimeControlStatus::Ready => tr(code, "settings_runtime_observed"),
-        RuntimeControlStatus::Unobserved => tr(code, "shell_readout_unknown"),
+        RuntimeControlStatus::Ready => tr(catalog, "settings_runtime_observed"),
+        RuntimeControlStatus::Unobserved => tr(catalog, "shell_readout_unknown"),
         RuntimeControlStatus::Failed { failure }
         | RuntimeControlStatus::Unsupported { failure } => localize(
-            code,
+            catalog,
             "settings_runtime_unavailable",
             &[("reason", safe(&failure.message))],
         ),
     }
 }
 
-pub fn format_lan_auth(value: Option<&LanSecuritySnapshot>, code: &str) -> String {
+pub fn format_lan_auth(value: Option<&LanSecuritySnapshot>, catalog: &dyn TextCatalog) -> String {
     match value {
-        None => tr(code, "shell_readout_unknown"),
+        None => tr(catalog, "shell_readout_unknown"),
         Some(value) if value.authentication_enabled => localize(
-            code,
+            catalog,
             "settings_lan_auth_observed",
             &[("count", value.authentication_user_count.to_string())],
         ),
-        Some(_) => tr(code, "settings_lan_auth_disabled"),
+        Some(_) => tr(catalog, "settings_lan_auth_disabled"),
     }
 }
 
-pub fn format_ipv6(value: Option<&Ipv6RoutingSnapshot>, code: &str) -> String {
+pub fn format_ipv6(value: Option<&Ipv6RoutingSnapshot>, catalog: &dyn TextCatalog) -> String {
     let Some(value) = value else {
-        return tr(code, "shell_readout_unknown");
+        return tr(catalog, "shell_readout_unknown");
     };
     localize(
-        code,
+        catalog,
         "settings_ipv6_observed",
         &[
             (
                 "policy",
                 tr(
-                    code,
+                    catalog,
                     if value.enabled {
                         "settings_ipv6_allowed"
                     } else {
@@ -78,7 +78,7 @@ pub fn format_ipv6(value: Option<&Ipv6RoutingSnapshot>, code: &str) -> String {
             (
                 "tun",
                 tr(
-                    code,
+                    catalog,
                     if value.tun_enabled {
                         "settings_tun_on"
                     } else {
@@ -92,18 +92,18 @@ pub fn format_ipv6(value: Option<&Ipv6RoutingSnapshot>, code: &str) -> String {
 fn safe(value: &str) -> String {
     redact_line(value, &[])
 }
-pub fn format_integrity(snapshot: &CoreArtifactVerification, code: &str) -> String {
+pub fn format_integrity(snapshot: &CoreArtifactVerification, catalog: &dyn TextCatalog) -> String {
     match snapshot {
-        CoreArtifactVerification::Unknown => tr(code, "core_integrity_unknown"),
+        CoreArtifactVerification::Unknown => tr(catalog, "core_integrity_unknown"),
         CoreArtifactVerification::Verified { version, .. } => localize(
-            code,
+            catalog,
             "core_integrity_verified",
             &[("version", version.clone())],
         ),
         CoreArtifactVerification::Rejected {
             version, failure, ..
         } => localize(
-            code,
+            catalog,
             "core_integrity_rejected",
             &[
                 ("version", version.clone()),
@@ -112,9 +112,12 @@ pub fn format_integrity(snapshot: &CoreArtifactVerification, code: &str) -> Stri
         ),
     }
 }
-pub fn format_controller_auth(snapshot: &ControllerAuthSnapshot, code: &str) -> String {
+pub fn format_controller_auth(
+    snapshot: &ControllerAuthSnapshot,
+    catalog: &dyn TextCatalog,
+) -> String {
     tr(
-        code,
+        catalog,
         match snapshot.status {
             ControllerAuthStatus::Unknown => "core_status_not_probed",
             ControllerAuthStatus::Secured => "core_auth_secured",
@@ -123,9 +126,9 @@ pub fn format_controller_auth(snapshot: &ControllerAuthSnapshot, code: &str) -> 
         },
     )
 }
-pub fn format_core_versions(snapshot: &CoreVersionSnapshot, code: &str) -> String {
+pub fn format_core_versions(snapshot: &CoreVersionSnapshot, catalog: &dyn TextCatalog) -> String {
     if snapshot.channels.is_empty() {
-        return tr(code, "core_status_not_probed");
+        return tr(catalog, "core_status_not_probed");
     }
     snapshot
         .channels
@@ -133,34 +136,34 @@ pub fn format_core_versions(snapshot: &CoreVersionSnapshot, code: &str) -> Strin
         .map(|channel| {
             let version = match &channel.status {
                 CoreChannelStatus::Ready { release } => release.version.clone(),
-                CoreChannelStatus::Failed { .. } => tr(code, "common_unavailable"),
+                CoreChannelStatus::Failed { .. } => tr(catalog, "common_unavailable"),
             };
             format!("{}={version}", channel.channel.channel_id.as_str())
         })
         .collect::<Vec<_>>()
         .join(" · ")
 }
-pub fn format_rollback_target(snapshot: &CoreVersionSnapshot, code: &str) -> String {
+pub fn format_rollback_target(snapshot: &CoreVersionSnapshot, catalog: &dyn TextCatalog) -> String {
     snapshot.rollback.target.as_ref().map_or_else(
-        || tr(code, "core_rollback_none"),
+        || tr(catalog, "core_rollback_none"),
         |version| {
             localize(
-                code,
+                catalog,
                 "core_rollback_target",
                 &[("version", version.clone())],
             )
         },
     )
 }
-pub fn format_service_mode(snapshot: &ServiceModeSnapshot, code: &str) -> String {
+pub fn format_service_mode(snapshot: &ServiceModeSnapshot, catalog: &dyn TextCatalog) -> String {
     let platform = match snapshot.platform {
         ServiceModePlatform::WindowsService => "Windows Service".into(),
         ServiceModePlatform::LinuxPolkit => "Linux Polkit".into(),
         ServiceModePlatform::MacosLaunchd => "macOS launchd".into(),
-        ServiceModePlatform::Unsupported => tr(code, "core_status_host_unsupported"),
+        ServiceModePlatform::Unsupported => tr(catalog, "core_status_host_unsupported"),
     };
     let state = tr(
-        code,
+        catalog,
         match snapshot.state {
             ServiceModeState::Ready => "core_service_ready",
             ServiceModeState::InstalledStopped => "core_service_stopped",
@@ -172,16 +175,16 @@ pub fn format_service_mode(snapshot: &ServiceModeSnapshot, code: &str) -> String
     );
     format!("{platform} · {state}")
 }
-pub fn format_port_conflicts(snapshot: &PortConflictSnapshot, code: &str) -> String {
+pub fn format_port_conflicts(snapshot: &PortConflictSnapshot, catalog: &dyn TextCatalog) -> String {
     if snapshot.conflicts.is_empty() {
-        return tr(code, "core_status_not_probed");
+        return tr(catalog, "core_status_not_probed");
     }
     snapshot
         .conflicts
         .iter()
         .map(|conflict| {
             let status = tr(
-                code,
+                catalog,
                 if conflict.available {
                     "core_port_available"
                 } else {
@@ -189,13 +192,13 @@ pub fn format_port_conflicts(snapshot: &PortConflictSnapshot, code: &str) -> Str
                 },
             );
             let owner = conflict.owner_pid.map_or_else(
-                || tr(code, "core_port_owner_unknown"),
+                || tr(catalog, "core_port_owner_unknown"),
                 |pid| {
                     let name = conflict
                         .owner_name
                         .as_deref()
                         .map(safe)
-                        .unwrap_or_else(|| tr(code, "proxy_inspection_unknown"));
+                        .unwrap_or_else(|| tr(catalog, "proxy_inspection_unknown"));
                     format!("{name} pid={pid}")
                 },
             );
@@ -208,12 +211,12 @@ pub fn format_port_conflicts(snapshot: &PortConflictSnapshot, code: &str) -> Str
         .collect::<Vec<_>>()
         .join(" · ")
 }
-pub fn format_core_resources(snapshot: &CoreResourceSnapshot, code: &str) -> String {
+pub fn format_core_resources(snapshot: &CoreResourceSnapshot, catalog: &dyn TextCatalog) -> String {
     let (memory, cpu, gc, memory_limit) = match snapshot {
         CoreResourceSnapshot::NotObserved => (
-            tr(code, "core_resource_not_observed"),
-            tr(code, "core_resource_not_observed"),
-            tr(code, "core_gc_not_attempted"),
+            tr(catalog, "core_resource_not_observed"),
+            tr(catalog, "core_resource_not_observed"),
+            tr(catalog, "core_gc_not_attempted"),
             format!("{:.1}", CORE_MEMORY_SOFT_LIMIT_BYTES as f64 / 1_048_576.0),
         ),
         CoreResourceSnapshot::Observed {
@@ -223,22 +226,22 @@ pub fn format_core_resources(snapshot: &CoreResourceSnapshot, code: &str) -> Str
             gc,
             ..
         } => (
-            format_resource_availability(memory, code, |bytes| {
+            format_resource_availability(memory, catalog, |bytes| {
                 format!("{:.1} MiB", *bytes as f64 / 1_048_576.0)
             }),
-            format_resource_availability(cpu_percent, code, |value| {
+            format_resource_availability(cpu_percent, catalog, |value| {
                 if value.is_finite() {
                     format!("{value:.1}%")
                 } else {
-                    tr(code, "core_resource_invalid")
+                    tr(catalog, "core_resource_invalid")
                 }
             }),
-            format_gc_status(gc, code),
+            format_gc_status(gc, catalog),
             format!("{:.1}", *memory_soft_limit_bytes as f64 / 1_048_576.0),
         ),
     };
     localize(
-        code,
+        catalog,
         "core_resources_status",
         &[
             ("memory", memory),
@@ -251,28 +254,28 @@ pub fn format_core_resources(snapshot: &CoreResourceSnapshot, code: &str) -> Str
 
 fn format_resource_availability<T>(
     availability: &ResourceAvailability<T>,
-    code: &str,
+    catalog: &dyn TextCatalog,
     format_value: impl FnOnce(&T) -> String,
 ) -> String {
     match availability {
-        ResourceAvailability::NotObserved => tr(code, "core_resource_not_observed"),
+        ResourceAvailability::NotObserved => tr(catalog, "core_resource_not_observed"),
         ResourceAvailability::Available(value) => format_value(value),
-        ResourceAvailability::Unsupported => tr(code, "core_resource_unsupported"),
+        ResourceAvailability::Unsupported => tr(catalog, "core_resource_unsupported"),
         ResourceAvailability::Failed(failure) => localize(
-            code,
+            catalog,
             "core_resource_failed",
             &[("message", safe(&failure.message))],
         ),
     }
 }
 
-fn format_gc_status(status: &CoreGcStatus, code: &str) -> String {
+fn format_gc_status(status: &CoreGcStatus, catalog: &dyn TextCatalog) -> String {
     match status {
-        CoreGcStatus::NotAttempted => tr(code, "core_gc_not_attempted"),
-        CoreGcStatus::NotNeeded => tr(code, "core_gc_not_needed"),
-        CoreGcStatus::Collecting => tr(code, "core_gc_collecting"),
+        CoreGcStatus::NotAttempted => tr(catalog, "core_gc_not_attempted"),
+        CoreGcStatus::NotNeeded => tr(catalog, "core_gc_not_needed"),
+        CoreGcStatus::Collecting => tr(catalog, "core_gc_collecting"),
         CoreGcStatus::Collected { after_bytes, .. } => localize(
-            code,
+            catalog,
             "core_gc_collected_after",
             &[(
                 "memory",
@@ -280,25 +283,25 @@ fn format_gc_status(status: &CoreGcStatus, code: &str) -> String {
             )],
         ),
         CoreGcStatus::Failed { failure } => localize(
-            code,
+            catalog,
             "core_gc_failed",
             &[("message", safe(&failure.message))],
         ),
-        CoreGcStatus::Unsupported => tr(code, "core_gc_unsupported"),
+        CoreGcStatus::Unsupported => tr(catalog, "core_gc_unsupported"),
     }
 }
-pub fn format_mtu(snapshot: &MtuNegotiationSnapshot, code: &str) -> String {
+pub fn format_mtu(snapshot: &MtuNegotiationSnapshot, catalog: &dyn TextCatalog) -> String {
     match &snapshot.state {
-        MtuProbeState::Unknown => tr(code, "core_status_not_probed"),
-        MtuProbeState::Probing => tr(code, "core_status_probing"),
-        MtuProbeState::Unsupported => tr(code, "core_status_host_unsupported"),
+        MtuProbeState::Unknown => tr(catalog, "core_status_not_probed"),
+        MtuProbeState::Probing => tr(catalog, "core_status_probing"),
+        MtuProbeState::Unsupported => tr(catalog, "core_status_host_unsupported"),
         MtuProbeState::Failed { failure } => localize(
-            code,
+            catalog,
             "core_status_failed",
             &[("message", safe(&failure.message))],
         ),
         MtuProbeState::Ready => localize(
-            code,
+            catalog,
             "core_mtu_ready",
             &[
                 (
@@ -307,7 +310,7 @@ pub fn format_mtu(snapshot: &MtuNegotiationSnapshot, code: &str) -> String {
                         .physical_interface
                         .as_deref()
                         .map(safe)
-                        .unwrap_or_else(|| tr(code, "core_mtu_active_link")),
+                        .unwrap_or_else(|| tr(catalog, "core_mtu_active_link")),
                 ),
                 ("physical", observed(snapshot.physical_mtu)),
                 ("tun", observed(snapshot.tun_mtu)),
@@ -316,7 +319,7 @@ pub fn format_mtu(snapshot: &MtuNegotiationSnapshot, code: &str) -> String {
                 (
                     "applied",
                     snapshot.applied_tun_mtu.map_or_else(
-                        || tr(code, "core_mtu_not_applied"),
+                        || tr(catalog, "core_mtu_not_applied"),
                         |value| value.to_string(),
                     ),
                 ),
@@ -331,9 +334,12 @@ fn observed(value: Option<u32>) -> String {
 #[cfg(test)]
 #[path = "settings_status_projection_test.rs"]
 mod tests;
-pub fn format_offline_startup(snapshot: &OfflineStartupSnapshot, code: &str) -> String {
+pub fn format_offline_startup(
+    snapshot: &OfflineStartupSnapshot,
+    catalog: &dyn TextCatalog,
+) -> String {
     let state = tr(
-        code,
+        catalog,
         match snapshot.state {
             OfflineStartupState::Unknown => "core_status_not_probed",
             OfflineStartupState::Checking => "core_offline_checking",
@@ -343,7 +349,7 @@ pub fn format_offline_startup(snapshot: &OfflineStartupSnapshot, code: &str) -> 
         },
     );
     let config = tr(
-        code,
+        catalog,
         if snapshot.config_valid {
             "core_config_valid"
         } else {
@@ -351,7 +357,7 @@ pub fn format_offline_startup(snapshot: &OfflineStartupSnapshot, code: &str) -> 
         },
     );
     let binary = tr(
-        code,
+        catalog,
         if snapshot.binary_available {
             "core_binary_available"
         } else {
@@ -359,7 +365,7 @@ pub fn format_offline_startup(snapshot: &OfflineStartupSnapshot, code: &str) -> 
         },
     );
     let geoip = tr(
-        code,
+        catalog,
         match snapshot.geoip {
             LocalAssetStatus::NotRequired => "core_geoip_not_required",
             LocalAssetStatus::Available => "core_geoip_local",
@@ -373,7 +379,7 @@ pub fn format_offline_startup(snapshot: &OfflineStartupSnapshot, code: &str) -> 
             format!(" · {}", safe(&failure.message))
         });
     localize(
-        code,
+        catalog,
         "core_offline_status",
         &[
             ("state", state),

@@ -1,6 +1,7 @@
 //! Fold the observed subset once; unavailable, unsupported and no matches differ.
+use crate::text::localize;
 use infiltrator_contract::dns::{FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource};
-use infiltrator_shared::i18n_interpolator::localize;
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnsMappingDisplay {
@@ -21,13 +22,17 @@ impl DnsMappingDisplay {
             .join("\n")
     }
 }
-pub fn project_mappings(pool: &FakeIpMappingPool, query: &str, code: &str) -> DnsMappingDisplay {
+pub fn project_mappings(
+    pool: &FakeIpMappingPool,
+    query: &str,
+    catalog: &dyn TextCatalog,
+) -> DnsMappingDisplay {
     let (source, rows, empty) = match &pool.source {
         FakeIpMappingSource::LiveConnections => (
-            localize(code, "dns_fakeip_pool_observed", &[]),
+            localize(catalog, "dns_fakeip_pool_observed", &[]),
             pool.filter(query).into_iter().cloned().collect(),
             localize(
-                code,
+                catalog,
                 if pool.entries.is_empty() {
                     "dns_fakeip_pool_empty"
                 } else {
@@ -38,7 +43,7 @@ pub fn project_mappings(pool: &FakeIpMappingPool, query: &str, code: &str) -> Dn
         ),
         FakeIpMappingSource::Unsupported { reason } => {
             let source = localize(
-                code,
+                catalog,
                 "dns_fakeip_pool_unsupported_detail",
                 &[("reason", reason.clone())],
             );
@@ -46,7 +51,7 @@ pub fn project_mappings(pool: &FakeIpMappingPool, query: &str, code: &str) -> Dn
         }
         FakeIpMappingSource::Unavailable { reason } => {
             let source = localize(
-                code,
+                catalog,
                 "dns_fakeip_pool_unavailable",
                 &[("reason", reason.clone())],
             );
@@ -55,7 +60,7 @@ pub fn project_mappings(pool: &FakeIpMappingPool, query: &str, code: &str) -> Dn
     };
     let count = if pool.is_observed_subset() {
         localize(
-            code,
+            catalog,
             "dns_fakeip_pool_count_range",
             &[
                 ("shown", rows.len().to_string()),

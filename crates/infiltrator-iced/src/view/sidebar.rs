@@ -391,7 +391,7 @@ fn routing_intent_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, 
             .then(|| Message::SetRoutingIntent(target.clone()))
     });
 
-    let caption = routing_intent_status_copy(&state.runtime.routing_intent_state, lang.0);
+    let caption = routing_intent_status_copy(&state.runtime.routing_intent_state, &Lang(lang.0));
     container(column![control, text(caption).size(10)].spacing(theme::SP_XS))
         .width(Length::Fill)
         .into()
@@ -488,9 +488,9 @@ fn short_label(value: &str) -> String {
 fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let readout = &state.shell.readout;
     let active = readout.profile.value();
-    let name = profile_name(readout, &state.shell.lang);
+    let name = profile_name(readout, &Lang(&state.shell.lang));
     let is_subscription = active.is_some_and(|profile| profile.subscription);
-    let subtitle = profile_kind(readout, &state.shell.lang);
+    let subtitle = profile_kind(readout, &Lang(&state.shell.lang));
     let fraction = active.and_then(|profile| profile.usage_fraction);
 
     let header_row = row![
@@ -528,11 +528,11 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             column![
                 progress_bar(0.0..=1.0, fraction).length(Length::Fill),
                 row![
-                    text(profile_usage(readout, &state.shell.lang))
+                    text(profile_usage(readout, &Lang(&state.shell.lang)))
                         .size(10)
                         .font(MONO),
                     Space::new().width(Length::Fill),
-                    text(profile_percent(readout, &state.shell.lang))
+                    text(profile_percent(readout, &Lang(&state.shell.lang)))
                         .size(10)
                         .font(MONO),
                 ]
@@ -554,10 +554,10 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 /// in a neat 2x2 grid with count badges.
 fn shortcut_matrix<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let readout = &state.shell.readout;
-    let groups = count_copy(readout, PageId::Proxies, &state.shell.lang);
-    let connections = count_copy(readout, PageId::Connections, &state.shell.lang);
-    let rules_count = count_copy(readout, PageId::Rules, &state.shell.lang);
-    let dns_count = count_copy(readout, PageId::Dns, &state.shell.lang);
+    let groups = count_copy(readout, PageId::Proxies, &Lang(&state.shell.lang));
+    let connections = count_copy(readout, PageId::Connections, &Lang(&state.shell.lang));
+    let rules_count = count_copy(readout, PageId::Rules, &Lang(&state.shell.lang));
+    let dns_count = count_copy(readout, PageId::Dns, &Lang(&state.shell.lang));
 
     let proxies_tile = shortcut_tile(
         Icon::Globe,
@@ -679,8 +679,8 @@ fn shortcut_tile<'a>(
 /// Live up/down rates from the traffic state in mono numerals, accompanied by
 /// the mini sparkline waveform for visual traffic dynamics.
 fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> {
-    let up_speed = rate_copy(&state.shell.readout.upload_bps, &state.shell.lang);
-    let down_speed = rate_copy(&state.shell.readout.download_bps, &state.shell.lang);
+    let up_speed = rate_copy(&state.shell.readout.upload_bps, &Lang(&state.shell.lang));
+    let down_speed = rate_copy(&state.shell.readout.download_bps, &Lang(&state.shell.lang));
 
     let speeds_col = column![
         speed_leg(Icon::ArrowUp, up_speed, |t| theme::tokens(t).success),
@@ -693,7 +693,7 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
     let content = row![speeds_col, Space::new().width(Length::Fill), waveform,]
         .align_y(Alignment::Center)
         .width(Length::Fill);
-    let failure = rate_status(&state.shell.readout, &state.shell.lang);
+    let failure = rate_status(&state.shell.readout, &Lang(&state.shell.lang));
     let content: Element<Message> = if failure.is_empty() {
         content.into()
     } else {

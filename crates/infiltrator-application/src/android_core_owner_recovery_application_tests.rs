@@ -10,8 +10,7 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerRecoveryOutcome, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
@@ -20,11 +19,18 @@ use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
 use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::engine_switch::{
+    EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchSnapshot,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::engine_switch::OwnerRecoveryEvidence;
+use lurker_core_ports::engine_switch::{
+    EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+};
 use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex};
 
@@ -78,7 +84,7 @@ impl AndroidCoreProcessRecoveryPort for FakeProcess {
 
 struct FakeOwnerStore {
     outcome: Result<ActiveProfileOwnerRecoveryOutcome, PortError>,
-    evidence: Mutex<Option<ActiveProfileOwnerRecoveryEvidence>>,
+    evidence: Mutex<Option<OwnerRecoveryEvidence>>,
     events: EventLog,
 }
 
@@ -102,7 +108,7 @@ impl ActiveProfileReferenceStore for FakeOwnerStore {
 
     async fn recover_bound_owner_after_terminal(
         &self,
-        evidence: ActiveProfileOwnerRecoveryEvidence,
+        evidence: OwnerRecoveryEvidence,
     ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
         self.events.record(RecoveryStep::RecoverOwner);
         *self.evidence.lock().expect("recovery evidence") = Some(evidence);
@@ -116,6 +122,61 @@ impl ActiveProfileReferenceStore for FakeOwnerStore {
         _authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<ActiveProfileReferenceState, PortError> {
         Err(unexpected_call("compare_and_set"))
+    }
+}
+
+#[async_trait]
+impl EngineSwitchJournal for FakeOwnerStore {
+    type Selection = ActiveProfileReferenceState;
+
+    async fn snapshot(
+        &self,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+        Err(unexpected_call("journal snapshot"))
+    }
+
+    async fn bind_owner(
+        &self,
+        _expected_revision: EngineSwitchRevision,
+        _selection: ActiveProfileReferenceState,
+        _identity: CoreIdentity,
+        _generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+        Err(unexpected_call("journal bind_owner"))
+    }
+
+    async fn begin_owner_switch(
+        &self,
+        _expected_revision: EngineSwitchRevision,
+        _previous: ActiveProfileReferenceState,
+        _owner_identity: CoreIdentity,
+        _owner_generation: CoreGeneration,
+    ) -> Result<Box<dyn EngineOwnerSwitchLease<ActiveProfileReferenceState>>, PortError> {
+        Err(unexpected_call("journal begin_owner_switch"))
+    }
+
+    async fn recover_owner_switch(
+        &self,
+        _expected_revision: EngineSwitchRevision,
+    ) -> Result<EngineSwitchRecovery<ActiveProfileReferenceState>, PortError> {
+        Err(unexpected_call("journal recover_owner_switch"))
+    }
+
+    async fn recover_old_owner_after_terminal(
+        &self,
+        _expected_revision: EngineSwitchRevision,
+        _terminal_generation: CoreGeneration,
+    ) -> Result<Box<dyn EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState>>, PortError>
+    {
+        Err(unexpected_call("journal recover_old_owner_after_terminal"))
+    }
+
+    async fn recover_candidate_after_terminal(
+        &self,
+        _expected_revision: EngineSwitchRevision,
+        _terminal_generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+        Err(unexpected_call("journal recover_candidate_after_terminal"))
     }
 }
 
@@ -280,7 +341,7 @@ async fn never_started_stops_vpn_before_reconciling_the_unowned_proof() {
     );
     assert!(matches!(
         store.evidence.lock().expect("recovery evidence").as_ref(),
-        Some(ActiveProfileOwnerRecoveryEvidence::NeverStarted { terminal })
+        Some(OwnerRecoveryEvidence::NeverStarted { terminal })
             if terminal.identity.as_ref().is_some_and(|identity| identity.same_instance(&expected_identity()))
                 && terminal.lifecycle == CoreLifecycle::Stopped
                 && terminal.generation == 0
@@ -320,7 +381,7 @@ async fn exited_managed_child_recovers_exact_owner_then_consumes_its_record() {
     );
     assert!(matches!(
         store.evidence.lock().expect("recovery evidence").as_ref(),
-        Some(ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+        Some(OwnerRecoveryEvidence::ManagedChildExited {
             context: observed,
             terminal,
         }) if observed == &context

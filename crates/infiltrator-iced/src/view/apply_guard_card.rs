@@ -14,7 +14,7 @@ pub fn apply_guard_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
         .editor
         .apply_transaction
         .as_ref()
-        .map(|record| transaction(record, lang.0))
+        .map(|record| transaction(record, &Lang(lang.0)))
         .unwrap_or_else(|| lang.tr("editor_apply_idle").into_owned());
     card(
         Some(lang.tr("apply_guard_title").into_owned()),

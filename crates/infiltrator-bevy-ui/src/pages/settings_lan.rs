@@ -3,6 +3,7 @@
 #[path = "settings_lan_query_access.rs"]
 pub mod query_access;
 use self::query_access::{LanProjectionTargets, LanSecurityControls};
+use infiltrator_shared::locales::Lang;
 
 use super::SettingsProjectionUpdated;
 use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
@@ -106,7 +107,10 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
         .as_ref()
         .and_then(|value| value.authentication_username.clone())
         .unwrap_or_default();
-    let auth_status = format_lan_auth(projection.lan_security.as_ref(), UiLocale::default().code());
+    let auth_status = format_lan_auth(
+        projection.lan_security.as_ref(),
+        &Lang(UiLocale::default().code()),
+    );
     Box::new(surface_scene(
         vec![
             Box::new(bsn! {

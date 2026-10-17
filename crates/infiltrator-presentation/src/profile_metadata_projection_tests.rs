@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_shared::locales::Lang;
 #[test]
 fn partial_quota_overflow_and_real_zero_never_become_fabricated_usage_or_unlimited() {
     let partial = traffic(None, Some(0), None);
@@ -20,24 +21,24 @@ fn partial_quota_overflow_and_real_zero_never_become_fabricated_usage_or_unlimit
         traffic(Some(0), Some(90), Some(100)).grade,
         UsageGrade::High
     );
-    assert!(traffic_caption(&partial, "en-US").contains("Used: — / Total: —"));
+    assert!(traffic_caption(&partial, &Lang("en-US")).contains("Used: — / Total: —"));
 }
 #[test]
 fn missing_schedule_is_not_cron_and_opaque_names_and_next_times_are_not_reinterpreted() {
     assert_eq!(
-        schedule_overview([(true, None, None)], "en-US"),
+        schedule_overview([(true, None, None)], &Lang("en-US")),
         "Auto update: 1 enabled; 1 schedules not observed"
     );
     assert_eq!(
-        schedule_overview([(true, Some("0 0 * * *"), None)], "en-US"),
+        schedule_overview([(true, Some("0 0 * * *"), None)], &Lang("en-US")),
         "Auto update: 1 enabled; Cron schedules"
     );
     assert_eq!(
-        summary(1, Some("profile {count}/中文🙂"), "en-US"),
+        summary(1, Some("profile {count}/中文🙂"), &Lang("en-US")),
         "Profiles · 1 profiles (active: profile {count}/中文🙂)"
     );
     assert!(
-        schedule(true, None, Some(2), Some("{cadence}/🙂"), "en-US")
+        schedule(true, None, Some(2), Some("{cadence}/🙂"), &Lang("en-US"))
             .ends_with("Next update {cadence}/🙂")
     );
 }

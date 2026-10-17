@@ -6,6 +6,7 @@ use crate::rule_statistics_inspector_projection::project_inspector;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason};
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_shared::locales::Lang;
 
 fn page(revision: u64) -> PageData<RulesPageSnapshot> {
     let document = list_document(vec![
@@ -59,7 +60,7 @@ fn cleanup_cancel_changes_nothing_and_confirm_follows_stable_identity_after_reor
     model.observe(&page);
     assert!(model.inspect(&editor));
     assert!(model.prepare_cleanup(&editor));
-    let projection = project_inspector(&model, &editor, "en-US");
+    let projection = project_inspector(&model, &editor, &Lang("en-US"));
     assert_eq!(
         projection.confirmation_summary,
         format!(

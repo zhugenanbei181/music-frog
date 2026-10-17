@@ -33,6 +33,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_presentation::dns_leak_projection::{LeakTone, project_leak};
+use infiltrator_shared::locales::Lang;
 
 #[derive(Component, Clone, Default)]
 pub struct LeakCard;
@@ -40,13 +41,13 @@ pub struct LeakCard;
 pub struct LeakFeedback;
 
 pub fn leak_conclusion_label(report: &DnsLeakReport, code: &str) -> String {
-    project_leak(report, code).conclusion
+    project_leak(report, &Lang(code)).conclusion
 }
 pub fn leak_observation_listing(report: &DnsLeakReport, code: &str) -> String {
-    project_leak(report, code).listing()
+    project_leak(report, &Lang(code)).listing()
 }
 pub fn leak_source_count_label(report: &DnsLeakReport, code: &str) -> String {
-    project_leak(report, code).sources
+    project_leak(report, &Lang(code)).sources
 }
 pub(crate) fn tone_color(tone: LeakTone, palette: &UiPalette) -> Color {
     match tone {
@@ -57,12 +58,12 @@ pub(crate) fn tone_color(tone: LeakTone, palette: &UiPalette) -> Color {
     }
 }
 pub fn leak_conclusion_color(report: &DnsLeakReport, palette: &UiPalette) -> Color {
-    tone_color(project_leak(report, "en-US").tone, palette)
+    tone_color(project_leak(report, &Lang("en-US")).tone, palette)
 }
 
 /// The DNS leak cross-source card (conclusion + per-source listing).
 pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let display = project_leak(&projection.leak, UiLocale::default().code());
+    let display = project_leak(&projection.leak, &Lang(UiLocale::default().code()));
     let rows = rows_scene(&display, palette);
     let conclusion = display.conclusion;
     let sources = display.sources;
@@ -136,10 +137,8 @@ pub fn sync_dns_leak_line(
     let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) else {
         return;
     };
-    let display = project_leak(
-        &projection.leak,
-        locale.as_ref().map_or("zh-CN", |locale| locale.code()),
-    );
+    let locale_code = locale.as_ref().map_or("zh-CN", |locale| locale.code());
+    let display = project_leak(&projection.leak, &Lang(locale_code));
     let listing = display.listing();
     let conclusion = display.conclusion;
     let sources = display.sources;

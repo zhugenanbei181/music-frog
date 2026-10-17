@@ -5,6 +5,7 @@ use crate::view::dns_form_panel::{
 use infiltrator_contract::dns::DnsServerTag;
 use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
 use infiltrator_presentation::dns_settings_projection::form_issue;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 #[test]
 fn test_dns_protocol_chip_mappings() {
@@ -44,16 +45,22 @@ fn test_item_list_mutation() {
 fn test_server_tag_labels_are_localized() {
     let zh = Lang("zh-CN");
     let en = Lang("en-US");
-    assert_eq!(server_tags_text(&[DnsServerTag::Domestic], zh.0), "国内");
     assert_eq!(
-        server_tags_text(&[DnsServerTag::Encrypted], en.0),
+        server_tags_text(&[DnsServerTag::Domestic], &Lang(zh.0)),
+        "国内"
+    );
+    assert_eq!(
+        server_tags_text(&[DnsServerTag::Encrypted], &Lang(en.0)),
         "Encrypted"
     );
     assert_eq!(
-        server_tags_text(&[DnsServerTag::Fallback], en.0),
+        server_tags_text(&[DnsServerTag::Fallback], &Lang(en.0)),
         "Fallback"
     );
-    assert_eq!(server_tags_text(&[DnsServerTag::Plain], zh.0), "明文");
+    assert_eq!(
+        server_tags_text(&[DnsServerTag::Plain], &Lang(zh.0)),
+        "明文"
+    );
     let _ = token_row(
         "https://doh.pub/dns-query",
         0,
@@ -90,14 +97,14 @@ fn test_dns_form_validation_issues_localize_in_both_locales() {
     form.fallback_policy.geoip_code = "CHN".to_owned();
     let issues = form.validate();
     assert!(!issues.is_empty());
-    let zh = form_issue(&issues[0], "zh-CN");
-    let en = form_issue(&issues[0], "en-US");
+    let zh = form_issue(&issues[0], &Lang("zh-CN"));
+    let en = form_issue(&issues[0], &Lang("en-US"));
     assert!(zh.contains("字段"), "{zh}");
     assert!(en.contains("nameserver"), "{en}");
     assert!(!en.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c)));
     for issue in &issues {
-        let _ = form_issue(issue, "zh-CN");
-        let _ = form_issue(issue, "en-US");
+        let _ = form_issue(issue, &Lang("zh-CN"));
+        let _ = form_issue(issue, &Lang("en-US"));
     }
     let _ = form_issue_banner(&issues, &Lang("zh-CN"));
     let _ = form_issue_banner(&issues, &Lang("en-US"));

@@ -4,13 +4,14 @@ use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_presentation::shell_readout::observed_rate;
 use infiltrator_presentation::traffic_readout::{TrafficReadout, project_traffic_readout};
+use infiltrator_shared::locales::Lang;
 impl AppState {
     pub(crate) fn traffic_readout(&self) -> TrafficReadout {
         if self.commands.is_some() || self.surface.latest().is_some() {
             return project_traffic_readout(
                 &self.shell.readout,
                 &self.runtime.traffic_waveform,
-                &self.shell.lang,
+                &Lang(&self.shell.lang),
             );
         }
         let rates = ShellReadoutSnapshot {
@@ -31,6 +32,6 @@ impl AppState {
                 .collect(),
             ..Default::default()
         };
-        project_traffic_readout(&rates, &waveform, &self.shell.lang)
+        project_traffic_readout(&rates, &waveform, &Lang(&self.shell.lang))
     }
 }

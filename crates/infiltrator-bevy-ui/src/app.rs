@@ -9,6 +9,7 @@ use self::query_access::{
     SyncSafeAreaInsetsBottomNavsFilter, SyncSafeAreaInsetsChromeBarsFilter,
     SyncSafeAreaInsetsShellRootsFilter,
 };
+use infiltrator_shared::locales::Lang;
 
 #[path = "shell_bidi.rs"]
 pub mod shell_bidi;
@@ -653,7 +654,7 @@ fn sync_sidebar_toggle_visuals(
         visual.0 = state.is_enabled();
         for child in children.iter() {
             if let Ok(mut label) = labels.get_mut(*child) {
-                label.0 = compact_label(state, locale.code());
+                label.0 = compact_label(state, &Lang(locale.code()));
             }
         }
         if state.can_toggle() {

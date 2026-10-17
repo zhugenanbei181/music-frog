@@ -5,6 +5,7 @@ use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_presentation::rule_row_projection::row_detail;
+use infiltrator_shared::locales::Lang;
 pub fn sync(
     last: Option<Res<LastRulesProjection>>,
     locale: Res<UiLocale>,
@@ -21,7 +22,7 @@ pub fn sync(
             rule.source_ip,
             rule.no_resolve,
             rule.failure.as_ref(),
-            locale.code(),
+            &Lang(locale.code()),
         );
         let value = if detail.is_empty() {
             rule.payload.clone()

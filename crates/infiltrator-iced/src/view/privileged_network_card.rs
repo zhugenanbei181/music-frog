@@ -13,7 +13,7 @@ use infiltrator_presentation::host_network_projection::privileged;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn privileged_network_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let view = privileged(&state.runtime.privileged_network, lang.0);
+    let view = privileged(&state.runtime.privileged_network, &Lang(lang.0));
     let run = button(text(lang.tr(view.start_key).into_owned()))
         .padding([4, 12])
         .style(style_accent)

@@ -26,6 +26,7 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
 use infiltrator_presentation::dns_cache_projection::project_cache;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 #[derive(Resource, Default)]
 pub struct CacheConfirmation {
@@ -167,7 +168,7 @@ pub fn render(
     mut copies: Query<&mut LocalizedText>,
     palette: Res<UiPalette>,
 ) {
-    let view = project_cache(&state.model, locale.code());
+    let view = project_cache(&state.model, &Lang(locale.code()));
     for mut root in &mut roots {
         let wanted = if state.model.is_open() {
             Display::Flex

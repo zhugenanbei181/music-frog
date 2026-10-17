@@ -71,7 +71,7 @@ fn decision_status_color(status: DecisionNodeStatus) -> fn(&Theme) -> Color {
 
 /// Compact five-stage replay of the shared decision chain.
 fn decision_chain_rows<'a>(chain: &DecisionChainSnapshot, lang: &Lang<'_>) -> Element<'a, Message> {
-    let display = present_chain(chain, lang.0);
+    let display = present_chain(chain, &Lang(lang.0));
     let rows: Vec<Element<'a, Message>> = display
         .nodes
         .iter()
@@ -82,7 +82,7 @@ fn decision_chain_rows<'a>(chain: &DecisionChainSnapshot, lang: &Lang<'_>) -> El
                     color: Some(status_color(t))
                 }),
                 Space::new().width(theme::SP_XS),
-                text(stage_text(node, lang.0))
+                text(stage_text(node, &Lang(lang.0)))
                     .size(10)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_tertiary)
@@ -466,12 +466,12 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
     let main_card = card(
         Some(lang.tr("tracer_title").to_string()),
         column![
-            text(trace_status(&state.editor.rule_trace, lang.0))
+            text(trace_status(&state.editor.rule_trace, &Lang(lang.0)))
                 .size(12)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
                 }),
-            text(trace_provenance(&state.editor.rule_trace, lang.0)).size(11),
+            text(trace_provenance(&state.editor.rule_trace, &Lang(lang.0))).size(11),
             Space::new().height(theme::SP_XS),
             row![
                 text_input(

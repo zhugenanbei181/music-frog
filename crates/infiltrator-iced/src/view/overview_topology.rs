@@ -204,7 +204,7 @@ pub fn topology_route_for_stage(stage: TrafficTopologyStage) -> Option<Route> {
 }
 
 pub fn topology_badge(snapshot: &TrafficTopologySnapshot, lang: &Lang<'_>) -> String {
-    status_label(snapshot, lang.0)
+    status_label(snapshot, &Lang(lang.0))
 }
 
 pub fn topology_badge_kind(snapshot: &TrafficTopologySnapshot) -> BadgeKind {

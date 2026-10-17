@@ -531,7 +531,7 @@ impl AppState {
                             Some(reason) if reason.is_advisory() => {
                                 let message = profile_editor_projection::format_note(
                                     reason,
-                                    &self.shell.lang,
+                                    &Lang(&self.shell.lang),
                                 );
                                 return Task::done(Message::ShowToast(message, ToastStatus::Info));
                             }

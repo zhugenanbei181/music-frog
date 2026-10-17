@@ -318,7 +318,7 @@ pub(crate) fn replay_projection_after_theme(
 /// ladder used by both peer products with an
 /// an explicit unknown for invalid observations. Pure function.
 pub fn format_rate(bytes_per_second: f64) -> String {
-    rate_copy(&observed_rate(Some(bytes_per_second)), "en-US")
+    rate_copy(&observed_rate(Some(bytes_per_second)), &Lang("en-US"))
 }
 
 /// Format a byte count for the memory chip: the shared [`format_bytes`]
@@ -418,7 +418,7 @@ pub fn banner_state_text(projection: &OverviewProjection, language: &str) -> Str
     banner_verdict_copy(
         verdict,
         &projection.lifecycle,
-        language,
+        &Lang(language),
         is_vpn_unauthorized(projection),
     )
 }
@@ -478,7 +478,7 @@ pub fn banner_note(projection: &OverviewProjection, language: &str) -> String {
             OverviewOrigin::LiveCore => SurfaceOrigin::Live,
         },
         projection.core_version.as_deref(),
-        language,
+        &Lang(language),
     )
 }
 
@@ -587,11 +587,11 @@ pub fn overview_page(
 fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
     let state = banner_state_text(projection, "en-US");
     let state_node = status_semantic_node(&state);
-    let chip = routing_intent_status_copy(&projection.routing_intent, "en-US");
+    let chip = routing_intent_status_copy(&projection.routing_intent, &Lang("en-US"));
     let failure = failure_copy(
         &projection.lifecycle,
         projection.failure.as_deref(),
-        "en-US",
+        &Lang("en-US"),
     );
     let note = banner_note(projection, "en-US");
     bsn! {
@@ -683,12 +683,14 @@ fn traffic_card_scene(
         vec![
             Box::new(bsn! { LocalizedText::plain("overview_traffic") TextRole(Role::Caption) }),
             Box::new(rates_row_scene(
-                rate_copy(&projection.readout.upload_bps, "en-US"),
-                rate_copy(&projection.readout.download_bps, "en-US"),
+                rate_copy(&projection.readout.upload_bps, &Lang("en-US")),
+                rate_copy(&projection.readout.download_bps, &Lang("en-US")),
             )),
             Box::new(scale_line_scene(&scale)),
-            Box::new(bsn! { Text({rate_status(&projection.readout, "en-US")})
-            OverviewLine(OverviewLineKind::TelemetryFailure) TextRole(Role::Caption) }),
+            Box::new(
+                bsn! { Text({rate_status(&projection.readout, &Lang("en-US"))})
+                OverviewLine(OverviewLineKind::TelemetryFailure) TextRole(Role::Caption) },
+            ),
             Box::new(overview_chart_scene(
                 up,
                 down,
@@ -842,8 +844,8 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
     let connections = projection.active_connections.to_string();
     let memory = format_memory(&projection.memory_bytes);
     let cpu = format_cpu(&projection.cpu_percent);
-    let upload = rate_copy(&projection.readout.upload_bps, "en-US");
-    let download = rate_copy(&projection.readout.download_bps, "en-US");
+    let upload = rate_copy(&projection.readout.upload_bps, &Lang("en-US"));
+    let download = rate_copy(&projection.readout.download_bps, &Lang("en-US"));
     let total = format_total_traffic(projection.total_traffic_bytes);
 
     let connections_node = stat_group_semantic_node(&format!(

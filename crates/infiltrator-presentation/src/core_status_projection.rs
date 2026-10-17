@@ -1,11 +1,11 @@
 //! Shared lifecycle and source copy; native products replay the same observed facts.
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_domain::redact::redact_line;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
-pub fn lifecycle_copy(lifecycle: &CoreLifecycle, language: &str) -> String {
+pub fn lifecycle_copy(lifecycle: &CoreLifecycle, catalog: &dyn TextCatalog) -> String {
     let key = match lifecycle {
         CoreLifecycle::Stopped => "status_stopped",
         CoreLifecycle::Starting => "status_starting",
@@ -13,30 +13,39 @@ pub fn lifecycle_copy(lifecycle: &CoreLifecycle, language: &str) -> String {
         CoreLifecycle::Stopping => "core_control_stopping",
         CoreLifecycle::Failed => "status_error",
     };
-    Lang(language).tr(key).into_owned()
+    catalog.text(key).into_owned()
 }
 
-pub fn failure_copy(lifecycle: &CoreLifecycle, reason: Option<&str>, language: &str) -> String {
+pub fn failure_copy(
+    lifecycle: &CoreLifecycle,
+    reason: Option<&str>,
+    catalog: &dyn TextCatalog,
+) -> String {
     match reason.map(str::trim).filter(|reason| !reason.is_empty()) {
         Some(reason) => redact_line(reason, &[]),
-        None if *lifecycle == CoreLifecycle::Failed => Lang(language)
-            .tr("core_failure_reason_unobserved")
-            .into_owned(),
+        None if *lifecycle == CoreLifecycle::Failed => {
+            catalog.text("core_failure_reason_unobserved").into_owned()
+        }
         None => String::new(),
     }
 }
 
-pub fn source_copy(origin: SurfaceOrigin, version: Option<&str>, language: &str) -> String {
-    let lang = Lang(language);
+pub fn source_copy(
+    origin: SurfaceOrigin,
+    version: Option<&str>,
+    catalog: &dyn TextCatalog,
+) -> String {
     if origin == SurfaceOrigin::Demo {
-        return lang.tr("core_source_demo").into_owned();
+        return catalog.text("core_source_demo").into_owned();
     }
     match version.map(str::trim).filter(|version| !version.is_empty()) {
         Some(version) => interpolate(
-            lang.tr("core_source_live_version").as_ref(),
+            catalog.text("core_source_live_version").as_ref(),
             &[("version", &redact_line(version, &[]))],
         ),
-        None => lang.tr("core_source_live_unknown_version").into_owned(),
+        None => catalog
+            .text("core_source_live_unknown_version")
+            .into_owned(),
     }
 }
 
@@ -86,23 +95,22 @@ pub fn project_banner_verdict(
 pub fn banner_verdict_copy(
     verdict: OverviewBannerVerdict,
     lifecycle: &CoreLifecycle,
-    language: &str,
+    catalog: &dyn TextCatalog,
     is_vpn_unauthorized: bool,
 ) -> String {
-    let lang = Lang(language);
     match verdict {
-        OverviewBannerVerdict::Demo => lang.tr("overview_demo_mode").into_owned(),
-        OverviewBannerVerdict::MissingHost => lifecycle_copy(&CoreLifecycle::Failed, language),
-        OverviewBannerVerdict::CoreStopped => lifecycle_copy(&CoreLifecycle::Stopped, language),
+        OverviewBannerVerdict::Demo => catalog.text("overview_demo_mode").into_owned(),
+        OverviewBannerVerdict::MissingHost => lifecycle_copy(&CoreLifecycle::Failed, catalog),
+        OverviewBannerVerdict::CoreStopped => lifecycle_copy(&CoreLifecycle::Stopped, catalog),
         OverviewBannerVerdict::VpnUnauthorized => {
             if is_vpn_unauthorized {
-                lang.tr("overview_vpn_unauthorized").into_owned()
+                catalog.text("overview_vpn_unauthorized").into_owned()
             } else {
-                lang.tr("overview_running_untaken").into_owned()
+                catalog.text("overview_running_untaken").into_owned()
             }
         }
-        OverviewBannerVerdict::RealRunning => lifecycle_copy(&CoreLifecycle::Running, language),
-        OverviewBannerVerdict::Transitioning => lifecycle_copy(lifecycle, language),
+        OverviewBannerVerdict::RealRunning => lifecycle_copy(&CoreLifecycle::Running, catalog),
+        OverviewBannerVerdict::Transitioning => lifecycle_copy(lifecycle, catalog),
     }
 }
 

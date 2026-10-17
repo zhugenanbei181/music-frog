@@ -43,7 +43,7 @@ pub struct VpnStopLabel;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
     let locale = UiLocale::default();
-    let view = vpn(&projection.vpn, locale.code());
+    let view = vpn(&projection.vpn, &Lang(locale.code()));
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -163,7 +163,7 @@ pub(super) fn replay(
     let Some(projection) = last.0.as_ref() else {
         return;
     };
-    let view = vpn(&projection.vpn, locale.code());
+    let view = vpn(&projection.vpn, &Lang(locale.code()));
     for parts in &mut lines {
         let VpnTextItem {
             mut text,

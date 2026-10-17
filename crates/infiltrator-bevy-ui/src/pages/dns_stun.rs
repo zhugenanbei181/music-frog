@@ -25,10 +25,11 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::stun_projection::project_stun;
+use infiltrator_shared::locales::Lang;
 
 /// The STUN UDP-egress card (status + mapping / comparison listing).
 pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let display = project_stun(&projection.stun, UiLocale::default().code());
+    let display = project_stun(&projection.stun, &Lang(UiLocale::default().code()));
     let conclusion = display.status.clone();
     let listing = display.listing();
     let conclusion_color = observation_color(display.tone, palette);
@@ -91,16 +92,16 @@ mod tests {
     #[test]
     fn the_card_renders_the_observed_mapping_and_never_a_webrtc_verdict() {
         let consistent = observed("203.0.113.9", Some("203.0.113.9"));
-        let label = project_stun(&consistent, "zh-CN").status;
+        let label = project_stun(&consistent, &Lang("zh-CN")).status;
         assert!(label.contains("203.0.113.9:51234"), "{label}");
-        let listing = project_stun(&consistent, "zh-CN").listing();
+        let listing = project_stun(&consistent, &Lang("zh-CN")).listing();
         assert!(listing.contains("stun.l.google.com:19302"), "{listing}");
         assert!(listing.contains("与期望代理出网一致"), "{listing}");
         assert!(listing.contains("不是某个浏览器实例的 WebRTC"), "{listing}");
         assert!(!listing.contains("泄漏结论"), "{listing}");
 
         let divergent = observed("198.51.100.7", Some("203.0.113.9"));
-        let listing = project_stun(&divergent, "zh-CN").listing();
+        let listing = project_stun(&divergent, &Lang("zh-CN")).listing();
         assert!(listing.contains("不一致"), "{listing}");
         assert!(listing.contains("198.51.100.7:51234"), "{listing}");
         assert!(listing.contains("203.0.113.9"), "{listing}");
@@ -108,14 +109,14 @@ mod tests {
 
         // No expected egress is an explicit unknown, never an implied "clean".
         let unknown = observed("203.0.113.9", None);
-        let listing = project_stun(&unknown, "zh-CN").listing();
+        let listing = project_stun(&unknown, &Lang("zh-CN")).listing();
         assert!(listing.contains("无法比较"), "{listing}");
     }
 
     #[test]
     fn a_host_without_a_prober_renders_the_typed_unsupported_copy() {
         let unsupported = StunProbeReport::unsupported("no STUN prober is composed");
-        let label = project_stun(&unsupported, "zh-CN").status;
+        let label = project_stun(&unsupported, &Lang("zh-CN")).status;
         assert!(label.contains("宿主未提供 STUN 探测能力"), "{label}");
         assert!(!label.contains("观测 "), "{label}");
 
@@ -123,16 +124,28 @@ mod tests {
             StunProbeObservation::timed_out("stun.l.google.com:19302"),
             None,
         );
-        assert!(project_stun(&timed_out, "zh-CN").status.contains("超时"));
+        assert!(
+            project_stun(&timed_out, &Lang("zh-CN"))
+                .status
+                .contains("超时")
+        );
 
         let failed = StunProbeReport::from_observation(
             StunProbeObservation::failed("stun.l.google.com:19302", "network unreachable"),
             None,
         );
-        assert!(project_stun(&failed, "zh-CN").status.contains("探测失败"));
+        assert!(
+            project_stun(&failed, &Lang("zh-CN"))
+                .status
+                .contains("探测失败")
+        );
 
         // Nothing reported yet is not a result either.
         let pending = StunProbeReport::default();
-        assert!(project_stun(&pending, "zh-CN").status.contains("尚未探测"));
+        assert!(
+            project_stun(&pending, &Lang("zh-CN"))
+                .status
+                .contains("尚未探测")
+        );
     }
 }

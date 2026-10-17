@@ -1,10 +1,10 @@
 //! One native-independent presentation of optional quota observations for both peer products.
+use crate::text::localize;
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
 use infiltrator_shared::byte_units::format_bytes;
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 use lurker_ui_presentation::failure_projection::failure_message;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuotaGrade {
@@ -27,14 +27,16 @@ pub struct QuotaPresentation {
     pub grade: QuotaGrade,
     pub fraction: Option<f32>,
 }
-pub fn project_quota(snapshot: &SubscriptionQuotaSnapshot, locale: &str) -> QuotaPresentation {
-    let lang = Lang(locale);
+pub fn project_quota(
+    snapshot: &SubscriptionQuotaSnapshot,
+    catalog: &dyn TextCatalog,
+) -> QuotaPresentation {
     let amount = |value: Option<u64>| value.map(format_bytes).unwrap_or_else(|| "—".into());
     let percent = |value: Option<f64>| {
         value
             .filter(|value| value.is_finite() && *value >= 0.0)
             .map(|value| format!("{value:.1}%"))
-            .unwrap_or_else(|| lang.tr("quota_value_unobserved").into_owned())
+            .unwrap_or_else(|| catalog.text("quota_value_unobserved").into_owned())
     };
     let used = amount(snapshot.used_bytes);
     let total = amount(snapshot.total_bytes);
@@ -46,21 +48,23 @@ pub fn project_quota(snapshot: &SubscriptionQuotaSnapshot, locale: &str) -> Quot
         .as_ref()
         .map(|date| match snapshot.remaining_days {
             Some(days) => localize(
-                locale,
+                catalog,
                 "quota_expiry_days",
                 &[("date", date.clone()), ("days", days.to_string())],
             ),
             None => date.clone(),
         })
         .unwrap_or_else(|| {
-            lang.tr("overview_subscription_quota_expiry_unknown")
+            catalog
+                .text("overview_subscription_quota_expiry_unknown")
                 .into_owned()
         });
     let reset = snapshot
         .reset_days
-        .map(|days| localize(locale, "quota_reset_days", &[("days", days.to_string())]))
+        .map(|days| localize(catalog, "quota_reset_days", &[("days", days.to_string())]))
         .unwrap_or_else(|| {
-            lang.tr("overview_subscription_quota_reset_unknown")
+            catalog
+                .text("overview_subscription_quota_reset_unknown")
                 .into_owned()
         });
     let (key, grade) = match snapshot.status {
@@ -90,26 +94,27 @@ pub fn project_quota(snapshot: &SubscriptionQuotaSnapshot, locale: &str) -> Quot
         SubscriptionQuotaStatus::Unsupported | SubscriptionQuotaStatus::Failed
     ) {
         localize(
-            locale,
+            catalog,
             key,
             &[(
                 "reason",
                 snapshot
                     .failure
                     .as_ref()
-                    .map(|failure| failure_message(failure, &lang))
-                    .unwrap_or_else(|| lang.tr("quota_reason_unreported").into_owned()),
+                    .map(|failure| failure_message(failure, catalog))
+                    .unwrap_or_else(|| catalog.text("quota_reason_unreported").into_owned()),
             )],
         )
     } else {
-        lang.tr(key).into_owned()
+        catalog.text(key).into_owned()
     };
     if snapshot.retained {
-        status = localize(locale, "quota_retained_observation", &[("state", status)]);
+        status = localize(catalog, "quota_retained_observation", &[("state", status)]);
     }
     QuotaPresentation {
         profile: snapshot.profile_name.clone().unwrap_or_else(|| {
-            lang.tr("overview_subscription_quota_no_profile")
+            catalog
+                .text("overview_subscription_quota_no_profile")
                 .into_owned()
         }),
         expiry,
@@ -118,7 +123,7 @@ pub fn project_quota(snapshot: &SubscriptionQuotaSnapshot, locale: &str) -> Quot
         reset,
         status,
         metrics: localize(
-            locale,
+            catalog,
             "quota_usage_summary",
             &[
                 ("used", used.clone()),

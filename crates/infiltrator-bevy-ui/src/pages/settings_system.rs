@@ -21,6 +21,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_presentation::network_status_projection::system_proxy_status;
+use infiltrator_shared::locales::Lang;
 
 /// Parent marker for the host system proxy checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -55,7 +56,7 @@ pub(super) fn status_row(
             Children [
                 LocalizedText::plain("settings_system_proxy_status_title") TextRole(Role::Body)
                 --
-                Text({ system_proxy_status(snapshot, recovery, "zh-CN") }) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono)
+                Text({ system_proxy_status(snapshot, recovery, &Lang("zh-CN")) }) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono)
             ]
     })
 }

@@ -32,10 +32,10 @@ pub(super) fn kernel_management_card<'a>(
     selected_core_channel: Option<SettingsChoice>,
 ) -> Element<'a, Message> {
     let mut kernel_rows = column![].spacing(theme::SP_SM);
-    let channel_probe = format_core_versions(&state.runtime.core_versions, lang.0);
-    let integrity = format_integrity(&state.runtime.core_integrity, lang.0);
-    let controller_auth = format_controller_auth(&state.runtime.controller_auth, lang.0);
-    let offline_startup = format_offline_startup(&state.runtime.offline_startup, lang.0);
+    let channel_probe = format_core_versions(&state.runtime.core_versions, &Lang(lang.0));
+    let integrity = format_integrity(&state.runtime.core_integrity, &Lang(lang.0));
+    let controller_auth = format_controller_auth(&state.runtime.controller_auth, &Lang(lang.0));
+    let offline_startup = format_offline_startup(&state.runtime.offline_startup, &Lang(lang.0));
     let selected_log_level = CoreLogLevel::ALL
         .into_iter()
         .find(|level| Some(level.as_key()) == state.runtime.runtime_control.log_level.as_deref());
@@ -65,7 +65,7 @@ pub(super) fn kernel_management_card<'a>(
         "core_resource_values_status",
         &[(
             "value",
-            format_core_resources(&state.runtime.core_resources, lang.0),
+            format_core_resources(&state.runtime.core_resources, &Lang(lang.0)),
         )],
     )));
     kernel_rows = kernel_rows.push(responsive_form_row(
@@ -93,7 +93,7 @@ pub(super) fn kernel_management_card<'a>(
             Element::from(
                 text(optional_copy(
                     state.runtime.runtime_control.log_level.as_ref(),
-                    lang.0,
+                    &Lang(lang.0),
                 ))
                 .size(12),
             )

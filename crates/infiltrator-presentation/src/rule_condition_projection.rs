@@ -1,29 +1,30 @@
 //! Localize typed logical evaluations once; raw expressions stay opaque.
+use crate::text::localize;
 use infiltrator_contract::rule_condition::{
     ConditionIssue, ConditionOutcome, EvaluationNodeKind, RuleEvaluationNode, TrafficField,
 };
 use infiltrator_contract::rule_location::RuleLocation;
-use infiltrator_shared::i18n_interpolator::localize;
-pub fn issue_text(issue: &ConditionIssue, code: &str) -> String {
+use lurker_ui_presentation::copy::TextCatalog;
+pub fn issue_text(issue: &ConditionIssue, catalog: &dyn TextCatalog) -> String {
     match issue {
         ConditionIssue::MissingInput(field) => localize(
-            code,
+            catalog,
             "rule_trace_missing_input",
-            &[("field", localize(code, field_key(*field), &[]))],
+            &[("field", localize(catalog, field_key(*field), &[]))],
         ),
         ConditionIssue::ExternalData { rule_type, name } => localize(
-            code,
+            catalog,
             "rule_trace_external_missing",
             &[("type", rule_type.clone()), ("name", name.clone())],
         ),
         ConditionIssue::InvalidRule { reason } => localize(
-            code,
+            catalog,
             "rule_trace_invalid_rule",
             &[("reason", reason.clone())],
         ),
     }
 }
-pub fn evaluation_text(row: &RuleEvaluationNode, code: &str) -> String {
+pub fn evaluation_text(row: &RuleEvaluationNode, catalog: &dyn TextCatalog) -> String {
     let kind = match row.kind {
         EvaluationNodeKind::Leaf => "rule_trace_eval_leaf",
         EvaluationNodeKind::And => "rule_trace_eval_and",
@@ -32,18 +33,18 @@ pub fn evaluation_text(row: &RuleEvaluationNode, code: &str) -> String {
         EvaluationNodeKind::SubRule => "rule_trace_eval_subrule",
     };
     let outcome = match &row.outcome {
-        ConditionOutcome::Matched => localize(code, "rule_trace_eval_match", &[]),
-        ConditionOutcome::NotMatched => localize(code, "rule_trace_eval_no_match", &[]),
-        ConditionOutcome::Unresolved(issue) => issue_text(issue, code),
+        ConditionOutcome::Matched => localize(catalog, "rule_trace_eval_match", &[]),
+        ConditionOutcome::NotMatched => localize(catalog, "rule_trace_eval_no_match", &[]),
+        ConditionOutcome::Unresolved(issue) => issue_text(issue, catalog),
     };
     format!(
         "{}{}",
         "  ".repeat(row.depth),
         localize(
-            code,
+            catalog,
             "rule_trace_eval_row",
             &[
-                ("kind", localize(code, kind, &[])),
+                ("kind", localize(catalog, kind, &[])),
                 ("outcome", outcome),
                 ("expression", row.expression.clone().unwrap_or_default())
             ]
@@ -70,7 +71,7 @@ pub const fn field_key(field: TrafficField) -> &'static str {
     }
 }
 
-pub fn location_text(location: &RuleLocation, code: &str) -> String {
+pub fn location_text(location: &RuleLocation, catalog: &dyn TextCatalog) -> String {
     let mut arguments = vec![("index", (location.index + 1).to_string())];
     let key = match &location.table {
         Some(table) => {
@@ -79,5 +80,5 @@ pub fn location_text(location: &RuleLocation, code: &str) -> String {
         }
         None => "rule_trace_location_root",
     };
-    localize(code, key, &arguments)
+    localize(catalog, key, &arguments)
 }

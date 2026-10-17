@@ -19,6 +19,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_presentation::rule_statistics_inspector_projection::{
     StatisticsRowKey, StatisticsRowProjection, project_inspector,
 };
+use infiltrator_shared::locales::Lang;
 
 #[derive(Component, Clone, Default)]
 pub struct StatisticsRow(pub Option<StatisticsRowKey>);
@@ -77,7 +78,7 @@ pub fn render(mut surface: StatisticsSurface, mut commands: Commands) {
     let display = project_inspector(
         &surface.state.model,
         &surface.draft.model,
-        surface.locale.code(),
+        &Lang(surface.locale.code()),
     );
     for mut line in &mut surface.texts {
         let value = match line.line {

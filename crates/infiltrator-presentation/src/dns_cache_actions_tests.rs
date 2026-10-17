@@ -4,6 +4,7 @@ use crate::dns_cache_projection::project_cache;
 use infiltrator_contract::dns_cache::{
     DnsCacheFlushReport, DnsCacheOperation, DnsCacheOperationId, DnsCacheSnapshot, DnsFlushOutcome,
 };
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
@@ -68,7 +69,7 @@ fn matching_readback_may_precede_the_receipt_but_foreign_readback_cannot_finish_
     assert!(model.is_pending());
     assert!(model.finish(operation, Ok(())));
     assert!(
-        project_cache(&model, "en-US")
+        project_cache(&model, &Lang("en-US"))
             .status
             .contains("Clearing finished")
     );
@@ -77,7 +78,7 @@ fn matching_readback_may_precede_the_receipt_but_foreign_readback_cannot_finish_
     let retry = model.confirm().unwrap();
     let permission = Failure::new(ErrorCode::Permission, "allow {reason} verbatim", false);
     assert!(model.finish(retry, Err(permission.clone())));
-    let view = project_cache(&model, "zh-CN");
+    let view = project_cache(&model, &Lang("zh-CN"));
     assert!(view.retry);
     assert!(view.status.contains("allow {reason} verbatim"));
     assert_eq!(model.failure(), Some(&permission));

@@ -85,7 +85,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         header_row = header_row
             .push(Space::new().width(theme::SP_SM))
             .push(badge(
-                routing_intent_copy(intent, lang.0),
+                routing_intent_copy(intent, &Lang(lang.0)),
                 BadgeKind::Neutral,
             ));
     }
@@ -147,7 +147,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         ))
         .push(Space::new().width(theme::SP_XS));
 
-    let state_text = compact_status_line(&proxy_state, &tun_state, lang.0);
+    let state_text = compact_status_line(&proxy_state, &tun_state, &Lang(lang.0));
     footer_row = footer_row
         .push(labelled(
             ShellA11yNode::MiniHudTunSwitch,

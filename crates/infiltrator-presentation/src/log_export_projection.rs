@@ -1,7 +1,7 @@
 //! Shared user copy and action availability, replayed by native modal renderers.
 use crate::log_export_actions::{LogExportActions, LogExportPhase};
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
 pub struct LogExportView {
     pub status: String,
@@ -13,8 +13,7 @@ pub struct LogExportView {
     pub error: bool,
 }
 
-pub fn project_log_export(model: &LogExportActions, language: &str) -> LogExportView {
-    let lang = Lang(language);
+pub fn project_log_export(model: &LogExportActions, catalog: &dyn TextCatalog) -> LogExportView {
     let key = match model.phase() {
         LogExportPhase::Preparing { .. } => "logs_export_preparing",
         LogExportPhase::Saving { .. } => "logs_export_saving",
@@ -26,7 +25,7 @@ pub fn project_log_export(model: &LogExportActions, language: &str) -> LogExport
         LogExportPhase::Review { .. } => "logs_export_review",
         LogExportPhase::Closed => "logs_export_review",
     };
-    let mut status = lang.tr(key).into_owned();
+    let mut status = catalog.text(key).into_owned();
     if let Some(failure) = model.failure() {
         status.push_str(": ");
         status.push_str(&failure.message);
@@ -35,7 +34,7 @@ pub fn project_log_export(model: &LogExportActions, language: &str) -> LogExport
         .summary()
         .map(|summary| {
             interpolate(
-                lang.tr("logs_export_details").as_ref(),
+                catalog.text("logs_export_details").as_ref(),
                 &[
                     ("records", &summary.records.to_string()),
                     ("bytes", &summary.bytes.to_string()),

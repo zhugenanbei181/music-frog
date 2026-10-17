@@ -13,6 +13,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_presentation::log_export_projection::project_log_export;
+use infiltrator_shared::locales::Lang;
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct ExportControl {
@@ -48,7 +49,7 @@ pub struct ExportSurface<'w, 's> {
     cards: Query<'w, 's, &'static mut BorderColor, With<LogsExportCard>>,
 }
 pub fn render(mut surface: ExportSurface) {
-    let view = project_log_export(&surface.state.model, surface.locale.code());
+    let view = project_log_export(&surface.state.model, &Lang(surface.locale.code()));
     for mut root in &mut surface.roots {
         root.display = if surface.state.model.is_open() {
             Display::Flex

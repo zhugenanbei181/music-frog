@@ -27,6 +27,7 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::dns_mapping_projection::project_mappings;
+use infiltrator_shared::locales::Lang;
 
 /// Marker on the Fake-IP search field's parent node.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -37,7 +38,11 @@ pub fn dns_fakeip_pool_card_scene(
     projection: &DnsProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let display = project_mappings(&projection.fake_ip_pool, "", UiLocale::default().code());
+    let display = project_mappings(
+        &projection.fake_ip_pool,
+        "",
+        &Lang(UiLocale::default().code()),
+    );
     let listing = display.listing();
     let count = display.count;
 
@@ -109,7 +114,7 @@ pub fn sync_dns_fake_ip_filter(
             }
         }
     }
-    let display = project_mappings(pool, &query, locale.code());
+    let display = project_mappings(pool, &query, &Lang(locale.code()));
     let listing = display.listing();
     let count = display.count;
     for (mut text, line) in &mut lines {
@@ -155,22 +160,22 @@ mod tests {
     #[test]
     fn listing_and_count_follow_the_local_query() {
         let pool = pool();
-        let full = project_mappings(&pool, "", "zh-CN").listing();
+        let full = project_mappings(&pool, "", &Lang("zh-CN")).listing();
         assert!(full.contains("198.18.0.5 ↔ music.example.org"));
         assert_eq!(full.lines().count(), 2);
-        let filtered = project_mappings(&pool, "cdn", "zh-CN").listing();
+        let filtered = project_mappings(&pool, "cdn", &Lang("zh-CN")).listing();
         assert_eq!(filtered, "198.18.0.7 ↔ cdn.example.net");
         assert_eq!(
-            project_mappings(&pool, "nothing", "zh-CN").listing(),
+            project_mappings(&pool, "nothing", &Lang("zh-CN")).listing(),
             "没有匹配的映射"
         );
         assert!(
-            project_mappings(&pool, "", "zh-CN")
+            project_mappings(&pool, "", &Lang("zh-CN"))
                 .count
                 .contains("显示 2 / 共观测 2 条")
         );
         assert!(
-            project_mappings(&pool, "cdn", "zh-CN")
+            project_mappings(&pool, "cdn", &Lang("zh-CN"))
                 .count
                 .contains("显示 1 / 共观测 2 条")
         );
@@ -218,12 +223,12 @@ mod tests {
             }
         ));
         assert!(
-            project_dns_latency(&report, "zh-CN")
+            project_dns_latency(&report, &Lang("zh-CN"))
                 .summary
                 .contains("3 个上游中仅 1 个应答")
         );
 
-        let listing = project_dns_latency(&report, "zh-CN").listing();
+        let listing = project_dns_latency(&report, &Lang("zh-CN")).listing();
         assert_eq!(listing.lines().count(), 3);
         assert!(listing.contains("223.5.5.5 [主上游] 12 ms"));
         assert!(listing.contains("8.8.8.8 [主上游] 超时无应答"));
@@ -239,7 +244,7 @@ mod tests {
             }],
         );
         assert!(
-            project_dns_latency(&all_measured, "zh-CN")
+            project_dns_latency(&all_measured, &Lang("zh-CN"))
                 .summary
                 .contains("全部 1 个上游均应答 (31-31 ms)")
         );
@@ -254,12 +259,12 @@ mod tests {
             }],
         );
         assert!(
-            project_dns_latency(&none, "zh-CN")
+            project_dns_latency(&none, &Lang("zh-CN"))
                 .summary
                 .contains("全部无应答")
         );
         assert_eq!(
-            project_dns_latency(&DnsLatencyReport::default(), "zh-CN").summary,
+            project_dns_latency(&DnsLatencyReport::default(), &Lang("zh-CN")).summary,
             "宿主未提供逐 Nameserver 延迟事实，不填充假延迟 (this host did not inject a DNS latency prober)"
         );
     }
@@ -272,9 +277,9 @@ mod tests {
         };
 
         let empty = DnsSelfHealSnapshot::default();
-        assert_eq!(project_dns_health(&empty, "zh-CN").overall, "未观测");
+        assert_eq!(project_dns_health(&empty, &Lang("zh-CN")).overall, "未观测");
         assert_eq!(
-            project_dns_health(&empty, "zh-CN").listing(),
+            project_dns_health(&empty, &Lang("zh-CN")).listing(),
             "尚未观测到 DNS 健康事实"
         );
 
@@ -292,34 +297,37 @@ mod tests {
                 fix: None,
             },
         ]);
-        let listing = project_dns_health(&snapshot, "zh-CN").listing();
+        let listing = project_dns_health(&snapshot, &Lang("zh-CN")).listing();
         assert_eq!(listing.lines().count(), 2);
         assert!(listing.contains("监听端口 (dns.listen) [故障]"));
         assert!(listing.contains("建议修复: 修复 DNS 监听端口"));
         assert!(listing.contains("上游解析可达性 [正常]"));
-        assert_eq!(project_dns_health(&snapshot, "zh-CN").overall, "故障");
+        assert_eq!(
+            project_dns_health(&snapshot, &Lang("zh-CN")).overall,
+            "故障"
+        );
     }
 
     #[test]
     fn unsupported_pool_never_renders_a_binding() {
         let unsupported = FakeIpMappingPool::default();
         assert!(
-            project_mappings(&unsupported, "", "zh-CN")
+            project_mappings(&unsupported, "", &Lang("zh-CN"))
                 .listing()
                 .contains("宿主未提供映射事实")
         );
         assert_eq!(
-            project_mappings(&unsupported, "", "zh-CN").count,
+            project_mappings(&unsupported, "", &Lang("zh-CN")).count,
             "宿主未提供映射事实 (no running core connection feed on this host)"
         );
         let report = DnsLatencyReport::unsupported("host injected no DNS latency prober");
         assert!(
-            project_dns_latency(&report, "zh-CN")
+            project_dns_latency(&report, &Lang("zh-CN"))
                 .summary
                 .contains("宿主未提供逐 Nameserver 延迟事实")
         );
         assert!(
-            project_dns_latency(&report, "zh-CN")
+            project_dns_latency(&report, &Lang("zh-CN"))
                 .listing()
                 .contains("宿主未提供逐 Nameserver 延迟事实"),
             "a host without a prober renders no fabricated result row"

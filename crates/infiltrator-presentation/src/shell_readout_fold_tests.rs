@@ -6,6 +6,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     PageId, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
 };
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -106,21 +107,27 @@ fn complete_rule_count_zero_and_stale_observations_do_not_follow_the_render_wind
     let mut source = snapshot();
     let unknown = owner.project(&source);
     assert!(matches!(unknown.rules, ShellObservation::Unobserved));
-    assert_eq!(count_copy(&unknown, PageId::Rules, "en-US"), "Not observed");
+    assert_eq!(
+        count_copy(&unknown, PageId::Rules, &Lang("en-US")),
+        "Not observed"
+    );
     source.pages.rules = PageData::ready(rules(50_000));
     source.revision += 1;
     let full = owner.project(&source);
     assert!(matches!(full.rules, ShellObservation::Current(50_000)));
-    assert_eq!(count_copy(&full, PageId::Rules, "en-US"), "50000");
+    assert_eq!(count_copy(&full, PageId::Rules, &Lang("en-US")), "50000");
     source.pages.rules = PageData::failed(Failure::new(ErrorCode::Permission, "denied", true));
     source.revision += 1;
     let stale = owner.project(&source);
     assert!(matches!(stale.rules, ShellObservation::Stale(50_000)));
-    assert_eq!(count_copy(&stale, PageId::Rules, "en-US"), "50000 (stale)");
+    assert_eq!(
+        count_copy(&stale, PageId::Rules, &Lang("en-US")),
+        "50000 (stale)"
+    );
     source.pages.rules = PageData::empty(rules(0));
     source.revision += 1;
     assert_eq!(
-        count_copy(&owner.project(&source), PageId::Rules, "en-US"),
+        count_copy(&owner.project(&source), PageId::Rules, &Lang("en-US")),
         "0"
     );
     source.revision -= 1;
@@ -136,8 +143,8 @@ fn quota_missing_fields_profile_switch_failed_read_and_locale_keep_only_the_matc
     source.subscription_quota.profile_name = Some("Home {count}".into());
     source.subscription_quota.status = SubscriptionQuotaStatus::Empty;
     let missing = owner.project(&source);
-    assert_eq!(profile_name(&missing, "en-US"), "Home {count}");
-    assert_eq!(profile_usage(&missing, "en-US"), "Not observed");
+    assert_eq!(profile_name(&missing, &Lang("en-US")), "Home {count}");
+    assert_eq!(profile_usage(&missing, &Lang("en-US")), "Not observed");
     assert!(missing.profile.value().unwrap().usage_fraction.is_none());
     source.subscription_quota.status = SubscriptionQuotaStatus::Ready;
     source.subscription_quota.used_bytes = Some(512);
@@ -145,19 +152,25 @@ fn quota_missing_fields_profile_switch_failed_read_and_locale_keep_only_the_matc
     source.subscription_quota.usage_percent = Some(50.0);
     source.revision += 1;
     let observed = owner.project(&source);
-    assert_eq!(profile_usage(&observed, "en-US"), "512 B / 1.00 KB");
-    assert_eq!(profile_percent(&observed, "en-US"), "50%");
+    assert_eq!(profile_usage(&observed, &Lang("en-US")), "512 B / 1.00 KB");
+    assert_eq!(profile_percent(&observed, &Lang("en-US")), "50%");
     source.pages.profiles = PageData::loading();
     source.revision += 1;
     let retained = owner.project(&source);
-    assert_eq!(profile_usage(&retained, "en-US"), "512 B / 1.00 KB (stale)");
-    assert_eq!(profile_name(&retained, "zh-CN"), "Home {count}（已失效）");
+    assert_eq!(
+        profile_usage(&retained, &Lang("en-US")),
+        "512 B / 1.00 KB (stale)"
+    );
+    assert_eq!(
+        profile_name(&retained, &Lang("zh-CN")),
+        "Home {count}（已失效）"
+    );
     source.pages.profiles = profiles(profile("second"));
     source.subscription_quota.status = SubscriptionQuotaStatus::Failed;
     source.revision += 1;
     let changed = owner.project(&source);
     assert_eq!(changed.profile.value().unwrap().id, "second");
-    assert_eq!(profile_usage(&changed, "en-US"), "Not observed");
+    assert_eq!(profile_usage(&changed, &Lang("en-US")), "Not observed");
     source.pages.profiles = PageData::empty(
         from_value(json!({"profiles":[],"auto_update_interval_hours":0,"updating":false})).unwrap(),
     );
@@ -173,7 +186,7 @@ fn observed_zero_rate_invalid_sample_and_new_generation_are_distinct() {
     let owner = ShellReadoutProjection::default();
     let mut source = snapshot();
     assert_eq!(
-        rate_copy(&owner.project(&source).upload_bps, "en-US"),
+        rate_copy(&owner.project(&source).upload_bps, &Lang("en-US")),
         "Not observed"
     );
     source.core.sampled_at_epoch_ms = Some(10);
@@ -183,7 +196,7 @@ fn observed_zero_rate_invalid_sample_and_new_generation_are_distinct() {
         ShellObservation::Current(0.0)
     ));
     assert_eq!(
-        rate_copy(&owner.project(&source).upload_bps, "en-US"),
+        rate_copy(&owner.project(&source).upload_bps, &Lang("en-US")),
         "0 B/s"
     );
     source.core.upload_bps = f64::NAN;
@@ -193,14 +206,14 @@ fn observed_zero_rate_invalid_sample_and_new_generation_are_distinct() {
         ShellObservation::Stale(0.0)
     ));
     assert_eq!(
-        rate_copy(&owner.project(&source).upload_bps, "en-US"),
+        rate_copy(&owner.project(&source).upload_bps, &Lang("en-US")),
         "0 B/s (stale)"
     );
     source.core.generation = 2;
     source.generation = 2;
     source.revision += 1;
     assert_eq!(
-        rate_copy(&owner.project(&source).upload_bps, "en-US"),
+        rate_copy(&owner.project(&source).upload_bps, &Lang("en-US")),
         "Not observed"
     );
 }
@@ -212,13 +225,16 @@ fn failed_reads_preserve_zero_as_stale_and_same_generation_new_tokens_retire_old
     source.core.session_token = Some(SessionToken::new(12));
     source.core.sampled_at_epoch_ms = Some(10);
     assert_eq!(
-        rate_copy(&owner.project(&source).upload_bps, "en-US"),
+        rate_copy(&owner.project(&source).upload_bps, &Lang("en-US")),
         "0 B/s"
     );
     source.shell_readout.rate_failure = Some(Failure::new(ErrorCode::Permission, "denied", false));
     source.revision += 1;
     let failed = owner.project(&source);
-    assert_eq!(rate_copy(&failed.upload_bps, "en-US"), "0 B/s (stale)");
+    assert_eq!(
+        rate_copy(&failed.upload_bps, &Lang("en-US")),
+        "0 B/s (stale)"
+    );
     assert_eq!(
         failed.rate_failure.as_ref().unwrap().code,
         ErrorCode::Permission
@@ -226,7 +242,10 @@ fn failed_reads_preserve_zero_as_stale_and_same_generation_new_tokens_retire_old
     source.core.session_token = Some(SessionToken::new(13));
     source.revision += 1;
     let changed = owner.project(&source);
-    assert_eq!(rate_copy(&changed.upload_bps, "en-US"), "Not observed");
+    assert_eq!(
+        rate_copy(&changed.upload_bps, &Lang("en-US")),
+        "Not observed"
+    );
     assert_eq!(changed.session_token, Some(SessionToken::new(13)));
     assert!(matches!(changed.upload_bps, ShellObservation::Unobserved));
 }

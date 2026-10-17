@@ -9,6 +9,7 @@ use crate::state::editor::SnapshotDiffLoadPhase;
 use crate::types::app::SnapshotDiffMode;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_presentation::profile_editor_projection::protection_label;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use std::path::PathBuf;
 
@@ -98,7 +99,7 @@ fn editor_protection_follows_the_shared_subscription_metadata() {
         "a downloaded subscription is classified as protected"
     );
     assert_eq!(
-        protection_label(state.edited_profile_write_protection(), "zh-CN"),
+        protection_label(state.edited_profile_write_protection(), &Lang("zh-CN")),
         "远程订阅 · 只读保护"
     );
 

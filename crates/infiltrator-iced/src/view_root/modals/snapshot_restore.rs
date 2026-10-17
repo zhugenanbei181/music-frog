@@ -11,7 +11,7 @@ use infiltrator_presentation::snapshot_restore_projection::project_restore;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let presentation = project_restore(&state.editor.snapshot_restore, &state.shell.lang);
+    let presentation = project_restore(&state.editor.snapshot_restore, &Lang(&state.shell.lang));
     let body = column![
         text(lang.tr("snapshot_restore_title")).size(17),
         text(presentation.status).size(12).width(Length::Fill),

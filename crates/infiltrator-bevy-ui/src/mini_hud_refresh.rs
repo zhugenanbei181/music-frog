@@ -15,6 +15,7 @@ use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::system_toggle::SystemToggle;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::system_toggle_projection::{compact_label, compact_status_line};
+use infiltrator_shared::locales::Lang;
 
 #[derive(QueryData)]
 #[query_data(mutable)]
@@ -39,11 +40,11 @@ pub fn refresh_mini_hud(
             MiniHudTextKind::UpRate => format_rate(model.0.up_bytes_per_sec),
             MiniHudTextKind::DownRate => format_rate(model.0.down_bytes_per_sec),
             MiniHudTextKind::RoutingIntent => {
-                routing_intent_status_copy(&model.0.routing_intent, locale.code())
+                routing_intent_status_copy(&model.0.routing_intent, &Lang(locale.code()))
             }
             MiniHudTextKind::Node => exit_label(&model.0),
             MiniHudTextKind::ToggleLine => {
-                compact_status_line(&model.0.system_proxy, &model.0.tun, locale.code())
+                compact_status_line(&model.0.system_proxy, &model.0.tun, &Lang(locale.code()))
             }
             MiniHudTextKind::Pin => pin_label(&model.0),
         };
@@ -69,7 +70,7 @@ pub fn refresh_mini_hud(
         *row.accessibility = switch_node(node, state.is_enabled());
         for child in row.children {
             if let Ok(mut text) = texts.get_mut(*child) {
-                text.0 = compact_label(state, locale.code());
+                text.0 = compact_label(state, &Lang(locale.code()));
             }
         }
     }

@@ -81,7 +81,7 @@ pub fn render(mut view: ScriptView, mut commands: Commands) {
     {
         view.state.last_editor_focus = Some(entity);
     }
-    let presentation = project_script_export(&view.state.model, view.locale.code());
+    let presentation = project_script_export(&view.state.model, &Lang(view.locale.code()));
     for mut node in &mut view.overlays {
         node.display = if open { Display::Flex } else { Display::None };
     }

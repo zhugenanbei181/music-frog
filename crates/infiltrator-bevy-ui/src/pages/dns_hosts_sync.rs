@@ -16,6 +16,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_presentation::dns_hosts_projection::{feedback, legacy_hint, summary};
+use infiltrator_shared::locales::Lang;
 pub fn observe(
     latest: Res<LatestSurfaceSnapshot>,
     route: Res<ActiveRoute>,
@@ -164,11 +165,11 @@ pub fn copy(
 ) {
     for mut label in &mut labels {
         let value = if label.summary {
-            summary(&state.editor, locale.code())
+            summary(&state.editor, &Lang(locale.code()))
         } else if label.status {
-            feedback(&state.editor, locale.code())
+            feedback(&state.editor, &Lang(locale.code()))
         } else {
-            legacy_hint(&state.editor, locale.code())
+            legacy_hint(&state.editor, &Lang(locale.code()))
         };
         if label.text.0 != value {
             label.text.0 = value.clone();

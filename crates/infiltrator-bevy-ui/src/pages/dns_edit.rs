@@ -374,7 +374,7 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
                 padding: UiRect::top(rem(space::S8)),
             }
             Children [
-                Text({form_status(&[],false,false,false,UiLocale::default().code())})
+                Text({form_status(&[],false,false,false,&Lang(UiLocale::default().code()))})
                 DnsEditStatusLine
                 TextRole(Role::Caption)
                 ThemeTextColor({ Token::InkDim })
@@ -403,7 +403,7 @@ pub fn dns_edit_status_label(state: &DnsFormState, code: &str) -> String {
         state.dirty,
         state.submitted,
         state.host_missing,
-        code,
+        &Lang(code),
     )
 }
 fn geoip_status_label(enabled: bool, code: &str) -> String {

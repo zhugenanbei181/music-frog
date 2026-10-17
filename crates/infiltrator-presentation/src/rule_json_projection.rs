@@ -1,21 +1,20 @@
 //! Shared status facets for the source document editor; input bytes stay separate.
 use infiltrator_contract::rule_json_feedback::RuleJsonFeedback;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 pub fn json_editor_status(
     focused: bool,
     dirty: bool,
     published: bool,
     feedback: Option<RuleJsonFeedback>,
-    language: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
-    let lang = Lang(language);
-    let focus = lang.tr(if focused {
+    let focus = catalog.text(if focused {
         "rules_json_editing"
     } else {
         "rules_json_unfocused"
     });
-    let saved = lang.tr(if dirty {
+    let saved = catalog.text(if dirty {
         "rules_json_dirty"
     } else if published {
         "rules_json_observed"
@@ -25,7 +24,7 @@ pub fn json_editor_status(
     match feedback {
         Some(feedback) => format!(
             "{focus} · {saved} · {}",
-            lang.tr(match feedback {
+            catalog.text(match feedback {
                 RuleJsonFeedback::HostUnavailable => "rules_json_host_unavailable",
                 RuleJsonFeedback::SourceUnavailable => "rules_json_source_unavailable",
                 RuleJsonFeedback::Empty => "rules_json_empty",

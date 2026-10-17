@@ -1,8 +1,8 @@
 //! User-visible policy follows the actual domain decision, independent of surface vocabulary.
 use infiltrator_contract::uwp::UwpLoopbackAvailability;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
 pub const fn mode_key(mode: AppRoutingMode) -> &'static str {
     match mode {
@@ -18,18 +18,18 @@ pub const fn rule_key(rule: AppRoutingRule) -> &'static str {
         AppRoutingRule::Block => "app_routing_rule_block",
     }
 }
-pub fn routing_summary(mode: AppRoutingMode, count: usize, language: &str) -> String {
+pub fn routing_summary(mode: AppRoutingMode, count: usize, catalog: &dyn TextCatalog) -> String {
     interpolate(
-        Lang(language).tr("app_routing_observed_summary").as_ref(),
+        catalog.text("app_routing_observed_summary").as_ref(),
         &[
-            ("mode", Lang(language).tr(mode_key(mode)).as_ref()),
+            ("mode", catalog.text(mode_key(mode)).as_ref()),
             ("count", &count.to_string()),
         ],
     )
 }
-pub fn process_copy(process: &str, language: &str) -> String {
+pub fn process_copy(process: &str, catalog: &dyn TextCatalog) -> String {
     interpolate(
-        Lang(language).tr("app_routing_process_copy").as_ref(),
+        catalog.text("app_routing_process_copy").as_ref(),
         &[("process", process)],
     )
 }
@@ -37,7 +37,7 @@ pub fn process_copy(process: &str, language: &str) -> String {
 pub fn uwp_summary(
     availability: &UwpLoopbackAvailability,
     exemptions: impl IntoIterator<Item = bool>,
-    language: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
     match availability {
         UwpLoopbackAvailability::Supported => {
@@ -47,7 +47,7 @@ pub fn uwp_summary(
                     (total + 1, exempt + usize::from(enabled))
                 });
             interpolate(
-                Lang(language).tr("uwp_observed_summary").as_ref(),
+                catalog.text("uwp_observed_summary").as_ref(),
                 &[
                     ("count", &total.to_string()),
                     ("exempt", &exempt.to_string()),
@@ -58,10 +58,10 @@ pub fn uwp_summary(
         | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),
     }
 }
-pub fn uwp_empty(availability: &UwpLoopbackAvailability, language: &str) -> String {
+pub fn uwp_empty(availability: &UwpLoopbackAvailability, catalog: &dyn TextCatalog) -> String {
     match availability {
-        UwpLoopbackAvailability::Supported => Lang(language).tr("uwp_observed_empty").into_owned(),
-        _ => uwp_summary(availability, [], language),
+        UwpLoopbackAvailability::Supported => catalog.text("uwp_observed_empty").into_owned(),
+        _ => uwp_summary(availability, [], catalog),
     }
 }
 pub const fn uwp_state_key(exempt: bool) -> &'static str {

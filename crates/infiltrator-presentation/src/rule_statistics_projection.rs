@@ -3,8 +3,8 @@ use crate::rule_list_editor::RuleListEditor;
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 use std::collections::HashSet;
 
 pub struct RuleStatisticsProjection {
@@ -17,20 +17,20 @@ pub struct RuleStatisticsProjection {
     pub can_clear: bool,
 }
 impl RuleStatisticsProjection {
-    pub fn summary(&self, locale: &str) -> String {
+    pub fn summary(&self, catalog: &dyn TextCatalog) -> String {
         let params = self
             .params
             .iter()
             .map(|(key, value)| (*key, value.as_str()))
             .collect::<Vec<_>>();
-        interpolate(Lang(locale).tr(self.key).as_ref(), &params)
+        interpolate(catalog.text(self.key).as_ref(), &params)
     }
 }
 pub fn project_statistics(
     audit: Option<&RuleHitAuditSnapshot>,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> RuleStatisticsProjection {
-    let unknown = Lang(locale).tr("shell_readout_unknown").into_owned();
+    let unknown = catalog.text("shell_readout_unknown").into_owned();
     let Some(audit) = audit else {
         return RuleStatisticsProjection {
             key: "rules_trace_stats_unobserved",

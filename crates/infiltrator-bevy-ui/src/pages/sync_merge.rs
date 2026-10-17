@@ -28,6 +28,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::sync_projection;
+use infiltrator_shared::locales::Lang;
 
 /// Marker on the 3-Way Merge card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -68,7 +69,7 @@ fn field_scenes(conflict: Option<&SyncConflictInfo>, locale: &UiLocale) -> Vec<B
         })];
     }
     fields.iter().enumerate().map(|(index, field)| {
-        let copy = sync_projection::conflict_field(&field.key, &field.local_value, &field.remote_value, locale.code());
+        let copy = sync_projection::conflict_field(&field.key, &field.local_value, &field.remote_value, &Lang(locale.code()));
         Box::new(bsn! {
             Node { width: percent(100), min_width: px(0.0), padding: UiRect::vertical(rem(space::S4)) }
             Text(copy) SyncMergeRow(index) TextRole(Role::Body)
@@ -227,7 +228,7 @@ pub fn replay_fields(
                 &field.key,
                 &field.local_value,
                 &field.remote_value,
-                locale.code(),
+                &Lang(locale.code()),
             );
             if text.0 != value {
                 text.0 = value;

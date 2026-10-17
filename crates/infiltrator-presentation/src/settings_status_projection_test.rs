@@ -1,6 +1,7 @@
 //! test-intent: behavior
 use super::*;
 use infiltrator_contract::resources::ResourceAvailability;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::identity::{
@@ -27,8 +28,8 @@ fn resource_copy_uses_the_observed_limit_and_distinguishes_zero_missing_and_unsa
             after_bytes: 0,
         }),
     };
-    let en = format_core_resources(&snapshot, "en-US");
-    let zh = format_core_resources(&snapshot, "zh-CN");
+    let en = format_core_resources(&snapshot, &Lang("en-US"));
+    let zh = format_core_resources(&snapshot, &Lang("zh-CN"));
     assert_eq!(
         en,
         "Memory=0.0 MiB · CPU=0.0% · limit=128.0 MiB · GC=Collected, after=0.0 MiB"
@@ -38,7 +39,7 @@ fn resource_copy_uses_the_observed_limit_and_distinguishes_zero_missing_and_unsa
         "内存=0.0 MiB · CPU=0.0% · 上限=128.0 MiB · GC=已回收，读回=0.0 MiB"
     );
     assert_eq!(
-        format_core_resources(&CoreResourceSnapshot::default(), "en-US"),
+        format_core_resources(&CoreResourceSnapshot::default(), &Lang("en-US")),
         "Memory=Not observed · CPU=Not observed · limit=512.0 MiB · GC=Not attempted"
     );
 }
@@ -49,7 +50,7 @@ fn ready_mtu_with_missing_observations_never_reports_zero_or_claims_application(
         state: MtuProbeState::Ready,
         ..Default::default()
     };
-    let en = format_mtu(&snapshot, "en-US");
+    let en = format_mtu(&snapshot, &Lang("en-US"));
     assert_eq!(
         en,
         "Active link: physical=? → TUN=? · MSS=? · overhead=80 · applied=Not applied"
@@ -69,7 +70,7 @@ fn status_failure_is_redacted_and_user_braces_are_not_reinterpreted_in_either_lo
         ),
     };
     for locale in ["zh-CN", "en-US"] {
-        let text = format_integrity(&rejected, locale);
+        let text = format_integrity(&rejected, &Lang(locale));
         assert!(!text.contains("private"));
         assert!(text.contains("v1 {message}"));
         assert!(text.contains("reason={version}"));

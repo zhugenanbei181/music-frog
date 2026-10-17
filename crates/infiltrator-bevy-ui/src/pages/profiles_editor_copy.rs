@@ -14,6 +14,7 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_presentation::profile_editor_projection;
+use infiltrator_shared::locales::Lang;
 
 pub fn replay_document_copy(
     state: Res<ProfileEditorState>,
@@ -34,7 +35,7 @@ pub fn replay_document_copy(
         ),
     >,
 ) {
-    let title = profile_editor_projection::title(state.buffer.line_count(), locale.code());
+    let title = profile_editor_projection::title(state.buffer.line_count(), &Lang(locale.code()));
     for mut text in &mut titles {
         if text.0 != title {
             text.0.clone_from(&title);
@@ -48,11 +49,11 @@ pub fn replay_document_copy(
         .unwrap_or_default();
     let notice = state
         .format_note
-        .map(|reason| profile_editor_projection::format_note(reason, locale.code()));
+        .map(|reason| profile_editor_projection::format_note(reason, &Lang(locale.code())));
     let banner = profile_editor_projection::protection_banner(
         protection,
         state.notice.as_deref().or(notice.as_deref()),
-        locale.code(),
+        &Lang(locale.code()),
     );
     for mut text in &mut protections {
         if text.0 != banner {
@@ -100,7 +101,7 @@ pub fn replay_mixin_copy(
             foreground.0 = color;
         }
     }
-    let label = profile_editor_projection::syntax_label(validation_status, locale.code());
+    let label = profile_editor_projection::syntax_label(validation_status, &Lang(locale.code()));
     for (mut text, mut background) in &mut pills {
         if text.0 != label {
             text.0.clone_from(&label);
@@ -124,8 +125,10 @@ pub fn replay_profile_protection(
         let Some(profile) = projection.profiles.get(marker.0) else {
             continue;
         };
-        let label =
-            profile_editor_projection::protection_label(profile.write_protection, locale.code());
+        let label = profile_editor_projection::protection_label(
+            profile.write_protection,
+            &Lang(locale.code()),
+        );
         if text.0 != label {
             text.0 = label;
         }

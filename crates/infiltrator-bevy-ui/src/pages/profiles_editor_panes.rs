@@ -56,6 +56,7 @@ use infiltrator_presentation::profile_edit_session::ProfileEditObservation;
 use infiltrator_presentation::profile_editor_projection;
 use infiltrator_presentation::subscription_filter_copy::status;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 
@@ -307,8 +308,10 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
         profile_editor_projection::DocumentValidationStatus::Invalid => palette.danger,
         profile_editor_projection::DocumentValidationStatus::Unavailable => palette.warning,
     };
-    let pill_label =
-        profile_editor_projection::syntax_label(validation_status, UiLocale::default().code());
+    let pill_label = profile_editor_projection::syntax_label(
+        validation_status,
+        &Lang(UiLocale::default().code()),
+    );
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -538,7 +541,7 @@ fn filter_field_scene(kind: FilterField, value: &str, palette: &UiPalette) -> Bo
 /// Status text for the Filter pane: how much of the shared draft is active,
 /// plus the last refusal.
 pub fn filter_status_line(state: &ProfileEditorOptionsState) -> String {
-    status(&state.filter, "zh-CN")
+    status(&state.filter, &Lang("zh-CN"))
 }
 
 fn filter_placeholder_key(kind: FilterField) -> &'static str {

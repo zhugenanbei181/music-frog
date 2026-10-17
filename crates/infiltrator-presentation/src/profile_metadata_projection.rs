@@ -1,8 +1,8 @@
 //! One presentation of observed profile traffic and update schedules for peer products.
 use crate::subscription_status_projection::schedule_status;
+use crate::text::localize;
 use infiltrator_shared::byte_units::format_bytes;
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UsageGrade {
@@ -50,13 +50,13 @@ pub fn traffic(
         grade,
     }
 }
-pub fn traffic_caption(facts: &TrafficProjection, locale: &str) -> String {
+pub fn traffic_caption(facts: &TrafficProjection, catalog: &dyn TextCatalog) -> String {
     let percent = facts
         .fraction
         .map(|value| format!(" ({:.1}%)", value * 100.0))
         .unwrap_or_default();
     localize(
-        locale,
+        catalog,
         "profile_observed_traffic",
         &[
             ("upload", facts.upload.clone()),
@@ -67,27 +67,27 @@ pub fn traffic_caption(facts: &TrafficProjection, locale: &str) -> String {
         ],
     )
 }
-pub fn active_name(value: Option<&str>, locale: &str) -> String {
+pub fn active_name(value: Option<&str>, catalog: &dyn TextCatalog) -> String {
     value
         .map(str::to_owned)
-        .unwrap_or_else(|| Lang(locale).tr("profile_no_active").into_owned())
+        .unwrap_or_else(|| catalog.text("profile_no_active").into_owned())
 }
-pub fn summary(count: usize, active: Option<&str>, locale: &str) -> String {
+pub fn summary(count: usize, active: Option<&str>, catalog: &dyn TextCatalog) -> String {
     localize(
-        locale,
+        catalog,
         "profile_list_summary",
         &[
             ("count", count.to_string()),
-            ("active", active_name(active, locale)),
+            ("active", active_name(active, catalog)),
         ],
     )
 }
-pub fn updated(value: &str, locale: &str) -> String {
-    localize(locale, "profile_updated_time", &[("time", value.into())])
+pub fn updated(value: &str, catalog: &dyn TextCatalog) -> String {
+    localize(catalog, "profile_updated_time", &[("time", value.into())])
 }
-pub fn active_status(active: bool, locale: &str) -> String {
-    Lang(locale)
-        .tr(if active {
+pub fn active_status(active: bool, catalog: &dyn TextCatalog) -> String {
+    catalog
+        .text(if active {
             "profile_status_active"
         } else {
             "profile_status_activate"
@@ -99,12 +99,12 @@ pub fn schedule(
     cron: Option<&str>,
     hours: Option<u32>,
     next: Option<&str>,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
-    let cadence = schedule_status(Some(enabled), cron, hours).render(locale);
+    let cadence = schedule_status(Some(enabled), cron, hours).render(catalog);
     match next.filter(|next| !next.trim().is_empty()) {
         Some(next) => localize(
-            locale,
+            catalog,
             "profile_schedule_next",
             &[("cadence", cadence), ("next", next.into())],
         ),
@@ -113,14 +113,14 @@ pub fn schedule(
 }
 pub fn schedule_overview<'a>(
     values: impl IntoIterator<Item = (bool, Option<&'a str>, Option<u32>)>,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
     let enabled = values
         .into_iter()
         .filter(|(enabled, _, _)| *enabled)
         .collect::<Vec<_>>();
     if enabled.is_empty() {
-        return Lang(locale).tr("profile_schedule_disabled").into_owned();
+        return catalog.text("profile_schedule_disabled").into_owned();
     }
     let interval = enabled
         .iter()
@@ -141,7 +141,7 @@ pub fn schedule_overview<'a>(
         "profile_schedule_cron_summary"
     };
     localize(
-        locale,
+        catalog,
         key,
         &[
             ("count", enabled.len().to_string()),

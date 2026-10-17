@@ -1,6 +1,6 @@
 //! Preference observations preserve unknown and stale facts independently of runtime controls.
 use infiltrator_contract::surface_snapshot::PageStatus;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreferencePresentation {
@@ -9,13 +9,17 @@ pub struct PreferencePresentation {
     pub editable: bool,
 }
 
-pub fn project(value: Option<bool>, status: &PageStatus, locale: &str) -> PreferencePresentation {
+pub fn project(
+    value: Option<bool>,
+    status: &PageStatus,
+    catalog: &dyn TextCatalog,
+) -> PreferencePresentation {
     let state_key = match value {
         Some(true) => "overview_toggle_enabled",
         Some(false) => "overview_toggle_disabled",
         None => "overview_toggle_unknown",
     };
-    let state = Lang(locale).tr(state_key).into_owned();
+    let state = catalog.text(state_key).into_owned();
     let (key, params) = match status {
         PageStatus::Failed { failure } | PageStatus::Unavailable { failure } => (
             "settings_preference_stale",

@@ -1,7 +1,7 @@
 //! Locale-aware restoration review projection over typed workbench phases.
 use crate::snapshot_restore_workbench::{SnapshotRestorePhase, SnapshotRestoreWorkbench};
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use crate::text::localize;
+use lurker_ui_presentation::copy::TextCatalog;
 
 pub struct RestorePresentation {
     pub status: String,
@@ -12,11 +12,13 @@ pub struct RestorePresentation {
     pub retry: bool,
 }
 
-pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> RestorePresentation {
-    let lang = Lang(locale);
+pub fn project_restore(
+    model: &SnapshotRestoreWorkbench,
+    catalog: &dyn TextCatalog,
+) -> RestorePresentation {
     let status = if let Some(failure) = model.failure() {
         localize(
-            locale,
+            catalog,
             "snapshot_restore_failed",
             &[("reason", failure.message.clone())],
         )
@@ -34,13 +36,13 @@ pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> Restor
             | SnapshotRestorePhase::RestoreFailed { .. }
             | SnapshotRestorePhase::CancelFailed { .. } => "snapshot_restore_preparing",
         };
-        lang.tr(key).into_owned()
+        catalog.text(key).into_owned()
     };
     let details = model
         .review()
         .map(|review| {
             localize(
-                locale,
+                catalog,
                 "snapshot_restore_details",
                 &[
                     ("profile", review.target.profile.clone()),
@@ -65,9 +67,9 @@ pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> Restor
         .map(|review| {
             format!(
                 "{}\n{}\n\n{}\n{}",
-                lang.tr("snapshot_restore_before"),
+                catalog.text("snapshot_restore_before"),
                 review.before_yaml,
-                lang.tr("snapshot_restore_after"),
+                catalog.text("snapshot_restore_after"),
                 review.restored_yaml
             )
         })

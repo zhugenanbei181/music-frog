@@ -1,12 +1,12 @@
 //! One fact-to-copy owner for host VPN, privileged transactions and PAC observations.
+use crate::text::localize;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 use infiltrator_contract::privileged_network::{PrivilegedNetworkSnapshot, PrivilegedNetworkState};
 use infiltrator_contract::vpn::VpnSurfaceObservation;
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 pub struct HostActionPresentation {
     pub status: String,
@@ -16,20 +16,23 @@ pub struct HostActionPresentation {
     pub start_enabled: bool,
     pub stop_enabled: bool,
 }
-fn status_detail(key: &str, reason: Option<&str>, code: &str) -> String {
-    let state = Lang(code).tr(key).into_owned();
+fn status_detail(key: &str, reason: Option<&str>, catalog: &dyn TextCatalog) -> String {
+    let state = catalog.text(key).into_owned();
     reason.map_or_else(
         || state.clone(),
         |reason| {
             localize(
-                code,
+                catalog,
                 "network_status_detail",
                 &[("state", state.clone()), ("reason", reason.into())],
             )
         },
     )
 }
-pub fn vpn(observation: &VpnSurfaceObservation, code: &str) -> HostActionPresentation {
+pub fn vpn(
+    observation: &VpnSurfaceObservation,
+    catalog: &dyn TextCatalog,
+) -> HostActionPresentation {
     let presentation = vpn_presentation(observation);
     let (key, reason) = match &presentation {
         VpnPresentation::PermissionRequired => ("vpn_status_permission", None),
@@ -43,23 +46,20 @@ pub fn vpn(observation: &VpnSurfaceObservation, code: &str) -> HostActionPresent
         VpnPresentation::CleanupPending(reason) => ("vpn_status_failed", Some(reason.as_str())),
     };
     let details = match observation {
-        VpnSurfaceObservation::AndroidOwner(snapshot) => vpn_owner_details(snapshot, code),
+        VpnSurfaceObservation::AndroidOwner(snapshot) => vpn_owner_details(snapshot, catalog),
         VpnSurfaceObservation::Unsupported { .. }
         | VpnSurfaceObservation::NotApplicable
         | VpnSurfaceObservation::Unavailable { .. } => localize(
-            code,
+            catalog,
             "network_vpn_details",
             &[
                 (
                     "foreground",
-                    Lang(code).tr("shell_readout_unknown").into_owned(),
+                    catalog.text("shell_readout_unknown").into_owned(),
                 ),
-                ("mtu", Lang(code).tr("shell_readout_unknown").into_owned()),
-                (
-                    "routes",
-                    Lang(code).tr("shell_readout_unknown").into_owned(),
-                ),
-                ("ipv6", Lang(code).tr("shell_readout_unknown").into_owned()),
+                ("mtu", catalog.text("shell_readout_unknown").into_owned()),
+                ("routes", catalog.text("shell_readout_unknown").into_owned()),
+                ("ipv6", catalog.text("shell_readout_unknown").into_owned()),
             ],
         ),
     };
@@ -80,7 +80,7 @@ pub fn vpn(observation: &VpnSurfaceObservation, code: &str) -> HostActionPresent
     );
     let stop_active = matches!(&presentation, VpnPresentation::Stopping);
     HostActionPresentation {
-        status: status_detail(key, reason, code),
+        status: status_detail(key, reason, catalog),
         details,
         start_key: if start_active {
             "vpn_start_active"
@@ -188,10 +188,10 @@ fn vpn_owner_presentation(snapshot: &VpnOwnerSnapshot) -> VpnPresentation {
     }
 }
 
-fn vpn_owner_details(snapshot: &VpnOwnerSnapshot, code: &str) -> String {
-    let unknown = Lang(code).tr("shell_readout_unknown").into_owned();
+fn vpn_owner_details(snapshot: &VpnOwnerSnapshot, catalog: &dyn TextCatalog) -> String {
+    let unknown = catalog.text("shell_readout_unknown").into_owned();
     localize(
-        code,
+        catalog,
         "network_vpn_details",
         &[
             ("foreground", snapshot.foreground.to_string()),
@@ -207,7 +207,10 @@ fn vpn_owner_details(snapshot: &VpnOwnerSnapshot, code: &str) -> String {
         ],
     )
 }
-pub fn privileged(snapshot: &PrivilegedNetworkSnapshot, code: &str) -> HostActionPresentation {
+pub fn privileged(
+    snapshot: &PrivilegedNetworkSnapshot,
+    catalog: &dyn TextCatalog,
+) -> HostActionPresentation {
     let (key, reason) = match &snapshot.state {
         PrivilegedNetworkState::Idle => ("privileged_network_status_idle", None),
         PrivilegedNetworkState::Injecting => ("privileged_network_status_injecting", None),
@@ -224,9 +227,9 @@ pub fn privileged(snapshot: &PrivilegedNetworkSnapshot, code: &str) -> HostActio
         ),
     };
     HostActionPresentation {
-        status: status_detail(key, reason, code),
+        status: status_detail(key, reason, catalog),
         details: localize(
-            code,
+            catalog,
             "network_privileged_details",
             &[
                 ("operations", snapshot.operation_count.to_string()),
@@ -246,17 +249,17 @@ pub fn privileged(snapshot: &PrivilegedNetworkSnapshot, code: &str) -> HostActio
         stop_enabled: false,
     }
 }
-pub fn pac(snapshot: &PacSnapshot, code: &str) -> String {
+pub fn pac(snapshot: &PacSnapshot, catalog: &dyn TextCatalog) -> String {
     match &snapshot.state {
         PacServiceState::Running { url } => localize(
-            code,
+            catalog,
             "network_pac_running",
             &[
                 ("url", url.clone()),
                 ("bytes", snapshot.script_bytes.to_string()),
             ],
         ),
-        PacServiceState::Disabled => Lang(code).tr("network_pac_disabled").into_owned(),
+        PacServiceState::Disabled => catalog.text("network_pac_disabled").into_owned(),
         PacServiceState::Unavailable { reason } => reason.clone(),
     }
 }
@@ -272,6 +275,7 @@ mod tests {
         PrivilegedNetworkSnapshot, PrivilegedNetworkState,
     };
     use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
+    use infiltrator_shared::locales::Lang;
     use lurker_core_contract::error::{ErrorCode, Failure};
     use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
     use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -282,7 +286,7 @@ mod tests {
         let mut observation = running_owner();
         let absent = vpn(
             &VpnSurfaceObservation::from_android_owner(observation.clone()),
-            "en-US",
+            &Lang("en-US"),
         );
         assert!(absent.details.contains("MTU=Not observed"));
         assert!(!absent.start_enabled);
@@ -291,7 +295,7 @@ mod tests {
         assert!(
             vpn(
                 &VpnSurfaceObservation::from_android_owner(observation.clone()),
-                "en-US"
+                &Lang("en-US")
             )
             .details
             .contains("MTU=0")
@@ -300,7 +304,7 @@ mod tests {
         observation.readiness = VpnOwnerReadiness::Stopping;
         let stopping = vpn(
             &VpnSurfaceObservation::from_android_owner(observation.clone()),
-            "en-US",
+            &Lang("en-US"),
         );
         assert!(!stopping.start_enabled && !stopping.stop_enabled);
         let reason = "permission {state} / 中文🙂";
@@ -308,18 +312,21 @@ mod tests {
             reason: reason.into(),
         };
         assert_eq!(
-            vpn(&unsupported, "en-US").status,
+            vpn(&unsupported, &Lang("en-US")).status,
             format!("Host unsupported · {reason}")
         );
         let failed = VpnSurfaceObservation::Unavailable {
             failure: Failure::new(ErrorCode::Permission, reason, false),
         };
-        assert_eq!(vpn(&failed, "en-US").status, format!("Failed · {reason}"));
+        assert_eq!(
+            vpn(&failed, &Lang("en-US")).status,
+            format!("Failed · {reason}")
+        );
         let snapshot = PrivilegedNetworkSnapshot {
             state: PrivilegedNetworkState::RollingBack,
             ..Default::default()
         };
-        assert!(!privileged(&snapshot, "en-US").start_enabled);
+        assert!(!privileged(&snapshot, &Lang("en-US")).start_enabled);
     }
 
     fn running_owner() -> VpnOwnerSnapshot {

@@ -10,6 +10,7 @@
 #[path = "sync_query_access.rs"]
 pub mod query_access;
 use self::query_access::SyncProjectionTargets;
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
@@ -203,8 +204,9 @@ pub struct LastSyncProjection(pub Option<SyncProjection>);
 
 pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene + use<> {
     let locale = UiLocale::default();
-    let summary = sync_projection::summary(projection.status, locale.code());
-    let last_sync_str = sync_projection::last_sync(projection.last_sync.as_deref(), locale.code());
+    let summary = sync_projection::summary(projection.status, &Lang(locale.code()));
+    let last_sync_str =
+        sync_projection::last_sync(projection.last_sync.as_deref(), &Lang(locale.code()));
 
     let snapshot_scenes: Vec<Box<dyn Scene>> = projection
         .snapshots
@@ -330,7 +332,7 @@ fn conflict_panel_scene(
                 &info.remote_device,
                 &info.conflict_time,
                 info.conflicting_keys.len(),
-                locale.code(),
+                &Lang(locale.code()),
             )
         })
         .unwrap_or_else(|| locale.text("sync_observation_conflict_none"));
@@ -394,8 +396,10 @@ fn conflict_panel_scene(
 }
 
 fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let server_str = sync_projection::server(&projection.server_url, UiLocale::default().code());
-    let user_str = sync_projection::username(&projection.username, UiLocale::default().code());
+    let server_str =
+        sync_projection::server(&projection.server_url, &Lang(UiLocale::default().code()));
+    let user_str =
+        sync_projection::username(&projection.username, &Lang(UiLocale::default().code()));
 
     surface_scene(
         vec![
@@ -442,7 +446,8 @@ fn snapshots_card_scene(
     history_status: &PageStatus,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let history_copy = sync_projection::history_notice(history_status, UiLocale::default().code());
+    let history_copy =
+        sync_projection::history_notice(history_status, &Lang(UiLocale::default().code()));
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -589,18 +594,20 @@ pub(crate) fn replay_sync(
     };
     for (mut text, line) in &mut lines {
         text.0 = match line.0 {
-            SyncLineKind::Summary => sync_projection::summary(projection.status, locale.code()),
+            SyncLineKind::Summary => {
+                sync_projection::summary(projection.status, &Lang(locale.code()))
+            }
             SyncLineKind::LastSync => {
-                sync_projection::last_sync(projection.last_sync.as_deref(), locale.code())
+                sync_projection::last_sync(projection.last_sync.as_deref(), &Lang(locale.code()))
             }
             SyncLineKind::ServerUrl => {
-                sync_projection::server(&projection.server_url, locale.code())
+                sync_projection::server(&projection.server_url, &Lang(locale.code()))
             }
             SyncLineKind::Username => {
-                sync_projection::username(&projection.username, locale.code())
+                sync_projection::username(&projection.username, &Lang(locale.code()))
             }
             SyncLineKind::HistoryStatus => {
-                sync_projection::history_notice(&projection.history_status, locale.code())
+                sync_projection::history_notice(&projection.history_status, &Lang(locale.code()))
             }
         };
     }
@@ -620,7 +627,7 @@ pub(crate) fn replay_sync(
                 &conflict.remote_device,
                 &conflict.conflict_time,
                 conflict.conflicting_keys.len(),
-                locale.code(),
+                &Lang(locale.code()),
             )
         })
         .unwrap_or_else(|| locale.text("sync_observation_conflict_none"));

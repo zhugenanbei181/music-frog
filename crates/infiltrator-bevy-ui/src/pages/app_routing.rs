@@ -208,7 +208,7 @@ pub fn app_routing_page(
     projection: &AppRoutingProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let summary = routing_summary(projection.mode, projection.apps.len(), "en-US");
+    let summary = routing_summary(projection.mode, projection.apps.len(), &Lang("en-US"));
 
     let app_scenes: Vec<Box<dyn Scene>> = projection
         .apps
@@ -342,7 +342,7 @@ fn apps_container_scene(
 
 fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene + use<> {
     let name = app.name.clone();
-    let proc_str = process_copy(&app.process_name, "en-US");
+    let proc_str = process_copy(&app.process_name, &Lang("en-US"));
     let rule_str = Lang("en-US").tr(rule_key(app.rule)).into_owned();
     let rule_col = app_rule_color(app.rule, palette);
 

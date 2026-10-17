@@ -42,8 +42,8 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
 
     let active_iface = roam.active_interface.as_deref().unwrap_or("—");
     let gateway = roam.default_gateway.as_deref().unwrap_or("—");
-    let mtu = roaming_mtu(roam, lang.0);
-    let status = roaming_status(&roam.status, lang.0);
+    let mtu = roaming_mtu(roam, &Lang(lang.0));
+    let status = roaming_status(&roam.status, &Lang(lang.0));
 
     let details_row = row![
         column![
@@ -101,7 +101,7 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             row![
                 svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(roaming_event(ev, lang.0))
+                text(roaming_event(ev, &Lang(lang.0)))
                     .size(11)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).success)

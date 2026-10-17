@@ -94,7 +94,7 @@ pub(super) fn tun_card<'a>(
     } else {
         state.editor.tun_form.strict_route
     };
-    let service_mode = format_service_mode(&state.runtime.service_mode, lang.0);
+    let service_mode = format_service_mode(&state.runtime.service_mode, &Lang(lang.0));
 
     card(
         Some(lang.tr("tun_mode").to_string()),

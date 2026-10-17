@@ -18,6 +18,7 @@ use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
 use infiltrator_presentation::core_status_projection::failure_copy;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
+use infiltrator_shared::locales::Lang;
 
 #[derive(QueryData)]
 #[query_data(mutable)]
@@ -63,8 +64,8 @@ pub fn refresh(mut copy: OverviewCopy) {
         return;
     };
     let language = copy.locale.code();
-    let upload = rate_copy(&projection.readout.upload_bps, language);
-    let download = rate_copy(&projection.readout.download_bps, language);
+    let upload = rate_copy(&projection.readout.upload_bps, &Lang(language));
+    let download = rate_copy(&projection.readout.download_bps, &Lang(language));
     for mut line in &mut copy.lines {
         let value = match line.kind.0 {
             OverviewLineKind::State => {
@@ -73,15 +74,15 @@ pub fn refresh(mut copy: OverviewCopy) {
             }
             OverviewLineKind::Upload => format!("↑ {upload}"),
             OverviewLineKind::Download => format!("↓ {download}"),
-            OverviewLineKind::TelemetryFailure => rate_status(&projection.readout, language),
+            OverviewLineKind::TelemetryFailure => rate_status(&projection.readout, &Lang(language)),
             OverviewLineKind::RoutingIntentChip => {
-                routing_intent_status_copy(&projection.routing_intent, language)
+                routing_intent_status_copy(&projection.routing_intent, &Lang(language))
             }
             OverviewLineKind::BannerNote => banner_note(projection, language),
             OverviewLineKind::Failure => failure_copy(
                 &projection.lifecycle,
                 projection.failure.as_deref(),
-                language,
+                &Lang(language),
             ),
             OverviewLineKind::Scale => format_scale(&projection.traffic_scale),
         };

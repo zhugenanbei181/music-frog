@@ -17,9 +17,9 @@ use infiltrator_contract::runtime_status::{
     RuntimeStatusSnapshot, TunDataPlaneObservation, VpnAuthorizationObservation,
 };
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
-use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_ui_presentation::copy::TextCatalog;
 
 /// The 8 unified runtime status semantics shared across Bevy, Compose, and Slint (BANDROID-029.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -208,21 +208,22 @@ pub fn project_from_axes(
 }
 
 /// Format the unified status into localized human-readable copy.
-pub fn format_unified_status(status: &UnifiedRuntimeStatus, language: &str) -> String {
-    let lang = Lang(language);
+pub fn format_unified_status(status: &UnifiedRuntimeStatus, catalog: &dyn TextCatalog) -> String {
     match status {
-        UnifiedRuntimeStatus::Starting { .. } => lang.tr("status_starting").into_owned(),
-        UnifiedRuntimeStatus::Success { .. } => lang.tr("status_running").into_owned(),
+        UnifiedRuntimeStatus::Starting { .. } => catalog.text("status_starting").into_owned(),
+        UnifiedRuntimeStatus::Success { .. } => catalog.text("status_running").into_owned(),
         UnifiedRuntimeStatus::PermissionDenied { .. } => {
-            lang.tr("vpn_status_permission").into_owned()
+            catalog.text("vpn_status_permission").into_owned()
         }
-        UnifiedRuntimeStatus::ConfigurationFailed { .. } => lang.tr("status_error").into_owned(),
+        UnifiedRuntimeStatus::ConfigurationFailed { .. } => {
+            catalog.text("status_error").into_owned()
+        }
         UnifiedRuntimeStatus::ApiDisconnected { .. } => {
-            lang.tr("net_roam_status_failed").into_owned()
+            catalog.text("net_roam_status_failed").into_owned()
         }
-        UnifiedRuntimeStatus::VpnFailed { .. } => lang.tr("vpn_status_failed").into_owned(),
-        UnifiedRuntimeStatus::Demo { .. } => lang.tr("core_source_demo").into_owned(),
-        UnifiedRuntimeStatus::Unknown => lang.tr("status_stopped").into_owned(),
+        UnifiedRuntimeStatus::VpnFailed { .. } => catalog.text("vpn_status_failed").into_owned(),
+        UnifiedRuntimeStatus::Demo { .. } => catalog.text("core_source_demo").into_owned(),
+        UnifiedRuntimeStatus::Unknown => catalog.text("status_stopped").into_owned(),
     }
 }
 
@@ -231,6 +232,7 @@ mod tests {
     use super::*;
     use infiltrator_contract::surface::{HostKind, SurfaceKind};
     use infiltrator_contract::vpn::VpnGeneration;
+    use infiltrator_shared::locales::Lang;
     use lurker_core_contract::error::ErrorCode;
     use lurker_core_contract::identity::EngineId;
 
@@ -246,11 +248,11 @@ mod tests {
         assert!(status.is_demo());
         assert!(!status.is_success());
         assert_eq!(
-            format_unified_status(&status, "zh-CN"),
+            format_unified_status(&status, &Lang("zh-CN")),
             "演示数据 · 未接实时内核"
         );
         assert_eq!(
-            format_unified_status(&status, "en-US"),
+            format_unified_status(&status, &Lang("en-US")),
             "Demo data · No live core"
         );
     }
@@ -264,8 +266,11 @@ mod tests {
         let status = project_from_axes(SurfaceOrigin::Live, &runtime);
         assert!(status.is_starting());
         assert!(!status.is_success());
-        assert_eq!(format_unified_status(&status, "zh-CN"), "启动中...");
-        assert_eq!(format_unified_status(&status, "en-US"), "Starting...");
+        assert_eq!(format_unified_status(&status, &Lang("zh-CN")), "启动中...");
+        assert_eq!(
+            format_unified_status(&status, &Lang("en-US")),
+            "Starting..."
+        );
     }
 
     #[test]
@@ -297,8 +302,8 @@ mod tests {
             }
         );
         assert!(status.is_success());
-        assert_eq!(format_unified_status(&status, "zh-CN"), "运行中");
-        assert_eq!(format_unified_status(&status, "en-US"), "Running");
+        assert_eq!(format_unified_status(&status, &Lang("zh-CN")), "运行中");
+        assert_eq!(format_unified_status(&status, &Lang("en-US")), "Running");
     }
 
     #[test]
@@ -313,9 +318,9 @@ mod tests {
             UnifiedRuntimeStatus::PermissionDenied { .. }
         ));
         assert!(!status.is_success());
-        assert_eq!(format_unified_status(&status, "zh-CN"), "等待授权");
+        assert_eq!(format_unified_status(&status, &Lang("zh-CN")), "等待授权");
         assert_eq!(
-            format_unified_status(&status, "en-US"),
+            format_unified_status(&status, &Lang("en-US")),
             "Waiting for consent"
         );
     }
@@ -337,8 +342,11 @@ mod tests {
             status,
             UnifiedRuntimeStatus::ConfigurationFailed { .. }
         ));
-        assert_eq!(format_unified_status(&status, "zh-CN"), "运行出错");
-        assert_eq!(format_unified_status(&status, "en-US"), "Runtime Error");
+        assert_eq!(format_unified_status(&status, &Lang("zh-CN")), "运行出错");
+        assert_eq!(
+            format_unified_status(&status, &Lang("en-US")),
+            "Runtime Error"
+        );
     }
 
     #[test]
@@ -366,8 +374,8 @@ mod tests {
         };
         let status = project_from_axes(SurfaceOrigin::Live, &runtime);
         assert!(matches!(status, UnifiedRuntimeStatus::VpnFailed { .. }));
-        assert_eq!(format_unified_status(&status, "zh-CN"), "失败");
-        assert_eq!(format_unified_status(&status, "en-US"), "Failed");
+        assert_eq!(format_unified_status(&status, &Lang("zh-CN")), "失败");
+        assert_eq!(format_unified_status(&status, &Lang("en-US")), "Failed");
     }
 
     #[test]
@@ -375,7 +383,7 @@ mod tests {
         let runtime = RuntimeStatusSnapshot::default();
         let status = project_from_axes(SurfaceOrigin::Live, &runtime);
         assert_eq!(status, UnifiedRuntimeStatus::Unknown);
-        assert_eq!(format_unified_status(&status, "zh-CN"), "已停止");
-        assert_eq!(format_unified_status(&status, "en-US"), "Stopped");
+        assert_eq!(format_unified_status(&status, &Lang("zh-CN")), "已停止");
+        assert_eq!(format_unified_status(&status, &Lang("en-US")), "Stopped");
     }
 }

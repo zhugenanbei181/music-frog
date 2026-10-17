@@ -3,6 +3,7 @@
 
 use super::*;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[test]
@@ -21,9 +22,9 @@ fn spec_layout_mirrors_the_full_feature_menu() {
 
     let routing_intent_title = Lang("zh-CN").tr("routing_intent_title").into_owned();
     let routing_intent_labels = vec![
-        routing_intent_copy(&RoutingIntent::FollowRules, "zh-CN"),
-        routing_intent_copy(&RoutingIntent::RouteAllThroughProxy, "zh-CN"),
-        routing_intent_copy(&RoutingIntent::BypassProxy, "zh-CN"),
+        routing_intent_copy(&RoutingIntent::FollowRules, &Lang("zh-CN")),
+        routing_intent_copy(&RoutingIntent::RouteAllThroughProxy, &Lang("zh-CN")),
+        routing_intent_copy(&RoutingIntent::BypassProxy, &Lang("zh-CN")),
     ];
     match &items[2] {
         TrayMenuItem::Submenu {
@@ -165,7 +166,7 @@ fn spec_routing_intent_menu_marks_the_observed_common_choice() {
     };
     assert_eq!(
         label,
-        &format!("● {}", routing_intent_copy(&intent, "zh-CN"))
+        &format!("● {}", routing_intent_copy(&intent, &Lang("zh-CN")))
     );
     assert!(*enabled);
     assert_eq!(routing_items.len(), 3);
@@ -562,7 +563,7 @@ fn spec_info_lines_are_disabled_and_localized() {
                 format!(
                     "{}: {}",
                     Lang("zh-CN").tr("routing_intent_title"),
-                    routing_intent_copy(&intent, "zh-CN")
+                    routing_intent_copy(&intent, &Lang("zh-CN"))
                 )
             ),
             TrayMenuItem::info(TRAY_ACTION_INFO_STATUS, "运行状态: 异常"),

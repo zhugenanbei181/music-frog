@@ -43,6 +43,7 @@ use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
 use infiltrator_presentation::rule_trace_projection::{
     stage_text, trace_headline, trace_provenance, trace_status,
 };
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
@@ -108,7 +109,7 @@ fn tracer_stage_line(tracer: &RuleTracerSnapshot, stage: usize, code: &str) -> S
         .decision_chain
         .as_ref()
         .and_then(|chain| chain.nodes.get(stage))
-        .map(|node| stage_text(node, code))
+        .map(|node| stage_text(node, &Lang(code)))
         .unwrap_or_default()
 }
 
@@ -122,7 +123,9 @@ pub(crate) fn apply_tracer_projection(
     let tracer = &update.0.tracer;
     for (mut text, slot) in texts.iter_mut() {
         text.0 = match slot.0 {
-            TRACER_HEADLINE_SLOT => trace_headline(tracer.decision_chain.as_ref(), locale.code()),
+            TRACER_HEADLINE_SLOT => {
+                trace_headline(tracer.decision_chain.as_ref(), &Lang(locale.code()))
+            }
             stage @ 1..=TRACER_STAGE_SLOTS => {
                 tracer_stage_line(tracer, (stage - 1) as usize, locale.code())
             }
@@ -331,7 +334,7 @@ pub fn observe_simulation(
         let wanted = match slot.0 {
             TRACER_HEADLINE_SLOT => trace_headline(
                 report.and_then(|report| report.decision_chain.as_ref()),
-                observation.locale.code(),
+                &Lang(observation.locale.code()),
             ),
             stage @ 1..=TRACER_STAGE_SLOTS => report
                 .map(|report| {
@@ -340,8 +343,8 @@ pub fn observe_simulation(
                 .unwrap_or_default(),
             _ => format!(
                 "{}\n{}",
-                trace_status(&state.model, observation.locale.code()),
-                trace_provenance(&state.model, observation.locale.code())
+                trace_status(&state.model, &Lang(observation.locale.code())),
+                trace_provenance(&state.model, &Lang(observation.locale.code()))
             ),
         };
         if text.0 != wanted {

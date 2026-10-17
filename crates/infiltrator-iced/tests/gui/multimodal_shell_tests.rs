@@ -24,6 +24,7 @@ use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::system_toggle_projection::compact_status_line;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
@@ -258,7 +259,10 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
     assert_eq!(model.exit_node, "HK-01");
     assert_eq!(model.next_value(SystemToggle::SystemProxy), Some(false));
     assert_eq!(model.next_value(SystemToggle::Tun), Some(true));
-    assert!(compact_status_line(&model.system_proxy, &model.tun, "zh-CN").contains("系统代理: 开"));
+    assert!(
+        compact_status_line(&model.system_proxy, &model.tun, &Lang("zh-CN"))
+            .contains("系统代理: 开")
+    );
     assert_eq!(
         model.routing_intent.current,
         Some(RoutingIntent::FollowRules)

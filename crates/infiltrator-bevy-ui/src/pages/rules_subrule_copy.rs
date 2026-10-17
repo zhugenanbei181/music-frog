@@ -11,6 +11,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_domain::rules::logical;
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
+use infiltrator_shared::locales::Lang;
 
 #[derive(QueryData)]
 #[query_data(mutable)]
@@ -34,7 +35,7 @@ pub fn sync(
     mut lines: Query<LogicalDraftText, LogicalCopyFilter>,
     mut chips: Query<(&mut BackgroundColor, &SubRuleOperatorChip)>,
 ) {
-    let display = project_logical_rule(&state.draft, locale.code());
+    let display = project_logical_rule(&state.draft, &Lang(locale.code()));
     for mut line in &mut lines {
         let value = if line.preview {
             &display.preview

@@ -19,7 +19,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// did not supply it.
 pub fn subscription_quota_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let snapshot = &state.runtime.subscription_quota;
-    let presentation = project_quota(snapshot, lang.0);
+    let presentation = project_quota(snapshot, &Lang(lang.0));
     let progress = presentation
         .fraction
         .map(usage_bar)

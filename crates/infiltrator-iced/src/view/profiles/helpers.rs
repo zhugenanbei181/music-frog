@@ -192,7 +192,7 @@ pub(super) fn traffic_row<'a>(
         })
         .unwrap_or_default();
 
-    let usage_label = format!("{}{expire_suffix}", traffic_caption(&facts, lang.0));
+    let usage_label = format!("{}{expire_suffix}", traffic_caption(&facts, &Lang(lang.0)));
 
     let mut info_row = row![
         text(usage_label)

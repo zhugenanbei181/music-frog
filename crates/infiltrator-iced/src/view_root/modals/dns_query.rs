@@ -19,7 +19,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn query_modal(state: &AppState) -> Element<'_, Message> {
     let model = &state.diag.dns_query;
-    let view = project_query(model, &state.shell.lang);
+    let view = project_query(model, &Lang(&state.shell.lang));
     let lang = Lang(&state.shell.lang);
     let name = text_input(lang.tr("dns_query_name").as_ref(), &model.name)
         .on_input_maybe(

@@ -90,7 +90,7 @@ pub fn uwp_exemption_scene(
                         padding: UiRect::vertical(rem(space::S4)),
                     }
                     Children [
-                        Text({ uwp_empty(&projection.uwp_loopback.availability, "en-US") }) UwpEmptyLine TextRole(Role::Caption)
+                        Text({ uwp_empty(&projection.uwp_loopback.availability, &Lang("en-US")) }) UwpEmptyLine TextRole(Role::Caption)
                     ]
         }) as Box<dyn Scene>]
     } else {
@@ -103,7 +103,7 @@ pub fn uwp_exemption_scene(
             .packages
             .iter()
             .map(|package| package.loopback_exempt),
-        "en-US",
+        &Lang("en-US"),
     );
 
     surface_scene(
@@ -283,7 +283,7 @@ pub(super) fn apply_projection(
             .packages
             .iter()
             .map(|package| package.loopback_exempt),
-        locale.code(),
+        &Lang(locale.code()),
     );
     for mut line in &mut status_lines {
         line.0 = status.clone();

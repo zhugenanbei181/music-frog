@@ -478,7 +478,7 @@ pub fn sync_overview_speedtest_button(
         LocalizedText::plain("speedtest_start_action")
     };
     let label = copy.render(&locale);
-    let metrics_label = metrics_label(snapshot.fastest(), locale.code());
+    let metrics_label = metrics_label(snapshot.fastest(), &Lang(locale.code()));
     for mut button in &mut buttons {
         if button.phase != button_phase {
             button.phase = button_phase;
@@ -497,13 +497,13 @@ pub fn sync_overview_speedtest_button(
             text.0 = metrics_label.clone();
         }
     }
-    let dead_label = dead_archive(snapshot, locale.code()).caption;
+    let dead_label = dead_archive(snapshot, &Lang(locale.code())).caption;
     for mut text in &mut dead {
         if text.0 != dead_label {
             text.0 = dead_label.clone();
         }
     }
-    let history_label = history_caption(snapshot, locale.code());
+    let history_label = history_caption(snapshot, &Lang(locale.code()));
     for mut text in &mut history {
         if text.0 != history_label {
             text.0 = history_label.clone();

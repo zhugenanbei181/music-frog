@@ -6,6 +6,7 @@ use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[test]
@@ -58,14 +59,17 @@ fn compact_status_localizes_actual_states_and_never_fakes_failed_or_unknown_as_o
     let enabled = SystemToggleState::Enabled;
     let pending = SystemToggleState::Pending { desired: true };
     assert_eq!(
-        compact_status_line(&enabled, &pending, "zh-CN"),
+        compact_status_line(&enabled, &pending, &Lang("zh-CN")),
         "系统代理: 开 · TUN: …"
     );
     assert_eq!(
-        compact_status_line(&enabled, &pending, "en-US"),
+        compact_status_line(&enabled, &pending, &Lang("en-US")),
         "Proxy: On · TUN: …"
     );
-    assert_eq!(compact_label(&SystemToggleState::Disabled, "en-US"), "Off");
+    assert_eq!(
+        compact_label(&SystemToggleState::Disabled, &Lang("en-US")),
+        "Off"
+    );
     for state in [
         SystemToggleState::Unknown,
         SystemToggleState::Unsupported {
@@ -75,7 +79,7 @@ fn compact_status_localizes_actual_states_and_never_fakes_failed_or_unknown_as_o
             failure: Failure::unsupported("read denied"),
         },
     ] {
-        assert_eq!(compact_label(&state, "zh-CN"), "—");
-        assert_eq!(compact_label(&state, "en-US"), "—");
+        assert_eq!(compact_label(&state, &Lang("zh-CN")), "—");
+        assert_eq!(compact_label(&state, &Lang("en-US")), "—");
     }
 }

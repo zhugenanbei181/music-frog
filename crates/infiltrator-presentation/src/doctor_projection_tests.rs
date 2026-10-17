@@ -1,6 +1,7 @@
 //! Behavior tests for Doctor presentation state and report projection.
 use super::*;
 use infiltrator_contract::doctor::DoctorCheckResult;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::slice::from_ref;
 
@@ -30,7 +31,10 @@ fn skipped_and_unobserved_are_never_healthy_and_external_copy_remains_opaque() {
         ]),
         [1, 1, 1, 1]
     );
-    assert_eq!(summary([], None, "en-US"), "Diagnostics have not run yet");
+    assert_eq!(
+        summary([], None, &Lang("en-US")),
+        "Diagnostics have not run yet"
+    );
     assert_eq!(
         watchdog_badge(&CoreWatchdogState::Idle).1,
         DoctorStatus::Skip
@@ -52,12 +56,12 @@ fn skipped_and_unobserved_are_never_healthy_and_external_copy_remains_opaque() {
             None,
             &page.checks[0].name,
             &page.checks[0].category,
-            "en-US"
+            &Lang("en-US")
         ),
         "[network] reported {count}"
     );
     assert_eq!(
-        check_detail(None, &page.checks[0].detail, "en-US"),
+        check_detail(None, &page.checks[0].detail, &Lang("en-US")),
         "{pass}"
     );
     assert_eq!(page.checks[0].hint.as_deref(), Some("install permission"));
@@ -85,10 +89,13 @@ fn completed_empty_report_preserves_observation_and_never_claims_healthy_or_not_
     assert!(!page.overall_healthy);
     assert_eq!(page.report_finished_at, Some(20));
     assert_eq!(
-        summary([], page.report_finished_at, "en-US"),
+        summary([], page.report_finished_at, &Lang("en-US")),
         "Diagnostics completed without check results"
     );
-    assert_eq!(summary([], None, "en-US"), "Diagnostics have not run yet");
+    assert_eq!(
+        summary([], None, &Lang("en-US")),
+        "Diagnostics have not run yet"
+    );
     assert!(!page.last_run.is_empty());
 }
 

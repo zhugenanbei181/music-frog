@@ -1,9 +1,9 @@
 //! One semantic fold for live rule rows and unsaved editor rows on either UI.
 use infiltrator_domain::rules::types::{RuleType, parse_rule_str};
 use infiltrator_domain::sub_rules::format_ast;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
 pub struct RuleRowFacts {
     pub rule_type: String,
@@ -44,19 +44,18 @@ pub fn row_detail(
     source_ip: bool,
     no_resolve: bool,
     failure: Option<&Failure>,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
-    let lang = Lang(locale);
     let mut details = Vec::new();
     if source_ip {
-        details.push(lang.tr("rule_param_source_ip").to_string());
+        details.push(catalog.text("rule_param_source_ip").to_string());
     }
     if no_resolve {
-        details.push(lang.tr("rule_param_no_resolve").to_string());
+        details.push(catalog.text("rule_param_no_resolve").to_string());
     }
     if let Some(failure) = failure {
         details.push(interpolate(
-            lang.tr("rule_row_invalid").as_ref(),
+            catalog.text("rule_row_invalid").as_ref(),
             &[("reason", &failure.message)],
         ));
     }
@@ -77,10 +76,16 @@ pub fn row_hits_key(count: Option<u64>, enabled: bool, shadowed: bool) -> &'stat
         "rule_local_hits"
     }
 }
-pub fn row_hits_copy(count: Option<u64>, enabled: bool, shadowed: bool, locale: &str) -> String {
-    let lang = Lang(locale);
+pub fn row_hits_copy(
+    count: Option<u64>,
+    enabled: bool,
+    shadowed: bool,
+    catalog: &dyn TextCatalog,
+) -> String {
     interpolate(
-        lang.tr(row_hits_key(count, enabled, shadowed)).as_ref(),
+        catalog
+            .text(row_hits_key(count, enabled, shadowed))
+            .as_ref(),
         &[(
             "count",
             &count.map(|value| value.to_string()).unwrap_or_default(),

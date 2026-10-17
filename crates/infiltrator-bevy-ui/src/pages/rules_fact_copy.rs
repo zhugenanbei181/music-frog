@@ -60,25 +60,29 @@ pub fn sync(
                 RulesLineKind::Summary => rules_summary(
                     projection.total_rules,
                     projection.providers.len(),
-                    locale.code(),
+                    &Lang(locale.code()),
                 ),
                 RulesLineKind::DefaultAction => {
-                    default_action(&projection.default_action, locale.code())
+                    default_action(&projection.default_action, &Lang(locale.code()))
                 }
                 RulesLineKind::HitAudit => {
-                    project_statistics(projection.hit_audit.as_ref(), locale.code())
-                        .summary(locale.code())
+                    project_statistics(projection.hit_audit.as_ref(), &Lang(locale.code()))
+                        .summary(&Lang(locale.code()))
                 }
                 RulesLineKind::Truncation => published_truncation(
                     projection.truncated_rule_count,
                     projection.rule_publish_limit,
-                    locale.code(),
+                    &Lang(locale.code()),
                 ),
                 RulesLineKind::EtagSupport => etag_support_line(&projection.etag_support, &lang),
             })
         } else if let Some(count) = target.count {
             projection.providers.get(count.0).map(|provider| {
-                provider_count(provider.rule_count, &provider.behavior, locale.code())
+                provider_count(
+                    provider.rule_count,
+                    &provider.behavior,
+                    &Lang(locale.code()),
+                )
             })
         } else if let Some(updated) = target.updated {
             projection.providers.get(updated.0).map(|provider| {

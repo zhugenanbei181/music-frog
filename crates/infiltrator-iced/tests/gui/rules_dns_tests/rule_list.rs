@@ -11,6 +11,7 @@ use iced_runtime::{Action, task::into_stream};
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_presentation::shell_readout::count_copy;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 use lurker_core_contract::error::ErrorCode;
 use std::sync::atomic::Ordering;
@@ -203,7 +204,7 @@ fn tea_list_draft_discard_permission_retry_and_changed_source_never_rewrite_anot
 fn tea_shell_count_replays_actual_complete_rule_facts_while_an_old_source_draft_is_retained() {
     let (mut state, reader, store) = setup();
     assert_eq!(
-        count_copy(&state.shell.readout, PageId::Rules, "en-US"),
+        count_copy(&state.shell.readout, PageId::Rules, &Lang("en-US")),
         "4"
     );
     let _ = state.update(Message::ToggleRuleEnabled(
@@ -213,7 +214,7 @@ fn tea_shell_count_replays_actual_complete_rule_facts_while_an_old_source_draft_
     publish(&mut state, &reader);
     assert_eq!(state.editor.rule_list.draft.len(), 4);
     assert_eq!(
-        count_copy(&state.shell.readout, PageId::Rules, "en-US"),
+        count_copy(&state.shell.readout, PageId::Rules, &Lang("en-US")),
         "1"
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);

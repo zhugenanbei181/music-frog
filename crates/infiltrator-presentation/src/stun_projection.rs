@@ -1,7 +1,8 @@
 //! One fold of the UDP observation and its separate egress comparison.
+use crate::text::localize;
 use infiltrator_contract::stun_probe::{StunEgressComparison, StunProbeReport, StunProbeStatus};
 use infiltrator_shared::dns_observation::DnsObservationTone;
-use infiltrator_shared::i18n_interpolator::localize;
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StunDisplay {
@@ -20,7 +21,7 @@ impl StunDisplay {
             .join("\n")
     }
 }
-pub fn project_stun(report: &StunProbeReport, code: &str) -> StunDisplay {
+pub fn project_stun(report: &StunProbeReport, catalog: &dyn TextCatalog) -> StunDisplay {
     let (key, params, tone) = match &report.status {
         StunProbeStatus::Observed => match report.mapping() {
             Some(mapping) => (
@@ -47,7 +48,7 @@ pub fn project_stun(report: &StunProbeReport, code: &str) -> StunDisplay {
         ),
         StunProbeStatus::Unknown => ("dns_stun_unknown", Vec::new(), DnsObservationTone::Neutral),
     };
-    let status = localize(code, key, &params);
+    let status = localize(catalog, key, &params);
     let (key, params) = match report.comparison() {
         StunEgressComparison::Consistent => ("dns_stun_consistent", Vec::new()),
         StunEgressComparison::Divergent => (
@@ -74,11 +75,11 @@ pub fn project_stun(report: &StunProbeReport, code: &str) -> StunDisplay {
         status,
         tone,
         server: localize(
-            code,
+            catalog,
             "dns_stun_server",
             &[("server", report.server.clone())],
         ),
-        comparison: localize(code, key, &params),
-        boundary: localize(code, "dns_stun_not_webrtc", &[]),
+        comparison: localize(catalog, key, &params),
+        boundary: localize(catalog, "dns_stun_not_webrtc", &[]),
     }
 }

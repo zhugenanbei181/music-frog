@@ -7,21 +7,30 @@ use crate::rule_list_editor::RuleListReadback::Observed;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason};
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn absent_and_measured_zero_statistics_have_distinct_localized_copy() {
-    let absent = project_statistics(None, "en-US");
+    let absent = project_statistics(None, &Lang("en-US"));
     assert_eq!(absent.total_hits, "Not observed");
     assert_eq!(
-        absent.summary("en-US"),
+        absent.summary(&Lang("en-US")),
         "Local trace statistics · Not observed"
     );
     assert!(!absent.can_clear);
-    let observed = project_statistics(Some(&RuleHitAuditSnapshot::default()), "en-US");
+    let observed = project_statistics(Some(&RuleHitAuditSnapshot::default()), &Lang("en-US"));
     assert_eq!(observed.total_hits, "0");
     assert_eq!(observed.latency, "Not observed");
-    assert!(observed.summary("en-US").starts_with("Local trace hits 0"));
-    assert!(observed.summary("zh-CN").starts_with("本地追踪命中 0"));
+    assert!(
+        observed
+            .summary(&Lang("en-US"))
+            .starts_with("Local trace hits 0")
+    );
+    assert!(
+        observed
+            .summary(&Lang("zh-CN"))
+            .starts_with("本地追踪命中 0")
+    );
 }
 
 #[test]

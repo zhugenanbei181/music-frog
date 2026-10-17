@@ -28,6 +28,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::network_status_projection::{
     roaming_interfaces, roaming_route, roaming_status,
 };
+use infiltrator_shared::locales::Lang;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NetworkRoamingRefreshButton;
@@ -159,9 +160,9 @@ pub(super) fn replay(
         return;
     };
     let snapshot = &projection.network_roaming;
-    let status = roaming_status(&snapshot.status, locale.code());
-    let interfaces = roaming_interfaces(snapshot, locale.code());
-    let route = roaming_route(snapshot, locale.code());
+    let status = roaming_status(&snapshot.status, &Lang(locale.code()));
+    let interfaces = roaming_interfaces(snapshot, &Lang(locale.code()));
+    let route = roaming_route(snapshot, &Lang(locale.code()));
     for mut line in &mut lines {
         let value = if line.status.is_some() {
             &status
@@ -187,10 +188,10 @@ pub(super) fn initialize<T: Component>(
     };
     let snapshot = &latest.0.network_roaming;
     line.text.0 = if line.status.is_some() {
-        roaming_status(&snapshot.status, locale.code())
+        roaming_status(&snapshot.status, &Lang(locale.code()))
     } else if line.interfaces.is_some() {
-        roaming_interfaces(snapshot, locale.code())
+        roaming_interfaces(snapshot, &Lang(locale.code()))
     } else {
-        roaming_route(snapshot, locale.code())
+        roaming_route(snapshot, &Lang(locale.code()))
     };
 }

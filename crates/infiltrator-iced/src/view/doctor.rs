@@ -167,7 +167,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             body = body.push(secondary_text(summary(
                 data.checks.iter().map(|check| check.state),
                 data.report_finished_at,
-                &state.shell.lang,
+                &Lang(&state.shell.lang),
             )));
             if !data.last_run.is_empty() {
                 body = body.push(secondary_text(localize(
@@ -296,11 +296,17 @@ fn snapshot_check_row(
 ) -> Element<'static, Message> {
     let lang = Lang(code);
     let mut content = column![
-        text(check_name(check.kind, &check.name, &check.category, code)).size(13),
+        text(check_name(
+            check.kind,
+            &check.name,
+            &check.category,
+            &Lang(code)
+        ))
+        .size(13),
         text(check_detail(
             check.detail_copy_key.as_deref(),
             &check.detail,
-            code
+            &Lang(code)
         ))
         .size(12),
         row![

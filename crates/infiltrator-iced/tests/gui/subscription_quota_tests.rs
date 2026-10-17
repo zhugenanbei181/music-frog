@@ -1,11 +1,12 @@
 use super::*;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn quota_status_label_has_no_fake_success_for_missing_metadata() {
     let lang = Lang("en-US");
     let snapshot = SubscriptionQuotaSnapshot::unsupported(1, 1, "provider unavailable");
-    let presentation = project_quota(&snapshot, lang.0);
+    let presentation = project_quota(&snapshot, &Lang(lang.0));
     assert_eq!(
         presentation.status,
         "Quota unavailable: provider unavailable"

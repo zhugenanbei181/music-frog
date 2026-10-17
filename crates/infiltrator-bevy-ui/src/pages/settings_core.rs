@@ -50,6 +50,7 @@ use infiltrator_presentation::settings_status_projection::{
     format_controller_auth, format_core_resources, format_mtu, format_port_conflicts,
     format_rollback_target, format_runtime_status, format_service_mode, optional_copy,
 };
+use infiltrator_shared::locales::Lang;
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -185,7 +186,7 @@ pub(super) fn controller_settings_card(
     let ctrl_port_str = projection
         .controller_port
         .map(|port| format!("127.0.0.1:{port}"))
-        .unwrap_or_else(|| optional_copy::<u16>(None, UiLocale::default().code()));
+        .unwrap_or_else(|| optional_copy::<u16>(None, &Lang(UiLocale::default().code())));
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -220,7 +221,7 @@ pub(super) fn controller_settings_card(
                                 --
                                 @{ core_log_level_row_scene(projection, palette) }
                                 --
-                                Text({ format_runtime_status(&projection.runtime_status, UiLocale::default().code()) })
+                                Text({ format_runtime_status(&projection.runtime_status, &Lang(UiLocale::default().code())) })
                                 SettingsLine(SettingsLineKind::RuntimeStatus) TextRole(Role::Caption)
                             ]
             }),
@@ -239,7 +240,7 @@ pub(super) fn core_rollback_row_scene(
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     let rollback_text =
-        format_rollback_target(&projection.core_versions, UiLocale::default().code());
+        format_rollback_target(&projection.core_versions, &Lang(UiLocale::default().code()));
     let rollback_available = projection.core_versions.rollback.target.is_some();
     let action: Box<dyn Scene> = Box::new(bsn! {
             Node {
@@ -290,7 +291,7 @@ pub(super) fn controller_auth_row_scene(
     snapshot: &ControllerAuthSnapshot,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let status = format_controller_auth(snapshot, UiLocale::default().code());
+    let status = format_controller_auth(snapshot, &Lang(UiLocale::default().code()));
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -323,7 +324,12 @@ pub(super) fn core_log_level_row_scene(
         })
         .collect();
     let current = active.map_or_else(
-        || optional_copy(projection.log_level.as_ref(), UiLocale::default().code()),
+        || {
+            optional_copy(
+                projection.log_level.as_ref(),
+                &Lang(UiLocale::default().code()),
+            )
+        },
         |level| level.as_key().to_uppercase(),
     );
     let label: Box<dyn Scene> = Box::new(bsn! {
@@ -424,7 +430,7 @@ pub(super) fn mtu_row_scene(
     snapshot: &MtuNegotiationSnapshot,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let status = format_mtu(snapshot, UiLocale::default().code());
+    let status = format_mtu(snapshot, &Lang(UiLocale::default().code()));
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -600,7 +606,7 @@ pub(super) fn service_mode_row_scene(
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     let ready = snapshot.state == ServiceModeState::Ready;
-    let status = format_service_mode(snapshot, UiLocale::default().code());
+    let status = format_service_mode(snapshot, &Lang(UiLocale::default().code()));
     let label = if ready {
         "core_service_ready"
     } else {
@@ -648,7 +654,7 @@ pub(super) fn port_conflicts_row_scene(
     snapshot: &PortConflictSnapshot,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let status = format_port_conflicts(snapshot, UiLocale::default().code());
+    let status = format_port_conflicts(snapshot, &Lang(UiLocale::default().code()));
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -690,7 +696,7 @@ pub(super) fn core_resources_row_scene(
     snapshot: &CoreResourceSnapshot,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let status = format_core_resources(snapshot, UiLocale::default().code());
+    let status = format_core_resources(snapshot, &Lang(UiLocale::default().code()));
     Box::new(bsn! {
             Node {
                 width: percent(100),

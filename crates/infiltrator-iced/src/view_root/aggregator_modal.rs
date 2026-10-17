@@ -450,7 +450,7 @@ fn custom_group_list<'a>(
     }
     let mut rows = column![].spacing(theme::SP_XS);
     for (index, group) in groups.iter().enumerate() {
-        let keywords = aggregation_custom_group_row(group, lang.0);
+        let keywords = aggregation_custom_group_row(group, &Lang(lang.0));
         rows = rows.push(
             row![
                 badge(group.name.clone(), BadgeKind::Accent),
@@ -477,9 +477,9 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
         text(lang.tr("aggregator_preview_title").to_string())
             .size(12)
             .font(FONT_SEMIBOLD),
-        text(aggregation_counters(Some(report), lang.0)).size(11),
-        text(aggregation_regions(Some(report), lang.0)).size(12),
-        text(aggregation_groups(Some(report), lang.0)).size(12),
+        text(aggregation_counters(Some(report), &Lang(lang.0))).size(11),
+        text(aggregation_regions(Some(report), &Lang(lang.0))).size(12),
+        text(aggregation_groups(Some(report), &Lang(lang.0))).size(12),
     ]
     .spacing(theme::SP_XS);
     if !report.invalid_node_samples.is_empty() {
@@ -491,7 +491,7 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
     }
     body = body.push(container(
         modern_scrollable(
-            text(aggregation_yaml_preview(Some(report), lang.0))
+            text(aggregation_yaml_preview(Some(report), &Lang(lang.0)))
                 .size(11)
                 .font(MONO),
         )
@@ -572,7 +572,7 @@ fn template_row<'a>(template: &'a AggregationTemplate, lang: &Lang<'_>) -> Eleme
     row![
         badge(template.name.clone(), BadgeKind::Neutral),
         Space::new().width(theme::SP_SM),
-        text(aggregation_template_row(template, lang.0))
+        text(aggregation_template_row(template, &Lang(lang.0)))
             .size(11)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),

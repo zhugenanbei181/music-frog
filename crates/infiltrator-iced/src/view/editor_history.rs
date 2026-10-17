@@ -85,7 +85,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                     &[
                         (
                             "source",
-                            &snapshot_presentation::prune_source(report.source, lang.0),
+                            &snapshot_presentation::prune_source(report.source, &Lang(lang.0)),
                         ),
                         ("count", &report.removed.to_string()),
                     ],

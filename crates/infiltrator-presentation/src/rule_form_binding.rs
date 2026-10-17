@@ -2,9 +2,9 @@
 use crate::rule_list_editor::RuleListEditor;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
 pub fn default_form_target(editor: &RuleListEditor) -> String {
     let Some(base) = editor.base.as_ref() else {
@@ -85,7 +85,7 @@ impl RuleFormBinding {
             ))
         }
     }
-    pub fn status(&self, editor: &RuleListEditor, locale: &str) -> String {
+    pub fn status(&self, editor: &RuleListEditor, catalog: &dyn TextCatalog) -> String {
         if editor.read_failure().is_none()
             && !editor.source_changed()
             && self
@@ -96,7 +96,7 @@ impl RuleFormBinding {
             return String::new();
         }
         interpolate(
-            Lang(locale).tr("rules_form_source_changed").as_ref(),
+            catalog.text("rules_form_source_changed").as_ref(),
             &[(
                 "profile",
                 self.source().map_or("—", |source| source.profile.as_str()),

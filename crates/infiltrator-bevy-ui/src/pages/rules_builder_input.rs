@@ -15,6 +15,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_presentation::rule_form_binding::default_form_target;
+use infiltrator_shared::locales::Lang;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum RuleBuilderFieldKind {
@@ -47,7 +48,7 @@ pub fn sync_status(
     locale: Res<UiLocale>,
     mut labels: Query<&mut Text, With<RuleFormStatus>>,
 ) {
-    let status = builder.binding.status(&editor.model, locale.code());
+    let status = builder.binding.status(&editor.model, &Lang(locale.code()));
     for mut text in &mut labels {
         text.0.clone_from(&status);
     }

@@ -1,8 +1,8 @@
 //! Shared export review copy and action gates for both native products.
 use crate::script_workbench::{ScriptExportPhase, ScriptWorkbench};
+use crate::text::localize;
 use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 pub struct ScriptExportPresentation {
     pub status: String,
@@ -14,34 +14,36 @@ pub struct ScriptExportPresentation {
     pub retry: bool,
 }
 
-pub fn project_script_export(model: &ScriptWorkbench, language: &str) -> ScriptExportPresentation {
-    let lang = Lang(language);
+pub fn project_script_export(
+    model: &ScriptWorkbench,
+    catalog: &dyn TextCatalog,
+) -> ScriptExportPresentation {
     let export = model.export();
     let status = if let Some(failure) = model.failure() {
         failure.message.clone()
     } else if model.is_exporting() {
-        lang.tr("script_export_busy").into_owned()
+        catalog.text("script_export_busy").into_owned()
     } else {
         match export.map(|snapshot| &snapshot.outcome) {
             Some(ScriptExportOutcome::Saved { .. }) => {
-                lang.tr("script_export_toast_saved").into_owned()
+                catalog.text("script_export_toast_saved").into_owned()
             }
             Some(ScriptExportOutcome::Unsupported { reason }) => {
-                format!("{} {reason}", lang.tr("script_export_unsupported"))
+                format!("{} {reason}", catalog.text("script_export_unsupported"))
             }
             Some(ScriptExportOutcome::Failed { reason }) => {
-                format!("{} {reason}", lang.tr("script_export_toast_failed"))
+                format!("{} {reason}", catalog.text("script_export_toast_failed"))
             }
-            Some(ScriptExportOutcome::Prepared) => {
-                lang.tr("script_export_review_instructions").into_owned()
-            }
-            None => lang.tr("script_export_unobserved").into_owned(),
+            Some(ScriptExportOutcome::Prepared) => catalog
+                .text("script_export_review_instructions")
+                .into_owned(),
+            None => catalog.text("script_export_unobserved").into_owned(),
         }
     };
     let (details, content, path) = export
         .map(|export| {
             let file = localize(
-                language,
+                catalog,
                 "script_export_file_value",
                 &[
                     ("name", export.file_name.clone()),
@@ -59,9 +61,9 @@ pub fn project_script_export(model: &ScriptWorkbench, language: &str) -> ScriptE
                 .unwrap_or("");
             let details = format!(
                 "{} · {file}\n{} {hash}\n{}",
-                lang.tr(export.kind.label_key()),
-                lang.tr("script_export_checksum"),
-                lang.tr(note)
+                catalog.text(export.kind.label_key()),
+                catalog.text("script_export_checksum"),
+                catalog.text(note)
             );
             let path = match &export.outcome {
                 ScriptExportOutcome::Saved { path, .. } => path.clone(),
@@ -88,6 +90,7 @@ mod tests {
     use infiltrator_contract::script_export_review::{
         ScriptExportDraft, ScriptExportValidationScope,
     };
+    use infiltrator_shared::locales::Lang;
     use lurker_core_contract::error::Failure;
 
     fn draft() -> ScriptExportDraft {
@@ -105,16 +108,16 @@ mod tests {
     #[test]
     fn hidden_export_does_not_offer_confirmation_and_preparation_is_explicitly_busy() {
         let mut model = ScriptWorkbench::default();
-        assert!(!project_script_export(&model, "en-US").confirm);
+        assert!(!project_script_export(&model, &Lang("en-US")).confirm);
         let pending = model.prepare_export(draft()).unwrap();
         assert!(matches!(
             model.export_phase(),
             ScriptExportPhase::Preparing { .. }
         ));
         assert!(model.is_exporting());
-        assert!(!project_script_export(&model, "en-US").confirm);
+        assert!(!project_script_export(&model, &Lang("en-US")).confirm);
         model.finish(pending.operation + 1, Err(Failure::unsupported("foreign")));
         assert!(model.is_exporting());
-        assert!(!project_script_export(&model, "en-US").close);
+        assert!(!project_script_export(&model, &Lang("en-US")).close);
     }
 }

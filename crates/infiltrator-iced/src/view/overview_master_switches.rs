@@ -48,8 +48,8 @@ fn switch_card<'a>(
 ) -> Element<'a, Message> {
     let state = snapshot.state(toggle);
     let enabled = state.is_enabled();
-    let status = status_label(state, lang.0);
-    let action = action_label(state, lang.0);
+    let status = status_label(state, &Lang(lang.0));
+    let action = action_label(state, &Lang(lang.0));
     let action_message = if state.can_toggle() {
         Some(match toggle {
             SystemToggle::SystemProxy => Message::SetSystemProxy(!enabled),

@@ -7,8 +7,8 @@ use crate::rule_statistics_workbench::{
 };
 use infiltrator_contract::rule_hit_audit::RuleDeadReason;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StatisticsRowKey {
@@ -48,17 +48,17 @@ pub struct StatisticsInspectorProjection {
     pub confirmation_summary: String,
     pub can_confirm_cleanup: bool,
 }
-fn copy(locale: &str, key: &str, params: &[(&str, &str)]) -> String {
-    interpolate(Lang(locale).tr(key).as_ref(), params)
+fn copy(catalog: &dyn TextCatalog, key: &str, params: &[(&str, &str)]) -> String {
+    interpolate(catalog.text(key).as_ref(), params)
 }
 
 pub fn project_inspector(
     model: &RuleStatisticsWorkbench,
     editor: &RuleListEditor,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> StatisticsInspectorProjection {
-    let unknown = Lang(locale).tr("shell_readout_unknown").into_owned();
-    let metrics = project_statistics(model.audit.as_ref(), locale);
+    let unknown = catalog.text("shell_readout_unknown").into_owned();
+    let metrics = project_statistics(model.audit.as_ref(), catalog);
     let source = model
         .source
         .as_ref()
@@ -71,22 +71,26 @@ pub fn project_inspector(
             audit
                 .last_hit_rule
                 .clone()
-                .unwrap_or_else(|| Lang(locale).tr("rule_hit_none").into_owned())
+                .unwrap_or_else(|| catalog.text("rule_hit_none").into_owned())
         })
         .unwrap_or_else(|| unknown.clone());
     let status = if let Some(failure) = model.read_failure() {
-        copy(locale, "rules_stats_stale", &[("reason", &failure.message)])
+        copy(
+            catalog,
+            "rules_stats_stale",
+            &[("reason", &failure.message)],
+        )
     } else if model.reset_request().is_some() {
-        Lang(locale).tr("rules_stats_clearing").into_owned()
+        catalog.text("rules_stats_clearing").into_owned()
     } else if matches!(
         model.reset_phase(),
         StatisticsResetPhase::AwaitingReadback { .. }
     ) {
-        Lang(locale).tr("rules_stats_waiting_readback").into_owned()
+        catalog.text("rules_stats_waiting_readback").into_owned()
     } else if model.audit.is_none() {
-        Lang(locale).tr("rules_trace_stats_unobserved").into_owned()
+        catalog.text("rules_trace_stats_unobserved").into_owned()
     } else {
-        Lang(locale).tr("rules_stats_observed").into_owned()
+        catalog.text("rules_stats_observed").into_owned()
     };
     let total = model.audit.as_ref().map_or(0, |audit| match model.tab {
         StatisticsTab::Summary => 0,
@@ -135,7 +139,7 @@ pub fn project_inspector(
                         raw: row.rule_raw.clone(),
                         count: row.hit_count.to_string(),
                         detail: copy(
-                            locale,
+                            catalog,
                             "rules_stats_hit_detail",
                             &[("time", &time), ("bytes", &bytes)],
                         ),
@@ -151,7 +155,7 @@ pub fn project_inspector(
                     .take(STATS_ROWS_PER_PAGE)
                 {
                     let index = row.rule_index;
-                    let reason = Lang(locale).tr(match row.reason {
+                    let reason = catalog.text(match row.reason {
                         RuleDeadReason::ZeroHits => "rules_stats_zero_local",
                         RuleDeadReason::Shadowed => "rules_stats_shadowed",
                     });
@@ -184,8 +188,8 @@ pub fn project_inspector(
         }
     }
     let empty_rows = if model.tab != StatisticsTab::Summary && rows.is_empty() {
-        Lang(locale)
-            .tr(if model.audit.is_some() {
+        catalog
+            .text(if model.audit.is_some() {
                 "rules_stats_empty_rows"
             } else {
                 "rules_trace_stats_unobserved"
@@ -196,21 +200,21 @@ pub fn project_inspector(
     };
     let feedback = if let Some(failure) = model.reset_failure() {
         copy(
-            locale,
+            catalog,
             "rules_stats_clear_failed",
             &[("reason", &failure.message)],
         )
     } else {
         match model.cleanup_feedback() {
             StatisticsCleanupFeedback::Completed(count) => copy(
-                locale,
+                catalog,
                 "rules_trace_disabled_rows",
                 &[("count", &count.to_string())],
             ),
             StatisticsCleanupFeedback::None => {
                 model.inspected_rows().map_or_else(String::new, |rows| {
                     copy(
-                        locale,
+                        catalog,
                         "rules_trace_audit_complete",
                         &[
                             ("count", &rows.len().to_string()),
@@ -230,7 +234,7 @@ pub fn project_inspector(
         rows,
         empty_rows,
         page: copy(
-            locale,
+            catalog,
             "rules_stats_page",
             &[
                 ("page", &(page_index + 1).to_string()),
@@ -249,9 +253,7 @@ pub fn project_inspector(
         can_reset: model.can_reset(),
         feedback,
         confirmation_status: if model.confirmation().is_some() && !can_confirm_cleanup {
-            Lang(locale)
-                .tr("rules_stats_confirmation_stale")
-                .into_owned()
+            catalog.text("rules_stats_confirmation_stale").into_owned()
         } else {
             String::new()
         },
@@ -259,7 +261,7 @@ pub fn project_inspector(
             .confirmation()
             .map_or_else(String::new, |confirmation| {
                 copy(
-                    locale,
+                    catalog,
                     "rules_stats_cleanup_preview",
                     &[
                         ("profile", &confirmation.source.profile),

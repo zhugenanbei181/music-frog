@@ -36,6 +36,7 @@ use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinPreflight, ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleObservation,
 };
 use infiltrator_presentation::mixin_studio_projection;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 /// One common-overlay toggle chip (index into the shared catalogue).
@@ -109,7 +110,8 @@ pub fn mixin_studio_scene(
             palette.danger
         },
     );
-    let preflight_detail = mixin_studio_projection::preflight_detail(&preflight, locale.code());
+    let preflight_detail =
+        mixin_studio_projection::preflight_detail(&preflight, &Lang(locale.code()));
     let preflight_label = preflight_pill.0.render(&locale);
     let toggle_states: Vec<ProfileMixinToggle> = match studio {
         Some(studio) => match &studio.toggles {
@@ -152,7 +154,9 @@ pub fn mixin_studio_scene(
         .collect();
 
     let cascade_text = studio
-        .map(|studio| mixin_studio_projection::cascade_caption(&studio.cascade, locale.code()))
+        .map(|studio| {
+            mixin_studio_projection::cascade_caption(&studio.cascade, &Lang(locale.code()))
+        })
         .unwrap_or_else(|| "Mixin codec is unavailable".into());
     let verdict_role = MixinCopyRole::Verdict;
     let detail_role = MixinCopyRole::Detail;
@@ -213,12 +217,14 @@ pub fn mixin_studio_scene(
 /// reason. Nothing here is a mock.
 fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box<dyn Scene> {
     let base_caption =
-        mixin_studio_projection::column_caption(&columns.base, UiLocale::default().code());
-    let overlay_caption =
-        mixin_studio_projection::column_caption(&columns.overlay, UiLocale::default().code());
+        mixin_studio_projection::column_caption(&columns.base, &Lang(UiLocale::default().code()));
+    let overlay_caption = mixin_studio_projection::column_caption(
+        &columns.overlay,
+        &Lang(UiLocale::default().code()),
+    );
     let composed_caption = match &columns.composed {
         ProfileMixinComposition::Produced(column) => {
-            mixin_studio_projection::column_caption(column, UiLocale::default().code())
+            mixin_studio_projection::column_caption(column, &Lang(UiLocale::default().code()))
         }
         ProfileMixinComposition::Blocked { .. } => mixin_studio_projection::column_caption(
             &ProfileMixinColumn {
@@ -227,7 +233,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                 editable: false,
                 line_count: 0,
             },
-            UiLocale::default().code(),
+            &Lang(UiLocale::default().code()),
         ),
     };
     let base_text = columns.base.content.clone();
@@ -240,7 +246,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
             ProfileMixinComposition::Blocked { reason } => Some(reason.as_str()),
             ProfileMixinComposition::Produced(_) => None,
         },
-        UiLocale::default().code(),
+        &Lang(UiLocale::default().code()),
     );
     let composed_color = if matches!(&columns.composed, ProfileMixinComposition::Blocked { .. }) {
         palette.danger

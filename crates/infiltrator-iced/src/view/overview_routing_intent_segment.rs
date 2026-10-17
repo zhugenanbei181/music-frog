@@ -33,7 +33,7 @@ pub fn overview_routing_intent_segment<'a>(
                 .routing_intent_state
                 .is_intent_selectable(&intent);
 
-        let label = routing_intent_copy(&intent, lang.0);
+        let label = routing_intent_copy(&intent, &Lang(lang.0));
 
         let btn_content = text(label).size(13).font(if is_current {
             FONT_SEMIBOLD
@@ -91,7 +91,7 @@ pub fn overview_routing_intent_segment<'a>(
         Space::new().width(Length::Fill),
         text(routing_intent_status_copy(
             &state.runtime.routing_intent_state,
-            lang.0
+            &Lang(lang.0)
         ))
         .size(12)
         .style(|t: &Theme| text::Style {

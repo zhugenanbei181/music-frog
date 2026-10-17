@@ -28,6 +28,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_presentation::rule_condition_projection::location_text;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Component, Clone, Copy, Default)]
@@ -177,7 +178,7 @@ pub fn render(
                         table: request.rule_table.clone(),
                         index: request.rule_index
                     },
-                    locale.code()
+                    &Lang(locale.code())
                 ),
                 LocalizedText::new(
                     "rule_trace_confirm_detail",

@@ -130,14 +130,15 @@ pub(crate) fn apply_rules_projection(
             RulesLineKind::Summary => rules_summary(
                 projection.total_rules,
                 projection.providers.len(),
-                locale.code(),
+                &Lang(locale.code()),
             ),
             RulesLineKind::DefaultAction => {
-                default_action(&projection.default_action, locale.code())
+                default_action(&projection.default_action, &Lang(locale.code()))
             }
             RulesLineKind::HitAudit => {
-                let projected = project_statistics(projection.hit_audit.as_ref(), locale.code());
-                let value = projected.summary(locale.code());
+                let projected =
+                    project_statistics(projection.hit_audit.as_ref(), &Lang(locale.code()));
+                let value = projected.summary(&Lang(locale.code()));
                 if let Some(mut copy) = copy {
                     *copy = LocalizedText::new(projected.key, projected.params);
                 }
@@ -146,7 +147,7 @@ pub(crate) fn apply_rules_projection(
             RulesLineKind::Truncation => published_truncation(
                 projection.truncated_rule_count,
                 projection.rule_publish_limit,
-                locale.code(),
+                &Lang(locale.code()),
             ),
             RulesLineKind::EtagSupport => {
                 etag_support_line(&projection.etag_support, &Lang(locale.code()))
@@ -175,7 +176,7 @@ pub(crate) fn apply_rules_projection(
                 rule.hit_count,
                 rule.is_enabled,
                 rule.is_shadowed,
-                locale.code(),
+                &Lang(locale.code()),
             );
             if text.0 != want {
                 text.0 = want;
@@ -218,7 +219,11 @@ pub(crate) fn apply_rules_projection(
 
     for (mut text, marker) in &mut provider_counts {
         if let Some(provider) = projection.providers.get(marker.0) {
-            let want = provider_count(provider.rule_count, &provider.behavior, locale.code());
+            let want = provider_count(
+                provider.rule_count,
+                &provider.behavior,
+                &Lang(locale.code()),
+            );
             if text.0 != want {
                 text.0 = want;
             }
@@ -280,7 +285,7 @@ pub(crate) fn refresh_hit_copy(
                 rule.hit_count,
                 rule.is_enabled,
                 rule.is_shadowed,
-                locale.code(),
+                &Lang(locale.code()),
             );
             if text.0 != value {
                 text.0 = value;

@@ -21,7 +21,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let draft = &state.editor.subrule_draft;
-    let projection = project_logical_rule(draft, lang.0);
+    let projection = project_logical_rule(draft, &Lang(lang.0));
 
     let mut op_selector = row![
         text(lang.tr("subrules_operator").to_string())

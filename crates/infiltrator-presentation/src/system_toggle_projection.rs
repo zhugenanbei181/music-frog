@@ -1,12 +1,12 @@
 //! Shared labels for system controls; failures retain their reported reason.
+use crate::text::localize;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_ui_presentation::copy::TextCatalog;
 
 /// Fold only verified host observations into the compact toggle read model.
 pub fn from_surface(snapshot: &SurfaceSnapshot) -> SystemToggleSnapshot {
@@ -73,7 +73,7 @@ pub fn intent(
     })
 }
 
-pub fn status_label(state: &SystemToggleState, locale: &str) -> String {
+pub fn status_label(state: &SystemToggleState, catalog: &dyn TextCatalog) -> String {
     let key = match state {
         SystemToggleState::Enabled => "overview_toggle_enabled",
         SystemToggleState::Disabled => "overview_toggle_disabled",
@@ -86,21 +86,21 @@ pub fn status_label(state: &SystemToggleState, locale: &str) -> String {
                 "overview_toggle_failed"
             };
             return localize(
-                locale,
+                catalog,
                 "network_status_detail",
                 &[
-                    ("state", Lang(locale).tr(key).into_owned()),
+                    ("state", catalog.text(key).into_owned()),
                     ("reason", failure.message.clone()),
                 ],
             );
         }
     };
-    Lang(locale).tr(key).into_owned()
+    catalog.text(key).into_owned()
 }
 
-pub fn action_label(state: &SystemToggleState, locale: &str) -> String {
-    Lang(locale)
-        .tr(match state {
+pub fn action_label(state: &SystemToggleState, catalog: &dyn TextCatalog) -> String {
+    catalog
+        .text(match state {
             SystemToggleState::Enabled => "overview_toggle_disable",
             SystemToggleState::Disabled => "overview_toggle_enable",
             SystemToggleState::Pending { .. } => "overview_toggle_pending",
@@ -112,10 +112,10 @@ pub fn action_label(state: &SystemToggleState, locale: &str) -> String {
 }
 
 /// The compact renderer uses short translated states and neutral pending/unknown symbols.
-pub fn compact_label(state: &SystemToggleState, locale: &str) -> String {
+pub fn compact_label(state: &SystemToggleState, catalog: &dyn TextCatalog) -> String {
     match state {
-        SystemToggleState::Enabled => Lang(locale).tr("system_toggle_on_short").into_owned(),
-        SystemToggleState::Disabled => Lang(locale).tr("system_toggle_off_short").into_owned(),
+        SystemToggleState::Enabled => catalog.text("system_toggle_on_short").into_owned(),
+        SystemToggleState::Disabled => catalog.text("system_toggle_off_short").into_owned(),
         SystemToggleState::Pending { .. } => "…".into(),
         SystemToggleState::Unknown
         | SystemToggleState::Unsupported { .. }
@@ -126,14 +126,14 @@ pub fn compact_label(state: &SystemToggleState, locale: &str) -> String {
 pub fn compact_status_line(
     proxy: &SystemToggleState,
     tun: &SystemToggleState,
-    locale: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
     localize(
-        locale,
+        catalog,
         "system_toggle_compact_line",
         &[
-            ("proxy", compact_label(proxy, locale)),
-            ("tun", compact_label(tun, locale)),
+            ("proxy", compact_label(proxy, catalog)),
+            ("tun", compact_label(tun, catalog)),
         ],
     )
 }

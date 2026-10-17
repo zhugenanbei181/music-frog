@@ -1,8 +1,8 @@
 //! One localized fold of DNS cross-source facts for both peer products.
+use crate::text::localize;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::dns_leak::{DnsLeakConclusion, DnsLeakObservationOutcome, DnsLeakReport};
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,7 +41,7 @@ impl LeakDisplay {
             .join("\n")
     }
 }
-pub fn project_leak(report: &DnsLeakReport, code: &str) -> LeakDisplay {
+pub fn project_leak(report: &DnsLeakReport, catalog: &dyn TextCatalog) -> LeakDisplay {
     let (key, params, tone) = match report.conclusion() {
         DnsLeakConclusion::Consistent { identity, facts } => (
             "dns_leak_consistent",
@@ -101,25 +101,25 @@ pub fn project_leak(report: &DnsLeakReport, code: &str) -> LeakDisplay {
                 resolver: observation.resolver.clone(),
                 authority: observation.authority.clone(),
                 question: observation.question.clone(),
-                outcome: localize(code, key, &params),
+                outcome: localize(catalog, key, &params),
                 tone,
             }
         })
         .collect();
     LeakDisplay {
-        conclusion: localize(code, key, &params),
+        conclusion: localize(catalog, key, &params),
         tone,
         sources: localize(
-            code,
+            catalog,
             "dns_leak_sources",
             &[("count", report.sources.len().to_string())],
         ),
         rows,
-        empty: Lang(code).tr("dns_leak_empty").into_owned(),
+        empty: catalog.text("dns_leak_empty").into_owned(),
         feedback: match &report.operation {
-            DnsLeakOperation::Running => Some(Lang(code).tr("dns_leak_probing").into_owned()),
+            DnsLeakOperation::Running => Some(catalog.text("dns_leak_probing").into_owned()),
             DnsLeakOperation::Failed { failure } => Some(localize(
-                code,
+                catalog,
                 "dns_leak_operation_failed",
                 &[("reason", failure.message.clone())],
             )),

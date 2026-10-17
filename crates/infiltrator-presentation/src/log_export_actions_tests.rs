@@ -5,6 +5,7 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::log_export::{LogExportReceipt, LogExportSummary};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_domain::log_export::prepare_log_export;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::session::SessionToken;
 
@@ -50,7 +51,7 @@ fn explicit_prepare_review_cancel_and_closed_phases_reject_invalid_actions() {
 
     let mut model = prepared();
     assert!(matches!(model.phase(), LogExportPhase::Review { .. }));
-    assert!(project_log_export(&model, "en-US").confirm);
+    assert!(project_log_export(&model, &Lang("en-US")).confirm);
     let cancelled = model.cancel().unwrap();
     assert_eq!(
         cancelled.intent,
@@ -96,7 +97,7 @@ fn save_failure_retry_preserves_identity_and_only_a_matching_receipt_succeeds() 
         Ok(CommandOutput::LogExportSaved(receipt.clone()))
     ));
     assert_eq!(model.receipt(), Some(&receipt));
-    let view = project_log_export(&model, "en-US");
+    let view = project_log_export(&model, &Lang("en-US"));
     assert_eq!(view.path, "/host/verified.log");
     assert!(!view.error && !view.confirm && !view.retry && view.close);
 }

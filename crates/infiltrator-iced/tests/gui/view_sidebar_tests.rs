@@ -5,6 +5,7 @@ use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -90,20 +91,23 @@ fn test_short_label() {
 fn unobserved_shell_counts_and_rates_are_distinct_from_observed_zero() {
     let (mut state, _) = AppState::new();
     assert_eq!(
-        count_copy(&state.shell.readout, PageId::Rules, "en-US"),
+        count_copy(&state.shell.readout, PageId::Rules, &Lang("en-US")),
         "Not observed"
     );
     assert_eq!(
-        rate_copy(&state.shell.readout.upload_bps, "en-US"),
+        rate_copy(&state.shell.readout.upload_bps, &Lang("en-US")),
         "Not observed"
     );
     state.shell.readout.rules = ShellObservation::Current(0);
     state.shell.readout.upload_bps = ShellObservation::Current(0.0);
     assert_eq!(
-        count_copy(&state.shell.readout, PageId::Rules, "en-US"),
+        count_copy(&state.shell.readout, PageId::Rules, &Lang("en-US")),
         "0"
     );
-    assert_eq!(rate_copy(&state.shell.readout.upload_bps, "en-US"), "0 B/s");
+    assert_eq!(
+        rate_copy(&state.shell.readout.upload_bps, &Lang("en-US")),
+        "0 B/s"
+    );
 }
 #[test]
 fn test_sidebar_rail_render_smoke() {

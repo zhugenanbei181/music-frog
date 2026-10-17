@@ -21,21 +21,28 @@ use infiltrator_shared::locales::{Lang, Localizer};
 pub fn line(kind: SettingsLineKind, projection: &SettingsProjection, code: &str) -> Option<String> {
     Some(match kind {
         SettingsLineKind::Summary => Lang(code).tr("settings_summary").into_owned(),
-        SettingsLineKind::RuntimeStatus => format_runtime_status(&projection.runtime_status, code),
+        SettingsLineKind::RuntimeStatus => {
+            format_runtime_status(&projection.runtime_status, &Lang(code))
+        }
         SettingsLineKind::OfflineStartup => {
-            format_offline_startup(&projection.offline_startup, code)
+            format_offline_startup(&projection.offline_startup, &Lang(code))
         }
         SettingsLineKind::MixedPort => localize(
             code,
             "settings_port_value",
-            &[("port", optional_copy(projection.mixed_port.as_ref(), code))],
+            &[(
+                "port",
+                optional_copy(projection.mixed_port.as_ref(), &Lang(code)),
+            )],
         ),
         SettingsLineKind::LanBindAddress => {
-            optional_copy(projection.lan_bind_address.as_ref(), code)
+            optional_copy(projection.lan_bind_address.as_ref(), &Lang(code))
         }
-        SettingsLineKind::LanSecurity => format_lan_auth(projection.lan_security.as_ref(), code),
-        SettingsLineKind::Ipv6Routing => format_ipv6(projection.ipv6_routing.as_ref(), code),
-        SettingsLineKind::TunStack => optional_copy(projection.tun_stack.as_ref(), code),
+        SettingsLineKind::LanSecurity => {
+            format_lan_auth(projection.lan_security.as_ref(), &Lang(code))
+        }
+        SettingsLineKind::Ipv6Routing => format_ipv6(projection.ipv6_routing.as_ref(), &Lang(code)),
+        SettingsLineKind::TunStack => optional_copy(projection.tun_stack.as_ref(), &Lang(code)),
         SettingsLineKind::ControllerPort => projection
             .controller_port
             .map(|port| format!("127.0.0.1:{port}"))
@@ -43,28 +50,41 @@ pub fn line(kind: SettingsLineKind, projection: &SettingsProjection, code: &str)
         SettingsLineKind::LogLevel => localize(
             code,
             "settings_log_level_value",
-            &[("level", optional_copy(projection.log_level.as_ref(), code))],
+            &[(
+                "level",
+                optional_copy(projection.log_level.as_ref(), &Lang(code)),
+            )],
         ),
         SettingsLineKind::CoreChannel => localize(
             code,
             "settings_channel_value",
             &[("channel", projection.core_channel.clone())],
         ),
-        SettingsLineKind::CoreVersions => format_core_versions(&projection.core_versions, code),
-        SettingsLineKind::CoreIntegrity => format_integrity(&projection.core_integrity, code),
-        SettingsLineKind::CoreRollback => format_rollback_target(&projection.core_versions, code),
+        SettingsLineKind::CoreVersions => {
+            format_core_versions(&projection.core_versions, &Lang(code))
+        }
+        SettingsLineKind::CoreIntegrity => {
+            format_integrity(&projection.core_integrity, &Lang(code))
+        }
+        SettingsLineKind::CoreRollback => {
+            format_rollback_target(&projection.core_versions, &Lang(code))
+        }
         SettingsLineKind::ControllerAuth => {
-            format_controller_auth(&projection.controller_auth, code)
+            format_controller_auth(&projection.controller_auth, &Lang(code))
         }
         SettingsLineKind::SystemProxy => system_proxy_status(
             &projection.system_proxy_snapshot,
             &projection.system_proxy_recovery,
-            code,
+            &Lang(code),
         ),
-        SettingsLineKind::ServiceMode => format_service_mode(&projection.service_mode, code),
-        SettingsLineKind::PortConflicts => format_port_conflicts(&projection.port_conflicts, code),
-        SettingsLineKind::CoreResources => format_core_resources(&projection.core_resources, code),
-        SettingsLineKind::Mtu => format_mtu(&projection.mtu, code),
+        SettingsLineKind::ServiceMode => format_service_mode(&projection.service_mode, &Lang(code)),
+        SettingsLineKind::PortConflicts => {
+            format_port_conflicts(&projection.port_conflicts, &Lang(code))
+        }
+        SettingsLineKind::CoreResources => {
+            format_core_resources(&projection.core_resources, &Lang(code))
+        }
+        SettingsLineKind::Mtu => format_mtu(&projection.mtu, &Lang(code)),
     })
 }
 pub fn rollback_label(projection: &SettingsProjection, code: &str) -> String {
@@ -113,7 +133,7 @@ pub fn replay_locale(
         } else if parts.rollback.is_some() {
             Some(rollback_label(projection, locale.code()))
         } else if parts.pac.is_some() {
-            Some(pac(&projection.pac, locale.code()))
+            Some(pac(&projection.pac, &Lang(locale.code())))
         } else if parts.service.is_some() {
             Some(service_label(projection, locale.code()))
         } else {

@@ -207,7 +207,7 @@ pub(super) fn system_proxy_card<'a>(
     _is_en: bool,
 ) -> Element<'a, Message> {
     const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;192.168.*;*.lan";
-    let port_status = format_port_conflicts(&state.runtime.port_conflicts, lang.0);
+    let port_status = format_port_conflicts(&state.runtime.port_conflicts, &Lang(lang.0));
 
     card(
         Some(lang.tr("system_proxy").to_string()),
@@ -215,7 +215,7 @@ pub(super) fn system_proxy_card<'a>(
             secondary_text(system_proxy_status(
                 &state.runtime.system_proxy,
                 &state.runtime.system_proxy_recovery,
-                lang.0,
+                &Lang(lang.0),
             )),
             form_toggle_row(
                 lang.tr("settings_sys_proxy").to_string(),

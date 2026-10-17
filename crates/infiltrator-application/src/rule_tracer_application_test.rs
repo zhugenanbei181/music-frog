@@ -12,6 +12,7 @@ use infiltrator_contract::rule_tracer::{
 };
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::rule_trace_projection::present_chain;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
 use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use infiltrator_test_support::rule_workspace_test_support::rule_workspace;
@@ -272,7 +273,7 @@ fn tracer_simulates_nested_logical_subrule() {
     assert_eq!(chain.target_proxy, "AI_PROXY");
     assert_eq!(chain.matched_rule_type, "AND");
     assert!(
-        present_chain(&chain, "en-US").nodes[2]
+        present_chain(&chain, &Lang("en-US")).nodes[2]
             .sub_evaluations
             .iter()
             .any(|e| e.contains("Matched"))
@@ -521,7 +522,7 @@ fn tracer_stored_source_ip_drives_inbound_stage_and_context() {
     assert_eq!(snapshot.simulated_context.in_port, Some(7891));
 
     let chain = snapshot.decision_chain.expect("decision chain");
-    let displayed = present_chain(&chain, "zh-CN");
+    let displayed = present_chain(&chain, &Lang("zh-CN"));
     let inbound = &displayed.nodes[0];
     assert_eq!(inbound.stage, DecisionStageKind::Inbound);
     assert!(inbound.detail.contains("10.20.30.40"));
@@ -586,7 +587,7 @@ fn tracer_port_set_context_updates_shared_environment() {
         .expect("complete sandbox")
         .1;
     assert!(
-        present_chain(&chain, "zh-CN").nodes[0]
+        present_chain(&chain, &Lang("zh-CN")).nodes[0]
             .detail
             .contains("192.168.1.77")
     );

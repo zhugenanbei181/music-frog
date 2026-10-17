@@ -266,7 +266,7 @@ pub(crate) fn filter_mode_label(mode: DnsFakeIpFilterMode, code: &str) -> String
     Lang(code).tr(filter_key(mode)).into_owned()
 }
 pub(crate) fn cache_flush_label(report: &DnsCacheFlushReport, code: &str) -> String {
-    flush_summary(report, code)
+    flush_summary(report, &Lang(code))
 }
 
 // ---- Scene constructors ---------------------------------------------------
@@ -275,7 +275,7 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
     let summary = heading(
         projection.mode,
         projection.cache_entries,
-        UiLocale::default().code(),
+        &Lang(UiLocale::default().code()),
     );
 
     let server_scenes: Vec<Box<dyn Scene>> = projection
@@ -554,14 +554,18 @@ pub(crate) fn apply_dns_projection(
 
     let projection = &update.0;
 
-    let leak = project_leak(&projection.leak, locale.code());
-    let latency = project_dns_latency(&projection.latency, locale.code());
-    let health = project_dns_health(&projection.self_heal, locale.code());
-    let stun = project_stun(&projection.stun, locale.code());
+    let leak = project_leak(&projection.leak, &Lang(locale.code()));
+    let latency = project_dns_latency(&projection.latency, &Lang(locale.code()));
+    let health = project_dns_health(&projection.self_heal, &Lang(locale.code()));
+    let stun = project_stun(&projection.stun, &Lang(locale.code()));
     for (mut text, mut color, line) in &mut lines {
         match line.0 {
             DnsLineKind::Summary => {
-                text.0 = heading(projection.mode, projection.cache_entries, locale.code());
+                text.0 = heading(
+                    projection.mode,
+                    projection.cache_entries,
+                    &Lang(locale.code()),
+                );
             }
             DnsLineKind::FakeIpRange => {
                 text.0 = localize(
@@ -624,7 +628,7 @@ pub(crate) fn apply_dns_projection(
             }
             DnsLineKind::ServerTags(idx) => {
                 if let Some(server) = projection.servers.get(idx) {
-                    text.0 = server_tags_text(&server.tags, locale.code());
+                    text.0 = server_tags_text(&server.tags, &Lang(locale.code()));
                 }
             }
             DnsLineKind::EnhancedModeLabel(mode) => {

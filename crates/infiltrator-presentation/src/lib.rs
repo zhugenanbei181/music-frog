@@ -91,6 +91,8 @@ pub mod unified_runtime_status;
 #[cfg(test)]
 mod dns_projections_tests;
 
+mod text;
+
 #[cfg(test)]
 mod dns_cache_actions_tests;
 

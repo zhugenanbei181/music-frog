@@ -117,7 +117,7 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
             let accepted = matches!(&projection.preflight, ProfileMixinPreflight::Accepted);
             (
                 accepted,
-                mixin_studio_projection::preflight_detail(&projection.preflight, lang.0),
+                mixin_studio_projection::preflight_detail(&projection.preflight, &Lang(lang.0)),
             )
         }
         Err(failure) => (false, failure.message),
@@ -223,7 +223,7 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
                 color: Some(tokens(t).text_tertiary),
             }));
         }
-        let stage_label = mixin_studio_projection::stage_caption(stage, lang.0);
+        let stage_label = mixin_studio_projection::stage_caption(stage, &Lang(lang.0));
         stages = stages.push(
             text(stage_label)
                 .size(11)
@@ -250,19 +250,22 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
 }
 
 fn format_line_count(lang: &Lang<'_>, count: usize) -> String {
-    mixin_studio_projection::line_count(count, lang.0)
+    mixin_studio_projection::line_count(count, &Lang(lang.0))
 }
 
 /// One column caption: the shared label plus its real line count and whether
 /// the column is editable.
 fn column_caption<'a>(lang: &Lang<'_>, column: &ProfileMixinColumn) -> Element<'a, Message> {
-    text(mixin_studio_projection::column_caption(column, lang.0))
-        .size(11)
-        .font(FONT_SEMIBOLD)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_primary),
-        })
-        .into()
+    text(mixin_studio_projection::column_caption(
+        column,
+        &Lang(lang.0),
+    ))
+    .size(11)
+    .font(FONT_SEMIBOLD)
+    .style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_primary),
+    })
+    .into()
 }
 
 /// A read-only document box at a fixed height, aligned with the editor column.

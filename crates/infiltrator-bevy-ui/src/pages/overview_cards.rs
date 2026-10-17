@@ -38,6 +38,7 @@ use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 
 /// Marker on active exit node card (BEVY-GAP-019).
@@ -65,7 +66,7 @@ pub fn subscription_quota_scene_with_snapshot(
 ) -> impl Scene + use<> {
     let mut quota_a11y = accesskit::Node::new(accesskit::Role::Region);
     quota_a11y.set_label(UiLocale::default().text("overview_subscription_quota"));
-    let quota = project_quota(snapshot, UiLocale::default().code());
+    let quota = project_quota(snapshot, &Lang(UiLocale::default().code()));
     let profile = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Profile);
     let expiry = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Expiry);
     let metrics = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Metrics);

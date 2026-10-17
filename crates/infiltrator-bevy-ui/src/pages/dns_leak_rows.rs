@@ -16,6 +16,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::dns_leak_projection::{LeakDisplay, LeakRow, project_leak};
+use infiltrator_shared::locales::Lang;
 use std::collections::HashMap;
 
 #[derive(Component, Clone, Default)]
@@ -75,7 +76,7 @@ pub fn reconcile(
     rows: Query<&LeakRowIdentity>,
 ) {
     let Some(projection) = &last.0 else { return };
-    let display = project_leak(&projection.leak, locale.code());
+    let display = project_leak(&projection.leak, &Lang(locale.code()));
     for (container, children) in &containers {
         let existing: HashMap<_, _> = children
             .into_iter()
@@ -129,7 +130,7 @@ pub fn replay(
     mut empty: Query<EmptyLeakText, EmptyLeakFilter>,
 ) {
     let Some(projection) = &last.0 else { return };
-    let display = project_leak(&projection.leak, locale.code());
+    let display = project_leak(&projection.leak, &Lang(locale.code()));
     for mut text in &mut text {
         let Some(row) = display.rows.iter().find(|row| {
             key(&text.label.0)

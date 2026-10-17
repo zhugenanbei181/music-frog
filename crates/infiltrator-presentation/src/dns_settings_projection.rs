@@ -1,8 +1,8 @@
 //! Shared labels for DNS settings and observed cache results, with single-pass interpolation.
+use crate::text::localize;
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue};
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 pub const fn mode_key(mode: DnsEnhancedMode) -> &'static str {
     match mode {
         DnsEnhancedMode::FakeIp => "dns_mode_fakeip",
@@ -17,12 +17,12 @@ pub const fn filter_key(mode: DnsFakeIpFilterMode) -> &'static str {
         DnsFakeIpFilterMode::Rules => "dns_filter_rules",
     }
 }
-pub fn heading(mode: DnsEnhancedMode, count: usize, code: &str) -> String {
+pub fn heading(mode: DnsEnhancedMode, count: usize, catalog: &dyn TextCatalog) -> String {
     localize(
-        code,
+        catalog,
         "dns_overview_summary",
         &[
-            ("mode", Lang(code).tr(mode_key(mode)).into_owned()),
+            ("mode", catalog.text(mode_key(mode)).into_owned()),
             ("count", count.to_string()),
         ],
     )
@@ -51,25 +51,29 @@ pub const fn field_label_key(field: DnsFormField) -> &'static str {
         DnsFormField::DirectNameserver => "dns_field_direct_nameserver",
     }
 }
-pub fn field_label(field: DnsFormField, code: &str) -> String {
-    Lang(code).tr(field_label_key(field)).into_owned()
+pub fn field_label(field: DnsFormField, catalog: &dyn TextCatalog) -> String {
+    catalog.text(field_label_key(field)).into_owned()
 }
-pub fn form_issue(issue: &DnsFormIssue, code: &str) -> String {
+pub fn form_issue(issue: &DnsFormIssue, catalog: &dyn TextCatalog) -> String {
     match issue {
         DnsFormIssue::UnsupportedScheme { field, entry } => localize(
-            code,
+            catalog,
             "dns_form_err_scheme",
             &[("field", field.key().into()), ("entry", entry.clone())],
         ),
-        DnsFormIssue::BootstrapNotIp { entry } => {
-            localize(code, "dns_form_err_bootstrap", &[("entry", entry.clone())])
-        }
+        DnsFormIssue::BootstrapNotIp { entry } => localize(
+            catalog,
+            "dns_form_err_bootstrap",
+            &[("entry", entry.clone())],
+        ),
         DnsFormIssue::InvalidTriggerCidr { entry } => {
-            localize(code, "dns_form_err_cidr", &[("entry", entry.clone())])
+            localize(catalog, "dns_form_err_cidr", &[("entry", entry.clone())])
         }
-        DnsFormIssue::InvalidGeoipCode { value } => {
-            localize(code, "dns_form_err_geoip_code", &[("value", value.clone())])
-        }
+        DnsFormIssue::InvalidGeoipCode { value } => localize(
+            catalog,
+            "dns_form_err_geoip_code",
+            &[("value", value.clone())],
+        ),
     }
 }
 pub fn form_status(
@@ -77,17 +81,17 @@ pub fn form_status(
     dirty: bool,
     queued: bool,
     host_missing: bool,
-    code: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
     if let Some(issue) = issues.first() {
         return localize(
-            code,
+            catalog,
             "dns_edit_invalid",
-            &[("reason", form_issue(issue, code))],
+            &[("reason", form_issue(issue, catalog))],
         );
     }
-    Lang(code)
-        .tr(if host_missing {
+    catalog
+        .text(if host_missing {
             "dns_edit_host_unavailable"
         } else if dirty {
             "dns_edit_dirty"

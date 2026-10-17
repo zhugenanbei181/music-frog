@@ -11,7 +11,7 @@ use infiltrator_presentation::dns_cache_projection::project_cache;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
     let model = &state.diag.dns_cache_actions;
-    let view = project_cache(model, &state.shell.lang);
+    let view = project_cache(model, &Lang(&state.shell.lang));
     let lang = Lang(&state.shell.lang);
     let status = text(view.status)
         .size(12)

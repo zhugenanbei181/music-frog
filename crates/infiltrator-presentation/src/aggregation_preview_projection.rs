@@ -1,18 +1,21 @@
 //! Shared preview text folds actual aggregation reports, preserving profile and group identities.
+use crate::text::localize;
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationReport, AggregationTemplate, GeneratedGroupSnapshot,
 };
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 pub const AGGREGATION_PREVIEW_LINES: usize = 60;
-pub fn aggregation_counters(report: Option<&AggregationReport>, code: &str) -> String {
+pub fn aggregation_counters(
+    report: Option<&AggregationReport>,
+    catalog: &dyn TextCatalog,
+) -> String {
     let Some(report) = report else {
-        return Lang(code).tr("aggregation_preview_pending").into_owned();
+        return catalog.text("aggregation_preview_pending").into_owned();
     };
     let master = report.master_group().map_or_else(String::new, |group| {
         localize(
-            code,
+            catalog,
             "aggregation_master_count",
             &[("count", group.members.len().to_string())],
         )
@@ -21,13 +24,13 @@ pub fn aggregation_counters(report: Option<&AggregationReport>, code: &str) -> S
         String::new()
     } else {
         localize(
-            code,
+            catalog,
             "aggregation_missing_sources",
             &[("names", report.missing_sources.join(" / "))],
         )
     };
     localize(
-        code,
+        catalog,
         "aggregation_counters",
         &[
             ("input", report.input_nodes.to_string()),
@@ -42,19 +45,22 @@ pub fn aggregation_counters(report: Option<&AggregationReport>, code: &str) -> S
         ],
     )
 }
-pub fn aggregation_regions(report: Option<&AggregationReport>, code: &str) -> String {
+pub fn aggregation_regions(
+    report: Option<&AggregationReport>,
+    catalog: &dyn TextCatalog,
+) -> String {
     let Some(report) = report else {
-        return Lang(code).tr("aggregation_regions_pending").into_owned();
+        return catalog.text("aggregation_regions_pending").into_owned();
     };
     if report.regions.is_empty() {
-        return Lang(code).tr("aggregation_regions_empty").into_owned();
+        return catalog.text("aggregation_regions_empty").into_owned();
     }
     report
         .regions
         .iter()
         .map(|region| {
             localize(
-                code,
+                catalog,
                 "aggregation_region_row",
                 &[
                     ("flag", region.flag.clone()),
@@ -68,21 +74,21 @@ pub fn aggregation_regions(report: Option<&AggregationReport>, code: &str) -> St
         .collect::<Vec<_>>()
         .join("\n")
 }
-pub fn aggregation_group_row(group: &GeneratedGroupSnapshot, code: &str) -> String {
+pub fn aggregation_group_row(group: &GeneratedGroupSnapshot, catalog: &dyn TextCatalog) -> String {
     let kind = match group.group_type.as_str() {
-        "url-test" => Lang(code).tr("aggregator_group_urltest").into_owned(),
-        "select" => Lang(code).tr("aggregator_group_select").into_owned(),
+        "url-test" => catalog.text("aggregator_group_urltest").into_owned(),
+        "select" => catalog.text("aggregator_group_select").into_owned(),
         raw => raw.to_owned(),
     };
     localize(
-        code,
+        catalog,
         "aggregation_group_row",
         &[
             ("name", group.name.clone()),
             (
                 "master",
                 if group.is_master {
-                    Lang(code).tr("aggregation_master_tag").into_owned()
+                    catalog.text("aggregation_master_tag").into_owned()
                 } else {
                     String::new()
                 },
@@ -90,7 +96,7 @@ pub fn aggregation_group_row(group: &GeneratedGroupSnapshot, code: &str) -> Stri
             (
                 "custom",
                 if group.is_custom {
-                    Lang(code).tr("aggregation_custom_tag").into_owned()
+                    catalog.text("aggregation_custom_tag").into_owned()
                 } else {
                     String::new()
                 },
@@ -100,26 +106,29 @@ pub fn aggregation_group_row(group: &GeneratedGroupSnapshot, code: &str) -> Stri
         ],
     )
 }
-pub fn aggregation_groups(report: Option<&AggregationReport>, code: &str) -> String {
+pub fn aggregation_groups(report: Option<&AggregationReport>, catalog: &dyn TextCatalog) -> String {
     let Some(report) = report else {
-        return Lang(code).tr("aggregation_groups_pending").into_owned();
+        return catalog.text("aggregation_groups_pending").into_owned();
     };
     if report.groups.is_empty() {
-        return Lang(code).tr("aggregation_groups_empty").into_owned();
+        return catalog.text("aggregation_groups_empty").into_owned();
     }
     report
         .groups
         .iter()
-        .map(|group| aggregation_group_row(group, code))
+        .map(|group| aggregation_group_row(group, catalog))
         .collect::<Vec<_>>()
         .join("\n")
 }
-pub fn aggregation_yaml_preview(report: Option<&AggregationReport>, code: &str) -> String {
+pub fn aggregation_yaml_preview(
+    report: Option<&AggregationReport>,
+    catalog: &dyn TextCatalog,
+) -> String {
     let Some(report) = report else {
-        return Lang(code).tr("aggregation_yaml_pending").into_owned();
+        return catalog.text("aggregation_yaml_pending").into_owned();
     };
     localize(
-        code,
+        catalog,
         "aggregation_yaml_preview",
         &[
             ("count", report.yaml.lines().count().to_string()),
@@ -127,14 +136,17 @@ pub fn aggregation_yaml_preview(report: Option<&AggregationReport>, code: &str) 
         ],
     )
 }
-pub fn aggregation_custom_group_row(group: &AggregationCustomGroup, code: &str) -> String {
+pub fn aggregation_custom_group_row(
+    group: &AggregationCustomGroup,
+    catalog: &dyn TextCatalog,
+) -> String {
     let keywords = if group.member_keywords.is_empty() {
-        Lang(code).tr("aggregation_all_nodes").into_owned()
+        catalog.text("aggregation_all_nodes").into_owned()
     } else {
         group.member_keywords.join(", ")
     };
     localize(
-        code,
+        catalog,
         "aggregation_custom_group_row",
         &[
             ("name", group.name.clone()),
@@ -143,19 +155,25 @@ pub fn aggregation_custom_group_row(group: &AggregationCustomGroup, code: &str) 
         ],
     )
 }
-pub fn aggregation_custom_groups(groups: &[AggregationCustomGroup], code: &str) -> String {
+pub fn aggregation_custom_groups(
+    groups: &[AggregationCustomGroup],
+    catalog: &dyn TextCatalog,
+) -> String {
     if groups.is_empty() {
-        return Lang(code).tr("aggregation_custom_empty").into_owned();
+        return catalog.text("aggregation_custom_empty").into_owned();
     }
     groups
         .iter()
-        .map(|group| aggregation_custom_group_row(group, code))
+        .map(|group| aggregation_custom_group_row(group, catalog))
         .collect::<Vec<_>>()
         .join("\n")
 }
-pub fn aggregation_template_row(template: &AggregationTemplate, code: &str) -> String {
+pub fn aggregation_template_row(
+    template: &AggregationTemplate,
+    catalog: &dyn TextCatalog,
+) -> String {
     localize(
-        code,
+        catalog,
         "aggregation_template_row",
         &[
             ("name", template.name.clone()),
@@ -168,19 +186,19 @@ pub fn aggregation_template_row(template: &AggregationTemplate, code: &str) -> S
 pub fn aggregation_templates(
     available: bool,
     templates: &[AggregationTemplate],
-    code: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
     if !available {
-        return Lang(code)
-            .tr("aggregation_templates_unsupported")
+        return catalog
+            .text("aggregation_templates_unsupported")
             .into_owned();
     }
     if templates.is_empty() {
-        return Lang(code).tr("aggregation_templates_empty").into_owned();
+        return catalog.text("aggregation_templates_empty").into_owned();
     }
     templates
         .iter()
-        .map(|template| aggregation_template_row(template, code))
+        .map(|template| aggregation_template_row(template, catalog))
         .collect::<Vec<_>>()
         .join("\n")
 }

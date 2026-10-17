@@ -1,8 +1,9 @@
 //! One fold of the full query response, shared window and original record data.
 use crate::dns_query_actions::{DnsQueryActions, QUERY_PAGE_SIZE};
+use crate::text::localize;
 use infiltrator_shared::dns_observation::DnsObservationTone;
-use infiltrator_shared::i18n_interpolator::localize;
 use lurker_core_contract::error::ErrorCode;
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnsQueryDisplay {
@@ -20,12 +21,12 @@ pub struct DnsQueryDisplay {
     pub close: bool,
     pub guide: bool,
 }
-pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
+pub fn project_query(state: &DnsQueryActions, catalog: &dyn TextCatalog) -> DnsQueryDisplay {
     let failure = state.current_failure();
     let (status, tone) = if let Some(failure) = failure {
         (
             localize(
-                code,
+                catalog,
                 "dns_query_failure",
                 &[("reason", failure.message.clone())],
             ),
@@ -37,21 +38,21 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         )
     } else if state.is_pending() {
         (
-            localize(code, "dns_query_running", &[]),
+            localize(catalog, "dns_query_running", &[]),
             DnsObservationTone::Neutral,
         )
     } else if state.requested_operation().is_some()
         && state.requested_operation() != state.snapshot.report_id
     {
         (
-            localize(code, "dns_query_waiting", &[]),
+            localize(catalog, "dns_query_waiting", &[]),
             DnsObservationTone::Neutral,
         )
     } else if let Some(report) = &state.snapshot.report {
         let response = &report.response;
         (
             localize(
-                code,
+                catalog,
                 "dns_query_response_status",
                 &[("status", response.status.to_string())],
             ),
@@ -63,7 +64,7 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         )
     } else {
         (
-            localize(code, "dns_query_not_observed", &[]),
+            localize(catalog, "dns_query_not_observed", &[]),
             DnsObservationTone::Neutral,
         )
     };
@@ -78,7 +79,7 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         .take(QUERY_PAGE_SIZE)
         .map(|row| {
             localize(
-                code,
+                catalog,
                 "dns_query_record",
                 &[
                     ("name", row.name.clone()),
@@ -97,7 +98,7 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
             let response = &report.response;
             (
                 localize(
-                    code,
+                    catalog,
                     "dns_query_question",
                     &[
                         ("submitted", report.request.name.clone()),
@@ -121,7 +122,7 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         status,
         tone,
         provenance: localize(
-            code,
+            catalog,
             if state.requested_operation().is_some()
                 && state.requested_operation() == state.snapshot.report_id
             {
@@ -134,12 +135,12 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         question,
         flags,
         records: if rows.is_empty() {
-            localize(code, "dns_query_section_empty", &[])
+            localize(catalog, "dns_query_section_empty", &[])
         } else {
             rows.join("\n")
         },
         counter: localize(
-            code,
+            catalog,
             "dns_query_page",
             &[
                 ("page", (state.page + 1).to_string()),

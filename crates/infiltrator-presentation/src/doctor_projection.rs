@@ -1,4 +1,5 @@
 //! Pure diagnostic page projection and localized copy over accepted observations.
+use crate::text::localize;
 use chrono::{DateTime, Utc};
 use infiltrator_contract::doctor::{
     DoctorCheckKind, DoctorCheckMeta, DoctorObservation, DoctorReport, DoctorStatus,
@@ -7,8 +8,7 @@ use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::surface_snapshot::{
     DoctorCheckSnapshot, DoctorPageSnapshot, PageData, PageStatus,
 };
-use infiltrator_shared::i18n_interpolator::localize;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 pub const fn status_key(status: DoctorStatus) -> &'static str {
     match status {
@@ -33,12 +33,12 @@ pub fn status_counts(statuses: impl IntoIterator<Item = DoctorStatus>) -> [usize
 pub fn summary(
     statuses: impl IntoIterator<Item = DoctorStatus>,
     finished_at: Option<u64>,
-    code: &str,
+    catalog: &dyn TextCatalog,
 ) -> String {
     let counts = status_counts(statuses);
     if counts.iter().sum::<usize>() == 0 {
-        return Lang(code)
-            .tr(if finished_at.is_some() {
+        return catalog
+            .text(if finished_at.is_some() {
                 "doctor_no_checks"
             } else {
                 "doctor_not_observed"
@@ -46,7 +46,7 @@ pub fn summary(
             .into_owned();
     }
     localize(
-        code,
+        catalog,
         "doctor_observed_summary",
         &[
             ("pass", counts[0].to_string()),
@@ -56,7 +56,7 @@ pub fn summary(
         ],
     )
 }
-pub fn watchdog_status_text(snapshot: &CoreWatchdogSnapshot, code: &str) -> String {
+pub fn watchdog_status_text(snapshot: &CoreWatchdogSnapshot, catalog: &dyn TextCatalog) -> String {
     let (key, values) = match snapshot.state {
         CoreWatchdogState::Idle => ("watchdog_idle", vec![]),
         CoreWatchdogState::Waiting {
@@ -81,7 +81,7 @@ pub fn watchdog_status_text(snapshot: &CoreWatchdogSnapshot, code: &str) -> Stri
             ("watchdog_tripped", vec![("attempts", attempts.to_string())])
         }
     };
-    localize(code, key, &values)
+    localize(catalog, key, &values)
 }
 pub const fn watchdog_badge(state: &CoreWatchdogState) -> (&'static str, DoctorStatus) {
     match state {
@@ -169,13 +169,20 @@ fn project_ready_report(
 }
 
 /// Built-in descriptors localize by typed identity; externally observed text stays opaque.
-pub fn check_name(kind: Option<DoctorCheckKind>, name: &str, category: &str, code: &str) -> String {
+pub fn check_name(
+    kind: Option<DoctorCheckKind>,
+    name: &str,
+    category: &str,
+    catalog: &dyn TextCatalog,
+) -> String {
     let (name, category) = kind.map_or_else(
         || (name.to_owned(), category.to_owned()),
         |kind| {
             let keys = kind.copy_keys();
-            let lang = Lang(code);
-            (lang.tr(keys.0).into_owned(), lang.tr(keys.1).into_owned())
+            (
+                catalog.text(keys.0).into_owned(),
+                catalog.text(keys.1).into_owned(),
+            )
         },
     );
     if category.is_empty() {
@@ -184,11 +191,8 @@ pub fn check_name(kind: Option<DoctorCheckKind>, name: &str, category: &str, cod
         format!("[{category}] {name}")
     }
 }
-pub fn check_detail(key: Option<&str>, observed: &str, code: &str) -> String {
-    key.map_or_else(
-        || observed.to_owned(),
-        |key| Lang(code).tr(key).into_owned(),
-    )
+pub fn check_detail(key: Option<&str>, observed: &str, catalog: &dyn TextCatalog) -> String {
+    key.map_or_else(|| observed.to_owned(), |key| catalog.text(key).into_owned())
 }
 
 #[cfg(test)]

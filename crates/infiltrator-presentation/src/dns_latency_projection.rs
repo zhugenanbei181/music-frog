@@ -1,10 +1,11 @@
 //! Shared labels, severity and ordered rows of the actual nameserver report.
 use crate::latency_projection::project_measured_latency;
+use crate::text::localize;
 use infiltrator_contract::dns::DnsServerTag;
 use infiltrator_contract::dns_latency::{DnsLatencyReport, DnsLatencySummary, DnsProbeOutcome};
 use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_shared::dns_observation::DnsObservationTone;
-use infiltrator_shared::i18n_interpolator::localize;
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnsLatencyRow {
@@ -32,7 +33,10 @@ impl DnsLatencyDisplay {
             .join("\n")
     }
 }
-pub fn project_dns_latency(report: &DnsLatencyReport, code: &str) -> DnsLatencyDisplay {
+pub fn project_dns_latency(
+    report: &DnsLatencyReport,
+    catalog: &dyn TextCatalog,
+) -> DnsLatencyDisplay {
     let (key, params, tone) = match report.summary() {
         DnsLatencySummary::AllMeasured {
             count,
@@ -71,7 +75,7 @@ pub fn project_dns_latency(report: &DnsLatencyReport, code: &str) -> DnsLatencyD
             DnsObservationTone::Neutral,
         ),
     };
-    let summary = localize(code, key, &params);
+    let summary = localize(catalog, key, &params);
     let rows = if report.status.is_ready() {
         report
             .results
@@ -109,7 +113,7 @@ pub fn project_dns_latency(report: &DnsLatencyReport, code: &str) -> DnsLatencyD
                 DnsLatencyRow {
                     address: result.address.clone(),
                     tier: localize(
-                        code,
+                        catalog,
                         if result.is_fallback {
                             "dns_latency_fallback"
                         } else {
@@ -117,7 +121,7 @@ pub fn project_dns_latency(report: &DnsLatencyReport, code: &str) -> DnsLatencyD
                         },
                         &[],
                     ),
-                    outcome: localize(code, key, &params),
+                    outcome: localize(catalog, key, &params),
                     tone,
                 }
             })
@@ -127,7 +131,7 @@ pub fn project_dns_latency(report: &DnsLatencyReport, code: &str) -> DnsLatencyD
     };
     DnsLatencyDisplay {
         empty: if report.status.is_ready() {
-            localize(code, "dns_latency_not_probed_yet", &[])
+            localize(catalog, "dns_latency_not_probed_yet", &[])
         } else {
             summary.clone()
         },
@@ -136,11 +140,11 @@ pub fn project_dns_latency(report: &DnsLatencyReport, code: &str) -> DnsLatencyD
         rows,
     }
 }
-pub fn server_tags_text(tags: &[DnsServerTag], code: &str) -> String {
+pub fn server_tags_text(tags: &[DnsServerTag], catalog: &dyn TextCatalog) -> String {
     tags.iter()
         .map(|tag| {
             localize(
-                code,
+                catalog,
                 match tag {
                     DnsServerTag::Domestic => "dns_tag_domestic",
                     DnsServerTag::Fallback => "dns_tag_fallback",

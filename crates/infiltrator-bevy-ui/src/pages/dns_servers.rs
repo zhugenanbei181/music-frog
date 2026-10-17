@@ -25,6 +25,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
 use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_presentation::latency_projection::project_measured_latency;
+use infiltrator_shared::locales::Lang;
 
 /// Marker for a DNS server's address display text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -43,7 +44,7 @@ pub(crate) fn servers_card_scene(
     latency: &DnsLatencyReport,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let display = project_dns_latency(latency, UiLocale::default().code());
+    let display = project_dns_latency(latency, &Lang(UiLocale::default().code()));
     let latency_label = display.summary.clone();
     let latency_results = display.listing();
 
@@ -115,7 +116,7 @@ pub(crate) fn server_row_scene(
         ""
     };
     let proto_str = format!("{proto}{fallback_badge}");
-    let tag_str = server_tags_text(&server.tags, UiLocale::default().code());
+    let tag_str = server_tags_text(&server.tags, &Lang(UiLocale::default().code()));
     let latency = project_measured_latency(server.latency_ms);
     let lat_col = latency_color(latency.band, palette);
     let caption = LocalizedText::new(latency.key, latency.params);

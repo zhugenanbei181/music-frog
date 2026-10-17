@@ -44,7 +44,7 @@ pub fn sync(
             Some(routing_summary(
                 projection.mode,
                 projection.apps.len(),
-                locale.code(),
+                &Lang(locale.code()),
             ))
         } else if let Some(marker) = line.name {
             projection.apps.get(marker.0).map(|app| app.name.clone())
@@ -52,7 +52,7 @@ pub fn sync(
             projection
                 .apps
                 .get(marker.0)
-                .map(|app| process_copy(&app.process_name, locale.code()))
+                .map(|app| process_copy(&app.process_name, &Lang(locale.code())))
         } else if let Some(marker) = line.rule {
             projection.apps.get(marker.0).map(|app| {
                 if let Some(color) = line.color.as_deref_mut() {

@@ -14,6 +14,7 @@ use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_presentation::shell_readout::{
     count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
 };
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 
 #[derive(Component, Clone, Copy, Default)]
@@ -45,14 +46,14 @@ pub fn sync_text(
     let lang = locale.code();
     for (part, mut text) in &mut texts {
         let value = match part {
-            ShellReadoutText::Count(page) => count_copy(readout, *page, lang),
-            ShellReadoutText::ProfileName => profile_name(readout, lang),
-            ShellReadoutText::ProfileUsage => profile_usage(readout, lang),
-            ShellReadoutText::ProfilePercent => profile_percent(readout, lang),
-            ShellReadoutText::ProfileKind => profile_kind(readout, lang),
-            ShellReadoutText::Upload => rate_copy(&readout.upload_bps, lang),
-            ShellReadoutText::Download => rate_copy(&readout.download_bps, lang),
-            ShellReadoutText::RateStatus => rate_status(readout, lang),
+            ShellReadoutText::Count(page) => count_copy(readout, *page, &Lang(lang)),
+            ShellReadoutText::ProfileName => profile_name(readout, &Lang(lang)),
+            ShellReadoutText::ProfileUsage => profile_usage(readout, &Lang(lang)),
+            ShellReadoutText::ProfilePercent => profile_percent(readout, &Lang(lang)),
+            ShellReadoutText::ProfileKind => profile_kind(readout, &Lang(lang)),
+            ShellReadoutText::Upload => rate_copy(&readout.upload_bps, &Lang(lang)),
+            ShellReadoutText::Download => rate_copy(&readout.download_bps, &Lang(lang)),
+            ShellReadoutText::RateStatus => rate_status(readout, &Lang(lang)),
         };
         if text.0 != value {
             text.0 = value;

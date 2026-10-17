@@ -210,7 +210,7 @@ pub fn viewport_label(
     let label = format!(
         "{} {} · {}",
         lang.tr("editor_viewport_label"),
-        viewport_range(&viewport, lang.0),
+        viewport_range(&viewport, &Lang(lang.0)),
         window_note(viewport, lang)
     );
     let style = |t: &Theme| text::Style {

@@ -33,7 +33,7 @@ fn badge_kind(tone: LeakTone) -> BadgeKind {
 }
 #[cfg(test)]
 pub(crate) fn leak_conclusion_copy(report: &DnsLeakReport, lang: &Lang<'_>) -> (String, BadgeKind) {
-    let display = project_leak(report, lang.0);
+    let display = project_leak(report, &Lang(lang.0));
     (display.conclusion, badge_kind(display.tone))
 }
 #[cfg(test)]
@@ -41,7 +41,7 @@ pub(crate) fn leak_observation_lines<'a>(
     report: &DnsLeakReport,
     lang: &Lang<'_>,
 ) -> Vec<Element<'a, Message>> {
-    observation_rows(&project_leak(report, lang.0))
+    observation_rows(&project_leak(report, &Lang(lang.0)))
 }
 fn observation_rows<'a>(display: &LeakDisplay) -> Vec<Element<'a, Message>> {
     display
@@ -80,7 +80,7 @@ pub(crate) fn leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         state.diag.dns_leak_action.phase,
         DnsLeakActionPhase::Pending { .. }
     ) || matches!(report.operation, DnsLeakOperation::Running);
-    let display = project_leak(report, lang.0);
+    let display = project_leak(report, &Lang(lang.0));
     let kind = badge_kind(display.tone);
 
     let mut body = column![

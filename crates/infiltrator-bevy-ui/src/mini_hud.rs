@@ -202,18 +202,21 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
     let up_rate = format_rate(model.up_bytes_per_sec);
     let down_rate = format_rate(model.down_bytes_per_sec);
     let routing_intent_label =
-        routing_intent_status_copy(&model.routing_intent, UiLocale::default().code());
+        routing_intent_status_copy(&model.routing_intent, &Lang(UiLocale::default().code()));
     let node_label = exit_label(model);
-    let toggle_line =
-        compact_status_line(&model.system_proxy, &model.tun, UiLocale::default().code());
+    let toggle_line = compact_status_line(
+        &model.system_proxy,
+        &model.tun,
+        &Lang(UiLocale::default().code()),
+    );
     let pin_label = pin_label(model);
     // The two quick switches use the same shared action rule as the sidebar:
     // a pending/unknown toggle offers no press (no fabricated transition).
     let proxy_actionable = model.next_value(SystemToggle::SystemProxy).is_some();
     let tun_actionable = model.next_value(SystemToggle::Tun).is_some();
-    let proxy_label = compact_label(&model.system_proxy, UiLocale::default().code());
+    let proxy_label = compact_label(&model.system_proxy, &Lang(UiLocale::default().code()));
     let proxy_selected = model.system_proxy.is_enabled();
-    let tun_label = compact_label(&model.tun, UiLocale::default().code());
+    let tun_label = compact_label(&model.tun, &Lang(UiLocale::default().code()));
     let tun_selected = model.tun.is_enabled();
     // DUAL-15-10: the HUD card and its two quick switches carry the shared
     // semantic rows (role + label), the switches with their live state.

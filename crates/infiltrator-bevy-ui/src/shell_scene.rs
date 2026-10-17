@@ -59,6 +59,7 @@ use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_presentation::system_toggle_projection::compact_label;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
 /// The root shell scene.
@@ -438,10 +439,10 @@ pub fn sidebar_system_toggles_scene(
 ) -> impl Scene + use<> {
     let edge = palette.border;
     let proxy_selected = toggles.system_proxy.is_enabled();
-    let proxy_label = compact_label(&toggles.system_proxy, UiLocale::default().code());
+    let proxy_label = compact_label(&toggles.system_proxy, &Lang(UiLocale::default().code()));
     let proxy_node = switch_node(ShellA11yNode::SystemProxySwitch, proxy_selected);
     let tun_selected = toggles.tun.is_enabled();
-    let tun_label = compact_label(&toggles.tun, UiLocale::default().code());
+    let tun_label = compact_label(&toggles.tun, &Lang(UiLocale::default().code()));
     let tun_node = switch_node(ShellA11yNode::TunSwitch, tun_selected);
     bsn! {
             Node {

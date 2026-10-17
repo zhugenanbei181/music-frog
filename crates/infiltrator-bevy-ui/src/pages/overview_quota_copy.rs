@@ -10,6 +10,7 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_presentation::subscription_quota_projection::project_quota;
+use infiltrator_shared::locales::Lang;
 pub fn replay(
     last: Res<LastOverviewProjection>,
     locale: Res<UiLocale>,
@@ -19,7 +20,7 @@ pub fn replay(
     let Some(projection) = &last.0 else {
         return;
     };
-    let quota = project_quota(&projection.subscription_quota, locale.code());
+    let quota = project_quota(&projection.subscription_quota, &Lang(locale.code()));
     for (role, mut text, mut color) in &mut labels {
         let value = subscription_quota_text_value(&quota, role.0);
         if text.0 != value {

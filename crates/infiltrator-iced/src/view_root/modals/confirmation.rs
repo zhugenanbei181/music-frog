@@ -137,7 +137,7 @@ fn confirmation_copy(action: &ConfirmAction, lang: &Lang<'_>) -> (String, String
                         table: request.rule_table.clone(),
                         index: request.rule_index
                     },
-                    lang.0
+                    &Lang(lang.0)
                 ),
                 interpolate(
                     &lang.tr("rule_trace_confirm_detail"),

@@ -1,6 +1,6 @@
 //! One latency caption/band fold; measured zero and unresolved history zero are distinct.
 use infiltrator_contract::latency_display::{LatencyBand, LatencyReading};
-use infiltrator_shared::i18n_interpolator::interpolate;
+use lurker_ui_presentation::copy::{TextCatalog, interpolate};
 
 pub struct LatencyPresentation {
     pub key: &'static str,
@@ -8,13 +8,13 @@ pub struct LatencyPresentation {
     pub band: LatencyBand,
 }
 impl LatencyPresentation {
-    pub fn render(&self, tr: &impl Fn(&str) -> String) -> String {
+    pub fn render(&self, catalog: &dyn TextCatalog) -> String {
         let values: Vec<_> = self
             .params
             .iter()
             .map(|(key, value)| (*key, value.as_str()))
             .collect();
-        interpolate(&tr(self.key), &values)
+        interpolate(catalog.text(self.key).as_ref(), &values)
     }
 }
 

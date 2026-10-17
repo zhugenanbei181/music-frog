@@ -16,7 +16,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let manager = &state.runtime.pac_manager;
-    let status = pac(&manager.snapshot, lang.0);
+    let status = pac(&manager.snapshot, &Lang(lang.0));
     let running = matches!(manager.snapshot.state, PacServiceState::Running { .. });
 
     let toggle = toggle_switch(manager.is_pac_mode_active, Message::TogglePacMode);

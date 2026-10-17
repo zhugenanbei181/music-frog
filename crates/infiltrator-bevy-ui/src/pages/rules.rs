@@ -192,14 +192,18 @@ pub struct LastRulesProjection(pub Option<RulesProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = rules_summary(projection.total_rules, projection.providers.len(), "en-US");
-    let default_action = default_action(&projection.default_action, "en-US");
-    let audit_copy = project_statistics(projection.hit_audit.as_ref(), "en-US");
+    let summary = rules_summary(
+        projection.total_rules,
+        projection.providers.len(),
+        &Lang("en-US"),
+    );
+    let default_action = default_action(&projection.default_action, &Lang("en-US"));
+    let audit_copy = project_statistics(projection.hit_audit.as_ref(), &Lang("en-US"));
     let hit_audit_line = LocalizedText::new(audit_copy.key, audit_copy.params);
     let truncation_line = published_truncation(
         projection.truncated_rule_count,
         projection.rule_publish_limit,
-        "en-US",
+        &Lang("en-US"),
     );
 
     let provider_scenes: Vec<Box<dyn Scene>> = projection
@@ -456,7 +460,7 @@ fn provider_item_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let name = provider.name.clone();
-    let count_info = provider_count(provider.rule_count, &provider.behavior, "en-US");
+    let count_info = provider_count(provider.rule_count, &provider.behavior, &Lang("en-US"));
     let updated = provider_lifecycle_line(
         &provider.updated_at,
         provider.source_url.as_deref(),

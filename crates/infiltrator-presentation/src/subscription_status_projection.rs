@@ -1,9 +1,10 @@
 //! Shared subscription status copy derived from observed metadata, never an editor draft.
+use crate::text::localize;
 use infiltrator_contract::subscription_import::{SubscriptionFilterDedup, SubscriptionFilterDraft};
 use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
 use infiltrator_domain::redact::redact_line;
-use infiltrator_shared::i18n_interpolator::localize;
 use lurker_core_contract::error::Failure;
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SubscriptionCopyProjection {
@@ -17,8 +18,8 @@ impl SubscriptionCopyProjection {
             params: Vec::new(),
         }
     }
-    pub fn render(&self, locale: &str) -> String {
-        localize(locale, self.key, &self.params)
+    pub fn render(&self, catalog: &dyn TextCatalog) -> String {
+        localize(catalog, self.key, &self.params)
     }
     pub fn no_profile() -> Self {
         Self::plain("subscription_no_profile")

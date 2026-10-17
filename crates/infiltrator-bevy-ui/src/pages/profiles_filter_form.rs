@@ -20,6 +20,7 @@ use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservat
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::subscription_filter_copy::status;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Component, Clone, Copy, Default)]
@@ -143,7 +144,7 @@ pub(super) fn render_status(
     locale: Res<UiLocale>,
     mut labels: Query<&mut Text, With<FilterFormStatus>>,
 ) {
-    let value = status(&state.editor, locale.code());
+    let value = status(&state.editor, &Lang(locale.code()));
     for mut text in &mut labels {
         if text.0 != value {
             text.0.clone_from(&value);

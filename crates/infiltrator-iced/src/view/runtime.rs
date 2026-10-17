@@ -85,7 +85,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .into_iter()
     .map(|intent| RoutingIntentOption {
-        label: routing_intent_copy(&intent, &state.shell.lang),
+        label: routing_intent_copy(&intent, &Lang(&state.shell.lang)),
         intent,
     })
     .filter(|option| {
@@ -183,7 +183,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             Element::from(
                 text(routing_intent_status_copy(
                     &state.runtime.routing_intent_state,
-                    &state.shell.lang,
+                    &Lang(&state.shell.lang),
                 ))
                 .size(12),
             )

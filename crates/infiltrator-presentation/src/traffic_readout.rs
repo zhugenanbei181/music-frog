@@ -2,7 +2,7 @@
 use crate::shell_readout::{rate_copy, rate_status};
 use infiltrator_contract::shell_readout::{ShellObservation, ShellReadoutSnapshot};
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrafficFreshness {
@@ -30,7 +30,7 @@ pub struct TrafficReadout {
 pub fn project_traffic_readout(
     rates: &ShellReadoutSnapshot,
     waveform: &TrafficWaveformSnapshot,
-    language: &str,
+    catalog: &dyn TextCatalog,
 ) -> TrafficReadout {
     let freshness = match (
         rates.rate_failure.as_ref(),
@@ -76,17 +76,17 @@ pub fn project_traffic_readout(
                     | TrafficFreshness::Stale
                     | TrafficFreshness::Unobserved => ShellObservation::Stale(value),
                 },
-                language,
+                catalog,
             )
         })
     };
     TrafficReadout {
-        upload: rate_copy(&rates.upload_bps, language),
-        download: rate_copy(&rates.download_bps, language),
+        upload: rate_copy(&rates.upload_bps, catalog),
+        download: rate_copy(&rates.download_bps, catalog),
         upload_peak: peak(TrafficDirection::Upload),
         download_peak: peak(TrafficDirection::Download),
         freshness,
-        failure: rate_status(rates, language),
-        status: Lang(language).tr(status_key).into_owned(),
+        failure: rate_status(rates, catalog),
+        status: catalog.text(status_key).into_owned(),
     }
 }

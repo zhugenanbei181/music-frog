@@ -30,6 +30,7 @@ use infiltrator_contract::rule_document::RuleListOperationId;
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_presentation::rule_list_editor::RuleListEditor;
 use infiltrator_presentation::rule_list_projection::{draft_page, editor_preview, editor_status};
+use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 #[derive(Resource, Default)]
@@ -200,11 +201,11 @@ pub fn render(
             }
         };
     }
-    let status = editor_status(&state.model, locale.code());
+    let status = editor_status(&state.model, &Lang(locale.code()));
     for mut text in &mut labels {
         text.0.clone_from(&status);
     }
-    let preview = editor_preview(&state.model, locale.code()).join("\n");
+    let preview = editor_preview(&state.model, &Lang(locale.code())).join("\n");
     for mut text in &mut previews {
         text.0.clone_from(&preview);
     }

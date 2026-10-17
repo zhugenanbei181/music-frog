@@ -3,6 +3,7 @@ use iced::advanced::widget::Tree;
 use infiltrator_contract::dns::FakeIpMappingPool;
 use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
 use infiltrator_presentation::dns_hosts_projection::issue_text;
+use infiltrator_shared::locales::Lang;
 
 // ===========================================================================
 // DUAL-14-06 / 14-10 / 14-11: Fake-IP pool, latency policy & hosts editor
@@ -52,7 +53,7 @@ fn test_dns_fake_ip_pool_panel_filters_the_observed_subset() {
         let one = mounted(&Tree::new(fake_ip_pool_panel(&state, &lang).as_widget()));
         assert!(one < all, "the native panel mounts only the matching row");
         assert_eq!(
-            project_mappings(&original, "cdn", code).rows[0].address,
+            project_mappings(&original, "cdn", &Lang(code)).rows[0].address,
             "198.18.0.7"
         );
         let _ = state.update(Message::UpdateDnsFakeIpQuery("missing".into()));
@@ -65,7 +66,7 @@ fn test_dns_fake_ip_pool_panel_filters_the_observed_subset() {
     }
     state.editor.dns_fake_ip_pool = Default::default();
     assert!(
-        project_mappings(&state.editor.dns_fake_ip_pool, "", "en-US")
+        project_mappings(&state.editor.dns_fake_ip_pool, "", &Lang("en-US"))
             .rows
             .is_empty()
     );
@@ -95,7 +96,7 @@ fn test_dns_latency_policy_line_is_localized_and_honest() {
             reason: "no prober on this host".to_owned()
         }
     );
-    assert!(latency_result_lines(project_dns_latency(&unsupported, zh.0).rows).is_empty());
+    assert!(latency_result_lines(project_dns_latency(&unsupported, &Lang(zh.0)).rows).is_empty());
     let _ = latency_policy_line(&unsupported, None, false, &zh);
     let _ = latency_policy_line(&unsupported, None, false, &en);
 
@@ -136,8 +137,8 @@ fn test_dns_latency_policy_line_is_localized_and_honest() {
             total: 3
         }
     ));
-    let zh_lines = latency_result_lines(project_dns_latency(&report, zh.0).rows);
-    let en_lines = latency_result_lines(project_dns_latency(&report, en.0).rows);
+    let zh_lines = latency_result_lines(project_dns_latency(&report, &Lang(zh.0)).rows);
+    let en_lines = latency_result_lines(project_dns_latency(&report, &Lang(en.0)).rows);
     assert_eq!(zh_lines.len(), 3);
     assert_eq!(en_lines.len(), 3);
     let _ = latency_policy_line(&report, Some(Message::RunDnsLatencyProbe), false, &zh);
@@ -222,8 +223,8 @@ fn test_dns_hosts_panel_add_remove_rows_uses_the_shared_draft() {
     for issue in &issues {
         let zh = Lang("zh-CN");
         let en = Lang("en-US");
-        let _ = issue_text(issue, zh.0);
-        let _ = issue_text(issue, en.0);
+        let _ = issue_text(issue, &Lang(zh.0));
+        let _ = issue_text(issue, &Lang(en.0));
     }
 }
 
@@ -245,6 +246,6 @@ fn test_dns_hosts_issue_copy_is_localized() {
         &DnsHostsIssue::InvalidDomain {
             domain: "bad domain".to_owned(),
         },
-        zh.0,
+        &Lang(zh.0),
     );
 }

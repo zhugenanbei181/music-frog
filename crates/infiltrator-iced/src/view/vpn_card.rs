@@ -13,7 +13,7 @@ use infiltrator_presentation::host_network_projection::vpn;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn vpn_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let view = vpn(&state.runtime.vpn_observation, lang.0);
+    let view = vpn(&state.runtime.vpn_observation, &Lang(lang.0));
     let start = button(text(lang.tr(view.start_key).into_owned()))
         .padding([4, 12])
         .style(style_accent)

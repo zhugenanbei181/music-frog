@@ -14,6 +14,7 @@ use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceA
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_presentation::snapshot_presentation;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
@@ -575,7 +576,7 @@ async fn history_reports_duplicates_and_the_shared_prune_view() {
     assert_eq!(history.keep_limit, 20);
     assert_eq!(history.entries[1].short_hash().len(), 8);
     assert!(
-        snapshot_presentation::history_summary(Some(&history), history.keep_limit, "zh-CN")
+        snapshot_presentation::history_summary(Some(&history), history.keep_limit, &Lang("zh-CN"))
             .contains("待修剪 1 份")
     );
     assert!(

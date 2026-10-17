@@ -46,7 +46,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     // the requested snapshot id.
     let subtitle = text(snapshot_presentation::diff_summary(
         state.editor.snapshot_diff.as_ref(),
-        &state.shell.lang,
+        &Lang(&state.shell.lang),
     ))
     .size(12)
     .style(|t: &Theme| text::Style {

@@ -1,9 +1,10 @@
 //! Shared health severity and human-readable suggested actions.
+use crate::text::localize;
 use infiltrator_contract::dns_self_heal::{
     DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
 use infiltrator_shared::dns_observation::DnsObservationTone;
-use infiltrator_shared::i18n_interpolator::localize;
+use lurker_ui_presentation::copy::TextCatalog;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DnsHealthRow {
@@ -43,30 +44,33 @@ impl DnsHealthDisplay {
             .join("\n")
     }
 }
-fn state(state: DnsSelfHealState, code: &str) -> (String, DnsObservationTone) {
+fn state(state: DnsSelfHealState, catalog: &dyn TextCatalog) -> (String, DnsObservationTone) {
     let (key, tone) = match state {
         DnsSelfHealState::Healthy => ("dns_self_heal_healthy", DnsObservationTone::Success),
         DnsSelfHealState::Warning => ("dns_self_heal_warning", DnsObservationTone::Warning),
         DnsSelfHealState::Critical => ("dns_self_heal_critical", DnsObservationTone::Danger),
         DnsSelfHealState::Unknown => ("dns_self_heal_unknown", DnsObservationTone::Neutral),
     };
-    (localize(code, key, &[]), tone)
+    (localize(catalog, key, &[]), tone)
 }
-pub fn project_dns_health(snapshot: &DnsSelfHealSnapshot, code: &str) -> DnsHealthDisplay {
-    let (overall, tone) = state(snapshot.overall_state(), code);
+pub fn project_dns_health(
+    snapshot: &DnsSelfHealSnapshot,
+    catalog: &dyn TextCatalog,
+) -> DnsHealthDisplay {
+    let (overall, tone) = state(snapshot.overall_state(), catalog);
     let rows = snapshot
         .checks
         .iter()
         .map(|check| {
-            let (state, tone) = state(check.state, code);
+            let (state, tone) = state(check.state, catalog);
             let fix = check.fix.map(|fix| {
                 localize(
-                    code,
+                    catalog,
                     "dns_self_heal_fix",
                     &[(
                         "fix",
                         localize(
-                            code,
+                            catalog,
                             match fix {
                                 DnsSelfHealFix::RepairDnsListenPort => "dns_self_heal_fix_listen",
                                 DnsSelfHealFix::RecheckUpstreams => "dns_self_heal_fix_probe",
@@ -79,7 +83,7 @@ pub fn project_dns_health(snapshot: &DnsSelfHealSnapshot, code: &str) -> DnsHeal
             });
             DnsHealthRow {
                 kind: localize(
-                    code,
+                    catalog,
                     match check.kind {
                         DnsSelfHealKind::ListenPort => "dns_self_heal_listen_port",
                         DnsSelfHealKind::UpstreamResolution => "dns_self_heal_upstream",
@@ -98,6 +102,6 @@ pub fn project_dns_health(snapshot: &DnsSelfHealSnapshot, code: &str) -> DnsHeal
         overall,
         tone,
         rows,
-        empty: localize(code, "dns_self_heal_empty", &[]),
+        empty: localize(catalog, "dns_self_heal_empty", &[]),
     }
 }

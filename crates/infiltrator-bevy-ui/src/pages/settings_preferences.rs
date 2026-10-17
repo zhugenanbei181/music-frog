@@ -27,6 +27,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_presentation::settings_preference_projection::project;
+use infiltrator_shared::locales::Lang;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum PreferenceKind {
@@ -64,7 +65,7 @@ pub fn preference_row_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let enabled = value == Some(true);
-    let observed = project(value, status, UiLocale::default().code());
+    let observed = project(value, status, &Lang(UiLocale::default().code()));
     let copy = LocalizedText::new(observed.key, observed.params);
     let status_color = if enabled {
         palette.ink
@@ -185,7 +186,7 @@ pub fn replay(
             .expect("a preference view has its role");
         let value = kind.value(&last);
         let enabled = value == Some(true);
-        let observed = project(value, status, locale.code());
+        let observed = project(value, status, &Lang(locale.code()));
         if view.status.is_some() {
             if let (Some(copy), Some(text)) = (&mut view.copy, &mut view.text) {
                 let next = LocalizedText::new(observed.key, observed.params);

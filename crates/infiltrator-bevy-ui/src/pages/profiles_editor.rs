@@ -20,6 +20,7 @@ use self::query_access::EditorVisualTargets;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::DocumentInspectionUnavailableReason;
 use infiltrator_contract::yaml_snippets::column_of_byte_offset;
+use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::profiles::{
@@ -203,11 +204,11 @@ pub fn profile_editor_scene(
                                         row_gap: rem(space::S4),
                                     }
                                     Children [
-                                        Text({ profile_editor_projection::title(buffer_lines, UiLocale::default().code()) }) ProfileEditorTitle TextRole(Role::BodyStrong)
+                                        Text({ profile_editor_projection::title(buffer_lines, &Lang(UiLocale::default().code())) }) ProfileEditorTitle TextRole(Role::BodyStrong)
                                         --
                                         Text(status) ProfileEditorStatusText TextRole(Role::Caption)
                                         --
-                                        Text({ profile_editor_projection::protection_label(protection, UiLocale::default().code()) }) ProfileEditorProtectionText TextRole(Role::Caption)
+                                        Text({ profile_editor_projection::protection_label(protection, &Lang(UiLocale::default().code())) }) ProfileEditorProtectionText TextRole(Role::Caption)
                                     ]
                                 ]
                                 --

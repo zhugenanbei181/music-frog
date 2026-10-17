@@ -5,8 +5,8 @@ use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::analyzer::{ShadowedRuleWarning, find_shadowed_rules};
-use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::TextCatalog;
+use lurker_ui_presentation::copy::interpolate;
 use std::collections::HashMap;
 
 pub fn rule_snapshot(
@@ -97,7 +97,7 @@ pub fn draft_page(applied: &RulesPageSnapshot, editor: &RuleListEditor) -> Rules
     page.rule_publish_limit = 0;
     page
 }
-pub fn editor_status(editor: &RuleListEditor, locale: &str) -> String {
+pub fn editor_status(editor: &RuleListEditor, catalog: &dyn TextCatalog) -> String {
     let key = if editor.read_failure().is_some() {
         "rules_draft_read_failed"
     } else if editor.source_changed() {
@@ -125,15 +125,14 @@ pub fn editor_status(editor: &RuleListEditor, locale: &str) -> String {
         .map(|failure| failure.message.as_str())
         .unwrap_or_default();
     interpolate(
-        Lang(locale).tr(key).as_ref(),
+        catalog.text(key).as_ref(),
         &[("profile", profile), ("reason", reason)],
     )
 }
-pub fn editor_preview(editor: &RuleListEditor, locale: &str) -> Vec<String> {
+pub fn editor_preview(editor: &RuleListEditor, catalog: &dyn TextCatalog) -> Vec<String> {
     let Some(base) = &editor.base else {
         return Vec::new();
     };
-    let lang = Lang(locale);
     let mut lines = Vec::new();
     let mut count = 0;
     for index in 0..base.rules.len().max(editor.draft.len()) {
@@ -151,7 +150,7 @@ pub fn editor_preview(editor: &RuleListEditor, locale: &str) -> Vec<String> {
         let (raw, state) = match after {
             Some(rule) => (
                 rule.rule.as_str(),
-                lang.tr(if rule.enabled {
+                catalog.text(if rule.enabled {
                     "rule_draft_enabled"
                 } else {
                     "rule_draft_disabled"
@@ -159,11 +158,11 @@ pub fn editor_preview(editor: &RuleListEditor, locale: &str) -> Vec<String> {
             ),
             None => (
                 before.expect("existing removed entry").rule.as_str(),
-                lang.tr("rule_draft_removed"),
+                catalog.text("rule_draft_removed"),
             ),
         };
         lines.push(interpolate(
-            lang.tr("rule_draft_preview_line").as_ref(),
+            catalog.text("rule_draft_preview_line").as_ref(),
             &[
                 ("index", &(index + 1).to_string()),
                 ("state", &state),
@@ -173,7 +172,7 @@ pub fn editor_preview(editor: &RuleListEditor, locale: &str) -> Vec<String> {
     }
     if count > lines.len() {
         lines.push(interpolate(
-            lang.tr("rule_draft_more_changes").as_ref(),
+            catalog.text("rule_draft_more_changes").as_ref(),
             &[("count", &(count - lines.len()).to_string())],
         ));
     }

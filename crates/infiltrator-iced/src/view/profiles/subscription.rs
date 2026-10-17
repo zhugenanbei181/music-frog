@@ -179,7 +179,7 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
             if let Some(profile) = selected_profile_meta {
                 let conditional =
                     conditional_request(profile.etag.as_deref(), profile.last_modified.as_deref())
-                        .render(lang.0);
+                        .render(&Lang(lang.0));
                 Element::from(text(conditional).size(11).font(MONO).style(|t: &Theme| {
                     text::Style {
                         color: Some(tokens(t).text_secondary),
@@ -190,7 +190,7 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
             },
             Space::new().height(theme::SP_SM),
             if let Some(profile) = selected_profile_meta {
-                let backup_text = backup_status(Some(profile.has_backup)).render(lang.0);
+                let backup_text = backup_status(Some(profile.has_backup)).render(&Lang(lang.0));
                 let restore_action: Element<'_, Message> = if profile.has_backup {
                     text_btn(
                         lang.tr("profiles_restore_backup").to_string(),
