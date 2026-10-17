@@ -16,6 +16,7 @@
 | 平台能力与交付状态 | [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md) |
 | 代码与仓库质量底线 | [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md) |
 | 跨产品共享 UI 包 | [SHARED_UI_PACKAGES.md](SHARED_UI_PACKAGES.md) |
+| 批次收口八问 | [CLOSURE_QUESTIONS.md](CLOSURE_QUESTIONS.md) |
 | 跨表面本地化与视觉资源 | [SHARED_UI_RESOURCES.md](SHARED_UI_RESOURCES.md) |
 | 上游依赖升级 | [UPSTREAM.md](UPSTREAM.md) |
 

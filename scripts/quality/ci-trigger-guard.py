@@ -15,6 +15,7 @@ EXPECTED_EVENTS = {
     "parity.yml": {"workflow_dispatch"},
     "release.yml": {"push"},
     "test.yml": {"workflow_call"},
+    "main-gate.yml": {"push"},
 }
 TAG_JOB_CONDITION = "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')"
 
@@ -80,6 +81,16 @@ def source_problems(root: Path = ROOT) -> list[str]:
             problems.append(
                 f".github/workflows/{filename} events are {sorted(events)}, expected {sorted(expected)}"
             )
+        if filename == "main-gate.yml":
+            if not re.search(r"(?m)^  push:\s*\n    branches:\s*\[main\]", text):
+                problems.append(
+                    ".github/workflows/main-gate.yml must trigger on push to main only"
+                )
+            if re.search(r"cargo\s+(?:build|check|clippy|nextest|test|run|zigbuild)\b", text):
+                problems.append(
+                    ".github/workflows/main-gate.yml must not compile or run tests"
+                )
+            continue
         if filename == "release.yml":
             if not re.search(r'(?ms)^  push:\s*\n(?P<body>(?:^    .*\n|^      .*\n|^        .*\n)*)', text):
                 problems.append(".github/workflows/release.yml must declare a tag-only push trigger")

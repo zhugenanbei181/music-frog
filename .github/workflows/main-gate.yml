@@ -1,0 +1,30 @@
+name: main-gate
+
+# Cheap main-branch feedback: formatting and the structural/quality guards only.
+# It must never compile, run tests or build packages; heavy work stays tag-gated
+# in release.yml. `ci-trigger-guard.py` enforces both properties.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guards:
+    name: format + guards (no compilation)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain (rustfmt only)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Structure guards
+        run: bash scripts/quality/check-structure.sh

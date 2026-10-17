@@ -182,13 +182,13 @@ jobs:
       - name: Build Release Binary (zig-pinned glibc floor)
         if: matrix.tool == 'zigbuild'
         run: >
-          cargo zigbuild --release --target ${{ matrix.zig_target }}
+          cargo zigbuild --locked --release --target ${{ matrix.zig_target }}
           -p infiltrator-iced --features static-openssl --bin infiltrator-iced
 
       - name: Build Release Binary
         if: matrix.tool != 'zigbuild'
         run: >
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --locked --release --target ${{ matrix.target }}
           -p infiltrator-iced --bin infiltrator-iced
 
       # -----------------------------------------------------------------------
@@ -198,25 +198,25 @@ jobs:
       - name: Build Bevy Release Binary (zig-pinned glibc floor)
         if: matrix.tool == 'zigbuild'
         run: >
-          cargo zigbuild --release --target ${{ matrix.zig_target }}
+          cargo zigbuild --locked --release --target ${{ matrix.zig_target }}
           -p infiltrator-bevy-desktop-host --features static-openssl --bin infiltrator-bevy-ui
 
       - name: Build Bevy Release Binary
         if: matrix.tool != 'zigbuild'
         run: >
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --locked --release --target ${{ matrix.target }}
           -p infiltrator-bevy-desktop-host --bin infiltrator-bevy-ui
 
       - name: Build Slint Release Binary (zig-pinned glibc floor)
         if: matrix.tool == 'zigbuild'
         run: >
-          cargo zigbuild --release --target ${{ matrix.zig_target }}
+          cargo zigbuild --locked --release --target ${{ matrix.zig_target }}
           -p infiltrator-slint --features static-openssl --bin infiltrator-slint
 
       - name: Build Slint Release Binary
         if: matrix.tool != 'zigbuild'
         run: >
-          cargo build --release --target ${{ matrix.target }}
+          cargo build --locked --release --target ${{ matrix.target }}
           -p infiltrator-slint --bin infiltrator-slint
 
       - name: Package Windows Artifacts (NSIS & ZIP)
