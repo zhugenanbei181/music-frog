@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v212`：当前现在佛 14 pt（7 条）/ 过去佛 60 pt（23 条）/ 未来佛 47 pt（24 条），联合未办结分母 121 pt；已归档交付 638 pt（240 条）；累计 759 pt，严格归档完成率 84.1%。
+- Point 基线 `musicfrog-todo-20261017-v213`：当前现在佛 18 pt（9 条）/ 过去佛 60 pt（23 条）/ 未来佛 47 pt（24 条），联合未办结分母 125 pt；已归档交付 638 pt（240 条）；累计 763 pt，严格归档完成率 83.6%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -61,8 +61,17 @@
 
 ### 5.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
 
+- [ ] PUB-003.1.1 [kind: mechanism] [priority: P1] [points: 2] [owner: mihomo-driver + singbox-driver] [status: InProgress] 驱动侧 backend provider 装配
+  - 产物：两个 driver 各提供 `<Engine>BackendOptions` + `<Engine>EngineBackendProvider` 实现 `EngineBackendProvider<EngineBackendPorts>`；内部构造 client/process/readiness/codec/未绑定 owner scope/outbound/routing；`backend = ["http","process","codec"]` feature。
+  - 依赖：PUB-003.1、PUB-002.1、PUB-002.3。
+  - 验收：provider engine id 与 bundle 一致、operations 为 Available、未绑定 scope 为 Unavailable 且 bind 后可观察；`--no-default-features --features http` 仍可编译；第三方零装配胶水。
+
 ### 5.3 统一双引擎调度器与高层 Facade SDK（4条 / 11pt）
 
+- [ ] PUB-001.3.1 [kind: mechanism] [priority: P1] [points: 2] [owner: lurker-profile-store::platform] [status: InProgress] 存储平台原语 trait 化与纯度层级修正
+  - 产物：`StorePlatform` trait（read/write_atomic/replace_atomic/remove/dir/lock_profile_writes/acquire_instance_lock）+ `NativeStorePlatform`；`ProfileStoreCore`/`EngineProfileStore` 注入，公开 API 不变；`lurker-profile-store` 移出 `PURE_NEUTRAL`，改为 `PORTABLE_KERNEL`；纯中性门禁扩展到 `cfg(windows|unix|target_family)`/`libc::`/`windows_sys::`。
+  - 依赖：PUB-001.3。
+  - 验收：RecordingPlatform 证明文档写入与写锁确实经过注入平台；replace 失败保留旧状态；现有 store 测试全绿；门禁自检覆盖新正则。
 - [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: Planned] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
   - 产物：基于 CAS 租约与 Generation/Revision 围栏的无缝切换组件；失败时原主自动恢复。
   - 裁决：中性 `EngineSwitchStage<S>` + 持久化 wire 枚举只做一对一映射（不改 serde 名，免 schema 迁移）；旧 owner 终态之后只能 `RecoveryRequired`，禁止伪造自动恢复。
