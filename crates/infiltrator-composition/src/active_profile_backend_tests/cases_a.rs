@@ -100,7 +100,8 @@ async fn retry_resumes_closing_old_and_binding_new_owner_journal_stages() {
     let identity = before.identity.clone().expect("old owner identity");
     let switch_lease = refs
         .begin_owner_switch(
-            ActiveProfileReferenceRevision::new(4),
+            EngineSwitchRevision::new(4),
+            reference("mihomo", "main", 4),
             identity,
             CoreGeneration::new(0),
         )
@@ -154,13 +155,15 @@ async fn retry_resumes_a_reference_changed_owner_journal_with_the_committed_sele
         None,
     );
     let refs = Arc::new(MemoryReferenceStore::new(selection.clone()));
-    *refs.transition.lock().expect("switch transition") =
-        Some(ActiveProfileOwnerSwitchState::ReferenceChanged {
-            previous_reference: previous,
+    *refs.transition.lock().expect("switch transition") = Some(FakeSwitch {
+        stage: EngineSwitchStage::SelectionChanged {
+            previous,
             selection: selection.clone(),
             owner_identity: old_identity.clone(),
             terminal_generation: CoreGeneration::new(5),
-        });
+        },
+        owner_generation: CoreGeneration::new(5),
+    });
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let prepared = load_prepared_profile_document(store.as_ref()).await;
@@ -211,11 +214,14 @@ async fn retry_resumes_a_reference_changed_owner_journal_with_the_committed_sele
 async fn retry_rejects_a_binding_new_candidate_without_exact_terminal_evidence() {
     let selection = reference("sing-box", "primary", 5);
     let refs = Arc::new(MemoryReferenceStore::new(selection.clone()));
-    *refs.recovery_fixture.lock().expect("recovery fixture") =
-        MemoryOwnerSwitchRecoveryFixture::CandidateTerminalEvidenceRequired {
+    refs.reject_candidate_terminal();
+    *refs.transition.lock().expect("switch transition") = Some(FakeSwitch {
+        stage: EngineSwitchStage::BindingNew {
             selection: selection.clone(),
             engine_id: engine_id_value("sing-box"),
-        };
+        },
+        owner_generation: CoreGeneration::new(5),
+    });
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let prepared = load_prepared_profile_document(store.as_ref()).await;
@@ -305,10 +311,7 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Rejected(_)
     ));
     assert_eq!(profile_store.workspace_reads.load(Ordering::SeqCst), 3);
@@ -566,8 +569,8 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
             "old-owner-released",
             "old-owner-confirmed",
             "reference-cas",
-            "new-owner-reserved",
             "provider:sing-box",
+            "new-owner-reserved",
             "new-owner-bound",
         ]
     );
@@ -658,8 +661,8 @@ async fn same_engine_profile_replacement_uses_the_same_durable_owner_transaction
             "old-owner-released",
             "old-owner-confirmed",
             "reference-cas",
-            "new-owner-reserved",
             "provider:sing-box",
+            "new-owner-reserved",
             "new-owner-bound",
         ]
     );

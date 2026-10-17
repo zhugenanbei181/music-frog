@@ -8,9 +8,7 @@ use infiltrator_contract::core_capabilities::{
     CoreOperation, EngineCapabilityDecision,
 };
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
-    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
-    ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreOwnerTerminationPort;
@@ -23,16 +21,18 @@ use lurker_core_contract::active_profile_reference::{
 };
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::engine_switch::EngineSwitchStage;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use lurker_core_ports::engine_backend::EngineBackendProviderAvailability;
+use lurker_core_ports::engine_switch::{
+    EngineOwnerBindingLease, EngineOwnerStoppedSwitchLease, EngineSwitchSelectionChangedLease,
+};
 use lurker_core_ports::error::PortError;
 use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -57,81 +57,6 @@ pub enum PreviousCoreDisposition {
     },
 }
 
-/// A typed owner-switch failure records whether the previous session is still
-/// usable, needs durable reservation recovery, has uncertain termination, or
-/// has closed and requires a new product session.
-#[derive(Debug)]
-pub enum ActiveProfileBackendSwitchError {
-    BeforeReservation(PortError),
-    ReservationPending(PortError),
-    OwnerTerminationUnconfirmed(PortError),
-    OldOwnerClosed(PortError),
-}
-
-impl ActiveProfileBackendSwitchError {
-    pub fn phase(&self) -> ActiveProfileBackendSwitchFailurePhase {
-        match self {
-            Self::BeforeReservation(_) => ActiveProfileBackendSwitchFailurePhase::BeforeReservation,
-            Self::ReservationPending(_) => {
-                ActiveProfileBackendSwitchFailurePhase::ReservationPending
-            }
-            Self::OwnerTerminationUnconfirmed(_) => {
-                ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
-            }
-            Self::OldOwnerClosed(_) => ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed,
-        }
-    }
-
-    pub fn failure(&self) -> &PortError {
-        match self {
-            Self::BeforeReservation(failure)
-            | Self::ReservationPending(failure)
-            | Self::OwnerTerminationUnconfirmed(failure)
-            | Self::OldOwnerClosed(failure) => failure,
-        }
-    }
-
-    pub fn into_failure(self) -> PortError {
-        match self {
-            Self::BeforeReservation(failure)
-            | Self::ReservationPending(failure)
-            | Self::OwnerTerminationUnconfirmed(failure)
-            | Self::OldOwnerClosed(failure) => failure,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ActiveProfileBackendSwitchFailurePhase {
-    BeforeReservation,
-    ReservationPending,
-    OwnerTerminationUnconfirmed,
-    OldOwnerClosed,
-}
-
-impl fmt::Display for ActiveProfileBackendSwitchError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let failure = match self {
-            Self::BeforeReservation(failure)
-            | Self::ReservationPending(failure)
-            | Self::OwnerTerminationUnconfirmed(failure)
-            | Self::OldOwnerClosed(failure) => failure,
-        };
-        write!(formatter, "{failure}")
-    }
-}
-
-impl Error for ActiveProfileBackendSwitchError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::BeforeReservation(failure)
-            | Self::ReservationPending(failure)
-            | Self::OwnerTerminationUnconfirmed(failure)
-            | Self::OldOwnerClosed(failure) => Some(failure),
-        }
-    }
-}
-
 /// One validated backend candidate. Its Core process has not been started and
 /// its configuration transaction has not been invoked.
 pub struct SelectedActiveProfileBackend {
@@ -143,11 +68,12 @@ pub struct SelectedActiveProfileBackend {
     pub previous_owner: PreviousCoreDisposition,
     owner_admission: SelectedOwnerAdmission,
     capability_provider: Arc<dyn CoreCapabilityProvider>,
+    owner_store: Arc<dyn ActiveProfileReferenceStore>,
 }
 
 enum SelectedOwnerAdmission {
     SelectionLease(Box<dyn ActiveProfileReferenceLease>),
-    SwitchReservation(Box<dyn ActiveProfileOwnerBindingLease>),
+    SwitchReservation(Box<dyn EngineOwnerBindingLease<ActiveProfileReferenceState>>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -229,9 +155,10 @@ impl SelectedActiveProfileBackend {
                 drop(selection_lease);
                 Ok(state)
             }
-            SelectedOwnerAdmission::SwitchReservation(binding) => {
-                binding.abort_before_core_application().await
-            }
+            SelectedOwnerAdmission::SwitchReservation(binding) => binding
+                .abort_before_core_application()
+                .await
+                .map(|snapshot| snapshot.selection),
         }
     }
 
@@ -251,7 +178,7 @@ impl SelectedActiveProfileBackend {
                 Ok(())
             }
             SelectedOwnerAdmission::SwitchReservation(binding) => binding
-                .discard_unstarted_candidate(&terminal)
+                .discard_unstarted_candidate(CoreGeneration::new(terminal.generation))
                 .await
                 .map(|_| ()),
         }
@@ -293,8 +220,12 @@ impl SelectedActiveProfileBackend {
                 );
                 match admission {
                     CandidateApplicationAdmission::ExactUnstarted => {
-                        return binding
-                            .finalize(self.core_identity, self.initial_generation)
+                        binding
+                            .finalize(self.core_identity.clone(), self.initial_generation)
+                            .await?;
+                        return self
+                            .owner_store
+                            .adopt_finalized_owner(self.core_identity, self.initial_generation)
                             .await;
                     }
                     CandidateApplicationAdmission::ForeignUnstarted
@@ -310,7 +241,9 @@ impl SelectedActiveProfileBackend {
                 match admission {
                     CandidateApplicationAdmission::ExactUnstarted => unreachable!(),
                     CandidateApplicationAdmission::ForeignUnstarted => {
-                        binding.discard_unstarted_candidate(&terminal).await?;
+                        binding
+                            .discard_unstarted_candidate(CoreGeneration::new(terminal.generation))
+                            .await?;
                     }
                     CandidateApplicationAdmission::StartedOrUnknown => {}
                 }

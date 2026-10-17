@@ -1,10 +1,11 @@
 use super::*;
+use lurker_core_ports::engine_switch::EngineOwnerLease;
 
 pub struct OwnerBindingLease {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
     pub(crate) token: ActiveOwnerToken,
-    pub(crate) state: ActiveProfileOwnerSwitchState,
+    pub(crate) stage: EngineSwitchStage<ActiveProfileReferenceState>,
 }
 
 impl OwnerBindingLease {
@@ -12,21 +13,21 @@ impl OwnerBindingLease {
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,
         token: ActiveOwnerToken,
-        state: ActiveProfileOwnerSwitchState,
+        stage: EngineSwitchStage<ActiveProfileReferenceState>,
     ) -> Self {
         Self {
             config_root: config_root.into(),
             transition_id,
             token,
-            state,
+            stage,
         }
     }
 }
 
 #[derive(Clone, Copy)]
-enum CandidateDiscardAuthorization<'a> {
+enum CandidateDiscardAuthorization {
     BeforeCoreApplication,
-    Stopped(&'a CoreLifecycleSnapshot),
+    Stopped(CoreGeneration),
 }
 
 async fn clear_candidate_owner_reservation(
@@ -35,22 +36,14 @@ async fn clear_candidate_owner_reservation(
     token: ActiveOwnerToken,
     selection: ActiveProfileReferenceState,
     engine_id: EngineId,
-    authorization: CandidateDiscardAuthorization<'_>,
-) -> Result<ActiveProfileReferenceState, PortError> {
+    authorization: CandidateDiscardAuthorization,
+) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
     match authorization {
         CandidateDiscardAuthorization::BeforeCoreApplication => {}
-        CandidateDiscardAuthorization::Stopped(terminal) => {
-            let identity = terminal
-                .identity
-                .as_ref()
-                .ok_or_else(|| transition_rejected("candidate terminal has no Core identity"))?;
-            if identity.engine != engine_id
-                || terminal.lifecycle != CoreLifecycle::Stopped
-                || terminal.generation != 0
-                || terminal.session_token.is_some()
-            {
+        CandidateDiscardAuthorization::Stopped(terminal_generation) => {
+            if terminal_generation != CoreGeneration::new(0) {
                 return Err(transition_rejected(
-                    "candidate can be discarded only after a never-started Stopped readback without a session",
+                    "candidate can be discarded only after a never-started terminal readback",
                 ));
             }
         }
@@ -121,13 +114,9 @@ async fn clear_candidate_owner_reservation(
                 generation: proof_generation,
                 token: proof_token,
             },
-            CandidateDiscardAuthorization::Stopped(terminal),
-        ) if terminal
-            .identity
-            .as_ref()
-            .is_some_and(|identity| proof_identity.same_instance(identity))
-            && proof_identity.engine == engine_id
-            && *proof_generation == CoreGeneration::new(terminal.generation)
+            CandidateDiscardAuthorization::Stopped(terminal_generation),
+        ) if proof_identity.engine == engine_id
+            && *proof_generation == terminal_generation
             && *proof_generation == CoreGeneration::new(0)
             && proof_token == &token => {}
         (
@@ -170,28 +159,28 @@ async fn clear_candidate_owner_reservation(
     record.owner = ActiveCoreOwnerState::Unowned;
     sync_publish_active_profile_record(&config_root, &record)?;
     remove_local_owner_registration(&config_root, &token)?;
-    Ok(record.selection)
+    stage_mapping::switch_snapshot(&record)
 }
 
 #[async_trait::async_trait]
-impl ActiveProfileOwnerBindingLease for OwnerBindingLease {
-    fn state(&self) -> &ActiveProfileOwnerSwitchState {
-        &self.state
+impl EngineOwnerBindingLease<ActiveProfileReferenceState> for OwnerBindingLease {
+    fn stage(&self) -> &EngineSwitchStage<ActiveProfileReferenceState> {
+        &self.stage
     }
 
     async fn finalize(
         self: Box<Self>,
         identity: CoreIdentity,
         generation: CoreGeneration,
-    ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
+    ) -> Result<Box<dyn EngineOwnerLease>, PortError> {
         let Self {
             config_root,
             transition_id,
             token,
-            state,
+            stage,
         } = *self;
-        let (selection, engine_id) = match state {
-            ActiveProfileOwnerSwitchState::BindingNew {
+        let (selection, engine_id) = match stage {
+            EngineSwitchStage::BindingNew {
                 selection,
                 engine_id,
             } => (selection, engine_id),
@@ -237,14 +226,13 @@ impl ActiveProfileOwnerBindingLease for OwnerBindingLease {
                 "active reference changed after the new owner was reserved",
             ));
         }
-        if local_owner_registration_matches(
+        if !local_owner_registration_matches(
             &config_root,
             &token,
             &LocalOwnerRegistrationState::Binding {
                 transition_id: transition_id.clone(),
             },
-        )? == false
-        {
+        )? {
             return Err(transition_rejected(
                 "new owner kernel admission is no longer held by this process",
             ));
@@ -309,16 +297,16 @@ impl ActiveProfileOwnerBindingLease for OwnerBindingLease {
 
     async fn discard_unstarted_candidate(
         self: Box<Self>,
-        terminal: &CoreLifecycleSnapshot,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
+        terminal_generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
         let Self {
             config_root,
             transition_id,
             token,
-            state,
+            stage,
         } = *self;
-        let (selection, engine_id) = match state {
-            ActiveProfileOwnerSwitchState::BindingNew {
+        let (selection, engine_id) = match stage {
+            EngineSwitchStage::BindingNew {
                 selection,
                 engine_id,
             } => (selection, engine_id),
@@ -334,22 +322,22 @@ impl ActiveProfileOwnerBindingLease for OwnerBindingLease {
             token,
             selection,
             engine_id,
-            CandidateDiscardAuthorization::Stopped(terminal),
+            CandidateDiscardAuthorization::Stopped(terminal_generation),
         )
         .await
     }
 
     async fn abort_before_core_application(
         self: Box<Self>,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
         let Self {
             config_root,
             transition_id,
             token,
-            state,
+            stage,
         } = *self;
-        let (selection, engine_id) = match state {
-            ActiveProfileOwnerSwitchState::BindingNew {
+        let (selection, engine_id) = match stage {
+            EngineSwitchStage::BindingNew {
                 selection,
                 engine_id,
             } => (selection, engine_id),

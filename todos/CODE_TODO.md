@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v216`：当前现在佛 27 pt（12 条）/ 过去佛 60 pt（23 条）/ 未来佛 68 pt（30 条），联合未办结分母 155 pt；已归档交付 642 pt（242 条）；累计 797 pt，严格归档完成率 80.6%。
+- Point 基线 `musicfrog-todo-20261017-v217`：当前现在佛 28 pt（13 条）/ 过去佛 60 pt（23 条）/ 未来佛 68 pt（30 条），联合未办结分母 156 pt；已归档交付 642 pt（242 条）；累计 798 pt，严格归档完成率 80.5%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -76,6 +76,11 @@
   - 依赖：PUB-003.2b。
   - 验收：composition/desktop/android 的前向切换全部走协调器；调用顺序测试仍证明旧 owner 终态早于新进程启动；失败回滚与 `RecoveryRequired` 语义不变。
   - 待裁决：2b 把 provider 分派从「保留前」移到了「CAS 之后、持久化候选保留之前」（因为 `reserve_new_owner` 需要候选 `CoreIdentity`）。若分派失败会留下已改选择的 `SelectionChanged` journal。003.2.1 必须决定是恢复「保留前 prepare」还是在协调器 API 里显式建模该状态，不得默认接受。
+- [ ] PUB-003.2.2 [kind: mechanism] [priority: P1] [points: 1] [owner: lurker-core-ports::engine_switch + infiltrator-profile-store] [status: Planned] 统一 `discard_unstarted_candidate` 的终态语义
+  - 现状：中性 trait 文档与内存 journal 规定「回到 `SelectionChanged`，调用方可重试保留」；产品 `clear_candidate_owner_reservation` 实际写 `ActiveCoreOwnerState::Unowned` 并恢复旧终态证明（崩溃安全优先）。两处语义不一致。
+  - 裁决要求（二选一，不得两边各留一份）：方案 A 产品改回 `SelectionChanged`，保留协调器重试语义；方案 B 契约改为 `Unowned` 并删除「可重试」承诺，保留产品崩溃安全。必须同时改契约文档、内存 journal、产品实现与两侧测试。
+  - 依赖：PUB-003.2b。
+  - 验收：文档、内存 journal、产品实现、测试四处一致，`import-guard`/`typed-state-guard` 全绿，且恢复路径有 nextest 覆盖。
 - [ ] PUB-003.3 [kind: mechanism] [priority: P1] [points: 3] [owner: runtime facade] [status: Planned] 高层 Facade SDK `lurker-engine-runtime`
   - 产物：`LurkerRuntimeBuilder` 式 Builder API，隐藏 Token/Generation 细节，暴露直观异步操控入口。
   - 依赖：PUB-003.2。
@@ -91,6 +96,7 @@
   - 产物：对 `infiltrator-core`/`infiltrator-composition`/`infiltrator-desktop` 及三个 UI crate 做 `aarch64-unknown-linux-gnu`、`aarch64-pc-windows-msvc` 的 `cargo check`，记录通过的组合与失败原因。
   - 依赖：无（中性内核矩阵已 8/8）。
   - 验收：脚本可复跑；通过/失败组合写入八问第 1 行；失败项若为平台专属代码，回流对应 owner。
+  - 当前证据：本机 aarch64 `cargo check` 已通过 core/composition/desktop 与 Iced/Bevy/Slint：`aarch64-unknown-linux-gnu`（zig 0.14.1 + cargo-zigbuild，`zstd-sys`/`ring` 目标 C 编译通过）、`aarch64-pc-windows-msvc`（cargo-xwin clang sysroot）、`aarch64-linux-android`（NDK 29.0.14206865）。复跑脚本与最终产物证据待补，状态保持 InProgress。
 - [ ] GAP-5.1 [kind: mechanism] [priority: P1] [points: 2] [owner: lurker-ui-presentation] [status: Planned] PUB-004.1 B2：剩余 i18n 模块统一 `&dyn TextCatalog`
   - 产物：45 个仍用 `locale: &str` 的 presentation 模块改为 `TextCatalog`；文案数据不下沉；join 到 `Lang` 的适配只保留一处。
   - 依赖：PUB-004.1 B1（已完成）。

@@ -3,61 +3,53 @@ use super::*;
 pub struct ActiveOwnerSwitchLease {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
-    pub(crate) expected_owner: CoreIdentity,
-    pub(crate) expected_generation: CoreGeneration,
-    pub(crate) state: ActiveProfileOwnerSwitchState,
+    pub(crate) owner_token: ActiveOwnerToken,
+    pub(crate) stage: EngineSwitchStage<ActiveProfileReferenceState>,
 }
 
 impl ActiveOwnerSwitchLease {
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,
-        expected_owner: CoreIdentity,
-        expected_generation: CoreGeneration,
-        state: ActiveProfileOwnerSwitchState,
+        owner_token: ActiveOwnerToken,
+        stage: EngineSwitchStage<ActiveProfileReferenceState>,
     ) -> Self {
         Self {
             config_root: config_root.into(),
             transition_id,
-            expected_owner,
-            expected_generation,
-            state,
+            owner_token,
+            stage,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl ActiveProfileOwnerSwitchLease for ActiveOwnerSwitchLease {
-    fn state(&self) -> &ActiveProfileOwnerSwitchState {
-        &self.state
+impl EngineOwnerSwitchLease<ActiveProfileReferenceState> for ActiveOwnerSwitchLease {
+    fn stage(&self) -> &EngineSwitchStage<ActiveProfileReferenceState> {
+        &self.stage
     }
 
     async fn cancel_before_old_owner_close(
         self: Box<Self>,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
         let Self {
             config_root,
             transition_id,
-            expected_owner,
-            expected_generation,
-            state,
+            owner_token,
+            stage,
         } = *self;
-        let (previous_reference, owner_identity, owner_generation) = match state {
-            ActiveProfileOwnerSwitchState::ClosingOld {
-                previous_reference,
+        let (previous_reference, owner_identity, owner_generation) = match stage {
+            EngineSwitchStage::ClosingOld {
+                previous,
                 owner_identity,
                 owner_generation,
-            } => (previous_reference, owner_identity, owner_generation),
+            } => (previous, owner_identity, owner_generation),
             _ => {
                 return Err(transition_rejected(
                     "only a ClosingOld owner switch can be canceled before close",
                 ));
             }
         };
-        if !owner_identity.same_instance(&expected_owner) || owner_generation != expected_generation
-        {
-            return Err(transition_rejected("owner switch lease identity changed"));
-        }
 
         let _root_guard = ActiveProfileReferenceFile::new(config_root.clone())
             .acquire_root_lock()
@@ -67,11 +59,12 @@ impl ActiveProfileOwnerSwitchLease for ActiveOwnerSwitchLease {
             .acquire_owner_state_lock()
             .await?;
         let mut record = sync_read_active_profile_record(&config_root)?;
-        let (persisted_previous, persisted_owner, persisted_generation, owner_token, stage) =
+        let (persisted_previous, persisted_owner, persisted_generation, persisted_token, stage) =
             switching_state(&record, &transition_id)?;
         if persisted_previous != previous_reference
             || !persisted_owner.same_instance(&owner_identity)
             || persisted_generation != owner_generation
+            || persisted_token != owner_token
             || record.selection != previous_reference
             || !matches!(stage, ActiveOwnerSwitchStage::ClosingOld)
         {
@@ -129,38 +122,33 @@ impl ActiveProfileOwnerSwitchLease for ActiveOwnerSwitchLease {
             token: owner_token,
         };
         sync_publish_active_profile_record(&config_root, &record)?;
-        Ok(record.selection)
+        stage_mapping::switch_snapshot(&record)
     }
 
     async fn confirm_old_owner_stopped(
         self: Box<Self>,
-        terminal: &CoreLifecycleSnapshot,
-    ) -> Result<Box<dyn ActiveProfileOwnerStoppedSwitchLease>, PortError> {
+        terminal_generation: CoreGeneration,
+    ) -> Result<Box<dyn EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState>>, PortError>
+    {
         let Self {
             config_root,
             transition_id,
-            expected_owner,
-            expected_generation,
-            state,
+            owner_token,
+            stage,
         } = *self;
-        let (previous_reference, owner_identity, owner_generation) = match state {
-            ActiveProfileOwnerSwitchState::ClosingOld {
-                previous_reference,
+        let (previous_reference, owner_identity, owner_generation) = match stage {
+            EngineSwitchStage::ClosingOld {
+                previous,
                 owner_identity,
                 owner_generation,
-            } => (previous_reference, owner_identity, owner_generation),
+            } => (previous, owner_identity, owner_generation),
             _ => {
                 return Err(transition_rejected(
                     "owner switch is not closing the old owner",
                 ));
             }
         };
-        if !owner_identity.same_instance(&expected_owner) || owner_generation != expected_generation
-        {
-            return Err(transition_rejected("owner switch lease identity changed"));
-        }
-        let terminal_generation =
-            validate_terminal_for_owner(terminal, &owner_identity, owner_generation)?;
+        verify_terminal_generation(terminal_generation, owner_generation)?;
         let _root_guard = ActiveProfileReferenceFile::new(config_root.clone())
             .acquire_root_lock()
             .await?
@@ -169,11 +157,12 @@ impl ActiveProfileOwnerSwitchLease for ActiveOwnerSwitchLease {
             .acquire_owner_state_lock()
             .await?;
         let mut record = sync_read_active_profile_record(&config_root)?;
-        let (persisted_previous, persisted_owner, persisted_generation, owner_token, stage) =
+        let (persisted_previous, persisted_owner, persisted_generation, persisted_token, stage) =
             switching_state(&record, &transition_id)?;
         if persisted_previous != previous_reference
             || !persisted_owner.same_instance(&owner_identity)
             || persisted_generation != owner_generation
+            || persisted_token != owner_token
         {
             return Err(transition_rejected(
                 "persisted owner switch identity changed",
@@ -246,23 +235,23 @@ impl ActiveProfileOwnerSwitchLease for ActiveOwnerSwitchLease {
                 previous_reference: previous_reference.clone(),
                 owner_identity: owner_identity.clone(),
                 owner_generation,
-                owner_token,
+                owner_token: owner_token.clone(),
                 stage: ActiveOwnerSwitchStage::OldStopped {
                     terminal_generation,
                 },
             };
             sync_publish_active_profile_record(&config_root, &record)?;
         }
-        let state = ActiveProfileOwnerSwitchState::OldStopped {
-            previous_reference,
-            owner_identity,
-            owner_generation,
-            terminal_generation,
-        };
-        Ok(Box::new(ActiveOwnerStoppedSwitchLease {
+        Ok(Box::new(ActiveOwnerStoppedSwitchLease::new(
             config_root,
             transition_id,
-            state,
-        }))
+            owner_token,
+            EngineSwitchStage::OldStopped {
+                previous: previous_reference,
+                owner_identity,
+                owner_generation,
+                terminal_generation,
+            },
+        )))
     }
 }

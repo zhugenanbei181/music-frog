@@ -3,67 +3,71 @@ use super::*;
 pub struct ReferenceChangedLease {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
-    pub(crate) state: ActiveProfileOwnerSwitchState,
+    pub(crate) owner_token: ActiveOwnerToken,
+    pub(crate) stage: EngineSwitchStage<ActiveProfileReferenceState>,
 }
 
 impl ReferenceChangedLease {
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,
-        state: ActiveProfileOwnerSwitchState,
+        owner_token: ActiveOwnerToken,
+        stage: EngineSwitchStage<ActiveProfileReferenceState>,
     ) -> Self {
         Self {
             config_root: config_root.into(),
             transition_id,
-            state,
+            owner_token,
+            stage,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl ActiveProfileReferenceChangedLease for ReferenceChangedLease {
-    fn state(&self) -> &ActiveProfileOwnerSwitchState {
-        &self.state
+impl EngineSwitchSelectionChangedLease<ActiveProfileReferenceState> for ReferenceChangedLease {
+    fn stage(&self) -> &EngineSwitchStage<ActiveProfileReferenceState> {
+        &self.stage
     }
 
     async fn reserve_new_owner(
         self: Box<Self>,
         engine_id: EngineId,
-    ) -> Result<Box<dyn ActiveProfileOwnerBindingLease>, PortError> {
+        candidate_identity: CoreIdentity,
+        candidate_generation: CoreGeneration,
+    ) -> Result<Box<dyn EngineOwnerBindingLease<ActiveProfileReferenceState>>, PortError> {
         let Self {
             config_root,
             transition_id,
-            state,
+            owner_token,
+            stage,
         } = *self;
-        let (selection, previous_reference, owner_identity, terminal_generation) = match state {
-            ActiveProfileOwnerSwitchState::ReferenceChanged {
-                previous_reference,
+        let (selection, previous_reference, owner_identity, terminal_generation) = match stage {
+            EngineSwitchStage::SelectionChanged {
+                previous,
                 selection,
                 owner_identity,
                 terminal_generation,
-            } => (
-                selection,
-                previous_reference,
-                owner_identity,
-                terminal_generation,
-            ),
+            } => (selection, previous, owner_identity, terminal_generation),
             _ => return Err(transition_rejected("reference CAS stage is missing")),
         };
-        match &selection {
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == engine_id => {}
-            ActiveProfileReferenceState::Selected(reference) => {
-                return Err(transition_rejected(format!(
-                    "selected engine {} does not match requested owner engine {}",
-                    reference.engine_id.as_str(),
-                    engine_id.as_str()
-                )));
-            }
+        let selected_engine = match &selection {
+            ActiveProfileReferenceState::Selected(reference) => reference.engine_id.clone(),
             ActiveProfileReferenceState::Unselected { .. } => {
                 return Err(transition_rejected(
                     "an unselected reference cannot reserve a Core owner",
                 ));
             }
+        };
+        if selected_engine != engine_id
+            || candidate_identity.engine != engine_id
+            || candidate_generation != CoreGeneration::new(0)
+        {
+            return Err(transition_rejected(format!(
+                "selected engine {} cannot reserve candidate {} at generation {}",
+                selected_engine.as_str(),
+                candidate_identity.engine.as_str(),
+                candidate_generation.value()
+            )));
         }
         let _root_guard = ActiveProfileReferenceFile::new(config_root.clone())
             .acquire_root_lock()
@@ -73,10 +77,11 @@ impl ActiveProfileReferenceChangedLease for ReferenceChangedLease {
             .acquire_owner_state_lock()
             .await?;
         let mut record = sync_read_active_profile_record(&config_root)?;
-        let (persisted_previous, persisted_owner, owner_generation, owner_token, stage) =
+        let (persisted_previous, persisted_owner, owner_generation, persisted_token, stage) =
             switching_state(&record, &transition_id)?;
         if persisted_previous != previous_reference
             || !persisted_owner.same_instance(&owner_identity)
+            || persisted_token != owner_token
             || record.selection != selection
             || !matches!(
                 stage,
@@ -143,15 +148,14 @@ impl ActiveProfileReferenceChangedLease for ReferenceChangedLease {
             transition_id.clone(),
             owner_guard,
         )?;
-        let state = ActiveProfileOwnerSwitchState::BindingNew {
-            selection,
-            engine_id,
-        };
-        Ok(Box::new(OwnerBindingLease {
+        Ok(Box::new(OwnerBindingLease::new(
             config_root,
             transition_id,
             token,
-            state,
-        }))
+            EngineSwitchStage::BindingNew {
+                selection,
+                engine_id,
+            },
+        )))
     }
 }

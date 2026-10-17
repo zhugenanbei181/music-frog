@@ -536,13 +536,13 @@ pub(crate) async fn load_prepared_profile_document(store: &dyn ProfileStore) -> 
 }
 
 pub(crate) fn switch_failure(
-    result: Result<SelectedActiveProfileBackend, ActiveProfileBackendSwitchError>,
-    expected_phase: ActiveProfileBackendSwitchFailurePhase,
+    result: Result<SelectedActiveProfileBackend, EngineSwitchError<ActiveProfileReferenceState>>,
+    expected_phase: EngineSwitchFailurePhase,
 ) -> PortError {
     match result {
         Err(error) => {
-            assert_eq!(error.phase(), expected_phase);
-            error.into_failure()
+            assert_eq!(error.phase, expected_phase);
+            error.cause
         }
         Ok(_) => panic!("owner switch unexpectedly produced a candidate"),
     }

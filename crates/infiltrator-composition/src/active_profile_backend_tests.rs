@@ -1,7 +1,4 @@
-use super::{
-    ActiveProfileBackendSelector, ActiveProfileBackendSwitchError,
-    ActiveProfileBackendSwitchFailurePhase, PreviousCoreDisposition, PreviousCoreOwner,
-};
+use super::{ActiveProfileBackendSelector, PreviousCoreDisposition, PreviousCoreOwner};
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
@@ -13,9 +10,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::surface::HostKind;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
-    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
-    ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -35,6 +30,10 @@ use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
 use lurker_core_contract::capability::Capability;
+use lurker_core_contract::engine_switch::{
+    EngineOwnerState, EngineSwitchFailurePhase, EngineSwitchRecovery, EngineSwitchRevision,
+    EngineSwitchSnapshot, EngineSwitchStage,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
@@ -53,11 +52,13 @@ use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
 use lurker_core_ports::engine_backend::{
     EngineBackendProvider, EngineBackendProviderAvailability, EngineOperationPorts,
 };
+use lurker_core_ports::engine_switch::{EngineOwnerStoppedSwitchLease, EngineSwitchJournal};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
 use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
+use lurker_engine_runtime::switch::error::EngineSwitchError;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -82,6 +83,9 @@ mod cases_a;
 
 #[path = "active_profile_backend_tests/cases_b.rs"]
 mod cases_b;
+
+#[path = "active_profile_backend_tests/neutral_journal.rs"]
+mod neutral_journal;
 
 #[path = "active_profile_backend_tests/abort_candidate.rs"]
 mod abort_candidate;

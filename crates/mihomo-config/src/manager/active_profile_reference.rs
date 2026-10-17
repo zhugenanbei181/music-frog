@@ -5,7 +5,7 @@ use super::ConfigManager;
 #[cfg(test)]
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceStore,
+    ActiveProfileReferenceStore,
 };
 use infiltrator_ports::secure_store::SecureStore;
 #[cfg(test)]

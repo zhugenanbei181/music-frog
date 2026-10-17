@@ -41,9 +41,12 @@ async fn product_root_can_abort_returned_switch_candidate_before_application_cre
 
     assert_eq!(
         *refs.transition.lock().unwrap(),
-        Some(ActiveProfileOwnerSwitchState::BindingNew {
-            selection: reference("sing-box", "primary", 2),
-            engine_id: engine_id_value("sing-box"),
+        Some(FakeSwitch {
+            stage: EngineSwitchStage::BindingNew {
+                selection: reference("sing-box", "primary", 2),
+                engine_id: engine_id_value("sing-box"),
+            },
+            owner_generation: CoreGeneration::new(0),
         })
     );
     assert_eq!(

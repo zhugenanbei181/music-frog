@@ -22,8 +22,7 @@ use crate::storage::{
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_composition::active_profile_backend::{
-    ActiveProfileBackendSelector, ActiveProfileBackendSwitchError,
-    ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner, SelectedActiveProfileBackend,
+    ActiveProfileBackendSelector, PreviousCoreOwner, SelectedActiveProfileBackend,
 };
 use infiltrator_composition::singbox_engine_backend_provider::SingBoxEngineBackendProvider;
 use infiltrator_contract::surface::SurfaceKind;
@@ -35,8 +34,10 @@ use infiltrator_ports::core_binary_selection::{BundledBinarySource, CoreBinarySe
 use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceTarget;
 use lurker_core_contract::capability::Capability;
+use lurker_core_contract::engine_switch::EngineSwitchFailurePhase;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
@@ -44,6 +45,7 @@ use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId
 use lurker_core_ports::engine_backend::{EngineBackendProvider, EngineBackendProviderAvailability};
 use lurker_core_ports::error::PortError;
 use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
+use lurker_engine_runtime::switch::error::EngineSwitchError;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::yaml;
@@ -584,20 +586,22 @@ fn old_owner_closed(error: impl Display) -> DesktopProductSwitchFailure {
     ))
 }
 
-fn map_switch_error(error: ActiveProfileBackendSwitchError) -> DesktopProductSwitchFailure {
-    let phase = error.phase();
-    let failure = Failure::from(error.into_failure());
+fn map_switch_error(
+    error: EngineSwitchError<ActiveProfileReferenceState>,
+) -> DesktopProductSwitchFailure {
+    let phase = error.phase;
+    let failure = Failure::from(error.cause);
     match phase {
-        ActiveProfileBackendSwitchFailurePhase::BeforeReservation => {
+        EngineSwitchFailurePhase::BeforeReservation => {
             DesktopProductSwitchFailure::BeforeReservation(failure)
         }
-        ActiveProfileBackendSwitchFailurePhase::ReservationPending => {
+        EngineSwitchFailurePhase::ReservationPending => {
             DesktopProductSwitchFailure::ReservationPending(failure)
         }
-        ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed => {
+        EngineSwitchFailurePhase::OwnerTerminationUnconfirmed => {
             DesktopProductSwitchFailure::OwnerTerminationUnconfirmed(failure)
         }
-        ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed => {
+        EngineSwitchFailurePhase::OldOwnerClosed => {
             DesktopProductSwitchFailure::OldOwnerClosed(failure)
         }
     }

@@ -1,12 +1,15 @@
 use super::*;
 use crate::profile_option_store::write_options_bytes;
 use infiltrator_domain::profile_options::options_path;
-use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerSwitchState;
 use infiltrator_profile_store::active_reference_owner::ActiveCoreOwnerLaunchProof;
 use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_contract::engine_switch::{
+    EngineOwnerState, EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchStage,
+};
 use lurker_core_contract::identity::{CoreInstanceId, CoreVersion};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::engine_switch::EngineSwitchJournal;
 use std::env;
 use std::process::{Child, Command, ExitStatus};
 use std::sync::Arc;

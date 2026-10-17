@@ -40,10 +40,7 @@ async fn provider_prepared_from_another_document_fails_before_old_owner_close() 
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Rejected(_)
     ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
@@ -261,10 +258,7 @@ async fn foreign_target_document_fails_before_close_or_provider_dispatch() {
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Rejected(_)
     ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
@@ -330,10 +324,7 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
             .await;
 
         assert!(matches!(
-            switch_failure(
-                result,
-                ActiveProfileBackendSwitchFailurePhase::BeforeReservation
-            ),
+            switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
             PortError::Unsupported { .. }
         ));
         assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
@@ -387,10 +378,7 @@ async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch()
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::BeforeReservation),
         PortError::Rejected(_)
     ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
@@ -443,7 +431,7 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
     assert!(matches!(
         switch_failure(
             result,
-            ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
+            EngineSwitchFailurePhase::OwnerTerminationUnconfirmed
         ),
         PortError::Rejected(_)
     ));
@@ -451,8 +439,12 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
     assert!(matches!(
-        refs.transition.lock().unwrap().as_ref(),
-        Some(ActiveProfileOwnerSwitchState::ClosingOld { .. })
+        refs.transition
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|switch| &switch.stage),
+        Some(EngineSwitchStage::ClosingOld { .. })
     ));
 }
 
@@ -497,7 +489,7 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
     assert!(matches!(
         switch_failure(
             result,
-            ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
+            EngineSwitchFailurePhase::OwnerTerminationUnconfirmed
         ),
         PortError::Failed(_)
     ));
@@ -505,8 +497,12 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
     assert!(matches!(
-        refs.transition.lock().unwrap().as_ref(),
-        Some(ActiveProfileOwnerSwitchState::ClosingOld { .. })
+        refs.transition
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|switch| &switch.stage),
+        Some(EngineSwitchStage::ClosingOld { .. })
     ));
     assert!(matches!(
         *refs.owner.lock().unwrap(),
@@ -515,7 +511,7 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
 }
 
 #[tokio::test]
-async fn failed_new_owner_reservation_has_zero_provider_dispatch() {
+async fn failed_new_owner_reservation_keeps_the_committed_selection_resumable() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -554,27 +550,32 @@ async fn failed_new_owner_reservation_has_zero_provider_dispatch() {
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::OldOwnerClosed),
         PortError::Rejected(_)
     ));
-    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
+    // The neutral candidate reservation carries the dispatched identity, so
+    // dispatch happens before the durable admission. A failed reservation
+    // keeps the committed selection for a resumable retry and never binds a
+    // candidate owner.
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(
         refs.read().await.unwrap(),
         reference("sing-box", "primary", 2)
     );
     assert!(matches!(
-        refs.transition.lock().unwrap().as_ref(),
-        Some(ActiveProfileOwnerSwitchState::ReferenceChanged { .. })
+        refs.transition
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|switch| &switch.stage),
+        Some(EngineSwitchStage::SelectionChanged { .. })
     ));
     assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
 }
 
 #[tokio::test]
-async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reservation() {
+async fn provider_dispatch_failure_keeps_the_selection_changed_reservation_resumable() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -612,10 +613,7 @@ async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reserv
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::OldOwnerClosed),
         PortError::Failed(_)
     ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
@@ -624,16 +622,19 @@ async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reserv
         refs.read().await.unwrap(),
         reference("sing-box", "primary", 2)
     );
-    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert!(matches!(
+        refs.transition
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|switch| &switch.stage),
+        Some(EngineSwitchStage::SelectionChanged { .. })
+    ));
     assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
-    assert_eq!(
-        events.lock().unwrap().last().map(String::as_str),
-        Some("candidate-aborted")
-    );
 }
 
 #[tokio::test]
-async fn provider_identity_preflight_failure_aborts_before_core_application() {
+async fn provider_identity_preflight_failure_keeps_the_committed_selection() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
         reference("mihomo", "main", 1),
@@ -671,10 +672,7 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
         .await;
 
     assert!(matches!(
-        switch_failure(
-            result,
-            ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed
-        ),
+        switch_failure(result, EngineSwitchFailurePhase::OldOwnerClosed),
         PortError::Failed(_)
     ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
@@ -683,12 +681,15 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
         refs.read().await.unwrap(),
         reference("sing-box", "primary", 2)
     );
-    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert!(matches!(
+        refs.transition
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|switch| &switch.stage),
+        Some(EngineSwitchStage::SelectionChanged { .. })
+    ));
     assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
-    assert_eq!(
-        events.lock().unwrap().last().map(String::as_str),
-        Some("candidate-aborted")
-    );
 }
 
 #[test]

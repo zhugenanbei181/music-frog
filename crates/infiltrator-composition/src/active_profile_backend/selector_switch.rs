@@ -1,38 +1,35 @@
+// The neutral typed failure is the contract-required return type; boxing it would
+// hide the product switch disposition behind an extra allocation.
+#![allow(clippy::result_large_err)]
+
 use super::*;
+use lurker_core_contract::engine_switch::{
+    EngineOwnerState, EngineSwitchDisposition, EngineSwitchFailurePhase, EngineSwitchRecovery,
+    EngineSwitchStage,
+};
+use lurker_engine_runtime::switch::error::EngineSwitchError;
+
+type SwitchError = EngineSwitchError<ActiveProfileReferenceState>;
+type SwitchResult<T> = Result<T, SwitchError>;
 
 impl ActiveProfileBackendSelector {
-    /// Replace a live product owner for a selected profile through a durable,
-    /// revision-fenced transaction. The profile may use the current backend or
-    /// another engine. Target validation completes before the old owner closes.
-    /// The lease persists each phase without holding a root lock while draining.
+    /// Replace a live product owner for a selected profile through the durable,
+    /// revision-fenced owner-switch journal.
+    ///
+    /// The sequence is fixed: resolve and authorize the target, verify the
+    /// exact bound previous owner, reserve `ClosingOld`, re-read the target
+    /// document, terminate the old owner and confirm its exact terminal,
+    /// compare-and-set the selection, dispatch and reserve the candidate
+    /// owner, then hand the `BindingNew` admission to the host that constructs
+    /// the candidate CoreApplication.
     pub async fn replace_owner_for_profile(
         &self,
         target: ActiveProfileReferenceTarget,
         prepared_document: &ProfileDocument,
         previous_owner: &PreviousCoreOwner,
-    ) -> Result<SelectedActiveProfileBackend, ActiveProfileBackendSwitchError> {
-        let mut phase = SwitchExecutionPhase::BeforeReservation;
-        self.replace_owner_for_profile_transaction(
-            target,
-            prepared_document,
-            previous_owner,
-            &mut phase,
-        )
-        .await
-        .map_err(|failure| match phase {
-            SwitchExecutionPhase::BeforeReservation => {
-                ActiveProfileBackendSwitchError::BeforeReservation(failure)
-            }
-            SwitchExecutionPhase::ReservationPending => {
-                ActiveProfileBackendSwitchError::ReservationPending(failure)
-            }
-            SwitchExecutionPhase::OwnerTerminationUnconfirmed => {
-                ActiveProfileBackendSwitchError::OwnerTerminationUnconfirmed(failure)
-            }
-            SwitchExecutionPhase::OldOwnerClosed => {
-                ActiveProfileBackendSwitchError::OldOwnerClosed(failure)
-            }
-        })
+    ) -> SwitchResult<SelectedActiveProfileBackend> {
+        self.replace_owner_for_profile_transaction(target, prepared_document, previous_owner)
+            .await
     }
 
     /// Continue a durable owner switch after its previous product session has
@@ -47,51 +44,86 @@ impl ActiveProfileBackendSelector {
         let authorized = self
             .preflight_recovery_target(&target, prepared_document)
             .await?;
-        match self.references.recover_owner_switch().await? {
-            ActiveProfileOwnerSwitchRecovery::NoPendingSwitch => {
+        let snapshot = self.references.snapshot().await?;
+        match self
+            .references
+            .recover_owner_switch(snapshot.revision)
+            .await?
+        {
+            EngineSwitchRecovery::NoPendingSwitch => {
                 self.select_recovery_target_unowned(target).await
             }
-            ActiveProfileOwnerSwitchRecovery::ResumeClosingOld(lease) => {
-                let stopped = lease.confirm_old_owner_stopped(old_owner_terminal).await?;
-                self.resume_from_old_stopped(target, authorized, stopped)
-                    .await
-            }
-            ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(lease) => {
-                self.resume_from_old_stopped(target, authorized, lease)
-                    .await
-            }
-            ActiveProfileOwnerSwitchRecovery::OwnerTerminalEvidenceRequired { .. } => {
+            EngineSwitchRecovery::ResumeClosingOld {
+                owner_identity,
+                owner_generation,
+                ..
+            } => {
+                let terminal_generation = verify_recovery_owner_terminal(
+                    old_owner_terminal,
+                    &owner_identity,
+                    Some(owner_generation),
+                    None,
+                )?;
                 let stopped = self
                     .references
-                    .recover_old_owner_after_terminal(old_owner_terminal)
+                    .recover_old_owner_after_terminal(snapshot.revision, terminal_generation)
                     .await?;
                 self.resume_from_old_stopped(target, authorized, stopped)
                     .await
             }
-            ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(lease) => {
-                let previous_owner = previous_owner_from_reference_changed(lease.state())?;
-                self.resume_from_reference_changed(target, authorized, lease, previous_owner)
+            EngineSwitchRecovery::ResumeOldStopped {
+                owner_identity,
+                owner_generation,
+                terminal_generation,
+                ..
+            } => {
+                verify_recovery_owner_terminal(
+                    old_owner_terminal,
+                    &owner_identity,
+                    Some(owner_generation),
+                    Some(terminal_generation),
+                )?;
+                let stopped = self
+                    .references
+                    .recover_old_owner_after_terminal(snapshot.revision, terminal_generation)
+                    .await?;
+                self.resume_from_old_stopped(target, authorized, stopped)
                     .await
             }
-            ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(lease) => {
-                self.resume_from_binding_new(
-                    target,
-                    authorized,
-                    lease,
-                    PreviousCoreDisposition::NoPriorOwner,
-                )
-                .await
+            EngineSwitchRecovery::ResumeSelectionChanged {
+                owner_identity,
+                terminal_generation,
+                ..
+            } => {
+                verify_recovery_owner_terminal(
+                    old_owner_terminal,
+                    &owner_identity,
+                    None,
+                    Some(terminal_generation),
+                )?;
+                let stopped = self
+                    .references
+                    .recover_old_owner_after_terminal(snapshot.revision, terminal_generation)
+                    .await?;
+                self.resume_from_old_stopped(target, authorized, stopped)
+                    .await
             }
-            ActiveProfileOwnerSwitchRecovery::OwnerStillLive { .. } => Err(recovery_required(
-                "the previous Core owner is still live after session close",
-            )),
-            ActiveProfileOwnerSwitchRecovery::CandidateStillLive { .. } => Err(recovery_required(
-                "the replacement Core candidate is still live after session close",
-            )),
-            ActiveProfileOwnerSwitchRecovery::CandidateTerminalEvidenceRequired { .. } => {
-                Err(recovery_required(
-                    "the replacement Core candidate needs exact terminal evidence before retry",
-                ))
+            EngineSwitchRecovery::ResumeBindingNew { selection, .. } => {
+                if !reference_matches_target(&selection, &target) {
+                    return Err(PortError::Rejected(Failure::new(
+                        ErrorCode::NotReady,
+                        "durable owner reservation target differs from the retry request",
+                        false,
+                    )));
+                }
+                // The reserved candidate has no CoreApplication: the switch
+                // stopped before the host constructed it. Release the
+                // never-started admission and compose the committed selection
+                // again under a fresh provider selection lease.
+                self.references
+                    .recover_candidate_after_terminal(snapshot.revision, CoreGeneration::new(0))
+                    .await?;
+                self.select_recovery_target_unowned(target).await
             }
         }
     }
@@ -145,48 +177,57 @@ impl ActiveProfileBackendSelector {
         &self,
         target: ActiveProfileReferenceTarget,
         authorized: AuthorizedProfile,
-        lease: Box<dyn ActiveProfileOwnerStoppedSwitchLease>,
+        stopped: Box<dyn EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState>>,
     ) -> Result<SelectedActiveProfileBackend, PortError> {
-        let previous_owner = previous_owner_from_old_stopped(lease.state())?;
-        let changed = lease.compare_and_set_target(target.clone()).await?;
-        self.resume_from_reference_changed(target, authorized, changed, previous_owner)
+        let previous_owner = previous_owner_from_old_stopped(stopped.stage())?;
+        let (engine_id, profile_id) = selected_recovery_target(&target)?;
+        // A recovered `SelectionChanged` journal already committed the target;
+        // repeating the same selection is idempotent and must not advance the
+        // revision a second time.
+        let selection = match stopped.stage() {
+            EngineSwitchStage::SelectionChanged { selection, .. } => selection.clone(),
+            EngineSwitchStage::OldStopped { previous, .. } => {
+                let revision = previous
+                    .revision()
+                    .next()
+                    .ok_or_else(|| PortError::Failed("active profile revision exhausted".into()))?;
+                ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                    engine_id.clone(),
+                    profile_id,
+                    revision,
+                ))
+            }
+            EngineSwitchStage::ClosingOld { .. } | EngineSwitchStage::BindingNew { .. } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::InvalidState,
+                    "owner-switch recovery is not at the old-stopped stage",
+                    true,
+                )));
+            }
+        };
+        let changed = stopped.compare_and_set_target(selection, engine_id).await?;
+        self.resume_from_selection_changed(target, authorized, changed, previous_owner)
             .await
     }
 
-    async fn resume_from_reference_changed(
+    async fn resume_from_selection_changed(
         &self,
         target: ActiveProfileReferenceTarget,
         authorized: AuthorizedProfile,
-        lease: Box<dyn ActiveProfileReferenceChangedLease>,
+        changed: Box<dyn EngineSwitchSelectionChangedLease<ActiveProfileReferenceState>>,
         previous_owner: PreviousCoreDisposition,
     ) -> Result<SelectedActiveProfileBackend, PortError> {
-        validate_recovery_selection(lease.state(), &target)?;
-        let (engine_id, _) = selected_recovery_target(&target)?;
-        let binding = lease.reserve_new_owner(engine_id).await?;
-        self.resume_from_binding_new(target, authorized, binding, previous_owner)
-            .await
-    }
-
-    async fn resume_from_binding_new(
-        &self,
-        target: ActiveProfileReferenceTarget,
-        authorized: AuthorizedProfile,
-        binding: Box<dyn ActiveProfileOwnerBindingLease>,
-        previous_owner: PreviousCoreDisposition,
-    ) -> Result<SelectedActiveProfileBackend, PortError> {
-        validate_recovery_selection(binding.state(), &target)?;
-        let reference = selected_reference_from_switch_state(binding.state())?;
+        validate_recovery_selection(changed.stage(), &target)?;
+        let reference = selected_reference_from_stage(changed.stage())?;
         let backend = match self.registry.backend(&reference.engine_id) {
             Ok(backend) => backend,
             Err(error) => {
-                binding.abort_before_core_application().await?;
                 return Err(error);
             }
         };
         let core_identity = match backend.process().core_identity() {
             Some(identity) => identity,
             None => {
-                binding.abort_before_core_application().await?;
                 return Err(PortError::Failed(
                     "recovered backend has no Core identity".to_owned(),
                 ));
@@ -195,13 +236,19 @@ impl ActiveProfileBackendSelector {
         if core_identity.engine != reference.engine_id
             || backend.engine_id() != &reference.engine_id
         {
-            binding.abort_before_core_application().await?;
             return Err(PortError::Failed(format!(
                 "recovered profile engine {} does not match backend identity {}",
                 reference.engine_id.as_str(),
                 core_identity.engine.as_str()
             )));
         }
+        let binding = changed
+            .reserve_new_owner(
+                reference.engine_id.clone(),
+                core_identity.clone(),
+                CoreGeneration::new(0),
+            )
+            .await?;
         Ok(SelectedActiveProfileBackend {
             reference,
             document: authorized.document,
@@ -211,6 +258,7 @@ impl ActiveProfileBackendSelector {
             previous_owner,
             owner_admission: SelectedOwnerAdmission::SwitchReservation(binding),
             capability_provider: Arc::clone(&self.capabilities),
+            owner_store: Arc::clone(&self.references),
         })
     }
 
@@ -219,15 +267,28 @@ impl ActiveProfileBackendSelector {
         target: ActiveProfileReferenceTarget,
         prepared_document: &ProfileDocument,
         previous_owner: &PreviousCoreOwner,
-        phase: &mut SwitchExecutionPhase,
-    ) -> Result<SelectedActiveProfileBackend, PortError> {
+    ) -> SwitchResult<SelectedActiveProfileBackend> {
         let _writer = self.selection_gate.lock().await;
+        let snapshot = match self.references.snapshot().await {
+            Ok(snapshot) => snapshot,
+            Err(cause) => {
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::BeforeReservation,
+                    cause,
+                ));
+            }
+        };
         let (target_engine, target_profile) = match target {
             ActiveProfileReferenceTarget::Unselected => {
-                return Err(PortError::unsupported(
-                    Capability::Profiles,
-                    "Core owner replacement requires a selected target profile",
-                ));
+                return Err(self
+                    .before_reservation(
+                        snapshot.selection,
+                        PortError::unsupported(
+                            Capability::Profiles,
+                            "Core owner replacement requires a selected target profile",
+                        ),
+                    )
+                    .await);
             }
             ActiveProfileReferenceTarget::Selected {
                 engine_id,
@@ -235,111 +296,200 @@ impl ActiveProfileBackendSelector {
             } => (engine_id, profile_id),
         };
 
-        let previous_reference = self.references.read().await?;
+        let previous_reference = snapshot.selection;
         let current_reference = match &previous_reference {
             ActiveProfileReferenceState::Selected(reference) => reference,
             ActiveProfileReferenceState::Unselected { .. } => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "a live Core owner cannot switch from an unselected product reference",
-                    true,
-                )));
+                return Err(self
+                    .before_reservation(
+                        previous_reference.clone(),
+                        PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            "a live Core owner cannot switch from an unselected product reference",
+                            true,
+                        )),
+                    )
+                    .await);
             }
         };
-        let expected_revision = previous_reference.revision();
-        let target_revision = expected_revision.next().ok_or_else(|| {
-            PortError::Failed("active profile reference revision exhausted".into())
-        })?;
+        let expected_revision = snapshot.revision;
+        let target_revision = previous_reference
+            .revision()
+            .next()
+            .ok_or_else(|| PortError::Failed("active profile reference revision exhausted".into()));
+        let target_revision = match target_revision {
+            Ok(revision) => revision,
+            Err(cause) => {
+                return Err(self
+                    .before_reservation(previous_reference.clone(), cause)
+                    .await);
+            }
+        };
         let target_reference = ActiveProfileReference::new(
             target_engine.clone(),
             target_profile.clone(),
             target_revision,
         );
-        let referenced = self.resolve_profile_reference(target_reference).await?;
+        let referenced = match self.resolve_profile_reference(target_reference).await {
+            Ok(referenced) => referenced,
+            Err(cause) => {
+                return Err(self
+                    .before_reservation(previous_reference.clone(), cause)
+                    .await);
+            }
+        };
         let target_store = Arc::clone(&referenced.store);
-        let validated = self.load_and_validate_document(referenced).await?;
-        let authorized = self.authorize_target(validated).await?;
+        let validated = match self.load_and_validate_document(referenced).await {
+            Ok(validated) => validated,
+            Err(cause) => {
+                return Err(self
+                    .before_reservation(previous_reference.clone(), cause)
+                    .await);
+            }
+        };
+        let authorized = match self.authorize_target(validated).await {
+            Ok(authorized) => authorized,
+            Err(cause) => {
+                return Err(self
+                    .before_reservation(previous_reference.clone(), cause)
+                    .await);
+            }
+        };
         if &authorized.document != prepared_document {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "prepared target backend does not match the exact selected profile document",
-                true,
-            )));
+            return Err(
+                self.before_reservation(
+                    previous_reference.clone(),
+                    PortError::Rejected(Failure::new(
+                        ErrorCode::NotReady,
+                        "prepared target backend does not match the exact selected profile document",
+                        true,
+                    )),
+                )
+                .await,
+            );
         }
 
         let owner = match previous_owner {
             PreviousCoreOwner::Unowned => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "a live Core owner replacement requires the current owned owner",
-                    true,
-                )));
+                return Err(self
+                    .before_reservation(
+                        previous_reference.clone(),
+                        PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            "a live Core owner replacement requires the current owned owner",
+                            true,
+                        )),
+                    )
+                    .await);
             }
             PreviousCoreOwner::Owned(owner) => owner,
         };
         let before = owner.lifecycle_snapshot();
-        let expected_identity = before.identity.clone().ok_or_else(|| {
-            PortError::unsupported(
-                Capability::CoreLifecycle,
-                "previous Core owner has no typed identity to terminate",
-            )
-        })?;
-        let binding_generation = match owner.active_profile_reference_write_authorization()? {
-            ActiveProfileReferenceWriteAuthorization::BoundOwner {
+        let expected_identity = match before.identity.clone() {
+            Some(identity) => identity,
+            None => {
+                return Err(self
+                    .before_reservation(
+                        previous_reference.clone(),
+                        PortError::unsupported(
+                            Capability::CoreLifecycle,
+                            "previous Core owner has no typed identity to terminate",
+                        ),
+                    )
+                    .await);
+            }
+        };
+        let binding_generation = match owner.active_profile_reference_write_authorization() {
+            Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
                 identity,
                 generation,
-            } if identity.same_instance(&expected_identity) => generation,
-            ActiveProfileReferenceWriteAuthorization::BoundOwner { .. } => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "active Core owner binding identity differs from its lifecycle snapshot",
-                    true,
-                )));
+            }) if identity.same_instance(&expected_identity) => generation,
+            Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner { .. }) => {
+                return Err(
+                    self.before_reservation(
+                        previous_reference.clone(),
+                        PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            "active Core owner binding identity differs from its lifecycle snapshot",
+                            true,
+                        )),
+                    )
+                    .await,
+                );
             }
-            ActiveProfileReferenceWriteAuthorization::Unowned => {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "a live Core owner replacement requires the exact bound owner lease",
-                    true,
-                )));
+            Ok(ActiveProfileReferenceWriteAuthorization::Unowned) => {
+                return Err(self
+                    .before_reservation(
+                        previous_reference.clone(),
+                        PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            "a live Core owner replacement requires the exact bound owner lease",
+                            true,
+                        )),
+                    )
+                    .await);
+            }
+            Err(cause) => {
+                return Err(self
+                    .before_reservation(previous_reference.clone(), cause)
+                    .await);
             }
         };
         let lifecycle_generation = CoreGeneration::new(before.generation);
         if binding_generation > lifecycle_generation {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active Core owner binding generation is ahead of its lifecycle snapshot",
-                true,
-            )));
+            return Err(self
+                .before_reservation(
+                    previous_reference.clone(),
+                    PortError::Rejected(Failure::new(
+                        ErrorCode::NotReady,
+                        "active Core owner binding generation is ahead of its lifecycle snapshot",
+                        true,
+                    )),
+                )
+                .await);
         }
         if expected_identity.engine != current_reference.engine_id {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                format!(
-                    "active profile engine {} does not match current Core owner engine {}",
-                    current_reference.engine_id.as_str(),
-                    expected_identity.engine.as_str()
-                ),
-                true,
-            )));
+            return Err(self
+                .before_reservation(
+                    previous_reference.clone(),
+                    PortError::Rejected(Failure::new(
+                        ErrorCode::NotReady,
+                        format!(
+                            "active profile engine {} does not match current Core owner engine {}",
+                            current_reference.engine_id.as_str(),
+                            expected_identity.engine.as_str()
+                        ),
+                        true,
+                    )),
+                )
+                .await);
         }
         // This writes a durable reservation under the store's short root
         // critical section. The returned lease does not retain that lock.
-        let switch = self
+        let switch = match self
             .references
             .begin_owner_switch(
                 expected_revision,
+                previous_reference.clone(),
                 expected_identity.clone(),
                 binding_generation,
             )
-            .await?;
-        *phase = SwitchExecutionPhase::ReservationPending;
-        validate_closing_old_switch(
-            switch.as_ref(),
+            .await
+        {
+            Ok(switch) => switch,
+            Err(cause) => return Err(self.before_reservation(previous_reference, cause).await),
+        };
+        if let Err(cause) = validate_closing_old_stage(
+            switch.stage(),
             &previous_reference,
             &expected_identity,
             binding_generation,
-        )?;
+        ) {
+            return Err(SwitchError::recovery_required(
+                EngineSwitchFailurePhase::ReservationPending,
+                cause,
+            ));
+        }
         if let Err(target_error) = verify_target_document(
             target_store.as_ref(),
             &authorized.reference,
@@ -347,80 +497,165 @@ impl ActiveProfileBackendSelector {
         )
         .await
         {
-            return match switch.cancel_before_old_owner_close().await {
-                Ok(restored_reference) if restored_reference == previous_reference => {
-                    *phase = SwitchExecutionPhase::BeforeReservation;
-                    Err(target_error)
+            return Err(match switch.cancel_before_old_owner_close().await {
+                Ok(snapshot)
+                    if snapshot.selection == previous_reference
+                        && snapshot.owner
+                            == EngineOwnerState::Bound {
+                                identity: expected_identity.clone(),
+                                generation: binding_generation,
+                            } =>
+                {
+                    SwitchError::new(
+                        EngineSwitchFailurePhase::BeforeReservation,
+                        target_error,
+                        EngineSwitchDisposition::RolledBackToPrevious {
+                            selection: snapshot.selection,
+                        },
+                    )
                 }
-                Ok(_) => Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "target preflight failed and cancellation did not restore the exact source reference",
-                    true,
-                ))),
-                Err(cancel_error) => Err(cancel_error),
-            };
+                Ok(_) => SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::ReservationPending,
+                    PortError::Rejected(Failure::new(
+                        ErrorCode::NotReady,
+                        "target preflight failed and cancellation did not restore the exact source reference",
+                        true,
+                    )),
+                ),
+                Err(cancel_error) => SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::ReservationPending,
+                    cancel_error,
+                ),
+            });
         }
         // Once the durable marker exists it serializes competing selectors;
         // release even the composition-local gate before waiting for close.
         drop(_writer);
-        *phase = SwitchExecutionPhase::OwnerTerminationUnconfirmed;
-        let terminal = owner.terminate_owner().await?;
-        verify_stopped_owner(&expected_identity, lifecycle_generation, &terminal)?;
-        *phase = SwitchExecutionPhase::OldOwnerClosed;
+        let terminal = match owner.terminate_owner().await {
+            Ok(terminal) => terminal,
+            Err(cause) => {
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OwnerTerminationUnconfirmed,
+                    cause,
+                ));
+            }
+        };
+        if let Err(cause) =
+            verify_stopped_owner(&expected_identity, lifecycle_generation, &terminal)
+        {
+            return Err(SwitchError::recovery_required(
+                EngineSwitchFailurePhase::OwnerTerminationUnconfirmed,
+                cause,
+            ));
+        }
+        let terminal_generation = CoreGeneration::new(terminal.generation);
 
-        let stopped_switch = switch.confirm_old_owner_stopped(&terminal).await?;
-        validate_old_stopped_switch(
-            stopped_switch.as_ref(),
+        let stopped_switch = match switch.confirm_old_owner_stopped(terminal_generation).await {
+            Ok(stopped) => stopped,
+            Err(cause) => {
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                ));
+            }
+        };
+        if let Err(cause) = validate_old_stopped_stage(
+            stopped_switch.stage(),
             &previous_reference,
             &expected_identity,
             binding_generation,
-            CoreGeneration::new(terminal.generation),
-        )?;
+            terminal_generation,
+        ) {
+            return Err(SwitchError::recovery_required(
+                EngineSwitchFailurePhase::OldOwnerClosed,
+                cause,
+            ));
+        }
         let selection_reference = ActiveProfileReference::new(
             target_engine.clone(),
             target_profile.clone(),
             target_revision,
         );
         let expected_selection = ActiveProfileReferenceState::Selected(selection_reference.clone());
-        let target =
-            ActiveProfileReferenceTarget::selected(target_engine.clone(), target_profile.clone());
-        let changed = stopped_switch.compare_and_set_target(target).await?;
-        validate_reference_changed_switch(
-            changed.as_ref(),
+        let changed = match stopped_switch
+            .compare_and_set_target(expected_selection.clone(), target_engine.clone())
+            .await
+        {
+            Ok(changed) => changed,
+            Err(cause) => {
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                ));
+            }
+        };
+        if let Err(cause) = validate_selection_changed_stage(
+            changed.stage(),
             &expected_selection,
             &previous_reference,
             &expected_identity,
-            CoreGeneration::new(terminal.generation),
-        )?;
+            terminal_generation,
+        ) {
+            return Err(SwitchError::recovery_required(
+                EngineSwitchFailurePhase::OldOwnerClosed,
+                cause,
+            ));
+        }
 
-        let binding = changed.reserve_new_owner(target_engine.clone()).await?;
-        validate_new_owner_reservation(binding.as_ref(), &expected_selection, &target_engine)?;
-
-        // Provider dispatch is deliberately after both the revision CAS and
-        // the durable new-owner admission reservation.
+        // Provider dispatch is after the revision CAS and before the durable
+        // new-owner admission, because the neutral reservation carries the
+        // exact candidate identity.
         let backend = match self.registry.backend(&target_engine) {
             Ok(backend) => backend,
-            Err(error) => {
-                binding.abort_before_core_application().await?;
-                return Err(error);
+            Err(cause) => {
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                ));
             }
         };
         let core_identity = match backend.process().core_identity() {
             Some(identity) => identity,
             None => {
-                binding.abort_before_core_application().await?;
-                return Err(PortError::Failed(
-                    "selected backend has no Core identity".to_owned(),
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    PortError::Failed("selected backend has no Core identity".to_owned()),
                 ));
             }
         };
         if core_identity.engine != target_engine || backend.engine_id() != &target_engine {
-            binding.abort_before_core_application().await?;
-            return Err(PortError::Failed(format!(
-                "selected profile engine {} does not match backend identity {}",
-                target_engine.as_str(),
-                core_identity.engine.as_str()
-            )));
+            return Err(SwitchError::recovery_required(
+                EngineSwitchFailurePhase::OldOwnerClosed,
+                PortError::Failed(format!(
+                    "selected profile engine {} does not match backend identity {}",
+                    target_engine.as_str(),
+                    core_identity.engine.as_str()
+                )),
+            ));
+        }
+        let binding = match changed
+            .reserve_new_owner(
+                target_engine.clone(),
+                core_identity.clone(),
+                CoreGeneration::new(0),
+            )
+            .await
+        {
+            Ok(binding) => binding,
+            Err(cause) => {
+                return Err(SwitchError::recovery_required(
+                    EngineSwitchFailurePhase::OldOwnerClosed,
+                    cause,
+                ));
+            }
+        };
+        if let Err(cause) =
+            validate_new_owner_reservation(binding.stage(), &expected_selection, &target_engine)
+        {
+            return Err(SwitchError::recovery_required(
+                EngineSwitchFailurePhase::OldOwnerClosed,
+                cause,
+            ));
         }
 
         // The backend exists but its application actor has not been built.
@@ -433,10 +668,64 @@ impl ActiveProfileBackendSelector {
             initial_generation: CoreGeneration::new(0),
             previous_owner: PreviousCoreDisposition::Stopped {
                 identity: expected_identity,
-                generation: CoreGeneration::new(terminal.generation),
+                generation: terminal_generation,
             },
             owner_admission: SelectedOwnerAdmission::SwitchReservation(binding),
             capability_provider: Arc::clone(&self.capabilities),
+            owner_store: Arc::clone(&self.references),
         })
     }
+
+    async fn before_reservation(
+        &self,
+        fallback: ActiveProfileReferenceState,
+        cause: PortError,
+    ) -> SwitchError {
+        match self.references.snapshot().await {
+            Ok(snapshot) => SwitchError::new(
+                EngineSwitchFailurePhase::BeforeReservation,
+                cause,
+                EngineSwitchDisposition::RolledBackToPrevious {
+                    selection: snapshot.selection,
+                },
+            ),
+            Err(_) => {
+                let _ = fallback;
+                SwitchError::recovery_required(EngineSwitchFailurePhase::BeforeReservation, cause)
+            }
+        }
+    }
+}
+
+/// Verify the caller's terminal receipt against the stage's exact owner fence
+/// and reject any state that is not the exact Stopped/no-session owner.
+fn verify_recovery_owner_terminal(
+    terminal: &CoreLifecycleSnapshot,
+    owner_identity: &CoreIdentity,
+    owner_generation: Option<CoreGeneration>,
+    recorded_terminal: Option<CoreGeneration>,
+) -> Result<CoreGeneration, PortError> {
+    let terminal_identity = terminal.identity.as_ref().ok_or_else(|| {
+        recovery_required("old Core owner terminal readback has no typed identity")
+    })?;
+    if !owner_identity.same_instance(terminal_identity)
+        || terminal.lifecycle != CoreLifecycle::Stopped
+        || terminal.session_token.is_some()
+    {
+        return Err(recovery_required(
+            "the previous Core owner has no exact Stopped/no-session terminal readback",
+        ));
+    }
+    let terminal_generation = CoreGeneration::new(terminal.generation);
+    if owner_generation.is_some_and(|owner_generation| terminal_generation < owner_generation) {
+        return Err(recovery_required(
+            "the previous Core owner terminal generation predates its binding",
+        ));
+    }
+    if recorded_terminal.is_some_and(|recorded| recorded != terminal_generation) {
+        return Err(recovery_required(
+            "the previous Core owner terminal generation differs from the durable switch",
+        ));
+    }
+    Ok(terminal_generation)
 }

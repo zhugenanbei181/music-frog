@@ -1,9 +1,15 @@
-//! Product-root active-reference and owner-switch port for engine stores.
+//! Product-root active-reference and owner-switch journal for engine stores.
 
+use crate::active_owner_lease::ActiveCoreOwnerLease;
+use crate::active_owner_registry::{LocalOwnerRegistrationState, local_owner_registration_matches};
+use crate::active_owner_switch::recovery::{
+    recover_candidate_after_terminal, recover_old_owner_after_terminal, recover_owner_switch,
+};
+use crate::active_owner_switch::stage_mapping::{active_reference_revision, switch_snapshot};
 use crate::active_profile_selection_lease::ActiveProfileSelectionLease;
 use crate::active_reference_cas::ActiveProfileReferenceTargetEvidence;
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::active_reference_owner::ActiveCoreOwnerState;
+use crate::active_reference_owner::{ActiveCoreOwnerState, transition_rejected};
 use crate::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
 use crate::reset_fence::{
     ActiveProfileResetMutationAccess, ensure_no_pending_reset_in_engine_namespaces,
@@ -11,18 +17,23 @@ use crate::reset_fence::{
 };
 use crate::store::EngineProfileStore;
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileOwnerStoppedSwitchLease, ActiveProfileOwnerSwitchLease,
-    ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerLease, ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
+    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
+use lurker_core_contract::capability::Capability;
+use lurker_core_contract::engine_switch::{
+    EngineSwitchRecovery, EngineSwitchRevision, EngineSwitchSnapshot,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
-use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::engine_switch::{
+    EngineOwnerStoppedSwitchLease, EngineOwnerSwitchLease, EngineSwitchJournal,
+};
 use lurker_core_ports::error::PortError;
 
 #[async_trait::async_trait]
@@ -113,6 +124,49 @@ impl<S: SecureStore> ActiveProfileReferenceStore for EngineProfileStore<S> {
         )))
     }
 
+    async fn adopt_finalized_owner(
+        &self,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
+        let config_root = self.config_root().to_path_buf();
+        let record = ActiveProfileReferenceFile::new(config_root.clone())
+            .read_active_profile_record_or_pending()
+            .await?;
+        let token = match &record.owner {
+            ActiveCoreOwnerState::Bound {
+                identity: bound_identity,
+                generation: bound_generation,
+                token,
+            } if bound_identity.same_instance(&identity) && *bound_generation == generation => {
+                token.clone()
+            }
+            _ => {
+                return Err(transition_rejected(
+                    "the finalized owner binding is not the persisted bound owner",
+                ));
+            }
+        };
+        if !local_owner_registration_matches(
+            &config_root,
+            &token,
+            &LocalOwnerRegistrationState::Bound {
+                identity: identity.clone(),
+                generation,
+            },
+        )? {
+            return Err(transition_rejected(
+                "this process does not hold the finalized owner kernel registration",
+            ));
+        }
+        Ok(Box::new(ActiveCoreOwnerLease::new(
+            identity,
+            generation,
+            token,
+            config_root,
+        )))
+    }
+
     async fn recover_bound_owner_after_terminal(
         &self,
         evidence: ActiveProfileOwnerRecoveryEvidence,
@@ -170,13 +224,44 @@ impl<S: SecureStore> ActiveProfileReferenceStore for EngineProfileStore<S> {
             )
             .await
     }
+}
+
+#[async_trait::async_trait]
+impl<S: SecureStore> EngineSwitchJournal for EngineProfileStore<S> {
+    type Selection = ActiveProfileReferenceState;
+
+    async fn snapshot(
+        &self,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+        let record = ActiveProfileReferenceFile::new(self.config_root().to_path_buf())
+            .read_active_profile_record_or_pending()
+            .await?;
+        switch_snapshot(&record)
+    }
+
+    /// Direct journal binding bypasses the product's selection lease, so it is
+    /// not an available operation for this store. The product always binds the
+    /// first owner through `ActiveProfileReferenceLease::into_owner_binding`.
+    async fn bind_owner(
+        &self,
+        _expected_revision: EngineSwitchRevision,
+        _selection: ActiveProfileReferenceState,
+        _identity: CoreIdentity,
+        _generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "direct engine-switch owner binding is unavailable; bind through the active-profile selection lease",
+        ))
+    }
 
     async fn begin_owner_switch(
         &self,
-        expected_revision: ActiveProfileReferenceRevision,
-        expected_owner: CoreIdentity,
-        expected_binding_generation: CoreGeneration,
-    ) -> Result<Box<dyn ActiveProfileOwnerSwitchLease>, PortError> {
+        expected_revision: EngineSwitchRevision,
+        previous: ActiveProfileReferenceState,
+        owner_identity: CoreIdentity,
+        owner_generation: CoreGeneration,
+    ) -> Result<Box<dyn EngineOwnerSwitchLease<ActiveProfileReferenceState>>, PortError> {
         let (config_root, root_guard) =
             ActiveProfileReferenceFile::new(self.config_root().to_path_buf())
                 .acquire_root_lock()
@@ -189,34 +274,45 @@ impl<S: SecureStore> ActiveProfileReferenceStore for EngineProfileStore<S> {
         ActiveProfileOwnerCoordinator::new(config_root)
             .begin_owner_switch_while_root_locked(
                 root_guard,
-                expected_revision,
-                expected_owner,
-                expected_binding_generation,
+                active_reference_revision(expected_revision),
+                previous,
+                owner_identity,
+                owner_generation,
             )
             .await
     }
 
-    async fn recover_owner_switch(&self) -> Result<ActiveProfileOwnerSwitchRecovery, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_owner_switch()
-            .await
+    async fn recover_owner_switch(
+        &self,
+        expected_revision: EngineSwitchRevision,
+    ) -> Result<EngineSwitchRecovery<ActiveProfileReferenceState>, PortError> {
+        recover_owner_switch(self.config_root().to_path_buf(), expected_revision).await
     }
 
     async fn recover_old_owner_after_terminal(
         &self,
-        terminal: &CoreLifecycleSnapshot,
-    ) -> Result<Box<dyn ActiveProfileOwnerStoppedSwitchLease>, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_old_owner_after_terminal(terminal)
-            .await
+        expected_revision: EngineSwitchRevision,
+        terminal_generation: CoreGeneration,
+    ) -> Result<Box<dyn EngineOwnerStoppedSwitchLease<ActiveProfileReferenceState>>, PortError>
+    {
+        recover_old_owner_after_terminal(
+            self.config_root().to_path_buf(),
+            expected_revision,
+            terminal_generation,
+        )
+        .await
     }
 
     async fn recover_candidate_after_terminal(
         &self,
-        terminal: &CoreLifecycleSnapshot,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_candidate_after_terminal(terminal)
-            .await
+        expected_revision: EngineSwitchRevision,
+        terminal_generation: CoreGeneration,
+    ) -> Result<EngineSwitchSnapshot<ActiveProfileReferenceState>, PortError> {
+        recover_candidate_after_terminal(
+            self.config_root().to_path_buf(),
+            expected_revision,
+            terminal_generation,
+        )
+        .await
     }
 }

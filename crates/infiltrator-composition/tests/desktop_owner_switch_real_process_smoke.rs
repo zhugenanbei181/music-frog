@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::active_profile_backend::SelectedActiveProfileBackend;
 use infiltrator_composition::active_profile_backend::{
-    ActiveProfileBackendSelector, ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner,
+    ActiveProfileBackendSelector, PreviousCoreOwner,
 };
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
@@ -12,9 +12,7 @@ use infiltrator_composition::singbox_engine_backend_provider::SingBoxEngineBacke
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::surface::HostKind;
-use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceStore,
-};
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
 use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
@@ -23,6 +21,9 @@ use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
+};
+use lurker_core_contract::engine_switch::{
+    EngineOwnerState, EngineSwitchFailurePhase, EngineSwitchStage,
 };
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -457,7 +458,7 @@ async fn run_owner_switch_smoke(
         ));
     }
     match first_switch {
-        Err(error) if error.phase() == ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed => {
+        Err(error) if error.phase == EngineSwitchFailurePhase::OldOwnerClosed => {
             if !error
                 .to_string()
                 .contains("injected one-time sing-box candidate dispatch failure")
@@ -486,12 +487,23 @@ async fn run_owner_switch_smoke(
     )
     .await?;
     match references
-        .recover_owner_switch()
+        .snapshot()
         .await
-        .map_err(|error| format!("read durable owner-switch recovery state: {error}"))?
+        .map_err(|error| format!("read durable owner-switch snapshot: {error}"))?
     {
-        ActiveProfileOwnerSwitchRecovery::NoPendingSwitch => {}
-        _ => return Err("failed candidate dispatch left an owner-switch journal pending".into()),
+        snapshot
+            if matches!(
+                snapshot.owner,
+                EngineOwnerState::Switching {
+                    stage: EngineSwitchStage::SelectionChanged { .. }
+                }
+            ) => {}
+        _ => {
+            return Err(
+                "failed candidate dispatch did not leave the resumable selection-changed journal"
+                    .into(),
+            );
+        }
     }
     let sing_box_selected = selector
         .resume_owner_switch_for_profile(target_sing_box, &sing_box_document, &mihomo_terminal)

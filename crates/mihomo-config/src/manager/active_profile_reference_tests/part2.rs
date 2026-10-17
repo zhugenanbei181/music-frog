@@ -295,32 +295,34 @@ async fn terminal_release_never_waits_for_the_root_selection_lock() {
 async fn owner_switch_requires_terminal_then_cas_and_candidate_binding() {
     let directory = TempDir::new().unwrap();
     let manager = manager(&directory);
+    let store = manager.engine_profile_store();
     let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
     let old_identity = identity(crate::engine_id().as_str(), "old-owner");
-    let owner = manager
-        .engine_profile_store()
+    let owner = store
         .acquire_provider_selection_lease()
         .await
         .unwrap()
         .into_owner_binding(old_identity.clone(), CoreGeneration::new(1))
         .await
         .unwrap();
-    let switch = manager
-        .engine_profile_store()
+    let previous_revision = EngineSwitchRevision::new(selected.revision().value());
+    store
         .begin_owner_switch(
-            selected.revision(),
+            previous_revision,
+            selected.clone(),
             old_identity.clone(),
             CoreGeneration::new(1),
         )
         .await
         .unwrap();
     assert!(matches!(
-        switch.state(),
-        ActiveProfileOwnerSwitchState::ClosingOld { .. }
+        store.snapshot().await.unwrap().owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::ClosingOld { .. }
+        }
     ));
 
-    let blocked_cas = manager
-        .engine_profile_store()
+    let blocked_cas = store
         .compare_and_set(
             selected.revision(),
             ActiveProfileReferenceTarget::selected(
@@ -332,75 +334,85 @@ async fn owner_switch_requires_terminal_then_cas_and_candidate_binding() {
         .await;
     assert!(matches!(blocked_cas, Err(PortError::Rejected(_))));
     assert!(matches!(
-        manager
-            .engine_profile_store()
-            .acquire_provider_selection_lease()
-            .await,
+        store.acquire_provider_selection_lease().await,
         Err(PortError::Rejected(_))
     ));
 
     let old_terminal = stopped_snapshot(old_identity.clone(), 1);
     owner.release_after_terminal(&old_terminal).await.unwrap();
-    let recovery = manager
-        .engine_profile_store()
-        .recover_owner_switch()
+    assert!(matches!(
+        store.recover_owner_switch(previous_revision).await.unwrap(),
+        EngineSwitchRecovery::ResumeClosingOld { .. }
+    ));
+    let old_stopped = store
+        .recover_old_owner_after_terminal(previous_revision, CoreGeneration::new(1))
         .await
         .unwrap();
-    let old_stopped = match recovery {
-        ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(lease) => lease,
-        _ => panic!("expected resumable OldStopped stage"),
-    };
     assert!(matches!(
-        old_stopped.state(),
-        ActiveProfileOwnerSwitchState::OldStopped {
-            terminal_generation,
-            ..
-        } if *terminal_generation == CoreGeneration::new(1)
+        store.snapshot().await.unwrap().owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::OldStopped {
+                terminal_generation,
+                ..
+            }
+        } if terminal_generation == CoreGeneration::new(1)
     ));
     let target_engine = EngineId::new("sing-box").unwrap();
+    let changed_selection = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+        target_engine.clone(),
+        ProfileId::new("default").unwrap(),
+        selected.revision().next().unwrap(),
+    ));
+    let changed_revision = EngineSwitchRevision::new(changed_selection.revision().value());
     let changed = old_stopped
-        .compare_and_set_target(ActiveProfileReferenceTarget::selected(
-            target_engine.clone(),
-            ProfileId::new("default").unwrap(),
-        ))
+        .compare_and_set_target(changed_selection.clone(), target_engine.clone())
         .await
         .unwrap();
     drop(changed);
-    let changed = match manager
-        .engine_profile_store()
-        .recover_owner_switch()
+    assert!(matches!(
+        store.recover_owner_switch(changed_revision).await.unwrap(),
+        EngineSwitchRecovery::ResumeSelectionChanged { .. }
+    ));
+    let changed = store
+        .recover_old_owner_after_terminal(changed_revision, CoreGeneration::new(1))
         .await
         .unwrap()
-    {
-        ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(lease) => lease,
-        _ => panic!("expected resumable ReferenceChanged stage"),
-    };
-    let candidate = changed
-        .reserve_new_owner(target_engine.clone())
+        .compare_and_set_target(changed_selection.clone(), target_engine.clone())
         .await
         .unwrap();
     let candidate_identity = identity(target_engine.as_str(), "new-owner");
-    let started_candidate_receipt = stopped_snapshot(candidate_identity.clone(), 1);
-    assert!(
-        candidate
-            .discard_unstarted_candidate(&started_candidate_receipt)
-            .await
-            .is_err()
-    );
-    let candidate = match manager
-        .engine_profile_store()
-        .recover_owner_switch()
+    let candidate = changed
+        .reserve_new_owner(
+            target_engine.clone(),
+            candidate_identity.clone(),
+            CoreGeneration::new(0),
+        )
         .await
-        .unwrap()
-    {
-        ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(lease) => lease,
-        _ => panic!("expected resumable BindingNew stage"),
-    };
-    let new_owner = candidate
+        .unwrap();
+    // A started candidate receipt is not the exact never-started terminal:
+    // candidate recovery must reject it and keep the durable reservation
+    // resumable.
+    assert!(matches!(
+        store
+            .recover_candidate_after_terminal(changed_revision, CoreGeneration::new(1))
+            .await,
+        Err(PortError::Rejected(_))
+    ));
+    assert!(matches!(
+        store.recover_owner_switch(changed_revision).await.unwrap(),
+        EngineSwitchRecovery::ResumeBindingNew { engine_id, .. } if engine_id == target_engine
+    ));
+    candidate
         .finalize(candidate_identity.clone(), CoreGeneration::new(0))
         .await
         .unwrap();
-    let committed = manager.engine_profile_store().read().await.unwrap();
+    // The neutral `finalize` returns only the engine-neutral owner fence; the
+    // product lease (with terminal release) is rehydrated through adoption.
+    let new_owner = store
+        .adopt_finalized_owner(candidate_identity.clone(), CoreGeneration::new(0))
+        .await
+        .unwrap();
+    let committed = store.read().await.unwrap();
     assert!(matches!(
         &committed,
         ActiveProfileReferenceState::Selected(reference)
@@ -418,28 +430,30 @@ async fn owner_switch_requires_terminal_then_cas_and_candidate_binding() {
 async fn crashed_closing_old_requires_explicit_terminal_evidence_and_can_resume() {
     let directory = TempDir::new().unwrap();
     let manager = manager(&directory);
+    let store = manager.engine_profile_store();
     let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
     let old_identity = identity(crate::engine_id().as_str(), "crashed-old-owner");
     let mut observed_identity = old_identity.clone();
     observed_identity.version = Some(CoreVersion::new("1.19.12").unwrap());
-    let owner = manager
-        .engine_profile_store()
+    let owner = store
         .acquire_provider_selection_lease()
         .await
         .unwrap()
         .into_owner_binding(old_identity.clone(), CoreGeneration::new(1))
         .await
         .unwrap();
-    let switch = manager
-        .engine_profile_store()
+    let previous_revision = EngineSwitchRevision::new(selected.revision().value());
+    // The reservation is durable; the returned lease holds no lock, so the
+    // simulated process death below only drops the owner's kernel guard.
+    store
         .begin_owner_switch(
-            selected.revision(),
+            previous_revision,
+            selected.clone(),
             observed_identity.clone(),
             CoreGeneration::new(1),
         )
         .await
         .unwrap();
-    drop(switch);
 
     // Simulate process death: release the kernel owner guard without
     // publishing terminal state. Recovery must ask the platform seam.
@@ -452,39 +466,64 @@ async fn crashed_closing_old_requires_explicit_terminal_evidence_and_can_resume(
     remove_local_owner_registration(&config_root, &owner_token).unwrap();
     drop(owner);
     assert!(matches!(
-        manager.engine_profile_store().recover_owner_switch().await.unwrap(),
-        ActiveProfileOwnerSwitchRecovery::OwnerTerminalEvidenceRequired {
-            identity,
-            bound_generation,
-        } if identity == old_identity && bound_generation == CoreGeneration::new(1)
+        store.recover_owner_switch(previous_revision).await.unwrap(),
+        EngineSwitchRecovery::ResumeClosingOld {
+            owner_identity,
+            owner_generation,
+            ..
+        } if owner_identity == old_identity && owner_generation == CoreGeneration::new(1)
+    ));
+    // A missing process-local owner lock is not terminal evidence: a terminal
+    // generation that predates the binding must be rejected instead of
+    // silently resuming the switch.
+    assert!(matches!(
+        store
+            .recover_old_owner_after_terminal(previous_revision, CoreGeneration::new(0))
+            .await,
+        Err(PortError::Rejected(_))
     ));
 
     let old_terminal = stopped_snapshot(observed_identity, 2);
-    let old_stopped = manager
-        .engine_profile_store()
-        .recover_old_owner_after_terminal(&old_terminal)
+    let old_stopped = store
+        .recover_old_owner_after_terminal(
+            previous_revision,
+            CoreGeneration::new(old_terminal.generation),
+        )
         .await
         .unwrap();
     assert!(matches!(
-        old_stopped.state(),
-        ActiveProfileOwnerSwitchState::OldStopped {
-            terminal_generation,
-            ..
-        } if *terminal_generation == CoreGeneration::new(2)
+        store.snapshot().await.unwrap().owner,
+        EngineOwnerState::Switching {
+            stage: EngineSwitchStage::OldStopped {
+                terminal_generation,
+                ..
+            }
+        } if terminal_generation == CoreGeneration::new(2)
     ));
     let target_engine = EngineId::new("sing-box").unwrap();
+    let next_revision = selected.revision().next().unwrap();
+    let changed_selection = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+        target_engine.clone(),
+        ProfileId::new("after-crash").unwrap(),
+        next_revision,
+    ));
     let changed = old_stopped
-        .compare_and_set_target(ActiveProfileReferenceTarget::selected(
-            target_engine.clone(),
-            ProfileId::new("after-crash").unwrap(),
-        ))
+        .compare_and_set_target(changed_selection, target_engine.clone())
         .await
         .unwrap();
     let candidate = changed
-        .reserve_new_owner(target_engine.clone())
+        .reserve_new_owner(
+            target_engine.clone(),
+            identity(target_engine.as_str(), "after-crash-candidate"),
+            CoreGeneration::new(0),
+        )
         .await
         .unwrap();
-    let selected_after_abort = candidate.abort_before_core_application().await.unwrap();
+    let selected_after_abort = candidate
+        .abort_before_core_application()
+        .await
+        .unwrap()
+        .selection;
     assert!(matches!(
         &selected_after_abort,
         ActiveProfileReferenceState::Selected(reference)
@@ -493,12 +532,11 @@ async fn crashed_closing_old_requires_explicit_terminal_evidence_and_can_resume(
                 && reference.revision.value() == 2
     ));
     assert!(matches!(
-        manager
-            .engine_profile_store()
-            .recover_owner_switch()
+        store
+            .recover_owner_switch(EngineSwitchRevision::new(next_revision.value()))
             .await
             .unwrap(),
-        ActiveProfileOwnerSwitchRecovery::NoPendingSwitch
+        EngineSwitchRecovery::NoPendingSwitch
     ));
 }
 

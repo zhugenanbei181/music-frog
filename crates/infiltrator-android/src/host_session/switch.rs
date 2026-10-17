@@ -24,7 +24,7 @@ use infiltrator_application::android_control_application::AndroidControlApplicat
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::active_profile_backend::{
-    ActiveProfileBackendSelector, ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner,
+    ActiveProfileBackendSelector, PreviousCoreOwner,
 };
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
@@ -45,6 +45,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
 };
+use lurker_core_contract::engine_switch::EngineSwitchFailurePhase;
 use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use lurker_core_ports::core_process::CoreReadiness;
 use lurker_core_ports::engine_backend::EngineBackendProvider;
@@ -214,15 +215,15 @@ async fn replace_shared_core_owner_for_profile(target: ActiveProfileReferenceTar
     {
         Ok(selected) => selected,
         Err(error) => {
-            let phase = error.phase();
-            let status = map_port_error(error.into_failure());
+            let phase = error.phase;
+            let status = map_port_error(error.cause);
             return match phase {
-                ActiveProfileBackendSwitchFailurePhase::BeforeReservation => {
+                EngineSwitchFailurePhase::BeforeReservation => {
                     restore_previous(&previous, status).await
                 }
-                ActiveProfileBackendSwitchFailurePhase::ReservationPending
-                | ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
-                | ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed => {
+                EngineSwitchFailurePhase::ReservationPending
+                | EngineSwitchFailurePhase::OwnerTerminationUnconfirmed
+                | EngineSwitchFailurePhase::OldOwnerClosed => {
                     require_owner_recovery(&previous, status).await
                 }
             };

@@ -13,6 +13,7 @@ use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::engine_switch::EngineOwnerLease;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use std::path::{Path, PathBuf};
@@ -264,5 +265,18 @@ fn release_owner_after_terminal(
         _ => Err(transition_rejected(
             "active Core owner lease is stale or no longer bound",
         )),
+    }
+}
+
+/// The neutral binding lease view of a live owner. Product release semantics
+/// stay on `ActiveProfileOwnerLease`; this only exposes the exact fence the
+/// neutral journal needs.
+impl EngineOwnerLease for ActiveCoreOwnerLease {
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> CoreGeneration {
+        self.generation
     }
 }
