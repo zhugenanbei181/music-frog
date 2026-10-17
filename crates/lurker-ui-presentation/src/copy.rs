@@ -31,7 +31,13 @@ pub fn interpolate(template: &str, pairs: &[(&str, &str)]) -> String {
 }
 
 /// Resolve placeholders through an arbitrary lookup; used for owned values.
-fn interpolate_with<'a>(template: &str, mut lookup: impl FnMut(&str) -> Option<&'a str>) -> String {
+///
+/// This is the single interpolation algorithm in the workspace: the product
+/// localizer delegates here instead of keeping a second copy.
+pub fn interpolate_with<'a>(
+    template: &str,
+    mut lookup: impl FnMut(&str) -> Option<&'a str>,
+) -> String {
     let mut output = String::with_capacity(template.len());
     let mut remaining = template;
     while let Some(start) = remaining.find('{') {

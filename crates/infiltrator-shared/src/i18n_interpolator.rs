@@ -1,4 +1,5 @@
 use crate::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy;
 use std::collections::HashMap;
 
 /// Render canonical copy once, leaving inserted values opaque.
@@ -20,25 +21,11 @@ pub fn interpolate(template: &str, pairs: &[(&str, &str)]) -> String {
 }
 
 /// Resolve placeholders in the template once; inserted user values remain opaque.
-fn interpolate_with<'a>(template: &str, mut lookup: impl FnMut(&str) -> Option<&'a str>) -> String {
-    let mut output = String::with_capacity(template.len());
-    let mut remaining = template;
-    while let Some(start) = remaining.find('{') {
-        output.push_str(&remaining[..start]);
-        let tail = &remaining[start + 1..];
-        let Some(end) = tail.find('}') else {
-            output.push_str(&remaining[start..]);
-            return output;
-        };
-        if let Some(value) = lookup(&tail[..end]) {
-            output.push_str(value);
-        } else {
-            output.push_str(&remaining[start..start + end + 2]);
-        }
-        remaining = &tail[end + 1..];
-    }
-    output.push_str(remaining);
-    output
+///
+/// Delegates to the neutral presentation kernel so the interpolation rules have
+/// exactly one implementation.
+fn interpolate_with<'a>(template: &str, lookup: impl FnMut(&str) -> Option<&'a str>) -> String {
+    copy::interpolate_with(template, lookup)
 }
 
 pub struct I18nInterpolator;

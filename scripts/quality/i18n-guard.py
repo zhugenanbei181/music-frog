@@ -28,6 +28,11 @@ PRODUCT_CATALOGS = {
 
 def ui_source_roots() -> list[pathlib.Path]:
     roots = []
+    # The neutral presentation kernel owns localization keys and must never
+    # embed product copy, but it is not a toolkit consumer, so scan it too.
+    neutral_presentation = ROOT / "crates/lurker-ui-presentation/src"
+    if neutral_presentation.is_dir():
+        roots.append(neutral_presentation)
     for manifest_path in sorted((ROOT / "crates").glob("*/Cargo.toml")):
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         dependency_names = set()

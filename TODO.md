@@ -78,16 +78,16 @@
 | 里程碑 | 主题 | 归属条目 | 出口标准 |
 | --- | --- | --- | --- |
 | **0.42.x**（当前） | 发布管道止血 | 现在佛 `BANDROID-018.2` `019.2` `038.2`；过去佛 `BANDROID-020.1` `024.1` | tag release 全绿（test gate + 5 构建腿 + publish）；Android APK 腿修复；三条 CI 回执归档 |
-| **0.43** | 中立内核 1.0-M1 | 现在佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 六个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime）各自 `cargo publish --dry-run` 通过，零产品私有依赖 |
+| **0.43** | 中立内核 1.0-M1 | 现在佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）各自 `cargo publish --dry-run` 通过，零产品私有依赖 |
 | **0.44** | UI 管道与合规基线 | 未来佛 `PUB-004.1`～`004.3`、`PUB-006.3` | 四大 UI 表面只经 `SurfaceReader`/`CommandSink`；许可证、per-crate 元数据、独立版本拓扑就绪 |
 | **0.5x** | 四套模板与脚手架 | 未来佛 `PUB-005.1`～`005.5` | `cargo generate` 生成任一单 UI 工程后可立即编译运行 |
 | **0.6x** | 发布自动化与文档 | 未来佛 `PUB-006.1` `006.2` `006.4` | crates.io dry-run 流水线、架构/选型/治理文档、docs.rs 预览全部就位 |
 | **0.9x（0.xx 收敛档）** | 产品收敛与设备取证 | 未来佛 `BANDROID-016.2` `016.3` `015.2` `039.1` `039.2` `APPID-001.3` `APPID-001.4` `BANDROID-044.1` `044.2` `044.4` `044.5`；过去佛全部 `[ARM64真机]` 项 | 签名/安装包/质量门齐备；设备证据闭环；性能基准达标；进入 RC 序列 |
-| **1.0.0** | 首次公开发布 | 未来佛 `PUB-006.5` + 产品全平台发布 | crates.io 六 crate + docs.rs 六页 + 产品安装包/APK 全部发布，回执绑定 tag |
+| **1.0.0** | 首次公开发布 | 未来佛 `PUB-006.5` + 产品全平台发布 | crates.io 七 crate + docs.rs 七页 + 产品安装包/APK 全部发布，回执绑定 tag |
 
 - **设备依赖**：过去佛 16 条 `[ARM64真机]` 项不受版本节奏阻塞；设备到位即在当前里程碑插入验证批次，最迟 0.9x 收口。
 - **外部依赖**：`BANDROID-039.1`（release keystore）、`015.2`、`039.2` 需用户提供 secrets；未提供时停留 0.9x 并跳过签名腿，不阻塞其余条目。
-- **不跳档承诺**：`0.43` 的六个中性 crate 是 1.0 的硬前置；`0.44`/`0.5x`/`0.6x` 依次建立发布与模板能力，`0.9x` 才做产品级收口。
+- **不跳档承诺**：`0.43` 的七个中性 crate 是 1.0 的硬前置；`0.44`/`0.5x`/`0.6x` 依次建立发布与模板能力，`0.9x` 才做产品级收口。
 
 ## 当前证据缺口（2026-10-17，B 模式：仅本地证据）
 
@@ -110,7 +110,7 @@
 | driver 装配 | — | 5 个 port trait 均有实现 | 无 `MihomoDriver`/`SingBoxDriver`，`EngineBackendBundle`/`Provider` 未实现，第三方仍需手写装配 |
 | 平台可替换性 | — | 纯中性 crate 零 per-OS 代码 | `lurker-profile-store` 有 45 处 `cfg(windows/unix)`/`libc`/`windows-sys` 且无 IO trait，"pure neutral" 声明不成立 |
 | 真进程测试 | 0 | 16 个 `#[ignore]` | 默认门禁从不执行 |
-| 可发布 crate 数 | — | 规划 6 个 | `lurker-ui-presentation` 使其变成 7，未经确认 |
+| 可发布 crate 数 | — | 已裁决为 7 个 | `lurker-ui-presentation` 是 0.50 模板前置；0.43/1.0 门禁与 PUB-006.5 已同步改为七 |
 | i18n 覆盖 | — | 产品侧有 guard | `lurker-ui-presentation` 不在扫描范围 |
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
