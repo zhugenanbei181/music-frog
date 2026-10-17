@@ -11,6 +11,7 @@ use lurker_core_ports::profile_document_codec::{
 use lurker_profile_store::file_lock::ProfileWriteGuard;
 use lurker_profile_store::layout::ProfileStoreLayout;
 use lurker_profile_store::namespace::ProfileNamespaceInitialization;
+use lurker_profile_store::platform::{NativeStorePlatform, StorePlatform};
 use lurker_profile_store::store::{ProfileDocumentExtension, ProfileStoreCore};
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -19,7 +20,7 @@ use std::sync::{Arc, RwLock};
 
 /// Product persistence owner for one engine namespace.
 ///
-/// The neutral [`ProfileStoreCore`] owns layout, state schema and document I/O;
+/// The portable [`ProfileStoreCore`] owns layout, state schema and document I/O;
 /// this facade adds the product credential store and the in-process apply
 /// observations that config managers expose to surfaces.
 pub struct EngineProfileStore<S: SecureStore> {
@@ -76,7 +77,33 @@ impl<S: SecureStore> EngineProfileStore<S> {
         credential_store: S,
         namespace_initialization: ProfileNamespaceInitialization,
     ) -> Result<Self, PortError> {
-        let core = ProfileStoreCore::new(
+        Self::with_platform(
+            engine_id,
+            config_root,
+            layout,
+            document_codec,
+            document_extension,
+            credential_store,
+            namespace_initialization,
+            Arc::new(NativeStorePlatform),
+        )
+    }
+
+    /// Construct a store over an explicit layout and platform. The native
+    /// platform is the default; tests and embedded hosts inject their own.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_platform(
+        engine_id: EngineId,
+        config_root: PathBuf,
+        layout: Arc<ProfileStoreLayout>,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+        credential_store: S,
+        namespace_initialization: ProfileNamespaceInitialization,
+        platform: Arc<dyn StorePlatform>,
+    ) -> Result<Self, PortError> {
+        let core = ProfileStoreCore::with_platform(
+            platform,
             engine_id,
             config_root,
             layout,
@@ -97,6 +124,11 @@ impl<S: SecureStore> EngineProfileStore<S> {
 
     pub fn layout(&self) -> &Arc<ProfileStoreLayout> {
         self.core.layout()
+    }
+
+    /// The filesystem and kernel-lock implementation behind this store.
+    pub fn platform(&self) -> &Arc<dyn StorePlatform> {
+        self.core.platform()
     }
 
     pub fn config_root(&self) -> &Path {

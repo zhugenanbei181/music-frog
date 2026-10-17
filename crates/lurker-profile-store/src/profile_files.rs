@@ -4,9 +4,14 @@
 //! The kernel owns opaque document bytes, their exact previous copy and the
 //! engine-scoped sidecar. Product-owned state that must be retired or removed
 //! together with a profile is injected through
-//! [`ProfileDeletionParticipant`]; the kernel never imports product code.
+//! [`ProfileDeletionParticipant`]; the kernel never imports product code. All
+//! bytes cross the store's [`crate::platform::StorePlatform`].
 
-use crate::document_store::{remove_optional, write_document_bytes_durable};
+use crate::document_store::{
+    read_optional_bytes_with_platform, read_required_bytes_with_platform,
+    remove_optional_with_platform, write_document_bytes_durable_with_platform,
+};
+use crate::platform::run_platform_io;
 use crate::store::ProfileStoreCore;
 use crate::workspace::selection_matches_profile;
 use async_trait::async_trait;
@@ -15,8 +20,6 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
-use std::io::ErrorKind;
-use tokio::fs;
 
 /// Product-owned side effects of deleting one engine profile.
 ///
@@ -66,9 +69,8 @@ impl ProfileStoreCore {
 
     pub async fn read_profile_document(&self, profile: &ProfileId) -> Result<String, PortError> {
         let path = self.existing_profile_document_path(profile).await?;
-        fs::read_to_string(path)
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))
+        let bytes = read_required_bytes_with_platform(self.platform(), &path).await?;
+        String::from_utf8(bytes).map_err(|error| PortError::Io(error.to_string()))
     }
 
     pub async fn read_profile_document_backup(
@@ -76,10 +78,16 @@ impl ProfileStoreCore {
         profile: &ProfileId,
     ) -> Result<Option<String>, PortError> {
         let path = self.profile_document_path(profile).await?;
-        match fs::read_to_string(self.layout().document_backup_path(&path)).await {
-            Ok(document) => Ok(Some(document)),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(PortError::Io(error.to_string())),
+        match read_optional_bytes_with_platform(
+            self.platform(),
+            &self.layout().document_backup_path(&path),
+        )
+        .await?
+        {
+            Some(bytes) => String::from_utf8(bytes)
+                .map(Some)
+                .map_err(|error| PortError::Io(error.to_string())),
+            None => Ok(None),
         }
     }
 
@@ -124,18 +132,18 @@ impl ProfileStoreCore {
     ) -> Result<(), PortError> {
         let path = self.profile_document_path(profile).await?;
         let backup = self.layout().document_backup_path(&path);
-        if fs::try_exists(&path)
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?
-        {
-            let previous = fs::read(&path)
-                .await
-                .map_err(|error| PortError::Io(error.to_string()))?;
-            write_document_bytes_durable(&backup, &previous).await?;
+        let exists_path = path.clone();
+        let exists = run_platform_io(self.platform(), move |platform| {
+            platform.exists(&exists_path)
+        })
+        .await?;
+        if exists {
+            let previous = read_required_bytes_with_platform(self.platform(), &path).await?;
+            write_document_bytes_durable_with_platform(self.platform(), &backup, &previous).await?;
         } else {
-            let _ = fs::remove_file(&backup).await;
+            let _ = remove_optional_with_platform(self.platform(), &backup).await;
         }
-        write_document_bytes_durable(&path, document).await
+        write_document_bytes_durable_with_platform(self.platform(), &path, document).await
     }
 
     /// Restore and validate the last saved document while caller-held fences
@@ -146,13 +154,12 @@ impl ProfileStoreCore {
     ) -> Result<bool, PortError> {
         let path = self.profile_document_path(profile).await?;
         let backup = self.layout().document_backup_path(&path);
-        let previous = match fs::read(&backup).await {
-            Ok(document) => document,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
-            Err(error) => return Err(PortError::Io(error.to_string())),
+        let Some(previous) = read_optional_bytes_with_platform(self.platform(), &backup).await?
+        else {
+            return Ok(false);
         };
         self.validate_document_bytes(&previous)?;
-        write_document_bytes_durable(&path, &previous).await?;
+        write_document_bytes_durable_with_platform(self.platform(), &path, &previous).await?;
         Ok(true)
     }
 
@@ -177,7 +184,8 @@ impl ProfileStoreCore {
         profile: &ProfileId,
     ) -> Result<(), PortError> {
         let path = self.profile_document_path(profile).await?;
-        remove_optional(&self.layout().document_backup_path(&path)).await
+        remove_optional_with_platform(self.platform(), &self.layout().document_backup_path(&path))
+            .await
     }
 
     pub async fn profile_document_has_backup(
@@ -185,9 +193,8 @@ impl ProfileStoreCore {
         profile: &ProfileId,
     ) -> Result<bool, PortError> {
         let path = self.profile_document_path(profile).await?;
-        fs::try_exists(self.layout().document_backup_path(&path))
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))
+        let backup = self.layout().document_backup_path(&path);
+        run_platform_io(self.platform(), move |platform| platform.exists(&backup)).await
     }
 
     /// Delete one inactive profile while the caller retains the exact
@@ -220,32 +227,44 @@ impl ProfileStoreCore {
         participant: &dyn ProfileDeletionParticipant,
     ) -> Result<(), PortError> {
         let path = self.existing_profile_document_path(profile).await?;
-        let previous_document = fs::read(&path)
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
+        let previous_document = read_required_bytes_with_platform(self.platform(), &path).await?;
         let sidecar_path = self
             .layout()
             .options_path(self.config_dir(), profile.as_str());
-        let previous_sidecar = match fs::read(&sidecar_path).await {
-            Ok(sidecar) => Some(sidecar),
-            Err(error) if error.kind() == ErrorKind::NotFound => None,
-            Err(error) => return Err(PortError::Io(error.to_string())),
-        };
+        let previous_sidecar =
+            read_optional_bytes_with_platform(self.platform(), &sidecar_path).await?;
         let rollback = participant.retire_for_deletion(profile).await?;
 
-        if let Err(error) = fs::remove_file(&path).await {
+        let document_path = path.clone();
+        if let Err(error) = run_platform_io(self.platform(), move |platform| {
+            platform.remove_file(&document_path)
+        })
+        .await
+        {
             if rollback.rollback().await.is_err() {
                 return Err(PortError::Failed(
                     "profile deletion failed and product state rollback was not confirmed".into(),
                 ));
             }
-            return Err(PortError::Io(error.to_string()));
+            return Err(error);
         }
 
-        if let Err(error) = remove_optional(&sidecar_path).await {
-            let document_restored = write_document_bytes_durable(&path, &previous_document).await;
+        if let Err(error) = remove_optional_with_platform(self.platform(), &sidecar_path).await {
+            let document_restored = write_document_bytes_durable_with_platform(
+                self.platform(),
+                &path,
+                &previous_document,
+            )
+            .await;
             let sidecar_restored = match previous_sidecar.as_deref() {
-                Some(sidecar) => write_document_bytes_durable(&sidecar_path, sidecar).await,
+                Some(sidecar) => {
+                    write_document_bytes_durable_with_platform(
+                        self.platform(),
+                        &sidecar_path,
+                        sidecar,
+                    )
+                    .await
+                }
                 None => Ok(()),
             };
             let product_restored = rollback.rollback().await;
@@ -258,7 +277,12 @@ impl ProfileStoreCore {
             return Err(error);
         }
 
-        if let Err(error) = remove_optional(&self.layout().document_backup_path(&path)).await {
+        if let Err(error) = remove_optional_with_platform(
+            self.platform(),
+            &self.layout().document_backup_path(&path),
+        )
+        .await
+        {
             log::warn!("deleted profile backup cleanup failed: {error}");
         }
         if let Err(error) = participant.complete_deletion(profile).await {

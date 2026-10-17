@@ -5,14 +5,17 @@ The product architecture is fixed: two backends (mihomo / sing-box) × every
 platform (Windows/Linux/macOS/Android/iOS) × every UI (Iced/Bevy/Slint/Compose).
 A neutral framework crate may describe the domain, but it must never depend on a
 product crate or a UI toolkit — and the pure layers must contain no OS-specific
-code either. Driver crates (`mihomo-driver`, `singbox-driver`) may own per-OS process
-code, but still may not pull in the product or a UI toolkit.
+code either. Portable kernels may own per-OS code, but only behind an explicit
+extension point, and still may not pull in the product, an engine adapter or a
+UI toolkit. Driver crates (`mihomo-driver`, `singbox-driver`) may own per-OS
+process code, but still may not pull in the product or a UI toolkit.
 """
 
 from __future__ import annotations
 
 import re
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -23,19 +26,33 @@ ROOT = Path(__file__).resolve().parents[2]
 PURE_NEUTRAL = (
     "lurker-core-contract",
     "lurker-core-ports",
-    "lurker-profile-store",
     "lurker-ui-presentation",
     "lurker-engine-runtime",
 )
+# Portable kernels: may own per-OS code behind a platform extension point
+# (`lurker_profile_store::platform::StorePlatform`), but stay product-, engine-
+# adapter- and UI-neutral.
+PORTABLE_KERNEL = ("lurker-profile-store",)
 # Engine drivers: may own per-OS process code, but stay product/UI neutral.
 DRIVERS = ("mihomo-driver", "singbox-driver")
-ALL_NEUTRAL = PURE_NEUTRAL + DRIVERS
+ALL_NEUTRAL = PURE_NEUTRAL + PORTABLE_KERNEL + DRIVERS
 
 UI_TOOLKIT = re.compile(
     r"\b(?:use\s+(?:bevy|iced|slint|winit|egui|zhuge_ui)\b"
     r"|(?:bevy|iced|slint|winit|egui|zhuge_ui)::)"
 )
-PLATFORM_CODE = re.compile(r"(?:std::os::|cfg\(\s*target_os|keyring::|dirs::)")
+# `cfg(unix)`, `cfg(windows)`, `cfg(target_os = ...)`, `cfg(any(unix, ...))`,
+# `cfg(not(windows))` and the raw FFI crates. Pure-neutral crates must never
+# grow OS code again.
+PLATFORM_CODE = re.compile(
+    r"(?:std::os::"
+    r"|libc::"
+    r"|windows_sys::"
+    r"|keyring::"
+    r"|dirs::"
+    r"|cfg\(\s*(?:[a-z_]+\(\s*)*(?:windows|unix|target_os|target_family)\b)"
+)
+UI_DEPENDENCIES = {"bevy", "iced", "slint", "winit", "egui", "zhuge-ui"}
 
 # Engine adapter crates are product-side. A driver owns the engine logic itself,
 # so depending back on an adapter crate would create a second implementation.
@@ -89,12 +106,18 @@ def check(root: Path = ROOT) -> list[str]:
         for dependency, spec in dependencies.items():
             if dependency.startswith("infiltrator-"):
                 problems.append(f"{name}: must not depend on product crate `{dependency}`")
-            if not isinstance(spec, dict):
-                continue
+            if dependency in UI_DEPENDENCIES:
+                problems.append(f"{name}: must not depend on UI toolkit `{dependency}`")
             if name in DRIVERS and dependency.startswith(ENGINE_ADAPTER_PREFIXES):
                 problems.append(
                     f"{name}: driver must not depend on engine adapter crate `{dependency}`"
                 )
+            if name in PORTABLE_KERNEL and dependency.startswith(ENGINE_ADAPTER_PREFIXES):
+                problems.append(
+                    f"{name}: portable kernel must not depend on engine adapter crate `{dependency}`"
+                )
+            if not isinstance(spec, dict):
+                continue
             if name in DRIVERS:
                 if dependency in TLS_DEPENDENCIES:
                     problems.append(
@@ -131,13 +154,92 @@ def check(root: Path = ROOT) -> list[str]:
     return problems
 
 
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _synthetic_check_self_test() -> None:
+    """Exercise `check()` itself on a throw-away tree."""
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        _write(root / "Cargo.toml", "[workspace]\n[workspace.dependencies]\n")
+        _write(
+            root / "crates/lurker-core-contract/Cargo.toml",
+            '[package]\nname = "lurker-core-contract"\nversion = "0.0.0"\n',
+        )
+        _write(
+            root / "crates/lurker-core-contract/src/lib.rs",
+            '#[cfg(unix)]\nfn native() {}\n',
+        )
+        _write(
+            root / "crates/lurker-profile-store/Cargo.toml",
+            '[package]\nname = "lurker-profile-store"\nversion = "0.0.0"\n'
+            "[dependencies]\nlibc = \"0.2\"\n",
+        )
+        _write(
+            root / "crates/lurker-profile-store/src/platform.rs",
+            "pub fn native() -> i32 { unsafe { libc::getpid() } }\n",
+        )
+        problems = check(root)
+        assert any(
+            "lurker-core-contract" in problem and "platform code" in problem
+            for problem in problems
+        ), problems
+        assert not [
+            problem for problem in problems if "lurker-profile-store" in problem
+        ], problems
+
+        _write(
+            root / "crates/lurker-profile-store/Cargo.toml",
+            '[package]\nname = "lurker-profile-store"\nversion = "0.0.0"\n'
+            "[dependencies]\ninfiltrator-ports = { path = \"../infiltrator-ports\" }\n",
+        )
+        assert any(
+            "portable kernel" not in problem
+            and "must not depend on product crate `infiltrator-ports`" in problem
+            for problem in check(root)
+        ), check(root)
+
+        _write(
+            root / "crates/lurker-profile-store/Cargo.toml",
+            '[package]\nname = "lurker-profile-store"\nversion = "0.0.0"\n'
+            "[dependencies]\nmihomo-driver = \"0\"\n",
+        )
+        assert any(
+            "portable kernel must not depend on engine adapter crate `mihomo-driver`"
+            in problem
+            for problem in check(root)
+        ), check(root)
+
+        _write(
+            root / "crates/lurker-profile-store/Cargo.toml",
+            '[package]\nname = "lurker-profile-store"\nversion = "0.0.0"\n'
+            "[dependencies]\niced = \"0.14\"\n",
+        )
+        assert any(
+            "must not depend on UI toolkit `iced`" in problem for problem in check(root)
+        ), check(root)
+
+
 def self_test() -> int:
     assert UI_TOOLKIT.search("use bevy::prelude::*;")
     assert UI_TOOLKIT.search("iced::widget::text")
     assert not UI_TOOLKIT.search("// the UI renders text")
     assert PLATFORM_CODE.search("use std::os::unix::fs::PermissionsExt;")
-    assert PLATFORM_CODE.search("#[cfg(target_os = \"android\")]")
+    assert PLATFORM_CODE.search('#[cfg(target_os = "android")]')
+    assert PLATFORM_CODE.search('#[cfg(target_family = "wasm")]')
+    assert PLATFORM_CODE.search("#[cfg(windows)]")
+    assert PLATFORM_CODE.search("#[cfg(unix)]")
+    assert PLATFORM_CODE.search("#[cfg(any(unix, windows))]")
+    assert PLATFORM_CODE.search("#[cfg(not(windows))]")
+    assert PLATFORM_CODE.search("#[cfg(all(unix, target_os = \"linux\"))]")
+    assert PLATFORM_CODE.search("use libc::flock;")
+    assert PLATFORM_CODE.search("libc::close(descriptor);")
+    assert PLATFORM_CODE.search("windows_sys::Win32::Foundation::CloseHandle(handle);")
     assert not PLATFORM_CODE.search("cfg(test)")
+    assert not PLATFORM_CODE.search('#[cfg(feature = "serde")]')
+    assert not PLATFORM_CODE.search("#[cfg(target_pointer_width = \"64\")]")
     assert ENGINE_ADAPTER_IMPORT.search("mihomo_api::client::Client")
     assert ENGINE_ADAPTER_IMPORT.search("singbox_config::model::Options")
     assert not ENGINE_ADAPTER_IMPORT.search("mihomo_driver::api::Client")
@@ -145,6 +247,7 @@ def self_test() -> int:
     merged = effective_features("tokio-tungstenite", {"workspace": True, "features": ["connect"]}, workspace)
     assert "native-tls" in merged and "connect" in merged
     assert any("tls" in feature for feature in merged)
+    _synthetic_check_self_test()
     print("lurker neutrality guard self-test: PASS")
     return 0
 

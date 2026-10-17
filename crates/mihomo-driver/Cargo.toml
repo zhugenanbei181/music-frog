@@ -9,7 +9,9 @@ repository = "https://github.com/zhugenanbei181/music-frog"
 [features]
 # HTTP-only builds may omit process supervision entirely (for example the
 # Android host, which owns its own VPN service process).
-default = ["http", "process", "codec"]
+default = ["http", "process", "codec", "backend"]
+# Ready-made `EngineBackendProvider<EngineBackendPorts>` assembly.
+backend = ["http", "process", "codec"]
 http = ["dep:tokio-tungstenite"]
 process = ["dep:sysinfo", "dep:libc", "dep:windows-sys"]
 # Native YAML codec plus the native `-t` dry-run hook. The hook drives the

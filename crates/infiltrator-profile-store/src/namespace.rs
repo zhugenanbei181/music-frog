@@ -13,10 +13,11 @@ use lurker_core_contract::profile_name::validate_profile_name;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::namespace::{
     LegacyProfileNamespaceMigrationV1, PROFILE_NAMESPACE_SCHEMA_KEY,
-    ProfileNamespaceInitialization, ProfileNamespaceSchema, has_legacy_profile_data,
-    initialize_engine_scoped_namespace_unlocked, merge_profile_state, migrate_legacy_profile_files,
-    read_profile_state, retire_legacy_sync_index, write_legacy_settings,
-    write_profile_state_atomically,
+    ProfileNamespaceInitialization, ProfileNamespaceSchema, has_legacy_profile_data_with_platform,
+    initialize_engine_scoped_namespace_unlocked_with_platform, merge_profile_state,
+    migrate_legacy_profile_files_with_platform, read_profile_state_with_platform,
+    retire_legacy_sync_index_with_platform, write_legacy_settings_with_platform,
+    write_profile_state_atomically_with_platform,
 };
 use std::future::Future;
 use std::io;
@@ -38,7 +39,8 @@ impl<S: SecureStore> EngineProfileStore<S> {
             let _fence = acquire_fence().await?;
             match self.namespace_initialization() {
                 ProfileNamespaceInitialization::EngineScoped => {
-                    initialize_engine_scoped_namespace_unlocked(
+                    initialize_engine_scoped_namespace_unlocked_with_platform(
+                        self.platform(),
                         self.layout(),
                         self.config_dir(),
                         self.settings_file(),
@@ -56,7 +58,13 @@ impl<S: SecureStore> EngineProfileStore<S> {
     pub async fn reset_engine_scoped_namespace_marker_unlocked(&self) -> Result<(), PortError> {
         let mut state = toml::Value::Table(Map::new());
         ProfileNamespaceSchema::write_engine_scoped_v1(&mut state)?;
-        write_profile_state_atomically(self.layout(), self.settings_file(), &state).await
+        write_profile_state_atomically_with_platform(
+            self.platform(),
+            self.layout(),
+            self.settings_file(),
+            &state,
+        )
+        .await
     }
 }
 
@@ -65,33 +73,51 @@ async fn initialize_legacy_namespace_v1_unlocked<S: SecureStore>(
     migration: &LegacyProfileNamespaceMigrationV1,
 ) -> Result<(), PortError> {
     migration.validate()?;
-    let mut scoped_state = read_profile_state(store.layout(), store.settings_file()).await?;
+    let mut scoped_state =
+        read_profile_state_with_platform(store.platform(), store.layout(), store.settings_file())
+            .await?;
     let schema = ProfileNamespaceSchema::parse(scoped_state.get(PROFILE_NAMESPACE_SCHEMA_KEY))?;
     match schema {
         ProfileNamespaceSchema::EngineScopedV1 => {
-            migrate_legacy_profile_files(
+            migrate_legacy_profile_files_with_platform(
+                store.platform(),
                 store.config_root(),
                 store.config_dir(),
                 store.document_extension(),
                 migration,
             )
             .await?;
-            let mut legacy_state =
-                read_profile_state(store.layout(), migration.settings_file()).await?;
+            let mut legacy_state = read_profile_state_with_platform(
+                store.platform(),
+                store.layout(),
+                migration.settings_file(),
+            )
+            .await?;
             let previous_legacy_state = legacy_state.clone();
             let mut retired = toml::Value::Table(Map::new());
             merge_profile_state(&mut retired, &mut legacy_state)?;
             if legacy_state != previous_legacy_state {
-                write_legacy_settings(store.layout(), migration.settings_file(), &legacy_state)
-                    .await?;
+                write_legacy_settings_with_platform(
+                    store.platform(),
+                    store.layout(),
+                    migration.settings_file(),
+                    &legacy_state,
+                )
+                .await?;
             }
-            retire_legacy_sync_index(store.config_root(), migration).await?;
+            retire_legacy_sync_index_with_platform(
+                store.platform(),
+                store.config_root(),
+                migration,
+            )
+            .await?;
             return Ok(());
         }
         ProfileNamespaceSchema::LegacyShared => {}
     }
 
-    if !has_legacy_profile_data(
+    if !has_legacy_profile_data_with_platform(
+        store.platform(),
         store.layout(),
         store.config_root(),
         store.settings_file(),
@@ -105,23 +131,41 @@ async fn initialize_legacy_namespace_v1_unlocked<S: SecureStore>(
     fs::create_dir_all(store.config_dir())
         .await
         .map_err(map_io_error)?;
-    migrate_legacy_profile_files(
+    migrate_legacy_profile_files_with_platform(
+        store.platform(),
         store.config_root(),
         store.config_dir(),
         store.document_extension(),
         migration,
     )
     .await?;
-    let mut legacy_state = read_profile_state(store.layout(), migration.settings_file()).await?;
+    let mut legacy_state = read_profile_state_with_platform(
+        store.platform(),
+        store.layout(),
+        migration.settings_file(),
+    )
+    .await?;
     let previous_legacy_state = legacy_state.clone();
     merge_profile_state(&mut scoped_state, &mut legacy_state)?;
     migrate_legacy_credentials(store, &mut scoped_state).await?;
     ProfileNamespaceSchema::write_engine_scoped_v1(&mut scoped_state)?;
-    write_profile_state_atomically(store.layout(), store.settings_file(), &scoped_state).await?;
+    write_profile_state_atomically_with_platform(
+        store.platform(),
+        store.layout(),
+        store.settings_file(),
+        &scoped_state,
+    )
+    .await?;
     if legacy_state != previous_legacy_state {
-        write_legacy_settings(store.layout(), migration.settings_file(), &legacy_state).await?;
+        write_legacy_settings_with_platform(
+            store.platform(),
+            store.layout(),
+            migration.settings_file(),
+            &legacy_state,
+        )
+        .await?;
     }
-    retire_legacy_sync_index(store.config_root(), migration).await
+    retire_legacy_sync_index_with_platform(store.platform(), store.config_root(), migration).await
 }
 
 /// Rewrite every legacy subscription key into the engine-scoped namespace.

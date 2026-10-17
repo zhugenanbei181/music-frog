@@ -6,7 +6,10 @@
 //! revision and write protection. Product crates project it into their own port
 //! DTOs without adding business rules there.
 
-use crate::document_store::{remove_optional, write_document_bytes_durable};
+use crate::document_store::{
+    remove_optional_with_platform, write_document_bytes_durable_with_platform,
+};
+use crate::platform::{StorePlatform, native_platform};
 use async_trait::async_trait;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
@@ -23,6 +26,7 @@ use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use sha2::{Digest, Sha256};
 use std::future::Future;
 use std::path::Path;
+use std::sync::Arc;
 
 /// One coherent document and sidecar snapshot owned by the kernel.
 #[derive(Clone, Debug, PartialEq)]
@@ -215,12 +219,31 @@ pub async fn publish_document_pair(
     proposed: Option<&[u8]>,
     document_publication: impl Future<Output = Result<(), PortError>>,
 ) -> Result<(), PortError> {
+    let platform = native_platform();
+    publish_document_pair_with_platform(
+        &platform,
+        sidecar,
+        previous,
+        proposed,
+        document_publication,
+    )
+    .await
+}
+
+/// [`publish_document_pair`] through an injected platform.
+pub async fn publish_document_pair_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    sidecar: &Path,
+    previous: Option<&[u8]>,
+    proposed: Option<&[u8]>,
+    document_publication: impl Future<Output = Result<(), PortError>>,
+) -> Result<(), PortError> {
     if previous == proposed {
         return document_publication.await;
     }
-    publish_sidecar(sidecar, proposed).await?;
+    publish_sidecar(platform, sidecar, proposed).await?;
     if let Err(cause) = document_publication.await {
-        if let Err(rollback) = publish_sidecar(sidecar, previous).await {
+        if let Err(rollback) = publish_sidecar(platform, sidecar, previous).await {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::InvalidState,
                 format!(
@@ -255,10 +278,14 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
-async fn publish_sidecar(path: &Path, bytes: Option<&[u8]>) -> Result<(), PortError> {
+async fn publish_sidecar(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+    bytes: Option<&[u8]>,
+) -> Result<(), PortError> {
     match bytes {
-        Some(bytes) => write_document_bytes_durable(path, bytes).await,
-        None => remove_optional(path).await,
+        Some(bytes) => write_document_bytes_durable_with_platform(platform, path, bytes).await,
+        None => remove_optional_with_platform(platform, path).await,
     }
 }
 

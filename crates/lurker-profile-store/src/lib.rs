@@ -4,7 +4,7 @@
     clippy::collapsible_if,
     clippy::items_after_test_module
 )]
-//! Engine-neutral profile-store kernel.
+//! Portable profile-store kernel.
 //!
 //! This crate owns the persistence machinery that is identical for every
 //! backend, platform and UI: the on-disk layout description, durable atomic
@@ -14,6 +14,12 @@
 //! literal or UI dependency; product crates inject those through
 //! [`layout::ProfileStoreLayout`], [`profile_files::ProfileDeletionParticipant`],
 //! [`workspace::ProfileSourceFacts`] and their own secure stores.
+//!
+//! Platform code is not part of the portable logic: every filesystem and
+//! kernel-lock primitive is expressed by [`platform::StorePlatform`], and
+//! [`platform::NativeStorePlatform`] is the only implementation that contains
+//! per-OS code. Hosts and tests substitute their own platform through
+//! [`store::ProfileStoreCore::with_platform`].
 
 pub mod document_path;
 pub mod document_store;
@@ -22,12 +28,12 @@ pub mod file_lock;
 pub mod instance_lock;
 pub mod layout;
 pub mod namespace;
+pub mod platform;
 pub mod profile_files;
 pub mod settings;
 pub mod store;
 #[cfg(test)]
 mod test_core;
-#[cfg(any(windows, test))]
 pub mod wide;
 pub mod workspace;
 pub mod workspace_store;

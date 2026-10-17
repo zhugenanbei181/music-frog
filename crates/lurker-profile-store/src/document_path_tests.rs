@@ -3,7 +3,9 @@ use crate::store::ProfileDocumentExtension;
 use crate::test_core::{FIXTURE_ENGINE, TestCore};
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
+#[cfg(unix)]
 use std::fs::write;
+#[cfg(unix)]
 use tokio::fs::symlink;
 
 #[tokio::test]
@@ -72,6 +74,7 @@ async fn document_paths_reject_relative_segments_before_access() {
     );
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn existing_document_path_reports_missing_document_and_rejects_escape_symlink() {
     let fixture = TestCore::new(ProfileDocumentExtension::Yaml);

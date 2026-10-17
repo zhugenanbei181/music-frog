@@ -7,7 +7,9 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
 [features]
-default = ["http", "process", "codec"]
+default = ["http", "process", "codec", "backend"]
+# Ready-made `EngineBackendProvider<EngineBackendPorts>` assembly.
+backend = ["http", "process", "codec"]
 # Clash API transport, controller preflight, readiness, routing intent and
 # outbound inventory/selection.
 http = ["dep:reqwest", "dep:url", "dep:serde", "dep:serde_json"]

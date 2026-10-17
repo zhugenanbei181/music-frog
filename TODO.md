@@ -58,16 +58,16 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v213`）
+## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v214`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 9 | 18 |
+| 现在佛 | 7 | 14 |
 | 过去佛 | 23 | 60 |
 | 未来佛 | 24 | 47 |
-| **未办结联合分母** | **56** | **125** |
+| **未办结联合分母** | **54** | **121** |
 
-- **严格交付率：638 / 763 = 83.6%**（archived 638pt / archived + 未办结 125pt；PUB-002 五条因验收未达成已退回过去佛）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：642 / 763 = 84.1%**（archived 642pt / archived + 未办结 121pt；PUB-002 五条因验收未达成已退回过去佛）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -107,18 +107,20 @@
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
 | 引擎能力证据 | L | mihomo x86_64-linux adapter rev2；sing-box 手工 Linux smoke | 无跨平台、无 CI 复现 |
 | PUB-002 验收 | L（部分） | 实现与本地测试在工作区 | 真实二进制、独立工程、`publish --dry-run` 未达成；五条已退回过去佛 |
-| driver 装配 | — | 5 个 port trait 均有实现 | 无 `MihomoDriver`/`SingBoxDriver`，`EngineBackendBundle`/`Provider` 未实现，第三方仍需手写装配 |
-| 平台可替换性 | — | 纯中性 crate 零 per-OS 代码 | `lurker-profile-store` 有 45 处 `cfg(windows/unix)`/`libc`/`windows-sys` 且无 IO trait，"pure neutral" 声明不成立 |
-| 真进程测试 | 0 | 16 个 `#[ignore]` | 默认门禁从不执行 |
+| driver 装配 | **已解决** | 两个 driver 均实现 `EngineBackendProvider<EngineBackendPorts>`，第三方零装配胶水 | 仅缺真实二进制回执 |
+| 平台可替换性 | **已解决** | `StorePlatform` + `NativeStorePlatform`，per-OS 原语全部在实现后面；`PORTABLE_KERNEL` 分层诚实 | 新平台需实现该 trait |
+| 真进程测试 | 0 执行 | harness 已加到两个 driver（2 个 `#[ignore]`，显式 env 契约） | 仍缺真实二进制回执；默认门禁保持 hermetic |
 | 可发布 crate 数 | — | 已裁决为 7 个 | `lurker-ui-presentation` 是 0.50 模板前置；0.43/1.0 门禁与 PUB-006.5 已同步改为七 |
 | i18n 覆盖 | — | 产品侧有 guard | `lurker-ui-presentation` 不在扫描范围 |
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
-### 已归档交付原子条目（明细 239 条 / 637 pt；累计 240 条 / 638 pt）
+### 已归档交付原子条目（明细 241 条 / 641 pt；累计 242 条 / 642 pt）
 | 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
+| `PUB-001.3.1` 存储平台 trait 化 | 2 | `StorePlatform` + `NativeStorePlatform`：全部 `cfg(unix/windows)`/`libc`/`windows-sys` 原语进入可注入实现；`ProfileStoreCore`/`EngineProfileStore` 公开 API 不变；RecordingPlatform 证明文档写入与写锁经过注入平台；门禁新增 `PORTABLE_KERNEL` 层并检测 `cfg(any/not(windows/unix))`、`libc::`、`windows_sys::`。 |
+| `PUB-003.1.1` driver backend provider | 2 | 两个 driver 各提供 `<Engine>BackendOptions` 与 `<Engine>EngineBackendProvider<EngineBackendPorts>`；内部装配 client/process/readiness/codec/未绑定 scope/outbound/routing；`backend` feature 可裁剪；8 个新测试（engine 一致、operations Available、scope 绑定前后、typed 参数错误）。 |
 | `PUB-003.1` 引擎注册器与中性 backend 契约 | 3 | `lurker-engine-runtime::registry::EngineBackendProviderRegistry<B>`（未注册引擎 typed Unsupported 且零 provider 调用、bundle engine 不符拒绝、重复注册/未知注销 typed 错误）；`EngineBackendBundle`/`Provider`/`EngineBackendPorts` 下沉 `lurker-core-ports`，产品 bundle 留 `infiltrator-ports`。本地 95 nextest、四包 clippy 0、全仓 5143/5143。 |
 | `PUB-001.1` 中立契约 `lurker-core-contract` | 2 | `cargo publish --dry-run -p lurker-core-contract` 通过（25 文件 / 133.6KiB 打包并校验）；637 个消费文件迁移，无 re-export 中转；中立性门禁证明零产品/UI/OS 私有符号；全量 5082/5082 nextest、`clippy -D warnings`、结构门全绿。 |
 | `PUB-001.2` 中立端口 `lurker-core-ports` 与 codec 拆分 | 2 | 中性 `PortError`/`CoreProcess`/`CoreReadiness`/`OutboundPort`/`RoutingIntentPort`/`ProfileDocumentCodecPort`；`ProfileConfigurationCodecPort` 作产品扩展；连带 `Capability`/`CoreLifecycle`/`DocumentValidation`/`ProfileFormatId` 入中立契约；536 文件迁移；contract 打包通过、ports 打包待 contract 上架（发布顺序门）；5082/5082 nextest 全绿。 |

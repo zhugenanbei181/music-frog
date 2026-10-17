@@ -1,15 +1,18 @@
 //! Durable whole-document and sidecar operations shared by engine stores.
+//!
+//! Every byte-level operation is delegated to the store's
+//! [`StorePlatform`]; the free functions in this module are the native default
+//! used by callers that do not own a platform handle.
 
-use crate::durable_replace::{DurableReplaceError, remove_durable, replace_durable};
+use crate::durable_replace::DurableReplaceError;
+use crate::platform::{
+    NativeStorePlatform, StorePlatform, map_io_error, native_platform, run_platform_io,
+    run_platform_replace,
+};
 use lurker_core_ports::error::PortError;
-use std::io::{Error, ErrorKind, Write};
-use std::path::{Path, PathBuf};
-use std::process::id;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs::{OpenOptions, create_dir_all, read, remove_file};
-use tokio::io::AsyncWriteExt;
+use std::path::Path;
+use std::sync::Arc;
 
-static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 const DURABILITY_UNCERTAIN_PREFIX: &str =
     "document replacement succeeded but directory durability is uncertain";
 const REMOVAL_DURABILITY_UNCERTAIN_PREFIX: &str =
@@ -17,18 +20,18 @@ const REMOVAL_DURABILITY_UNCERTAIN_PREFIX: &str =
 pub const RECORD_DURABILITY_UNCERTAIN_PREFIX: &str =
     "record rename succeeded but directory durability is uncertain";
 
-struct TemporaryDocumentCleanup(PathBuf);
-
-impl Drop for TemporaryDocumentCleanup {
-    fn drop(&mut self) {
-        use std::fs;
-        let _ = fs::remove_file(&self.0);
-    }
-}
-
 /// Missing files alone are represented as `None`; permission and I/O errors stay explicit.
 pub async fn read_optional(path: &Path) -> Result<Option<String>, PortError> {
-    let Some(bytes) = read_optional_bytes(path).await? else {
+    let platform = native_platform();
+    read_optional_with_platform(&platform, path).await
+}
+
+/// [`read_optional`] through an injected platform.
+pub async fn read_optional_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+) -> Result<Option<String>, PortError> {
+    let Some(bytes) = read_optional_bytes_with_platform(platform, path).await? else {
         return Ok(None);
     };
     String::from_utf8(bytes)
@@ -38,27 +41,50 @@ pub async fn read_optional(path: &Path) -> Result<Option<String>, PortError> {
 
 /// Read the exact persisted bytes without interpreting their engine format.
 pub async fn read_optional_bytes(path: &Path) -> Result<Option<Vec<u8>>, PortError> {
-    match read(path).await {
-        Ok(bytes) => Ok(Some(bytes)),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(io_error(error)),
-    }
+    let platform = native_platform();
+    read_optional_bytes_with_platform(&platform, path).await
+}
+
+/// [`read_optional_bytes`] through an injected platform.
+pub async fn read_optional_bytes_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+) -> Result<Option<Vec<u8>>, PortError> {
+    let path = path.to_path_buf();
+    run_platform_io(platform, move |platform| platform.read(&path)).await
+}
+
+/// Read bytes that must already exist; a missing file is `PortError::Io` so
+/// callers keep the historical retryable storage classification.
+pub async fn read_required_bytes_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+) -> Result<Vec<u8>, PortError> {
+    read_optional_bytes_with_platform(platform, path)
+        .await?
+        .ok_or_else(|| PortError::Io("profile document is missing".into()))
 }
 
 /// Remove an optional document. A missing file is already the requested state.
 pub async fn remove_optional(path: &Path) -> Result<(), PortError> {
-    match remove_file(path).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(io_error(error)),
-    }
+    let platform = native_platform();
+    remove_optional_with_platform(&platform, path).await
+}
+
+/// [`remove_optional`] through an injected platform.
+pub async fn remove_optional_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+) -> Result<(), PortError> {
+    let path = path.to_path_buf();
+    run_platform_io(platform, move |platform| platform.remove_file(&path)).await
 }
 
 /// Remove an optional document and durably publish the directory change.
 pub fn remove_optional_durable(path: &Path) -> Result<(), PortError> {
-    match remove_durable(path) {
+    match NativeStorePlatform.remove_file_durable(path) {
         Ok(()) => Ok(()),
-        Err(DurableReplaceError::NotCommitted(error)) => Err(io_error(error)),
+        Err(DurableReplaceError::NotCommitted(error)) => Err(map_io_error(error)),
         Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(
             "{REMOVAL_DURABILITY_UNCERTAIN_PREFIX}: {error}"
         ))),
@@ -70,54 +96,50 @@ pub async fn write_document(path: &Path, text: &str) -> Result<(), PortError> {
     write_document_bytes(path, text.as_bytes()).await
 }
 
+/// [`write_document`] through an injected platform.
+pub async fn write_document_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+    text: &str,
+) -> Result<(), PortError> {
+    write_document_bytes_with_platform(platform, path, text.as_bytes()).await
+}
+
 /// Replace opaque document bytes through a fully flushed same-directory temporary.
 pub async fn write_document_bytes(path: &Path, content: &[u8]) -> Result<(), PortError> {
     write_document_bytes_durable(path, content).await
 }
 
+/// [`write_document_bytes`] through an injected platform.
+pub async fn write_document_bytes_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+    content: &[u8],
+) -> Result<(), PortError> {
+    write_document_bytes_durable_with_platform(platform, path, content).await
+}
+
 /// Flush a staged file and use the platform's durable atomic replacement.
 pub async fn write_document_bytes_durable(path: &Path, content: &[u8]) -> Result<(), PortError> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| PortError::Io("document path has no parent".into()))?;
-    create_dir_all(parent).await.map_err(io_error)?;
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| PortError::Io("document path has no filename".into()))?;
-    let (temporary, mut file) = loop {
-        let sequence = NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed);
-        let temporary = parent.join(format!(".{name}.tmp-{}-{sequence}", id()));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)
-            .await
-        {
-            Ok(file) => break (temporary, file),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(io_error(error)),
-        }
-    };
-    let _temporary_cleanup = TemporaryDocumentCleanup(temporary.clone());
-    let staged = async {
-        file.write_all(content).await?;
-        file.sync_all().await?;
-        Ok::<(), Error>(())
-    }
-    .await;
-    drop(file);
-    if let Err(error) = staged {
-        let _ = remove_file(&temporary).await;
-        return Err(io_error(error));
-    }
+    let platform = native_platform();
+    write_document_bytes_durable_with_platform(&platform, path, content).await
+}
 
-    match replace_durable(&temporary, path) {
+/// [`write_document_bytes_durable`] through an injected platform.
+pub async fn write_document_bytes_durable_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    path: &Path,
+    content: &[u8],
+) -> Result<(), PortError> {
+    let path = path.to_path_buf();
+    let content = content.to_vec();
+    match run_platform_replace(platform, move |platform| {
+        platform.write_atomic(&path, &content)
+    })
+    .await
+    {
         Ok(()) => Ok(()),
-        Err(DurableReplaceError::NotCommitted(error)) => {
-            let _ = remove_file(&temporary).await;
-            Err(io_error(error))
-        }
+        Err(DurableReplaceError::NotCommitted(error)) => Err(map_io_error(error)),
         Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(
             "{DURABILITY_UNCERTAIN_PREFIX}: {error}"
         ))),
@@ -127,52 +149,12 @@ pub async fn write_document_bytes_durable(path: &Path, content: &[u8]) -> Result
 /// Synchronous equivalent for product-owner protocols that hold blocking OS
 /// locks across their complete read/modify/write transition.
 pub fn write_document_bytes_durable_sync(path: &Path, content: &[u8]) -> Result<(), PortError> {
-    use std::fs::{self, OpenOptions};
-
-    let parent = path
-        .parent()
-        .ok_or_else(|| PortError::Io("document path has no parent".into()))?;
-    fs::create_dir_all(parent).map_err(io_error)?;
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| PortError::Io("document path has no filename".into()))?;
-    let (temporary, mut file) = loop {
-        let sequence = NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed);
-        let temporary = parent.join(format!(".{name}.tmp-{}-{sequence}", id()));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)
-        {
-            Ok(file) => break (temporary, file),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(io_error(error)),
-        }
-    };
-    let staged = file.write_all(content).and_then(|()| file.sync_all());
-    drop(file);
-    if let Err(error) = staged {
-        let _ = fs::remove_file(&temporary);
-        return Err(io_error(error));
-    }
-
-    match replace_durable(&temporary, path) {
+    match NativeStorePlatform.write_atomic(path, content) {
         Ok(()) => Ok(()),
-        Err(DurableReplaceError::NotCommitted(error)) => {
-            let _ = fs::remove_file(&temporary);
-            Err(io_error(error))
-        }
+        Err(DurableReplaceError::NotCommitted(error)) => Err(map_io_error(error)),
         Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(
             "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: {error}"
         ))),
-    }
-}
-
-fn io_error(error: Error) -> PortError {
-    match error.kind() {
-        ErrorKind::PermissionDenied => PortError::PermissionDenied(error.to_string()),
-        _ => PortError::Io(error.to_string()),
     }
 }
 

@@ -1,12 +1,14 @@
-//! Platform-specific durable replacement for small state documents.
+//! Durable replacement for small state documents.
 //!
 //! Callers must flush the staged file before invoking this function. Both
-//! paths must be siblings so replacement stays on one filesystem.
+//! paths must be siblings so replacement stays on one filesystem. The per-OS
+//! syscall path lives behind [`crate::platform::NativeStorePlatform`]; these
+//! free functions are the native default used by callers that do not own a
+//! [`crate::platform::StorePlatform`].
 
+use crate::platform::{NativeStorePlatform, StorePlatform};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
-#[cfg(any(unix, windows))]
-use std::fs;
 use std::io;
 use std::path::Path;
 
@@ -36,145 +38,17 @@ impl Display for DurableReplaceError {
 impl Error for DurableReplaceError {}
 
 /// Atomically replace `destination` with the already-flushed `staged` file and
-/// request the strongest supported persistence guarantee for the platform.
-///
-/// Unix targets rename the file and then sync the containing directory. On
-/// Windows, `MoveFileExW` with `MOVEFILE_WRITE_THROUGH` waits for the move to be
-/// flushed to disk. Other targets fail explicitly instead of claiming a
-/// durability guarantee they do not implement.
+/// request the strongest supported persistence guarantee of the native
+/// platform.
 pub fn replace_durable(staged: &Path, destination: &Path) -> Result<(), DurableReplaceError> {
-    if staged.parent() != destination.parent() {
-        return Err(DurableReplaceError::NotCommitted(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "staged file and destination must share a parent directory",
-        )));
-    }
-
-    replace_durable_impl(staged, destination)
+    NativeStorePlatform.replace_atomic(staged, destination)
 }
 
-/// Remove a file and request durable persistence of the directory entry.
-/// A failure after unlink is reported as uncertain because the file may
-/// already be absent even though that absence was not flushed.
+/// Remove a file and request durable persistence of the directory entry with
+/// the native platform. A failure after unlink is reported as uncertain because
+/// the file may already be absent even though that absence was not flushed.
 pub fn remove_durable(path: &Path) -> Result<(), DurableReplaceError> {
-    remove_durable_impl(path)
-}
-
-#[cfg(unix)]
-fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), DurableReplaceError> {
-    use std::fs::File;
-
-    fs::rename(staged, destination).map_err(DurableReplaceError::NotCommitted)?;
-
-    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
-    let directory = File::open(parent).map_err(DurableReplaceError::DurabilityUncertain)?;
-    directory
-        .sync_all()
-        .map_err(DurableReplaceError::DurabilityUncertain)
-}
-
-#[cfg(unix)]
-fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
-    match fs::remove_file(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(DurableReplaceError::NotCommitted(error)),
-    }
-    sync_parent_directory(path).map_err(DurableReplaceError::DurabilityUncertain)
-}
-
-#[cfg(windows)]
-fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
-    match fs::remove_file(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(DurableReplaceError::NotCommitted(error)),
-    }
-    sync_parent_directory(path).map_err(DurableReplaceError::DurabilityUncertain)
-}
-
-#[cfg(unix)]
-fn sync_parent_directory(path: &Path) -> io::Result<()> {
-    use std::fs::File;
-
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    File::open(parent)?.sync_all()
-}
-
-#[cfg(windows)]
-fn sync_parent_directory(path: &Path) -> io::Result<()> {
-    use crate::wide;
-    use std::ptr::{null, null_mut};
-    use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_WRITE, INVALID_HANDLE_VALUE};
-    use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, FlushFileBuffers, OPEN_EXISTING,
-    };
-
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let parent = wide::path(parent);
-    let directory = unsafe {
-        CreateFileW(
-            parent.as_ptr(),
-            GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-            null(),
-            OPEN_EXISTING,
-            FILE_FLAG_BACKUP_SEMANTICS,
-            null_mut(),
-        )
-    };
-    if directory == INVALID_HANDLE_VALUE {
-        return Err(io::Error::last_os_error());
-    }
-    let flush_result = unsafe { FlushFileBuffers(directory) };
-    let flush_error = (flush_result == 0).then(io::Error::last_os_error);
-    unsafe {
-        CloseHandle(directory);
-    }
-    match flush_error {
-        Some(error) => Err(error),
-        None => Ok(()),
-    }
-}
-
-#[cfg(windows)]
-fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), DurableReplaceError> {
-    use crate::wide;
-    use windows_sys::Win32::Storage::FileSystem::{
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
-    };
-
-    let staged = wide::path(staged);
-    let destination = wide::path(destination);
-    let result = unsafe {
-        MoveFileExW(
-            staged.as_ptr(),
-            destination.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    if result == 0 {
-        Err(DurableReplaceError::NotCommitted(io::Error::last_os_error()))
-    } else {
-        Ok(())
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-fn replace_durable_impl(_staged: &Path, _destination: &Path) -> Result<(), DurableReplaceError> {
-    Err(DurableReplaceError::NotCommitted(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "durable file replacement is unsupported on this platform",
-    )))
-}
-
-#[cfg(not(any(unix, windows)))]
-fn remove_durable_impl(_path: &Path) -> Result<(), DurableReplaceError> {
-    Err(DurableReplaceError::NotCommitted(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "durable file removal is unsupported on this platform",
-    )))
+    NativeStorePlatform.remove_file_durable(path)
 }
 
 #[cfg(test)]

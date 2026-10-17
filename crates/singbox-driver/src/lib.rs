@@ -10,6 +10,8 @@
 
 #[cfg(feature = "http")]
 pub mod api;
+#[cfg(feature = "backend")]
+pub mod backend;
 #[cfg(feature = "codec")]
 pub mod codec;
 #[cfg(feature = "process")]
@@ -24,5 +26,8 @@ pub mod readiness;
 pub mod routing_intent;
 pub mod version;
 
+#[cfg(all(test, feature = "backend"))]
+#[path = "backend_tests.rs"]
+mod backend_tests;
 #[cfg(all(test, feature = "http"))]
 mod test_support;

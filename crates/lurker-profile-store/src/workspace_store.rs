@@ -5,12 +5,16 @@
 //! port DTO projection stays outside this crate.
 
 use crate::document_path::validate_document_profile_id;
-use crate::document_store::{read_optional_bytes, remove_optional, write_document_bytes_durable};
+use crate::document_store::{
+    read_optional_bytes_with_platform, read_required_bytes_with_platform,
+    remove_optional_with_platform, write_document_bytes_durable_with_platform,
+};
 use crate::store::ProfileStoreCore;
 use crate::workspace::{
-    ProfileSourceFacts, ProfileWorkspaceRecord, invalid_workspace_recovery, publish_document_pair,
-    selection_matches_profile, source_identity, validate_document_format, validate_engine,
-    validate_workspace_bytes, validate_workspace_identity, workspace_from_bytes,
+    ProfileSourceFacts, ProfileWorkspaceRecord, invalid_workspace_recovery,
+    publish_document_pair_with_platform, selection_matches_profile, source_identity,
+    validate_document_format, validate_engine, validate_workspace_bytes,
+    validate_workspace_identity, workspace_from_bytes,
 };
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
@@ -18,8 +22,6 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_ports::error::PortError;
-use std::io::{self, ErrorKind};
-use tokio::fs;
 
 /// Selection evidence held by the caller while a workspace publication runs.
 /// `AuthorizedActive` is only used after the shared root/owner/profile fences
@@ -94,8 +96,10 @@ impl ProfileStoreCore {
     ) -> Result<ProfileWorkspaceRecord, PortError> {
         validate_document_profile_id(profile)?;
         let profile_path = self.existing_profile_document_path(profile).await?;
-        let document_bytes = fs::read(profile_path).await.map_err(map_io_error)?;
-        let sidecar_bytes = read_optional_bytes(
+        let document_bytes =
+            read_required_bytes_with_platform(self.platform(), &profile_path).await?;
+        let sidecar_bytes = read_optional_bytes_with_platform(
+            self.platform(),
             &self
                 .layout()
                 .options_path(self.config_dir(), profile.as_str()),
@@ -201,16 +205,24 @@ impl ProfileStoreCore {
         let sidecar_path = self
             .layout()
             .options_path(self.config_dir(), profile.as_str());
-        let publication = write_document_bytes_durable(&profile_path, document_bytes);
-        publish_document_pair(
+        let publication = write_document_bytes_durable_with_platform(
+            self.platform(),
+            &profile_path,
+            document_bytes,
+        );
+        publish_document_pair_with_platform(
+            self.platform(),
             &sidecar_path,
             workspace.sidecar_bytes.as_deref(),
             sidecar_bytes,
             publication,
         )
         .await?;
-        if let Err(error) =
-            remove_optional(&self.layout().document_backup_path(&profile_path)).await
+        if let Err(error) = remove_optional_with_platform(
+            self.platform(),
+            &self.layout().document_backup_path(&profile_path),
+        )
+        .await
         {
             log::warn!("committed workspace backup cleanup failed: {error}");
         }
@@ -245,14 +257,6 @@ impl ProfileStoreCore {
             target,
         )
         .await
-    }
-}
-
-fn map_io_error(error: io::Error) -> PortError {
-    if error.kind() == ErrorKind::PermissionDenied {
-        PortError::PermissionDenied(error.to_string())
-    } else {
-        PortError::Io(error.to_string())
     }
 }
 

@@ -2,14 +2,18 @@
 //!
 //! [`ProfileStoreCore`] owns only what is identical for every engine, platform
 //! and UI: the engine identity, the on-disk layout resolution, the injected
-//! document codec and the one-shot namespace initialization state. Credentials,
-//! subscription metadata, catalog ordering and reset transactions belong to the
-//! product facade that wraps this core.
+//! document codec, the injected [`StorePlatform`] and the one-shot namespace
+//! initialization state. Credentials, subscription metadata, catalog ordering
+//! and reset transactions belong to the product facade that wraps this core.
 
-use crate::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
+use crate::file_lock::ProfileWriteGuard;
 use crate::layout::ProfileStoreLayout;
 use crate::namespace::ProfileNamespaceInitialization;
-use crate::settings::{read_settings_file, remove_profile_metadata, write_settings_file};
+use crate::platform::{NativeStorePlatform, StorePlatform};
+use crate::settings::{
+    read_settings_file_with_platform, remove_profile_metadata_with_platform,
+    write_settings_file_with_platform,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
@@ -39,9 +43,9 @@ impl ProfileDocumentExtension {
 
 /// Shared persistence identity for one engine-scoped profile namespace.
 ///
-/// The format adapter remains injected; this owner stores only opaque bytes and
-/// immutable scope identity, and never resolves a credential or a product path
-/// literal.
+/// The format adapter and the platform remain injected; this owner stores only
+/// opaque bytes and immutable scope identity, and never resolves a credential
+/// or a product path literal.
 pub struct ProfileStoreCore {
     engine_id: EngineId,
     layout: Arc<ProfileStoreLayout>,
@@ -53,10 +57,33 @@ pub struct ProfileStoreCore {
     document_extension: ProfileDocumentExtension,
     namespace_initialization: ProfileNamespaceInitialization,
     namespace_initialized: OnceCell<()>,
+    platform: Arc<dyn StorePlatform>,
 }
 
 impl ProfileStoreCore {
+    /// Build a store over the native platform.
     pub fn new(
+        engine_id: EngineId,
+        config_root: PathBuf,
+        layout: Arc<ProfileStoreLayout>,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+        namespace_initialization: ProfileNamespaceInitialization,
+    ) -> Result<Self, PortError> {
+        Self::with_platform(
+            Arc::new(NativeStorePlatform),
+            engine_id,
+            config_root,
+            layout,
+            document_codec,
+            document_extension,
+            namespace_initialization,
+        )
+    }
+
+    /// Build a store whose filesystem and kernel locks come from `platform`.
+    pub fn with_platform(
+        platform: Arc<dyn StorePlatform>,
         engine_id: EngineId,
         config_root: PathBuf,
         layout: Arc<ProfileStoreLayout>,
@@ -90,6 +117,7 @@ impl ProfileStoreCore {
             document_extension,
             namespace_initialization,
             namespace_initialized: OnceCell::new(),
+            platform,
         })
     }
 
@@ -111,6 +139,11 @@ impl ProfileStoreCore {
 
     pub fn settings_file(&self) -> &Path {
         &self.settings_file
+    }
+
+    /// The filesystem and kernel-lock implementation behind this store.
+    pub fn platform(&self) -> &Arc<dyn StorePlatform> {
+        &self.platform
     }
 
     pub fn document_codec(&self) -> &Arc<dyn ProfileDocumentCodecPort> {
@@ -148,21 +181,25 @@ impl ProfileStoreCore {
     /// Acquire the shared engine write fence in process-local and cross-process
     /// order. Every profile read/write path must hold it.
     pub async fn lock_profile_writes(&self) -> Result<ProfileWriteGuard, PortError> {
-        lock_profile_writes_for_dir(&self.layout, &self.config_dir).await
+        let fence = self
+            .platform
+            .lock_profile_writes(&self.layout, &self.config_dir)
+            .await?;
+        Ok(ProfileWriteGuard::new(fence))
     }
 
     /// Read the engine-scoped settings document.
     pub async fn read_settings_value(&self) -> Result<toml::Value, PortError> {
-        read_settings_file(&self.settings_file).await
+        read_settings_file_with_platform(&self.platform, &self.settings_file).await
     }
 
     /// Replace the engine-scoped settings document.
     pub async fn write_settings_value(&self, settings: &toml::Value) -> Result<(), PortError> {
-        write_settings_file(&self.settings_file, settings).await
+        write_settings_file_with_platform(&self.platform, &self.settings_file, settings).await
     }
 
     /// Drop one profile's row from the engine-scoped settings document.
     pub async fn remove_profile_metadata(&self, profile: &str) -> Result<(), PortError> {
-        remove_profile_metadata(&self.settings_file, profile).await
+        remove_profile_metadata_with_platform(&self.platform, &self.settings_file, profile).await
     }
 }

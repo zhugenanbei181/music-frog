@@ -5,15 +5,20 @@
 //! used when a product migrates its legacy shared state. Product-specific
 //! credential migration and legacy file discovery entry points are composed by
 //! the product crate on top of these primitives.
+//!
+//! All filesystem access is delegated to the store's [`StorePlatform`]; the
+//! free functions are the native default.
 
-use crate::document_store::write_document_bytes_durable;
+use crate::document_store::{
+    read_optional_bytes_with_platform, write_document_bytes_durable_with_platform,
+};
 use crate::layout::ProfileStoreLayout;
+use crate::platform::{StoreEntryKind, StorePlatform, native_platform, run_platform_io};
 use crate::store::ProfileDocumentExtension;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
-use std::io::{self, ErrorKind};
 use std::path::{Component, Path, PathBuf};
-use tokio::fs;
+use std::sync::Arc;
 use toml::map::Map;
 
 pub const PROFILE_NAMESPACE_SCHEMA_KEY: &str = "profile_namespace_schema";
@@ -117,8 +122,29 @@ pub async fn initialize_engine_scoped_namespace_unlocked(
     config_dir: &Path,
     settings_file: &Path,
 ) -> Result<(), PortError> {
-    fs::create_dir_all(config_dir).await.map_err(map_io_error)?;
-    let mut state = read_profile_state(layout, settings_file).await?;
+    let platform = native_platform();
+    initialize_engine_scoped_namespace_unlocked_with_platform(
+        &platform,
+        layout,
+        config_dir,
+        settings_file,
+    )
+    .await
+}
+
+/// [`initialize_engine_scoped_namespace_unlocked`] through an injected platform.
+pub async fn initialize_engine_scoped_namespace_unlocked_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    layout: &ProfileStoreLayout,
+    config_dir: &Path,
+    settings_file: &Path,
+) -> Result<(), PortError> {
+    let config_dir_owned = config_dir.to_path_buf();
+    run_platform_io(platform, move |platform| {
+        platform.create_dir_all(&config_dir_owned)
+    })
+    .await?;
+    let mut state = read_profile_state_with_platform(platform, layout, settings_file).await?;
     if matches!(
         ProfileNamespaceSchema::parse(state.get(PROFILE_NAMESPACE_SCHEMA_KEY))?,
         ProfileNamespaceSchema::EngineScopedV1
@@ -126,21 +152,28 @@ pub async fn initialize_engine_scoped_namespace_unlocked(
         return Ok(());
     }
     ProfileNamespaceSchema::write_engine_scoped_v1(&mut state)?;
-    write_profile_state_atomically(layout, settings_file, &state).await
+    write_profile_state_atomically_with_platform(platform, layout, settings_file, &state).await
 }
 
 pub async fn read_profile_state(
     layout: &ProfileStoreLayout,
     path: &Path,
 ) -> Result<toml::Value, PortError> {
-    recover_profile_state_backup(layout, path).await?;
-    let text = match fs::read_to_string(path).await {
-        Ok(text) => text,
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            return Ok(toml::Value::Table(Map::new()));
-        }
-        Err(error) => return Err(map_io_error(error)),
+    let platform = native_platform();
+    read_profile_state_with_platform(&platform, layout, path).await
+}
+
+/// [`read_profile_state`] through an injected platform.
+pub async fn read_profile_state_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    layout: &ProfileStoreLayout,
+    path: &Path,
+) -> Result<toml::Value, PortError> {
+    recover_profile_state_backup_with_platform(platform, layout, path).await?;
+    let Some(bytes) = read_optional_bytes_with_platform(platform, path).await? else {
+        return Ok(toml::Value::Table(Map::new()));
     };
+    let text = String::from_utf8(bytes).map_err(|error| PortError::Io(error.to_string()))?;
     toml::from_str(&text).map_err(|error| namespace_configuration_error(error.to_string()))
 }
 
@@ -149,10 +182,21 @@ pub async fn write_profile_state_atomically(
     path: &Path,
     state: &toml::Value,
 ) -> Result<(), PortError> {
-    recover_profile_state_backup(layout, path).await?;
+    let platform = native_platform();
+    write_profile_state_atomically_with_platform(&platform, layout, path, state).await
+}
+
+/// [`write_profile_state_atomically`] through an injected platform.
+pub async fn write_profile_state_atomically_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    layout: &ProfileStoreLayout,
+    path: &Path,
+    state: &toml::Value,
+) -> Result<(), PortError> {
+    recover_profile_state_backup_with_platform(platform, layout, path).await?;
     let content = toml::to_string_pretty(state)
         .map_err(|error| namespace_configuration_error(error.to_string()))?;
-    write_document_bytes_durable(path, content.as_bytes()).await
+    write_document_bytes_durable_with_platform(platform, path, content.as_bytes()).await
 }
 
 /// A crash between the state write and its backup cleanup is repaired here:
@@ -161,13 +205,34 @@ pub async fn recover_profile_state_backup(
     layout: &ProfileStoreLayout,
     path: &Path,
 ) -> Result<(), PortError> {
+    let platform = native_platform();
+    recover_profile_state_backup_with_platform(&platform, layout, path).await
+}
+
+/// [`recover_profile_state_backup`] through an injected platform.
+pub async fn recover_profile_state_backup_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    layout: &ProfileStoreLayout,
+    path: &Path,
+) -> Result<(), PortError> {
     let backup = layout.profile_state_backup_path(path);
-    match (
-        fs::try_exists(path).await.map_err(map_io_error)?,
-        fs::try_exists(&backup).await.map_err(map_io_error)?,
-    ) {
-        (false, true) => fs::rename(backup, path).await.map_err(map_io_error),
-        (true, true) => fs::remove_file(backup).await.map_err(map_io_error),
+    let live_path = path.to_path_buf();
+    let backup_path = backup.clone();
+    let (live, back_up) = run_platform_io(platform, move |platform| {
+        Ok((platform.exists(&live_path)?, platform.exists(&backup_path)?))
+    })
+    .await?;
+    match (live, back_up) {
+        (false, true) => {
+            let live_path = path.to_path_buf();
+            run_platform_io(platform, move |platform| {
+                platform.rename(&backup, &live_path)
+            })
+            .await
+        }
+        (true, true) => {
+            run_platform_io(platform, move |platform| platform.remove_file(&backup)).await
+        }
         (_, false) => Ok(()),
     }
 }
@@ -244,24 +309,47 @@ pub async fn migrate_legacy_profile_files(
     document_extension: ProfileDocumentExtension,
     migration: &LegacyProfileNamespaceMigrationV1,
 ) -> Result<(), PortError> {
+    let platform = native_platform();
+    migrate_legacy_profile_files_with_platform(
+        &platform,
+        config_root,
+        config_dir,
+        document_extension,
+        migration,
+    )
+    .await
+}
+
+/// [`migrate_legacy_profile_files`] through an injected platform.
+pub async fn migrate_legacy_profile_files_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    config_root: &Path,
+    config_dir: &Path,
+    document_extension: ProfileDocumentExtension,
+    migration: &LegacyProfileNamespaceMigrationV1,
+) -> Result<(), PortError> {
     let extension = document_extension.as_str();
-    let mut entries = match fs::read_dir(config_root).await {
+    let root = config_root.to_path_buf();
+    let entries = match run_platform_io(platform, move |platform| platform.read_dir(&root)).await {
         Ok(entries) => entries,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(map_io_error(error)),
+        Err(PortError::NotFound(_)) => return Ok(()),
+        Err(error) => return Err(error),
     };
-    while let Some(entry) = entries.next_entry().await.map_err(map_io_error)? {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        let source = entry.path();
-        let file_type = entry.file_type().await.map_err(map_io_error)?;
-        if file_type.is_dir() && migration.directories.iter().any(|dir| dir == name.as_ref()) {
-            move_directory_contents(&source, &config_dir.join(name.as_ref())).await?;
-        } else if file_type.is_file()
+    for entry in entries {
+        let name = entry
+            .path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if entry.kind == StoreEntryKind::Directory
+            && migration.directories.iter().any(|dir| dir == &name)
+        {
+            move_directory_contents(platform, &entry.path, &config_dir.join(&name)).await?;
+        } else if entry.kind == StoreEntryKind::File
             && (name.ends_with(&format!(".{extension}"))
                 || name.ends_with(&format!(".{extension}.bak")))
         {
-            move_file(&source, &config_dir.join(name.as_ref())).await?;
+            move_file(platform, &entry.path, &config_dir.join(&name)).await?;
         }
     }
     Ok(())
@@ -275,15 +363,36 @@ pub async fn has_legacy_profile_data(
     document_extension: ProfileDocumentExtension,
     migration: &LegacyProfileNamespaceMigrationV1,
 ) -> Result<bool, PortError> {
-    if fs::try_exists(settings_file).await.map_err(map_io_error)? {
+    let platform = native_platform();
+    has_legacy_profile_data_with_platform(
+        &platform,
+        layout,
+        config_root,
+        settings_file,
+        document_extension,
+        migration,
+    )
+    .await
+}
+
+/// [`has_legacy_profile_data`] through an injected platform.
+pub async fn has_legacy_profile_data_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    layout: &ProfileStoreLayout,
+    config_root: &Path,
+    settings_file: &Path,
+    document_extension: ProfileDocumentExtension,
+    migration: &LegacyProfileNamespaceMigrationV1,
+) -> Result<bool, PortError> {
+    let settings_file = settings_file.to_path_buf();
+    if run_platform_io(platform, move |platform| platform.exists(&settings_file)).await? {
         return Ok(true);
     }
 
-    if fs::try_exists(migration.settings_file())
-        .await
-        .map_err(map_io_error)?
-    {
-        let legacy = read_profile_state(layout, migration.settings_file()).await?;
+    let legacy_settings = migration.settings_file().to_path_buf();
+    if run_platform_io(platform, move |platform| platform.exists(&legacy_settings)).await? {
+        let legacy =
+            read_profile_state_with_platform(platform, layout, migration.settings_file()).await?;
         if legacy
             .get("default")
             .and_then(|value| value.get("profile"))
@@ -295,26 +404,29 @@ pub async fn has_legacy_profile_data(
     }
     if let Some(sync_index_name) = migration.sync_index_file_name() {
         let sync_index = config_root.join(sync_index_name);
-        if fs::try_exists(sync_index).await.map_err(map_io_error)? {
+        if run_platform_io(platform, move |platform| platform.exists(&sync_index)).await? {
             return Ok(true);
         }
     }
 
     let extension = document_extension.as_str();
-    let mut entries = match fs::read_dir(config_root).await {
+    let root = config_root.to_path_buf();
+    let entries = match run_platform_io(platform, move |platform| platform.read_dir(&root)).await {
         Ok(entries) => entries,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(map_io_error(error)),
+        Err(PortError::NotFound(_)) => return Ok(false),
+        Err(error) => return Err(error),
     };
-    while let Some(entry) = entries.next_entry().await.map_err(map_io_error)? {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        let file_type = entry.file_type().await.map_err(map_io_error)?;
+    for entry in entries {
+        let name = entry
+            .path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let legacy_document = name.ends_with(&format!(".{extension}"))
             || name.ends_with(&format!(".{extension}.bak"));
-        let legacy_directory =
-            file_type.is_dir() && migration.directories.iter().any(|dir| dir == name.as_ref());
-        if (file_type.is_file() && legacy_document) || legacy_directory {
+        let legacy_directory = entry.kind == StoreEntryKind::Directory
+            && migration.directories.iter().any(|dir| dir == &name);
+        if (entry.kind == StoreEntryKind::File && legacy_document) || legacy_directory {
             return Ok(true);
         }
     }
@@ -326,18 +438,36 @@ pub async fn retire_legacy_sync_index(
     config_root: &Path,
     migration: &LegacyProfileNamespaceMigrationV1,
 ) -> Result<(), PortError> {
+    let platform = native_platform();
+    retire_legacy_sync_index_with_platform(&platform, config_root, migration).await
+}
+
+/// [`retire_legacy_sync_index`] through an injected platform.
+pub async fn retire_legacy_sync_index_with_platform(
+    platform: &Arc<dyn StorePlatform>,
+    config_root: &Path,
+    migration: &LegacyProfileNamespaceMigrationV1,
+) -> Result<(), PortError> {
     let Some(path) = migration.sync_index_file_name() else {
         return Ok(());
     };
-    match fs::remove_file(config_root.join(path)).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(map_io_error(error)),
-    }
+    let path = config_root.join(path);
+    run_platform_io(platform, move |platform| platform.remove_file(&path)).await
 }
 
 /// Rewrite (or delete, when empty) the legacy shared settings after a merge.
 pub async fn write_legacy_settings(
+    layout: &ProfileStoreLayout,
+    path: &Path,
+    state: &toml::Value,
+) -> Result<(), PortError> {
+    let platform = native_platform();
+    write_legacy_settings_with_platform(&platform, layout, path, state).await
+}
+
+/// [`write_legacy_settings`] through an injected platform.
+pub async fn write_legacy_settings_with_platform(
+    platform: &Arc<dyn StorePlatform>,
     layout: &ProfileStoreLayout,
     path: &Path,
     state: &toml::Value,
@@ -348,13 +478,10 @@ pub async fn write_legacy_settings(
         ));
     };
     if table.is_empty() {
-        match fs::remove_file(path).await {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-            Err(error) => return Err(map_io_error(error)),
-        }
+        let path = path.to_path_buf();
+        return run_platform_io(platform, move |platform| platform.remove_file(&path)).await;
     }
-    write_profile_state_atomically(layout, path, state).await
+    write_profile_state_atomically_with_platform(platform, layout, path, state).await
 }
 
 fn merge_value(
@@ -382,7 +509,11 @@ fn merge_value(
     }
 }
 
-async fn move_directory_contents(source: &Path, destination: &Path) -> Result<(), PortError> {
+async fn move_directory_contents(
+    platform: &Arc<dyn StorePlatform>,
+    source: &Path,
+    destination: &Path,
+) -> Result<(), PortError> {
     enum DirectoryMove {
         Visit(PathBuf, PathBuf),
         Remove(PathBuf),
@@ -394,44 +525,68 @@ async fn move_directory_contents(source: &Path, destination: &Path) -> Result<()
     while let Some(move_step) = pending.pop() {
         match move_step {
             DirectoryMove::Visit(source, destination) => {
-                fs::create_dir_all(&destination)
-                    .await
-                    .map_err(map_io_error)?;
-                let mut entries = fs::read_dir(&source).await.map_err(map_io_error)?;
-                let mut children = Vec::new();
-                while let Some(entry) = entries.next_entry().await.map_err(map_io_error)? {
-                    children.push((
-                        entry.path(),
-                        destination.join(entry.file_name()),
-                        entry.file_type().await.map_err(map_io_error)?,
-                    ));
-                }
+                let destination_dir = destination.clone();
+                run_platform_io(platform, move |platform| {
+                    platform.create_dir_all(&destination_dir)
+                })
+                .await?;
+                let source_dir = source.clone();
+                let entries =
+                    run_platform_io(platform, move |platform| platform.read_dir(&source_dir))
+                        .await?;
                 pending.push(DirectoryMove::Remove(source));
-                for (source_path, destination_path, file_type) in children {
-                    if file_type.is_dir() {
-                        pending.push(DirectoryMove::Visit(source_path, destination_path));
-                    } else if file_type.is_file() {
-                        move_file(&source_path, &destination_path).await?;
-                    } else {
-                        return Err(namespace_configuration_error(format!(
-                            "profile namespace migration refuses non-file entry `{}`",
-                            source_path.display()
-                        )));
+                for entry in entries {
+                    let destination_path = entry
+                        .path
+                        .file_name()
+                        .map(|name| destination.join(name))
+                        .unwrap_or_else(|| destination.clone());
+                    match entry.kind {
+                        StoreEntryKind::Directory => {
+                            pending.push(DirectoryMove::Visit(entry.path, destination_path));
+                        }
+                        StoreEntryKind::File => {
+                            move_file(platform, &entry.path, &destination_path).await?;
+                        }
+                        StoreEntryKind::Other => {
+                            return Err(namespace_configuration_error(format!(
+                                "profile namespace migration refuses non-file entry `{}`",
+                                entry.path.display()
+                            )));
+                        }
                     }
                 }
             }
             DirectoryMove::Remove(source) => {
-                fs::remove_dir(source).await.map_err(map_io_error)?;
+                run_platform_io(platform, move |platform| platform.remove_dir(&source)).await?;
             }
         }
     }
     Ok(())
 }
 
-async fn move_file(source: &Path, destination: &Path) -> Result<(), PortError> {
-    if fs::try_exists(destination).await.map_err(map_io_error)? {
-        let source_bytes = fs::read(source).await.map_err(map_io_error)?;
-        let destination_bytes = fs::read(destination).await.map_err(map_io_error)?;
+async fn move_file(
+    platform: &Arc<dyn StorePlatform>,
+    source: &Path,
+    destination: &Path,
+) -> Result<(), PortError> {
+    let destination_path = destination.to_path_buf();
+    let exists =
+        run_platform_io(platform, move |platform| platform.exists(&destination_path)).await?;
+    if exists {
+        let source_path = source.to_path_buf();
+        let source_bytes = run_platform_io(platform, move |platform| platform.read(&source_path))
+            .await?
+            .ok_or_else(|| {
+                PortError::Io("legacy source file disappeared during migration".into())
+            })?;
+        let destination_path = destination.to_path_buf();
+        let destination_bytes =
+            run_platform_io(platform, move |platform| platform.read(&destination_path))
+                .await?
+                .ok_or_else(|| {
+                    namespace_configuration_error("legacy destination file is missing")
+                })?;
         if source_bytes != destination_bytes {
             return Err(namespace_configuration_error(format!(
                 "profile namespace migration found conflicting files `{}` and `{}`",
@@ -439,13 +594,19 @@ async fn move_file(source: &Path, destination: &Path) -> Result<(), PortError> {
                 destination.display()
             )));
         }
-        fs::remove_file(source).await.map_err(map_io_error)?;
-        return Ok(());
+        let source_path = source.to_path_buf();
+        return run_platform_io(platform, move |platform| platform.remove_file(&source_path)).await;
     }
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).await.map_err(map_io_error)?;
+        let parent = parent.to_path_buf();
+        run_platform_io(platform, move |platform| platform.create_dir_all(&parent)).await?;
     }
-    fs::rename(source, destination).await.map_err(map_io_error)
+    let source_path = source.to_path_buf();
+    let destination_path = destination.to_path_buf();
+    run_platform_io(platform, move |platform| {
+        platform.rename(&source_path, &destination_path)
+    })
+    .await
 }
 
 fn namespace_configuration_error(message: impl Into<String>) -> PortError {
@@ -458,14 +619,6 @@ pub fn is_single_relative_component(value: &str) -> bool {
         (components.next(), components.next()),
         (Some(Component::Normal(_)), None)
     )
-}
-
-fn map_io_error(error: io::Error) -> PortError {
-    if error.kind() == ErrorKind::PermissionDenied {
-        PortError::PermissionDenied(error.to_string())
-    } else {
-        PortError::Io(error.to_string())
-    }
 }
 
 #[cfg(test)]

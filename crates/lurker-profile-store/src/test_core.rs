@@ -2,6 +2,7 @@
 
 use crate::layout::ProfileStoreLayout;
 use crate::namespace::ProfileNamespaceInitialization;
+use crate::platform::{StorePlatform, native_platform};
 use crate::store::{ProfileDocumentExtension, ProfileStoreCore};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document::DocumentValidation;
@@ -28,7 +29,7 @@ impl ProfileDocumentCodecPort for FixtureCodec {
     }
 }
 
-/// One neutral kernel store over a temporary config root.
+/// One kernel store over a temporary config root.
 pub struct TestCore {
     core: ProfileStoreCore,
     layout: Arc<ProfileStoreLayout>,
@@ -41,6 +42,16 @@ impl TestCore {
     }
 
     pub fn with_layout(extension: ProfileDocumentExtension, layout: ProfileStoreLayout) -> Self {
+        Self::with_platform(extension, layout, native_platform())
+    }
+
+    /// Build the fixture over an injected platform so tests can count and
+    /// intercept every primitive the store uses.
+    pub fn with_platform(
+        extension: ProfileDocumentExtension,
+        layout: ProfileStoreLayout,
+        platform: Arc<dyn StorePlatform>,
+    ) -> Self {
         let root = TempDir::new().expect("temporary config root");
         let engine_id = EngineId::new(FIXTURE_ENGINE).expect("fixture engine id");
         let codec = Arc::new(FixtureCodec(ProfileDocumentCodecScope {
@@ -49,7 +60,8 @@ impl TestCore {
             schema_version: ProfileSchemaVersion::new(1).expect("fixture schema version"),
         }));
         let layout = Arc::new(layout);
-        let core = ProfileStoreCore::new(
+        let core = ProfileStoreCore::with_platform(
+            platform,
             engine_id,
             root.path().to_path_buf(),
             layout.clone(),
