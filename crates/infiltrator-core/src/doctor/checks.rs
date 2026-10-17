@@ -7,7 +7,6 @@ use crate::settings_io::parse_settings_toml;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_version::manager::DefaultBinaryObservation;
-#[cfg(unix)]
 use std::fs::metadata;
 use std::io::ErrorKind;
 use std::path::Path;

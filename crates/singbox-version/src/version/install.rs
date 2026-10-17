@@ -4,13 +4,15 @@ use super::{
     MAX_ARCHIVE_BYTES, SingBoxBinaryTarget, SingBoxVersionBackend, cancelled_install, engine_id,
     invalid_installation, sha256_hex, unique_path, validate_version,
 };
+#[cfg(not(unix))]
+use super::unsupported_target;
 use async_trait::async_trait;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
-use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_contract::version::VersionDownloadProgress;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::VersionProgressSink;
+use lurker_core_contract::identity::CoreVersion;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::path::{Path, PathBuf};
