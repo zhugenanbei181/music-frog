@@ -13,11 +13,7 @@ pub(super) fn register(
     let tx = requests.clone();
     let weak_for_start = weak.clone();
     window.on_start_runtime(move || {
-        queue_action(
-            &tx,
-            &weak_for_start,
-            Ok(SlintAction::StartRuntime),
-        );
+        queue_action(&tx, &weak_for_start, Ok(SlintAction::StartRuntime));
     });
     let tx = requests.clone();
     let weak_for_stop = weak.clone();
@@ -70,7 +66,11 @@ pub(super) fn register(
     let tx_for_restore = requests.clone();
     let weak_for_restore = weak.clone();
     window.on_retry_proxy_restore(move || {
-        queue_intent(&tx_for_restore, &weak_for_restore, CommandIntent::RecoverSystemProxy);
+        queue_intent(
+            &tx_for_restore,
+            &weak_for_restore,
+            CommandIntent::RecoverSystemProxy,
+        );
     });
 
     let tx_for_add_override = requests.clone();
@@ -106,15 +106,17 @@ pub(super) fn register(
                 queue_action(
                     &tx_for_override_file,
                     &weak_for_override_file,
-                    require_snapshot(&latest_for_override_file).map(|_| SlintAction::ImportOverrideFile {
-                        path: path_str,
-                    }),
+                    require_snapshot(&latest_for_override_file)
+                        .map(|_| SlintAction::ImportOverrideFile { path: path_str }),
                 );
             }
         }
         #[cfg(target_os = "android")]
         {
-            show_unsupported(&weak_for_override_file, "Android SAF file selection is handled through Intent");
+            show_unsupported(
+                &weak_for_override_file,
+                "Android SAF file selection is handled through Intent",
+            );
         }
     });
     let tx_for_save_override = requests.clone();
@@ -136,9 +138,7 @@ pub(super) fn register(
         queue_intent(
             &tx_for_delete_override,
             &weak_for_delete_override,
-            CommandIntent::DeleteNamedOverride {
-                id: id.to_string(),
-            },
+            CommandIntent::DeleteNamedOverride { id: id.to_string() },
         );
     });
     let weak_for_override_export = weak.clone();
@@ -156,16 +156,21 @@ pub(super) fn register(
                 queue_action(
                     &tx_for_override_export,
                     &weak_for_override_export,
-                    require_snapshot(&latest_for_override_export).map(|_| SlintAction::ExportOverride {
-                        override_id,
-                        destination,
+                    require_snapshot(&latest_for_override_export).map(|_| {
+                        SlintAction::ExportOverride {
+                            override_id,
+                            destination,
+                        }
                     }),
                 );
             }
         }
         #[cfg(target_os = "android")]
         {
-            show_unsupported(&weak_for_override_export, "Android SAF file export is handled through Intent");
+            show_unsupported(
+                &weak_for_override_export,
+                "Android SAF file export is handled through Intent",
+            );
         }
     });
     let weak_for_override_edit = weak.clone();

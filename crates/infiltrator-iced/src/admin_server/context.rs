@@ -1,9 +1,9 @@
+use super::*;
 use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use tokio::task::spawn_blocking;
-use super::*;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use tokio::task::spawn_blocking;
 
 impl IcedAdminContext {
     pub fn new(shared: AdminSharedRuntime) -> Self {
@@ -36,11 +36,7 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
-        Ok(
-            for_mihomo_profiles(
-                self.profile_application().await?,
-            ),
-        )
+        Ok(for_mihomo_profiles(self.profile_application().await?))
     }
 
     async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {

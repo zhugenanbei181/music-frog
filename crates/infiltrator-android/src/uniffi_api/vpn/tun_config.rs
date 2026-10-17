@@ -26,7 +26,6 @@ pub(super) async fn start_prepared_vpn(request: VpnStartRequest) -> FfiStatus {
     }
 }
 
-
 // Android-only helpers for tun2proxy URL resolution
 #[cfg(target_os = "android")]
 pub(super) async fn resolve_proxy_url() -> Result<Option<String>, FfiStatus> {
@@ -43,7 +42,9 @@ pub(super) fn default_proxy_url() -> String {
 }
 
 #[cfg(target_os = "android")]
-pub(super) async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfiguration, FfiStatus> {
+pub(super) async fn build_vpn_configuration(
+    proxy_endpoint: String,
+) -> Result<VpnConfiguration, FfiStatus> {
     let tun_settings = load_vpn_tun_settings().await?;
     let dns_result = read_dns_settings_local().await;
     let dns_snapshot = match (dns_result.status.code, dns_result.settings) {
@@ -101,7 +102,6 @@ pub(super) async fn build_vpn_configuration(proxy_endpoint: String) -> Result<Vp
     })
 }
 
-
 pub(super) async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus> {
     let application = build_configuration_application().await?;
     let tun_config = application
@@ -111,7 +111,9 @@ pub(super) async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus>
     Ok(build_vpn_tun_settings(tun_config))
 }
 
-pub(super) async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSettings, FfiStatus> {
+pub(super) async fn save_vpn_tun_settings(
+    patch: VpnTunSettingsPatch,
+) -> Result<VpnTunSettings, FfiStatus> {
     let tun_patch = build_tun_patch(&patch);
 
     let application = build_configuration_application().await?;
@@ -131,4 +133,3 @@ pub(super) fn build_vpn_tun_settings(tun_config: tun::TunConfig) -> VpnTunSettin
         auto_detect_interface: tun_config.auto_detect_interface,
     }
 }
-

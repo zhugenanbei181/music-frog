@@ -16,6 +16,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::{
     CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::network_roaming::{
@@ -63,7 +64,6 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::mtu_probe::MtuProbePort;

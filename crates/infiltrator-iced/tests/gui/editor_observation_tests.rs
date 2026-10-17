@@ -1,8 +1,5 @@
 //! Actual command replies and independent reader facts preserve the native TEA editor.
 //! test-intent: behavior
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
-use infiltrator_presentation::profile_edit_status_projection::status;
 use crate::state::AppState;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_snapshot, core_test_command_application,
@@ -12,12 +9,15 @@ use crate::types::message::Message;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
+use infiltrator_presentation::profile_edit_status_projection::status;
 use infiltrator_test_support::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
 use std::future::Future;
 use std::path::PathBuf;
@@ -44,8 +44,7 @@ fn terminal(task: Task<Message>) -> Message {
 fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_without_an_invented_save()
  {
     let store = Arc::new(FilterCaptureStore::default());
-    let profiles =
-        profiles_for_mihomo(store.clone());
+    let profiles = profiles_for_mihomo(store.clone());
     let core = identified_core_application();
     core.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])

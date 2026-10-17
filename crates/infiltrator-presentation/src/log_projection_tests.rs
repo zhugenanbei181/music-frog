@@ -1,5 +1,4 @@
 //! Behavior tests for scoped raw-log display projection.
-use std::iter::empty;
 use super::{page_from_log_records, parse_structured_log, project_log_facts};
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -11,6 +10,7 @@ use infiltrator_contract::logs::{
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::PageStatus;
+use std::iter::empty;
 
 fn session(generation: u64, token: u128) -> LogSession {
     LogSession::from_core_scope(CoreScope {

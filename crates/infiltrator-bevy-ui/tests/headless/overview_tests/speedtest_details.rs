@@ -1,5 +1,4 @@
 //! test-intent: behavior
-use infiltrator_contract::error::Failure;
 use super::*;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
@@ -9,6 +8,7 @@ use infiltrator_bevy_ui::pages::overview_speedtest::{
 };
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCloseButton, ModalState};
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_presentation::speedtest_detail_projection::{listing, project_details};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -89,9 +89,8 @@ fn speedtest_details_render_shared_fold_and_close_escape_and_navigation() {
 fn speedtest_details_render_typed_unsupported_without_inventing_results() {
     let mut app = mounted_default();
     let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest = SpeedtestSnapshot::unavailable(
-        Failure::unsupported("missing Core speedtest owner"),
-    );
+    projection.speedtest =
+        SpeedtestSnapshot::unavailable(Failure::unsupported("missing Core speedtest owner"));
     app.world_mut()
         .commands()
         .trigger(OverviewProjectionUpdated(projection));

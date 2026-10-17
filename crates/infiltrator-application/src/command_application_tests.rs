@@ -5,8 +5,6 @@
 //! list arithmetic as `infiltrator_domain::rules::edit` and persists the
 //! result, without a real profile directory.
 
-use infiltrator_contract::core_identity::CoreScope;
-use tokio::sync::OwnedMutexGuard;
 use super::*;
 use crate::command_application::CommandApplication;
 use crate::command_application::handler::ValidatedCoreCommandScope;
@@ -17,6 +15,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
@@ -54,6 +53,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tokio::sync;
+use tokio::sync::OwnedMutexGuard;
 
 #[derive(Default)]
 struct FakeStore {
@@ -408,10 +408,7 @@ pub(super) struct RecordingConnectionPort {
 
 #[async_trait]
 impl ConnectionPort for RecordingConnectionPort {
-    async fn observe(
-        &self,
-        scope: CoreScope,
-    ) -> Result<ConnectionObservationSnapshot, PortError> {
+    async fn observe(&self, scope: CoreScope) -> Result<ConnectionObservationSnapshot, PortError> {
         ConnectionObservationSnapshot::new(
             scope,
             SnapshotRevision::new(1),

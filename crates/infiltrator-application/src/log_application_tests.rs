@@ -1,5 +1,4 @@
 //! test-intent: behavior
-use infiltrator_contract::logs::LogLevel;
 use crate::command_application::CommandApplication;
 use crate::command_application::handler::CommandHandler;
 use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
@@ -10,6 +9,7 @@ use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogObservationSnapshot, LogSession, LogStreamState,
 };
@@ -255,10 +255,7 @@ async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics
         .await
         .unwrap();
     let facts = logs.facts();
-    assert_eq!(
-        facts.active_level,
-        Some(LogLevel::Warn)
-    );
+    assert_eq!(facts.active_level, Some(LogLevel::Warn));
     assert!(
         matches!(facts.observation, LogObservationSnapshot::Observed { records, .. } if records.len() == 2)
     );
@@ -270,10 +267,7 @@ async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::InvalidInput);
-    assert_eq!(
-        logs.facts().active_level,
-        Some(LogLevel::Warn)
-    );
+    assert_eq!(logs.facts().active_level, Some(LogLevel::Warn));
 
     execute_core_command(&commands, CommandIntent::ClearLogs)
         .await
@@ -281,8 +275,5 @@ async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics
     assert!(
         matches!(logs.facts().observation, LogObservationSnapshot::Observed { records, .. } if records.is_empty())
     );
-    assert_eq!(
-        logs.facts().active_level,
-        Some(LogLevel::Warn)
-    );
+    assert_eq!(logs.facts().active_level, Some(LogLevel::Warn));
 }

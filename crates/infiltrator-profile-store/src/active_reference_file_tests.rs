@@ -107,11 +107,10 @@ async fn product_root_lock_serializes_independent_file_owners() {
     );
 
     drop(first_guard);
-    let (_, second_guard) =
-        timeout(Duration::from_secs(2), second.acquire_root_lock())
-            .await
-            .unwrap()
-            .unwrap();
+    let (_, second_guard) = timeout(Duration::from_secs(2), second.acquire_root_lock())
+        .await
+        .unwrap()
+        .unwrap();
     drop(second_guard);
 }
 

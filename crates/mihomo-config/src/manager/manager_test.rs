@@ -36,7 +36,12 @@ mod tests {
             namespace: &str,
             key: &str,
         ) -> result::Result<Option<String>, PortError> {
-            Ok(self.0.lock().unwrap().get(&(namespace.to_owned(), key.to_owned())).cloned())
+            Ok(self
+                .0
+                .lock()
+                .unwrap()
+                .get(&(namespace.to_owned(), key.to_owned()))
+                .cloned())
         }
 
         async fn set(
@@ -45,12 +50,18 @@ mod tests {
             key: &str,
             value: &str,
         ) -> result::Result<(), PortError> {
-            self.0.lock().unwrap().insert((namespace.to_owned(), key.to_owned()), value.to_owned());
+            self.0
+                .lock()
+                .unwrap()
+                .insert((namespace.to_owned(), key.to_owned()), value.to_owned());
             Ok(())
         }
 
         async fn delete(&self, namespace: &str, key: &str) -> result::Result<(), PortError> {
-            self.0.lock().unwrap().remove(&(namespace.to_owned(), key.to_owned()));
+            self.0
+                .lock()
+                .unwrap()
+                .remove(&(namespace.to_owned(), key.to_owned()));
             Ok(())
         }
     }
@@ -75,7 +86,8 @@ mod tests {
             expected,
             target,
             ActiveProfileReferenceWriteAuthorization::Unowned,
-        ).await
+        )
+        .await
     }
 
     #[tokio::test]
@@ -85,10 +97,7 @@ mod tests {
 
         assert_eq!(
             manager.config_dir(),
-            engine_config_dir(
-                &temp_dir.path().join("configs"),
-                &crate::engine_id(),
-            )
+            engine_config_dir(&temp_dir.path().join("configs"), &crate::engine_id(),)
         );
         assert_eq!(
             manager.settings_file(),

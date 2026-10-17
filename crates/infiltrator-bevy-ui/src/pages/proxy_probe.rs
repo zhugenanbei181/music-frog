@@ -1,7 +1,7 @@
 //! Inspector latency actions use the shared leaf-probe intent and tracked terminal results.
-use crate::pages::proxy_inspection::ProxyInspectionReadPhase;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
+use crate::pages::proxy_inspection::ProxyInspectionReadPhase;
 use crate::pages::proxy_inspection::{
     InspectionScope, ProxyInspectionPhase, ProxyInspectionState, ProxyProbePhase,
 };
@@ -343,9 +343,7 @@ pub fn sync_probe_controls(
                 }
                 ProxyInspectionReadPhase::Ready => String::new(),
                 ProxyInspectionReadPhase::Failed(failure)
-                | ProxyInspectionReadPhase::Unsupported(failure) => {
-                    failure.message.clone()
-                }
+                | ProxyInspectionReadPhase::Unsupported(failure) => failure.message.clone(),
             },
         },
     };

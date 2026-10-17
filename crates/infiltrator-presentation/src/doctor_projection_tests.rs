@@ -1,8 +1,8 @@
 //! Behavior tests for Doctor presentation state and report projection.
-use std::slice::from_ref;
 use super::*;
 use infiltrator_contract::doctor::DoctorCheckResult;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use std::slice::from_ref;
 
 fn report() -> DoctorReport {
     DoctorReport {

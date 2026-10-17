@@ -2,10 +2,10 @@
 
 use crate::runtime_scope::active_scope;
 use crate::runtime_stream_application::scope_checked;
-use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_contract::connection::ConnectionId;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_ports::connection::{
@@ -137,11 +137,7 @@ impl ConnectionApplication {
             .stream(scope.clone())
             .await
             .map_err(Failure::from)?;
-        Ok(scope_checked(
-            self.scope_source.clone(),
-            scope,
-            stream,
-        ))
+        Ok(scope_checked(self.scope_source.clone(), scope, stream))
     }
 
     /// Record the current connection slice so idle detection can compare
@@ -264,9 +260,7 @@ mod tests {
             _scope: CoreScope,
         ) -> Result<ConnectionObservationSnapshot, PortError> {
             self.0.fetch_add(1, Ordering::SeqCst);
-            Err(PortError::Failed(
-                "unexpected observation".to_owned(),
-            ))
+            Err(PortError::Failed("unexpected observation".to_owned()))
         }
 
         async fn close(
@@ -279,10 +273,7 @@ mod tests {
         async fn stream(
             &self,
             _scope: CoreScope,
-        ) -> Result<
-            ScopedRuntimeStream<ConnectionObservationSnapshot>,
-            PortError,
-        > {
+        ) -> Result<ScopedRuntimeStream<ConnectionObservationSnapshot>, PortError> {
             panic!("unavailable owner must fail before stream")
         }
     }

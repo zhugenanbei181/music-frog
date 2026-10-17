@@ -186,10 +186,7 @@ async fn typed_resource_observation_rejects_retired_scope_before_http_access() {
         .observe(retired_scope)
         .await
         .expect_err("retired scope must not be read");
-    assert_eq!(
-        error.error_code(),
-        ErrorCode::InvalidState
-    );
+    assert_eq!(error.error_code(), ErrorCode::InvalidState);
     unexpected.assert_async().await;
 }
 

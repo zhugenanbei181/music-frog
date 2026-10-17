@@ -1,5 +1,5 @@
-use crate::state::diagnostics::StunProbeState::Idle;
 use super::*;
+use crate::state::diagnostics::StunProbeState::Idle;
 use infiltrator_contract::stun_probe::{StunMappedAddress, StunProbeObservation, StunProbeReport};
 
 // ===========================================================================
@@ -96,18 +96,12 @@ fn test_stun_panel_renders_the_shared_report_honestly() {
     let _ = stun_panel(&state, &en);
     state.editor.dns_stun = unsupported;
     let _ = stun_panel(&state, &zh);
-    assert_eq!(
-        state.diag.stun_probe,
-        Idle
-    );
+    assert_eq!(state.diag.stun_probe, Idle);
 
     // The probe message reaches the shared handler; without a host runtime it
     // is a no-op instead of a fabricated mapping.
     let _ = state.update(Message::RunStunProbe);
-    assert_eq!(
-        state.diag.stun_probe,
-        Idle
-    );
+    assert_eq!(state.diag.stun_probe, Idle);
 }
 
 #[test]

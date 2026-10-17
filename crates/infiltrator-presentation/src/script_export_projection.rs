@@ -113,10 +113,7 @@ mod tests {
         ));
         assert!(model.is_exporting());
         assert!(!project_script_export(&model, "en-US").confirm);
-        model.finish(
-            pending.operation + 1,
-            Err(Failure::unsupported("foreign")),
-        );
+        model.finish(pending.operation + 1, Err(Failure::unsupported("foreign")));
         assert!(model.is_exporting());
         assert!(!project_script_export(&model, "en-US").close);
     }

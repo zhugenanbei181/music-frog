@@ -137,9 +137,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             ));
         }
         if self.profile_store.read_active_profile_reference().await?
-            != ActiveProfileReferenceState::Selected(
-                request.expected_reference.clone(),
-            )
+            != ActiveProfileReferenceState::Selected(request.expected_reference.clone())
         {
             return Err(rejected(
                 ErrorCode::NotReady,
@@ -605,9 +603,7 @@ fn classify_native_readback(
     }
 }
 
-fn invalid_candidate(
-    diagnostics: Vec<DocumentDiagnosticSnapshot>,
-) -> PortError {
+fn invalid_candidate(diagnostics: Vec<DocumentDiagnosticSnapshot>) -> PortError {
     let detail = diagnostics
         .into_iter()
         .map(|diagnostic| diagnostic.message)

@@ -456,6 +456,5 @@ fn supported_binary_evidence_still_requires_an_owner_composed_adapter_port() {
     ));
 }
 
-
 #[path = "core_capability_provider_tests/matrix_tests.rs"]
 mod matrix_tests;

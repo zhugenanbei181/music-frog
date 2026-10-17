@@ -243,13 +243,11 @@ impl ProfileConfigurationTransactionPort for ProfileConfigurationTransactionBind
             })?;
             match &*state {
                 BindingState::Unbound => {
-                    return Err(PortError::Rejected(
-                        Failure::new(
-                            ErrorCode::NotReady,
-                            "configuration transaction owner is not composed",
-                            false,
-                        ),
-                    ));
+                    return Err(PortError::Rejected(Failure::new(
+                        ErrorCode::NotReady,
+                        "configuration transaction owner is not composed",
+                        false,
+                    )));
                 }
                 BindingState::Bound(transaction) => Arc::clone(transaction),
             }

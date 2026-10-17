@@ -294,7 +294,13 @@ async fn refresh_profile_on_start_and_custom_accent_color_are_validated_and_pers
         })
         .await
         .unwrap();
-    assert!(store.settings.lock().unwrap().refresh_current_profile_on_start);
+    assert!(
+        store
+            .settings
+            .lock()
+            .unwrap()
+            .refresh_current_profile_on_start
+    );
 
     application
         .execute(CommandIntent::UpdateSetting {
@@ -303,7 +309,13 @@ async fn refresh_profile_on_start_and_custom_accent_color_are_validated_and_pers
         })
         .await
         .unwrap();
-    assert!(!store.settings.lock().unwrap().refresh_current_profile_on_start);
+    assert!(
+        !store
+            .settings
+            .lock()
+            .unwrap()
+            .refresh_current_profile_on_start
+    );
 
     // Invalid boolean is rejected
     assert_eq!(
@@ -327,7 +339,12 @@ async fn refresh_profile_on_start_and_custom_accent_color_are_validated_and_pers
         .await
         .unwrap();
     assert_eq!(
-        store.settings.lock().unwrap().custom_accent_color.as_deref(),
+        store
+            .settings
+            .lock()
+            .unwrap()
+            .custom_accent_color
+            .as_deref(),
         Some("#016888")
     );
 
@@ -340,7 +357,12 @@ async fn refresh_profile_on_start_and_custom_accent_color_are_validated_and_pers
         .await
         .unwrap();
     assert_eq!(
-        store.settings.lock().unwrap().custom_accent_color.as_deref(),
+        store
+            .settings
+            .lock()
+            .unwrap()
+            .custom_accent_color
+            .as_deref(),
         Some("#FF5733")
     );
 

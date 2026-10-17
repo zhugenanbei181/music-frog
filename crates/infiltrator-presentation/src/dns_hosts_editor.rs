@@ -1,5 +1,4 @@
 //! Hosts draft reducer with explicit observation, editing, and save lifecycles.
-use std::mem;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::{
     DnsHostEntry, DnsHostsIssue, DnsHostsProfile, validate_hosts,
@@ -8,6 +7,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
 use infiltrator_domain::dns_hosts::{hosts_entries_from_map, hosts_map_from_entries};
 use std::collections::HashSet;
+use std::mem;
 use std::slice::from_ref;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

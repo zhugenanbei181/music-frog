@@ -16,6 +16,7 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, FailureReason};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::rule_source::RuleSourceIdentity;
@@ -26,7 +27,6 @@ use infiltrator_domain::rules::source_identity::identify_rules_document;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryLease,
@@ -788,7 +788,6 @@ async fn write_profile_file_outside_store_for_test(
         .await
         .expect("simulate an out-of-store document edit");
 }
-
 
 #[path = "apply_lifecycle_tests.rs"]
 mod lifecycle_tests;

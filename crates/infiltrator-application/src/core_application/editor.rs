@@ -1,8 +1,10 @@
 use super::*;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-use infiltrator_contract::profile_mixin_studio::{ProfileMixinStudioObservation, ProfileMixinToggleId};
 
 impl CoreApplication {
     /// Inspect an editor-owned buffer through the configured engine codec.
@@ -89,5 +91,4 @@ impl CoreApplication {
             .clone()
             .ok_or_else(|| Failure::unsupported("profile editor codec is not composed"))
     }
-
 }

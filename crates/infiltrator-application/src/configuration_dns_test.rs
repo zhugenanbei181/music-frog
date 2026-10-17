@@ -1,6 +1,6 @@
 //! test-intent: behavior
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use super::*;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
@@ -27,8 +27,8 @@ async fn select_profile(store: &HostsCaptureStore, profile: &str) {
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned test selection CAS")
+    .await
+    .expect("revisioned test selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {

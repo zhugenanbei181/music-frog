@@ -1,4 +1,3 @@
-
 impl CoreApplication {
     pub(super) async fn start_locked(&self) -> Result<(), Failure> {
         if !matches!(
@@ -68,8 +67,7 @@ impl CoreApplication {
                 return Err(failure);
             }
         }
-        if admission == CoreProcessStartAdmission::LaunchNewProcess
-        {
+        if admission == CoreProcessStartAdmission::LaunchNewProcess {
             if let Err(error) = self.inner.process.start(start_context).await {
                 let message = error.to_string();
                 self.apply_domain_event(core_state::CoreEvent::StartFailed {
@@ -128,7 +126,6 @@ impl CoreApplication {
         self.start_locked().await
     }
 
-
     pub(super) async fn stop_after_readiness_failure(&self, error: PortError) -> Failure {
         let mut failure = Failure::from(error);
         if let Err(cleanup_error) = self.inner.process.stop().await {
@@ -174,7 +171,6 @@ impl CoreApplication {
                 .await;
         }
     }
-
 }
 
 use super::*;
@@ -330,4 +326,3 @@ impl CoreOwnerTerminationPort for CoreApplication {
         Ok(self.snapshot().lifecycle_snapshot())
     }
 }
-

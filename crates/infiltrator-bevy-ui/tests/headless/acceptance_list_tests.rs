@@ -20,9 +20,7 @@ use infiltrator_bevy_ui::pages::acceptance_list::{
     AcceptanceMenuButton, AcceptanceMenuChoice, AcceptanceScrollToBottomButton,
     AcceptanceScrollToCenterButton, AcceptanceScrollToTopButton, acceptance_list_scene,
 };
-use infiltrator_bevy_widgets::list::{
-    ScrollOffsetOutcome, ScrollToItemOutcome, SelectionOutcome,
-};
+use infiltrator_bevy_widgets::list::{ScrollOffsetOutcome, ScrollToItemOutcome, SelectionOutcome};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
 
@@ -61,16 +59,27 @@ fn acceptance_list_mounts_50_rows_under_scenario_id() {
     let found_scenario = texts
         .iter(world)
         .any(|t| t.0.contains(ACCEPTANCE_LIST_SCENARIO_ID));
-    assert!(found_scenario, "Scenario ID must be rendered in scene header");
+    assert!(
+        found_scenario,
+        "Scenario ID must be rendered in scene header"
+    );
 
     let mut buttons_top = world.query::<&AcceptanceScrollToTopButton>();
     assert_eq!(buttons_top.iter(world).count(), 1, "Top button mounted");
 
     let mut buttons_center = world.query::<&AcceptanceScrollToCenterButton>();
-    assert_eq!(buttons_center.iter(world).count(), 1, "Center button mounted");
+    assert_eq!(
+        buttons_center.iter(world).count(),
+        1,
+        "Center button mounted"
+    );
 
     let mut buttons_bottom = world.query::<&AcceptanceScrollToBottomButton>();
-    assert_eq!(buttons_bottom.iter(world).count(), 1, "Bottom button mounted");
+    assert_eq!(
+        buttons_bottom.iter(world).count(),
+        1,
+        "Bottom button mounted"
+    );
 
     let mut buttons_menu = world.query::<&AcceptanceMenuButton>();
     assert_eq!(buttons_menu.iter(world).count(), 1, "Menu button mounted");
@@ -98,7 +107,9 @@ fn three_buttons_drive_typed_scrolling_outcomes() {
     // 3. Scroll to Center (row 25)
     let center_outcome = state.scroll_to_center();
     match center_outcome {
-        ScrollToItemOutcome::Scrolled { index, offset_px, .. } => {
+        ScrollToItemOutcome::Scrolled {
+            index, offset_px, ..
+        } => {
             assert_eq!(index, 25);
             // row 25 center is 25 * 44 + 22 = 1122px, minus 220px viewport half = ~902px
             assert!(offset_px > 800.0 && offset_px < 1000.0);
@@ -180,7 +191,11 @@ fn diagnostic_classification_records_025_categories() {
         scroll_after: Some(Vec2::new(0.0, 50.0)),
         rendered: true,
     };
-    assert_eq!(success_entry.classify(), None, "Successful touch must classify to None");
+    assert_eq!(
+        success_entry.classify(),
+        None,
+        "Successful touch must classify to None"
+    );
     state.record_diagnostic(success_entry);
     assert!(state.last_diagnostic.is_some());
     assert_eq!(state.diagnostic_log.len(), 1);

@@ -1,7 +1,6 @@
 //! Demo-mode [`AppState`] constructor: seeds every page with the fixture
 //! tables so the full UI renders without any runtime or side effects.
 
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::DemoEnv;
 use super::dns_hosts;
 use super::dns_leak;
@@ -56,6 +55,7 @@ use infiltrator_domain::mrs::{Behavior, MrsMetadata};
 use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, RenameSpec};
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::traffic_scale::compute;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_test_support::subscription_filter_fixture::observation;
 use std::path::PathBuf;
 use std::time;
@@ -140,9 +140,10 @@ impl AppState {
 
         // ---- rules page ---------------------------------------------------
         let document = list_document(demo_rules());
-        state.editor.rule_list.observe_readback(
-            RuleListReadback::Observed(document),
-        );
+        state
+            .editor
+            .rule_list
+            .observe_readback(RuleListReadback::Observed(document));
         state
             .editor
             .rule_form_binding

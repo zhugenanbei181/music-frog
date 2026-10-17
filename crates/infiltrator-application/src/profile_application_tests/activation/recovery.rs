@@ -1,11 +1,11 @@
 //! Active-profile reference recovery and concurrency behavior.
 
-use tokio::sync::Barrier;
 use super::*;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileRecoveryOutcome, CoreApplyFailureKind,
 };
 use infiltrator_contract::error::FailureReason;
+use tokio::sync::Barrier;
 
 #[tokio::test]
 async fn concurrent_switches_with_one_observed_revision_have_one_cas_winner() {

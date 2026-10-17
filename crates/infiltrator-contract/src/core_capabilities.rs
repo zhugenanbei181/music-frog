@@ -41,7 +41,6 @@ mod operations;
 mod matrix_resolution;
 use matrix_resolution::*;
 
-
 pub const CORE_OPERATIONS: &[CoreOperation] = &[
     CoreOperation::Profile(ProfileOperation::Validate),
     CoreOperation::Profile(ProfileOperation::Apply),

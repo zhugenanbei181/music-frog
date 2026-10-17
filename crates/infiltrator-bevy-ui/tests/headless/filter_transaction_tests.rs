@@ -1,10 +1,10 @@
 //! test-intent: behavior
 //! Native observers, production command pump, actual coherent reader and persisted results.
-use crate::support::mihomo_profiles;
 use crate::command_harness::{
     HostlessProcess, IdentifiedHostlessProcess, test_command_application,
 };
 use crate::native_input::{click_entity, replace_text};
+use crate::support::mihomo_profiles;
 use crate::support::{
     command_pump_for_observed_snapshot, execute_at_observed_scope, headless_plugins,
 };

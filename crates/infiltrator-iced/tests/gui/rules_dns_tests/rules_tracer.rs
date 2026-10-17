@@ -1,8 +1,5 @@
 //! Native TEA flows execute the shared command owner and consume its actual reader.
 //! test-intent: behavior
-use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
-use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::*;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
@@ -16,6 +13,9 @@ use iced::Task;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
@@ -32,10 +32,8 @@ pub(crate) fn setup() -> (AppState, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let profiles =
-        profiles_for_mihomo(store.clone());
-    let configuration =
-        for_mihomo_profiles(profiles.clone());
+    let profiles = profiles_for_mihomo(store.clone());
+    let configuration = for_mihomo_profiles(profiles.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([

@@ -1,4 +1,3 @@
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use bevy::MinimalPlugins;
 use bevy::app::{App, Plugin};
 use bevy::asset::{AssetApp, AssetPlugin};
@@ -19,6 +18,7 @@ use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::command_execution::ApplicationCommandSink;
 use infiltrator_bevy_ui::route::{PageRoot, Route};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, CapabilityAccess, CapabilityMaturity,

@@ -294,8 +294,7 @@ impl ProfileConfigurationTransactionPort for FakeTransaction {
 
 fn scope(engine: &str, format: &str, schema: u32) -> ProfileConfigurationTransactionScope {
     ProfileConfigurationTransactionScope::new(ProfileDocumentCodecScope {
-        engine_id: EngineId::new(engine)
-            .expect("valid test engine"),
+        engine_id: EngineId::new(engine).expect("valid test engine"),
         format_id: ProfileFormatId::new(format).expect("valid test format"),
         schema_version: ProfileSchemaVersion::new(schema).expect("valid test schema"),
     })

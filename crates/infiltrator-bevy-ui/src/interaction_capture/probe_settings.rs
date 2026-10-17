@@ -1,7 +1,7 @@
 //! Native field edits and modal geometry use explicit ECS access sets.
-use crate::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing;
 use super::geometry::CaptureGeometry;
 use super::{InteractionCapture, ObservedInteraction, selected};
+use crate::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing;
 use crate::pages::proxy_probe_settings::{
     ApplyProbeSettings, OpenProbeSettings, ProbeSettingsCard, ProbeSettingsState,
     ProbeTimeoutField, ProbeUrlField,
@@ -37,8 +37,7 @@ pub fn activate(mut fields: ProbeFields, feature: Res<InteractionCapture>, mut c
     ) {
         return;
     }
-    if fields.editor.dialog != Editing
-    {
+    if fields.editor.dialog != Editing {
         if let Some(entity) = fields.open.iter().next() {
             fields.latest.0.probe_settings = RuntimeProbeSettingsState::Available {
                 settings: RuntimeProbeSettings::default(),

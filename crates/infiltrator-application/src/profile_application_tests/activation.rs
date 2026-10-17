@@ -1,18 +1,18 @@
 //! Revision-fenced active-profile activation behavior.
 
-use infiltrator_contract::core_identity::CoreGeneration;
-use infiltrator_contract::core_identity::CoreIdentity;
-use infiltrator_contract::core_identity::CoreInstanceId;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::core_identity::CoreIdentity;
+use infiltrator_contract::core_identity::CoreInstanceId;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -48,8 +48,7 @@ impl ActivationRuntime {
         store.bind_owner_for_test(
             CoreIdentity::new(
                 engine.clone(),
-                CoreInstanceId::new("activation-test-core")
-                    .expect("test owner instance"),
+                CoreInstanceId::new("activation-test-core").expect("test owner instance"),
                 None,
             ),
             CoreGeneration::new(1),
@@ -79,17 +78,11 @@ impl ActiveProfileReferenceApplier for ActivationRuntime {
         self.lifecycle.lock().expect("runtime lifecycle").clone()
     }
 
-    fn write_authorization(
-        &self,
-    ) -> Result<
-        ActiveProfileReferenceWriteAuthorization,
-        PortError,
-    > {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
             identity: CoreIdentity::new(
                 self.engine.clone(),
-                CoreInstanceId::new("activation-test-core")
-                    .expect("test owner instance"),
+                CoreInstanceId::new("activation-test-core").expect("test owner instance"),
                 None,
             ),
             generation: CoreGeneration::new(1),

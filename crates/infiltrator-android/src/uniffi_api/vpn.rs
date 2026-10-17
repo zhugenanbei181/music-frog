@@ -3,30 +3,30 @@
 
 use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(target_os = "android")]
-use crate::uniffi_api::owner_operation::{android_owner_data_revision, owner_data_revision_fence};
-#[cfg(target_os = "android")]
 use crate::host_session::shared_core;
 #[cfg(target_os = "android")]
 use crate::host_support::get_runtime;
 use crate::host_support::{build_configuration_application, map_application_failure};
 #[cfg(target_os = "android")]
+use crate::uniffi_api::owner_operation::{android_owner_data_revision, owner_data_revision_fence};
+#[cfg(target_os = "android")]
 use crate::vpn_route::VpnRouteConfig;
 #[cfg(target_os = "android")]
 use crate::vpn_service::AndroidVpnServicePort;
+#[cfg(target_os = "android")]
+use crate::vpn_service::stop_data_plane_worker;
 #[cfg(any(target_os = "android", test))]
 use crate::vpn_service::worker::WorkerStopOutcome;
 #[cfg(target_os = "android")]
-use crate::vpn_service::stop_data_plane_worker;
-#[cfg(target_os = "android")]
 use infiltrator_application::vpn_application::VpnServiceApplication;
+#[cfg(target_os = "android")]
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationReleaseOutcome;
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 #[cfg(target_os = "android")]
 use infiltrator_application::vpn_preparation::{
     VpnConfigurationActivationBeginOutcome, VpnConfigurationActivationConsumeOutcome,
     VpnPreparationInstallOutcome, VpnPreparationReadyOutcome, VpnPreparationStore,
 };
-#[cfg(target_os = "android")]
-use infiltrator_application::vpn_preparation::VpnConfigurationActivationReleaseOutcome;
-use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 #[cfg(target_os = "android")]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 #[cfg(target_os = "android")]

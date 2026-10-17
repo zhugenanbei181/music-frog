@@ -25,9 +25,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UnifiedRuntimeStatus {
     /// 1. Starting / Connecting (启动中).
-    Starting {
-        detail: Option<String>,
-    },
+    Starting { detail: Option<String> },
     /// 2. Success / Verified Running (成功) - strictly points back to its single authoritative proof source!
     Success {
         core_generation: u64,
@@ -35,25 +33,15 @@ pub enum UnifiedRuntimeStatus {
         outbound_id: Option<OutboundId>,
     },
     /// 3. Permission Denied / Authorization Required (拒权).
-    PermissionDenied {
-        reason: String,
-    },
+    PermissionDenied { reason: String },
     /// 4. Configuration Failed / Core Process Crash (配置失败).
-    ConfigurationFailed {
-        failure: Failure,
-    },
+    ConfigurationFailed { failure: Failure },
     /// 5. Controller API Disconnected / Unreachable (API 断连).
-    ApiDisconnected {
-        failure: Option<Failure>,
-    },
+    ApiDisconnected { failure: Option<Failure> },
     /// 6. VPN Data-plane Invalid / Revoked / Failed (VPN 失效).
-    VpnFailed {
-        reason: String,
-    },
+    VpnFailed { reason: String },
     /// 7. Demo Fixture Mode (demo) - explicitly flagged!
-    Demo {
-        fixture_name: String,
-    },
+    Demo { fixture_name: String },
     /// 8. Unknown / Initial / Unobserved State (未知).
     Unknown,
 }
@@ -101,11 +89,7 @@ pub fn project_from_axes(
     if let CoreProcessObservation::Failed { failure } = &runtime.core_process {
         return UnifiedRuntimeStatus::ConfigurationFailed {
             failure: failure.clone().unwrap_or_else(|| {
-                Failure::new(
-                    ErrorCode::InvalidState,
-                    "Core process failed",
-                    true,
-                )
+                Failure::new(ErrorCode::InvalidState, "Core process failed", true)
             }),
         };
     }
@@ -146,7 +130,10 @@ pub fn project_from_axes(
                 reason: "VPN authorization revoked by system".into(),
             };
         }
-        TunDataPlaneObservation::Inconsistent { lifecycle, readiness } => {
+        TunDataPlaneObservation::Inconsistent {
+            lifecycle,
+            readiness,
+        } => {
             return UnifiedRuntimeStatus::VpnFailed {
                 reason: format!("Inconsistent VPN state: {lifecycle:?} / {readiness:?}"),
             };
@@ -185,9 +172,7 @@ pub fn project_from_axes(
     ) {
         return UnifiedRuntimeStatus::Starting {
             detail: match &runtime.tun_data_plane {
-                TunDataPlaneObservation::Starting { readiness } => {
-                    Some(format!("{readiness:?}"))
-                }
+                TunDataPlaneObservation::Starting { readiness } => Some(format!("{readiness:?}")),
                 _ => None,
             },
         };
@@ -196,7 +181,9 @@ pub fn project_from_axes(
     // 7. Success: Core Running + Controller API Connected + TUN Ready
     if let (
         CoreProcessObservation::Running | CoreProcessObservation::Ready,
-        ControllerApiObservation::Connected { core_generation, .. },
+        ControllerApiObservation::Connected {
+            core_generation, ..
+        },
         TunDataPlaneObservation::Ready { generation },
     ) = (
         &runtime.core_process,
@@ -229,9 +216,7 @@ pub fn format_unified_status(status: &UnifiedRuntimeStatus, language: &str) -> S
         UnifiedRuntimeStatus::PermissionDenied { .. } => {
             lang.tr("vpn_status_permission").into_owned()
         }
-        UnifiedRuntimeStatus::ConfigurationFailed { .. } => {
-            lang.tr("status_error").into_owned()
-        }
+        UnifiedRuntimeStatus::ConfigurationFailed { .. } => lang.tr("status_error").into_owned(),
         UnifiedRuntimeStatus::ApiDisconnected { .. } => {
             lang.tr("net_roam_status_failed").into_owned()
         }
@@ -260,8 +245,14 @@ mod tests {
         let status = project_unified_runtime_status(&snapshot);
         assert!(status.is_demo());
         assert!(!status.is_success());
-        assert_eq!(format_unified_status(&status, "zh-CN"), "演示数据 · 未接实时内核");
-        assert_eq!(format_unified_status(&status, "en-US"), "Demo data · No live core");
+        assert_eq!(
+            format_unified_status(&status, "zh-CN"),
+            "演示数据 · 未接实时内核"
+        );
+        assert_eq!(
+            format_unified_status(&status, "en-US"),
+            "Demo data · No live core"
+        );
     }
 
     #[test]
@@ -317,22 +308,35 @@ mod tests {
             ..RuntimeStatusSnapshot::default()
         };
         let status = project_from_axes(SurfaceOrigin::Live, &runtime);
-        assert!(matches!(status, UnifiedRuntimeStatus::PermissionDenied { .. }));
+        assert!(matches!(
+            status,
+            UnifiedRuntimeStatus::PermissionDenied { .. }
+        ));
         assert!(!status.is_success());
         assert_eq!(format_unified_status(&status, "zh-CN"), "等待授权");
-        assert_eq!(format_unified_status(&status, "en-US"), "Waiting for consent");
+        assert_eq!(
+            format_unified_status(&status, "en-US"),
+            "Waiting for consent"
+        );
     }
 
     #[test]
     fn configuration_failed_projects_failure_cause() {
         let runtime = RuntimeStatusSnapshot {
             core_process: CoreProcessObservation::Failed {
-                failure: Some(Failure::new(ErrorCode::Configuration, "yaml parse error", true)),
+                failure: Some(Failure::new(
+                    ErrorCode::Configuration,
+                    "yaml parse error",
+                    true,
+                )),
             },
             ..RuntimeStatusSnapshot::default()
         };
         let status = project_from_axes(SurfaceOrigin::Live, &runtime);
-        assert!(matches!(status, UnifiedRuntimeStatus::ConfigurationFailed { .. }));
+        assert!(matches!(
+            status,
+            UnifiedRuntimeStatus::ConfigurationFailed { .. }
+        ));
         assert_eq!(format_unified_status(&status, "zh-CN"), "运行出错");
         assert_eq!(format_unified_status(&status, "en-US"), "Runtime Error");
     }
@@ -347,7 +351,10 @@ mod tests {
             ..RuntimeStatusSnapshot::default()
         };
         let status = project_from_axes(SurfaceOrigin::Live, &runtime);
-        assert!(matches!(status, UnifiedRuntimeStatus::ApiDisconnected { .. }));
+        assert!(matches!(
+            status,
+            UnifiedRuntimeStatus::ApiDisconnected { .. }
+        ));
         assert!(!status.is_success());
     }
 

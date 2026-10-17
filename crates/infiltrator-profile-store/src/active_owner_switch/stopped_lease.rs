@@ -162,4 +162,3 @@ impl ActiveProfileOwnerStoppedSwitchLease for ActiveOwnerStoppedSwitchLease {
         }))
     }
 }
-

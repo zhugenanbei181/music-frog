@@ -1,14 +1,12 @@
 //! test-intent: behavior
 
-use infiltrator_contract::capability::Capability;
-use std::str::from_utf8;
-use tokio::fs;
 use crate::engine_backend_factory::SingBoxEngineBackendProvider;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::session::SessionToken;
@@ -33,9 +31,11 @@ use singbox_api::http::{
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::path::Path;
+use std::str::from_utf8;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
+use tokio::fs;
 
 struct TestCredentialStore;
 

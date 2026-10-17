@@ -177,15 +177,21 @@ pub trait SlintProductHost: Send + Sync + 'static {
     }
 
     fn scan_qr_code(&self) -> Result<String, Failure> {
-        Err(Failure::unsupported("QR code scanning is not supported on this platform"))
+        Err(Failure::unsupported(
+            "QR code scanning is not supported on this platform",
+        ))
     }
 
-    fn request_battery_optimization_exemption(&self) -> Result<BatteryOptimizationOutcome, Failure> {
+    fn request_battery_optimization_exemption(
+        &self,
+    ) -> Result<BatteryOptimizationOutcome, Failure> {
         Ok(BatteryOptimizationOutcome::Unsupported)
     }
 
     fn open_autostart_settings(&self) -> Result<(), Failure> {
-        Err(Failure::unsupported("Autostart settings not available on this platform"))
+        Err(Failure::unsupported(
+            "Autostart settings not available on this platform",
+        ))
     }
 
     fn set_hide_background_card(&self, _enabled: bool) -> Result<(), Failure> {
@@ -558,8 +564,7 @@ fn network_mode_action(
                     Ok(SlintAction::Command(CommandIntent::StopVpn))
                 }
                 VpnSurfaceObservation::AndroidOwner(owner)
-                    if owner.readiness
-                        == VpnOwnerReadiness::CleanupPending
+                    if owner.readiness == VpnOwnerReadiness::CleanupPending
                         || owner.resources.iter().any(|resource| {
                             matches!(
                                 &resource.state,
@@ -576,28 +581,26 @@ fn network_mode_action(
                     | VpnOwnerLifecycle::Failed { .. } => {
                         Ok(SlintAction::Command(CommandIntent::StartVpn))
                     }
-                    VpnOwnerLifecycle::Unavailable {
-                        failure_message,
-                    } => Err(Failure::unsupported(failure_message.clone())),
+                    VpnOwnerLifecycle::Unavailable { failure_message } => {
+                        Err(Failure::unsupported(failure_message.clone()))
+                    }
                     VpnOwnerLifecycle::StartRequested
                     | VpnOwnerLifecycle::Starting
                     | VpnOwnerLifecycle::Foreground
                     | VpnOwnerLifecycle::TunnelEstablished
                     | VpnOwnerLifecycle::Running
-                    | VpnOwnerLifecycle::Stopping => Err(
-                        Failure::new(
-                            ErrorCode::NotReady,
-                            "VPN owner is in a transition and cannot accept a duplicate mode change",
-                            true,
-                        ),
-                    ),
+                    | VpnOwnerLifecycle::Stopping => Err(Failure::new(
+                        ErrorCode::NotReady,
+                        "VPN owner is in a transition and cannot accept a duplicate mode change",
+                        true,
+                    )),
                 },
                 VpnSurfaceObservation::Unsupported { reason } => {
                     Err(Failure::unsupported(reason.clone()))
                 }
-                VpnSurfaceObservation::NotApplicable => {
-                    Err(Failure::unsupported("VPN is not applicable to this surface"))
-                }
+                VpnSurfaceObservation::NotApplicable => Err(Failure::unsupported(
+                    "VPN is not applicable to this surface",
+                )),
                 VpnSurfaceObservation::Unavailable { failure } => Err(failure.clone()),
             }
         };

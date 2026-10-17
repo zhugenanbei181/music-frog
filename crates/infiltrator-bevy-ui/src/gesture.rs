@@ -31,7 +31,6 @@ use crate::host_capabilities::{HostPreferenceIntent, MotionPreference};
 use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
-use infiltrator_shared::i18n_interpolator::localize;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -61,6 +60,7 @@ use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, PullPhase,
     SafeAreaInsets, TouchGestureSupport,
 };
+use infiltrator_shared::i18n_interpolator::localize;
 use std::collections::BTreeMap;
 
 /// Maximum simultaneous touches tracked; extra fingers are ignored so the

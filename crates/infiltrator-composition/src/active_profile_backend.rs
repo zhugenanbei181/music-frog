@@ -1,21 +1,19 @@
 //! Resolve the unique active profile reference before composing one Core backend.
 
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use std::error::Error;
-use tokio::sync::Mutex;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
@@ -33,8 +31,10 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[cfg(test)]
 #[path = "active_profile_backend_tests.rs"]
@@ -347,10 +347,7 @@ impl SelectedActiveProfileBackend {
 
     /// Attach the same owner-authored capability provider that authorized the
     /// selected target to the new CoreApplication before it can accept work.
-    pub fn install_core_capabilities(
-        &self,
-        application: &CoreApplication,
-    ) -> Result<(), Failure> {
+    pub fn install_core_capabilities(&self, application: &CoreApplication) -> Result<(), Failure> {
         application.install_core_capability_application(CoreCapabilityApplication::new(Arc::clone(
             &self.capability_provider,
         )))
@@ -536,10 +533,7 @@ fn verify_stopped_owner(
 
 fn capability_failure(failure: Failure) -> PortError {
     if failure.code == ErrorCode::Unsupported {
-        PortError::unsupported(
-            Capability::CoreLifecycle,
-            failure.message,
-        )
+        PortError::unsupported(Capability::CoreLifecycle, failure.message)
     } else {
         PortError::Rejected(failure)
     }

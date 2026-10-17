@@ -1,9 +1,5 @@
 //! test-intent: behavior
 
-use singbox_api::controller_configuration::SingBoxControllerConfigurationError;
-use std::time::Duration;
-use tokio::fs;
-use tokio::time::timeout;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
@@ -14,6 +10,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use serde_json::Value;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_api::controller_configuration::SingBoxControllerConfigurationError;
 use singbox_api::http::{
     ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse,
     SingBoxControllerAuthorization,
@@ -28,8 +25,11 @@ use singbox_process::process::SingBoxProcess;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{self, Arc};
+use std::time::Duration;
 use tempfile::TempDir;
+use tokio::fs;
 use tokio::sync::{Mutex, Semaphore};
+use tokio::time::timeout;
 use url::Url;
 
 fn controller_configuration(address: &str, secret: Option<&str>) -> SingBoxControllerConfiguration {

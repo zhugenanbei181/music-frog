@@ -269,12 +269,14 @@ pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot
     let show_closed = window.get_connection_show_closed();
 
     let rows = if show_closed {
-        let mut connections = snapshot.closed_connections.records.iter().collect::<Vec<_>>();
+        let mut connections = snapshot
+            .closed_connections
+            .records
+            .iter()
+            .collect::<Vec<_>>();
         match sort_mode.as_str() {
             "upload" => connections.sort_by_key(|connection| Reverse(connection.upload_bytes)),
-            "download" => {
-                connections.sort_by_key(|connection| Reverse(connection.download_bytes))
-            }
+            "download" => connections.sort_by_key(|connection| Reverse(connection.download_bytes)),
             "host" => connections.sort_by(|left, right| left.destination.cmp(&right.destination)),
             "time" => connections.sort_by(|left, right| right.closed_at.cmp(&left.closed_at)),
             _ => {}
@@ -313,7 +315,9 @@ pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot
             .map(|page| {
                 let mut connections = page.connections.iter().collect::<Vec<_>>();
                 match sort_mode.as_str() {
-                    "upload" => connections.sort_by_key(|connection| Reverse(connection.upload_total)),
+                    "upload" => {
+                        connections.sort_by_key(|connection| Reverse(connection.upload_total))
+                    }
                     "download" => {
                         connections.sort_by_key(|connection| Reverse(connection.download_total))
                     }
@@ -666,8 +670,22 @@ pub(crate) fn project_connection_detail(
             window.set_connection_detail_process("—".into());
             window.set_connection_detail_source("—".into());
             window.set_connection_detail_destination(closed.destination.clone().into());
-            window.set_connection_detail_rule(if closed.rule.is_empty() { "—" } else { &closed.rule }.into());
-            window.set_connection_detail_chains(if closed.outbound.is_empty() { "—" } else { &closed.outbound }.into());
+            window.set_connection_detail_rule(
+                if closed.rule.is_empty() {
+                    "—"
+                } else {
+                    &closed.rule
+                }
+                .into(),
+            );
+            window.set_connection_detail_chains(
+                if closed.outbound.is_empty() {
+                    "—"
+                } else {
+                    &closed.outbound
+                }
+                .into(),
+            );
             window.set_connection_detail_providers("—".into());
             window.set_connection_detail_start("—".into());
             let duration_sec = closed.duration_ms / 1000;

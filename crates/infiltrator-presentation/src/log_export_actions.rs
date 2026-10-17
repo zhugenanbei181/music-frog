@@ -1,8 +1,8 @@
 //! Typed log-export workbench transitions shared by native surfaces.
-use infiltrator_contract::log_export::LogExportIdentity;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::log_export::LogExportIdentity;
 use infiltrator_contract::log_export::{LogExportReceipt, LogExportSummary};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

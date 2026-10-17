@@ -1,8 +1,8 @@
 //! Isolated controller process used by deterministic log and telemetry tests.
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use std::sync::RwLock;

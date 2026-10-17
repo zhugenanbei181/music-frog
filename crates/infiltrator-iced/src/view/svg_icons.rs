@@ -8,9 +8,9 @@
 //! `text` block: Usage in a page view:
 //! `icon(Icon::Search, 16.0, theme::tokens(theme).text_secondary)`.
 
-use infiltrator_shared::assets::iced_icon_svg;
 use iced::widget::svg;
 use iced::{Color, Element};
+use infiltrator_shared::assets::iced_icon_svg;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -84,8 +84,7 @@ impl Icon {
             Icon::Minus => "minus",
             Icon::Square => "square",
         };
-        iced_icon_svg(name)
-            .expect("registered Iced icon must exist in the shared asset catalog")
+        iced_icon_svg(name).expect("registered Iced icon must exist in the shared asset catalog")
     }
 }
 

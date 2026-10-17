@@ -1,7 +1,4 @@
 //! Typed output routing validates actual results rather than unit acknowledgements.
-use infiltrator_contract::profile_document::DocumentInspection;
-use infiltrator_contract::script_export::ScriptExportKind;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use super::{
     CommandApplication, CommandFuture, CommandHandler, CommandOutputFuture,
     CoreLifecycleChildPermit, ValidatedCoreCommandScope,
@@ -13,6 +10,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
@@ -21,6 +19,8 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, ScopedRuleTraceRequest,
 };
+use infiltrator_contract::script_export::ScriptExportKind;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 impl CommandApplication {
     pub async fn execute_output(&self, intent: CommandIntent) -> Result<CommandOutput, Failure> {
@@ -204,9 +204,7 @@ impl CommandApplication {
                         exports.prepare_mixin_overlay(&draft, &options)
                     }
                     ScriptExportKind::DirectiveDslScript
-                    | ScriptExportKind::ExtensionPackageJson => {
-                        exports.prepare(&draft)
-                    }
+                    | ScriptExportKind::ExtensionPackageJson => exports.prepare(&draft),
                 })
                 .map(|review| CommandOutput::ScriptExportPrepared(Box::new(review))),
             CommandIntent::SaveScriptExport { identity } => self
@@ -285,11 +283,7 @@ impl CommandApplication {
                 mixin_yaml,
             } => self
                 .profile_options()?
-                .save_mixin(
-                    self.profile_access(),
-                    &workspace_identity,
-                    &mixin_yaml,
-                )
+                .save_mixin(self.profile_access(), &workspace_identity, &mixin_yaml)
                 .await
                 .map(|saved| CommandOutput::ProfileMixinSaved(Box::new(saved))),
             CommandIntent::LoadProfileOptions { profile } => self
@@ -341,8 +335,7 @@ impl CommandHandler for CommandApplication {
         snippet_id: &str,
         line: usize,
         column: usize,
-    ) -> Result<ProfileDocumentSnippetOutcome, Failure>
-    {
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
         self.profile_document()?
             .insert_snippet_for_buffer(identity, content, snippet_id, line, column)
     }

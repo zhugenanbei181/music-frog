@@ -1,18 +1,17 @@
 //! Headless tests for the shared subscription refresh orchestration
 //! (DUAL-07-05 retry/backoff, DUAL-07-06 single-flight).
 
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::capability::Capability;
-use std::mem;
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
 use async_trait::async_trait;
 use chrono::Timelike;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::subscription_import::{
@@ -34,6 +33,7 @@ use infiltrator_test_support::profile_document_codec_test_support::TestProfileDo
 use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
 use std::collections::BTreeMap;
 use std::future::ready;
+use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll, Waker};
 use std::thread::yield_now;

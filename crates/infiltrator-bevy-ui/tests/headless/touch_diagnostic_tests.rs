@@ -41,7 +41,11 @@ fn test_touch_diagnostic_four_failure_categories() {
         not_entered.classify().unwrap().label(),
         "touch_not_entered_bevy"
     );
-    assert!(not_entered.format_log().contains("category=touch_not_entered_bevy"));
+    assert!(
+        not_entered
+            .format_log()
+            .contains("category=touch_not_entered_bevy")
+    );
 
     // 2. TouchMissedUi: touch input arrived in Bevy, but Picking hit nothing
     let missed_ui = TouchLayerDiagnosticEntry {
@@ -59,10 +63,7 @@ fn test_touch_diagnostic_four_failure_categories() {
         missed_ui.classify(),
         Some(TouchLayerDiagnosticCategory::TouchMissedUi)
     );
-    assert_eq!(
-        missed_ui.classify().unwrap().label(),
-        "touch_missed_ui"
-    );
+    assert_eq!(missed_ui.classify().unwrap().label(), "touch_missed_ui");
     assert!(missed_ui.format_log().contains("category=touch_missed_ui"));
 
     // 3. DragNotDrivenScroll: dragging occurred on hit UI node, but scroll position didn't change (delta == 0)
@@ -85,7 +86,11 @@ fn test_touch_diagnostic_four_failure_categories() {
         drag_stalled.classify().unwrap().label(),
         "drag_not_driven_scroll"
     );
-    assert!(drag_stalled.format_log().contains("category=drag_not_driven_scroll"));
+    assert!(
+        drag_stalled
+            .format_log()
+            .contains("category=drag_not_driven_scroll")
+    );
 
     // 4. PositionNotRendered: scroll position changed, but no visual render update occurred
     let position_not_rendered = TouchLayerDiagnosticEntry {
@@ -107,7 +112,11 @@ fn test_touch_diagnostic_four_failure_categories() {
         position_not_rendered.classify().unwrap().label(),
         "position_not_rendered"
     );
-    assert!(position_not_rendered.format_log().contains("category=position_not_rendered"));
+    assert!(
+        position_not_rendered
+            .format_log()
+            .contains("category=position_not_rendered")
+    );
 }
 
 #[test]

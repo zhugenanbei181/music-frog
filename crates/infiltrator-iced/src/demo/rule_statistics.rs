@@ -1,7 +1,4 @@
 //! Capture the actual reader and independent native cleanup review before any write.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
-use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
-use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -9,9 +6,12 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -43,9 +43,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner.clone())
-    .with_configuration(
-        for_mihomo_store(store.clone()),
-    );
+    .with_configuration(for_mihomo_store(store.clone()));
     attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;
     Task::perform(
@@ -72,9 +70,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
                     &observed_workspace,
                     RuleTraceOperationId(1),
                     request,
-                    &RuleTraceOutboundFacts::observed(
-                        outbound_observation.clone(),
-                    ),
+                    &RuleTraceOutboundFacts::observed(outbound_observation.clone()),
                 )
                 .await
                 .expect("actual trace statistics");

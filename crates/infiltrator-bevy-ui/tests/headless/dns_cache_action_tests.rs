@@ -190,9 +190,7 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
     let (request, token) = app.world().resource::<CacheConfirmation>().request.unwrap();
     app.world_mut().trigger(CommandExecutedEvent {
         request_id: RequestId(u64::MAX),
-        command: UiCommand::ClearDnsCache {
-            operation: token,
-        },
+        command: UiCommand::ClearDnsCache { operation: token },
         result: Ok(CommandOutput::Unit),
     });
     app.world_mut().trigger(CommandExecutedEvent {

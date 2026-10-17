@@ -9,9 +9,7 @@ use std::io::{Error, ErrorKind};
 
 fn namespace_error(error: PortError) -> MihomoError {
     match error {
-        PortError::Rejected(failure)
-            if failure.code == ErrorCode::Configuration =>
-        {
+        PortError::Rejected(failure) if failure.code == ErrorCode::Configuration => {
             MihomoError::Config(failure.message)
         }
         PortError::PermissionDenied(message) => {
@@ -92,10 +90,13 @@ mod tests {
             ProfileNamespaceSchema::LegacyShared
         );
         assert_eq!(
-            ProfileNamespaceSchema::parse(Some(&toml::Value::String("engine_scoped_v1".into()))).unwrap(),
+            ProfileNamespaceSchema::parse(Some(&toml::Value::String("engine_scoped_v1".into())))
+                .unwrap(),
             ProfileNamespaceSchema::EngineScopedV1
         );
-        assert!(ProfileNamespaceSchema::parse(Some(&toml::Value::String("unknown".into()))).is_err());
+        assert!(
+            ProfileNamespaceSchema::parse(Some(&toml::Value::String("unknown".into()))).is_err()
+        );
         assert!(ProfileNamespaceSchema::parse(Some(&toml::Value::Integer(1))).is_err());
     }
 

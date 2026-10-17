@@ -1,8 +1,3 @@
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_platform::android_bridge::AndroidBridge;
-use infiltrator_ports::core_process::CoreReadiness;
-use std::path::Path;
 use super::{SharedCore, SharedCoreEngine, authorize_android_core_start};
 use crate::composition::singbox::core_application_for_singbox;
 use crate::core_version_owner::{core_binary_selection_port, core_version_application};
@@ -15,8 +10,11 @@ use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
 use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::version::CoreArtifactVerification;
+use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::core_binary_selection::{
@@ -24,6 +22,7 @@ use infiltrator_ports::core_binary_selection::{
     CoreBinarySelectionSource,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
+use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
@@ -32,6 +31,7 @@ use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::readiness::SingBoxControllerReadiness;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_process::command::TokioSingBoxCommandPort;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -170,11 +170,7 @@ pub(super) async fn build_shared_core(
         })?;
     application
         .install_active_profile_owner_binding(owner_binding)
-        .map_err(|failure| {
-            FfiStatus::from(InfiltratorError::Backend(
-                failure.message,
-            ))
-        })?;
+        .map_err(|failure| FfiStatus::from(InfiltratorError::Backend(failure.message)))?;
     let control = AndroidControlApplication::new(application.clone());
     let watchdog = infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
     Ok(Arc::new(SharedCore {
@@ -224,10 +220,9 @@ pub(super) fn validate_binary_selection(
         CoreArtifactVerification::Verified { engine_id: verified_engine, version }
             if verified_engine == engine_id && version == selection.version.raw()
     );
-    let android_target = expected_target.target_triple().is_some_and(|target| {
-        AndroidCoreBinaryTarget::from_target_triple(target)
-            .is_some()
-    });
+    let android_target = expected_target
+        .target_triple()
+        .is_some_and(|target| AndroidCoreBinaryTarget::from_target_triple(target).is_some());
     let expected_path = expected_target.target_triple().map(|target| {
         working_directory
             .join("engines/sing-box/targets")

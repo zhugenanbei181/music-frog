@@ -1,8 +1,8 @@
 //! Behavior cases for inactive.
 //! test-intent: behavior
 
-use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use super::*;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 
 #[tokio::test]
 async fn inactive_save_clears_the_transient_backup() {
@@ -10,9 +10,7 @@ async fn inactive_save_clears_the_transient_backup() {
     let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
     application
         .save_profile_content(
-            ProfileRuntimeAccess::<
-                dyn ActiveProfileReferenceApplier,
-            >::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             "main".to_string(),
             "mode: direct\n".to_string(),
             ApplyStrategy::PreferReload,

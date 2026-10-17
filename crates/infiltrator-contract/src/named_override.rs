@@ -26,7 +26,10 @@ impl NamedOverrideId {
         if trimmed.len() > 64 {
             return Err(NamedOverrideError::IdTooLong);
         }
-        if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        if !trimmed
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(NamedOverrideError::InvalidIdCharacters);
         }
         Ok(Self(trimmed.to_lowercase()))
@@ -58,7 +61,10 @@ impl fmt::Display for NamedOverrideError {
         match self {
             Self::EmptyId => write!(f, "override ID must not be empty"),
             Self::IdTooLong => write!(f, "override ID exceeds 64 characters"),
-            Self::InvalidIdCharacters => write!(f, "override ID may only contain letters, numbers, dashes, and underscores"),
+            Self::InvalidIdCharacters => write!(
+                f,
+                "override ID may only contain letters, numbers, dashes, and underscores"
+            ),
             Self::EmptyName => write!(f, "override name must not be empty"),
             Self::NameTooLong => write!(f, "override name exceeds 128 characters"),
             Self::InvalidYaml(err) => write!(f, "invalid YAML content: {err}"),
@@ -254,7 +260,8 @@ impl NamedOverrideCatalog {
             .get_mut(profile_id)
             .ok_or_else(|| NamedOverrideMutationError::ProfileNotFound(profile_id.to_string()))?;
 
-        let existing_set: HashSet<NamedOverrideId> = bindings.iter().map(|b| b.override_id.clone()).collect();
+        let existing_set: HashSet<NamedOverrideId> =
+            bindings.iter().map(|b| b.override_id.clone()).collect();
         let target_set: HashSet<NamedOverrideId> = target_order.iter().cloned().collect();
 
         if existing_set != target_set {
@@ -324,7 +331,10 @@ mod tests {
     #[test]
     fn override_id_validation() {
         assert!(NamedOverrideId::new("valid-id_1").is_ok());
-        assert_eq!(NamedOverrideId::new("My_Override").unwrap().as_str(), "my_override");
+        assert_eq!(
+            NamedOverrideId::new("My_Override").unwrap().as_str(),
+            "my_override"
+        );
         assert!(NamedOverrideId::new("").is_err());
         assert!(NamedOverrideId::new("invalid id with spaces").is_err());
         assert!(NamedOverrideId::new("invalid$special").is_err());
@@ -333,7 +343,15 @@ mod tests {
     #[test]
     fn override_creation_and_validation() {
         let id = NamedOverrideId::new("dns-tweak").unwrap();
-        assert!(NamedOverride::new(id.clone(), "DNS Tweak", "dns:\n  enable: true\n", "2026-10-15").is_ok());
+        assert!(
+            NamedOverride::new(
+                id.clone(),
+                "DNS Tweak",
+                "dns:\n  enable: true\n",
+                "2026-10-15"
+            )
+            .is_ok()
+        );
 
         // Empty name rejected
         assert_eq!(
@@ -348,7 +366,8 @@ mod tests {
         assert_eq!(catalog.revision, 0);
 
         let id1 = NamedOverrideId::new("ov1").unwrap();
-        let ov1 = NamedOverride::new(id1.clone(), "Override 1", "mode: rule", "2026-10-15").unwrap();
+        let ov1 =
+            NamedOverride::new(id1.clone(), "Override 1", "mode: rule", "2026-10-15").unwrap();
 
         // Stale revision rejected
         assert!(matches!(
@@ -367,7 +386,8 @@ mod tests {
         assert_eq!(catalog.bound_profile_count(&id1), 1); // Only alpha is enabled
 
         let id2 = NamedOverrideId::new("ov2").unwrap();
-        let ov2 = NamedOverride::new(id2.clone(), "Override 2", "ipv6: false", "2026-10-15").unwrap();
+        let ov2 =
+            NamedOverride::new(id2.clone(), "Override 2", "ipv6: false", "2026-10-15").unwrap();
         catalog.upsert_override(3, ov2).unwrap();
         catalog.set_profile_binding(4, "alpha", &id2, true).unwrap();
 
@@ -377,7 +397,9 @@ mod tests {
         assert!(composed.contains("ipv6: false"));
 
         // Reordering alpha's overrides
-        catalog.reorder_profile_bindings(5, "alpha", &[id2.clone(), id1.clone()]).unwrap();
+        catalog
+            .reorder_profile_bindings(5, "alpha", &[id2.clone(), id1.clone()])
+            .unwrap();
         let alpha_bindings = catalog.bindings_for_profile("alpha");
         assert_eq!(alpha_bindings[0].override_id, id2);
         assert_eq!(alpha_bindings[1].override_id, id1);

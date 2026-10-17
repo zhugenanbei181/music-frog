@@ -1,8 +1,6 @@
 //! Live runtime configuration: query non-routing controller settings and
 //! patch TUN/sniffer toggles through the runtime gateway.
 
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::error::ErrorCode;
 use crate::port_conflict_application::application;
 use crate::state::AppState;
 use crate::state::editor::TunSavePhase;
@@ -16,6 +14,8 @@ use infiltrator_application::runtime_control_projection::{
     ipv6_observation, lan_security_observation, runtime_control,
 };
 use infiltrator_application::service_mode_application::ServiceModeApplication;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::{Failure, InfiltratorError};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
@@ -30,9 +30,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 use tokio::task::spawn_blocking;
 
 impl AppState {
-    fn runtime_configuration_scope(
-        &self,
-    ) -> Result<CoreScope, Failure> {
+    fn runtime_configuration_scope(&self) -> Result<CoreScope, Failure> {
         self.runtime.core_lifecycle.scope().ok_or_else(|| {
             Failure::new(
                 ErrorCode::NotReady,

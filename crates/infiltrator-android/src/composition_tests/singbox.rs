@@ -1,5 +1,3 @@
-use infiltrator_contract::capability::Capability;
-use infiltrator_core::settings_store::FileSettingsStore;
 use super::super::singbox::core_application_for_singbox;
 use super::{
     TestBridge, TestCredentialStore, TestLifecycleCapabilityProvider, TestReadiness, config_manager,
@@ -7,6 +5,7 @@ use super::{
 use async_trait::async_trait;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_contract::core_identity::EngineId;
@@ -16,6 +15,7 @@ use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, EngineReleaseChannel,
     InstalledCoreVersion,
 };
+use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPort, CoreBinarySelectionRequest,
     CoreBinarySelectionSource,
@@ -189,9 +189,7 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
         Arc::new(TestReadiness),
         Arc::new(TestLifecycleCapabilityProvider),
         version_application(),
-        SettingsApplication::new(Arc::new(
-            FileSettingsStore::for_home(home.0.clone()),
-        )),
+        SettingsApplication::new(Arc::new(FileSettingsStore::for_home(home.0.clone()))),
     )
     .await
     .expect("compose lifecycle owner without selecting a test binary");

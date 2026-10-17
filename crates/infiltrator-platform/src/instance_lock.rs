@@ -29,8 +29,8 @@ use std::path::{Path, PathBuf};
 #[cfg(windows)]
 use std::ptr::null;
 use std::result;
-use std::sync::{Mutex, PoisonError};
 use std::sync::mpsc::{SyncSender, sync_channel};
+use std::sync::{Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 

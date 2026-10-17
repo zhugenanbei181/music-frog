@@ -1,5 +1,4 @@
 //! Native core controls replay the shared decision and correlate terminal results with snapshot revisions.
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::surface::{LatestCoreLifecycle, LatestSurfaceSnapshot};
@@ -25,9 +24,12 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::core_control::{CoreControlAction, CoreControlLabel, CoreControlProjection};
+use infiltrator_contract::core_control::{
+    CoreControlAction, CoreControlLabel, CoreControlProjection,
+};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_presentation::core_control_projection::project_core_control;
 
 #[derive(Component, Clone, Copy, Debug, Default)]

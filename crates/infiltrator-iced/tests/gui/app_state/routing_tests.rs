@@ -143,7 +143,6 @@ fn test_p0_runtime_stream_scope_and_failure_projection() {
     assert!(state.shell.error_msg.is_some());
 }
 
-
 #[test]
 fn test_p0_ip_probe_metadata_and_explicit_language() {
     let (mut state, _) = AppState::new();

@@ -4,8 +4,6 @@
 //! the application facade or host port that implements it. Split out of the
 //! application module so the composition/accessor surface stays readable.
 
-use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
-use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use super::vpn_start_result::confirmed;
 use super::*;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
@@ -24,16 +22,16 @@ use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
 };
-use infiltrator_contract::profile_display_name::{
-    ProfileDisplayName, ProfileDisplayNameTarget,
-};
+use infiltrator_contract::profile_display_name::{ProfileDisplayName, ProfileDisplayNameTarget};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::profile_selection_clear::{
     ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
 };
 use infiltrator_contract::rule_edit::RuleDraft;
+use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use infiltrator_ports::runtime_configuration::ObservedValue;
 use std::sync::Arc;
 
@@ -167,8 +165,9 @@ impl CommandApplication {
                 let target = if name.trim().is_empty() {
                     ProfileDisplayNameTarget::Identity
                 } else {
-                    let display_name = ProfileDisplayName::new(name)
-                        .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
+                    let display_name = ProfileDisplayName::new(name).map_err(|err| {
+                        Failure::new(ErrorCode::InvalidInput, err.to_string(), false)
+                    })?;
                     ProfileDisplayNameTarget::Custom(display_name)
                 };
                 profile
@@ -222,13 +221,18 @@ impl CommandApplication {
             }
             CommandIntent::CreateNamedOverride { name, content } => {
                 let profile = self.profile()?;
-                profile.create_named_override(name, content).await.map(|_| ())
+                profile
+                    .create_named_override(name, content)
+                    .await
+                    .map(|_| ())
             }
             CommandIntent::UpdateNamedOverride { id, name, content } => {
                 let profile = self.profile()?;
                 let override_id = NamedOverrideId::new(id)
                     .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
-                profile.update_named_override(override_id, name, content).await
+                profile
+                    .update_named_override(override_id, name, content)
+                    .await
             }
             CommandIntent::DeleteNamedOverride { id } => {
                 let profile = self.profile()?;
@@ -244,18 +248,23 @@ impl CommandApplication {
                 let profile = self.profile()?;
                 let oid = NamedOverrideId::new(override_id)
                     .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
-                profile.set_profile_override_binding(profile_id, oid, enabled).await
+                profile
+                    .set_profile_override_binding(profile_id, oid, enabled)
+                    .await
             }
             CommandIntent::ReorderProfileOverrides { profile_id, order } => {
                 let profile = self.profile()?;
                 let order_ids = order
                     .into_iter()
                     .map(|id| {
-                        NamedOverrideId::new(id)
-                            .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))
+                        NamedOverrideId::new(id).map_err(|err| {
+                            Failure::new(ErrorCode::InvalidInput, err.to_string(), false)
+                        })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                profile.reorder_profile_overrides(profile_id, order_ids).await
+                profile
+                    .reorder_profile_overrides(profile_id, order_ids)
+                    .await
             }
             CommandIntent::PreviewProfileAggregation { draft } => {
                 let application = ProfileAggregationApplication::new(self.profile()?);
@@ -560,9 +569,7 @@ impl CommandApplication {
                 let system_proxy = self.system_proxy()?;
                 let snapshot = system_proxy.recover_orphaned().await;
                 match snapshot.status {
-                    SystemProxyRecoveryStatus::Failed { failure } => {
-                        Err(failure)
-                    }
+                    SystemProxyRecoveryStatus::Failed { failure } => Err(failure),
                     _ => Ok(()),
                 }
             }
@@ -595,9 +602,7 @@ impl CommandApplication {
                                 false,
                             )
                         })?;
-                        LanAuthenticationUpdate::Enabled(
-                            credentials,
-                        )
+                        LanAuthenticationUpdate::Enabled(credentials)
                     } else {
                         LanAuthenticationUpdate::Disabled
                     },

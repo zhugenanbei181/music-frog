@@ -1,6 +1,5 @@
 //! test-intent: behavior
 //! TEA consumes the application buffer and executes clear/filter on that same owner.
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use crate::state::AppState;
 use crate::test_mounts::command_harness::test_command_application_for;
 use crate::test_mounts::execute_at_observed_scope;
@@ -14,6 +13,7 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -38,10 +38,7 @@ impl CoreProcess for RunningIdentifiedProcess {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         Ok(())
     }
 

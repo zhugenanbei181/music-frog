@@ -4,10 +4,10 @@
 //! Split out of `update/ui.rs` so the shell-domain handlers stay together and
 //! the UI dispatcher keeps its line budget.
 
-use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::shortcuts_store::{capture, reset_action, set_enabled};
 use crate::state::AppState;
 use crate::state::runtime::ProbeSettingsDialogState;
+use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::types::app::ToastStatus;
 use crate::types::dns_query::QueryAction;
 use crate::types::message::Message;
@@ -177,9 +177,7 @@ impl AppState {
             if self.editor.dns_hosts_editor.is_open() {
                 return self.update(Message::CancelDnsHostsEditor);
             }
-            if self.runtime.group_order_dialog
-                == ProxyGroupOrderDialogState::Editing
-            {
+            if self.runtime.group_order_dialog == ProxyGroupOrderDialogState::Editing {
                 return self.update(Message::CancelProxyGroupOrder);
             }
             if matches!(

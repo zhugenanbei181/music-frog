@@ -1,6 +1,5 @@
 use super::*;
 
-
 #[test]
 fn post_close_switch_failure_closes_the_old_owner_and_retries_the_typed_target() {
     let previous_application = application();
@@ -257,23 +256,21 @@ fn stale_lifecycle_scope_is_rejected_without_replacing_the_desktop_owner() {
     let stale_scope = application.snapshot().scope().expect("Core identity scope");
     session
         .executor
-        .block_on(application.execute_scoped(
-            CoreCommandRequest {
-                scope: stale_scope.clone(),
-                intent: CommandIntent::StartCore,
-            },
-        ))
+        .block_on(application.execute_scoped(CoreCommandRequest {
+            scope: stale_scope.clone(),
+            intent: CommandIntent::StartCore,
+        }))
         .result
         .into_unit()
         .expect("first scoped start succeeds");
     let before_restart = application.snapshot();
 
-    let stale = session.executor.block_on(application.execute_scoped(
-        CoreCommandRequest {
+    let stale = session
+        .executor
+        .block_on(application.execute_scoped(CoreCommandRequest {
             scope: stale_scope,
             intent: CommandIntent::RestartCore,
-        },
-    ));
+        }));
 
     assert!(stale.result.into_unit().is_err());
     assert_eq!(application.snapshot().generation, before_restart.generation);
@@ -299,4 +296,3 @@ fn session_action_reports_owner_switch_phase_instead_of_falling_back_to_host_boo
         DesktopProductSessionActionFailure::SessionUnavailable(_)
     ));
 }
-

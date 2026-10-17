@@ -12,11 +12,8 @@
 //! and the opt-in sing-box backend provider. Product roots select and bind one
 //! provider; UI crates do not construct engine clients or Core owners.
 
-use infiltrator_application::connection_application::ConnectionApplication;
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
-use infiltrator_ports::geo_database::GeoDatabasePort;
-use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::geo_database_application::GeoDatabaseApplication;
@@ -24,6 +21,7 @@ use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
 use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
     OutboundOperation, ProviderOperation, ProxyControlOperation,
@@ -37,7 +35,9 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::core_watchdog::CoreWatchdogPort;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::overview::OverviewReader;
+use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
@@ -446,14 +446,14 @@ where
                 CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
             ],
         )));
-    let provider_port: Arc<dyn RuleProviderPort> =
-        Arc::new(MihomoRuleProviderAdapter::new(
-            Arc::new(client.clone()),
-            scope_source.clone(),
-        ));
-    let geo_port: Arc<dyn GeoDatabasePort> = Arc::new(
-        MihomoGeoDatabaseAdapter::new(Arc::new(client.clone()), scope_source.clone()),
-    );
+    let provider_port: Arc<dyn RuleProviderPort> = Arc::new(MihomoRuleProviderAdapter::new(
+        Arc::new(client.clone()),
+        scope_source.clone(),
+    ));
+    let geo_port: Arc<dyn GeoDatabasePort> = Arc::new(MihomoGeoDatabaseAdapter::new(
+        Arc::new(client.clone()),
+        scope_source.clone(),
+    ));
     application
         .install_rule_provider_port(provider_port.clone())
         .map_err(|failure| failure.message)?;
@@ -477,18 +477,13 @@ where
             .with_host_capabilities(host.clone())
             .with_logs(application.log_application())
             .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
-            .with_connections(
-                ConnectionApplication::new(
-                    scope_source.clone(),
-                    connection_port,
-                ),
-            )
+            .with_connections(ConnectionApplication::new(
+                scope_source.clone(),
+                connection_port,
+            ))
             .with_runtime_queries(
-                RuntimeQueryApplication::new(
-                    scope_source,
-                    runtime_stream_port,
-                )
-                .with_core_log_level_port(Arc::new(client.clone())),
+                RuntimeQueryApplication::new(scope_source, runtime_stream_port)
+                    .with_core_log_level_port(Arc::new(client.clone())),
             )
             .with_runtime_configuration_ports(configuration_ports)
             .with_application_runtime(runtime)

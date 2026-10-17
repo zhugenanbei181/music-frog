@@ -204,9 +204,7 @@ async fn managed_workspace_lease_holds_reference_through_restore_and_native_reco
 
     let published = publish_or_panic(observed, update(b"mode: global\n", None)).await;
     assert_eq!(
-        read(first.config_dir().join("main.yaml"))
-            .await
-            .unwrap(),
+        read(first.config_dir().join("main.yaml")).await.unwrap(),
         b"mode: global\n"
     );
     let restored = match published.restore_if_current().await.unwrap() {
@@ -223,9 +221,7 @@ async fn managed_workspace_lease_holds_reference_through_restore_and_native_reco
     };
     assert_eq!(restored.restored_workspace(), &previous);
     assert_eq!(
-        read(first.config_dir().join("main.yaml"))
-            .await
-            .unwrap(),
+        read(first.config_dir().join("main.yaml")).await.unwrap(),
         b"mode: rule\n"
     );
 
@@ -483,12 +479,8 @@ async fn stale_reset_leaves_profile_tree_untouched() {
         .read_active_profile_reference()
         .await
         .unwrap();
-    let default_before = read(store.config_dir().join("default.yaml"))
-        .await
-        .unwrap();
-    let other_before = read(store.config_dir().join("other.yaml"))
-        .await
-        .unwrap();
+    let default_before = read(store.config_dir().join("default.yaml")).await.unwrap();
+    let other_before = read(store.config_dir().join("other.yaml")).await.unwrap();
     select_profile(&store, "other").await;
 
     assert!(matches!(
@@ -503,15 +495,11 @@ async fn stale_reset_leaves_profile_tree_untouched() {
             if expected == stale
     ));
     assert_eq!(
-        read(store.config_dir().join("default.yaml"))
-            .await
-            .unwrap(),
+        read(store.config_dir().join("default.yaml")).await.unwrap(),
         default_before
     );
     assert_eq!(
-        read(store.config_dir().join("other.yaml"))
-            .await
-            .unwrap(),
+        read(store.config_dir().join("other.yaml")).await.unwrap(),
         other_before
     );
 }
@@ -534,12 +522,8 @@ async fn reset_rejects_a_bound_owner_and_preserves_profile_files() {
         .read_active_profile_reference()
         .await
         .unwrap();
-    let previous_default = read(store.config_dir().join("default.yaml"))
-        .await
-        .unwrap();
-    let previous_other = read(store.config_dir().join("other.yaml"))
-        .await
-        .unwrap();
+    let previous_default = read(store.config_dir().join("default.yaml")).await.unwrap();
+    let previous_other = read(store.config_dir().join("other.yaml")).await.unwrap();
 
     let profile_store = store.engine_profile_store();
     let selection = ActiveProfileReferenceStore::acquire_selection_lease(profile_store)
@@ -551,10 +535,7 @@ async fn reset_rejects_a_bound_owner_and_preserves_profile_files() {
         None,
     );
     let owner = selection
-        .into_owner_binding(
-            identity.clone(),
-            CoreGeneration::new(0),
-        )
+        .into_owner_binding(identity.clone(), CoreGeneration::new(0))
         .await
         .unwrap();
 
@@ -569,15 +550,11 @@ async fn reset_rejects_a_bound_owner_and_preserves_profile_files() {
     );
     assert_eq!(failure.code, ErrorCode::NotReady);
     assert_eq!(
-        read(store.config_dir().join("default.yaml"))
-            .await
-            .unwrap(),
+        read(store.config_dir().join("default.yaml")).await.unwrap(),
         previous_default
     );
     assert_eq!(
-        read(store.config_dir().join("other.yaml"))
-            .await
-            .unwrap(),
+        read(store.config_dir().join("other.yaml")).await.unwrap(),
         previous_other
     );
 

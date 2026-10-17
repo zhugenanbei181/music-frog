@@ -1,13 +1,4 @@
 //! Inbound command serialization and nested lifecycle transactions use separate gates.
-use futures_util::future::Abortable;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::speedtest::SpeedtestRunId;
-use infiltrator_contract::speedtest::SpeedtestTarget;
-use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
-use std::mem;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::PoisonError;
 use super::CoreApplication;
 use super::command_name::command_name;
 use crate::command_application::handler::{CoreLifecycleChildPermit, ValidatedCoreCommandScope};
@@ -15,13 +6,22 @@ use crate::command_capability::{CommandCapabilityRoute, classify_command};
 use crate::core_capability_application::CoreCapabilityGateFailure;
 use crate::speedtest_application::{SpeedtestRunAdmission, SpeedtestTaskOutcome};
 use futures_util::FutureExt;
+use futures_util::future::Abortable;
 use infiltrator_contract::command::{CommandIntent, CommandKind, CommandResult, RequestId};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::CoreCommandRequest;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle};
+use infiltrator_contract::speedtest::SpeedtestRunId;
+use infiltrator_contract::speedtest::SpeedtestTarget;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::application_runtime::{ApplicationTaskAdmission, ApplicationTaskShutdown};
+use std::mem;
 use std::panic::AssertUnwindSafe;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::PoisonError;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 struct CommandScope<'a>(&'a AtomicBool);
@@ -33,19 +33,13 @@ impl Drop for CommandScope<'_> {
 
 struct OwnerBindingReleaseGuard<'a> {
     state: &'a Mutex<super::ActiveProfileOwnerBindingState>,
-    binding: Option<
-        Arc<
-            dyn ActiveProfileOwnerLease,
-        >,
-    >,
+    binding: Option<Arc<dyn ActiveProfileOwnerLease>>,
 }
 
 impl<'a> OwnerBindingReleaseGuard<'a> {
     fn new(
         state: &'a Mutex<super::ActiveProfileOwnerBindingState>,
-        binding: Arc<
-            dyn ActiveProfileOwnerLease,
-        >,
+        binding: Arc<dyn ActiveProfileOwnerLease>,
     ) -> Self {
         Self {
             state,
@@ -53,9 +47,7 @@ impl<'a> OwnerBindingReleaseGuard<'a> {
         }
     }
 
-    fn binding(
-        &self,
-    ) -> &dyn ActiveProfileOwnerLease {
+    fn binding(&self) -> &dyn ActiveProfileOwnerLease {
         self.binding
             .as_deref()
             .expect("owner-binding release guard retains its lease")
@@ -66,10 +58,7 @@ impl<'a> OwnerBindingReleaseGuard<'a> {
             .binding
             .take()
             .expect("owner-binding release guard retains its lease");
-        let mut state = self
-            .state
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         *state = super::ActiveProfileOwnerBindingState::Released;
         drop(state);
         drop(binding);
@@ -81,10 +70,7 @@ impl Drop for OwnerBindingReleaseGuard<'_> {
         let Some(binding) = self.binding.take() else {
             return;
         };
-        let mut state = self
-            .state
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         // `Releasing` blocks installation while this future is suspended.
         // Cancellation or a release error restores the same lease so a later
         // close can retry with its terminal snapshot.
@@ -569,9 +555,7 @@ impl CoreApplication {
         }
         stop_result?;
         let terminal = self.snapshot().lifecycle_snapshot();
-        if terminal.lifecycle != CoreLifecycle::Stopped
-            || terminal.session_token.is_some()
-        {
+        if terminal.lifecycle != CoreLifecycle::Stopped || terminal.session_token.is_some() {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "Core owner close did not read back Stopped without a session token",

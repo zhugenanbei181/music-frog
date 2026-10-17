@@ -1,8 +1,8 @@
 //! Application-owned stream driver with an injected executor and weak lifecycle observation.
-use crate::runtime_stream_application::scope_checked;
 use crate::log_application::{
     LogApplication, LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
 };
+use crate::runtime_stream_application::scope_checked;
 use futures_util::future::{AbortHandle, Abortable};
 use futures_util::{FutureExt, StreamExt, select};
 use infiltrator_contract::core_identity::CoreScope;
@@ -93,11 +93,7 @@ impl LogDriver {
             }
             let Some(opened) = opened else { continue };
             let mut stream = match opened {
-                Ok(stream) => scope_checked(
-                    self.scope_source.clone(),
-                    scope.clone(),
-                    stream,
-                ),
+                Ok(stream) => scope_checked(self.scope_source.clone(), scope.clone(), stream),
                 Err(error) => {
                     let failure = Failure::from(error);
                     let retryable = failure.retryable;

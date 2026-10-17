@@ -8,11 +8,11 @@
 
 #[path = "settings_query_access.rs"]
 pub mod query_access;
-use infiltrator_shared::assets::harmonyos_font_license_text;
 use self::query_access::{
     LogLevelControlItem, SettingsActionControls, SettingsProjectionTargets, SettingsTextOutputItem,
     TunStackControlItem,
 };
+use infiltrator_shared::assets::harmonyos_font_license_text;
 
 use crate::appearance::{refresh_tonal_ladder_preview, tonal_ladder_preview_scene};
 use crate::command::{CommandSinkHandle, UiCommand};

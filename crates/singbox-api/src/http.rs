@@ -72,9 +72,7 @@ impl SingBoxClashHttpPort for ReqwestSingBoxClashHttpPort {
             SingBoxControllerAuthorization::BearerToken(token) => request.bearer_auth(token),
         };
         let request = match body {
-            Some(body) => request
-                .header(CONTENT_TYPE, "application/json")
-                .body(body),
+            Some(body) => request.header(CONTENT_TYPE, "application/json").body(body),
             None => request,
         };
         let response = request

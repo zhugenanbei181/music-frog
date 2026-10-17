@@ -1,7 +1,6 @@
 //! test-intent: behavior
 //! Engine namespace boundaries for ProfileStore-owned profile state.
 
-use std::mem;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -19,6 +18,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use std::collections::HashMap;
+use std::mem;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 

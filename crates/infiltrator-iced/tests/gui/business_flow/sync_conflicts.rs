@@ -12,7 +12,6 @@
 //!
 //! test-intent: behavior
 
-use infiltrator_iced::state::editor::DnsSavePhase;
 use super::support::{
     FakeTray, SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast,
 };
@@ -39,6 +38,7 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
 use infiltrator_domain::sync::diff_yaml_configs;
+use infiltrator_iced::state::editor::DnsSavePhase;
 use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,

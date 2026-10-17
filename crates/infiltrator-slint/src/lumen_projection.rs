@@ -11,7 +11,6 @@ use super::flag_assets;
 use super::slint_model;
 use super::{AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
 use crate::theme_util::apply_theme_color;
-use slint::ComponentHandle;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
 };
@@ -30,6 +29,7 @@ use infiltrator_presentation::profile_preview::redact_profile_preview;
 use infiltrator_presentation::shell_readout::profile_name;
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
 use infiltrator_shared::locales::{Lang, Localizer, get_system_language, resolve_language_code};
+use slint::ComponentHandle;
 use std::env;
 
 pub(super) const THIRD_PARTY_NOTICES: &str = include_str!("../../../THIRD-PARTY-NOTICES.md");
@@ -600,7 +600,11 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
             name: item.name.clone().into(),
             kind: "yaml".into(),
             format: "YAML".into(),
-            bound_count: page.named_overrides.bound_profile_count(&item.id).to_string().into(),
+            bound_count: page
+                .named_overrides
+                .bound_profile_count(&item.id)
+                .to_string()
+                .into(),
         })
         .collect();
     window.set_overrides(slint_model(override_cards));

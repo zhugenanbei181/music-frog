@@ -122,7 +122,10 @@ fn routing_intent_command_failure_retry_authentication_and_palette_share_one_typ
     let failure = Failure::new(ErrorCode::Network, "write refused temporarily", true);
     result(&mut app, 1, first.target.clone(), Err(failure.clone()));
     assert_eq!(
-        app.world().resource::<RoutingIntentActionState>().0.failure(),
+        app.world()
+            .resource::<RoutingIntentActionState>()
+            .0
+            .failure(),
         Some(&failure)
     );
     assert_eq!(

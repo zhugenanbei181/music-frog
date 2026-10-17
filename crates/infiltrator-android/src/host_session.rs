@@ -318,9 +318,7 @@ async fn build_mihomo_shared_core(
     bridge: Arc<dyn AndroidBridge>,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
     reference: ActiveProfileReference,
-    selection_lease: Box<
-        dyn ActiveProfileReferenceLease,
-    >,
+    selection_lease: Box<dyn ActiveProfileReferenceLease>,
 ) -> Result<Arc<SharedCore>, FfiStatus> {
     if reference.engine_id != config.engine_id() {
         return Err(FfiStatus::err(
@@ -478,20 +476,14 @@ struct AndroidCoreProfileApplier {
 #[async_trait::async_trait]
 impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
     fn engine_id(&self) -> Option<EngineId> {
-        CoreLifecyclePort::core_identity(&self.core.application)
-            .map(|identity| identity.engine)
+        CoreLifecyclePort::core_identity(&self.core.application).map(|identity| identity.engine)
     }
 
     fn core_lifecycle(&self) -> CoreLifecycle {
         CoreLifecyclePort::lifecycle(&self.core.application)
     }
 
-    fn write_authorization(
-        &self,
-    ) -> Result<
-        ActiveProfileReferenceWriteAuthorization,
-        PortError,
-    > {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         self.core
             .application
             .active_profile_reference_write_authorization()
@@ -609,33 +601,27 @@ pub(crate) async fn apply_selected_profile_reference_status(
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let application = ProfileApplication::new(
-        core.config.shared_engine_profile_store(),
-    );
+    let application = ProfileApplication::new(core.config.shared_engine_profile_store());
     let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
         core: Arc::clone(&core),
     });
     application
         .apply_selected_profile_reference(applier, &expected, ApplyStrategy::AlwaysRestart)
         .await
-        .map(|outcome| {
-            match outcome {
-            SelectedProfileApplyOutcome::Applied {
-                ..
-            } => FfiStatus::ok(),
-            SelectedProfileApplyOutcome::NotActive(
-                CoreInactiveLifecycle::Stopped,
-            ) => FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "the selected profile was retained while Core remains stopped",
-            ),
-            SelectedProfileApplyOutcome::NotActive(
-                CoreInactiveLifecycle::Failed,
-            ) => FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "the selected profile was retained while Core is failed",
-            ),
-        }
+        .map(|outcome| match outcome {
+            SelectedProfileApplyOutcome::Applied { .. } => FfiStatus::ok(),
+            SelectedProfileApplyOutcome::NotActive(CoreInactiveLifecycle::Stopped) => {
+                FfiStatus::err(
+                    FfiErrorCode::NotReady,
+                    "the selected profile was retained while Core remains stopped",
+                )
+            }
+            SelectedProfileApplyOutcome::NotActive(CoreInactiveLifecycle::Failed) => {
+                FfiStatus::err(
+                    FfiErrorCode::NotReady,
+                    "the selected profile was retained while Core is failed",
+                )
+            }
         })
         .unwrap_or_else(map_application_failure)
 }
@@ -656,9 +642,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let application = ProfileApplication::new(
-        core.config.shared_engine_profile_store(),
-    );
+    let application = ProfileApplication::new(core.config.shared_engine_profile_store());
     let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
         core: Arc::clone(&core),
     });
@@ -671,12 +655,18 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     };
     match outcome {
         ProfileActivationOutcome::AlreadySelectedWithRuntime => {
-            let expected = match ProfileStore::read_active_profile_reference(core.config.engine_profile_store()).await {
+            let expected = match ProfileStore::read_active_profile_reference(
+                core.config.engine_profile_store(),
+            )
+            .await
+            {
                 Ok(expected) => expected,
                 Err(error) => {
                     return FfiStatus::err(
                         FfiErrorCode::NotReady,
-                        format!("active profile reference could not be read after selection: {error}"),
+                        format!(
+                            "active profile reference could not be read after selection: {error}"
+                        ),
                     );
                 }
             };
@@ -701,15 +691,9 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
                 .map(|_| FfiStatus::ok())
                 .unwrap_or_else(map_application_failure)
         }
-        ProfileActivationOutcome::SelectedAndApplied => {
-            FfiStatus::ok()
-        }
-        ProfileActivationOutcome::AlreadySelectedWhileInactive(
-            CoreInactiveLifecycle::Stopped,
-        )
-        | ProfileActivationOutcome::SelectedWhileInactive(
-            CoreInactiveLifecycle::Stopped,
-        )
+        ProfileActivationOutcome::SelectedAndApplied => FfiStatus::ok(),
+        ProfileActivationOutcome::AlreadySelectedWhileInactive(CoreInactiveLifecycle::Stopped)
+        | ProfileActivationOutcome::SelectedWhileInactive(CoreInactiveLifecycle::Stopped)
         | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
             CoreInactiveLifecycle::Stopped,
         ) => FfiStatus {
@@ -717,12 +701,8 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
             message: Some("profile selected; Core remains stopped".to_owned()),
             localization: None,
         },
-        ProfileActivationOutcome::AlreadySelectedWhileInactive(
-            CoreInactiveLifecycle::Failed,
-        )
-        | ProfileActivationOutcome::SelectedWhileInactive(
-            CoreInactiveLifecycle::Failed,
-        )
+        ProfileActivationOutcome::AlreadySelectedWhileInactive(CoreInactiveLifecycle::Failed)
+        | ProfileActivationOutcome::SelectedWhileInactive(CoreInactiveLifecycle::Failed)
         | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
             CoreInactiveLifecycle::Failed,
         ) => FfiStatus {
@@ -732,12 +712,10 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
         },
         ProfileActivationOutcome::AlreadySelectedWithoutRuntime
         | ProfileActivationOutcome::SelectedWithoutRuntime
-        | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied => {
-            FfiStatus::err(
-                FfiErrorCode::InvalidState,
-                "Android profile activation did not produce a runtime apply outcome",
-            )
-        }
+        | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied => FfiStatus::err(
+            FfiErrorCode::InvalidState,
+            "Android profile activation did not produce a runtime apply outcome",
+        ),
     }
 }
 
@@ -753,4 +731,3 @@ pub(crate) async fn active_profile_reference_state()
             )
         })
 }
-

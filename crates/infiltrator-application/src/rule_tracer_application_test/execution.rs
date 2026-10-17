@@ -1,4 +1,6 @@
 //! Explicit simulation and immutable-reader behavior with real source adapters.
+use super::*;
+use futures_util::poll;
 use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileDocumentRevision;
@@ -6,13 +8,11 @@ use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerObservation;
 use infiltrator_contract::rule_trace_run::ScopedRuleTraceRequest;
-use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
-use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
-use super::*;
-use futures_util::poll;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOperation, RuleTraceOperationId, RuleTraceRequest,
 };
+use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
+use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use std::future::pending;
 use std::task::Poll;
 
@@ -61,10 +61,7 @@ async fn rule_simulation_replay_does_not_recompute_or_rebind_to_another_document
         override_workspace(&original).profile_identity,
     )
     .unwrap();
-    assert_eq!(
-        execution.owner,
-        RuleTraceOwnerObservation::observed(owner)
-    );
+    assert_eq!(execution.owner, RuleTraceOwnerObservation::observed(owner));
     let report = execution.report.expect("report");
     let source = report.source.expect("exact document source");
     let chain = report.decision_chain.expect("chain");
@@ -208,10 +205,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
     app.set_override_port(host.clone());
     let active_workspace = override_workspace(&rules);
     let active_scope = rule_trace_test_scope();
-    let outbound_observation =
-        unknown_rule_trace_observation(
-            active_scope.clone(),
-        );
+    let outbound_observation = unknown_rule_trace_observation(active_scope.clone());
     let input = request("example.org", None);
 
     let mut stale_scope = active_scope.clone();
@@ -229,9 +223,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
             &active_workspace.profile_identity,
             RuleTraceOperationId(1),
             stale_scope_request,
-            &RuleTraceOutboundFacts::observed(
-                outbound_observation.clone(),
-            ),
+            &RuleTraceOutboundFacts::observed(outbound_observation.clone(),),
         )
         .await
         .unwrap_err()
@@ -242,11 +234,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
     assert_eq!(app.execution(), RuleTraceExecution::default());
 
     let mut stale_profile = active_workspace.profile_identity.clone();
-    stale_profile.document.revision =
-        ProfileDocumentRevision::new(
-            "stale-revision",
-        )
-        .unwrap();
+    stale_profile.document.revision = ProfileDocumentRevision::new("stale-revision").unwrap();
     let stale_profile_request = ScopedRuleTraceRequest {
         owner: RuleTraceOwnerBinding {
             scope: active_scope.clone(),
@@ -260,9 +248,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
             &active_workspace.profile_identity,
             RuleTraceOperationId(1),
             stale_profile_request,
-            &RuleTraceOutboundFacts::observed(
-                outbound_observation.clone(),
-            ),
+            &RuleTraceOutboundFacts::observed(outbound_observation.clone(),),
         )
         .await
         .unwrap_err()
@@ -272,8 +258,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
     assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
 
     let mut foreign_profile = active_workspace.profile_identity.clone();
-    foreign_profile.document.engine_id =
-        EngineId::new("sing-box").unwrap();
+    foreign_profile.document.engine_id = EngineId::new("sing-box").unwrap();
     let foreign_request = ScopedRuleTraceRequest {
         owner: RuleTraceOwnerBinding {
             scope: active_scope.clone(),
@@ -287,9 +272,7 @@ async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
             &active_workspace.profile_identity,
             RuleTraceOperationId(1),
             foreign_request,
-            &RuleTraceOutboundFacts::observed(
-                outbound_observation.clone(),
-            ),
+            &RuleTraceOutboundFacts::observed(outbound_observation.clone(),),
         )
         .await
         .unwrap_err()
@@ -320,9 +303,7 @@ async fn foreign_outbound_observation_is_rejected_before_rule_adapter_read() {
             &observed_workspace,
             RuleTraceOperationId(1),
             request,
-            &RuleTraceOutboundFacts::observed(
-                outbound_observation.clone(),
-            ),
+            &RuleTraceOutboundFacts::observed(outbound_observation.clone(),),
         )
         .await
         .unwrap_err()

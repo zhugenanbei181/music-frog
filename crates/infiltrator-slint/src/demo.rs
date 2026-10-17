@@ -14,20 +14,17 @@ use infiltrator_contract::error::Failure;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::outbound::details::{
     OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEndpoint,
-    OutboundFeature, OutboundHealthObservation, OutboundLatencySample,
-    OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation,
-    OutboundSnapshot, OutboundUdpSupport,
+    OutboundFeature, OutboundHealthObservation, OutboundLatencySample, OutboundObservation,
+    OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
 };
-use infiltrator_contract::outbound::identity::{
-    OutboundId, OutboundProtocolId, SnapshotRevision,
-};
+use infiltrator_contract::outbound::identity::{OutboundId, OutboundProtocolId, SnapshotRevision};
 use infiltrator_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
     OutboundSelectionState, SelectionAvailability,
 };
 use infiltrator_contract::outbound::preferences::{
-    OutboundHealthFilter, OutboundLayout, OutboundSortOrder,
-    OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
+    OutboundHealthFilter, OutboundLayout, OutboundSortOrder, OutboundUiPreferencesSnapshot,
+    OutboundUiPreferencesValues,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
@@ -37,17 +34,17 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
-    OverviewPageSnapshot, PageData, ProfileSnapshot, ProfilesPageSnapshot,
-    RulesPageSnapshot, SettingsPageSnapshot, SurfaceOrigin, SurfaceSnapshot,
+    OverviewPageSnapshot, PageData, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
+    SettingsPageSnapshot, SurfaceOrigin, SurfaceSnapshot,
 };
 use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxySnapshot};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use std::env;
-use std::fs::{create_dir_all, OpenOptions};
+use std::fs::{OpenOptions, create_dir_all};
 use std::io::Write as _;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
@@ -613,7 +610,10 @@ pub fn write_capture_marker(settings: &DemoSettings, _window: &AppWindow) {
         _ => "overview",
     };
 
-    let mut line = format!("CAPTURE_READY page={} skin={}\n", marker_page, settings.skin);
+    let mut line = format!(
+        "CAPTURE_READY page={} skin={}\n",
+        marker_page, settings.skin
+    );
 
     if let Some(scenario) = &settings.scenario {
         line = format!("{} scenario={} activated=true\n", line.trim_end(), scenario);
@@ -633,7 +633,10 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
     let host = Arc::new(DemoProductHost::new(&settings));
     let window = AppWindow::new()?;
     window.set_frameless(true);
-    window.window().set_size(slint::LogicalSize::new(settings.window_size.0, settings.window_size.1));
+    window.window().set_size(slint::LogicalSize::new(
+        settings.window_size.0,
+        settings.window_size.1,
+    ));
     window.set_android_platform(cfg!(target_os = "android"));
 
     let initial_language = env::var("INFILTRATOR_LANG")

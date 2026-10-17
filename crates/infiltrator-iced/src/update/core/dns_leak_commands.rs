@@ -1,9 +1,9 @@
 //! Composed DNS probes execute the product command owner and correlate actual terminal feedback.
-use infiltrator_contract::error::Failure;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::error::Failure;
 
 #[derive(Clone, Copy)]
 pub(crate) enum DnsLeakProbeAdmission {

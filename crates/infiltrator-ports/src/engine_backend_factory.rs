@@ -501,10 +501,7 @@ mod tests {
             Some(self.identity.clone())
         }
 
-        async fn start(
-            &self,
-            _context: CoreProcessStartContext,
-        ) -> Result<(), PortError> {
+        async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
             Ok(())
         }
 

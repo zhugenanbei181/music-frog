@@ -1,6 +1,5 @@
 //! test-intent: behavior
 //! Native locale replay must preserve the result, active modal and input owner.
-use infiltrator_contract::speedtest::SpeedtestSampleOutcome;
 use crate::native_input::click_entity;
 use crate::support::headless_plugins;
 use bevy::app::App;
@@ -21,6 +20,7 @@ use infiltrator_bevy_ui::projection::{DemoOverviewSource, OverviewSource};
 use infiltrator_bevy_ui::route::PagesPlugin;
 use infiltrator_bevy_widgets::adaptive_modal::ModalState;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::speedtest::SpeedtestSampleOutcome;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use std::sync::Arc;
 
@@ -50,8 +50,7 @@ fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     projection.speedtest = SpeedtestSnapshot::demo_fixture();
     let mut result = projection.speedtest.results.remove(0);
     result.display_name = Some("node {stars}/中文🙂".into());
-    result.samples =
-        vec![SpeedtestSampleOutcome::Measured { delay_ms: 0 }];
+    result.samples = vec![SpeedtestSampleOutcome::Measured { delay_ms: 0 }];
     projection.speedtest.results = vec![result];
     app.world_mut()
         .trigger(OverviewProjectionUpdated(projection.clone()));

@@ -21,10 +21,7 @@ impl ProfileDocumentCodecPort for TestCodec {
         self.0.clone()
     }
 
-    fn inspect(
-        &self,
-        _document: &[u8],
-    ) -> Result<DocumentValidation, PortError> {
+    fn inspect(&self, _document: &[u8]) -> Result<DocumentValidation, PortError> {
         Ok(DocumentValidation::Valid)
     }
 }

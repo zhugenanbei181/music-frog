@@ -203,10 +203,7 @@ fn unsupported_engine_format_and_schema_fail_before_yaml_decode() {
         ] {
             let error = read(&foreign, b"not: [valid YAML", query)
                 .expect_err("foreign identity must fail before parsing");
-            assert_eq!(
-                error.error_code(),
-                ErrorCode::Unsupported
-            );
+            assert_eq!(error.error_code(), ErrorCode::Unsupported);
         }
     }
 }
@@ -223,10 +220,7 @@ fn invalid_document_or_typed_update_has_no_mutation_result() {
         }),
     )
     .expect_err("invalid source rejected");
-    assert_eq!(
-        invalid_document.error_code(),
-        ErrorCode::Configuration
-    );
+    assert_eq!(invalid_document.error_code(), ErrorCode::Configuration);
 
     let invalid_update = apply(
         &identity,
@@ -237,10 +231,7 @@ fn invalid_document_or_typed_update_has_no_mutation_result() {
         }),
     )
     .expect_err("invalid typed update rejected");
-    assert_eq!(
-        invalid_update.error_code(),
-        ErrorCode::Configuration
-    );
+    assert_eq!(invalid_update.error_code(), ErrorCode::Configuration);
 }
 
 #[test]
@@ -284,10 +275,7 @@ fn rule_workspace_projection_rejects_a_foreign_schema_before_parsing() {
     );
     let error =
         read_rule_workspace(&workspace, b"not: [valid YAML").expect_err("foreign format rejected");
-    assert_eq!(
-        error.error_code(),
-        ErrorCode::Unsupported
-    );
+    assert_eq!(error.error_code(), ErrorCode::Unsupported);
 }
 
 #[test]
@@ -353,10 +341,7 @@ fn rule_workspace_mutation_rejects_foreign_identity_invalid_yaml_and_invalid_rul
             ProfileRuleWorkspaceUpdate::ReplaceRules(Vec::new()),
         )
         .expect_err("foreign engine, format, or schema must reject before parsing");
-        assert_eq!(
-            error.error_code(),
-            ErrorCode::Unsupported
-        );
+        assert_eq!(error.error_code(), ErrorCode::Unsupported);
     }
 
     let workspace = ProfileWorkspaceIdentity::new(mihomo(), ProfileSidecarRevision::Absent);
@@ -366,10 +351,7 @@ fn rule_workspace_mutation_rejects_foreign_identity_invalid_yaml_and_invalid_rul
         ProfileRuleWorkspaceUpdate::ReplaceRules(Vec::new()),
     )
     .expect_err("invalid source has no mutation result");
-    assert_eq!(
-        invalid_source.error_code(),
-        ErrorCode::Configuration
-    );
+    assert_eq!(invalid_source.error_code(), ErrorCode::Configuration);
 
     let invalid_rules = super::apply_rule_workspace(
         &workspace,
@@ -380,8 +362,5 @@ fn rule_workspace_mutation_rejects_foreign_identity_invalid_yaml_and_invalid_rul
         }]),
     )
     .expect_err("invalid typed rule has no mutation result");
-    assert_eq!(
-        invalid_rules.error_code(),
-        ErrorCode::InvalidInput
-    );
+    assert_eq!(invalid_rules.error_code(), ErrorCode::InvalidInput);
 }

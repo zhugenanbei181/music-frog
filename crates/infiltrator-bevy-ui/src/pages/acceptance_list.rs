@@ -8,7 +8,6 @@
 //! - Diagnostic tracking via `TouchLayerDiagnosticEntry` and `TouchLayerDiagnosticCategory`
 
 use crate::gesture::TouchLayerDiagnosticEntry;
-use infiltrator_shared::i18n_interpolator::localize;
 use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -22,10 +21,11 @@ use bevy::ui_widgets::{Button, ScrollArea};
 use infiltrator_bevy_widgets::list::{
     ScrollOffsetOutcome, ScrollToItemOutcome, SelectionOutcome, VirtualListState,
 };
-use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_shared::i18n_interpolator::localize;
 
 /// Scenario identifier shared with Compose and automated test walkthroughs (BANDROID-025/026).
 pub const ACCEPTANCE_LIST_SCENARIO_ID: &str = "SCN-10-ACCEPTANCE-LIST";
@@ -249,10 +249,7 @@ pub fn acceptance_list_scene(
     let desc_text = localize(
         "zh-CN",
         "acceptance_list_desc",
-        &[
-            ("viewport", viewport_str),
-            ("row", row_str),
-        ],
+        &[("viewport", viewport_str), ("row", row_str)],
     );
     let btn_top_text = localize("zh-CN", "acceptance_btn_top", &[]);
     let btn_center_text = localize("zh-CN", "acceptance_btn_center", &[]);

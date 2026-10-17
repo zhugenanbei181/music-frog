@@ -1,11 +1,3 @@
-use infiltrator_contract::core_identity::CoreVersion;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::speedtest::SpeedtestConcurrency;
-use infiltrator_contract::speedtest::SpeedtestRunId;
-use infiltrator_ports::application_runtime::ApplicationSleep;
-use std::thread;
-use tokio::task::yield_now;
-use tokio::time::timeout;
 use super::*;
 use crate::outbound_application::OutboundApplication;
 use crate::speedtest_application::tests::{
@@ -19,11 +11,16 @@ use infiltrator_contract::core_capabilities::{
     OutboundOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandOutcome;
+use infiltrator_contract::core_identity::CoreVersion;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
+use infiltrator_contract::speedtest::SpeedtestConcurrency;
+use infiltrator_contract::speedtest::SpeedtestRunId;
 use infiltrator_contract::speedtest::{
     SpeedtestCancelOutcome, SpeedtestRunState, SpeedtestStartReceipt,
 };
 use infiltrator_contract::surface::HostKind;
+use infiltrator_ports::application_runtime::ApplicationSleep;
 use infiltrator_ports::application_runtime::{
     ApplicationTaskAdmission, ApplicationTaskId, ApplicationTaskShutdown,
 };
@@ -33,9 +30,12 @@ use infiltrator_ports::core_capability_provider::{
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::thread;
 use std::time::Duration;
 use tokio::runtime::Builder;
+use tokio::task::yield_now;
 use tokio::time::sleep;
+use tokio::time::timeout;
 
 struct SpeedtestCapabilityProvider;
 
@@ -109,10 +109,7 @@ impl ApplicationRuntime for ActorTestRuntime {
         ApplicationTaskShutdown::Closed
     }
 
-    fn sleep(
-        &self,
-        duration: Duration,
-    ) -> ApplicationSleep<'_> {
+    fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
         Box::pin(sleep(duration))
     }
 }
@@ -131,10 +128,7 @@ async fn receive(receiver: Receiver<CoreCommandOutcome>) -> CoreCommandOutcome {
     .expect("Core actor command reply arrives")
 }
 
-async fn wait_for_cancelled(
-    speedtest: &SpeedtestApplication,
-    run_id: SpeedtestRunId,
-) {
+async fn wait_for_cancelled(speedtest: &SpeedtestApplication, run_id: SpeedtestRunId) {
     timeout(Duration::from_secs(3), async {
         loop {
             if matches!(
@@ -160,10 +154,7 @@ fn started_receipt(outcome: CoreCommandOutcome) -> SpeedtestStartReceipt {
     }
 }
 
-fn cancelled_outcome(
-    outcome: CoreCommandOutcome,
-    expected: SpeedtestRunId,
-) {
+fn cancelled_outcome(outcome: CoreCommandOutcome, expected: SpeedtestRunId) {
     match outcome.result {
         CommandResult::Produced { output, .. } => match *output {
             CommandOutput::SpeedtestCancelled(SpeedtestCancelOutcome::Requested { run_id }) => {
@@ -301,8 +292,7 @@ async fn core_actor_cancels_while_probe_is_blocked_and_fences_old_completion() {
             .is_ok()
     );
     let (_, barrier_reply) = client.dispatch_tracked(CommandIntent::SetSpeedtestConcurrency {
-        concurrency: SpeedtestConcurrency::new(2)
-            .expect("valid test concurrency"),
+        concurrency: SpeedtestConcurrency::new(2).expect("valid test concurrency"),
     });
     assert!(matches!(
         receive(barrier_reply).await.result,

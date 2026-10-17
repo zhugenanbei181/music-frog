@@ -1,7 +1,4 @@
 //! Scoped actual-reader activation; independent confirmation pixels precede any write.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
-use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
-use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -25,9 +22,12 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::modal::ModalScrim;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -58,9 +58,7 @@ pub fn install(app: &mut App) {
     ));
     let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_rule_tracer(owner.clone())
-        .with_configuration(
-            for_mihomo_store(store.clone()),
-        );
+        .with_configuration(for_mihomo_store(store.clone()));
     let observed = Arc::new(Mutex::new(None));
     let result = observed.clone();
     let trace_store = store.clone();
@@ -89,9 +87,7 @@ pub fn install(app: &mut App) {
                     &observed_workspace,
                     RuleTraceOperationId(1),
                     request,
-                    &RuleTraceOutboundFacts::observed(
-                        outbound_observation.clone(),
-                    ),
+                    &RuleTraceOutboundFacts::observed(outbound_observation.clone()),
                 )
                 .await
                 .expect("actual statistics");

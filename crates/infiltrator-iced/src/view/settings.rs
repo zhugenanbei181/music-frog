@@ -1,7 +1,6 @@
 //! Settings page: shell exports, system proxy, TUN, kernel management,
 //! hotkeys and admin surfaces.
 
-use infiltrator_shared::assets::harmonyos_font_license_text;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::apply_guard_card::apply_guard_card;
@@ -28,6 +27,7 @@ use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::settings_status_projection::format_runtime_status;
+use infiltrator_shared::assets::harmonyos_font_license_text;
 use infiltrator_shared::locales::{Lang, Localizer};
 use integration::{CORE_CHANNEL_OPTIONS, secondary_text};
 
@@ -239,9 +239,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Some(lang.tr("settings_font_attribution_title").into_owned()),
         column![
             secondary_text(lang.tr("settings_font_attribution_copy").into_owned(),),
-            text(harmonyos_font_license_text())
-                .size(10)
-                .font(MONO),
+            text(harmonyos_font_license_text()).size(10).font(MONO),
         ]
         .spacing(theme::SP_SM),
     );

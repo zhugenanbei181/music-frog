@@ -1,9 +1,6 @@
 //! Profile import handlers: subscription-URL import and local YAML file
 //! import (file picker, metadata fields, activation).
 
-use crate::update::core::profile_apply::runtime_access;
-use infiltrator_application::profile_application::ProfileContentSaveOutcome;
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use crate::configs_dir::config_manager;
 use crate::host::storage::{subscription_import_port, subscription_source};
 use crate::state::AppState;
@@ -11,13 +8,16 @@ use crate::state::profiles::ProfileImportPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::profile_apply::activate_profile;
+use crate::update::core::profile_apply::runtime_access;
 use iced::Task;
+use infiltrator_application::profile_application::ProfileContentSaveOutcome;
 use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileRuntimeAccess,
 };
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
@@ -321,7 +321,8 @@ impl AppState {
                                     }
                                     ProfileContentSaveOutcome::StoredInactive => {
                                         return Err(InfiltratorError::Config(
-                                            "selected profile import was stored as inactive".to_owned(),
+                                            "selected profile import was stored as inactive"
+                                                .to_owned(),
                                         ));
                                     }
                                 })

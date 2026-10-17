@@ -110,13 +110,11 @@ impl ActiveProfileReferenceLease for ActiveProfileSelectionLease {
                 .read_active_profile_record_sync()?
                 .unwrap_or_else(ActiveProfileReferenceRecord::pending_legacy_migration);
             if record.selection != state {
-                return Err(PortError::Rejected(
-                    Failure::new(
-                        ErrorCode::NotReady,
-                        "active profile changed before owner binding",
-                        true,
-                    ),
-                ));
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "active profile changed before owner binding",
+                    true,
+                )));
             }
             let _owner_state_guard = owner_state_guard;
             let owner_guard = file.try_acquire_owner_lock()?.ok_or_else(|| {
@@ -128,13 +126,11 @@ impl ActiveProfileReferenceLease for ActiveProfileSelectionLease {
             })?;
             let mut registrations = lock_local_owner_registry()?;
             if registrations.contains(&config_root) {
-                return Err(PortError::Rejected(
-                    Failure::new(
-                        ErrorCode::NotReady,
-                        "this process already has an active Core owner registration",
-                        true,
-                    ),
-                ));
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "this process already has an active Core owner registration",
+                    true,
+                )));
             }
             let mut owner_proof = file.read_owner_proof_sync()?;
             match &record.owner {

@@ -339,4 +339,3 @@ impl CoreUpdateCheckState {
 #[cfg(test)]
 #[path = "../../tests/gui/core_operations_tests.rs"]
 mod tests;
-

@@ -13,13 +13,13 @@
 //!
 //! test-intent: behavior
 
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
@@ -29,8 +29,8 @@ use infiltrator_platform::credentials::{
     clear_credential_store_override, set_credential_store_override,
 };
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
-use infiltrator_test_support::memory_credential_store::MemoryCredentialStore;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_test_support::memory_credential_store::MemoryCredentialStore;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
@@ -67,10 +67,7 @@ pub fn fresh_state() -> AppState {
 pub fn list_profiles() -> Vec<ProfileInfo> {
     block_on(async {
         let store = config_manager().await.unwrap();
-        profiles_for_mihomo(store)
-            .list_profiles()
-            .await
-            .unwrap()
+        profiles_for_mihomo(store).list_profiles().await.unwrap()
     })
 }
 

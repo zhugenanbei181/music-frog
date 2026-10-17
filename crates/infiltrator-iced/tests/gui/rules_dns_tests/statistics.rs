@@ -1,6 +1,5 @@
 //! test-intent: behavior
 //! Native inspector and modal widgets replay the shared source-qualified workflow.
-use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use super::rules_tracer::{publish, run, setup};
 use crate::state::AppState;
 use crate::test_mounts::native_widgets;
@@ -13,6 +12,7 @@ use iced::Task;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_presentation::rule_statistics_inspector_projection::project_inspector;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 use infiltrator_shared::locales::Lang;
 use std::sync::atomic::Ordering;

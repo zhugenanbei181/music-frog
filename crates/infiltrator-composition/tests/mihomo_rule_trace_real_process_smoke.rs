@@ -1,7 +1,5 @@
 //! test-intent: real_process
 
-use infiltrator_contract::outbound::inventory::OutboundInventoryState;
-use tokio::fs;
 use async_trait::async_trait;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
@@ -9,6 +7,7 @@ use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::error::Failure;
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOperation, RuleTraceOperationId, RuleTraceOutboundFacts, RuleTraceOwnerBinding,
@@ -33,6 +32,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs;
 use tokio::sync::Mutex;
 
 struct FixedScope(CoreScope);

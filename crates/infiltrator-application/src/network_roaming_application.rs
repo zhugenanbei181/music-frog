@@ -140,18 +140,19 @@ impl NetworkRoamingApplication {
 
         let tun_configuration = match &self.core_configuration {
             CoreConfigurationOwner::NotComposed => TunConfigurationObservation::NotComposed,
-            CoreConfigurationOwner::Composed { scope_source, ports } => {
-                match active_scope(scope_source.as_ref()) {
-                    Ok(scope) => match RuntimeConfigurationApplication::new(scope, ports.clone())
-                        .observe_tun()
-                        .await
-                    {
-                        Ok(observed) => TunConfigurationObservation::Reported(observed.value),
-                        Err(failure) => TunConfigurationObservation::Failed(failure),
-                    },
+            CoreConfigurationOwner::Composed {
+                scope_source,
+                ports,
+            } => match active_scope(scope_source.as_ref()) {
+                Ok(scope) => match RuntimeConfigurationApplication::new(scope, ports.clone())
+                    .observe_tun()
+                    .await
+                {
+                    Ok(observed) => TunConfigurationObservation::Reported(observed.value),
                     Err(failure) => TunConfigurationObservation::Failed(failure),
-                }
-            }
+                },
+                Err(failure) => TunConfigurationObservation::Failed(failure),
+            },
         };
         let tun_interface = observation
             .interfaces
@@ -296,7 +297,6 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::capability::Capability;
-    use infiltrator_ports::runtime_configuration::TunConfigurationUpdate;
     #[cfg(test)]
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -309,6 +309,7 @@ mod tests {
     use infiltrator_contract::session::SessionToken;
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use infiltrator_ports::error::PortError;
+    use infiltrator_ports::runtime_configuration::TunConfigurationUpdate;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
         RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
@@ -388,9 +389,7 @@ mod tests {
 
         async fn apply(
             &self,
-            _request: ConfigurationApply<
-                TunConfigurationUpdate,
-            >,
+            _request: ConfigurationApply<TunConfigurationUpdate>,
         ) -> Result<ConfigurationObservation<TunConfiguration>, PortError> {
             Err(PortError::unsupported(
                 Capability::Tun,

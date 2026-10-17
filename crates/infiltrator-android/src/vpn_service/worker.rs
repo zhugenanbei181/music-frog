@@ -286,8 +286,7 @@ impl WorkerLifecycle {
 }
 
 #[cfg(any(target_os = "android", test))]
-static WORKER_LIFECYCLE: OnceLock<Mutex<WorkerLifecycle>> =
-    OnceLock::new();
+static WORKER_LIFECYCLE: OnceLock<Mutex<WorkerLifecycle>> = OnceLock::new();
 
 #[cfg(any(target_os = "android", test))]
 fn shared_lifecycle() -> &'static Mutex<WorkerLifecycle> {

@@ -694,7 +694,10 @@ mod tests {
         // Host drains snapshots on wake
         let bridge = pump.bridge();
         let snapshots = bridge.drain();
-        assert!(!snapshots.is_empty(), "draining after wake must yield snapshots");
+        assert!(
+            !snapshots.is_empty(),
+            "draining after wake must yield snapshots"
+        );
 
         // The current mirror retains the complete snapshot
         let current = pump.current();

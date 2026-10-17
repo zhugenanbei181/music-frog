@@ -539,7 +539,6 @@ fn test_editor_actions() {
     assert_eq!(state.shell.current_route, Route::Editor);
 }
 
-
 fn runtime_stream_scope(engine: &str, instance: &str, session_token: SessionToken) -> CoreScope {
     CoreScope {
         identity: CoreIdentity::new(

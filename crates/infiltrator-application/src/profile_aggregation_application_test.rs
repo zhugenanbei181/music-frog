@@ -1,14 +1,14 @@
 //! DUAL-08: headless tests for the shared aggregation application.
 
-use crate::profile_application::ProfileRuntimeAccess;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::aggregator::AggregationActivationOutcome;
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
+use infiltrator_contract::aggregator::AggregationActivationOutcome;
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationRenameRule, AggregationTemplate,
 };
@@ -607,10 +607,7 @@ proxies:
     assert!(source.content.contains("Singapore"));
 
     let unknown = app
-        .reaggregate::<dyn ActiveProfileReferenceApplier>(
-            ProfileRuntimeAccess::Offline,
-            "nope",
-        )
+        .reaggregate::<dyn ActiveProfileReferenceApplier>(ProfileRuntimeAccess::Offline, "nope")
         .await
         .expect_err("unknown template");
     assert_eq!(unknown.code, ErrorCode::Configuration);

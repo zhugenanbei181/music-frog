@@ -16,7 +16,6 @@
 //! the real read and sends observations through the typed input channel this
 //! module exposes.
 
-use infiltrator_bevy_widgets::theme::REM_BASE;
 use crate::gesture::GestureHostReport;
 use bevy::app::{App, Plugin, PreUpdate};
 use bevy::ecs::event::Event;
@@ -25,6 +24,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Res, ResMut};
 use bevy::text::RemSize;
 use infiltrator_bevy_widgets::responsive::{ResponsiveContext, SafeAreaInsets};
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_contract::shell_gesture;
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SendError, Sender, channel};

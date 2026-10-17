@@ -1,5 +1,3 @@
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
 use super::*;
 use crate::resource_application::ResourceApplication;
 use async_trait::async_trait;
@@ -7,6 +5,8 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
@@ -158,10 +158,7 @@ async fn unavailable_scope_rejects_runtime_stream_before_port_call() {
         Ok(_) => panic!("inactive Core unexpectedly opened a runtime stream"),
     };
 
-    assert_eq!(
-        failure.code,
-        ErrorCode::NotReady
-    );
+    assert_eq!(failure.code, ErrorCode::NotReady);
     assert_eq!(stream_port.0.load(Ordering::SeqCst), 0);
 }
 
@@ -185,10 +182,7 @@ async fn core_log_level_readback_mismatch_is_not_reported_as_success() {
             .set_core_log_level(CoreLogLevel::Debug)
             .await
             .expect_err("ignored update must not report success");
-    assert_eq!(
-        failure.code,
-        ErrorCode::InvalidState
-    );
+    assert_eq!(failure.code, ErrorCode::InvalidState);
 }
 
 #[tokio::test]
@@ -283,10 +277,7 @@ async fn stale_resource_observation_is_rejected_before_gc() {
         .poll()
         .await
         .expect_err("foreign resource scope must be rejected");
-    assert_eq!(
-        failure.code,
-        ErrorCode::InvalidState
-    );
+    assert_eq!(failure.code, ErrorCode::InvalidState);
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);
 }
 
@@ -346,10 +337,7 @@ async fn unavailable_owner_scope_rejects_resource_reads_before_adapter_access() 
         .await
         .expect_err("resource observation needs an active Core owner scope");
 
-    assert_eq!(
-        failure.code,
-        ErrorCode::NotReady
-    );
+    assert_eq!(failure.code, ErrorCode::NotReady);
     assert_eq!(resources.observe_calls.load(Ordering::SeqCst), 0);
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);
 }

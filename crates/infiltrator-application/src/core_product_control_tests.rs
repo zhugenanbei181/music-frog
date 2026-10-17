@@ -120,10 +120,7 @@ impl CoreProcess for ProductControlProcess {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         self.steps
             .lock()
             .expect("product control steps")

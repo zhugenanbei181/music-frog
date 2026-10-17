@@ -1,11 +1,11 @@
 //! test-intent: behavior
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use crate::command_harness::{core_test_command_application, recording_application};
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::error::ErrorCode;
@@ -47,8 +47,7 @@ fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
 fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_preserve_profile_bytes()
 {
     let store = Arc::new(HostsCaptureStore::default());
-    let configuration =
-        for_mihomo_store(store.clone());
+    let configuration = for_mihomo_store(store.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Dns(DnsOperation::ApplyConfiguration)])

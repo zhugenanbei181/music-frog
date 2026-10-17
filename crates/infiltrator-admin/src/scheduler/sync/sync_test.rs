@@ -2,7 +2,6 @@
 mod tests {
     use super::super::run_sync_tick;
     use crate::admin_api::state::{AdminApiContext, CoreOwnerAction};
-    use infiltrator_application::resource_application::ResourceApplication;
     #[cfg(test)]
     use crate::support::cache_application;
     #[cfg(test)]
@@ -34,6 +33,7 @@ mod tests {
     use infiltrator_application::profile_application::ProfileApplication;
     #[cfg(test)]
     use infiltrator_application::profile_reset_application::ProfileResetApplication;
+    use infiltrator_application::resource_application::ResourceApplication;
     #[cfg(test)]
     use infiltrator_application::sync_application::SyncApplication;
     #[cfg(test)]
@@ -131,9 +131,7 @@ mod tests {
         async fn runtime_controller_url(&self) -> Option<String> {
             None
         }
-        async fn resource_application(
-            &self,
-        ) -> anyhow::Result<ResourceApplication> {
+        async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
             Err(anyhow!(
                 "resource application is not available in sync tests"
             ))

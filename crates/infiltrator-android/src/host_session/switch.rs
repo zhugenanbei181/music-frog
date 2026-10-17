@@ -1,10 +1,10 @@
-use super::singbox::{profile_store_at_root, validate_binary_selection};
 use super::owner_state::{
     SharedCoreOwnerAdmission, SharedCoreOwnerSwitchCompletion, SharedCoreOwnerSwitchFinish,
     begin_shared_core_switch, finish_shared_core_switch,
 };
+use super::singbox::{profile_store_at_root, validate_binary_selection};
 use super::{
-    SharedCore, SharedCoreEngine, authorize_android_core_start,  shared_core, shared_core_owner_slot,
+    SharedCore, SharedCoreEngine, authorize_android_core_start, shared_core, shared_core_owner_slot,
 };
 use crate::composition::singbox::{
     AndroidSingBoxBackendProviderParts, android_singbox_backend_provider,
@@ -14,8 +14,8 @@ use crate::composition::{
     android_core_capability_provider, android_mihomo_backend_provider,
     core_application_from_selected_mihomo_backend,
 };
-use crate::core_launch_spec::singbox::AndroidSingBoxProfileLaunchSpecProvider;
 use crate::core_launch_spec::AndroidProfileReadiness;
+use crate::core_launch_spec::singbox::AndroidSingBoxProfileLaunchSpecProvider;
 use crate::core_version_owner::{core_binary_selection_port, core_version_application};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_settings_application, map_mihomo_error, map_port_error};
@@ -28,8 +28,7 @@ use infiltrator_composition::active_profile_backend::{
 };
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget,
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
 };
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,

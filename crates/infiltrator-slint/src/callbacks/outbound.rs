@@ -121,9 +121,11 @@ pub(super) fn register(
     let weak_for_closed = weak.clone();
     let latest_for_closed = Arc::clone(&latest);
     window.on_set_connection_view(move |show_closed| {
-        let _ = weak_for_closed.clone().upgrade_in_event_loop(move |window| {
-            window.set_connection_show_closed(show_closed);
-        });
+        let _ = weak_for_closed
+            .clone()
+            .upgrade_in_event_loop(move |window| {
+                window.set_connection_show_closed(show_closed);
+            });
         refresh_projection(&weak_for_closed, &latest_for_closed);
     });
     let weak_for_connection_sort = weak.clone();
@@ -213,15 +215,17 @@ pub(super) fn register(
                 queue_action(
                     &tx_for_export_logs,
                     &weak_for_export_logs,
-                    require_snapshot(&latest_for_export_logs).map(|_| SlintAction::ExportLogs {
-                        destination,
-                    }),
+                    require_snapshot(&latest_for_export_logs)
+                        .map(|_| SlintAction::ExportLogs { destination }),
                 );
             }
         }
         #[cfg(target_os = "android")]
         {
-            show_unsupported(&weak_for_export_logs, "Android SAF log export is handled through Intent");
+            show_unsupported(
+                &weak_for_export_logs,
+                "Android SAF log export is handled through Intent",
+            );
         }
     });
     let tx = requests.clone();

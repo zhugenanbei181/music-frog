@@ -1,10 +1,10 @@
 //! Behavior cases for settings vpn.
 //! test-intent: behavior
 
-use infiltrator_contract::android_control::VpnOwnerLifecycle;
-use infiltrator_contract::android_control::VpnOwnerReadiness;
 use super::*;
 use bevy::ecs::query::With;
+use infiltrator_contract::android_control::VpnOwnerLifecycle;
+use infiltrator_contract::android_control::VpnOwnerReadiness;
 
 #[test]
 fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
@@ -50,10 +50,7 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
         "permission waiting does not imply a running service to stop"
     );
     let mut running = SettingsProjection::demo();
-    running.vpn = owner_vpn_observation(
-        VpnOwnerLifecycle::Running,
-        VpnOwnerReadiness::Ready,
-    );
+    running.vpn = owner_vpn_observation(VpnOwnerLifecycle::Running, VpnOwnerReadiness::Ready);
     app.world_mut().trigger(SettingsProjectionUpdated(running));
     app.update();
     app.world_mut().trigger(Activate { entity: stop });

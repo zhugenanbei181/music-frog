@@ -1,10 +1,10 @@
 //! Behavior cases for rules game.
 //! test-intent: behavior
 
-use infiltrator_iced::state::editor::GeoDatabasesUpdatePhase;
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
 use infiltrator_composition::capture_fixtures::list_document;
+use infiltrator_iced::state::editor::GeoDatabasesUpdatePhase;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 
 #[test]
 fn test_rules_game_presets_and_geo_update() {
@@ -14,9 +14,10 @@ fn test_rules_game_presets_and_geo_update() {
         enabled: true,
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe_readback(
-        RuleListReadback::Observed(document),
-    );
+    state
+        .editor
+        .rule_list
+        .observe_readback(RuleListReadback::Observed(document));
     state.editor.new_rule_target = "Game-Proxy".into();
 
     let _ = state.update(Message::ApplyGameRoutingPresets);
@@ -35,8 +36,7 @@ fn test_rules_game_presets_and_geo_update() {
     assert!(!state.editor.geo_databases_update_phase.is_updating());
 
     // The finished handler still owns the busy-flag lifecycle.
-    state.editor.geo_databases_update_phase =
-        GeoDatabasesUpdatePhase::Updating;
+    state.editor.geo_databases_update_phase = GeoDatabasesUpdatePhase::Updating;
     let _ = state.update(Message::GeoDatabasesUpdated(Ok(())));
     assert!(!state.editor.geo_databases_update_phase.is_updating());
 }

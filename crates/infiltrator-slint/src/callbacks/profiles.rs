@@ -70,7 +70,10 @@ pub(super) fn register(
             if let Some(path) = picked {
                 let path_str = path.to_string_lossy().to_string();
                 let final_name = if name.trim().is_empty() {
-                    path.file_stem().and_then(|s| s.to_str()).unwrap_or("profile").to_string()
+                    path.file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("profile")
+                        .to_string()
                 } else {
                     name
                 };
@@ -87,7 +90,10 @@ pub(super) fn register(
         }
         #[cfg(target_os = "android")]
         {
-            show_unsupported(&weak_for_file, "Android SAF file selection is handled through Intent");
+            show_unsupported(
+                &weak_for_file,
+                "Android SAF file selection is handled through Intent",
+            );
         }
     });
 
@@ -96,11 +102,7 @@ pub(super) fn register(
     window.on_set_current_profile(move |profile_id| {
         let profile_id = profile_id.to_string();
         if profile_id.is_empty() {
-            queue_intent(
-                &tx,
-                &weak_for_profile,
-                CommandIntent::ClearActiveProfile,
-            );
+            queue_intent(&tx, &weak_for_profile, CommandIntent::ClearActiveProfile);
         } else {
             queue_intent(
                 &tx,
@@ -116,26 +118,37 @@ pub(super) fn register(
     window.on_move_profile(move |profile_id, move_up| {
         let profile_id = profile_id.to_string();
         let action = require_snapshot(&latest_for_move).and_then(|snapshot| {
-            let page = snapshot
-                .pages
-                .profiles
-                .data
-                .as_ref()
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true))?;
+            let page = snapshot.pages.profiles.data.as_ref().ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true)
+            })?;
             let current_order: Vec<String> = page.profiles.iter().map(|p| p.id.clone()).collect();
             let Some(idx) = current_order.iter().position(|id| id == &profile_id) else {
-                return Err(Failure::new(ErrorCode::InvalidInput, "Profile not found in catalog", false));
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Profile not found in catalog",
+                    false,
+                ));
             };
             if move_up && idx == 0 {
-                return Err(Failure::new(ErrorCode::InvalidInput, "Profile is already at the top", false));
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Profile is already at the top",
+                    false,
+                ));
             }
             if !move_up && idx + 1 >= current_order.len() {
-                return Err(Failure::new(ErrorCode::InvalidInput, "Profile is already at the bottom", false));
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Profile is already at the bottom",
+                    false,
+                ));
             }
             let mut target_order = current_order;
             let target_idx = if move_up { idx - 1 } else { idx + 1 };
             target_order.swap(idx, target_idx);
-            Ok(SlintAction::Command(CommandIntent::ReorderProfiles { order: target_order }))
+            Ok(SlintAction::Command(CommandIntent::ReorderProfiles {
+                order: target_order,
+            }))
         });
         queue_action(&tx_for_move, &weak_for_move, action);
     });
@@ -264,7 +277,8 @@ pub(super) fn register(
                 None
             };
             if profile.write_protection != ProfileWriteProtection::RemoteSubscription
-                && (url.trim() != profile.url.trim() && !url.trim().is_empty() || private_key.is_some())
+                && (url.trim() != profile.url.trim() && !url.trim().is_empty()
+                    || private_key.is_some())
             {
                 return Err(Failure::unsupported(
                     "Local profile metadata editing is not part of the shared profile contract yet",
@@ -305,22 +319,19 @@ pub(super) fn register(
     let latest_for_toggle_override = Arc::clone(&latest);
     window.on_toggle_profile_override(move |override_id, enabled| {
         let action = require_snapshot(&latest_for_toggle_override).and_then(|snapshot| {
-            let page = snapshot
-                .pages
-                .profiles
-                .data
-                .as_ref()
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true))?;
-            let active_profile = page
-                .profiles
-                .iter()
-                .find(|p| p.is_active)
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "No active profile is selected", true))?;
-            Ok(SlintAction::Command(CommandIntent::SetProfileOverrideBinding {
-                profile_id: active_profile.id.clone(),
-                override_id: override_id.to_string(),
-                enabled,
-            }))
+            let page = snapshot.pages.profiles.data.as_ref().ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true)
+            })?;
+            let active_profile = page.profiles.iter().find(|p| p.is_active).ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "No active profile is selected", true)
+            })?;
+            Ok(SlintAction::Command(
+                CommandIntent::SetProfileOverrideBinding {
+                    profile_id: active_profile.id.clone(),
+                    override_id: override_id.to_string(),
+                    enabled,
+                },
+            ))
         });
         queue_action(&tx_for_toggle_override, &weak_for_override, action);
     });
@@ -331,35 +342,47 @@ pub(super) fn register(
     window.on_move_profile_override(move |override_id, move_up| {
         let override_id = override_id.to_string();
         let action = require_snapshot(&latest_for_move_override).and_then(|snapshot| {
-            let page = snapshot
-                .pages
-                .profiles
-                .data
-                .as_ref()
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true))?;
-            let active_profile = page
-                .profiles
-                .iter()
-                .find(|p| p.is_active)
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "No active profile is selected", true))?;
-            let bindings = page.named_overrides.bindings_for_profile(&active_profile.id);
-            let current_order: Vec<String> = bindings.iter().map(|b| b.override_id.to_string()).collect();
+            let page = snapshot.pages.profiles.data.as_ref().ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true)
+            })?;
+            let active_profile = page.profiles.iter().find(|p| p.is_active).ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "No active profile is selected", true)
+            })?;
+            let bindings = page
+                .named_overrides
+                .bindings_for_profile(&active_profile.id);
+            let current_order: Vec<String> =
+                bindings.iter().map(|b| b.override_id.to_string()).collect();
             let Some(idx) = current_order.iter().position(|id| id == &override_id) else {
-                return Err(Failure::new(ErrorCode::InvalidInput, "Override not bound to profile", false));
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Override not bound to profile",
+                    false,
+                ));
             };
             if move_up && idx == 0 {
-                return Err(Failure::new(ErrorCode::InvalidInput, "Override is already at the top", false));
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Override is already at the top",
+                    false,
+                ));
             }
             if !move_up && idx + 1 >= current_order.len() {
-                return Err(Failure::new(ErrorCode::InvalidInput, "Override is already at the bottom", false));
+                return Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Override is already at the bottom",
+                    false,
+                ));
             }
             let mut target_order = current_order;
             let target_idx = if move_up { idx - 1 } else { idx + 1 };
             target_order.swap(idx, target_idx);
-            Ok(SlintAction::Command(CommandIntent::ReorderProfileOverrides {
-                profile_id: active_profile.id.clone(),
-                order: target_order,
-            }))
+            Ok(SlintAction::Command(
+                CommandIntent::ReorderProfileOverrides {
+                    profile_id: active_profile.id.clone(),
+                    order: target_order,
+                },
+            ))
         });
         queue_action(&tx_for_move_override, &weak_for_override_move, action);
     });

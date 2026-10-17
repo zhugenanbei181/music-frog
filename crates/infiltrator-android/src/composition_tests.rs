@@ -1,19 +1,12 @@
 //! Android owner profile-command composition behavior.
 //! test-intent: behavior
 
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreGeneration;
-use infiltrator_contract::core_process::CoreProcessStartContext;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
-use infiltrator_contract::vpn::VpnGeneration;
-use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
 use super::AndroidCoreComposition;
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
@@ -23,6 +16,7 @@ use infiltrator_contract::android_control::{
     AndroidOwnedCoreProcess, AndroidProductCommand, AndroidProductCommandRequest,
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
@@ -32,8 +26,11 @@ use infiltrator_contract::core_capabilities::{
     LogsOperation, OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation,
     VersionOperation,
 };
+use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::core_identity::{CoreCommandRequest, CoreVersion, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::outbound::{
     identity::{OutboundId, SnapshotRevision},
     probe::OutboundSelectionRequest,
@@ -41,7 +38,9 @@ use infiltrator_contract::outbound::{
 use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileId};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::HostKind;
+use infiltrator_contract::vpn::VpnGeneration;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
@@ -56,6 +55,7 @@ use infiltrator_ports::core_capability_provider::{
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
+use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
@@ -76,10 +76,10 @@ use tokio::time::timeout;
 const INITIAL_DOCUMENT: &str = "mode: rule\n";
 const SAVED_DOCUMENT: &str = "mode: direct\n";
 
-#[path = "composition_tests/singbox.rs"]
-mod singbox;
 #[path = "composition_tests/async_tests.rs"]
 mod async_tests;
+#[path = "composition_tests/singbox.rs"]
+mod singbox;
 
 struct TestCredentialStore;
 
@@ -135,8 +135,8 @@ async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &st
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned test selection CAS")
+    .await
+    .expect("revisioned test selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
@@ -292,16 +292,14 @@ impl AndroidBridge for TestBridge {
             route_count: 0,
             dns_servers: Vec::new(),
             ipv6: false,
-            core: VpnOwnerCoreReadback::Available(
-                CoreLifecycleSnapshot {
-                    identity: None,
-                    lifecycle: CoreLifecycle::Stopped,
-                    generation: 0,
-                    session_token: None,
-                    revision: 0,
-                    failure: None,
-                },
-            ),
+            core: VpnOwnerCoreReadback::Available(CoreLifecycleSnapshot {
+                identity: None,
+                lifecycle: CoreLifecycle::Stopped,
+                generation: 0,
+                session_token: None,
+                revision: 0,
+                failure: None,
+            }),
         })
     }
 }
@@ -322,9 +320,7 @@ fn android_mihomo_backend_provider_recreates_scoped_ports_without_hidden_state()
         )
         .expect("Mihomo engine admission succeeds before controller parsing"),
     );
-    let provider_for_factory: Arc<
-        dyn EngineBackendProvider,
-    > = provider;
+    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider;
     let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
     let engine_id = MihomoVersionPort::engine_identifier();
 
@@ -353,9 +349,7 @@ fn android_core_scope_resolver_rejects_a_stopped_owner() {
         )
         .expect("Mihomo engine admission succeeds"),
     );
-    let provider_for_factory: Arc<
-        dyn EngineBackendProvider,
-    > = provider;
+    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider;
     let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
     let backend = factory
         .backend_ports(&MihomoVersionPort::engine_identifier())
@@ -731,4 +725,3 @@ async fn assert_local_load_succeeds_and_runtime_apply_fails_closed(
     );
     assert_eq!(store.load("main").await.unwrap(), INITIAL_DOCUMENT);
 }
-

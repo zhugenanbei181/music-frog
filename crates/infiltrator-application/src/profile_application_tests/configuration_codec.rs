@@ -1,21 +1,17 @@
 //! Engine-scoped configuration codec behavior and source-bound writes.
 //! test-intent: behavior
 
+use super::*;
+use crate::configuration_application::ConfigurationApplication;
+use crate::profile_application::ProfileRuntimeAccess;
+use crate::protocol_codec_application::ProtocolCodecApplication;
+use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::core_identity::CoreIdentity;
 use infiltrator_contract::core_identity::CoreInstanceId;
 use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_domain::rules::RuleEntry;
-use infiltrator_domain::tun::TunConfig;
-use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
-use super::*;
-use crate::configuration_application::ConfigurationApplication;
-use crate::profile_application::ProfileRuntimeAccess;
-use crate::protocol_codec_application::ProtocolCodecApplication;
-use async_trait::async_trait;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_configuration;
@@ -26,7 +22,10 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::{CodecAudit, NodeCodecFormat, ProtocolDraft};
 use infiltrator_contract::protocol_trust::TlsTrustParams;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::tun::TunConfig;
 use infiltrator_domain::tun::TunConfigPatch;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_document_codec::{
@@ -34,6 +33,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileProtocolNodeMutationReadback, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
@@ -52,18 +52,11 @@ impl ActiveProfileReferenceApplier for WorkspaceApplyRuntime {
     fn core_lifecycle(&self) -> CoreLifecycle {
         CoreLifecycle::Running
     }
-    fn write_authorization(
-        &self,
-    ) -> Result<
-        ActiveProfileReferenceWriteAuthorization,
-        PortError,
-    > {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
             identity: CoreIdentity::new(
-                EngineId::new("mihomo")
-                    .expect("test engine"),
-                CoreInstanceId::new("workspace-test-core")
-                    .expect("test owner instance"),
+                EngineId::new("mihomo").expect("test engine"),
+                CoreInstanceId::new("workspace-test-core").expect("test owner instance"),
                 None,
             ),
             generation: CoreGeneration::new(7),
@@ -79,13 +72,12 @@ impl ActiveProfileReferenceApplier for WorkspaceApplyRuntime {
     ) -> Result<ProfileWorkspace, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         *self.update.lock().unwrap() = Some(update.clone());
-        let mut receipt =
-            workspace_with_raw_sidecar(
-                expected.document.profile_id.as_str(),
-                &update.document_bytes,
-                update.sidecar_bytes.clone(),
-                None,
-            )?;
+        let mut receipt = workspace_with_raw_sidecar(
+            expected.document.profile_id.as_str(),
+            &update.document_bytes,
+            update.sidecar_bytes.clone(),
+            None,
+        )?;
         receipt.document.identity.source = expected.document.source.clone();
         Ok(receipt)
     }

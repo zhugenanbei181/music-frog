@@ -99,7 +99,10 @@ fn test_network_mode_action_switching_from_proxy_to_tun_when_running() {
 
     assert_eq!(commands.len(), 4);
     assert_eq!(commands[0], CommandIntent::StopProxy);
-    assert_eq!(commands[1], CommandIntent::SetSystemProxy { enabled: false });
+    assert_eq!(
+        commands[1],
+        CommandIntent::SetSystemProxy { enabled: false }
+    );
     assert_eq!(commands[2], CommandIntent::ToggleTun { enabled: true });
     assert_eq!(commands[3], CommandIntent::StartProxy);
 }
@@ -134,7 +137,10 @@ fn test_network_mode_action_switching_to_core_only_when_stopped() {
     }
 
     assert_eq!(commands.len(), 2);
-    assert_eq!(commands[0], CommandIntent::SetSystemProxy { enabled: false });
+    assert_eq!(
+        commands[0],
+        CommandIntent::SetSystemProxy { enabled: false }
+    );
     assert_eq!(commands[1], CommandIntent::ToggleTun { enabled: false });
 }
 

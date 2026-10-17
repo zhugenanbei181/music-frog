@@ -127,9 +127,7 @@ impl AppState {
         if self.editor.dns_hosts_editor.is_open() {
             layers.push(hosts_editor_modal(self));
         }
-        if self.runtime.group_order_dialog
-            == ProxyGroupOrderDialogState::Editing
-        {
+        if self.runtime.group_order_dialog == ProxyGroupOrderDialogState::Editing {
             layers.push(group_order_modal(self));
         }
         if matches!(

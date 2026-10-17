@@ -1,9 +1,5 @@
-use infiltrator_contract::core_identity::CoreGeneration;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::rule_tracer::DecisionNodeStatus;
-use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
-use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use super::*;
+use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::outbound::details::{
     OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEgressSample,
@@ -15,12 +11,14 @@ use infiltrator_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
 };
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_condition::{ConditionIssue, TrafficField};
 use infiltrator_contract::rule_trace_facts::DecisionStageFacts;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOperationId, RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceRequest,
     ScopedRuleTraceRequest,
 };
+use infiltrator_contract::rule_tracer::DecisionNodeStatus;
 use infiltrator_contract::rule_tracer::RuleTracerStatus;
 use infiltrator_contract::rule_tracer::{
     DecisionStageKind, RuleTraceOutboundResolution, RuleTraceRuntimeMode,
@@ -28,17 +26,15 @@ use infiltrator_contract::rule_tracer::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::rule_trace_projection::present_chain;
+use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
+use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use infiltrator_test_support::rule_workspace_test_support::rule_workspace;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn scoped_for_test(
     request: RuleTraceRequest,
     workspace: &RuleWorkspace,
-) -> (
-    CoreScope,
-    ProfileWorkspaceIdentity,
-    ScopedRuleTraceRequest,
-) {
+) -> (CoreScope, ProfileWorkspaceIdentity, ScopedRuleTraceRequest) {
     let scope = rule_trace_test_scope();
     let observed_workspace = workspace.profile_identity.clone();
     let owner = RuleTraceOwnerBinding::new(scope.clone(), observed_workspace.clone())
@@ -57,10 +53,7 @@ async fn simulate_for_test(
     workspace: &RuleWorkspace,
 ) -> Result<(), Failure> {
     let (scope, observed_workspace, request) = scoped_for_test(request, workspace);
-    let outbound_observation =
-        unknown_rule_trace_observation(
-            scope.clone(),
-        );
+    let outbound_observation = unknown_rule_trace_observation(scope.clone());
     app.simulate_scoped(
         &scope,
         &observed_workspace,
@@ -704,7 +697,6 @@ fn override_request(rule_index: usize, target: &str) -> TracerRuleOverride {
             .unwrap_or_else(|| "DOMAIN,removed.example,DIRECT".to_owned()),
     }
 }
-
 
 #[path = "rule_tracer_application_test/draft_tests.rs"]
 mod draft_tests;

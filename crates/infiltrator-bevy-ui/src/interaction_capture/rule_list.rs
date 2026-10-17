@@ -1,7 +1,4 @@
 //! Scoped activation of the actual staged-list UI and permission failure panel.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
-use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::request_scroll;
@@ -28,6 +25,9 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::ErrorCode;
@@ -55,12 +55,8 @@ pub fn install(app: &mut App) {
     ));
     let reader = Arc::new(
         ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(
-                profiles_for_mihomo(store.clone()),
-            )
-            .with_configuration(
-                for_mihomo_store(store.clone()),
-            ),
+            .with_profiles(profiles_for_mihomo(store.clone()))
+            .with_configuration(for_mihomo_store(store.clone())),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         CommandApplication::new().with_rule_list(RuleListApplication::new(store.clone())),

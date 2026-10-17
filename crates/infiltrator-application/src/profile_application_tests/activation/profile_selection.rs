@@ -1,10 +1,10 @@
 //! Selection and activation lifecycle behavior.
 
+use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
+use infiltrator_contract::error::FailureReason;
 use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use super::*;
-use infiltrator_contract::error::FailureReason;
 
 #[tokio::test]
 async fn activation_stale_revision_does_not_dispatch_or_overwrite_the_winner() {
@@ -13,10 +13,7 @@ async fn activation_stale_revision_does_not_dispatch_or_overwrite_the_winner() {
     let application = ProfileApplication::new(store.clone());
 
     let failure = application
-        .activate_profile::<ActivationRuntime>(
-            ProfileRuntimeAccess::Offline,
-            "next",
-        )
+        .activate_profile::<ActivationRuntime>(ProfileRuntimeAccess::Offline, "next")
         .await
         .expect_err("stale selection must be rejected");
 
@@ -62,9 +59,7 @@ async fn managed_activation_updates_selection_without_starting_a_stopped_core() 
 
     assert_eq!(
         outcome,
-        ProfileActivationOutcome::SelectedWhileInactive(
-            CoreInactiveLifecycle::Stopped,
-        )
+        ProfileActivationOutcome::SelectedWhileInactive(CoreInactiveLifecycle::Stopped,)
     );
     assert_eq!(selected_profile(&store.active_reference()), ("next", 2));
     assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
@@ -84,9 +79,7 @@ async fn managed_activation_while_core_failed_keeps_the_failed_state() {
 
     assert_eq!(
         outcome,
-        ProfileActivationOutcome::SelectedWhileInactive(
-            CoreInactiveLifecycle::Failed,
-        )
+        ProfileActivationOutcome::SelectedWhileInactive(CoreInactiveLifecycle::Failed,)
     );
     assert_eq!(selected_profile(&store.active_reference()), ("next", 2));
     assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);

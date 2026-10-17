@@ -78,15 +78,12 @@ impl SurfaceSnapshot {
                     ))
                 }
             }
-            VpnOwnerCoreReadback::Unavailable { .. }
-                if self.core.identity.is_none() =>
-            {
-                Ok(())
-            }
-            VpnOwnerCoreReadback::Unavailable { failure_message } => Err(
-                Failure::new(ErrorCode::NotReady, failure_message.clone(), true),
-            ),
+            VpnOwnerCoreReadback::Unavailable { .. } if self.core.identity.is_none() => Ok(()),
+            VpnOwnerCoreReadback::Unavailable { failure_message } => Err(Failure::new(
+                ErrorCode::NotReady,
+                failure_message.clone(),
+                true,
+            )),
         }
     }
-
 }

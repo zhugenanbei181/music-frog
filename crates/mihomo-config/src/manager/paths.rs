@@ -118,11 +118,11 @@ fn profile_path_error(error: PortError) -> MihomoError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_profile_store::namespace::ProfileNamespaceInitialization;
     #[cfg(test)]
     use crate::manager;
     #[cfg(test)]
     use infiltrator_ports::error::PortError;
+    use infiltrator_profile_store::namespace::ProfileNamespaceInitialization;
     #[cfg(test)]
     use std::env::remove_var;
     #[cfg(test)]
@@ -294,9 +294,7 @@ mod tests {
             manager.config_dir().join("profile-state.toml")
         );
         match manager.profile_store.namespace_initialization() {
-            ProfileNamespaceInitialization::LegacyV1(
-                migration,
-            ) => assert_eq!(
+            ProfileNamespaceInitialization::LegacyV1(migration) => assert_eq!(
                 migration.settings_file(),
                 home.join("config.toml").as_path()
             ),

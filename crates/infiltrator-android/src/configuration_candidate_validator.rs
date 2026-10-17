@@ -285,8 +285,7 @@ mod tests {
             request: &AndroidCoreConfigurationValidationRequest,
         ) -> Result<AndroidCoreConfigurationValidationOutcome, String> {
             *self.request.lock().expect("request mutex") = Some(request.clone());
-            let candidate =
-                fs::read(&request.candidate_path).map_err(|error| error.to_string())?;
+            let candidate = fs::read(&request.candidate_path).map_err(|error| error.to_string())?;
             if sha256_digest(&candidate) != request.candidate_digest {
                 return Err("candidate digest did not match its bytes".to_owned());
             }
@@ -301,10 +300,7 @@ mod tests {
                 EngineId::new("mihomo").expect("engine ID"),
                 ProfileDocumentSourceIdentity::new(
                     ProfileDocumentSourceKind::Local,
-                    ProfileSourceId::new(
-                        "local-primary",
-                    )
-                    .expect("source ID"),
+                    ProfileSourceId::new("local-primary").expect("source ID"),
                 ),
                 ProfileDocumentRevision::new("old-revision").expect("old revision"),
                 ProfileFormatId::new("mihomo-yaml").expect("format ID"),
@@ -319,9 +315,7 @@ mod tests {
         client: Arc<dyn AndroidCoreConfigurationValidationClient>,
     ) -> AndroidProfileConfigurationCandidateValidator {
         AndroidProfileConfigurationCandidateValidator::new(
-            ProfileConfigurationTransactionScope::new(
-                MihomoProfileDocumentCodec.scope(),
-            ),
+            ProfileConfigurationTransactionScope::new(MihomoProfileDocumentCodec.scope()),
             directory.join("files/engines/mihomo"),
             directory.join("files"),
             client,

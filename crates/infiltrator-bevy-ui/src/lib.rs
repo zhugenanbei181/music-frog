@@ -1,7 +1,4 @@
-#![allow(
-    clippy::collapsible_match,
-    clippy::large_enum_variant
-)]
+#![allow(clippy::collapsible_match, clippy::large_enum_variant)]
 //! MusicFrog Infiltrator — independent Bevy UI surface.
 //!
 //! This crate owns the ECS UI and accepts host-owned surface, command, and

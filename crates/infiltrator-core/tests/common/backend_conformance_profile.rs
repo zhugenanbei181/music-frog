@@ -138,10 +138,7 @@ struct ConformanceWorkspaceRestoredLease {
 }
 
 impl ConformanceProfileStore {
-    pub(crate) fn new(
-        scope: &ProfileDocumentCodecScope,
-        initial_bytes: &[u8],
-    ) -> Self {
+    pub(crate) fn new(scope: &ProfileDocumentCodecScope, initial_bytes: &[u8]) -> Self {
         let identity = ProfileDocumentIdentity::new(
             ProfileId::new("conformance").expect("static profile ID is valid"),
             scope.engine_id.clone(),
@@ -304,9 +301,7 @@ impl ProfileStore for ConformanceProfileStore {
         PathBuf::from("/conformance/profile-store")
     }
 
-    async fn list_profiles(
-        &self,
-    ) -> Result<Vec<ProfileInfo>, PortError> {
+    async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
         Err(unused_profile_store_operation())
     }
 
@@ -326,10 +321,7 @@ impl ProfileStore for ConformanceProfileStore {
         Err(unused_profile_store_operation())
     }
 
-    async fn get_profile_metadata(
-        &self,
-        _profile: &str,
-    ) -> Result<ProfileMetadata, PortError> {
+    async fn get_profile_metadata(&self, _profile: &str) -> Result<ProfileMetadata, PortError> {
         Err(unused_profile_store_operation())
     }
 
@@ -455,10 +447,7 @@ pub(super) async fn verify_native_profile_behavior(
                 case.engine.as_str()
             )
         })?;
-    let ActiveProfileReferenceState::Selected(
-        expected_reference,
-    ) = expected_reference
-    else {
+    let ActiveProfileReferenceState::Selected(expected_reference) = expected_reference else {
         return Err(format!(
             "{} conformance store has no selected active reference",
             case.engine.as_str()

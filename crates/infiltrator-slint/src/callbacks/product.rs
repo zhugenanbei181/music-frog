@@ -36,16 +36,21 @@ pub(super) fn register(
                 queue_action(
                     &tx_for_export_profile,
                     &weak_for_export_profile,
-                    require_snapshot(&latest_for_export_profile).map(|_| SlintAction::ExportProfile {
-                        profile_id,
-                        destination,
+                    require_snapshot(&latest_for_export_profile).map(|_| {
+                        SlintAction::ExportProfile {
+                            profile_id,
+                            destination,
+                        }
                     }),
                 );
             }
         }
         #[cfg(target_os = "android")]
         {
-            show_unsupported(&weak_for_export_profile, "Android SAF file export is handled through Intent");
+            show_unsupported(
+                &weak_for_export_profile,
+                "Android SAF file export is handled through Intent",
+            );
         }
     });
     let tx_for_clear_traffic = requests.clone();

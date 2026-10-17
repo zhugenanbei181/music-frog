@@ -1,6 +1,6 @@
 //! A single pure parser for original controller log records on all peers.
-use infiltrator_contract::logs::RawLogRecord;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::logs::RawLogRecord;
 use infiltrator_contract::logs::{LogFactsSnapshot, LogLevel, LogSession, LogStreamState};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
@@ -114,10 +114,7 @@ fn observation_matches_core(session: &LogSession, core: &CoreSnapshot) -> bool {
             .is_none_or(|token| token == session.token)
 }
 
-fn project_log_rows(
-    records: &[RawLogRecord],
-    facts: &LogFactsSnapshot,
-) -> LogsPageSnapshot {
+fn project_log_rows(records: &[RawLogRecord], facts: &LogFactsSnapshot) -> LogsPageSnapshot {
     let all_entries: Vec<_> = records
         .iter()
         .map(|record| project_log_record(record.id, &record.raw))

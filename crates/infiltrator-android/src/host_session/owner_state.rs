@@ -42,7 +42,9 @@ pub(crate) enum SharedCoreOwnerSessionCompletion {
     Closing,
 }
 
-pub(super) fn begin_owner_session_transition(state: &mut SharedCoreOwnerState) -> SharedCoreOwnerSessionBegin {
+pub(super) fn begin_owner_session_transition(
+    state: &mut SharedCoreOwnerState,
+) -> SharedCoreOwnerSessionBegin {
     match state {
         SharedCoreOwnerState::Uninitialized
         | SharedCoreOwnerState::RecoveryRequired
@@ -83,7 +85,9 @@ pub(super) fn complete_owner_session_transition(
     }
 }
 
-pub(super) fn shared_core_owner_admission(state: &SharedCoreOwnerState) -> SharedCoreOwnerAdmission<'_> {
+pub(super) fn shared_core_owner_admission(
+    state: &SharedCoreOwnerState,
+) -> SharedCoreOwnerAdmission<'_> {
     match state {
         SharedCoreOwnerState::Active(core) => SharedCoreOwnerAdmission::Existing(core),
         SharedCoreOwnerState::Ready => SharedCoreOwnerAdmission::Build,
@@ -143,7 +147,6 @@ pub(crate) fn finish_shared_core_switch(
         _ => SharedCoreOwnerSwitchFinish::OwnerStateChanged,
     }
 }
-
 
 #[cfg(test)]
 mod shared_core_owner_session_state_tests {

@@ -150,10 +150,7 @@ impl CoreProcess for SingBoxProcess {
         Some(self.identity.clone())
     }
 
-    async fn start(
-        &self,
-        context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, context: CoreProcessStartContext) -> Result<(), PortError> {
         if !context.identity().same_instance(&self.identity) {
             return Err(PortError::Failed(
                 "Core start context targets a different sing-box process".to_owned(),
@@ -170,13 +167,11 @@ impl CoreProcess for SingBoxProcess {
         {
             NativeConfigCheck::Accepted => {}
             NativeConfigCheck::Rejected => {
-                return Err(PortError::Rejected(
-                    Failure::new(
-                        ErrorCode::Configuration,
-                        "sing-box native config check rejected the active document",
-                        false,
-                    ),
-                ));
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::Configuration,
+                    "sing-box native config check rejected the active document",
+                    false,
+                )));
             }
         }
 

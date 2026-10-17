@@ -41,9 +41,6 @@ pub use localization::{
     AndroidRoutingIntentCopyKey, android_engine_defined_routing_intent_copy,
     android_routing_intent_copy,
 };
-pub use owner_operation::wire::{
-    android_dispatch_owner_operation_wire_json, android_execute_owner_operation,
-};
 pub use owner_operation::version::{
     AndroidCoreRelease, AndroidCoreReleaseSummary, AndroidCoreVersionInstallCancellation,
     AndroidCoreVersionInstallContext, AndroidCoreVersionInstallObservation,
@@ -51,11 +48,13 @@ pub use owner_operation::version::{
     AndroidCoreVersionManagementReadback, AndroidEngineNeutralReleaseChannel,
     AndroidInstalledCoreVersion, AndroidVersionDownloadProgress,
 };
+pub use owner_operation::wire::{
+    android_dispatch_owner_operation_wire_json, android_execute_owner_operation,
+};
 pub use owner_operation::{
-    AndroidActiveProfileReferenceObservation, AndroidOwnerDataDomain,
-    AndroidOwnerDataSnapshot, AndroidOwnerDataSnapshotData, AndroidOwnerOperation,
-    AndroidOwnerOperationClientResult, AndroidOwnerOperationContext,
-    AndroidOwnerOperationIpcResult, AndroidOwnerOperationIpcState,
+    AndroidActiveProfileReferenceObservation, AndroidOwnerDataDomain, AndroidOwnerDataSnapshot,
+    AndroidOwnerDataSnapshotData, AndroidOwnerOperation, AndroidOwnerOperationClientResult,
+    AndroidOwnerOperationContext, AndroidOwnerOperationIpcResult, AndroidOwnerOperationIpcState,
     AndroidOwnerOperationProtocolVersion, AndroidOwnerOperationReadback,
     AndroidOwnerOperationReply, AndroidProfileSelectionReadback, AndroidProfileSelectionTarget,
     android_owner_data_revision,
@@ -128,12 +127,7 @@ mod tests {
         };
 
         let core_patch = build_tun_patch(&patch);
-        assert_eq!(
-            core_patch.stack,
-            TunStackUpdate::Set(
-                TunStack::Gvisor,
-            ),
-        );
+        assert_eq!(core_patch.stack, TunStackUpdate::Set(TunStack::Gvisor,),);
         assert_eq!(core_patch.auto_detect_interface, Some(true));
     }
 

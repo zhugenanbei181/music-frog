@@ -2,11 +2,11 @@
 //! header metadata (behavior / rule count / version) per provider, with the
 //! failure reason when a cache file is missing or not MRS.
 
-use std::fmt::Display;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
 use infiltrator_shared::byte_units::format_bytes;
+use std::fmt::Display;
 
 use crate::view::component_card::card;
 use crate::view::component_forms::{row_card_surface, style_ghost};

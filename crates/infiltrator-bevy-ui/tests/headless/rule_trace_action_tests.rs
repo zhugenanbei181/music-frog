@@ -1,10 +1,9 @@
 //! test-intent: behavior
 //! Actual SDK controls, typed command terminals and a shared profile-backed reader.
-use crate::configuration_codec::mihomo_rule_trace_fixture;
-use crate::support::mihomo_profiles;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use crate::command_harness::{identified_recording_application, test_command_application};
+use crate::configuration_codec::mihomo_rule_trace_fixture;
 use crate::native_input::{click_entity, press, type_text};
+use crate::support::mihomo_profiles;
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::component::Component;
@@ -15,6 +14,7 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ButtonPlugin, ValueChange};
 use bevy::window::{Ime, PrimaryWindow, Window};
+use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabStrip};

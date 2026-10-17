@@ -1,6 +1,6 @@
-use tokio::time::timeout;
-use tokio::task::yield_now;
 use super::*;
+use tokio::task::yield_now;
+use tokio::time::timeout;
 
 #[tokio::test]
 async fn retry_after_owner_close_selects_the_typed_target_when_no_switch_journal_remains() {
@@ -260,7 +260,6 @@ async fn retry_rejects_a_binding_new_candidate_without_exact_terminal_evidence()
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
 }
 
-
 #[tokio::test]
 async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_owner_close() {
     let events = Arc::new(Mutex::new(Vec::new()));
@@ -333,7 +332,6 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
         ]
     );
 }
-
 
 #[tokio::test]
 async fn active_reference_compare_and_set_rejects_a_stale_revision_without_write() {
@@ -668,4 +666,3 @@ async fn same_engine_profile_replacement_uses_the_same_durable_owner_transaction
     application.close().await.unwrap();
     assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
 }
-

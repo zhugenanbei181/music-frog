@@ -1,7 +1,6 @@
 //! WebDAV sync handlers: upload/download of profiles to the user's DAV
 //! account, completion toasts and the periodic sync tick.
 
-use crate::update::core::profile_apply::runtime_access;
 use crate::configs_dir::configs_dir;
 use crate::host::storage;
 use crate::notify::NotifyUrgency;
@@ -9,6 +8,7 @@ use crate::state::AppState;
 use crate::state::profiles::{WebDavSyncPhase, WebDavTestPhase};
 use crate::types::app::{SyncConflict, SyncProgress, SyncSummary, ToastStatus};
 use crate::types::message::Message;
+use crate::update::core::profile_apply::runtime_access;
 use crate::update::core::profile_apply::save_profile_content;
 use iced::futures::SinkExt;
 use iced::futures::channel::mpsc;

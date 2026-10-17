@@ -347,7 +347,10 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
         let data = GlobeData::new(vec![node], Vec::new());
         mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
         let root = globe_root(&mut app);
-        assert!(first_plate_opt(&mut app).is_none(), "NotObserved must hide the globe map plate");
+        assert!(
+            first_plate_opt(&mut app).is_none(),
+            "NotObserved must hide the globe map plate"
+        );
         assert!(subtree_has_text(app.world(), root, "not observed"));
         assert_eq!(globe_unknown_detail(&data), "not observed");
     }
@@ -364,8 +367,15 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
         let data = GlobeData::new(vec![node], Vec::new());
         mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
         let root = globe_root(&mut app);
-        assert!(first_plate_opt(&mut app).is_none(), "SourceEmpty must hide the globe map plate");
-        assert!(subtree_has_text(app.world(), root, "source returned no data"));
+        assert!(
+            first_plate_opt(&mut app).is_none(),
+            "SourceEmpty must hide the globe map plate"
+        );
+        assert!(subtree_has_text(
+            app.world(),
+            root,
+            "source returned no data"
+        ));
         assert_eq!(globe_unknown_detail(&data), "source returned no data");
     }
 
@@ -381,7 +391,10 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
         let data = GlobeData::new(vec![node], Vec::new());
         mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
         let root = globe_root(&mut app);
-        assert!(first_plate_opt(&mut app).is_none(), "SourceUnavailable must hide the globe map plate");
+        assert!(
+            first_plate_opt(&mut app).is_none(),
+            "SourceUnavailable must hide the globe map plate"
+        );
         assert!(subtree_has_text(app.world(), root, "source unavailable"));
         assert_eq!(globe_unknown_detail(&data), "source unavailable");
     }
@@ -389,9 +402,13 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
     // 4. CountryOnly: country precision carries no point (prohibits centroid inference), no plate mounted
     {
         let mut app = page_app(palette);
-        let country_point = GeoPoint::new(35.0, 105.0, GeoSource::GeoIpDatabase, GeoPrecision::Country)
-            .expect("valid country range");
-        assert!(!country_point.is_plottable(), "country precision must not be plottable");
+        let country_point =
+            GeoPoint::new(35.0, 105.0, GeoSource::GeoIpDatabase, GeoPrecision::Country)
+                .expect("valid country range");
+        assert!(
+            !country_point.is_plottable(),
+            "country precision must not be plottable"
+        );
         let node = GlobeNode::new(
             "node_country_only",
             "Node",
@@ -401,7 +418,10 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
         let data = GlobeData::new(vec![node], Vec::new());
         mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
         let root = globe_root(&mut app);
-        assert!(first_plate_opt(&mut app).is_none(), "CountryOnly must hide the globe map plate");
+        assert!(
+            first_plate_opt(&mut app).is_none(),
+            "CountryOnly must hide the globe map plate"
+        );
         assert!(subtree_has_text(app.world(), root, "country-level only"));
         assert_eq!(globe_unknown_detail(&data), "country-level only");
     }
@@ -409,9 +429,17 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
     // 5. City-Exact: verified real coordinate with City or Exact precision -> mounts globe plate and plots
     {
         let mut app = page_app(palette);
-        let exact_point = GeoPoint::new(31.23, 121.47, GeoSource::EndpointReported, GeoPrecision::Exact)
-            .expect("valid exact point");
-        assert!(exact_point.is_plottable(), "exact precision must be plottable");
+        let exact_point = GeoPoint::new(
+            31.23,
+            121.47,
+            GeoSource::EndpointReported,
+            GeoPrecision::Exact,
+        )
+        .expect("valid exact point");
+        assert!(
+            exact_point.is_plottable(),
+            "exact precision must be plottable"
+        );
         let node_exact = GlobeNode::new(
             "node_city_exact",
             "Shanghai",
@@ -420,7 +448,10 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
         );
         let city_point = GeoPoint::new(35.68, 139.69, GeoSource::GeoIpDatabase, GeoPrecision::City)
             .expect("valid city point");
-        assert!(city_point.is_plottable(), "city precision must be plottable");
+        assert!(
+            city_point.is_plottable(),
+            "city precision must be plottable"
+        );
         let node_city = GlobeNode::new(
             "node_city",
             "Tokyo",
@@ -432,7 +463,10 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
             vec![GlobeLink::new("node_city_exact", "node_city", 1_000_000.0)],
         );
         mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
-        assert!(first_plate_opt(&mut app).is_some(), "City-Exact must mount the globe plate");
+        assert!(
+            first_plate_opt(&mut app).is_some(),
+            "City-Exact must mount the globe plate"
+        );
         let plate = first_plate(&mut app);
         assert_eq!(plate.0.nodes.len(), 2);
         assert_eq!(plate.0.links.len(), 1);

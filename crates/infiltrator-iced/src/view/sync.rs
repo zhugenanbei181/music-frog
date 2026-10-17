@@ -525,4 +525,3 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         .spacing(theme::SP_SM),
     )
 }
-

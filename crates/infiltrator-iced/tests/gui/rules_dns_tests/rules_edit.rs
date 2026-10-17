@@ -1,14 +1,14 @@
 //! Behavior cases for rules edit.
 //! test-intent: behavior
 
-use infiltrator_iced::state::editor::RuleAddPhase;
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_domain::rules::edit::{CUSTOM_RULE_TYPE_CHOICES, build_custom_rule};
 use infiltrator_domain::rules::game_routing_presets;
+use infiltrator_iced::state::editor::RuleAddPhase;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 
 #[test]
 fn test_rules_edit_operations_delegate_to_shared_module() {
@@ -23,9 +23,10 @@ fn test_rules_edit_operations_delegate_to_shared_module() {
         entry("MATCH,DIRECT"),
     ];
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe_readback(
-        RuleListReadback::Observed(document),
-    );
+    state
+        .editor
+        .rule_list
+        .observe_readback(RuleListReadback::Observed(document));
     state.rebuild_rules_render_cache();
 
     // DUAL-11-09: toggle flips the shared `RuleEntry.enabled` fact.

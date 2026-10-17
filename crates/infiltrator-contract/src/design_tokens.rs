@@ -338,28 +338,48 @@ pub const fn mobile_theme_tokens(skin: ThemeSkin) -> MobileThemeTokens {
     match skin {
         ThemeSkin::Dark => MobileThemeTokens {
             bottom_nav_bg: core.sidebar,
-            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.24),
+            bottom_nav_indicator: RgbaToken::rgba(
+                core.accent.r,
+                core.accent.g,
+                core.accent.b,
+                0.24,
+            ),
             touch_ripple: interaction.pressed,
             swipe_action: core.accent,
             swipe_destructive: core.danger,
         },
         ThemeSkin::Light => MobileThemeTokens {
             bottom_nav_bg: core.sidebar,
-            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.16),
+            bottom_nav_indicator: RgbaToken::rgba(
+                core.accent.r,
+                core.accent.g,
+                core.accent.b,
+                0.16,
+            ),
             touch_ripple: interaction.pressed,
             swipe_action: core.accent,
             swipe_destructive: core.danger,
         },
         ThemeSkin::Forest => MobileThemeTokens {
             bottom_nav_bg: core.sidebar,
-            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.20),
+            bottom_nav_indicator: RgbaToken::rgba(
+                core.accent.r,
+                core.accent.g,
+                core.accent.b,
+                0.20,
+            ),
             touch_ripple: interaction.pressed,
             swipe_action: core.accent,
             swipe_destructive: core.danger,
         },
         ThemeSkin::Amoled => MobileThemeTokens {
             bottom_nav_bg: core.sidebar,
-            bottom_nav_indicator: RgbaToken::rgba(core.accent.r, core.accent.g, core.accent.b, 0.28),
+            bottom_nav_indicator: RgbaToken::rgba(
+                core.accent.r,
+                core.accent.g,
+                core.accent.b,
+                0.28,
+            ),
             touch_ripple: interaction.pressed,
             swipe_action: core.accent,
             swipe_destructive: core.danger,

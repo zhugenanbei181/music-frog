@@ -3,8 +3,8 @@
 //! Split out of the single `Debug` impl along the message-family seam; the
 //! parent `debug` module dispatches to these sections in turn.
 
-use infiltrator_ports::runtime_configuration::ObservedValue;
 use crate::types::message::Message;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 use std::fmt;
 
 pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
@@ -322,17 +322,10 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::RuntimeConfigFetched(Ok(config), generation) => {
             let tun = match &config.tun.value.enabled {
                 ObservedValue::Unreported => "unknown",
-                ObservedValue::Reported(true) => {
-                    "enabled"
-                }
-                ObservedValue::Reported(false) => {
-                    "disabled"
-                }
+                ObservedValue::Reported(true) => "enabled",
+                ObservedValue::Reported(false) => "disabled",
             };
-            let dns_observed = matches!(
-                &config.dns.value.nameserver,
-                ObservedValue::Reported(_)
-            );
+            let dns_observed = matches!(&config.dns.value.nameserver, ObservedValue::Reported(_));
             write!(
                 f,
                 "RuntimeConfigFetched(gen={generation}, tun={tun}, DNS observed={dns_observed})"

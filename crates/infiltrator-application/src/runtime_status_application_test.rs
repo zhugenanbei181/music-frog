@@ -1,5 +1,3 @@
-use infiltrator_contract::runtime_status::ControlServiceObservation;
-use infiltrator_contract::runtime_status::RuntimeStatusSnapshot;
 use super::project_runtime_status;
 use infiltrator_contract::android_control::{
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
@@ -8,6 +6,8 @@ use infiltrator_contract::android_control::{
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
+use infiltrator_contract::runtime_status::ControlServiceObservation;
+use infiltrator_contract::runtime_status::RuntimeStatusSnapshot;
 use infiltrator_contract::runtime_status::{
     ControllerApiObservation, CoreProcessObservation, ProxyEffectivenessObservation,
     ProxyReadinessBlocker, TunDataPlaneObservation, VpnAuthorizationObservation,

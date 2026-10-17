@@ -23,7 +23,6 @@
 use bevy::asset::{Assets, Handle, RenderAssetUsages};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
-use infiltrator_shared::assets::bevy_icon_png;
 use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
@@ -34,6 +33,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{Node, px};
 use bevy::ui::widget::ImageNode;
+use infiltrator_shared::assets::bevy_icon_png;
 
 /// The semantic ids this layer draws. M1 keeps the common chrome set; ids
 /// are appended, never remapped — a plate file's name is its contract.

@@ -87,8 +87,11 @@ impl SlintProductHost for TrafficTestHost {
 #[test]
 fn clear_traffic_history_dispatches_intent() {
     let host = TrafficTestHost::new();
-    host.execute(None, SlintAction::Command(CommandIntent::ClearTrafficHistory))
-        .unwrap();
+    host.execute(
+        None,
+        SlintAction::Command(CommandIntent::ClearTrafficHistory),
+    )
+    .unwrap();
     assert_eq!(host.intents(), vec![CommandIntent::ClearTrafficHistory]);
 }
 
@@ -100,17 +103,20 @@ fn clear_closed_connections_dispatches_intent() {
         SlintAction::Command(CommandIntent::ClearClosedConnections),
     )
     .unwrap();
-    assert_eq!(
-        host.intents(),
-        vec![CommandIntent::ClearClosedConnections]
-    );
+    assert_eq!(host.intents(), vec![CommandIntent::ClearClosedConnections]);
 }
 
 #[test]
 fn traffic_history_defaults_to_honest_unobserved() {
     let history = TrafficHistorySnapshot::default();
-    assert!(!history.today_has_data, "honest empty state must not claim today data");
-    assert!(!history.week_has_data, "honest empty state must not claim week data");
+    assert!(
+        !history.today_has_data,
+        "honest empty state must not claim today data"
+    );
+    assert!(
+        !history.week_has_data,
+        "honest empty state must not claim week data"
+    );
     assert_eq!(history.today_download_bytes, 0);
     assert_eq!(history.today_upload_bytes, 0);
     assert_eq!(history.week_download_bytes, 0);
@@ -134,9 +140,9 @@ fn traffic_history_with_valid_buckets_and_bars() {
     history.today_has_data = true;
     history.week_has_data = true;
     history.today_download_bytes = 1024 * 1024 * 50; // 50 MB
-    history.today_upload_bytes = 1024 * 1024 * 10;   // 10 MB
+    history.today_upload_bytes = 1024 * 1024 * 10; // 10 MB
     history.week_download_bytes = 1024 * 1024 * 350; // 350 MB
-    history.week_upload_bytes = 1024 * 1024 * 70;    // 70 MB
+    history.week_upload_bytes = 1024 * 1024 * 70; // 70 MB
     history.week_average_download_bytes = 1024 * 1024 * 50;
     history.week_average_upload_bytes = 1024 * 1024 * 10;
     history.today_bars.push(TrafficBarSnapshot {

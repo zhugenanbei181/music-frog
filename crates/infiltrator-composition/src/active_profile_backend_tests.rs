@@ -81,6 +81,5 @@ mod cases_a;
 #[path = "active_profile_backend_tests/cases_b.rs"]
 mod cases_b;
 
-
 #[path = "active_profile_backend_tests/abort_candidate.rs"]
 mod abort_candidate;

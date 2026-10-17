@@ -1,4 +1,3 @@
-use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use super::ProfileApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{
@@ -11,6 +10,7 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,

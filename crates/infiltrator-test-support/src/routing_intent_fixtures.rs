@@ -5,6 +5,7 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{
     CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
@@ -13,7 +14,6 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};

@@ -1,13 +1,13 @@
 //! Behavior cases for rules rule.
 //! test-intent: behavior
 
-use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
+use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderContentOrigin;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 
 /// DUAL-11-06: the surface never invents a provider payload. The shared
 /// application reads the declaration's inline payload and the accepted plan
@@ -25,9 +25,10 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
         enabled: true,
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe_readback(
-        RuleListReadback::Observed(document),
-    );
+    state
+        .editor
+        .rule_list
+        .observe_readback(RuleListReadback::Observed(document));
     state.editor.rule_providers_json_cache =
         r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com","tracker.net"]}}"#
             .to_owned();

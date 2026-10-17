@@ -174,9 +174,7 @@ impl<S: SecureStore> ConfigManager<S> {
             .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
-    pub(crate) async fn list_profile_info(
-        &self,
-    ) -> result::Result<Vec<ProfileInfo>, PortError> {
+    pub(crate) async fn list_profile_info(&self) -> result::Result<Vec<ProfileInfo>, PortError> {
         self.initialize_profile_namespace()
             .await
             .map_err(config_error)?;

@@ -1,8 +1,6 @@
 //! Profile catalog handlers: listing, filtering, reset-to-default,
 //! activation and deletion.
 
-use crate::update::core::profile_apply::runtime_access;
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use crate::configs_dir::config_manager;
 use crate::host::storage::reset_profiles_to_default;
 use crate::state::AppState;
@@ -11,10 +9,12 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use crate::update::core::profile_apply::activate_profile;
+use crate::update::core::profile_apply::runtime_access;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
@@ -108,13 +108,7 @@ impl AppState {
                 self.invalidate_rules_dns_views();
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
-                    async move {
-                        activate_profile(
-                            runtime_access(runtime),
-                            &name,
-                        )
-                        .await
-                    },
+                    async move { activate_profile(runtime_access(runtime), &name).await },
                     Message::ProfileActivationFinished,
                 )
             }
@@ -144,9 +138,7 @@ impl AppState {
                     ProfileActivationOutcome::AlreadySelectedWhileInactive(
                         CoreInactiveLifecycle::Stopped,
                     )
-                    | ProfileActivationOutcome::SelectedWhileInactive(
-                        CoreInactiveLifecycle::Stopped,
-                    )
+                    | ProfileActivationOutcome::SelectedWhileInactive(CoreInactiveLifecycle::Stopped)
                     | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
                         CoreInactiveLifecycle::Stopped,
                     ),
@@ -163,9 +155,7 @@ impl AppState {
                     ProfileActivationOutcome::AlreadySelectedWhileInactive(
                         CoreInactiveLifecycle::Failed,
                     )
-                    | ProfileActivationOutcome::SelectedWhileInactive(
-                        CoreInactiveLifecycle::Failed,
-                    )
+                    | ProfileActivationOutcome::SelectedWhileInactive(CoreInactiveLifecycle::Failed)
                     | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
                         CoreInactiveLifecycle::Failed,
                     ),

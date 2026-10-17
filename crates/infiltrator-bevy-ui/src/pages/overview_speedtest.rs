@@ -2,7 +2,6 @@
 //! concurrency controls, the per-node detail modal and the
 //! in-place restamp of every measured value from the Core-owned snapshot.
 
-use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::overview::{LastOverviewProjection, OverviewLine};
 use crate::route::{ActiveRoute, Route};
@@ -38,6 +37,7 @@ use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestPhase, SpeedtestRounds, SpeedtestTarget,
 };
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::speedtest_detail_projection::{listing, project_details};
 use infiltrator_presentation::speedtest_summary_projection::{
     dead_archive, history_caption, metrics_label,
@@ -285,9 +285,7 @@ pub(crate) fn on_overview_speedtest_activated(
     handle.submit(UiCommand::StartSpeedtest { target });
 }
 
-fn speedtest_target(
-    snapshot: &SurfaceSnapshot,
-) -> Option<SpeedtestTarget> {
+fn speedtest_target(snapshot: &SurfaceSnapshot) -> Option<SpeedtestTarget> {
     let scope = snapshot.core.scope()?;
     let inventory = snapshot.outbound_inventory.data.as_ref()?;
     if inventory.scope() != &scope {

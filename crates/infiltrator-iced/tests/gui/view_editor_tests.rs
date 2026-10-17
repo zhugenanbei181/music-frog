@@ -1,8 +1,3 @@
-use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::profile_document::DocumentDiagnosticSnapshot;
-use infiltrator_contract::profile_document::DocumentValidation;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use super::*;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, recording_application,
@@ -10,8 +5,13 @@ use crate::test_mounts::command_harness::{
 use crate::test_mounts::profile_edit_fixture;
 use iced::widget::text_editor::{Action, Cursor, Motion, Position};
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_profiles;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::profile_document::DocumentDiagnosticSnapshot;
+use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_test_support::dns_hosts_fixtures::HostsCaptureStore;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -100,19 +100,19 @@ fn a_snippet_that_would_break_the_document_is_refused_and_the_buffer_survives() 
     // Splitting the scalar to open a block sequence is not valid YAML.
     state.editor.editor_content.move_to(caret_on(0, 6));
 
-    handler.4.lock().unwrap().push_back(Ok(
-        ProfileDocumentSnippetOutcome::Rejected {
+    handler
+        .4
+        .lock()
+        .unwrap()
+        .push_back(Ok(ProfileDocumentSnippetOutcome::Rejected {
             validation: DocumentValidation::Invalid {
-                diagnostics: vec![
-                    DocumentDiagnosticSnapshot {
-                        line: Some(1),
-                        column: Some(7),
-                        message: "snippet would make document invalid".into(),
-                    },
-                ],
+                diagnostics: vec![DocumentDiagnosticSnapshot {
+                    line: Some(1),
+                    column: Some(7),
+                    message: "snippet would make document invalid".into(),
+                }],
             },
-        },
-    ));
+        }));
 
     let _ = state.update(Message::InsertYamlSnippet("select"));
 
@@ -246,11 +246,8 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
 #[test]
 fn editor_live_preflight_reports_the_shared_diagnostic_line() {
     let (mut state, _) = AppState::new();
-    let profiles = profiles_for_mihomo(Arc::new(
-        HostsCaptureStore::default(),
-    ));
-    let configuration =
-        for_mihomo_profiles(profiles.clone());
+    let profiles = profiles_for_mihomo(Arc::new(HostsCaptureStore::default()));
+    let configuration = for_mihomo_profiles(profiles.clone());
     let (core, _) = recording_application();
     core.install_command_handler(Arc::new(
         CommandApplication::new()

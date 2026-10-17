@@ -1,6 +1,5 @@
 //! test-intent: behavior
 //! Native SDK gestures and ordinary keyboard input execute real Core exports in isolated host files.
-use std::path::PathBuf;
 use crate::command_harness::install_test_core_capability_application;
 use crate::native_input::{click_entity, press, type_text};
 use crate::support::{
@@ -46,6 +45,7 @@ use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};

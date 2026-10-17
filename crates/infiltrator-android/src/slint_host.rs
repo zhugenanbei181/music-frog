@@ -1,5 +1,5 @@
-use crate::uniffi_api::profile_age_credential_owner::execute_owner_request;
 use crate::host_support::get_runtime;
+use crate::uniffi_api::profile_age_credential_owner::execute_owner_request;
 use infiltrator_contract::android_control::{
     AndroidProductCommand, AndroidProductCommandOutcome, AndroidProductCommandRequest,
 };
@@ -112,9 +112,7 @@ impl SlintProductHost for AndroidSlintHost {
         request: ProfileAgeCredentialOwnerRequest,
     ) -> Result<ProfileAgeCredentialOwnerReadback, Failure> {
         get_runtime()
-            .block_on(
-                execute_owner_request(request),
-            )
+            .block_on(execute_owner_request(request))
             .map_err(|status| {
                 Failure::new(
                     ErrorCode::Internal,

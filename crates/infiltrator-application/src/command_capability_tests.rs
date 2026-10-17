@@ -1,6 +1,3 @@
-use infiltrator_contract::rule_provider_runtime::RuleProviderId;
-use infiltrator_contract::rule_provider_runtime::RuleProviderRevision;
-use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use super::{
     CommandCapabilityRoute, CoreTerminalScopePolicy, classify_command, terminal_scope_policy,
     validate_terminal_scope,
@@ -32,6 +29,9 @@ use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::rule_provider_runtime::RuleProviderId;
+use infiltrator_contract::rule_provider_runtime::RuleProviderRevision;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::core_capability_provider::{
@@ -417,11 +417,7 @@ async fn every_core_command_family_fails_closed_without_scope_and_provider() {
         (
             CommandIntent::RefreshRuleProvider {
                 reference: RuleProviderControllerReference {
-                    id: RuleProviderId::new(
-                        EngineId::mihomo(),
-                        "ads",
-                    )
-                    .expect("typed provider ID"),
+                    id: RuleProviderId::new(EngineId::mihomo(), "ads").expect("typed provider ID"),
                     inventory_revision: RuleProviderRevision::initial(),
                 },
             },

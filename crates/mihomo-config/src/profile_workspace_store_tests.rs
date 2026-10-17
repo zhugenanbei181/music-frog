@@ -6,9 +6,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
-};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentSourceIdentity,
@@ -34,9 +32,7 @@ use infiltrator_profile_store::document_store::{
 use infiltrator_profile_store::profile_reset::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
-use infiltrator_profile_store::workspace::{
-    document_revision, publish_document_pair, sha256_hex,
-};
+use infiltrator_profile_store::workspace::{document_revision, publish_document_pair, sha256_hex};
 use std::collections::HashMap;
 use std::str;
 use std::sync::{Arc, Mutex};
@@ -54,19 +50,30 @@ impl SecureStore for TestStore {
         if key.starts_with("subscription:") {
             return Ok(None);
         }
-        Ok(self.0.lock().unwrap().get(&(namespace.to_owned(), key.to_owned())).cloned())
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .get(&(namespace.to_owned(), key.to_owned()))
+            .cloned())
     }
 
     async fn set(&self, namespace: &str, key: &str, value: &str) -> Result<(), PortError> {
         if key.starts_with("subscription:") {
             return Ok(());
         }
-        self.0.lock().unwrap().insert((namespace.to_owned(), key.to_owned()), value.to_owned());
+        self.0
+            .lock()
+            .unwrap()
+            .insert((namespace.to_owned(), key.to_owned()), value.to_owned());
         Ok(())
     }
 
     async fn delete(&self, namespace: &str, key: &str) -> Result<(), PortError> {
-        self.0.lock().unwrap().remove(&(namespace.to_owned(), key.to_owned()));
+        self.0
+            .lock()
+            .unwrap()
+            .remove(&(namespace.to_owned(), key.to_owned()));
         Ok(())
     }
 }
@@ -89,8 +96,8 @@ async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &st
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned test selection CAS")
+    .await
+    .expect("revisioned test selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
@@ -838,7 +845,6 @@ async fn separate_managers_share_the_cas_boundary_and_only_one_proposal_commits(
             || winner.sidecar_bytes.as_deref() == Some(b"direct-sidecar".as_slice())
     );
 }
-
 
 #[path = "profile_workspace_store_tests/part2.rs"]
 mod part2;

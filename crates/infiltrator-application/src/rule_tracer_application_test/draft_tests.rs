@@ -226,10 +226,7 @@ async fn typed_unknown_outbound_facts_keep_the_outbound_stage_neutral() {
         .iter()
         .find(|node| node.stage == DecisionStageKind::Outbound)
         .unwrap();
-    assert_eq!(
-        outbound.status,
-        DecisionNodeStatus::Neutral
-    );
+    assert_eq!(outbound.status, DecisionNodeStatus::Neutral);
     assert!(chain.final_outbound.is_empty());
     assert_eq!(chain.final_node_protocol, None);
     assert_eq!(chain.final_node_delay_ms, None);
@@ -339,9 +336,7 @@ async fn no_session_rejects_live_outbound_observation_before_profile_adapter() {
             context: TrafficContextSnapshot::default(),
         },
     };
-    let observation = unknown_rule_trace_observation(
-        scope.clone(),
-    );
+    let observation = unknown_rule_trace_observation(scope.clone());
 
     assert_eq!(
         app.simulate_scoped(
@@ -426,4 +421,3 @@ async fn ambiguous_typed_display_name_keeps_rule_trace_outbound_unknown() {
     );
     assert!(report.decision_chain.unwrap().final_outbound.is_empty());
 }
-

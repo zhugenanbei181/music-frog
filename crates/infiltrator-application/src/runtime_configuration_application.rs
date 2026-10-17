@@ -1,6 +1,5 @@
 //! Scope-bound live configuration use-cases.
 
-use std::fmt::Debug;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -17,6 +16,7 @@ use infiltrator_ports::runtime_configuration::{
     ObservedValue, ProxyPortsConfiguration, RuntimeConfigurationPorts, SnifferConfiguration,
     SnifferConfigurationUpdate, TunConfiguration, TunConfigurationUpdate,
 };
+use std::fmt::Debug;
 use std::net::IpAddr;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

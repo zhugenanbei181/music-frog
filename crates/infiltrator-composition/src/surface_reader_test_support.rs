@@ -1,4 +1,3 @@
-use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
@@ -7,6 +6,7 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
     HostCapabilityDecision,
 };
+use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_contract::core_identity::{CoreCommandRequest, EngineId};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::{

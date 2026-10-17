@@ -7,15 +7,15 @@
 //!
 //! 视图层只读这些域做纯渲染投影;update 层按域定位字段。
 
-use crate::state::proxy_search::ProxySearchPhase::Dirty;
-use crate::state::proxy_search::ProxySearchPhase::Failed;
-use crate::state::proxy_search::ProxySearchPhase::Pending;
-use crate::state::proxy_search::ProxySearchPhase::Uninitialized;
-use crate::state::proxy_search::ProxySearchPhase;
 use crate::command_ingress::{CoreCommandIngress, ObservedCoreScope};
 use crate::state::diagnostics::DiagnosticsState;
 use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
+use crate::state::proxy_search::ProxySearchPhase;
+use crate::state::proxy_search::ProxySearchPhase::Dirty;
+use crate::state::proxy_search::ProxySearchPhase::Failed;
+use crate::state::proxy_search::ProxySearchPhase::Pending;
+use crate::state::proxy_search::ProxySearchPhase::Uninitialized;
 use crate::state::runtime::RuntimeState;
 use crate::state::shell::ShellState;
 use crate::surface::{SurfaceBridge, SurfaceModel};
@@ -322,15 +322,12 @@ impl AppState {
             return;
         };
         match &self.runtime.proxy_search.phase {
-            Uninitialized
-            | ProxySearchPhase::Synchronized { .. } => {
+            Uninitialized | ProxySearchPhase::Synchronized { .. } => {
                 self.runtime
                     .proxy_filter
                     .clone_from(&preferences.search_query);
             }
-            Dirty { .. }
-            | Pending { .. }
-            | Failed { .. } => {}
+            Dirty { .. } | Pending { .. } | Failed { .. } => {}
         }
         self.runtime.favorite_proxies = preferences
             .favorite_outbound_ids
@@ -420,10 +417,9 @@ impl AppState {
         match intent {
             OutboundUiPreferenceIntent::SetSearchQuery(query) => {
                 search_query = query;
-                self.runtime.proxy_search.phase =
-                    ProxySearchPhase::Synchronized {
-                        query: search_query.clone(),
-                    };
+                self.runtime.proxy_search.phase = ProxySearchPhase::Synchronized {
+                    query: search_query.clone(),
+                };
             }
             OutboundUiPreferenceIntent::SetFavorite { outbound_id, state } => match state {
                 OutboundFavoriteState::Pinned => {

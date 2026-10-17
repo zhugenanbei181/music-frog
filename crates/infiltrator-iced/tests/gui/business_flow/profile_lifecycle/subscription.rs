@@ -142,8 +142,7 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
             .await
             .unwrap();
 
-        let application =
-            profiles_for_mihomo(manager);
+        let application = profiles_for_mihomo(manager);
         let refresh = SubscriptionRefreshApplication::new(
             application,
             application_runtime(),
@@ -221,8 +220,7 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     let draft = state.editor.filter_editor.draft.clone();
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let profiles =
-            profiles_for_mihomo(manager.clone());
+        let profiles = profiles_for_mihomo(manager.clone());
         let application = ProfileOptionsApplication::new(profiles.clone());
         let runtime = ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline;
         let report = application
@@ -407,8 +405,7 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     // in the config.toml store the editor reloads.
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let application =
-            profiles_for_mihomo(manager.clone());
+        let application = profiles_for_mihomo(manager.clone());
         application
             .update_subscription_schedule(
                 "Paid",

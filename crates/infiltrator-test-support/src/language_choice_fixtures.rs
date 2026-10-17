@@ -1,9 +1,9 @@
 //! Isolated capture persistence: real settings commands, no operator files or processes.
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::settings_store::SettingsStore;

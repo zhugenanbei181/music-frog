@@ -3,8 +3,6 @@
 //! renders, plus the INFILTRATOR_* environment contract.
 //! test-intent: behavior
 
-use infiltrator_contract::resources::CoreResourceSnapshot;
-use infiltrator_contract::resources::ResourceAvailability;
 use super::*;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::types::options::EditorPane;
@@ -14,6 +12,8 @@ use iced::Size;
 use iced::window::Screenshot;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, read_to_string, remove_dir_all};

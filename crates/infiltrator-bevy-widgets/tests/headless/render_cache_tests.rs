@@ -444,7 +444,9 @@ fn hundred_times_recycling_and_material_reuse_releases_retired_assets() {
 
         // Must have created exactly 1 material
         assert_eq!(
-            app.world().resource::<Assets<ModernSurfaceMaterial>>().len(),
+            app.world()
+                .resource::<Assets<ModernSurfaceMaterial>>()
+                .len(),
             1,
             "Cycle {cycle}: exactly one active material"
         );
@@ -456,7 +458,9 @@ fn hundred_times_recycling_and_material_reuse_releases_retired_assets() {
 
         // Material asset MUST be completely released and dropped (no leak)
         assert_eq!(
-            app.world().resource::<Assets<ModernSurfaceMaterial>>().len(),
+            app.world()
+                .resource::<Assets<ModernSurfaceMaterial>>()
+                .len(),
             0,
             "Cycle {cycle}: material asset must be completely released on despawn"
         );

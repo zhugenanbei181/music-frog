@@ -27,8 +27,8 @@ impl<S: SecureStore> EngineProfileStore<S> {
         if catalog.overrides.is_empty() && catalog.profile_bindings.is_empty() {
             return remove_optional(&path).await;
         }
-        let text = serde_yaml_ng::to_string(catalog)
-            .map_err(|error| PortError::Io(error.to_string()))?;
+        let text =
+            serde_yaml_ng::to_string(catalog).map_err(|error| PortError::Io(error.to_string()))?;
         write_document(&path, &text).await
     }
 }

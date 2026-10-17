@@ -1,13 +1,13 @@
 //! test-intent: behavior
 //! Real source loads and commands must isolate local statistics without reader side effects.
-use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
-use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
-use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use super::*;
 use crate::command_application::CommandApplication;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
+use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use infiltrator_test_support::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use std::sync::atomic::Ordering;
 
@@ -26,23 +26,15 @@ async fn simulate_for_workspace(
     workspace: &RuleWorkspace,
 ) -> Result<(), Failure> {
     let (scope, observed_workspace, request) =
-        scoped_rule_trace_request(
-            request,
-            workspace.profile_identity.clone(),
-        );
-    let outbound_observation =
-        unknown_rule_trace_observation(
-            scope.clone(),
-        );
+        scoped_rule_trace_request(request, workspace.profile_identity.clone());
+    let outbound_observation = unknown_rule_trace_observation(scope.clone());
     application
         .simulate_scoped(
             &scope,
             &observed_workspace,
             operation,
             request,
-            &RuleTraceOutboundFacts::observed(
-                outbound_observation.clone(),
-            ),
+            &RuleTraceOutboundFacts::observed(outbound_observation.clone()),
         )
         .await
 }

@@ -1,6 +1,6 @@
-use infiltrator_contract::capability::Capability;
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };

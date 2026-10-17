@@ -154,7 +154,10 @@ impl AndroidBridge for JniBridge {
         })
     }
 
-    async fn execute_product_command_json(&self, command_json: &str) -> AndroidBridgeResult<String> {
+    async fn execute_product_command_json(
+        &self,
+        command_json: &str,
+    ) -> AndroidBridgeResult<String> {
         match self
             .invoke_android_bridge_call(AndroidBridgeCall::ExecuteProductCommand {
                 command_json: command_json.to_owned(),
@@ -176,7 +179,10 @@ impl AndroidBridge for JniBridge {
         }
     }
 
-    async fn execute_owner_operation_json(&self, operation_json: &str) -> AndroidBridgeResult<String> {
+    async fn execute_owner_operation_json(
+        &self,
+        operation_json: &str,
+    ) -> AndroidBridgeResult<String> {
         match self
             .invoke_android_bridge_call(AndroidBridgeCall::ExecuteOwnerOperation {
                 operation_json: operation_json.to_owned(),
@@ -235,7 +241,11 @@ impl AndroidBridge for JniBridge {
         }
     }
 
-    async fn credential_get(&self, service: &str, key: &str) -> AndroidBridgeResult<Option<String>> {
+    async fn credential_get(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> AndroidBridgeResult<Option<String>> {
         match self
             .invoke_android_bridge_call(AndroidBridgeCall::CredentialGet {
                 service: service.to_owned(),
@@ -248,7 +258,12 @@ impl AndroidBridge for JniBridge {
         }
     }
 
-    async fn credential_set(&self, service: &str, key: &str, value: &str) -> AndroidBridgeResult<()> {
+    async fn credential_set(
+        &self,
+        service: &str,
+        key: &str,
+        value: &str,
+    ) -> AndroidBridgeResult<()> {
         match self
             .invoke_android_bridge_call(AndroidBridgeCall::CredentialSet {
                 service: service.to_owned(),
@@ -412,4 +427,3 @@ impl AndroidBridge for JniBridge {
         })
     }
 }
-

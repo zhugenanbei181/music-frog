@@ -148,12 +148,7 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
         sidecar_bytes: Option<&[u8]>,
         mixin_yaml: &str,
     ) -> Result<ProfileMixinMutation, PortError> {
-        profile_options_codec::apply_mixin(
-            identity,
-            document_bytes,
-            sidecar_bytes,
-            mixin_yaml,
-        )
+        profile_options_codec::apply_mixin(identity, document_bytes, sidecar_bytes, mixin_yaml)
     }
 
     fn inspect_mixin_toggle(

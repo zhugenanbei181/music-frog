@@ -1,10 +1,10 @@
 //! test-intent: behavior
 //! Native SDK clicks stage a full source-bound list, then explicitly commit or discard it.
+use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::configuration_codec::mihomo_configuration;
 use crate::configuration_codec::mihomo_rule_trace_fixture;
-use crate::support::mihomo_profiles;
-use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::native_input::{click_before_frame, click_entity, press, type_text};
+use crate::support::mihomo_profiles;
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
@@ -113,12 +113,7 @@ fn first_toggle(app: &mut App) -> Entity {
 }
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while app
-        .world()
-        .resource::<RulesDraftState>()
-        .model
-        .is_pending()
-    {
+    while app.world().resource::<RulesDraftState>().model.is_pending() {
         assert!(Instant::now() < deadline, "real terminal event");
         app.update();
         yield_now();
@@ -136,9 +131,7 @@ pub(crate) fn setup() -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let reader =
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(mihomo_profiles(store.clone()))
-            .with_configuration(mihomo_configuration(
-                store.clone(),
-            ));
+            .with_configuration(mihomo_configuration(store.clone()));
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((

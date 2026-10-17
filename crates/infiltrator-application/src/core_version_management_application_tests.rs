@@ -1,10 +1,6 @@
-use infiltrator_contract::capability::Capability;
-use tokio::runtime::Builder;
-use tokio::task::yield_now;
-use tokio::time::sleep;
-use tokio::time::timeout;
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::version::{
     CoreRelease, CoreReleaseSummary, EngineNeutralReleaseChannel, EngineReleaseChannel,
     InstalledCoreVersion,
@@ -23,7 +19,11 @@ use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
+use tokio::runtime::Builder;
 use tokio::sync::Notify;
+use tokio::task::yield_now;
+use tokio::time::sleep;
+use tokio::time::timeout;
 
 #[derive(Clone, Copy)]
 enum InstallBehavior {

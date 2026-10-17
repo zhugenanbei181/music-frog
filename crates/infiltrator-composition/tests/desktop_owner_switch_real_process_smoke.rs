@@ -1,9 +1,8 @@
 //! test-intent: real_process
 
-use infiltrator_composition::active_profile_backend::SelectedActiveProfileBackend;
-use std::mem;
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_composition::active_profile_backend::SelectedActiveProfileBackend;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner,
 };
@@ -42,6 +41,7 @@ use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use std::env;
+use std::mem;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

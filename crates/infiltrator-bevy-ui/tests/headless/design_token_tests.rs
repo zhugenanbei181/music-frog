@@ -4,13 +4,13 @@
 //! is a real parity defect — the two surfaces would look different — so every
 //! core palette channel and every structural token is asserted here.
 
-use infiltrator_bevy_widgets::theme::mobile_theme_tokens;
 use design_tokens::elevation::{HIGH, LOW, MEDIUM};
 use design_tokens::metrics::HAIRLINE;
 use design_tokens::radius::{CARD, CONTROL, MODAL, PILL};
 use design_tokens::space::{LG, MD, SM, XL, XS, XXL};
 use design_tokens::type_scale::{BODY, CAPTION, DISPLAY, HEADING, MONO, TAG, TITLE};
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
+use infiltrator_bevy_widgets::theme::mobile_theme_tokens;
 use infiltrator_bevy_widgets::theme::{
     CornerCurvature, Theme, ThemeSkin, TokenColor, elevation, metrics, radius, space, type_scale,
 };
@@ -90,15 +90,61 @@ fn assert_interaction_palette(skin: theme::ThemeSkin) {
     assert_eq!(palette.pressed_bg, theme_color(resolved.pressed));
 
     let mobile = design_tokens::mobile_theme_tokens(skin);
-    assert_eq!(palette.bottom_nav_bg, theme_color(TokenColor::rgba(mobile.bottom_nav_bg.r, mobile.bottom_nav_bg.g, mobile.bottom_nav_bg.b, mobile.bottom_nav_bg.a)));
-    assert_eq!(palette.bottom_nav_indicator, theme_color(TokenColor::rgba(mobile.bottom_nav_indicator.r, mobile.bottom_nav_indicator.g, mobile.bottom_nav_indicator.b, mobile.bottom_nav_indicator.a)));
-    assert_eq!(palette.touch_ripple, theme_color(TokenColor::rgba(mobile.touch_ripple.r, mobile.touch_ripple.g, mobile.touch_ripple.b, mobile.touch_ripple.a)));
-    assert_eq!(palette.swipe_action, theme_color(TokenColor::rgba(mobile.swipe_action.r, mobile.swipe_action.g, mobile.swipe_action.b, mobile.swipe_action.a)));
-    assert_eq!(palette.swipe_destructive, theme_color(TokenColor::rgba(mobile.swipe_destructive.r, mobile.swipe_destructive.g, mobile.swipe_destructive.b, mobile.swipe_destructive.a)));
+    assert_eq!(
+        palette.bottom_nav_bg,
+        theme_color(TokenColor::rgba(
+            mobile.bottom_nav_bg.r,
+            mobile.bottom_nav_bg.g,
+            mobile.bottom_nav_bg.b,
+            mobile.bottom_nav_bg.a
+        ))
+    );
+    assert_eq!(
+        palette.bottom_nav_indicator,
+        theme_color(TokenColor::rgba(
+            mobile.bottom_nav_indicator.r,
+            mobile.bottom_nav_indicator.g,
+            mobile.bottom_nav_indicator.b,
+            mobile.bottom_nav_indicator.a
+        ))
+    );
+    assert_eq!(
+        palette.touch_ripple,
+        theme_color(TokenColor::rgba(
+            mobile.touch_ripple.r,
+            mobile.touch_ripple.g,
+            mobile.touch_ripple.b,
+            mobile.touch_ripple.a
+        ))
+    );
+    assert_eq!(
+        palette.swipe_action,
+        theme_color(TokenColor::rgba(
+            mobile.swipe_action.r,
+            mobile.swipe_action.g,
+            mobile.swipe_action.b,
+            mobile.swipe_action.a
+        ))
+    );
+    assert_eq!(
+        palette.swipe_destructive,
+        theme_color(TokenColor::rgba(
+            mobile.swipe_destructive.r,
+            mobile.swipe_destructive.g,
+            mobile.swipe_destructive.b,
+            mobile.swipe_destructive.a
+        ))
+    );
     assert_eq!(palette.bottom_sheet_radius_px, radius::BOTTOM_SHEET);
     assert_eq!(palette.dialog_radius_px, radius::DIALOG);
-    assert_eq!(palette.touch_target_compact_px, metrics::TOUCH_TARGET_COMPACT);
-    assert_eq!(palette.touch_target_comfortable_px, metrics::TOUCH_TARGET_COMFORTABLE);
+    assert_eq!(
+        palette.touch_target_compact_px,
+        metrics::TOUCH_TARGET_COMPACT
+    );
+    assert_eq!(
+        palette.touch_target_comfortable_px,
+        metrics::TOUCH_TARGET_COMFORTABLE
+    );
     assert_eq!(palette.bottom_nav_height_px, metrics::BOTTOM_NAV_HEIGHT);
     assert_eq!(palette.top_app_bar_height_px, metrics::TOP_APP_BAR_HEIGHT);
     assert_eq!(palette.screen_margin_mobile_px, space::SCREEN_MARGIN_MOBILE);
@@ -176,18 +222,33 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     assert_eq!(metrics::HAIRLINE, HAIRLINE);
     assert_eq!(metrics::MIN_TOUCH_TARGET, metrics::MIN_TOUCH_TARGET);
     assert_eq!(metrics::TOUCH_TARGET_COMPACT, metrics::TOUCH_TARGET_COMPACT);
-    assert_eq!(metrics::TOUCH_TARGET_COMFORTABLE, metrics::TOUCH_TARGET_COMFORTABLE);
+    assert_eq!(
+        metrics::TOUCH_TARGET_COMFORTABLE,
+        metrics::TOUCH_TARGET_COMFORTABLE
+    );
     assert_eq!(metrics::BOTTOM_NAV_HEIGHT, metrics::BOTTOM_NAV_HEIGHT);
     assert_eq!(metrics::TOP_APP_BAR_HEIGHT, metrics::TOP_APP_BAR_HEIGHT);
 
     for skin in theme::ThemeSkin::ALL {
         let expected = design_tokens::mobile_theme_tokens(skin);
         let actual = mobile_theme_tokens(mirrored_skin(skin));
-        assert_token(actual.bottom_nav_bg, expected.bottom_nav_bg, "bottom_nav_bg");
-        assert_token(actual.bottom_nav_indicator, expected.bottom_nav_indicator, "bottom_nav_indicator");
+        assert_token(
+            actual.bottom_nav_bg,
+            expected.bottom_nav_bg,
+            "bottom_nav_bg",
+        );
+        assert_token(
+            actual.bottom_nav_indicator,
+            expected.bottom_nav_indicator,
+            "bottom_nav_indicator",
+        );
         assert_token(actual.touch_ripple, expected.touch_ripple, "touch_ripple");
         assert_token(actual.swipe_action, expected.swipe_action, "swipe_action");
-        assert_token(actual.swipe_destructive, expected.swipe_destructive, "swipe_destructive");
+        assert_token(
+            actual.swipe_destructive,
+            expected.swipe_destructive,
+            "swipe_destructive",
+        );
     }
 }
 

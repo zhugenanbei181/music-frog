@@ -1,7 +1,6 @@
 //!  Editor page for raw profile YAML editing, Mixin overlay editing and
 //! per-profile subscription filtering with history snapshot restoration.
 
-use infiltrator_presentation::profile_edit_status_projection::status;
 use super::editor_history::{apply_banner, history_panel};
 use super::editor_viewport::viewport_label;
 use crate::state::AppState;
@@ -22,6 +21,7 @@ use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
+use infiltrator_presentation::profile_edit_status_projection::status;
 use infiltrator_presentation::profile_editor_projection::{protection_hint, protection_label};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;

@@ -150,8 +150,7 @@ impl UiCommandSink for DesktopCommandSink {
         snippet_id: &str,
         line: usize,
         column: usize,
-    ) -> Result<ProfileDocumentSnippetOutcome, Failure>
-    {
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
         self.application
             .insert_profile_snippet(identity, content, snippet_id, line, column)
     }

@@ -1,6 +1,6 @@
-use infiltrator_contract::error::Failure;
 use super::{listing, project_details};
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::speedtest::{
     SpeedtestOutboundResult, SpeedtestResultState, SpeedtestSampleOutcome, SpeedtestSnapshot,
@@ -39,9 +39,8 @@ fn detail_rows_keep_outbound_ids_and_all_jitter_samples_in_stable_latency_order(
 
 #[test]
 fn unavailable_empty_detail_snapshot_stays_empty_and_explicit() {
-    let snapshot = SpeedtestSnapshot::unavailable(
-        Failure::unsupported("outbound owner is unavailable"),
-    );
+    let snapshot =
+        SpeedtestSnapshot::unavailable(Failure::unsupported("outbound owner is unavailable"));
 
     let details = project_details(&snapshot);
     assert!(details.rows.is_empty());

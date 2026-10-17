@@ -1,5 +1,4 @@
 //! test-intent: behavior
-use infiltrator_iced::state::runtime::CustomNodeSaveState;
 use crate::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, rejecting_application,
 };
@@ -11,6 +10,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::protocol_form::ProtocolField;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_iced::state::AppState;
+use infiltrator_iced::state::runtime::CustomNodeSaveState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use tokio::runtime::Builder;

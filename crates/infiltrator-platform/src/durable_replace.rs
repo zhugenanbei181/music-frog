@@ -64,8 +64,7 @@ fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), Durable
     fs::rename(staged, destination).map_err(DurableReplaceError::NotCommitted)?;
 
     let parent = destination.parent().unwrap_or_else(|| Path::new("."));
-    let directory =
-        File::open(parent).map_err(DurableReplaceError::DurabilityUncertain)?;
+    let directory = File::open(parent).map_err(DurableReplaceError::DurabilityUncertain)?;
     directory
         .sync_all()
         .map_err(DurableReplaceError::DurabilityUncertain)

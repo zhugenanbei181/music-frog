@@ -439,5 +439,4 @@ impl ActiveProfileBackendSelector {
             capability_provider: Arc::clone(&self.capabilities),
         })
     }
-
 }

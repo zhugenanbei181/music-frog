@@ -376,7 +376,10 @@ mod tests {
             self.lists.fetch_add(1, Ordering::SeqCst);
             Ok(self.providers.lock().unwrap().clone())
         }
-        async fn rule_provider_payload(&self, _name: &str) -> Result<Option<Vec<String>>, MihomoError> {
+        async fn rule_provider_payload(
+            &self,
+            _name: &str,
+        ) -> Result<Option<Vec<String>>, MihomoError> {
             Ok(self.payload.clone())
         }
         async fn update_rule_provider(&self, name: &str) -> Result<(), MihomoError> {

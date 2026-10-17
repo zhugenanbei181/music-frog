@@ -1,7 +1,6 @@
-use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use super::*;
 use async_trait::async_trait;
+use infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, RuleProviderCacheSnapshot,
@@ -11,6 +10,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use std::sync::Arc;
 
 struct FakeCache {
@@ -106,9 +106,10 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
         enabled: true,
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe_readback(
-        RuleListReadback::Observed(document),
-    );
+    state
+        .editor
+        .rule_list
+        .observe_readback(RuleListReadback::Observed(document));
     // The shared application service is exactly what the handler drives;
     // the async result then lands in `finish_rule_provider_unpack`.
     let declaration = state.declared_rule_provider("cn").expect("declaration");

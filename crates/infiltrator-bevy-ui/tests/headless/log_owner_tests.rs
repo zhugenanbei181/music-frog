@@ -1,6 +1,5 @@
 //! test-intent: behavior
 //! Native clear/filter controls execute the real application commands and publish its actual buffer.
-use std::iter::empty;
 use crate::command_harness::{
     install_test_core_capability_application, test_command_application_for,
 };
@@ -31,6 +30,7 @@ use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
+use std::iter::empty;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 use std::time::Duration;
@@ -84,11 +84,8 @@ fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_comple
     );
     let (completed, observed) = channel();
     core.install_command_handler(Arc::new(ObservedCommands {
-        commands: test_command_application_for(
-            empty::<CoreOperation>(),
-            [Capability::Logs],
-        )
-        .with_logs(core.log_application()),
+        commands: test_command_application_for(empty::<CoreOperation>(), [Capability::Logs])
+            .with_logs(core.log_application()),
         completed,
     }));
     let producer = core.clone();

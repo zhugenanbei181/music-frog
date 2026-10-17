@@ -354,20 +354,18 @@ mod tests {
             route_count: 1,
             dns_servers: vec!["1.1.1.1".to_owned()],
             ipv6: false,
-            core: VpnOwnerCoreReadback::Available(
-                CoreLifecycleSnapshot {
-                    identity: Some(CoreIdentity::new(
-                        EngineId::new("mihomo").expect("engine ID"),
-                        CoreInstanceId::new("owner-a").expect("instance ID"),
-                        None,
-                    )),
-                    lifecycle: CoreLifecycle::Running,
-                    generation: 3,
-                    session_token: Some(SessionToken::new(3)),
-                    revision: 4,
-                    failure: None,
-                },
-            ),
+            core: VpnOwnerCoreReadback::Available(CoreLifecycleSnapshot {
+                identity: Some(CoreIdentity::new(
+                    EngineId::new("mihomo").expect("engine ID"),
+                    CoreInstanceId::new("owner-a").expect("instance ID"),
+                    None,
+                )),
+                lifecycle: CoreLifecycle::Running,
+                generation: 3,
+                session_token: Some(SessionToken::new(3)),
+                revision: 4,
+                failure: None,
+            }),
         }
     }
 }

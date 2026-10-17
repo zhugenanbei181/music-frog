@@ -9,14 +9,14 @@
 use infiltrator_slint::age_action::execute_slint_age_action;
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::subscription_import::SubscriptionImportChannel;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::subscription_import::SubscriptionImportChannel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_slint::{
     BatteryOptimizationOutcome, NotificationPermissionOutcome, SlintAction, SlintProductHost,
-    VpnPermissionOutcome, 
+    VpnPermissionOutcome,
 };
 use std::sync::Mutex;
 
@@ -88,19 +88,25 @@ impl SlintProductHost for PlatformTestHost {
             | SlintAction::SetReleaseUiWhenBackground(_)
             | SlintAction::SetShowTrafficNotification(_)
             | SlintAction::CacheBackPreview
-            | SlintAction::CommitBackPreview) => {
-                execute_slint_age_action(self, snapshot, action)
-            }
+            | SlintAction::CommitBackPreview) => execute_slint_age_action(self, snapshot, action),
             _ => Ok(()),
         }
     }
 
     fn request_vpn_permission(&self) -> Result<VpnPermissionOutcome, Failure> {
-        Ok(self.vpn_outcome.lock().unwrap().unwrap_or(VpnPermissionOutcome::Granted))
+        Ok(self
+            .vpn_outcome
+            .lock()
+            .unwrap()
+            .unwrap_or(VpnPermissionOutcome::Granted))
     }
 
     fn request_notification_permission(&self) -> Result<NotificationPermissionOutcome, Failure> {
-        Ok(self.notification_outcome.lock().unwrap().unwrap_or(NotificationPermissionOutcome::Granted))
+        Ok(self
+            .notification_outcome
+            .lock()
+            .unwrap()
+            .unwrap_or(NotificationPermissionOutcome::Granted))
     }
 
     fn scan_qr_code(&self) -> Result<String, Failure> {
@@ -111,8 +117,14 @@ impl SlintProductHost for PlatformTestHost {
             .unwrap_or_else(|| Err(Failure::unsupported("No QR scanner configured")))
     }
 
-    fn request_battery_optimization_exemption(&self) -> Result<BatteryOptimizationOutcome, Failure> {
-        Ok(self.battery_outcome.lock().unwrap().unwrap_or(BatteryOptimizationOutcome::Unsupported))
+    fn request_battery_optimization_exemption(
+        &self,
+    ) -> Result<BatteryOptimizationOutcome, Failure> {
+        Ok(self
+            .battery_outcome
+            .lock()
+            .unwrap()
+            .unwrap_or(BatteryOptimizationOutcome::Unsupported))
     }
 
     fn open_autostart_settings(&self) -> Result<(), Failure> {
@@ -156,9 +168,13 @@ fn vpn_consent_granted_allows_runtime_start() {
     let snapshot = host.make_snapshot();
     *host.vpn_outcome.lock().unwrap() = Some(VpnPermissionOutcome::Granted);
 
-    host.execute(Some(&snapshot), SlintAction::StartRuntime).unwrap();
+    host.execute(Some(&snapshot), SlintAction::StartRuntime)
+        .unwrap();
     let intents = host.intents();
-    assert!(!intents.is_empty(), "Runtime start must dispatch when consent is granted");
+    assert!(
+        !intents.is_empty(),
+        "Runtime start must dispatch when consent is granted"
+    );
 }
 
 // =========================================================================
@@ -171,25 +187,37 @@ fn window_lifecycle_and_recents_privacy_dispatch() {
     let snapshot = host.make_snapshot();
 
     // Hide background card (FLAG_SECURE)
-    host.execute(Some(&snapshot), SlintAction::SetHideBackgroundCard(true)).unwrap();
+    host.execute(Some(&snapshot), SlintAction::SetHideBackgroundCard(true))
+        .unwrap();
     assert_eq!(*host.hide_background_card.lock().unwrap(), Some(true));
 
-    host.execute(Some(&snapshot), SlintAction::SetHideBackgroundCard(false)).unwrap();
+    host.execute(Some(&snapshot), SlintAction::SetHideBackgroundCard(false))
+        .unwrap();
     assert_eq!(*host.hide_background_card.lock().unwrap(), Some(false));
 
     // Release UI on background
-    host.execute(Some(&snapshot), SlintAction::SetReleaseUiWhenBackground(true)).unwrap();
+    host.execute(
+        Some(&snapshot),
+        SlintAction::SetReleaseUiWhenBackground(true),
+    )
+    .unwrap();
     assert_eq!(*host.release_ui.lock().unwrap(), Some(true));
 
     // Traffic notifications
-    host.execute(Some(&snapshot), SlintAction::SetShowTrafficNotification(true)).unwrap();
+    host.execute(
+        Some(&snapshot),
+        SlintAction::SetShowTrafficNotification(true),
+    )
+    .unwrap();
     assert_eq!(*host.show_notifications.lock().unwrap(), Some(true));
 
     // Predictive back cache and commit
-    host.execute(Some(&snapshot), SlintAction::CacheBackPreview).unwrap();
+    host.execute(Some(&snapshot), SlintAction::CacheBackPreview)
+        .unwrap();
     assert_eq!(*host.cache_back_calls.lock().unwrap(), 1);
 
-    host.execute(Some(&snapshot), SlintAction::CommitBackPreview).unwrap();
+    host.execute(Some(&snapshot), SlintAction::CommitBackPreview)
+        .unwrap();
     assert_eq!(*host.commit_back_calls.lock().unwrap(), 1);
 }
 
@@ -203,7 +231,8 @@ fn qr_code_valid_url_imports_subscription() {
     let snapshot = host.make_snapshot();
     *host.qr_result.lock().unwrap() = Some(Ok("https://example.com/subs/nodes.yaml".into()));
 
-    host.execute(Some(&snapshot), SlintAction::ScanQrCode).unwrap();
+    host.execute(Some(&snapshot), SlintAction::ScanQrCode)
+        .unwrap();
     let intents = host.intents();
     assert_eq!(
         intents,
@@ -222,13 +251,20 @@ fn qr_code_invalid_payload_rejected_without_dispatch() {
 
     // Invalid non-HTTP scheme
     *host.qr_result.lock().unwrap() = Some(Ok("ftp://bad.payload/file".into()));
-    let err = host.execute(Some(&snapshot), SlintAction::ScanQrCode).unwrap_err();
+    let err = host
+        .execute(Some(&snapshot), SlintAction::ScanQrCode)
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::InvalidInput);
-    assert!(host.intents().is_empty(), "No import command dispatched on invalid URL");
+    assert!(
+        host.intents().is_empty(),
+        "No import command dispatched on invalid URL"
+    );
 
     // Plain text junk
     *host.qr_result.lock().unwrap() = Some(Ok("not a url at all".into()));
-    let err = host.execute(Some(&snapshot), SlintAction::ScanQrCode).unwrap_err();
+    let err = host
+        .execute(Some(&snapshot), SlintAction::ScanQrCode)
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::InvalidInput);
     assert!(host.intents().is_empty());
 }
@@ -243,7 +279,9 @@ fn qr_code_scanner_error_or_cancel_surfaces_typed_failure() {
         "Scanner was canceled by user",
         false,
     )));
-    let err = host.execute(Some(&snapshot), SlintAction::ScanQrCode).unwrap_err();
+    let err = host
+        .execute(Some(&snapshot), SlintAction::ScanQrCode)
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::Canceled);
     assert!(host.intents().is_empty());
 }
@@ -257,7 +295,8 @@ fn autostart_settings_opens_host_settings() {
     let host = PlatformTestHost::new();
     let snapshot = host.make_snapshot();
 
-    host.execute(Some(&snapshot), SlintAction::OpenAutostartSettings).unwrap();
+    host.execute(Some(&snapshot), SlintAction::OpenAutostartSettings)
+        .unwrap();
     assert!(*host.autostart_settings_opened.lock().unwrap());
 }
 
@@ -267,26 +306,54 @@ fn battery_optimization_exemption_outcomes() {
     let snapshot = host.make_snapshot();
 
     // 1. Supported and enabled
-    *host.battery_outcome.lock().unwrap() = Some(BatteryOptimizationOutcome::Supported { enabled: true });
-    assert!(host.execute(Some(&snapshot), SlintAction::RequestBatteryOptimizationExemption).is_ok());
+    *host.battery_outcome.lock().unwrap() =
+        Some(BatteryOptimizationOutcome::Supported { enabled: true });
+    assert!(
+        host.execute(
+            Some(&snapshot),
+            SlintAction::RequestBatteryOptimizationExemption
+        )
+        .is_ok()
+    );
 
     // 2. Supported but not granted
-    *host.battery_outcome.lock().unwrap() = Some(BatteryOptimizationOutcome::Supported { enabled: false });
-    let err = host.execute(Some(&snapshot), SlintAction::RequestBatteryOptimizationExemption).unwrap_err();
+    *host.battery_outcome.lock().unwrap() =
+        Some(BatteryOptimizationOutcome::Supported { enabled: false });
+    let err = host
+        .execute(
+            Some(&snapshot),
+            SlintAction::RequestBatteryOptimizationExemption,
+        )
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::Permission);
 
     // 3. Unsupported on platform
     *host.battery_outcome.lock().unwrap() = Some(BatteryOptimizationOutcome::Unsupported);
-    let err = host.execute(Some(&snapshot), SlintAction::RequestBatteryOptimizationExemption).unwrap_err();
+    let err = host
+        .execute(
+            Some(&snapshot),
+            SlintAction::RequestBatteryOptimizationExemption,
+        )
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::Unsupported);
 
     // 4. Canceled
     *host.battery_outcome.lock().unwrap() = Some(BatteryOptimizationOutcome::Canceled);
-    let err = host.execute(Some(&snapshot), SlintAction::RequestBatteryOptimizationExemption).unwrap_err();
+    let err = host
+        .execute(
+            Some(&snapshot),
+            SlintAction::RequestBatteryOptimizationExemption,
+        )
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::Canceled);
 
     // 5. Permission denied
     *host.battery_outcome.lock().unwrap() = Some(BatteryOptimizationOutcome::PermissionDenied);
-    let err = host.execute(Some(&snapshot), SlintAction::RequestBatteryOptimizationExemption).unwrap_err();
+    let err = host
+        .execute(
+            Some(&snapshot),
+            SlintAction::RequestBatteryOptimizationExemption,
+        )
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::Permission);
 }

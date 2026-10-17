@@ -7,7 +7,6 @@
 //! library all route through the same shared application, so the source
 //! profiles are never touched.
 
-use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::state::profiles::ProfileAggregatorPhase;
@@ -22,6 +21,7 @@ use infiltrator_contract::aggregator::{
     AggregationDraft, AggregationRenameRule,
 };
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};

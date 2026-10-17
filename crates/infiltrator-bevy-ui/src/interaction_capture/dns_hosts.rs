@@ -1,5 +1,4 @@
 //! Scoped native editor activation and actual denied-save evidence; no business World access.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -20,6 +19,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
@@ -37,8 +37,7 @@ pub struct HostsCapture {
 pub fn install(app: &mut App) {
     let store = Arc::new(HostsCaptureStore::default());
     store.deny_save.store(true, Ordering::SeqCst);
-    let configuration =
-        for_mihomo_store(store.clone());
+    let configuration = for_mihomo_store(store.clone());
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         CommandApplication::new().with_configuration(configuration.clone()),
         CaptureCapability::Hosts,

@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use crate::admin_api::state::{AdminApiContext, CoreOwnerAction};
-    use infiltrator_application::resource_application::ResourceApplication;
     use crate::scheduler::subscription::{
         SubscriptionUpdateSummary, run_profile_subscription_tick, schedule_next_attempt,
         update_all_subscriptions,
@@ -38,6 +37,7 @@ mod tests {
     use infiltrator_application::profile_application::ProfileApplication;
     #[cfg(test)]
     use infiltrator_application::profile_reset_application::ProfileResetApplication;
+    use infiltrator_application::resource_application::ResourceApplication;
     #[cfg(test)]
     use infiltrator_application::sync_application::SyncApplication;
     #[cfg(test)]
@@ -170,9 +170,7 @@ mod tests {
         async fn runtime_controller_url(&self) -> Option<String> {
             None
         }
-        async fn resource_application(
-            &self,
-        ) -> anyhow::Result<ResourceApplication> {
+        async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
             Err(anyhow!(
                 "resource application is not available in subscription tests"
             ))

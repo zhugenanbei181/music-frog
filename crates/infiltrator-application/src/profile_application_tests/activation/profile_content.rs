@@ -1,10 +1,10 @@
 //! Profile content behavior across Core lifecycle states.
 
+use super::*;
 use crate::profile_application::ProfileContentSaveOutcome;
 use crate::profile_application::SelectedProfileApplyOutcome;
 use infiltrator_contract::snapshot::CoreInactiveLifecycle;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use super::*;
 
 #[tokio::test]
 async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {
@@ -27,9 +27,7 @@ async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {
 
     assert_eq!(
         outcome,
-        ProfileContentSaveOutcome::StoredWhileInactive(
-            CoreInactiveLifecycle::Stopped,
-        )
+        ProfileContentSaveOutcome::StoredWhileInactive(CoreInactiveLifecycle::Stopped,)
     );
     assert_eq!(store.load("main").await.unwrap(), "mode: global\n");
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 1);
@@ -57,9 +55,7 @@ async fn failed_core_profile_content_is_stored_with_a_failed_lifecycle_receipt()
 
     assert_eq!(
         outcome,
-        ProfileContentSaveOutcome::StoredWhileInactive(
-            CoreInactiveLifecycle::Failed,
-        )
+        ProfileContentSaveOutcome::StoredWhileInactive(CoreInactiveLifecycle::Failed,)
     );
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 1);
     assert_eq!(store.profile_save_count.load(Ordering::SeqCst), 0);
@@ -69,14 +65,8 @@ async fn failed_core_profile_content_is_stored_with_a_failed_lifecycle_receipt()
 #[tokio::test]
 async fn selected_profile_apply_reports_stopped_and_failed_separately() {
     for (lifecycle, expected) in [
-        (
-            CoreLifecycle::Stopped,
-            CoreInactiveLifecycle::Stopped,
-        ),
-        (
-            CoreLifecycle::Failed,
-            CoreInactiveLifecycle::Failed,
-        ),
+        (CoreLifecycle::Stopped, CoreInactiveLifecycle::Stopped),
+        (CoreLifecycle::Failed, CoreInactiveLifecycle::Failed),
     ] {
         let store = store_with_profiles("main", &[]);
         let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
@@ -93,10 +83,7 @@ async fn selected_profile_apply_reports_stopped_and_failed_separately() {
             .await
             .expect("inactive Core skips apply without collapsing the lifecycle state");
 
-        assert_eq!(
-            outcome,
-            SelectedProfileApplyOutcome::NotActive(expected),
-        );
+        assert_eq!(outcome, SelectedProfileApplyOutcome::NotActive(expected),);
         assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
     }
 }

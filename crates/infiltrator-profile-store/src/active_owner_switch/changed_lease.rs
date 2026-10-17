@@ -155,4 +155,3 @@ impl ActiveProfileReferenceChangedLease for ReferenceChangedLease {
         }))
     }
 }
-

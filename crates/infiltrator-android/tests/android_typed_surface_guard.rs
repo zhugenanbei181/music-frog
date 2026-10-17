@@ -1,14 +1,18 @@
-#![allow(clippy::collapsible_if, clippy::needless_lifetimes, clippy::map_identity)]
+#![allow(
+    clippy::collapsible_if,
+    clippy::needless_lifetimes,
+    clippy::map_identity
+)]
 //! Structural regression guard for the Android owner and VPN FFI contract.
 //!
 //! Rust declarations are inspected as syntax trees, then compared with the
 //! checked-in UniFFI Kotlin output. UDL remains guarded separately because it
 //! is still a published input to the Android binding pipeline.
 
-use syn::visit::visit_expr_match;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use syn::visit::visit_expr_match;
 
 use syn::visit::Visit;
 use syn::{

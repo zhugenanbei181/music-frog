@@ -6,7 +6,6 @@
 //!
 //! test-intent: behavior
 
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subscribed_profile};
 use crate::configs_dir::{config_manager, configs_dir};
 use crate::host::runtime::application_runtime;
@@ -20,6 +19,7 @@ use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileRuntimeAccess,
 };
 use infiltrator_application::profile_options_application::ProfileOptionsApplication;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::mihomo_configuration::{
     delete_profile_options_fixture, save_profile_options_fixture,
 };
@@ -540,7 +540,6 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
         "pane preselected"
     );
 }
-
 
 #[path = "profile_lifecycle/subscription.rs"]
 mod subscription;

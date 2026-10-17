@@ -14,8 +14,9 @@ use crate::pages::overview::{
     AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OnAccentText,
     OverviewCardState, OverviewChipKind, OverviewLineKind, OverviewProjectionUpdated,
     OverviewRoutingIntentChip, OverviewScrubberStatus, OverviewTrafficChart, StatusDot,
-    SurfaceElevatedFill, SurfaceFill, banner_note, banner_state_text, card_fill, chart_dims, chip_label, format_cpu,
-    format_memory, format_scale, format_total_traffic, state_ink, status_dot_color,
+    SurfaceElevatedFill, SurfaceFill, banner_note, banner_state_text, card_fill, chart_dims,
+    chip_label, format_cpu, format_memory, format_scale, format_total_traffic, state_ink,
+    status_dot_color,
 };
 use crate::pages::overview_cards::quota_status_color;
 use crate::pages::overview_public_ip::{PublicIpTextKind, public_ip_text_value};
@@ -570,14 +571,14 @@ pub(crate) fn reskin_overview_tokens(
 ) {
     for mut row in &mut fills {
         let want = if let Some(state) = row.card {
-            state.0.as_ref().map_or(palette.accent_container, |lifecycle| {
-                card_fill(last.0.as_ref(), lifecycle, &palette)
-            })
+            state
+                .0
+                .as_ref()
+                .map_or(palette.accent_container, |lifecycle| {
+                    card_fill(last.0.as_ref(), lifecycle, &palette)
+                })
         } else if row.dot {
-            status_dot_color(
-                last.0.as_ref(),
-                &palette,
-            )
+            status_dot_color(last.0.as_ref(), &palette)
         } else if row.chip || row.accent {
             palette.accent
         } else if row.elevated {

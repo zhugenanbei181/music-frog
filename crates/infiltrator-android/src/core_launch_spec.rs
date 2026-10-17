@@ -58,10 +58,8 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProv
             .await
             .map_err(config_failure)?;
 
-        let workspace = ProfileStore::load_active_workspace(
-            self.config.engine_profile_store(),
-        )
-        .await?;
+        let workspace =
+            ProfileStore::load_active_workspace(self.config.engine_profile_store()).await?;
         let document_identity = workspace.document.identity;
         if document_identity.engine_id != engine_id {
             return Err(PortError::Failed(format!(
@@ -183,11 +181,9 @@ mod tests {
             .existing_profile_document_path(&current_profile)
             .await
             .expect("Rust-created default profile exists");
-        let workspace = ProfileStore::load_active_workspace(
-            config.engine_profile_store(),
-        )
-        .await
-        .expect("active workspace readback");
+        let workspace = ProfileStore::load_active_workspace(config.engine_profile_store())
+            .await
+            .expect("active workspace readback");
 
         assert_eq!(spec.configuration_identity().engine_id, config.engine_id());
         assert_eq!(

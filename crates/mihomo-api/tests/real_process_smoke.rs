@@ -294,8 +294,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         )
         .expect("valid not-published payload snapshot")
     );
-    fs::write(&update_signal_path, b"update")
-        .expect("enable the second local fixture payload");
+    fs::write(&update_signal_path, b"update").expect("enable the second local fixture payload");
     let receipt = RuleProviderPort::refresh(
         &rule_providers,
         scope.clone(),

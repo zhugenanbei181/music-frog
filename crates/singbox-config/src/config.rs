@@ -81,14 +81,12 @@ impl SingBoxProfileConfigurationAdapter {
                 match check? {
                     NativeConfigCheck::Accepted => Ok(DocumentValidation::Valid),
                     NativeConfigCheck::Rejected => Ok(DocumentValidation::Invalid {
-                        diagnostics: vec![
-                            DocumentDiagnosticSnapshot {
-                                line: None,
-                                column: None,
-                                message: "sing-box native config check rejected this document"
-                                    .to_owned(),
-                            },
-                        ],
+                        diagnostics: vec![DocumentDiagnosticSnapshot {
+                            line: None,
+                            column: None,
+                            message: "sing-box native config check rejected this document"
+                                .to_owned(),
+                        }],
                     }),
                 }
             }
@@ -316,9 +314,7 @@ async fn atomic_write(active_path: &Path, raw_bytes: &[u8]) -> Result<(), PortEr
 async fn read_previous_config(path: &Path) -> Result<SingBoxConfigFileState, PortError> {
     match fs::read(path).await {
         Ok(bytes) => Ok(SingBoxConfigFileState::Present(bytes)),
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            Ok(SingBoxConfigFileState::Missing)
-        }
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(SingBoxConfigFileState::Missing),
         Err(error) => Err(map_storage_error(path, error)),
     }
 }
@@ -464,10 +460,7 @@ mod transaction_recovery_tests {
                 match previous {
                     PreviousFile::Missing => assert!(first.is_none()),
                     PreviousFile::Present(_) => {
-                        assert_eq!(
-                            first.unwrap().file_name(),
-                            OsStr::new("config.json")
-                        );
+                        assert_eq!(first.unwrap().file_name(), OsStr::new("config.json"));
                         assert!(entries.next_entry().await.unwrap().is_none());
                     }
                 }

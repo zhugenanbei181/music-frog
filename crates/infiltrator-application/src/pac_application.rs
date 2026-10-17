@@ -65,10 +65,7 @@ impl PacApplication {
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
         let scope = active_scope(self.scope_source.as_ref())?;
         let configuration =
-            RuntimeConfigurationApplication::new(
-                scope,
-                self.configuration_ports.clone(),
-            );
+            RuntimeConfigurationApplication::new(scope, self.configuration_ports.clone());
         self.apply_with_configuration(configuration, request).await
     }
 
@@ -78,10 +75,7 @@ impl PacApplication {
         request: PacRequest,
     ) -> Result<PacSnapshot, Failure> {
         let configuration =
-            RuntimeConfigurationApplication::new(
-                scope,
-                self.configuration_ports.clone(),
-            );
+            RuntimeConfigurationApplication::new(scope, self.configuration_ports.clone());
         self.apply_with_configuration(configuration, request).await
     }
 

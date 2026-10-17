@@ -1,12 +1,10 @@
 //! Conditional subscription refresh behavior under active workspace leases.
 
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::subscription_import::StoreForNextStartReason;
-use std::thread;
-use std::time::Duration;
 use super::*;
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use async_trait::async_trait;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::subscription_import::StoreForNextStartReason;
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
 use infiltrator_ports::application_runtime::{
@@ -17,6 +15,8 @@ use infiltrator_ports::subscription_source::{
 };
 use std::future::ready;
 use std::task::{Context, Poll, Waker};
+use std::thread;
+use std::time::Duration;
 
 #[derive(Default)]
 struct ImmediateApplicationRuntime;
@@ -153,15 +153,13 @@ async fn stopped_and_failed_subscription_refreshes_store_with_distinct_effects()
         (
             CoreLifecycle::Stopped,
             SubscriptionContentEffectOutcome::StoredForNextStart {
-                reason:
-                    StoreForNextStartReason::CoreStopped,
+                reason: StoreForNextStartReason::CoreStopped,
             },
         ),
         (
             CoreLifecycle::Failed,
             SubscriptionContentEffectOutcome::StoredForNextStart {
-                reason:
-                    StoreForNextStartReason::CoreFailed,
+                reason: StoreForNextStartReason::CoreFailed,
             },
         ),
     ] {
@@ -188,10 +186,7 @@ async fn stopped_and_failed_subscription_refreshes_store_with_distinct_effects()
 
 #[tokio::test]
 async fn transitioning_subscription_refresh_has_no_fetch_store_or_apply_effect() {
-    for lifecycle in [
-        CoreLifecycle::Starting,
-        CoreLifecycle::Stopping,
-    ] {
+    for lifecycle in [CoreLifecycle::Starting, CoreLifecycle::Stopping] {
         let store = subscription_store();
         let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
         runtime.set_lifecycle(lifecycle);

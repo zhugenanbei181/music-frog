@@ -5,20 +5,18 @@ use super::ConfigManager;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState,
 };
-use infiltrator_contract::capability::Capability;
 #[cfg(test)]
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 #[cfg(test)]
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
-use std::fmt::Display;
-use std::result;
 #[cfg(test)]
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
@@ -60,9 +58,11 @@ use infiltrator_profile_store::reset_fence::{
 #[cfg(test)]
 use infiltrator_profile_store::workspace::sha256_hex;
 use mihomo_api::error::MihomoError;
+use std::fmt::Display;
 #[cfg(test)]
 use std::path::Path;
 use std::path::PathBuf;
+use std::result;
 
 // Cross-process lock order is fixed: root reference lock -> owner-state lock
 // -> owner admission lock. Terminal owner release takes only owner-state and

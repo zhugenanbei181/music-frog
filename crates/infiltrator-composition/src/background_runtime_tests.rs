@@ -1,7 +1,7 @@
-use tokio::sync::oneshot::channel;
 use super::*;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
+use tokio::sync::oneshot::channel;
 
 #[test]
 fn background_scheduler_has_one_slot_and_closes_after_its_task_leaves() {

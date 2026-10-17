@@ -1,8 +1,6 @@
 use crate::android_async_bridge::AndroidBridgeCallCompletionResult::CallerCanceled;
 use crate::android_async_bridge::AndroidBridgeCallCompletionResult::Delivered;
 use crate::android_async_bridge::AndroidBridgeCallCompletionResult::UnknownRequest;
-use infiltrator_contract::vpn::VpnConfiguration;
-use tokio::time::timeout;
 use crate::android_async_bridge::{
     AndroidBridgeCall, AndroidBridgeCallCompletion, AndroidBridgeCallFailure,
     AndroidBridgeCallReply, AndroidBridgeDispatchAcceptance, AndroidBridgeRequestId,
@@ -25,13 +23,16 @@ use crate::uniffi_api::profile_age_credential_owner::{
     ProfileAgeCredentialOwnerWireReply, ProfileAgeCredentialOwnerWireRequest,
 };
 use crate::{FfiErrorCode, FfiStatus};
+use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
 use infiltrator_contract::android_control::{
     AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
     AndroidHostProcessRole, VpnAuthorizationState, VpnOwnerSnapshot,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerSubmission,
 };
+use infiltrator_contract::vpn::VpnConfiguration;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
@@ -41,8 +42,6 @@ use infiltrator_platform::android_bridge::{
     AndroidCoreConfigurationValidationReply, AndroidCoreConfigurationValidationRequest,
     CoreProcessStartReceipt, CoreProcessStopReceipt, set_android_bridge,
 };
-use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::error::PortError;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
@@ -54,6 +53,7 @@ use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::timeout;
 
 const SIG_NOARGS_INT: &str = "()I";
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
@@ -90,7 +90,12 @@ impl JniBridge {
         Self { vm, host }
     }
 
-    pub(super) fn call_int(&self, method: &str, sig: &str, args: &[JValue]) -> AndroidBridgeResult<i32> {
+    pub(super) fn call_int(
+        &self,
+        method: &str,
+        sig: &str,
+        args: &[JValue],
+    ) -> AndroidBridgeResult<i32> {
         let name = JNIString::new(method);
         let signature = parse_method_signature(method, sig)?;
         let signature = signature.method_signature();
@@ -102,7 +107,12 @@ impl JniBridge {
             .map_err(|err| map_jni_error(method, err))
     }
 
-    pub(super) fn call_string(&self, method: &str, sig: &str, args: &[JValue]) -> AndroidBridgeResult<Option<String>> {
+    pub(super) fn call_string(
+        &self,
+        method: &str,
+        sig: &str,
+        args: &[JValue],
+    ) -> AndroidBridgeResult<Option<String>> {
         let name = JNIString::new(method);
         let signature = parse_method_signature(method, sig)?;
         let signature = signature.method_signature();
@@ -731,7 +741,10 @@ fn read_java_string(
     })
 }
 
-pub(crate) fn parse_method_signature(method: &str, sig: &str) -> AndroidBridgeResult<RuntimeMethodSignature> {
+pub(crate) fn parse_method_signature(
+    method: &str,
+    sig: &str,
+) -> AndroidBridgeResult<RuntimeMethodSignature> {
     RuntimeMethodSignature::from_str(sig)
         .map_err(|err| PortError::Failed(format!("jni signature for {method} failed: {err}")))
 }

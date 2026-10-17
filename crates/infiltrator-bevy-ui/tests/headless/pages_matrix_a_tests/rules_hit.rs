@@ -1,7 +1,6 @@
 //! Behavior cases for rules hit.
 //! test-intent: behavior
 
-use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use super::*;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::rules_statistics::RulesStatisticsState;
@@ -12,6 +11,7 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 
 #[test]
 fn test_rules_hit_audit_projection_and_clear_command() {

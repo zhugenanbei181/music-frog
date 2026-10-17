@@ -29,5 +29,8 @@ fn overview_mounts_under_the_content_slot() {
     );
 
     let (_, state_text, _) = line(world, OverviewLineKind::State);
-    assert_eq!(state_text, "演示模式", "the banner spells the demo mode state");
+    assert_eq!(
+        state_text, "演示模式",
+        "the banner spells the demo mode state"
+    );
 }

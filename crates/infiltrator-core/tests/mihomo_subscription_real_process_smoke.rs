@@ -38,9 +38,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
 use std::sync::Arc;
-use url::Url;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use url::Url;
 
 const PROFILE_NAME: &str = "CORE-SMOKE-SUB";
 
@@ -285,10 +285,7 @@ async fn subscription_import_update_and_refresh_share_the_mihomo_profile_store()
         .expect("ImportSubscription uses production source and shared profile application");
     assert_eq!(imported.profile_name, PROFILE_NAME);
     assert_eq!(imported.channel, SubscriptionImportChannel::Url);
-    assert_eq!(
-        imported.format,
-        SubscriptionFormat::ClashYaml
-    );
+    assert_eq!(imported.format, SubscriptionFormat::ClashYaml);
     assert_eq!(imported.node_count, 1);
     assert!(imported.content_bytes > 0);
     assert_eq!(

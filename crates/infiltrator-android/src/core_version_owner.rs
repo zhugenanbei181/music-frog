@@ -1,6 +1,5 @@
 //! Process-local owner of engine-keyed version factories for Android `:vpn`.
 
-use std::path::PathBuf;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::map_port_error;
 use infiltrator_application::core_version_management_application::CoreVersionManagementApplication;
@@ -15,6 +14,7 @@ use infiltrator_ports::core_binary_selection::CoreBinarySelectionPort;
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::error::PortError;
 use singbox_version::version::SingBoxEngineVersionBackendFactory;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
 enum AndroidCoreVersionOwnerState {

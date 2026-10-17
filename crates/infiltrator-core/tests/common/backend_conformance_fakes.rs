@@ -101,15 +101,11 @@ impl FakeBackend {
                 DetailsBehavior::Unsupported,
                 ProbeBehavior::Unsupported,
                 RoutingBehavior::ReadOnlyUnsupported {
-                    initial: RoutingIntent::EngineDefined(
-                        EngineDefinedRoutingIntent::new(
-                            EngineId::new("sing-box").expect("static engine ID is valid"),
-                            RoutingIntentExtensionId::new(
-                                "mode.rule",
-                            )
+                    initial: RoutingIntent::EngineDefined(EngineDefinedRoutingIntent::new(
+                        EngineId::new("sing-box").expect("static engine ID is valid"),
+                        RoutingIntentExtensionId::new("mode.rule")
                             .expect("static extension ID is valid"),
-                        ),
-                    ),
+                    )),
                     requested: RoutingIntent::FollowRules,
                 },
             ),
@@ -292,10 +288,7 @@ impl CoreProcess for FakeProcess {
         Some(self.identity.clone())
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         let mut phase = self.phase.lock().expect("fake process phase lock");
         match *phase {
             FakeProcessPhase::Stopped => {

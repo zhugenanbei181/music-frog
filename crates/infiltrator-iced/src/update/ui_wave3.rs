@@ -1,9 +1,6 @@
 //! Wave 3 Advanced feature message handlers: PCAP capture, Sub-Rules, Speedtest,
 //! GeoData updater, UWP Loopback, and Encrypted Backup packages.
 
-use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::speedtest::SpeedtestCancelOutcome;
 use crate::host::desktop::uwp_loopback_application;
 use crate::state::AppState;
 use crate::types::app::{ToastStatus, UwpAppItem, UwpLoopbackState};
@@ -11,7 +8,10 @@ use crate::types::editor::GeoDataUpdatePhase;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::{Failure, InfiltratorError};
+use infiltrator_contract::speedtest::SpeedtestCancelOutcome;
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
 use infiltrator_domain::backup::{BackupBundle, export_encrypted_bundle};
 use infiltrator_domain::pcap_exporter::{PcapExporter, PcapHeader};
@@ -138,11 +138,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let outcome = ingress
-                            .execute_outcome(
-                                CommandIntent::StartSpeedtest {
-                                    target,
-                                },
-                            )
+                            .execute_outcome(CommandIntent::StartSpeedtest { target })
                             .await;
                         if outcome.scope.as_ref() != Some(&requested_scope) {
                             return Err(Failure::new(
@@ -151,18 +147,18 @@ impl AppState {
                                 false,
                             ));
                         }
-                        let receipt = outcome.result.into_output().and_then(|output| {
-                            match output {
-                            CommandOutput::SpeedtestStarted(
-                                receipt,
-                            ) => Ok(receipt),
-                            _ => Err(Failure::new(
-                                ErrorCode::InvalidState,
-                                "speedtest start returned another output type",
-                                false,
-                            )),
-                        }
-                        })?;
+                        let receipt =
+                            outcome
+                                .result
+                                .into_output()
+                                .and_then(|output| match output {
+                                    CommandOutput::SpeedtestStarted(receipt) => Ok(receipt),
+                                    _ => Err(Failure::new(
+                                        ErrorCode::InvalidState,
+                                        "speedtest start returned another output type",
+                                        false,
+                                    )),
+                                })?;
                         let snapshot = ingress.speedtest_snapshot();
                         Ok((receipt, snapshot))
                     },
@@ -188,15 +184,13 @@ impl AppState {
             Message::SpeedtestCancelled(Ok((outcome, snapshot))) => {
                 self.diag.speedtest = snapshot;
                 let message = match outcome {
-                    SpeedtestCancelOutcome::Requested { .. } => {
-                        "Speedtest cancellation accepted"
+                    SpeedtestCancelOutcome::Requested { .. } => "Speedtest cancellation accepted",
+                    SpeedtestCancelOutcome::AlreadyRequested { .. } => {
+                        "Speedtest cancellation is already pending"
                     }
-                    SpeedtestCancelOutcome::AlreadyRequested {
-                        ..
-                    } => "Speedtest cancellation is already pending",
-                    SpeedtestCancelOutcome::RunAlreadyFinished {
-                        ..
-                    } => "Speedtest run has already finished",
+                    SpeedtestCancelOutcome::RunAlreadyFinished { .. } => {
+                        "Speedtest run has already finished"
+                    }
                     SpeedtestCancelOutcome::StaleRun { .. } => {
                         "Speedtest cancellation referred to a stale run"
                     }

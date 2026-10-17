@@ -31,4 +31,3 @@ impl SubscriptionNotificationPort for DesktopSubscriptionNotificationPort {
         let _ = notifier.send(&SystemNotification::new(title, body, level));
     }
 }
-

@@ -1,11 +1,11 @@
 //! Capture opens the real editor, previews migration, then observes an actual denied write.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use crate::demo::owner::attach_capture_owner_with_snapshot;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -18,8 +18,7 @@ use std::sync::{Arc, Mutex};
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let store = Arc::new(HostsCaptureStore::default());
     store.deny_save.store(true, Ordering::SeqCst);
-    let configuration =
-        for_mihomo_store(store.clone());
+    let configuration = for_mihomo_store(store.clone());
     let read = configuration.clone();
     let runtime = tokio_application_runtime().expect("isolated capture runtime");
     let observed = Arc::new(Mutex::new(None));

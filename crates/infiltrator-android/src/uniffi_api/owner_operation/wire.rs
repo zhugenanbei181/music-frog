@@ -1,6 +1,8 @@
-use crate::uniffi_api::vpn::{owner_tun_settings_read, owner_tun_settings_save, vpn_configuration_activation_status};
 use super::version::execute;
 use super::*;
+use crate::uniffi_api::vpn::{
+    owner_tun_settings_read, owner_tun_settings_save, vpn_configuration_activation_status,
+};
 
 /// Service-only Messenger adapter. The JSON payload is decoded exhaustively
 /// into the Rust operation enum before owner state is touched. The Messenger

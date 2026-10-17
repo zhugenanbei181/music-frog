@@ -1,10 +1,10 @@
-use tokio::time::timeout;
-use infiltrator_contract::core_capabilities::AdapterRevision;
-use crate::engine_backend_factory::EngineBackendFactoryRegistry;
-use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use super::*;
 use crate::active_profile_backend::SelectedActiveProfileBackend;
+use crate::engine_backend_factory::EngineBackendFactoryRegistry;
+use infiltrator_contract::core_capabilities::AdapterRevision;
 use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
+use tokio::time::timeout;
 
 pub(crate) struct FakeProfileStore {
     engine_id: EngineId,
@@ -267,10 +267,7 @@ impl CoreProcess for FakeProcess {
         Some(self.identity.clone())
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         self.starts.starts.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -521,9 +518,7 @@ pub(crate) fn selector(
     providers: Vec<Arc<dyn EngineBackendProvider>>,
     capabilities: Arc<dyn CoreCapabilityProvider>,
 ) -> ActiveProfileBackendSelector {
-    let factory = Arc::new(
-        EngineBackendFactoryRegistry::new(providers).unwrap(),
-    );
+    let factory = Arc::new(EngineBackendFactoryRegistry::new(providers).unwrap());
     let reference_store: Arc<dyn ActiveProfileReferenceStore> = reference_store;
     let factory: Arc<dyn EngineBackendFactory> = factory;
     ActiveProfileBackendSelector::new(reference_store, stores, factory, capabilities)
@@ -567,8 +562,11 @@ pub(crate) fn terminal_owner_snapshot(before: &CoreLifecycleSnapshot) -> CoreLif
     }
 }
 
-
-pub(crate) fn running_owner_snapshot(engine: &str, instance: &str, generation: u64) -> CoreLifecycleSnapshot {
+pub(crate) fn running_owner_snapshot(
+    engine: &str,
+    instance: &str,
+    generation: u64,
+) -> CoreLifecycleSnapshot {
     CoreLifecycleSnapshot {
         identity: Some(CoreIdentity::new(
             engine_id_value(engine),

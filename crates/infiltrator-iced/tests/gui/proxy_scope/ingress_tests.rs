@@ -242,10 +242,7 @@ fn product_group_order_applies_only_after_typed_outbound_preference_readback() {
     assert_eq!(state.runtime.group_order_editor.draft(), baseline);
     let _ = state.update(Message::MoveProxyGroupUp(second_group.clone()));
     let _ = state.update(Message::CancelProxyGroupOrder);
-    assert_eq!(
-        state.runtime.group_order_dialog,
-        Closed
-    );
+    assert_eq!(state.runtime.group_order_dialog, Closed);
     assert_eq!(state.runtime.group_order_editor.draft(), baseline);
 
     let _ = state.update(Message::MoveProxyGroupUp(second_group.clone()));
@@ -280,10 +277,7 @@ fn product_group_order_applies_only_after_typed_outbound_preference_readback() {
     ));
     let completion = terminal(task);
     assert_eq!(state.update(completion).units(), 0);
-    assert_eq!(
-        state.runtime.group_order_dialog,
-        Closed
-    );
+    assert_eq!(state.runtime.group_order_dialog, Closed);
     assert_eq!(
         state
             .runtime

@@ -1,5 +1,4 @@
 //! Capture the real typed options read and denied filter transaction through TEA.
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -7,6 +6,7 @@ use crate::types::options::EditorPane;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;

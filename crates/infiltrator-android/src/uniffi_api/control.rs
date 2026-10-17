@@ -430,7 +430,6 @@ fn core_lifecycle_result(snapshot: AndroidCoreLifecycleSnapshot) -> AndroidCoreL
 #[path = "control_tests.rs"]
 mod tests;
 
-
 #[uniffi::export]
 pub fn vpn_authorization_result(result: VpnAuthorizationResult) -> FfiStatus {
     let result: android_control::VpnAuthorizationResult = result.into();

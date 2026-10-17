@@ -82,12 +82,7 @@ impl RuntimeStreamPort for MihomoRuntimeStreamPort {
                 "Mihomo stream access has no Core scope resolver",
             )
         })?;
-        Ok(scope_stream(
-            receiver,
-            scope,
-            resolver,
-            identity,
-        ))
+        Ok(scope_stream(receiver, scope, resolver, identity))
     }
 
     async fn traffic(

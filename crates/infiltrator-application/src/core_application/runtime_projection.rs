@@ -1,7 +1,7 @@
+use super::{CoreApplication, DispatchedMessage, Inner};
 use crate::speedtest_application::SpeedtestCompletionAdmission::Applied;
 use crate::speedtest_application::SpeedtestCompletionAdmission::IgnoredStaleRun;
 use crate::speedtest_application::SpeedtestCompletionAdmission::IgnoredStaleScope;
-use super::{CoreApplication, DispatchedMessage, Inner};
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreIdentity};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot, CoreWatchdogSnapshot};
@@ -46,17 +46,12 @@ pub(super) fn spawn_dispatch_worker(
                         let application = CoreApplication { inner };
                         match application.finish_speedtest_task(scope, run_id, outcome) {
                             Applied => {}
-                            IgnoredStaleRun {
-                                completed,
-                                current,
-                            } => log::debug!(
+                            IgnoredStaleRun { completed, current } => log::debug!(
                                 "ignored stale speedtest completion {:?}; active run is {:?}",
                                 completed,
                                 current
                             ),
-                            IgnoredStaleScope {
-                                completed,
-                            } => log::debug!(
+                            IgnoredStaleScope { completed } => log::debug!(
                                 "ignored speedtest completion {:?} from a stale Core scope",
                                 completed
                             ),

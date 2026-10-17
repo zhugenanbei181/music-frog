@@ -132,11 +132,17 @@ pub(super) fn register(
             let weak = weak_for_color_apply.clone();
             let _ = weak.clone().upgrade_in_event_loop(move |window| {
                 window.set_theme_color_saving(false);
-                window.set_theme_color_error("Enter a six-digit hexadecimal color such as #016888".into());
+                window.set_theme_color_error(
+                    "Enter a six-digit hexadecimal color such as #016888".into(),
+                );
             });
             show_failure(
                 &weak_for_color_apply,
-                Failure::new(ErrorCode::InvalidInput, "Enter a six-digit hexadecimal color such as #016888", false),
+                Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Enter a six-digit hexadecimal color such as #016888",
+                    false,
+                ),
             );
         }
     });

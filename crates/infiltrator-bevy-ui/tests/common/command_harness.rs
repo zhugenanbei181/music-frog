@@ -1,6 +1,5 @@
 //! test-intent: behavior
 //! Hostless command application shared by UI behavior tests.
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::command_application::handler::{CommandFuture, CommandHandler};
 use infiltrator_application::core_application::CoreApplication;
@@ -23,6 +22,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::outbound::{
@@ -206,10 +206,7 @@ pub struct HostlessProcess;
 
 #[async_trait::async_trait]
 impl CoreProcess for HostlessProcess {
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         Err(PortError::Failed("unexpected lifecycle command".into()))
     }
     async fn stop(&self) -> Result<(), PortError> {
@@ -268,10 +265,7 @@ impl CoreProcess for IdentifiedHostlessProcess {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         Err(PortError::Failed("unexpected lifecycle command".into()))
     }
 

@@ -1,7 +1,4 @@
 //! Capture a real source-bound staged edit and the actual denied commit terminal.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
-use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -9,6 +6,9 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
@@ -34,9 +34,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
     )
-    .with_profiles(
-        profiles_for_mihomo(store.clone()),
-    )
+    .with_profiles(profiles_for_mihomo(store.clone()))
     .with_configuration(for_mihomo_store(store));
     attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;

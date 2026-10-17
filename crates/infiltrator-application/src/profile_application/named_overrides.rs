@@ -2,20 +2,24 @@
 
 use super::ProfileApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::named_override::{
-    NamedOverride, NamedOverrideCatalog, NamedOverrideId,
-};
+use infiltrator_contract::named_override::{NamedOverride, NamedOverrideCatalog, NamedOverrideId};
 
 impl ProfileApplication {
     pub async fn load_named_override_catalog(&self) -> Result<NamedOverrideCatalog, Failure> {
-        self.store.load_named_override_catalog().await.map_err(Failure::from)
+        self.store
+            .load_named_override_catalog()
+            .await
+            .map_err(Failure::from)
     }
 
     pub async fn save_named_override_catalog(
         &self,
         catalog: &NamedOverrideCatalog,
     ) -> Result<(), Failure> {
-        self.store.save_named_override_catalog(catalog).await.map_err(Failure::from)
+        self.store
+            .save_named_override_catalog(catalog)
+            .await
+            .map_err(Failure::from)
     }
 
     pub async fn create_named_override(
@@ -30,8 +34,12 @@ impl ProfileApplication {
             .chars()
             .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
             .collect::<String>();
-        let id = NamedOverrideId::new(if id_str.is_empty() { "override".into() } else { id_str })
-            .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
+        let id = NamedOverrideId::new(if id_str.is_empty() {
+            "override".into()
+        } else {
+            id_str
+        })
+        .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
         let item = NamedOverride::new(id.clone(), name, content, now)
             .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;

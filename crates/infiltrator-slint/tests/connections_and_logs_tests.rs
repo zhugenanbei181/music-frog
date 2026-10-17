@@ -95,7 +95,9 @@ fn setup_connections_and_logs_snapshot() -> SurfaceSnapshot {
 #[test]
 fn test_close_connection_intent_generation() {
     let conn_id = "conn-123".to_string();
-    let intent = CommandIntent::CloseConnection { id: conn_id.clone() };
+    let intent = CommandIntent::CloseConnection {
+        id: conn_id.clone(),
+    };
     match intent {
         CommandIntent::CloseConnection { id } => {
             assert_eq!(id, "conn-123");
@@ -108,7 +110,11 @@ fn test_close_connection_intent_generation() {
 fn test_log_level_filter_intent_mapping() {
     let level_all = "all";
     let intent_all = CommandIntent::SetLogLevelFilter {
-        level: if level_all == "all" { None } else { Some(level_all.to_string()) },
+        level: if level_all == "all" {
+            None
+        } else {
+            Some(level_all.to_string())
+        },
     };
     match intent_all {
         CommandIntent::SetLogLevelFilter { level } => assert!(level.is_none()),
@@ -117,7 +123,11 @@ fn test_log_level_filter_intent_mapping() {
 
     let level_warn = "warn";
     let intent_warn = CommandIntent::SetLogLevelFilter {
-        level: if level_warn == "all" { None } else { Some(level_warn.to_string()) },
+        level: if level_warn == "all" {
+            None
+        } else {
+            Some(level_warn.to_string())
+        },
     };
     match intent_warn {
         CommandIntent::SetLogLevelFilter { level } => assert_eq!(level, Some("warn".to_string())),

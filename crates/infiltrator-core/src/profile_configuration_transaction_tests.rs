@@ -351,16 +351,11 @@ impl ProfileStore for FaultInjectingProfileStore {
         Err(Self::unused_operation())
     }
 
-    async fn load_workspace(
-        &self,
-        _profile: &ProfileId,
-    ) -> Result<ProfileWorkspace, PortError> {
+    async fn load_workspace(&self, _profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
         Err(Self::unused_operation())
     }
 
-    async fn load_active_workspace(
-        &self,
-    ) -> Result<ProfileWorkspace, PortError> {
+    async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
         ProfileStore::load_active_workspace(self.inner.engine_profile_store()).await
     }
 

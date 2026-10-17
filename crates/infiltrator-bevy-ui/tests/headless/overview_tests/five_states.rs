@@ -7,12 +7,12 @@
 //! - State 4: VPN unauthorized / untaken -> "VPN 未授权" / "内核运行 · 未接管", warning dot (never green!), stop action.
 //! - State 5: Real running -> "运行中" / "Running", success green dot, stop action.
 
-use infiltrator_bevy_widgets::button::ButtonDisabled;
-use infiltrator_contract::error::Failure;
 use super::*;
 use infiltrator_bevy_ui::pages::overview::{
     banner_state_text, card_fill, state_ink, status_dot_color,
 };
+use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
 
@@ -56,8 +56,14 @@ fn five_states_banner_verdict_matrix() {
         palette.success,
         "demo dot must never be green"
     );
-    assert_eq!(card_fill(Some(&demo), &demo.lifecycle, &palette), palette.accent_container);
-    assert_eq!(state_ink(Some(&demo), &demo.lifecycle, &palette), palette.ink);
+    assert_eq!(
+        card_fill(Some(&demo), &demo.lifecycle, &palette),
+        palette.accent_container
+    );
+    assert_eq!(
+        state_ink(Some(&demo), &demo.lifecycle, &palette),
+        palette.ink
+    );
 
     // 2. Missing Host / Failed
     let missing = make_projection(
@@ -69,8 +75,14 @@ fn five_states_banner_verdict_matrix() {
     assert_eq!(banner_state_text(&missing, "zh-CN"), "运行出错");
     assert_eq!(banner_state_text(&missing, "en-US"), "Runtime Error");
     assert_eq!(status_dot_color(Some(&missing), &palette), palette.danger);
-    assert_eq!(card_fill(Some(&missing), &missing.lifecycle, &palette), palette.danger);
-    assert_eq!(state_ink(Some(&missing), &missing.lifecycle, &palette), palette.on_accent);
+    assert_eq!(
+        card_fill(Some(&missing), &missing.lifecycle, &palette),
+        palette.danger
+    );
+    assert_eq!(
+        state_ink(Some(&missing), &missing.lifecycle, &palette),
+        palette.on_accent
+    );
 
     // 3. Core Stopped
     let stopped = make_projection(
@@ -82,8 +94,14 @@ fn five_states_banner_verdict_matrix() {
     assert_eq!(banner_state_text(&stopped, "zh-CN"), "已停止");
     assert_eq!(banner_state_text(&stopped, "en-US"), "Stopped");
     assert_eq!(status_dot_color(Some(&stopped), &palette), palette.ink_dim);
-    assert_eq!(card_fill(Some(&stopped), &stopped.lifecycle, &palette), palette.accent_container);
-    assert_eq!(state_ink(Some(&stopped), &stopped.lifecycle, &palette), palette.ink_dim);
+    assert_eq!(
+        card_fill(Some(&stopped), &stopped.lifecycle, &palette),
+        palette.accent_container
+    );
+    assert_eq!(
+        state_ink(Some(&stopped), &stopped.lifecycle, &palette),
+        palette.ink_dim
+    );
 
     // 4. VPN Unauthorized / Untaken (Core running, but takeover failed/unauthorized)
     let unauthorized = make_projection(
@@ -95,15 +113,27 @@ fn five_states_banner_verdict_matrix() {
         },
     );
     assert_eq!(banner_state_text(&unauthorized, "zh-CN"), "VPN 未授权");
-    assert_eq!(banner_state_text(&unauthorized, "en-US"), "VPN Unauthorized");
+    assert_eq!(
+        banner_state_text(&unauthorized, "en-US"),
+        "VPN Unauthorized"
+    );
     assert_eq!(
         status_dot_color(Some(&unauthorized), &palette),
         palette.warning,
         "unauthorized dot must be warning, never green"
     );
-    assert_ne!(status_dot_color(Some(&unauthorized), &palette), palette.success);
-    assert_eq!(card_fill(Some(&unauthorized), &unauthorized.lifecycle, &palette), palette.accent_container);
-    assert_eq!(state_ink(Some(&unauthorized), &unauthorized.lifecycle, &palette), palette.warning);
+    assert_ne!(
+        status_dot_color(Some(&unauthorized), &palette),
+        palette.success
+    );
+    assert_eq!(
+        card_fill(Some(&unauthorized), &unauthorized.lifecycle, &palette),
+        palette.accent_container
+    );
+    assert_eq!(
+        state_ink(Some(&unauthorized), &unauthorized.lifecycle, &palette),
+        palette.warning
+    );
 
     // 4b. Core Running Untaken (neither proxy nor TUN enabled)
     let untaken = make_projection(
@@ -113,7 +143,10 @@ fn five_states_banner_verdict_matrix() {
         SystemToggleState::Disabled,
     );
     assert_eq!(banner_state_text(&untaken, "zh-CN"), "内核运行 · 未接管");
-    assert_eq!(banner_state_text(&untaken, "en-US"), "Core Running · Untaken");
+    assert_eq!(
+        banner_state_text(&untaken, "en-US"),
+        "Core Running · Untaken"
+    );
     assert_eq!(
         status_dot_color(Some(&untaken), &palette),
         palette.warning,
@@ -135,8 +168,14 @@ fn five_states_banner_verdict_matrix() {
         palette.success,
         "real running must show genuine green dot"
     );
-    assert_eq!(card_fill(Some(&real_running), &real_running.lifecycle, &palette), palette.accent_container);
-    assert_eq!(state_ink(Some(&real_running), &real_running.lifecycle, &palette), palette.ink);
+    assert_eq!(
+        card_fill(Some(&real_running), &real_running.lifecycle, &palette),
+        palette.accent_container
+    );
+    assert_eq!(
+        state_ink(Some(&real_running), &real_running.lifecycle, &palette),
+        palette.ink
+    );
 }
 
 #[test]

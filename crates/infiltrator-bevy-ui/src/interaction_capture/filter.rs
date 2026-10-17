@@ -1,5 +1,4 @@
 //! Native filter activation uses actual typed commands and narrowly scoped ECS parameters.
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -35,6 +34,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
@@ -67,14 +67,12 @@ pub fn install(app: &mut App) {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated filter runtime"),
     ));
-    core.install_command_handler(Arc::new(CommandApplication::new().with_profile(
-        profiles_for_mihomo(store.clone()),
-    )));
+    core.install_command_handler(Arc::new(
+        CommandApplication::new().with_profile(profiles_for_mihomo(store.clone())),
+    ));
     let reader = Arc::new(
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(
-                profiles_for_mihomo(store.clone()),
-            ),
+            .with_profiles(profiles_for_mihomo(store.clone())),
     );
     let scope = core.snapshot().scope().expect("identified capture owner");
     app.insert_resource(CommandSinkHandle(Arc::new(

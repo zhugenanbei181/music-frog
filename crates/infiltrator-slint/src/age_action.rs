@@ -49,7 +49,12 @@ pub fn execute_slint_age_action(
                     Failure::new(ErrorCode::NotReady, "Profile was not observed", true)
                 })?;
             if let Some(key) = private_key {
-                mutate_age_credential(host, &scope, &profile_id, ProfileAgeCredentialTarget::Set(key))?;
+                mutate_age_credential(
+                    host,
+                    &scope,
+                    &profile_id,
+                    ProfileAgeCredentialTarget::Set(key),
+                )?;
             }
             if let Some(new_name) = name {
                 if new_name != profile.name {
@@ -130,10 +135,7 @@ pub fn execute_slint_age_action(
                 .to_string();
             host.execute(
                 Some(snapshot),
-                SlintAction::Command(CommandIntent::CreateNamedOverride {
-                    name,
-                    content,
-                }),
+                SlintAction::Command(CommandIntent::CreateNamedOverride { name, content }),
             )
         }
         SlintAction::ExportProfile {
@@ -146,7 +148,9 @@ pub fn execute_slint_age_action(
                 .data
                 .as_ref()
                 .and_then(|page| page.profiles.iter().find(|p| p.id == profile_id))
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Profile was not observed", true))?;
+                .ok_or_else(|| {
+                    Failure::new(ErrorCode::NotReady, "Profile was not observed", true)
+                })?;
             let content = if let Some(doc) = &snapshot.profile_editor.document {
                 if snapshot.profile_editor.read.profile.as_deref() == Some(&profile_id) {
                     doc.content.clone()
@@ -164,29 +168,22 @@ pub fn execute_slint_age_action(
             override_id,
             destination,
         } => {
-            let page = snapshot
-                .pages
-                .profiles
-                .data
-                .as_ref()
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true))?;
+            let page = snapshot.pages.profiles.data.as_ref().ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "Profiles page was not observed", true)
+            })?;
             let oid = NamedOverrideId::new(override_id)
                 .map_err(|err| Failure::new(ErrorCode::InvalidInput, err.to_string(), false))?;
-            let item = page
-                .named_overrides
-                .get_override(&oid)
-                .ok_or_else(|| Failure::new(ErrorCode::InvalidInput, "Override not found", false))?;
+            let item = page.named_overrides.get_override(&oid).ok_or_else(|| {
+                Failure::new(ErrorCode::InvalidInput, "Override not found", false)
+            })?;
             fs::write(&destination, &item.content)
                 .map_err(|err| Failure::new(ErrorCode::Storage, err.to_string(), true))?;
             Ok(())
         }
         SlintAction::ExportLogs { destination } => {
-            let page = snapshot
-                .pages
-                .logs
-                .data
-                .as_ref()
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Logs page was not observed", true))?;
+            let page = snapshot.pages.logs.data.as_ref().ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "Logs page was not observed", true)
+            })?;
             let mut formatted = String::new();
             for entry in &page.entries {
                 formatted.push_str(&format!(
@@ -201,15 +198,20 @@ pub fn execute_slint_age_action(
         SlintAction::StartRuntime => {
             let outcome = host.request_vpn_permission()?;
             match outcome {
-                VpnPermissionOutcome::Granted => {
-                    host.execute(Some(snapshot), SlintAction::Command(CommandIntent::StartCore))
-                }
-                VpnPermissionOutcome::Denied => {
-                    Err(Failure::new(ErrorCode::Permission, "VPN permission denied", false))
-                }
-                VpnPermissionOutcome::Canceled => {
-                    Err(Failure::new(ErrorCode::Canceled, "VPN permission canceled", false))
-                }
+                VpnPermissionOutcome::Granted => host.execute(
+                    Some(snapshot),
+                    SlintAction::Command(CommandIntent::StartCore),
+                ),
+                VpnPermissionOutcome::Denied => Err(Failure::new(
+                    ErrorCode::Permission,
+                    "VPN permission denied",
+                    false,
+                )),
+                VpnPermissionOutcome::Canceled => Err(Failure::new(
+                    ErrorCode::Canceled,
+                    "VPN permission canceled",
+                    false,
+                )),
             }
         }
         SlintAction::ScanQrCode => {
@@ -230,45 +232,43 @@ pub fn execute_slint_age_action(
                 }),
             )
         }
-        SlintAction::OpenAutostartSettings => {
-            host.open_autostart_settings()
-        }
+        SlintAction::OpenAutostartSettings => host.open_autostart_settings(),
         SlintAction::RequestBatteryOptimizationExemption => {
             let outcome = host.request_battery_optimization_exemption()?;
             match outcome {
                 BatteryOptimizationOutcome::Supported { enabled: true } => Ok(()),
-                BatteryOptimizationOutcome::Supported { enabled: false } => {
-                    Err(Failure::new(ErrorCode::Permission, "Battery optimization not exempt", false))
-                }
-                BatteryOptimizationOutcome::Unsupported => {
-                    Err(Failure::unsupported("Battery optimization exemption unsupported on platform"))
-                }
-                BatteryOptimizationOutcome::Canceled => {
-                    Err(Failure::new(ErrorCode::Canceled, "Battery optimization request canceled", false))
-                }
-                BatteryOptimizationOutcome::PermissionDenied => {
-                    Err(Failure::new(ErrorCode::Permission, "Battery optimization permission denied", false))
-                }
+                BatteryOptimizationOutcome::Supported { enabled: false } => Err(Failure::new(
+                    ErrorCode::Permission,
+                    "Battery optimization not exempt",
+                    false,
+                )),
+                BatteryOptimizationOutcome::Unsupported => Err(Failure::unsupported(
+                    "Battery optimization exemption unsupported on platform",
+                )),
+                BatteryOptimizationOutcome::Canceled => Err(Failure::new(
+                    ErrorCode::Canceled,
+                    "Battery optimization request canceled",
+                    false,
+                )),
+                BatteryOptimizationOutcome::PermissionDenied => Err(Failure::new(
+                    ErrorCode::Permission,
+                    "Battery optimization permission denied",
+                    false,
+                )),
             }
         }
-        SlintAction::SetHideBackgroundCard(enabled) => {
-            host.set_hide_background_card(enabled)
-        }
+        SlintAction::SetHideBackgroundCard(enabled) => host.set_hide_background_card(enabled),
         SlintAction::SetReleaseUiWhenBackground(enabled) => {
             host.set_release_ui_when_background(enabled)
         }
         SlintAction::SetShowTrafficNotification(enabled) => {
             host.set_show_traffic_notification(enabled)
         }
-        SlintAction::CacheBackPreview => {
-            host.cache_back_preview()
-        }
-        SlintAction::CommitBackPreview => {
-            host.commit_back_preview()
-        }
-        SlintAction::Command(_) | SlintAction::Sequence(_) | SlintAction::SetAutostart(_) => {
-            Err(Failure::unsupported("Unhandled action in execute_slint_age_action"))
-        }
+        SlintAction::CacheBackPreview => host.cache_back_preview(),
+        SlintAction::CommitBackPreview => host.commit_back_preview(),
+        SlintAction::Command(_) | SlintAction::Sequence(_) | SlintAction::SetAutostart(_) => Err(
+            Failure::unsupported("Unhandled action in execute_slint_age_action"),
+        ),
     }
 }
 
@@ -289,7 +289,9 @@ fn mutate_age_credential(
 
     let (current, selection) = match readback {
         ProfileAgeCredentialOwnerReadback::Read(outcome) => match outcome {
-            ProfileAgeCredentialReadOutcome::Observed { current, selection } => (current, selection),
+            ProfileAgeCredentialReadOutcome::Observed { current, selection } => {
+                (current, selection)
+            }
             ProfileAgeCredentialReadOutcome::StaleSelection { .. } => {
                 return Err(Failure::new(
                     ErrorCode::NotReady,

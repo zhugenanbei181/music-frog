@@ -5,8 +5,6 @@
 //! command (`LoadProfileOptions`, `SaveMixinOverlay`, `SaveSubscriptionFilter`)
 //! and every rendered fact is restamped from the shared projection.
 
-use infiltrator_contract::yaml_snippets::column_of_byte_offset;
-use infiltrator_presentation::profile_edit_session::ProfileEditReadTarget;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::pages::profiles::{
@@ -56,6 +54,8 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_contract::yaml_snippets::column_of_byte_offset;
+use infiltrator_presentation::profile_edit_session::ProfileEditReadTarget;
 
 /// Toggle each pane area to the active pane and restamp the switcher chips.
 pub fn sync_profile_editor_pane_areas(
@@ -157,10 +157,10 @@ pub fn sync_profile_editor_panes(
             &snapshot.filter,
         );
     }
-    options.mixin.session.observe_read_status(
-        &projection.editor_read,
-        ProfileEditReadTarget::Options,
-    );
+    options
+        .mixin
+        .session
+        .observe_read_status(&projection.editor_read, ProfileEditReadTarget::Options);
     // The pane may have been opened before the document (and therefore the
     // sidecar profile) was known; ask the shared application once it is, so an
     // open pane never sits blank until the user clicks reload.
@@ -343,10 +343,7 @@ pub fn on_mixin_editor_snippet_activated(
             .cursor_row
             .min(options.mixin.buffer.line_count() - 1);
         let line_text = options.mixin.buffer.lines[caret_line].as_str();
-        let caret_column = column_of_byte_offset(
-            line_text,
-            options.mixin.buffer.cursor_col,
-        );
+        let caret_column = column_of_byte_offset(line_text, options.mixin.buffer.cursor_col);
         match handle.insert_profile_snippet(
             &source.document,
             &content,

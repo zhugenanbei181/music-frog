@@ -291,11 +291,7 @@ impl SubscriptionRefreshApplication {
             {
                 Ok(report) => return Ok(report),
                 Err(failure)
-                    if failure.retryable
-                        && matches!(
-                            &failure.code,
-                            ErrorCode::Network
-                        ) =>
+                    if failure.retryable && matches!(&failure.code, ErrorCode::Network) =>
                 {
                     match self.policy.delay_for_attempt(attempt) {
                         Some(delay) if !delay.is_zero() => self.runtime.sleep(delay).await,

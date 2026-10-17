@@ -1,12 +1,8 @@
 //! test-intent: behavior
 //! Actual SDK controls share source-qualified statistics and transactional cleanup.
+use crate::command_harness::recording_application;
 use crate::configuration_codec::mihomo_configuration;
 use crate::configuration_codec::mihomo_rule_trace_fixture;
-use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
-use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
-use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
-use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
-use crate::command_harness::recording_application;
 use crate::native_input::{click_entity, press, type_text};
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::a11y::AccessibilityNode;
@@ -35,13 +31,17 @@ use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
+use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
+use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use std::mem::discriminant;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;
@@ -59,21 +59,17 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
             .unwrap()
             .block_on(store.load_rule_workspace())
             .unwrap();
-        let (scope, observed_workspace, request) =
-            scoped_rule_trace_request(
-                RuleTraceRequest {
-                    query: "special.com".into(),
-                    context: TrafficContextSnapshot {
-                        src_ip: Some("192.0.2.1".into()),
-                        ..Default::default()
-                    },
+        let (scope, observed_workspace, request) = scoped_rule_trace_request(
+            RuleTraceRequest {
+                query: "special.com".into(),
+                context: TrafficContextSnapshot {
+                    src_ip: Some("192.0.2.1".into()),
+                    ..Default::default()
                 },
-                workspace.profile_identity,
-            );
-        let outbound_observation =
-            unknown_rule_trace_observation(
-                scope.clone(),
-            );
+            },
+            workspace.profile_identity,
+        );
+        let outbound_observation = unknown_rule_trace_observation(scope.clone());
         Builder::new_current_thread()
             .enable_all()
             .build()
@@ -83,9 +79,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
                 &observed_workspace,
                 RuleTraceOperationId(1),
                 request,
-                &RuleTraceOutboundFacts::observed(
-                    outbound_observation.clone(),
-                ),
+                &RuleTraceOutboundFacts::observed(outbound_observation.clone()),
             ))
             .unwrap();
     }
@@ -100,9 +94,7 @@ fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner)
-    .with_configuration(mihomo_configuration(
-        store.clone(),
-    ));
+    .with_configuration(mihomo_configuration(store.clone()));
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((

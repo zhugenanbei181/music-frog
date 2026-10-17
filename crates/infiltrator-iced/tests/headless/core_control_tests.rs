@@ -1,5 +1,4 @@
 //! test-intent: behavior
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use crate::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, install_lifecycle_test_capabilities,
 };
@@ -11,6 +10,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::core_control::{CoreControlAction, CoreControlLabel};
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_iced::state::AppState;
@@ -39,10 +39,7 @@ impl CoreProcess for Process {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.deny_start.load(Ordering::SeqCst) {
             return Err(PortError::PermissionDenied(

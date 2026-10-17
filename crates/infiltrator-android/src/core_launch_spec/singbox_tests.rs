@@ -1,16 +1,14 @@
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::profile_document_identity::ProfileDocument;
-use std::str::from_utf8;
 use super::AndroidSingBoxProfileLaunchSpecProvider;
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::core_launch::{
     AndroidCoreBinaryTarget, CoreLaunchArguments, CoreLaunchBinary,
 };
-use tokio::fs;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::profile_document_identity::ProfileDocument;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::{
@@ -25,8 +23,10 @@ use mihomo_config::manager::ConfigManager;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::path::{Path, PathBuf};
+use std::str::from_utf8;
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
+use tokio::fs;
 
 const VALID_PROFILE: &[u8] = br#"{
   "experimental": { "clash_api": { "external_controller": "127.0.0.1:9090" } },

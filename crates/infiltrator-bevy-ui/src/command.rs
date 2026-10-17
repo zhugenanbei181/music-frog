@@ -5,7 +5,6 @@
 //! reconnects, clears) dispatch through typed commands into a centralized
 //! command sink handle. No direct blocking calls in UI systems.
 
-use infiltrator_contract::speedtest::SpeedtestRunId;
 use crate::command_events::CommandExecutedEvent;
 use crate::command_execution::drain_command_results;
 use bevy::app::{App, Plugin, Update};
@@ -55,6 +54,7 @@ use infiltrator_contract::rule_tracer::TracerRuleOverride;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportIdentity};
 use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
+use infiltrator_contract::speedtest::SpeedtestRunId;
 use infiltrator_contract::speedtest::{SpeedtestConcurrency, SpeedtestTarget};
 use infiltrator_contract::subscription_import::{
     SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,

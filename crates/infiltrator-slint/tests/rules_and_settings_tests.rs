@@ -53,7 +53,10 @@ fn test_theme_mode_whitelist() {
     }
 
     let invalid_mode = "neon";
-    let is_valid = matches!(invalid_mode, "system" | "light" | "dark" | "forest" | "amoled");
+    let is_valid = matches!(
+        invalid_mode,
+        "system" | "light" | "dark" | "forest" | "amoled"
+    );
     assert!(!is_valid);
 }
 

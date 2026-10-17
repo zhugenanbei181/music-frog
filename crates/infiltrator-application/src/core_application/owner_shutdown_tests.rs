@@ -1,7 +1,5 @@
-use crate::core_application::CoreApplication;
-use std::future::pending;
-use std::mem;
 use super::*;
+use crate::core_application::CoreApplication;
 use crate::core_application::ReadinessPolicy;
 use crate::core_owner_shutdown_application::CoreOwnerShutdownApplication;
 use crate::vpn_application::VpnServiceApplication;
@@ -18,6 +16,8 @@ use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
 use std::collections::VecDeque;
+use std::future::pending;
+use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
@@ -44,10 +44,7 @@ impl CoreProcess for ShutdownProcess {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         self.events.lock().expect("event lock").push("core.start");
         *self.state.lock().expect("process state lock") = CoreLifecycle::Running;
         Ok(())

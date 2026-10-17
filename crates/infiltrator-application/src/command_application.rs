@@ -409,15 +409,13 @@ impl CommandApplication {
             "notifications_enabled"
             | "close_to_tray"
             | "refresh_current_profile_on_start"
-            | "refresh_profile_on_start" => {
-                Some(value.parse::<bool>().map_err(|_| {
-                    Failure::new(
-                        ErrorCode::InvalidInput,
-                        format!("invalid boolean {value}"),
-                        false,
-                    )
-                })?)
-            }
+            | "refresh_profile_on_start" => Some(value.parse::<bool>().map_err(|_| {
+                Failure::new(
+                    ErrorCode::InvalidInput,
+                    format!("invalid boolean {value}"),
+                    false,
+                )
+            })?),
             _ => None,
         };
         let custom_color = if key == "custom_accent_color" {

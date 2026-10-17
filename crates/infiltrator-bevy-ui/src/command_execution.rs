@@ -22,13 +22,13 @@ use infiltrator_contract::profile_document::DocumentInspection;
 #[cfg(feature = "capture-tools")]
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 #[cfg(feature = "capture-tools")]
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-#[cfg(feature = "capture-tools")]
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
 #[cfg(feature = "capture-tools")]
 use infiltrator_ports::core_scope::CoreScopeObservation;
+#[cfg(feature = "capture-tools")]
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 #[cfg(feature = "capture-tools")]
 use std::collections::HashMap;
 use std::mem;
@@ -211,8 +211,7 @@ impl UiCommandSink for ApplicationCommandSink {
         snippet_id: &str,
         line: usize,
         column: usize,
-    ) -> Result<ProfileDocumentSnippetOutcome, Failure>
-    {
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
         self.application
             .insert_profile_snippet(identity, content, snippet_id, line, column)
     }

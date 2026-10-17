@@ -2,9 +2,8 @@
 
 use crate::active_owner_lease::ActiveCoreOwnerLease;
 use crate::active_owner_registry::{
-    LocalOwnerRegistrationState, LocalSwitchRegistrationRecovery,
-    local_owner_registration_matches, local_owner_registration_state,
-    lock_local_owner_registry, remove_local_owner_registration,
+    LocalOwnerRegistrationState, LocalSwitchRegistrationRecovery, local_owner_registration_matches,
+    local_owner_registration_state, lock_local_owner_registry, remove_local_owner_registration,
 };
 use crate::active_reference_file::ActiveProfileReferenceFile;
 use crate::active_reference_owner::{
@@ -129,7 +128,6 @@ pub fn recover_local_switch_registration(
     let mut registrations = lock_local_owner_registry()?;
     Ok(registrations.recover_switch(config_root, token, transition_id, identity, generation))
 }
-
 
 #[path = "active_owner_switch/switch_lease.rs"]
 mod switch_lease;

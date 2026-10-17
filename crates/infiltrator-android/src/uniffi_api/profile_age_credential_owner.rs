@@ -1,12 +1,5 @@
 //! Typed Android owner routing for one-shot Age credential operations.
 
-use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
-use infiltrator_contract::android_control::AndroidHostProcessRole;
-use infiltrator_contract::profile_age_credential::ProfileAgeCredentialReadOutcome;
-use std::mem;
-use std::ptr::write_volatile;
-use std::sync::atomic::Ordering;
-use std::sync::atomic::compiler_fence;
 use super::control::android_core_lifecycle_status;
 use super::owner_operation::AndroidOwnerOperationContext;
 use super::profiles::build_profile_application;
@@ -19,7 +12,10 @@ use crate::uniffi_api::owner_operation::{
     OwnerDataRevisionFenceAcquire, advance_owner_data_revision, android_owner_data_revision,
     owner_data_revision_fence, try_owner_data_revision_fence,
 };
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
+use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::profile_age_credential::ProfileAgeCredentialReadOutcome;
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeCredentialMutation, ProfileAgeCredentialOwnerMetadata,
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
@@ -29,6 +25,10 @@ use infiltrator_contract::profile_age_credential::{
 use infiltrator_platform::android_bridge::get_android_bridge;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use serde::{Deserialize, Serialize};
+use std::mem;
+use std::ptr::write_volatile;
+use std::sync::atomic::Ordering;
+use std::sync::atomic::compiler_fence;
 
 pub(crate) const PROFILE_AGE_CREDENTIAL_OWNER_PROTOCOL_V2: u8 = 2;
 
@@ -354,9 +354,7 @@ async fn dispatch_owner_request(
             android_owner_data_revision(),
         );
     };
-    if bridge.process_role()
-        != AndroidHostProcessRole::CoreOwner
-    {
+    if bridge.process_role() != AndroidHostProcessRole::CoreOwner {
         return rejected_result(
             AndroidOwnerOperationIpcState::Failed,
             FfiStatus::err(
@@ -401,9 +399,7 @@ async fn dispatch_owner_request(
             }
         },
     };
-    let observed_generation = android_core_lifecycle_status()
-        .await
-        .generation;
+    let observed_generation = android_core_lifecycle_status().await.generation;
     let observed_revision = android_owner_data_revision();
     if context.expected_core_generation != observed_generation
         || context.expected_data_revision != observed_revision
@@ -432,7 +428,10 @@ async fn dispatch_owner_request(
         ) => {
             return rejected_result(
                 AndroidOwnerOperationIpcState::VpnConfigurationBusy,
-                FfiStatus::err(FfiErrorCode::NotReady, "VPN configuration activation holds the owner-data revision fence"),
+                FfiStatus::err(
+                    FfiErrorCode::NotReady,
+                    "VPN configuration activation holds the owner-data revision fence",
+                ),
                 Some(metadata),
                 observed_generation,
                 observed_revision,
@@ -586,18 +585,14 @@ pub async fn execute_profile_age_credential_owner_submission(
             .execute_profile_age_credential_owner_operation(submission)
             .await
             .map_err(|error| FfiStatus::err(FfiErrorCode::NotReady, error.to_string())),
-        AndroidHostProcessRole::CoreOwner => {
-            Err(FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "Core owner submissions must enter through the fenced owner dispatcher",
-            ))
-        }
-        AndroidHostProcessRole::Unsupported => {
-            Err(FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "Android Age credential operations are unavailable in this process",
-            ))
-        }
+        AndroidHostProcessRole::CoreOwner => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Core owner submissions must enter through the fenced owner dispatcher",
+        )),
+        AndroidHostProcessRole::Unsupported => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android Age credential operations are unavailable in this process",
+        )),
     }
 }
 

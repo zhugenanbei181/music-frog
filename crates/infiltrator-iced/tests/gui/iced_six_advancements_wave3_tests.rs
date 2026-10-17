@@ -4,9 +4,6 @@
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
-use infiltrator_contract::speedtest::SpeedtestConcurrency;
-use infiltrator_contract::speedtest::SpeedtestStartReceipt;
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::editor::GeoDataUpdatePhase;
@@ -15,10 +12,13 @@ use crate::view::speedtest_modal::speedtest_card;
 use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::error::Failure;
+use infiltrator_contract::speedtest::SpeedtestConcurrency;
+use infiltrator_contract::speedtest::SpeedtestStartReceipt;
 use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::speedtest_summary_projection::history_lines;
 use infiltrator_shared::locales::Lang;
 use std::fs::read;
@@ -70,9 +70,10 @@ fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
 fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     let (mut state, _) = AppState::new();
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe_readback(
-        RuleListReadback::Observed(document),
-    );
+    state
+        .editor
+        .rule_list
+        .observe_readback(RuleListReadback::Observed(document));
 
     // Default draft state: the shared builder seeds the shared default target.
     assert_eq!(state.editor.subrule_draft.operator, "AND");

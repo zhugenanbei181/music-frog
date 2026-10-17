@@ -1,14 +1,11 @@
 //! Engine selection for product composition roots.
 
+use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::core_process::CoreReadiness;
-use infiltrator_ports::outbound::OutboundPort;
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
-use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
-use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
@@ -16,10 +13,13 @@ use infiltrator_ports::engine_backend_factory::{
     EngineBackendProviderAvailability, EngineOperationPort, EngineOperationPorts,
 };
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::routing_intent::RoutingIntentPort;
 use singbox_api::clash_api::SingBoxClashApiClient;
 use singbox_api::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
@@ -132,20 +132,18 @@ impl SingBoxEngineBackendProvider {
     ) -> Result<Self, PortError> {
         let engine_id = EngineId::sing_box();
         let operation_gate = Arc::new(SingBoxCoreOperationGate::new());
-        let process: Arc<dyn CoreProcess> =
-            Arc::new(SingBoxProcess::new_with_operation_gate(
-                binary_path.clone(),
-                config_path.clone(),
-                instance_id,
-                controller.address(),
-                Arc::clone(&command),
-                Arc::clone(&operation_gate),
-            )?);
+        let process: Arc<dyn CoreProcess> = Arc::new(SingBoxProcess::new_with_operation_gate(
+            binary_path.clone(),
+            config_path.clone(),
+            instance_id,
+            controller.address(),
+            Arc::clone(&command),
+            Arc::clone(&operation_gate),
+        )?);
         let api = SingBoxClashApiClient::new(controller.clone(), Arc::clone(&http))?;
         let readiness: Arc<dyn CoreReadiness> =
             Arc::new(SingBoxControllerReadiness::new(controller, http)?);
-        let codec: Arc<dyn ProfileDocumentCodecPort> =
-            Arc::new(SingBoxProfileDocumentCodec);
+        let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
         ));
@@ -155,9 +153,10 @@ impl SingBoxEngineBackendProvider {
             command,
         ));
         let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(engine_id.clone()));
-        let outbound: Arc<dyn OutboundPort> = Arc::new(
-            SingBoxOutboundAdapter::new(api.clone(), owner_scope.clone()),
-        );
+        let outbound: Arc<dyn OutboundPort> = Arc::new(SingBoxOutboundAdapter::new(
+            api.clone(),
+            owner_scope.clone(),
+        ));
         let routing_intent: Arc<dyn RoutingIntentPort> =
             Arc::new(SingBoxRoutingIntentAdapter::new(api, owner_scope.clone()));
         let operations = EngineOperationPorts::available(

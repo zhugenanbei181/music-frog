@@ -1,4 +1,3 @@
-use infiltrator_ports::core_process::CoreProcessStartAdmission;
 use self::execution::closed_failure;
 use crate::command_application::handler::CommandHandler;
 use crate::command_capability::validate_terminal_scope;
@@ -16,17 +15,16 @@ use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::core_identity::{
     CoreCommandOutcome, CoreCommandRequest, CoreGeneration, CoreIdentity, CoreScope,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::snapshot::{
-    CoreEvent, CoreLifecycle, CoreSnapshot,
-};
+use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::speedtest::{SpeedtestRunId, SpeedtestSnapshot};
 use infiltrator_domain::core_state;
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::core_process::CoreProcessStartAdmission;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
@@ -796,10 +794,8 @@ impl ScopedCoreCommandClient {
     }
 }
 
-
 #[path = "core_application/editor.rs"]
 mod editor;
-
 
 #[path = "core_application/lifecycle_port.rs"]
 mod lifecycle_port;
@@ -845,7 +841,6 @@ pub(crate) fn test_dispatch_at_current_scope(
 ) -> (RequestId, Receiver<CoreCommandOutcome>) {
     application.dispatch_scoped_tracked(test_request_at_current_scope(application, intent))
 }
-
 
 #[path = "core_telemetry.rs"]
 mod telemetry;

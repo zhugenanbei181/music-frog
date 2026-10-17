@@ -5,7 +5,6 @@
 //! turns their results into the one contract read model consumed by Iced and
 //! Bevy.
 
-use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_application::active_exit_application::ActiveExitApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::connection_rate_application::{
@@ -68,6 +67,7 @@ use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     SelectionAvailability,
@@ -443,7 +443,10 @@ impl SurfaceReader for ProductSurfaceReader {
                 None => (Vec::new(), false),
             };
             let named_overrides = match &self.profiles {
-                Some(profiles) => profiles.load_named_override_catalog().await.unwrap_or_default(),
+                Some(profiles) => profiles
+                    .load_named_override_catalog()
+                    .await
+                    .unwrap_or_default(),
                 None => NamedOverrideCatalog::default(),
             };
             pages.profiles = match profile_result {

@@ -16,10 +16,10 @@
 
 #[path = "profiles_editor_query_access.rs"]
 pub mod query_access;
+use self::query_access::EditorVisualTargets;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::DocumentInspectionUnavailableReason;
 use infiltrator_contract::yaml_snippets::column_of_byte_offset;
-use self::query_access::EditorVisualTargets;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::profiles::{
@@ -494,9 +494,7 @@ pub fn refresh_profile_editor_body(
                     },
                 )
             }),
-        _ => DocumentInspection::Unavailable(
-            DocumentInspectionUnavailableReason::CodecMissing,
-        ),
+        _ => DocumentInspection::Unavailable(DocumentInspectionUnavailableReason::CodecMissing),
     };
     state.record_profile_inspection(inspection);
     for entity in &bodies {
@@ -677,10 +675,7 @@ pub fn on_profile_editor_snippet_activated(
         let content = state.buffer.full_text();
         let caret_line = state.buffer.cursor_row.min(state.buffer.line_count() - 1);
         let line_text = state.buffer.lines[caret_line].as_str();
-        let caret_column = column_of_byte_offset(
-            line_text,
-            state.buffer.cursor_col,
-        );
+        let caret_column = column_of_byte_offset(line_text, state.buffer.cursor_col);
         match handle.insert_profile_snippet(
             &source.document,
             &content,

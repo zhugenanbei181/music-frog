@@ -153,9 +153,7 @@ async fn shared_workspace_publication_rejects_stale_identity_without_writes() {
         .unwrap_err();
     drop(guard);
 
-    assert!(
-        matches!(error, PortError::Rejected(failure) if failure.code == ErrorCode::NotReady)
-    );
+    assert!(matches!(error, PortError::Rejected(failure) if failure.code == ErrorCode::NotReady));
     let observed = store.read_profile_workspace(&profile).await.unwrap();
     assert_eq!(observed.document.raw_bytes, br#"{"revision":2}"#);
     assert_eq!(

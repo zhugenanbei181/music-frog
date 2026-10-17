@@ -89,13 +89,11 @@ impl LocalOwnerRegistryGuard<'_> {
         guard: ThreadedInstanceLockGuard,
     ) -> Result<(), PortError> {
         if self.registrations.contains_key(&config_root) {
-            return Err(PortError::Rejected(
-                Failure::new(
-                    ErrorCode::NotReady,
-                    "this process already has an active Core owner registration",
-                    true,
-                ),
-            ));
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "this process already has an active Core owner registration",
+                true,
+            )));
         }
         self.registrations.insert(
             config_root,
@@ -248,13 +246,11 @@ impl LocalOwnerRegistryGuard<'_> {
                 self.registrations.remove(config_root);
                 Ok(())
             }
-            Some(_) | None => Err(PortError::Rejected(
-                Failure::new(
-                    ErrorCode::NotReady,
-                    "active Core owner lease is stale or no longer registered",
-                    true,
-                ),
-            )),
+            Some(_) | None => Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active Core owner lease is stale or no longer registered",
+                true,
+            ))),
         }
     }
 
@@ -303,11 +299,7 @@ impl LocalOwnerRegistryGuard<'_> {
 }
 
 fn stale_registration(message: &str) -> PortError {
-    PortError::Rejected(Failure::new(
-        ErrorCode::NotReady,
-        message,
-        true,
-    ))
+    PortError::Rejected(Failure::new(ErrorCode::NotReady, message, true))
 }
 
 pub fn local_owner_registration_matches(

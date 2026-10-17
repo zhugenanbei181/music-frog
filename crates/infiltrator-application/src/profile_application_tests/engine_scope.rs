@@ -1,18 +1,18 @@
 //! Foreign requests fail before adapter reads; malformed adapter receipts are detected after return.
-use crate::core_capability_test_support::core_scope;
-use infiltrator_contract::active_profile_reference::ActiveProfileReference;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::profile_document_identity::ProfileSidecarRevision;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use super::*;
+use crate::core_capability_test_support::core_scope;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::ActiveProfileReference;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::profile_document_identity::ProfileSidecarRevision;
 use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -60,12 +60,7 @@ impl ActiveProfileReferenceApplier for NoCallRuntime {
     fn core_lifecycle(&self) -> CoreLifecycle {
         self.unexpected()
     }
-    fn write_authorization(
-        &self,
-    ) -> Result<
-        ActiveProfileReferenceWriteAuthorization,
-        PortError,
-    > {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         self.unexpected()
     }
     async fn apply_active_profile_workspace(
@@ -195,10 +190,7 @@ async fn options_codec_rejects_foreign_document_format_and_schema_before_fake_co
             identity
         },
     ] {
-        let expected = ProfileWorkspaceIdentity::new(
-            foreign,
-            ProfileSidecarRevision::Absent,
-        );
+        let expected = ProfileWorkspaceIdentity::new(foreign, ProfileSidecarRevision::Absent);
         let mixin_failure = options
             .save_mixin(
                 ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,

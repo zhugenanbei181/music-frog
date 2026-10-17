@@ -1,6 +1,6 @@
+use super::*;
 use crate::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
-use super::*;
 
 #[tokio::test]
 async fn provider_prepared_from_another_document_fails_before_old_owner_close() {
@@ -697,8 +697,7 @@ fn registry_registration_probe_does_not_dispatch_a_provider() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let (provider, counts) = FakeProvider::new("mihomo", "mihomo-instance", events);
     let provider: Arc<dyn EngineBackendProvider> = Arc::new(provider);
-    let registry =
-        EngineBackendFactoryRegistry::new([provider]).unwrap();
+    let registry = EngineBackendFactoryRegistry::new([provider]).unwrap();
     let factory: &dyn EngineBackendFactory = &registry;
 
     assert_eq!(

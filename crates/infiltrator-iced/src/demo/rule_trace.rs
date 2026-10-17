@@ -1,7 +1,4 @@
 //! Capture executes the same shared tracer command and reader as the interactive product.
-use infiltrator_composition::mihomo_configuration::for_mihomo_store;
-use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -13,6 +10,9 @@ use iced::widget::scrollable::RelativeOffset;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
+use infiltrator_composition::mihomo_configuration::for_mihomo_store;
+use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
@@ -43,12 +43,8 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
             HostKind::Desktop,
         )
         .with_rule_tracer(owner)
-        .with_profiles(
-            profiles_for_mihomo(port.clone()),
-        )
-        .with_configuration(
-            for_mihomo_store(port.clone()),
-        ),
+        .with_profiles(profiles_for_mihomo(port.clone()))
+        .with_configuration(for_mihomo_store(port.clone())),
     );
     attach_capture_owner(state, core);
     let _ = state.update(Message::SetRulesTab(RulesTab::Tracer));

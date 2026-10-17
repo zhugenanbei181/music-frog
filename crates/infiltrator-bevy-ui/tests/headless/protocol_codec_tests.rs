@@ -370,9 +370,8 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_bevy_surface() {
-    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(
-        profile_document_codec_fixture(),
-    );
+    let report =
+        ProtocolCodecMatrixApplication::run_deterministic_matrix(profile_document_codec_fixture());
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",

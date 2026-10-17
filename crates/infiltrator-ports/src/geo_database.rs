@@ -26,8 +26,8 @@ impl UnsupportedGeoDatabasePort {
 #[async_trait]
 impl GeoDatabasePort for UnsupportedGeoDatabasePort {
     async fn trigger(&self, _scope: CoreScope) -> Result<GeoDatabaseTriggerReceipt, PortError> {
-        Err(PortError::Rejected(
-            Failure::unsupported(self.reason.clone()),
-        ))
+        Err(PortError::Rejected(Failure::unsupported(
+            self.reason.clone(),
+        )))
     }
 }

@@ -69,10 +69,7 @@ impl DesktopRuleOverridePort {
         })?;
         let expected_reference =
             ProfileStore::read_active_profile_reference(self.config.engine_profile_store()).await?;
-        let ActiveProfileReferenceState::Selected(
-            expected_reference,
-        ) = expected_reference
-        else {
+        let ActiveProfileReferenceState::Selected(expected_reference) = expected_reference else {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "rule override requires a selected active profile",

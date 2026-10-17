@@ -63,10 +63,8 @@ async fn reset_profiles_with_default_builder(
     // no pending reset. A pending v2 intent already contains the exact bytes
     // needed for recovery and must not depend on port discovery succeeding.
     let default_config = build_default_config()?;
-    let expected = ProfileStore::read_active_profile_reference(
-        manager.engine_profile_store(),
-    )
-    .await?;
+    let expected =
+        ProfileStore::read_active_profile_reference(manager.engine_profile_store()).await?;
     let outcome = manager
         .reset_profiles_to_default(ActiveProfileReferenceResetRequest::Start {
             expected,
@@ -238,11 +236,9 @@ mod tests {
         assert!(!builder_called.load(Ordering::SeqCst));
         assert_eq!(read(previous_default_path).await.unwrap(), default_document);
         assert_eq!(
-            ProfileStore::read_active_profile_reference(
-                manager.engine_profile_store(),
-            )
-            .await
-            .unwrap(),
+            ProfileStore::read_active_profile_reference(manager.engine_profile_store(),)
+                .await
+                .unwrap(),
             current
         );
     }

@@ -58,16 +58,12 @@ pub(crate) async fn wait_child(mut child: Child) -> ExitStatus {
 pub(crate) fn identity(engine: &str, instance: &str) -> CoreIdentity {
     CoreIdentity::new(
         EngineId::new(engine).expect("valid engine id"),
-        CoreInstanceId::new(instance)
-            .expect("valid core instance id"),
+        CoreInstanceId::new(instance).expect("valid core instance id"),
         None,
     )
 }
 
-pub(crate) fn stopped_snapshot(
-    identity: CoreIdentity,
-    generation: u64,
-) -> CoreLifecycleSnapshot {
+pub(crate) fn stopped_snapshot(identity: CoreIdentity, generation: u64) -> CoreLifecycleSnapshot {
     CoreLifecycleSnapshot {
         identity: Some(identity),
         lifecycle: CoreLifecycle::Stopped,

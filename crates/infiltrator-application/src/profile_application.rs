@@ -4,8 +4,6 @@
 //! the boundary between a stored profile and a live Core owner. Concrete
 //! config managers and filesystem details stay in outbound adapters.
 
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_ports::error::PortError;
 use crate::profile_editor_observations::EditorObservations;
 use chrono::Utc;
 use futures_util::stream;
@@ -17,6 +15,7 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
@@ -37,6 +36,7 @@ use infiltrator_domain::subscription_scheduler_policy::{
     CronSchedule, FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
 };
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{

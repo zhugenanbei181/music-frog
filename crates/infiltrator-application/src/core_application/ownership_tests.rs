@@ -1,3 +1,8 @@
+use super::*;
+use crate::core_application::{
+    test_dispatch_at_current_scope, test_execute_result_at_current_scope,
+};
+use crate::core_capability_test_support::core_scope;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::core_process::CoreProcessStartContext;
@@ -6,11 +11,6 @@ use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::error::PortError;
 use tokio::sync::Notify;
-use super::*;
-use crate::core_application::{
-    test_dispatch_at_current_scope, test_execute_result_at_current_scope,
-};
-use crate::core_capability_test_support::core_scope;
 
 #[tokio::test]
 async fn core_scope_source_only_exposes_a_ready_or_running_owner_scope() {
@@ -70,10 +70,7 @@ struct MissingIdentityProcess;
 
 #[async_trait::async_trait]
 impl CoreProcess for MissingIdentityProcess {
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         Ok(())
     }
 
@@ -155,9 +152,7 @@ struct GatedOwnerLease {
 }
 
 #[async_trait::async_trait]
-impl ActiveProfileOwnerLease
-    for GatedOwnerLease
-{
+impl ActiveProfileOwnerLease for GatedOwnerLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
     }
@@ -197,9 +192,7 @@ impl ActiveProfileOwnerLease
 }
 
 #[async_trait::async_trait]
-impl ActiveProfileOwnerLease
-    for TestActiveOwnerLease
-{
+impl ActiveProfileOwnerLease for TestActiveOwnerLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
     }
@@ -502,7 +495,6 @@ async fn tracked_scoped_dispatch_rejects_old_scope_and_completes_current_scope()
     assert_eq!(current.scope, Some(current_scope));
     assert!(matches!(current.result, CommandResult::Completed { .. }));
 }
-
 
 #[path = "ownership_tests/lifecycle_cases.rs"]
 mod lifecycle_cases;

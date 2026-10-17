@@ -1,4 +1,3 @@
-use tokio::sync::OwnedMutexGuard;
 use super::FakeProfileStore;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -14,6 +13,7 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use tokio::sync::OwnedMutexGuard;
 
 pub(super) struct FakeActiveWorkspaceWriteLease<'a> {
     pub(super) store: &'a FakeProfileStore,

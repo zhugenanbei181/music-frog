@@ -15,20 +15,15 @@ use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
-#[cfg(target_os = "android")]
-use tokio::runtime;
-#[cfg(target_os = "android")]
-use tokio::sync::oneshot;
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::capability::Capability;
 #[cfg(any(target_os = "android", test))]
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::vpn::{
-    PreparedVpnConfiguration, VpnSessionSnapshot, VpnStartRequest,
-    VpnSurfaceObservation,
-};
 #[cfg(any(target_os = "android", test))]
 use infiltrator_contract::vpn::VpnSessionState;
+use infiltrator_contract::vpn::{
+    PreparedVpnConfiguration, VpnSessionSnapshot, VpnStartRequest, VpnSurfaceObservation,
+};
 #[cfg(target_os = "android")]
 use infiltrator_contract::vpn::{
     VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome, VpnStopTarget,
@@ -41,6 +36,10 @@ use std::sync::Arc;
 use std::thread::Builder;
 #[cfg(any(target_os = "android", test))]
 use std::time::Duration;
+#[cfg(target_os = "android")]
+use tokio::runtime;
+#[cfg(target_os = "android")]
+use tokio::sync::oneshot;
 #[cfg(any(target_os = "android", test))]
 pub(crate) mod worker;
 #[cfg(any(target_os = "android", test))]
@@ -68,10 +67,7 @@ fn run_tun2proxy_worker(
     stop_receiver: oneshot::Receiver<()>,
     receipt_sender: oneshot::Sender<WorkerStartReceipt>,
 ) -> i32 {
-    let runtime = match runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-    {
+    let runtime = match runtime::Builder::new_multi_thread().enable_all().build() {
         Ok(runtime) => runtime,
         Err(error) => {
             report_start_failure(
@@ -685,8 +681,9 @@ fn vpn_tunnel_start_gate(snapshot: &VpnOwnerSnapshot) -> VpnTunnelStartGate {
 #[cfg(any(target_os = "android", test))]
 fn vpn_session_projection(snapshot: &VpnOwnerSnapshot) -> VpnSessionSnapshot {
     let state = match (&snapshot.vpn_state, snapshot.readiness) {
-        (VpnOwnerLifecycle::PermissionRequired, _)
-        | (_, VpnOwnerReadiness::PermissionRequired) => VpnSessionState::PermissionRequired,
+        (VpnOwnerLifecycle::PermissionRequired, _) | (_, VpnOwnerReadiness::PermissionRequired) => {
+            VpnSessionState::PermissionRequired
+        }
         (VpnOwnerLifecycle::StartRequested, _)
         | (VpnOwnerLifecycle::Starting, _)
         | (VpnOwnerLifecycle::Foreground, _)
@@ -708,13 +705,9 @@ fn vpn_session_projection(snapshot: &VpnOwnerSnapshot) -> VpnSessionSnapshot {
                     .iter()
                     .find_map(|resource| match &resource.state {
                         VpnOwnerResourceState::CleanupPending {
-                            failure_message,
-                            ..
+                            failure_message, ..
                         } => Some(failure_message.clone()),
-                        VpnOwnerResourceState::Absent
-                        | VpnOwnerResourceState::Held {
-                            ..
-                        } => None,
+                        VpnOwnerResourceState::Absent | VpnOwnerResourceState::Held { .. } => None,
                     })
                     .unwrap_or_else(|| "VPN owner cleanup is pending".to_owned()),
                 true,
@@ -723,11 +716,7 @@ fn vpn_session_projection(snapshot: &VpnOwnerSnapshot) -> VpnSessionSnapshot {
         (VpnOwnerLifecycle::Stopped, _) => VpnSessionState::Stopped,
         (VpnOwnerLifecycle::Revoked, _) => VpnSessionState::Revoked,
         (VpnOwnerLifecycle::Failed { failure_message }, _) => VpnSessionState::Failed {
-            failure: Failure::new(
-                ErrorCode::InvalidState,
-                failure_message.clone(),
-                true,
-            ),
+            failure: Failure::new(ErrorCode::InvalidState, failure_message.clone(), true),
         },
         (VpnOwnerLifecycle::Unavailable { failure_message }, _) => VpnSessionState::Unsupported {
             reason: failure_message.clone(),

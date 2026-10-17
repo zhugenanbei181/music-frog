@@ -4,19 +4,19 @@
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
-use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
-use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use crate::state::AppState;
 use crate::types::message::Message;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationTemplate,
 };
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
+use infiltrator_presentation::rule_list_editor::RuleListReadback;
 
 /// DUAL-14-08: the surface drives the shared cross-source probe through the
 /// host port and renders the shared report verbatim. No host runtime means no
@@ -369,9 +369,10 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
 fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
     let (mut state, _) = AppState::new();
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe_readback(
-        RuleListReadback::Observed(document),
-    );
+    state
+        .editor
+        .rule_list
+        .observe_readback(RuleListReadback::Observed(document));
 
     // Default grouping mode
     assert_eq!(

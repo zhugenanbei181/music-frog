@@ -129,17 +129,23 @@ fn set_current_profile_clears_active_selection_when_empty() {
     let host = Arc::new(CatalogTestHost::new());
     // Empty profile ID queues ClearActiveProfile intent
     let clear_intent = CommandIntent::ClearActiveProfile;
-    host.execute(None, SlintAction::Command(clear_intent.clone())).unwrap();
+    host.execute(None, SlintAction::Command(clear_intent.clone()))
+        .unwrap();
     assert_eq!(host.intents(), vec![CommandIntent::ClearActiveProfile]);
 
     // Non-empty profile ID queues SwitchProfile intent
-    let switch_intent = CommandIntent::SwitchProfile { profile_id: "beta".into() };
-    host.execute(None, SlintAction::Command(switch_intent)).unwrap();
+    let switch_intent = CommandIntent::SwitchProfile {
+        profile_id: "beta".into(),
+    };
+    host.execute(None, SlintAction::Command(switch_intent))
+        .unwrap();
     assert_eq!(
         host.intents(),
         vec![
             CommandIntent::ClearActiveProfile,
-            CommandIntent::SwitchProfile { profile_id: "beta".into() },
+            CommandIntent::SwitchProfile {
+                profile_id: "beta".into()
+            },
         ]
     );
 }
@@ -157,7 +163,13 @@ fn move_profile_reorders_and_swaps_adjacent_profiles() {
     up_order.swap(idx, idx - 1);
     assert_eq!(up_order, vec!["beta", "alpha", "gamma"]);
 
-    host.execute(None, SlintAction::Command(CommandIntent::ReorderProfiles { order: up_order.clone() })).unwrap();
+    host.execute(
+        None,
+        SlintAction::Command(CommandIntent::ReorderProfiles {
+            order: up_order.clone(),
+        }),
+    )
+    .unwrap();
     assert_eq!(
         host.intents(),
         vec![CommandIntent::ReorderProfiles { order: up_order }]
@@ -169,7 +181,13 @@ fn move_profile_reorders_and_swaps_adjacent_profiles() {
     down_order.swap(idx, idx + 1);
     assert_eq!(down_order, vec!["alpha", "gamma", "beta"]);
 
-    host.execute(None, SlintAction::Command(CommandIntent::ReorderProfiles { order: down_order.clone() })).unwrap();
+    host.execute(
+        None,
+        SlintAction::Command(CommandIntent::ReorderProfiles {
+            order: down_order.clone(),
+        }),
+    )
+    .unwrap();
     assert_eq!(host.intents().len(), 2);
 }
 
@@ -296,10 +314,7 @@ fn system_proxy_journal_recovery_intent_dispatch() {
     )
     .unwrap();
 
-    assert_eq!(
-        host.intents(),
-        vec![CommandIntent::RecoverSystemProxy]
-    );
+    assert_eq!(host.intents(), vec![CommandIntent::RecoverSystemProxy]);
 }
 
 #[test]
@@ -452,7 +467,8 @@ fn local_file_import_profile_and_override_dispatch_and_error_handling() {
     let action_missing = SlintAction::ImportOverrideFile {
         path: "/nonexistent/path/override.yaml".into(),
     };
-    let err_missing = execute_slint_age_action(host.as_ref(), Some(&snapshot), action_missing).unwrap_err();
+    let err_missing =
+        execute_slint_age_action(host.as_ref(), Some(&snapshot), action_missing).unwrap_err();
     assert_eq!(err_missing.code, ErrorCode::Storage);
     assert_eq!(host.intents().len(), 2); // No new intent
 
@@ -460,7 +476,8 @@ fn local_file_import_profile_and_override_dispatch_and_error_handling() {
     let action_empty = SlintAction::ImportOverrideFile {
         path: empty_file.to_string_lossy().to_string(),
     };
-    let err_empty = execute_slint_age_action(host.as_ref(), Some(&snapshot), action_empty).unwrap_err();
+    let err_empty =
+        execute_slint_age_action(host.as_ref(), Some(&snapshot), action_empty).unwrap_err();
     assert_eq!(err_empty.code, ErrorCode::InvalidInput);
     assert_eq!(host.intents().len(), 2); // No new intent
 }
@@ -476,8 +493,22 @@ fn export_profile_override_and_logs_writes_real_files_and_handles_failures() {
 
     // Populate overrides in snapshot
     let ov_id = NamedOverrideId::new("export-tweak").unwrap();
-    let ov = NamedOverride::new(ov_id.clone(), "Export Tweak", "mode: global\n", "2026-10-15").unwrap();
-    snapshot.pages.profiles.data.as_mut().unwrap().named_overrides.overrides.push(ov);
+    let ov = NamedOverride::new(
+        ov_id.clone(),
+        "Export Tweak",
+        "mode: global\n",
+        "2026-10-15",
+    )
+    .unwrap();
+    snapshot
+        .pages
+        .profiles
+        .data
+        .as_mut()
+        .unwrap()
+        .named_overrides
+        .overrides
+        .push(ov);
 
     // Populate logs in snapshot
     let log_page: LogsPageSnapshot = serde_json::from_value(json!({

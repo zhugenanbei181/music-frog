@@ -1,16 +1,16 @@
 //! Behavior cases for rules tracer.
 //! test-intent: behavior
 
-use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
-use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
-use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use super::*;
 use bevy::ecs::query::With;
 use infiltrator_bevy_ui::pages::rules_tabs::RulesTabChip;
 use infiltrator_bevy_ui::pages::rules_tracer_confirm::TraceConfirmationAction;
 use infiltrator_contract::rule_trace_facts::DecisionStageFacts;
+use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
+use infiltrator_test_support::rule_trace_fixtures::scoped_rule_trace_request;
+use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use tokio::runtime::Builder;
 
 /// The rules tab strip is the official headless TabList (norm ③): switching
@@ -261,18 +261,14 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
     let mut updated_rules = rules;
     updated_rules[41].rule = "DOMAIN-SUFFIX,github.com,REJECT".to_owned();
     let post_apply_workspace = tracer_test_workspace(&updated_rules);
-    let (scope, observed_workspace, trace_request) =
-        scoped_rule_trace_request(
-            RuleTraceRequest {
-                query: "github.com".into(),
-                context: TrafficContextSnapshot::default(),
-            },
-            post_apply_workspace.profile_identity,
-        );
-    let outbound_observation =
-        unknown_rule_trace_observation(
-            scope.clone(),
-        );
+    let (scope, observed_workspace, trace_request) = scoped_rule_trace_request(
+        RuleTraceRequest {
+            query: "github.com".into(),
+            context: TrafficContextSnapshot::default(),
+        },
+        post_apply_workspace.profile_identity,
+    );
+    let outbound_observation = unknown_rule_trace_observation(scope.clone());
     Builder::new_current_thread()
         .build()
         .expect("test runtime")
@@ -281,9 +277,7 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
             &observed_workspace,
             RuleTraceOperationId(1),
             trace_request,
-            &RuleTraceOutboundFacts::observed(
-                outbound_observation.clone(),
-            ),
+            &RuleTraceOutboundFacts::observed(outbound_observation.clone()),
         ))
         .expect("post-apply simulation");
     projection.tracer = application

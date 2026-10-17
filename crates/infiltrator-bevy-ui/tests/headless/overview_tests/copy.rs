@@ -34,7 +34,10 @@ fn locale_replays_nested_labels_values_and_accessibility_without_submitting() {
     let ids = overview_entity_ids(app.world_mut());
     let label = caption(&mut app, OverviewChipKind::Memory);
     assert_eq!(label.1, "Memory");
-    assert_eq!(line(app.world_mut(), OverviewLineKind::State).1, "Demo Mode");
+    assert_eq!(
+        line(app.world_mut(), OverviewLineKind::State).1,
+        "Demo Mode"
+    );
     assert_eq!(
         line(app.world_mut(), OverviewLineKind::RoutingIntentChip).1,
         "Follow rules"
@@ -69,7 +72,10 @@ fn locale_replays_nested_labels_values_and_accessibility_without_submitting() {
     app.insert_resource(UiLocale::new("en-US"));
     app.update();
     assert_eq!(caption(&mut app, OverviewChipKind::Memory), label);
-    assert_eq!(line(app.world_mut(), OverviewLineKind::State).1, "Demo Mode");
+    assert_eq!(
+        line(app.world_mut(), OverviewLineKind::State).1,
+        "Demo Mode"
+    );
     assert!(
         sink.submitted().is_empty(),
         "locale and native editing never submit a measurement"

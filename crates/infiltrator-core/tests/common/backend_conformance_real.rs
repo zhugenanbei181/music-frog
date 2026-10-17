@@ -1,4 +1,3 @@
-use super::backend_conformance_declarations;
 use super::backend_conformance::profile_support::{
     ConformanceLifecycleSession, ConformanceProfileStore,
 };
@@ -6,6 +5,7 @@ use super::backend_conformance::{
     BackendConformanceCase, BackendConformancePorts, DetailsBehavior, ProbeBehavior,
     RoutingBehavior, RunningProfileTransactionBehavior, run_backend_conformance,
 };
+use super::backend_conformance_declarations;
 use infiltrator_composition::engine_backend_factory::{
     EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
 };
@@ -404,7 +404,9 @@ rules:
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
-            return Err(format!("conformance profile selection stale: {expected:?} -> {observed:?}"));
+            return Err(format!(
+                "conformance profile selection stale: {expected:?} -> {observed:?}"
+            ));
         }
     }
     let profile_path = profile_store.config_dir().join("profile.yaml");
@@ -486,8 +488,7 @@ rules:
         probe_proxy.task.abort();
         return Err("could not install isolated Mihomo home override".to_owned());
     }
-    let declarations =
-        backend_conformance_declarations::declarations_for_engine(&case.engine);
+    let declarations = backend_conformance_declarations::declarations_for_engine(&case.engine);
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,
@@ -554,8 +555,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         }
     }))
     .map_err(|error| format!("serialize sing-box conformance profile: {error}"))?;
-    let engine = EngineId::new("sing-box")
-        .expect("static sing-box engine ID is valid");
+    let engine = EngineId::new("sing-box").expect("static sing-box engine ID is valid");
     let controller = SingBoxControllerConfiguration::from_profile_json(&valid_profile)
         .map_err(|error| format!("sing-box controller preflight rejected the fixture: {error}"))?;
     let case = BackendConformanceCase {
@@ -563,8 +563,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         expected_version,
         binary_target: EngineBinaryTarget::current(),
         adapter_revision: AdapterRevision::new(1),
-        declared_operations: backend_conformance_declarations::unsupported_engine_operations(
-        ),
+        declared_operations: backend_conformance_declarations::unsupported_engine_operations(),
         valid_profile,
         invalid_profile: b"{".to_vec(),
         native_invalid_profile:
@@ -645,8 +644,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         .routing_intent()
         .map_err(|error| format!("resolve production sing-box routing port: {error}"))?;
     let transaction = backend.configuration_transaction();
-    let declarations =
-        backend_conformance_declarations::declarations_for_engine(&case.engine);
+    let declarations = backend_conformance_declarations::declarations_for_engine(&case.engine);
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,

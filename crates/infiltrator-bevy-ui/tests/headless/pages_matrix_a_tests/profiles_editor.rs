@@ -1,8 +1,6 @@
 //! Behavior cases for profiles editor.
 //! test-intent: behavior
 
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use super::*;
 use crate::native_input::{click_entity, type_text};
 use bevy::ui::prelude::BackgroundColor;
@@ -19,6 +17,8 @@ use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, Profil
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, YAML_SNIPPETS, insert_at_caret};
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -314,17 +314,15 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
         },
     )
     .expect("snippet fixture");
-    sink.queue_profile_snippet(Ok(
-        ProfileDocumentSnippetOutcome::Inserted(
-            ProfileDocumentSnippetInsertion {
-                snippet_id: fixture_insertion.snippet_id.to_owned(),
-                content: fixture_insertion.content,
-                cursor_line: fixture_insertion.cursor_line,
-                cursor_column: fixture_insertion.cursor_column,
-                validation: DocumentValidation::Valid,
-            },
-        ),
-    ));
+    sink.queue_profile_snippet(Ok(ProfileDocumentSnippetOutcome::Inserted(
+        ProfileDocumentSnippetInsertion {
+            snippet_id: fixture_insertion.snippet_id.to_owned(),
+            content: fixture_insertion.content,
+            cursor_line: fixture_insertion.cursor_line,
+            cursor_column: fixture_insertion.cursor_column,
+            validation: DocumentValidation::Valid,
+        },
+    )));
     let button = snippet_button_entity(&mut app, 0);
     app.world_mut()
         .commands()
@@ -378,17 +376,15 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
         .buffer
         .full_text();
     let group = snippet_button_entity(&mut app, 4);
-    sink.queue_profile_snippet(Ok(
-        ProfileDocumentSnippetOutcome::Rejected {
-            validation: DocumentValidation::Invalid {
-                diagnostics: vec![DocumentDiagnosticSnapshot {
-                    line: Some(1),
-                    column: Some(7),
-                    message: "片段会使配置无效".into(),
-                }],
-            },
+    sink.queue_profile_snippet(Ok(ProfileDocumentSnippetOutcome::Rejected {
+        validation: DocumentValidation::Invalid {
+            diagnostics: vec![DocumentDiagnosticSnapshot {
+                line: Some(1),
+                column: Some(7),
+                message: "片段会使配置无效".into(),
+            }],
         },
-    ));
+    }));
     app.world_mut()
         .commands()
         .trigger(Activate { entity: group });

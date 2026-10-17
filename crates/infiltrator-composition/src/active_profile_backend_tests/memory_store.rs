@@ -1,6 +1,6 @@
-use tokio::sync;
-use ActiveProfileReferenceLease;
 use super::*;
+use ActiveProfileReferenceLease;
+use tokio::sync;
 
 pub(crate) struct MemoryReferenceStore {
     pub(crate) state: Arc<sync::Mutex<ActiveProfileReferenceState>>,
@@ -27,7 +27,10 @@ impl MemoryReferenceStore {
         }
     }
 
-    pub(crate) fn with_events(state: ActiveProfileReferenceState, events: Arc<Mutex<Vec<String>>>) -> Self {
+    pub(crate) fn with_events(
+        state: ActiveProfileReferenceState,
+        events: Arc<Mutex<Vec<String>>>,
+    ) -> Self {
         let mut store = Self::new(state);
         store.events = Some(events);
         store
@@ -154,10 +157,7 @@ impl ActiveProfileReferenceStore for MemoryReferenceStore {
 
     async fn acquire_selection_lease(
         &self,
-    ) -> Result<
-        Box<dyn ActiveProfileReferenceLease>,
-        PortError,
-    > {
+    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
         let state = Arc::clone(&self.state).lock_owned().await;
         if self.transition.lock().expect("switch state").is_some() {
             return Err(PortError::Rejected(Failure::new(
@@ -176,10 +176,7 @@ impl ActiveProfileReferenceStore for MemoryReferenceStore {
 
     async fn acquire_provider_selection_lease(
         &self,
-    ) -> Result<
-        Box<dyn ActiveProfileReferenceLease>,
-        PortError,
-    > {
+    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
         let state = Arc::clone(&self.state).lock_owned().await;
         if self.transition.lock().expect("switch state").is_some() {
             return Err(PortError::Rejected(Failure::new(
@@ -378,4 +375,3 @@ impl ActiveProfileReferenceStore for MemoryReferenceStore {
         }))
     }
 }
-

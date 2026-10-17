@@ -13,8 +13,8 @@ use infiltrator_contract::android_control::core_launch::{
 };
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
-    AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess,
-    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
+    AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, VpnOwnerCoreReadback,
+    VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_capabilities::{
@@ -22,6 +22,7 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::core_identity::{CoreGeneration, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 #[cfg(test)]
 use infiltrator_contract::mtu::MtuProbeState;
@@ -40,7 +41,6 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
 };
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_platform::android_bridge::AndroidBridgeResult;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcessStartAdmission, CoreReadiness};
@@ -146,7 +146,11 @@ impl AndroidBridge for TestBridge {
         }
     }
 
-    async fn credential_get(&self, service: &str, key: &str) -> AndroidBridgeResult<Option<String>> {
+    async fn credential_get(
+        &self,
+        service: &str,
+        key: &str,
+    ) -> AndroidBridgeResult<Option<String>> {
         Ok(self
             .store
             .lock()
@@ -154,7 +158,12 @@ impl AndroidBridge for TestBridge {
             .and_then(|g| g.get(&(service.to_string(), key.to_string())).cloned()))
     }
 
-    async fn credential_set(&self, service: &str, key: &str, value: &str) -> AndroidBridgeResult<()> {
+    async fn credential_set(
+        &self,
+        service: &str,
+        key: &str,
+        value: &str,
+    ) -> AndroidBridgeResult<()> {
         if let Ok(mut guard) = self.store.lock() {
             guard.insert((service.to_string(), key.to_string()), value.to_string());
         }

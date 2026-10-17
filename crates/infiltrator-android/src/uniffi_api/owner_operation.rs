@@ -54,9 +54,7 @@ use tokio::sync;
 pub mod version;
 #[path = "owner_operation/wire.rs"]
 pub mod wire;
-use version::{
-    AndroidCoreVersionManagementOperation, AndroidCoreVersionManagementReadback,
-};
+use version::{AndroidCoreVersionManagementOperation, AndroidCoreVersionManagementReadback};
 
 static OWNER_OPERATION_SERIALIZER: sync::Mutex<()> = sync::Mutex::const_new(());
 static APP_ROUTING_SERIALIZER: sync::Mutex<()> = sync::Mutex::const_new(());

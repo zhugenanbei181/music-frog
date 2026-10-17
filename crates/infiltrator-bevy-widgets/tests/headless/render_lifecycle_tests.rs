@@ -154,13 +154,7 @@ fn every_chart_repairs_missing_assets_even_without_changed_samples() {
         assert_eq!((image.width(), image.height()), (32, 24));
     }
     let repaired_ids = entities.map(|entity| image_handle(&app, entity).id());
-    assert_eq!(
-        repaired_ids
-            .into_iter()
-            .collect::<HashSet<_>>()
-            .len(),
-        4
-    );
+    assert_eq!(repaired_ids.into_iter().collect::<HashSet<_>>().len(), 4);
 }
 
 #[test]

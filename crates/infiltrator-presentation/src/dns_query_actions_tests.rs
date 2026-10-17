@@ -145,10 +145,7 @@ fn readback_before_receipt_is_retained_and_foreign_or_stale_snapshots_are_inert(
     model.observe(&matching);
     assert!(model.is_pending());
     assert!(model.finish(operation, Ok(())));
-    assert_eq!(
-        model.phase(),
-        &Observed { operation }
-    );
+    assert_eq!(model.phase(), &Observed { operation });
 
     let before = model.snapshot.clone();
     model.observe(&completed(DnsQueryOperationId(operation.0 + 1), 5));

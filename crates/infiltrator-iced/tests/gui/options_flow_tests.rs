@@ -5,8 +5,6 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 use crate::configs_dir::config_manager;
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use crate::state::AppState;
 use crate::test_mounts::command_harness::attach_product_application_with_accepted_owner_snapshot;
 use crate::test_mounts::identified_core_application::identified_core_application;
@@ -16,12 +14,14 @@ use crate::types::message::Message;
 use crate::types::options::{EditorPane, MrsProviderDetail, SyncDiffBundle, SyncDiffState};
 use iced::widget::text_editor;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::mihomo_configuration::save_profile_options_fixture;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::mrs::parse_mrs_header;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};

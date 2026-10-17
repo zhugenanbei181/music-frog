@@ -301,4 +301,3 @@ pub(super) fn readback_matches_snapshot(
         _ => false,
     }
 }
-

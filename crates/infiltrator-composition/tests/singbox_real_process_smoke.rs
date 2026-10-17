@@ -1,10 +1,9 @@
 //! test-intent: real_process
 
-use tokio::process::Command;
-use tokio::time::timeout;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::outbound::inventory::{
     OutboundInventoryState, OutboundSelectionState, SelectionAvailability,
@@ -13,7 +12,6 @@ use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
@@ -34,6 +32,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
+use tokio::process::Command;
+use tokio::time::timeout;
 
 fn required_environment(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("{name} must be set by the explicit sing-box smoke"))

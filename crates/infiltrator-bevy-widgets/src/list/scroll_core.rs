@@ -258,7 +258,10 @@ impl VirtualEntityPool {
 
     /// Number of currently active bound slots.
     pub fn active_count(&self) -> usize {
-        self.slots.iter().filter(|(_, _, active, _)| *active).count()
+        self.slots
+            .iter()
+            .filter(|(_, _, active, _)| *active)
+            .count()
     }
 
     /// Return the bound item index and generation of a slot by its slot_idx.
@@ -270,7 +273,9 @@ impl VirtualEntityPool {
 
     /// Return the current generation of a slot.
     pub fn generation(&self, slot_idx: usize) -> Option<u64> {
-        self.slots.get(slot_idx).map(|(_, _, _, generation)| *generation)
+        self.slots
+            .get(slot_idx)
+            .map(|(_, _, _, generation)| *generation)
     }
 
     /// Whether a queued click / late receipt for `(slot_idx, expected_item_idx, expected_generation)` is valid.

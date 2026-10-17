@@ -8,7 +8,6 @@
 //! protects the live core, so a file changed after the diff was computed can
 //! only fail loudly, never silently corrupt.
 
-use crate::update::core::profile_apply::runtime_access;
 use super::sync::sync_application;
 use crate::configs_dir::{config_manager, configs_dir};
 use crate::state::AppState;
@@ -16,6 +15,7 @@ use crate::state::profiles::{SyncDiffApplyPhase, SyncDiffLoadPhase};
 use crate::types::app::{SyncConflict, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
+use crate::update::core::profile_apply::runtime_access;
 use crate::update::core::profile_apply::save_profile_content;
 use iced::Task;
 use infiltrator_contract::error::{InfiltratorError, from_backend};

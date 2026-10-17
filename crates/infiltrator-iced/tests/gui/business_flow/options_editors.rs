@@ -4,8 +4,6 @@
 //! async legs, verified against the temp-HOME filesystem.
 //!
 //! test-intent: behavior
-use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
 };
@@ -15,6 +13,8 @@ use crate::test_mounts::script_workbench_tests::complete;
 use crate::types::script::ScriptAction;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 
 use super::support::{SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast};
 use crate::configs_dir::config_manager;
@@ -59,8 +59,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let mut state = fresh_state();
 
     let store = block_on(config_manager()).unwrap();
-    let profiles =
-        profiles_for_mihomo(store.clone());
+    let profiles = profiles_for_mihomo(store.clone());
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([
@@ -179,11 +178,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
             CoreOperation::Profile(ProfileOperation::ApplyFeature),
             CoreOperation::Profile(ProfileOperation::Validate),
         ])
-        .with_profile(
-            profiles_for_mihomo(
-                block_on(config_manager()).unwrap(),
-            ),
-        ),
+        .with_profile(profiles_for_mihomo(block_on(config_manager()).unwrap())),
     ));
     attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
 
@@ -297,14 +292,10 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         "whitelist applied: {kept_names:?}"
     );
     let reopened = block_on(async {
-        ProfileOptionsApplication::new(
-            profiles_for_mihomo(
-                config_manager().await.unwrap(),
-            ),
-        )
-        .load(Some("alpha"))
-        .await
-        .unwrap()
+        ProfileOptionsApplication::new(profiles_for_mihomo(config_manager().await.unwrap()))
+            .load(Some("alpha"))
+            .await
+            .unwrap()
     });
     assert_eq!(reopened.filter.include, "HK");
     assert!(

@@ -1,7 +1,7 @@
-use tokio::sync::{self, OwnedMutexGuard};
+use super::*;
 use ActiveProfileOwnerLease;
 use infiltrator_contract::core_process::CoreProcessStartContext;
-use super::*;
+use tokio::sync::{self, OwnedMutexGuard};
 
 #[derive(Clone)]
 pub(crate) enum MemoryOwnerSwitchRecoveryFixture {
@@ -11,7 +11,6 @@ pub(crate) enum MemoryOwnerSwitchRecoveryFixture {
         engine_id: EngineId,
     },
 }
-
 
 pub(crate) struct MemoryReferenceLease {
     pub(crate) state: OwnedMutexGuard<ActiveProfileReferenceState>,
@@ -42,10 +41,7 @@ impl ActiveProfileReferenceLease for MemoryReferenceLease {
         self: Box<Self>,
         identity: CoreIdentity,
         generation: CoreGeneration,
-    ) -> Result<
-        Box<dyn ActiveProfileOwnerLease>,
-        PortError,
-    > {
+    ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
         let owner_state = Arc::clone(&self.owner);
         let transition_state = Arc::clone(&self.transition);
         let events = self.events.clone();
@@ -558,4 +554,3 @@ impl ActiveProfileOwnerBindingLease for MemoryOwnerBindingLease {
         Ok(self.selection.clone())
     }
 }
-

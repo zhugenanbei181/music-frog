@@ -6,13 +6,12 @@ use futures_util::future::{AbortHandle, AbortRegistration};
 use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::outbound::inventory::OutboundObservationSnapshot;
-use std::mem::replace;
 use infiltrator_contract::outbound::details::{
     OutboundDetailsState, OutboundObservation, OutboundProbeAvailability,
 };
 use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::outbound::inventory::OutboundObservationSnapshot;
 use infiltrator_contract::outbound::probe::{OutboundProbeBatchScope, ProbeOutboundRequest};
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_contract::speedtest::{
@@ -22,6 +21,7 @@ use infiltrator_contract::speedtest::{
     SpeedtestTarget,
 };
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
+use std::mem::replace;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -116,7 +116,6 @@ impl Default for SpeedtestOwnerState {
 
 #[path = "speedtest_application/owner_state.rs"]
 mod owner_state;
-
 
 /// Shared application service that validates one accepted inventory before
 /// probing, then records multiple samples through the typed outbound port.
@@ -479,10 +478,7 @@ impl SpeedtestApplication {
         }
     }
 
-    pub(crate) fn invalidate_scope(
-        &self,
-        current_scope: Option<&CoreScope>,
-    ) {
+    pub(crate) fn invalidate_scope(&self, current_scope: Option<&CoreScope>) {
         let mut state = self.state.lock().expect("speedtest state lock");
         let execution = replace(&mut state.execution, SpeedtestExecution::Idle);
         match execution {

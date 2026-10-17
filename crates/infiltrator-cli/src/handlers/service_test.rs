@@ -37,10 +37,7 @@ impl CoreProcess for MockController {
         ))
     }
 
-    async fn start(
-        &self,
-        _context: CoreProcessStartContext,
-    ) -> Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> Result<(), PortError> {
         if self.is_running() {
             return Err(PortError::Failed("Service is already running".to_string()));
         }

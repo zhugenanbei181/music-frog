@@ -38,8 +38,7 @@ pub struct ActiveExitSnapshot {
 impl ActiveExitSnapshot {
     /// Explicit fixture for demo/screenshot hosts only.
     pub fn demo_fixture() -> Self {
-        let engine =
-            EngineId::new("mihomo").expect("demo engine identity is valid");
+        let engine = EngineId::new("mihomo").expect("demo engine identity is valid");
         Self {
             generation: 1,
             revision: 1,

@@ -1,5 +1,3 @@
-use infiltrator_ports::core_binary_selection::CoreBinarySelection;
-use tokio::fs;
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::core_launch::{
@@ -12,6 +10,7 @@ use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileDocument;
 use infiltrator_contract::version::CoreArtifactVerification;
+use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelectionPolicy, CoreBinarySelectionPort, CoreBinarySelectionRequest,
     CoreBinarySelectionSource,
@@ -26,6 +25,7 @@ use singbox_process::command::{NativeConfigCheck, SingBoxCommandPort};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::fs;
 
 pub(crate) struct AndroidSingBoxProfileLaunchSpecProvider<S: SecureStore> {
     profile_store: Arc<ConfigManager<S>>,

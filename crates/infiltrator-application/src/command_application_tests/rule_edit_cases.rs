@@ -1,48 +1,37 @@
 //! Behavior cases for rule, subscription, profile, and provider commands.
 
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
-use std::sync::Mutex;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 use super::*;
 use crate::core_capability_test_support::capability_application;
 use crate::geo_database_application::GeoDatabaseApplication;
 use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rule_provider_runtime::{
     RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayloadSnapshot,
     RuleProviderRefreshReceipt, RuleProviderRevision,
 };
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 #[derive(Default)]
 struct RecordingGeoPort(AtomicUsize);
 
 #[async_trait::async_trait]
 impl GeoDatabasePort for RecordingGeoPort {
-    async fn trigger(
-        &self,
-        scope: CoreScope,
-    ) -> Result<GeoDatabaseTriggerReceipt, PortError> {
+    async fn trigger(&self, scope: CoreScope) -> Result<GeoDatabaseTriggerReceipt, PortError> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Ok(GeoDatabaseTriggerReceipt::accepted(scope))
     }
 }
 
 #[derive(Default)]
-struct RecordingRuleProviderPort(
-    Mutex<
-        Option<(
-            CoreScope,
-            RuleProviderRevision,
-            RuleProviderId,
-        )>,
-    >,
-);
+struct RecordingRuleProviderPort(Mutex<Option<(CoreScope, RuleProviderRevision, RuleProviderId)>>);
 
 #[async_trait::async_trait]
 impl RuleProviderPort for RecordingRuleProviderPort {

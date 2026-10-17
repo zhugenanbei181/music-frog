@@ -398,9 +398,7 @@ async fn read_only_profile_checks_leave_fresh_root_for_bootstrap() {
     assert!(!engine_dir.exists());
     assert!(!config_root.exists());
 
-    let bootstrap = ensure_bootstrap_at(dir.path())
-        .await
-        .unwrap();
+    let bootstrap = ensure_bootstrap_at(dir.path()).await.unwrap();
     let configs_step = bootstrap
         .steps
         .iter()
@@ -540,10 +538,7 @@ async fn binary_available_observes_legacy_default_without_migrating_it() {
     );
     assert!(!env.home().join("engines").exists());
     assert!(legacy_binary.exists());
-    assert_eq!(
-        read_to_string(legacy_config).unwrap(),
-        legacy_contents
-    );
+    assert_eq!(read_to_string(legacy_config).unwrap(), legacy_contents);
 }
 
 #[tokio::test]

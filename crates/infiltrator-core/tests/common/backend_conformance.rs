@@ -12,6 +12,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::outbound::details::OutboundDetailsState;
 use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
@@ -26,14 +27,12 @@ use infiltrator_contract::profile_document_identity::{
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
-use std::collections::HashSet;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
@@ -44,6 +43,7 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -380,8 +380,7 @@ pub fn assert_evidence_open_or_unsupported(
 ) {
     assert!(matches!(
         declarations.support(operation),
-        AdapterOperationSupport::EvidenceOpen { .. }
-            | AdapterOperationSupport::Unsupported { .. }
+        AdapterOperationSupport::EvidenceOpen { .. } | AdapterOperationSupport::Unsupported { .. }
     ));
     assert!(
         declarations

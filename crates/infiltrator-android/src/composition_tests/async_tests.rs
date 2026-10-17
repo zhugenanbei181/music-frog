@@ -88,10 +88,7 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
         panic!("Android Core launch must carry a managed owner context");
     };
     assert!(identity.same_instance(&owner.core_identity().expect("active Core identity")));
-    assert_eq!(
-        generation,
-        CoreGeneration::new(owner.generation()),
-    );
+    assert_eq!(generation, CoreGeneration::new(owner.generation()),);
     assert_eq!(
         session_token,
         owner.session_token().expect("active session token")

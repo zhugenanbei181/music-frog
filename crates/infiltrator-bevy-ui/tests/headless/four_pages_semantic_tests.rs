@@ -85,7 +85,9 @@ fn four_primary_pages_mount_consistently_in_chinese_and_english() {
 #[test]
 fn interactive_states_consistency_and_button_disabled_guarantee() {
     let mut app = setup_four_pages_app("zh-CN");
-    app.world_mut().commands().trigger(RouteChanged(Route::Overview));
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Overview));
     app.update();
     app.update();
 

@@ -15,8 +15,8 @@ use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::list::scroll_core::{
-    clamp_scroll_offset, visible_window, visible_window_with_overscan, VirtualEntityPool,
-    VirtualSlot,
+    VirtualEntityPool, VirtualSlot, clamp_scroll_offset, visible_window,
+    visible_window_with_overscan,
 };
 use infiltrator_bevy_widgets::list::{
     FixedExtentUpdate, RowHeightMode, RowMeasurementOutcome, ScrollOffsetOutcome,
@@ -703,9 +703,7 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
 #[test]
 fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queued_clicks() {
     let mut app = headless_app();
-    let slot_entities: Vec<Entity> = (0..5)
-        .map(|_| app.world_mut().spawn_empty().id())
-        .collect();
+    let slot_entities: Vec<Entity> = (0..5).map(|_| app.world_mut().spawn_empty().id()).collect();
 
     let mut pool = VirtualEntityPool::new(slot_entities);
     assert_eq!(pool.capacity(), 5);
@@ -742,7 +740,11 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     // The delayed receipt / queued click from the earlier interaction arrives!
     // Rebind protection guard checks whether the receipt is still valid for slot 2:
     assert!(
-        !pool.is_receipt_valid(queued_click_target.0, queued_click_target.1, queued_click_target.2),
+        !pool.is_receipt_valid(
+            queued_click_target.0,
+            queued_click_target.1,
+            queued_click_target.2
+        ),
         "delayed click or receipt targeting item 2 must be rejected after slot 2 was rebound to item 12"
     );
     assert!(
@@ -772,7 +774,11 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
 
     // Even though slot 2 is once again bound to item 2, the old delayed click from generation 1 is STILL rejected!
     assert!(
-        !pool.is_receipt_valid(queued_click_target.0, queued_click_target.1, queued_click_target.2),
+        !pool.is_receipt_valid(
+            queued_click_target.0,
+            queued_click_target.1,
+            queued_click_target.2
+        ),
         "stale click targeting generation 1 must not match the new generation 4 binding of the same item"
     );
     assert!(!slot_comp.is_valid_receipt(queued_click_target.1, queued_click_target.2));

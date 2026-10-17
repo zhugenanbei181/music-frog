@@ -346,9 +346,10 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         CommandIntent::CloseConnection { .. }
         | CommandIntent::CloseAllConnections
         | CommandIntent::ClearClosedConnections
-        | CommandIntent::ClearTrafficHistory => CoreBackend(
-            CoreCapabilityRequirement::new(Connection(ConnectionOperation::Close), Write),
-        ),
+        | CommandIntent::ClearTrafficHistory => CoreBackend(CoreCapabilityRequirement::new(
+            Connection(ConnectionOperation::Close),
+            Write,
+        )),
         CommandIntent::ClearDnsCache { .. } => CoreBackend(CoreCapabilityRequirement::new(
             FakeIpCache(FakeIpCacheOperation::Flush),
             Write,

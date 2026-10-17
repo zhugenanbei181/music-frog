@@ -52,7 +52,9 @@ pub(super) fn push_history_record(
     }
 }
 
-pub(super) fn bounded_history(mut history: Vec<HistoricalSpeedtestRecord>) -> Vec<HistoricalSpeedtestRecord> {
+pub(super) fn bounded_history(
+    mut history: Vec<HistoricalSpeedtestRecord>,
+) -> Vec<HistoricalSpeedtestRecord> {
     if history.len() > MAX_HISTORY_ENTRIES {
         history.drain(0..history.len() - MAX_HISTORY_ENTRIES);
     }
@@ -69,4 +71,3 @@ pub(super) fn current_epoch_ms() -> u64 {
         .unwrap_or_default()
         .as_millis() as u64
 }
-

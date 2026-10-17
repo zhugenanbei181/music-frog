@@ -29,12 +29,10 @@ impl OutboundPort for FakeOutbound {
                 entries: self
                     .members
                     .iter()
-                    .map(
-                        |id| OutboundSnapshot {
-                            id: id.clone(),
-                            display_name: Some(id.value().to_owned()),
-                        },
-                    )
+                    .map(|id| OutboundSnapshot {
+                        id: id.clone(),
+                        display_name: Some(id.value().to_owned()),
+                    })
                     .collect(),
                 collections: vec![OutboundSelectionSet {
                     id: self.collection_id.clone(),
@@ -204,4 +202,3 @@ impl FakeRouting {
         }
     }
 }
-

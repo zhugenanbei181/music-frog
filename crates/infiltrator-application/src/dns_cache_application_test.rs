@@ -1,4 +1,3 @@
-use infiltrator_test_support::dns_cache_fixtures::test_core_scope;
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
@@ -9,6 +8,7 @@ use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
 use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
+use infiltrator_test_support::dns_cache_fixtures::test_core_scope;
 
 #[derive(Clone, Copy)]
 enum FakeFlushBehavior {
@@ -72,10 +72,7 @@ async fn reports_both_targets_honestly() {
         })),
     );
     let report = application
-        .flush_with_id(
-            test_core_scope(),
-            DnsCacheOperationId(1),
-        )
+        .flush_with_id(test_core_scope(), DnsCacheOperationId(1))
         .await
         .expect("flush");
     assert_eq!(report.fake_ip, DnsFlushOutcome::Flushed);
@@ -94,10 +91,7 @@ async fn a_host_without_the_os_adapter_reports_typed_unsupported() {
         })),
     );
     let report = application
-        .flush_with_id(
-            test_core_scope(),
-            DnsCacheOperationId(1),
-        )
+        .flush_with_id(test_core_scope(), DnsCacheOperationId(1))
         .await
         .expect("flush");
     assert!(report.fake_ip.is_flushed());
@@ -116,10 +110,7 @@ async fn a_failing_controller_is_reported_not_hidden() {
         None,
     );
     let report = application
-        .flush_with_id(
-            test_core_scope(),
-            DnsCacheOperationId(1),
-        )
+        .flush_with_id(test_core_scope(), DnsCacheOperationId(1))
         .await
         .expect("flush");
     assert!(matches!(
@@ -145,10 +136,7 @@ async fn a_system_adapter_failure_is_distinct_from_unsupported_and_is_readable()
     );
 
     let failure = application
-        .flush_with_id(
-            test_core_scope(),
-            DnsCacheOperationId(2),
-        )
+        .flush_with_id(test_core_scope(), DnsCacheOperationId(2))
         .await
         .expect_err("adapter failure is not unsupported");
 

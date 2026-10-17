@@ -1,9 +1,9 @@
 //! test-intent: behavior
 //! Real port effects prove frozen review, cancellation, permissions and source comparison.
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 fn fixture() -> (
     SnapshotApplication,
     Arc<FakeProfileStore>,
@@ -141,13 +141,9 @@ async fn changed_profile_or_snapshot_rejects_restore_without_overwriting_later_e
 async fn changed_active_reference_expires_snapshot_review_before_workspace_write() {
     let (app, profiles, _) = fixture();
     let review = app.prepare_restore(&target(&app).await).await.unwrap();
-    *profiles.active_reference.lock().unwrap() =
-        ActiveProfileReferenceState::Unselected {
-            revision:
-                ActiveProfileReferenceRevision::new(
-                    2,
-                ),
-        };
+    *profiles.active_reference.lock().unwrap() = ActiveProfileReferenceState::Unselected {
+        revision: ActiveProfileReferenceRevision::new(2),
+    };
 
     let failure = app
         .confirm_restore(

@@ -1,7 +1,6 @@
 //! test-intent: behavior
-use crate::configuration_codec::mihomo_configuration;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use crate::command_harness::{TestCoreCapabilityProvider, identified_recording_application};
+use crate::configuration_codec::mihomo_configuration;
 use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
@@ -31,6 +30,7 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
@@ -63,8 +63,8 @@ async fn select_profile(store: &HostsCaptureStore, profile: &str) {
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned test selection CAS")
+    .await
+    .expect("revisioned test selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {

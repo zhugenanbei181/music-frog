@@ -1,8 +1,8 @@
 //! test-intent: behavior
 //! Application session changes retire legacy facts; delayed/unscoped reads cannot reintroduce them.
-use crate::state::runtime::ProxyGroupOrderDialogState::Closed;
-use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::state::AppState;
+use crate::state::runtime::ProxyGroupOrderDialogState;
+use crate::state::runtime::ProxyGroupOrderDialogState::Closed;
 use crate::test_mounts::command_harness::{
     RecordingHandler, install_lifecycle_test_capabilities, install_test_core_capabilities,
 };
@@ -491,7 +491,6 @@ fn product_proxy_selection_dispatches_only_the_typed_outbound_intent() {
             if recorded == &request
     ));
 }
-
 
 #[path = "proxy_scope/ingress_tests.rs"]
 mod ingress_tests;

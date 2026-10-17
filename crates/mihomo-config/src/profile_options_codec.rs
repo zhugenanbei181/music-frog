@@ -37,14 +37,9 @@ pub const SIDECAR_SCHEMA_VERSION: u32 = 1;
 pub fn scope(document: ProfileDocumentCodecScope) -> ProfileOptionsCodecScope {
     ProfileOptionsCodecScope {
         document,
-        sidecar_format_id: ProfileFormatId::new(
-            SIDECAR_FORMAT,
-        )
-        .expect("static Mihomo options format ID is valid"),
-        sidecar_schema_version:
-            ProfileSchemaVersion::new(
-                SIDECAR_SCHEMA_VERSION,
-            )
+        sidecar_format_id: ProfileFormatId::new(SIDECAR_FORMAT)
+            .expect("static Mihomo options format ID is valid"),
+        sidecar_schema_version: ProfileSchemaVersion::new(SIDECAR_SCHEMA_VERSION)
             .expect("Mihomo options schema version is positive"),
     }
 }

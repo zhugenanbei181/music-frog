@@ -8,7 +8,6 @@
 //! The Iced editor keeps its local `rules` draft dirty and persists it through
 //! the existing `SaveRules` path, exactly like the other DUAL-11 rule edits.
 
-use infiltrator_contract::error::ErrorCode;
 use crate::state::AppState;
 use crate::state::editor::RuleProviderDiffLoadPhase;
 use crate::types::app::ToastStatus;
@@ -17,6 +16,7 @@ use iced::Task;
 use infiltrator_application::rule_provider_application::{
     ProviderUnpackPlan, RuleProviderApplication, RuleProviderRuntimeAccess,
 };
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderCachePurge;
 use infiltrator_contract::rule_provider_runtime::RuleProviderPayload;
@@ -225,12 +225,7 @@ impl AppState {
                                 RuleProviderPayload::Published(_)
                                 | RuleProviderPayload::NotPublished => None,
                             },
-                            Err(failure)
-                                if failure.code
-                                    == ErrorCode::Unsupported =>
-                            {
-                                None
-                            }
+                            Err(failure) if failure.code == ErrorCode::Unsupported => None,
                             Err(failure) => {
                                 return Err(InfiltratorError::Internal(failure.message));
                             }
