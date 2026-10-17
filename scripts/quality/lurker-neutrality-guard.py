@@ -36,6 +36,13 @@ UI_TOOLKIT = re.compile(
 )
 PLATFORM_CODE = re.compile(r"(?:std::os::|cfg\(\s*target_os|keyring::|dirs::)")
 
+# Engine adapter crates are product-side. A driver owns the engine logic itself,
+# so depending back on an adapter crate would create a second implementation.
+ENGINE_ADAPTER_PREFIXES = ("mihomo-", "singbox-")
+ENGINE_ADAPTER_IMPORT = re.compile(
+    r"\b(?:mihomo|singbox)_(?:api|config|process|version)::"
+)
+
 
 def check(root: Path = ROOT) -> list[str]:
     problems: list[str] = []
@@ -52,6 +59,10 @@ def check(root: Path = ROOT) -> list[str]:
         for dependency in dependencies:
             if dependency.startswith("infiltrator-"):
                 problems.append(f"{name}: must not depend on product crate `{dependency}`")
+            if name in DRIVERS and dependency.startswith(ENGINE_ADAPTER_PREFIXES):
+                problems.append(
+                    f"{name}: driver must not depend on engine adapter crate `{dependency}`"
+                )
 
         for source in sorted(crate.rglob("*.rs")):
             text = source.read_text(encoding="utf-8", errors="ignore")
@@ -64,6 +75,12 @@ def check(root: Path = ROOT) -> list[str]:
                 if platform is not None:
                     problems.append(
                         f"{relative}: pure neutral crate contains platform code `{platform.group(0)}`"
+                    )
+            if name in DRIVERS:
+                adapter = ENGINE_ADAPTER_IMPORT.search(text)
+                if adapter is not None:
+                    problems.append(
+                        f"{relative}: driver references engine adapter crate `{adapter.group(0)}`"
                     )
     for name in ("lurker-core-contract",):
         if not (root / "crates" / name).is_dir():
@@ -78,6 +95,9 @@ def self_test() -> int:
     assert PLATFORM_CODE.search("use std::os::unix::fs::PermissionsExt;")
     assert PLATFORM_CODE.search("#[cfg(target_os = \"android\")]")
     assert not PLATFORM_CODE.search("cfg(test)")
+    assert ENGINE_ADAPTER_IMPORT.search("mihomo_api::client::Client")
+    assert ENGINE_ADAPTER_IMPORT.search("singbox_config::model::Options")
+    assert not ENGINE_ADAPTER_IMPORT.search("mihomo_driver::api::Client")
     print("lurker neutrality guard self-test: PASS")
     return 0
 

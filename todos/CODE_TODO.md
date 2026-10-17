@@ -61,7 +61,7 @@
 
 ### 5.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
 
-- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-api + mihomo-process] [status: Planned] Mihomo 驱动整合为独立 `mihomo-driver`
+- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-api + mihomo-process] [status: InProgress] Mihomo 驱动整合为独立 `mihomo-driver`
   - 产物：内聚 HTTP REST、WS 流式日志/连接、进程探测、PID 与精确终态管理；按 feature 裁剪（HTTP-only / process）。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：无上层包装的纯客户端用法；真实 + mock 进程/API 单测通过；`cargo publish --dry-run` 无产品路径依赖。
@@ -69,11 +69,11 @@
   - 产物：独立配置模块，内存 AST 解析、合法性校验、Mihomo 原生 dry-run 检查。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：标准与畸形 YAML 校验通过并输出精确 typed DocumentValidation；`cargo publish --dry-run` 通过。
-- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-api + singbox-process] [status: Planned] sing-box 驱动整合为独立 `singbox-driver`
+- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-api + singbox-process] [status: InProgress] sing-box 驱动整合为独立 `singbox-driver`
   - 产物：Clash API 通信、进程启动/停止、child 守护与信号回收；按 feature 裁剪。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：独立拉起 sing-box 二进制、探测 readiness、Clash API 切换 Selector 并安全退出；`cargo publish --dry-run` 通过。
-- [ ] PUB-002.4 [kind: mechanism] [priority: P1] [points: 2] [owner: singbox-config] [status: Planned] sing-box JSON 配置 Codec 独立化
+- [ ] PUB-002.4 [kind: mechanism] [priority: P1] [points: 2] [owner: singbox-config] [status: InProgress] sing-box JSON 配置 Codec 独立化
   - 产物：sing-box 原生 JSON 模型、schema 校验、原生 `check` 事务适配。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：合法 JSON 接受、非法规则/端口拦截并返回结构化诊断；`cargo publish --dry-run` 通过。
