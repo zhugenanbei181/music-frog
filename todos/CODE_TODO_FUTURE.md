@@ -119,6 +119,6 @@
   - 依赖：PUB-006.2、PUB-005.5。
   - 验收：文档链接全部可解析；新开发者按 README 能在干净环境跑通 example 与模板。
 - [ ] PUB-006.5 [kind: evidence] [priority: P1] [points: 1] [owner: release] 1.0.0 首发布回执
-  - 产物：`v1.0.0` tag、release notes、crates.io 六个中性 crate（contract/ports/profile-store/mihomo-rs/singbox-rs/engine-runtime）顺序发布回执与 docs.rs 构建链接。
+  - 产物：`v1.0.0` tag、release notes、crates.io 六个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime）顺序发布回执与 docs.rs 构建链接。
   - 依赖：PUB-006.1、PUB-006.3、PUB-006.4。
   - 验收：crates.io 六 crate 版本严格对齐；docs.rs 六页构建成功；回执绑定 tag 与 commit。

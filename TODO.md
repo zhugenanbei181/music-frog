@@ -77,7 +77,7 @@
 | 里程碑 | 主题 | 归属条目 | 出口标准 |
 | --- | --- | --- | --- |
 | **0.42.x**（当前） | 发布管道止血 | 现在佛 `BANDROID-018.2` `019.2` `038.2`；过去佛 `BANDROID-020.1` `024.1` | tag release 全绿（test gate + 5 构建腿 + publish）；Android APK 腿修复；三条 CI 回执归档 |
-| **0.43** | 中立内核 1.0-M1 | 现在佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 六个中性 crate（contract/ports/profile-store/mihomo-rs/singbox-rs/engine-runtime）各自 `cargo publish --dry-run` 通过，零产品私有依赖 |
+| **0.43** | 中立内核 1.0-M1 | 现在佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 六个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime）各自 `cargo publish --dry-run` 通过，零产品私有依赖 |
 | **0.44** | UI 管道与合规基线 | 未来佛 `PUB-004.1`～`004.3`、`PUB-006.3` | 四大 UI 表面只经 `SurfaceReader`/`CommandSink`；许可证、per-crate 元数据、独立版本拓扑就绪 |
 | **0.5x** | 四套模板与脚手架 | 未来佛 `PUB-005.1`～`005.5` | `cargo generate` 生成任一单 UI 工程后可立即编译运行 |
 | **0.6x** | 发布自动化与文档 | 未来佛 `PUB-006.1` `006.2` `006.4` | crates.io dry-run 流水线、架构/选型/治理文档、docs.rs 预览全部就位 |

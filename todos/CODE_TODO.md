@@ -48,7 +48,7 @@
 
 ## 阶段五：1.0 中性内核可发布（开源独立框架 · 潜伏者 / Lurker）
 
-> 阶段门 1.0-M1「中性内核可发布」：`lurker-core-contract`、`lurker-core-ports`、`lurker-profile-store`、`mihomo-rs`、`singbox-rs`、`lurker-engine-runtime` 六个中性 crate 按依赖顺序（contract → ports/profile-store → engines → runtime）`cargo package` 通过；`lurker-core-contract` 首发布后，其余五个 `cargo publish --dry-run` 通过，且不依赖任何产品私有 crate。注意：Cargo 的 dry-run 会去 registry 解析中性依赖，故 contract 未实际上架前其余 crate 的 dry-run 必然失败——这是发布顺序门，不是代码缺陷。UI 呈现标准化（PUB-004）、四套模板（PUB-005）、crates.io 自动发布（PUB-006）留在未来佛。中性 crate 采用「潜伏者 / Lurker」品牌前缀，单向权威、不做 re-export 兼容层。
+> 阶段门 1.0-M1「中性内核可发布」：`lurker-core-contract`、`lurker-core-ports`、`lurker-profile-store`、`mihomo-driver`、`singbox-driver`、`lurker-engine-runtime` 六个中性 crate 按依赖顺序（contract → ports/profile-store → engines → runtime）`cargo package` 通过；`lurker-core-contract` 首发布后，其余五个 `cargo publish --dry-run` 通过，且不依赖任何产品私有 crate。注意：Cargo 的 dry-run 会去 registry 解析中性依赖，故 contract 未实际上架前其余 crate 的 dry-run 必然失败——这是发布顺序门，不是代码缺陷。UI 呈现标准化（PUB-004）、四套模板（PUB-005）、crates.io 自动发布（PUB-006）留在未来佛。中性 crate 采用「潜伏者 / Lurker」品牌前缀，单向权威、不做 re-export 兼容层。
 
 ### 5.1 基础契约与中性端口解耦（3条 / 7pt）
 
@@ -57,10 +57,11 @@
   - 前置实测：`infiltrator-contract` 现仅经 `src/connection_search.rs` 依赖 `zhuge-ui-core::text::SearchTextRun`，必须先迁出该耦合，`infiltrator-contract` 改为依赖本 crate（不反向转发）。
   - 依赖：双后端 Core 契约稳定（已满足）。
   - 验收：仅 serde/serde_json/url 依赖；`cargo check -p lurker-core-contract` 与 `cargo publish --dry-run` 独立通过；仓库搜索确认零产品私有符号、零 zhuge-ui-core 引用。
-- [ ] PUB-001.2 [kind: mechanism] [priority: P1] [points: 2] [owner: ports] [status: Planned] 抽取中性端口 `lurker-core-ports`
-  - 产物：独立端口 crate，定义 CoreProcess、CoreReadiness、OutboundPort、RoutingIntentPort、ProfileDocumentCodecPort 等 Trait。
-  - 依赖：PUB-001.1。
-  - 验收：纯 Trait，零 Tokio runtime/channel/UI 类型；原依赖的 `infiltrator-domain` 中性类型并入 `lurker-core-contract`；多引擎可独立实现；`cargo publish --dry-run` 通过。
+- [ ] PUB-001.2 [kind: mechanism] [priority: P1] [points: 2] [owner: ports] [status: InProgress] 抽取中性端口 `lurker-core-ports`
+  - 产物：独立端口 crate，定义 CoreProcess、CoreReadiness、OutboundPort、RoutingIntentPort 与中性 `ProfileDocumentCodecPort`（scope/inspect/insert_snippet）。
+  - 裁决：typed 配置/工作台/mixin/filter 方法留在产品扩展 Trait `ProfileConfigurationCodecPort: ProfileDocumentCodecPort`，随 PUB-002.2/002.4 的配置模型迁移；本切片只交付引擎面向的中性端口面。
+  - 依赖：PUB-001.1；连带把 `Capability`、`CoreLifecycle`/`CoreLifecycleSnapshot`、`DocumentValidation`、`ProfileFormatId`/`ProfileSchemaVersion` 移入 `lurker-core-contract`。
+  - 验收：纯 Trait，零 Tokio runtime/channel/UI 类型；`cargo package` 通过；多引擎可独立实现；`cargo publish --dry-run` 待 contract 首发布后通过。
 - [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: Planned] 抽象通用 `lurker-profile-store` 与租约并发接口
   - 产物：基于 CAS 与版本租约锁的通用存储/事务接口；剥离产品私有 Age 凭据、`infiltrator-platform` 依赖与硬编码路径。
   - 依赖：PUB-001.1、PUB-001.2。
@@ -68,7 +69,7 @@
 
 ### 5.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
 
-- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-api + mihomo-process] [status: Planned] Mihomo 驱动整合为独立 `mihomo-rs`
+- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-api + mihomo-process] [status: Planned] Mihomo 驱动整合为独立 `mihomo-driver`
   - 产物：内聚 HTTP REST、WS 流式日志/连接、进程探测、PID 与精确终态管理；按 feature 裁剪（HTTP-only / process）。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：无上层包装的纯客户端用法；真实 + mock 进程/API 单测通过；`cargo publish --dry-run` 无产品路径依赖。
@@ -76,7 +77,7 @@
   - 产物：独立配置模块，内存 AST 解析、合法性校验、Mihomo 原生 dry-run 检查。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：标准与畸形 YAML 校验通过并输出精确 typed DocumentValidation；`cargo publish --dry-run` 通过。
-- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-api + singbox-process] [status: Planned] sing-box 驱动整合为独立 `singbox-rs`
+- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-api + singbox-process] [status: Planned] sing-box 驱动整合为独立 `singbox-driver`
   - 产物：Clash API 通信、进程启动/停止、child 守护与信号回收；按 feature 裁剪。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：独立拉起 sing-box 二进制、探测 readiness、Clash API 切换 Selector 并安全退出；`cargo publish --dry-run` 通过。
@@ -84,8 +85,8 @@
   - 产物：sing-box 原生 JSON 模型、schema 校验、原生 `check` 事务适配。
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：合法 JSON 接受、非法规则/端口拦截并返回结构化诊断；`cargo publish --dry-run` 通过。
-- [ ] PUB-002.5 [kind: evidence] [priority: P1] [points: 1] [owner: mihomo-rs + singbox-rs] [status: Planned] 双引擎独立 example 与 nextest
-  - 产物：`mihomo-rs`、`singbox-rs` 各含 `examples/`（命令行拉起 + 节点查询）与独立 nextest。
+- [ ] PUB-002.5 [kind: evidence] [priority: P1] [points: 1] [owner: mihomo-driver + singbox-driver] [status: Planned] 双引擎独立 example 与 nextest
+  - 产物：`mihomo-driver`、`singbox-driver` 各含 `examples/`（命令行拉起 + 节点查询）与独立 nextest。
   - 依赖：PUB-002.1～PUB-002.4。
   - 验收：脱离本仓其他包的独立工程内 `cargo run --example` 成功演示内核生命周期。
 

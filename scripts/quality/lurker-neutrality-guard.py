@@ -5,7 +5,7 @@ The product architecture is fixed: two backends (mihomo / sing-box) × every
 platform (Windows/Linux/macOS/Android/iOS) × every UI (Iced/Bevy/Slint/Compose).
 A neutral framework crate may describe the domain, but it must never depend on a
 product crate or a UI toolkit — and the pure layers must contain no OS-specific
-code either. Driver crates (`mihomo-rs`, `singbox-rs`) may own per-OS process
+code either. Driver crates (`mihomo-driver`, `singbox-driver`) may own per-OS process
 code, but still may not pull in the product or a UI toolkit.
 """
 
@@ -27,7 +27,7 @@ PURE_NEUTRAL = (
     "lurker-engine-runtime",
 )
 # Engine drivers: may own per-OS process code, but stay product/UI neutral.
-DRIVERS = ("mihomo-rs", "singbox-rs")
+DRIVERS = ("mihomo-driver", "singbox-driver")
 ALL_NEUTRAL = PURE_NEUTRAL + DRIVERS
 
 UI_TOOLKIT = re.compile(
