@@ -1,6 +1,6 @@
 //! Engine-scoped typed updates for profile configuration sections.
 
-use crate::profile_document_identity::ProfileDocumentIdentity;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -47,11 +47,11 @@ pub struct SnifferConfiguration {
 mod tests {
     use super::*;
     use crate::command::CommandIntent;
-    use crate::profile_document_identity::{
+    use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
         ProfileId, ProfileSourceId,
     };
-    use lurker_core_contract::identity::EngineId;
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
     #[test]

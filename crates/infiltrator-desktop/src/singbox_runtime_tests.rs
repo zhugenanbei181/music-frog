@@ -6,15 +6,10 @@ use async_trait::async_trait;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileSelectionPreflight, preflight_active_profile_reference,
 };
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::core_capabilities::CoreLifecycleOperation;
 use infiltrator_contract::core_capabilities::{
     CoreCapabilityMatrix, CoreOperation, EngineBinaryTarget,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -24,8 +19,13 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::{CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;

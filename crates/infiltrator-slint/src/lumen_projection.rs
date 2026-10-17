@@ -17,7 +17,6 @@ use infiltrator_contract::android_control::{
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
@@ -29,6 +28,7 @@ use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffi
 use infiltrator_shared::locales::{Lang, Localizer, get_system_language, resolve_language_code};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use slint::ComponentHandle;
 use std::env;

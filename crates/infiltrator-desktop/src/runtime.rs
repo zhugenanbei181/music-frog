@@ -33,7 +33,6 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileSelectionPreflight, SelectedActiveProfileBackend,
 };
-use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
@@ -54,6 +53,7 @@ use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTr
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReference;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;

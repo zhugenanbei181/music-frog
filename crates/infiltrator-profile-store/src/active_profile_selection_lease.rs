@@ -8,11 +8,11 @@ use crate::active_reference_owner::{
     ActiveProfileReferenceRecord, transition_rejected,
 };
 use crate::store::EngineProfileStore;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerLease, ActiveProfileReferenceLease,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};

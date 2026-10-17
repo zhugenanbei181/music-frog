@@ -9,8 +9,6 @@ use crate::language::LanguagePreference;
 use crate::log_export::LogExportIdentity;
 use crate::overview_layout::OverviewCardKind;
 use crate::profile_configuration::ProfileConfigurationRequest;
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
-use crate::profile_protection::ProfileWriteAuthorization;
 use crate::protocol_fidelity::ProtocolDraft;
 use crate::protocol_trust::TlsTrustParams;
 use crate::rule_document::RuleListCommit;
@@ -33,6 +31,8 @@ use lurker_core_contract::outbound::preferences::OutboundUiPreferenceRequest;
 use lurker_core_contract::outbound::probe::{
     OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest,
 };
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use serde::{Deserialize, Serialize};
 use std::fmt;

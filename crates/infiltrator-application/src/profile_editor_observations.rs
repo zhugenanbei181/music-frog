@@ -1,12 +1,12 @@
 //! Product-local editor facts are separated by profile, source bytes and read operation.
 use crate::profile_application::ProfileApplication;
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_editor_read::{
     ProfileEditorReadSnapshot, ProfileEditorSnapshot, ProfileReadStatus,
 };
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[derive(Clone, Copy)]

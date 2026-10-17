@@ -31,7 +31,6 @@ use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::pac::PacServiceState;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot::{
     PageData, PageStatus, SurfaceOrigin, SurfaceSnapshot,
@@ -61,6 +60,7 @@ use lurker_core_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use std::sync::Arc;
 
 pub mod core_control;
@@ -730,7 +730,7 @@ impl AppState {
         {
             return document.write_protection;
         }
-        use infiltrator_contract::profile_protection::ProfileWriteProtection;
+        use lurker_core_contract::profile_protection::ProfileWriteProtection;
         let Some(name) = self
             .editor
             .editor_path

@@ -29,16 +29,16 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_composition::mihomo_configuration::profile_document_codec_fixture;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
-};
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_presentation::protocol_form::{draft_from_uri, uri_from_draft};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
+};
 use std::sync::Arc;
 
 use crate::support::*;

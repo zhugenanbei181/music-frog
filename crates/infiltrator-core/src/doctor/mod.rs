@@ -14,12 +14,12 @@
 
 use crate::settings_io::{load_settings, parse_settings_toml};
 use crate::version_port::MihomoVersionPort;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use mihomo_api::error;
 mod checks;
 #[cfg(test)]

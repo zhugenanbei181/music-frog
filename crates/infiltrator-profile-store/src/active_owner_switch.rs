@@ -14,14 +14,14 @@ use crate::active_reference_owner::{
 use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_terminal_for_owner,
 };
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget,
-};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
     ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
     ActiveProfileReferenceChangedLease,
+};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};

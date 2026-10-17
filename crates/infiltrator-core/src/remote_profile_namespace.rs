@@ -6,9 +6,9 @@
 //! failures leave enough source or destination data to retry safely.
 
 use dav_client::{DavClient, RemoteEntry};
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_domain::profiles::validate_profile_name;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_name::validate_profile_name;
 use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;
 use std::fmt::Display;

@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOperation, RuleTraceOperationId, RuleTraceOutboundFacts, RuleTraceOwnerBinding,
     RuleTraceOwnerObservation, RuleTraceRequest, ScopedRuleTraceRequest,
@@ -21,6 +20,7 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;

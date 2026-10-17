@@ -11,13 +11,6 @@ use crate::command_application::handler::ValidatedCoreCommandScope;
 use crate::configuration_application::ConfigurationApplication;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceWriteAuthorization,
-};
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::provider_cache::{ProviderCachePurge, RuleProviderCacheSnapshot};
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::subscription_import::SubscriptionScheduleDraft;
@@ -45,9 +38,16 @@ use infiltrator_test_support::profile_document_codec_test_support::TestProfileDo
 use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Mutex;

@@ -10,9 +10,6 @@
 
 use infiltrator_slint::age_action::execute_slint_age_action;
 
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, AgePrivateKeyError, ProfileAgeCredentialMutation,
@@ -20,17 +17,20 @@ use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerRequest, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialRevision, ProfileAgeCredentialSecret, ProfileAgeCredentialState,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::subscription_import::SubscriptionImportChannel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_slint::{SlintAction, SlintProductHost};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::profile_document_identity::ProfileId;
 use serde_json::json;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};

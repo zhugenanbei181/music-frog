@@ -3,14 +3,14 @@
 
 use super::*;
 use crate::support::select_test_profile;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-};
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use mihomo_config::manager::ConfigManager;
 use std::time::Duration;
 use tokio::task::yield_now;

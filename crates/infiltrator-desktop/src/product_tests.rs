@@ -16,9 +16,6 @@ use infiltrator_application::core_capability_application::CoreCapabilityApplicat
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_application::{SurfacePump, UnavailableSurfaceReader};
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
@@ -27,7 +24,6 @@ use infiltrator_contract::core_capabilities::{
     HostCapabilityDecision, ProfileOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -47,10 +43,14 @@ use infiltrator_ports::runtime_http_proxy_endpoint::{
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Arc;

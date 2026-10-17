@@ -2,8 +2,8 @@ use super::ProfileApplication;
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest, ProfileCatalogSnapshot,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileId;
 
 impl ProfileApplication {
     /// Return the complete engine-scoped identity order currently visible to

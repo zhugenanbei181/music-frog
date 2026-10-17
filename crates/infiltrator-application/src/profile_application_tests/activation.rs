@@ -2,11 +2,6 @@
 
 use super::*;
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -16,12 +11,17 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRestoreOutcome,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::identity::CoreInstanceId;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};

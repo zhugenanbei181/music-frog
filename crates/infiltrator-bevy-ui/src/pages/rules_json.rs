@@ -49,13 +49,13 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate,
 };
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rule_json_feedback::RuleJsonFeedback;
 use infiltrator_contract::rules_workspace::{
     RulesJsonDocumentSnapshot, RulesJsonSection, RulesTab,
 };
 use infiltrator_presentation::rule_json_projection::json_editor_status;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 
 /// Which JSON document the partition shows, plus its edit buffer.
 #[derive(Resource)]
@@ -680,11 +680,11 @@ pub fn rules_json_keyboard_input(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::profile_document_identity::{
+    use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
         ProfileId, ProfileSourceId,
     };
-    use lurker_core_contract::identity::EngineId;
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
     fn identity(revision: &str) -> ProfileDocumentIdentity {

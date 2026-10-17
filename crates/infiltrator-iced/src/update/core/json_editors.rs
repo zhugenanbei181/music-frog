@@ -14,9 +14,9 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate,
 };
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rules_workspace::RulesJsonSection;
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use std::time::Instant;
 use tokio::time;
 use tokio::time::sleep;

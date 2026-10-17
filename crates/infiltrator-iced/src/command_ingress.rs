@@ -7,7 +7,6 @@ use infiltrator_application::rule_provider_runtime_application::RuleProviderRunt
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::CoreCommandOutcome;
 use infiltrator_contract::profile_document::DocumentInspection;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
@@ -15,6 +14,7 @@ use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 #[derive(Clone)]

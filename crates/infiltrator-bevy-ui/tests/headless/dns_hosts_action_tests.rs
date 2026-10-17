@@ -30,19 +30,19 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::thread::yield_now;

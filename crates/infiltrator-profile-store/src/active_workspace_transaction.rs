@@ -11,10 +11,6 @@ use crate::reset_fence::{
 use crate::store::EngineProfileStore;
 use crate::workspace::{validate_workspace_identity, workspace_for_update};
 use crate::workspace_store::ProfileWorkspacePublicationTarget;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
-};
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
@@ -26,7 +22,11 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use lurker_profile_store::file_lock::ProfileWriteGuard;

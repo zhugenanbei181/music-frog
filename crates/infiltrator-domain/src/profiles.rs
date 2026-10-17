@@ -1,13 +1,12 @@
-//! Runtime-neutral profile projections and profile-name validation.
+//! Runtime-neutral profile projections and profile-name sanitization.
 //!
 //! ConfigManager and subscription/file operations stay in outbound adapters;
 //! these values are the owned data exchanged with application and inbound
 //! surfaces.
 
 use chrono::{DateTime, Utc};
+use lurker_core_contract::profile_name::validate_profile_name;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -74,62 +73,6 @@ pub struct ProfileDetail {
     pub expire_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProfileNameError {
-    Empty,
-    TooLong,
-    EdgeWhitespace,
-    RelativeSegment,
-    IllegalCharacter(char),
-    TrailingWindowsCharacter,
-}
-
-impl Display for ProfileNameError {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Empty => formatter.write_str("配置名称不能为空"),
-            Self::TooLong => formatter.write_str("配置名称不能超过 128 个字符"),
-            Self::EdgeWhitespace => formatter.write_str("配置名称首尾不能包含空白"),
-            Self::RelativeSegment => formatter.write_str("配置名称不能包含相对路径片段"),
-            Self::IllegalCharacter(character) => {
-                write!(formatter, "配置名称不能包含特殊字符 {character:?}")
-            }
-            Self::TrailingWindowsCharacter => formatter.write_str("配置名称不能以点或空格结尾"),
-        }
-    }
-}
-
-impl Error for ProfileNameError {}
-
-/// Validate one portable profile name before using it as a storage key or
-/// filesystem component.
-pub fn validate_profile_name(name: &str) -> Result<(), ProfileNameError> {
-    if name.is_empty() {
-        return Err(ProfileNameError::Empty);
-    }
-    if name.chars().count() > 128 {
-        return Err(ProfileNameError::TooLong);
-    }
-    if name.trim() != name {
-        return Err(ProfileNameError::EdgeWhitespace);
-    }
-    if name == "." || name == ".." || name.contains("..") {
-        return Err(ProfileNameError::RelativeSegment);
-    }
-    if let Some(character) = name.chars().find(|character| {
-        matches!(
-            character,
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'
-        ) || character.is_control()
-    }) {
-        return Err(ProfileNameError::IllegalCharacter(character));
-    }
-    if name.ends_with('.') || name.ends_with(' ') {
-        return Err(ProfileNameError::TrailingWindowsCharacter);
-    }
-    Ok(())
-}
-
 pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
     let trimmed = name.trim();
     validate_profile_name(trimmed)?;
@@ -138,7 +81,8 @@ pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize_profile_name, validate_profile_name};
+    use super::sanitize_profile_name;
+    use lurker_core_contract::profile_name::validate_profile_name;
 
     #[test]
     fn valid_names_are_trimmed() {

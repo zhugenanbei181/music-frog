@@ -8,14 +8,8 @@ use crate::profile_editor_observations::EditorObservations;
 use chrono::Utc;
 use futures_util::stream;
 use futures_util::stream::StreamExt;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::subscription_import::{
     StoreForNextStartReason, SubscriptionBatchReport, SubscriptionContentEffectOutcome,
     SubscriptionImportChannel, SubscriptionImportReport, SubscriptionQuotaFacts,
@@ -40,11 +34,17 @@ use infiltrator_ports::profile_workspace::{
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::owner_switch::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use std::fmt::Display;
 use std::path::PathBuf;

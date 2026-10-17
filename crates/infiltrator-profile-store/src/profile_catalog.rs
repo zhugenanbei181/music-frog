@@ -3,10 +3,11 @@
 use crate::metadata::{default_profile_metadata, read_profile_metadata};
 use crate::profile_catalog_order::apply_catalog_order;
 use crate::store::EngineProfileStore;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_domain::profiles::{ProfileInfo, validate_profile_name};
+use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_name::validate_profile_name;
 use lurker_core_ports::error::PortError;
 use std::io::{self, ErrorKind};
 use tokio::fs;

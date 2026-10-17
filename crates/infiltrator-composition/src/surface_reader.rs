@@ -66,8 +66,6 @@ use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::named_override::NamedOverrideCatalog;
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::snapshot::CoreSnapshot;
@@ -92,6 +90,8 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     SelectionAvailability,
 };
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;

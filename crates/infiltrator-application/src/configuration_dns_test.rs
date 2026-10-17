@@ -1,15 +1,15 @@
 //! test-intent: behavior
 use super::*;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::dns_hosts::DnsHostEntry;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_test_support::dns_hosts_fixtures::{
     HOSTS_PROFILE, HostsCaptureStore, ORIGINAL_HOSTS,
 };
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use serde_yaml_ng::Value;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

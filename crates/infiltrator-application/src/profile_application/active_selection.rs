@@ -1,10 +1,10 @@
 use super::ProfileApplication;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::profile_selection_clear::{
     ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
     UnselectedProfileSelectionReadback,
+};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 

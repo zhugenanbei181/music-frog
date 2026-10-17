@@ -2,22 +2,22 @@ use super::read_credential_record;
 use crate::store::EngineProfileStore;
 use age::secrecy::ExposeSecret;
 use age::x25519::Identity;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeContentDecryption, ProfileAgeCredentialMutation,
     ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
     ProfileAgeCredentialTarget, ProfileAgeCredentialWriteRequest, ProfileAgeEncryptedContent,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{

@@ -11,7 +11,6 @@ use crate::profile_application::ProfileRuntimeAccess;
 use crate::protocol_codec_application::ProtocolCodecApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::subscription_import_application::SubscriptionImportApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::named_override::NamedOverrideId;
 use infiltrator_contract::network_roaming::NetworkRoamingStatus;
@@ -21,8 +20,6 @@ use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
 };
 use infiltrator_contract::profile_display_name::{ProfileDisplayName, ProfileDisplayNameTarget};
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::profile_selection_clear::{
     ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
 };
@@ -31,8 +28,11 @@ use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use std::sync::Arc;
 
 impl CommandApplication {

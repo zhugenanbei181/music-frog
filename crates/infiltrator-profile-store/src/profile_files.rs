@@ -3,12 +3,12 @@
 use crate::metadata::delete_subscription_url;
 use crate::profile_age_credential::retire_profile_age_credential_locked;
 use crate::store::EngineProfileStore;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use std::io::ErrorKind;

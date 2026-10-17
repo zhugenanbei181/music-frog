@@ -1,10 +1,10 @@
-//! DUAL-09-12: remote-subscription write protection read model.
+//! Engine-neutral profile write-protection read model.
 //!
 //! A profile downloaded from a subscription URL is owned by the provider: a
 //! direct content edit would be silently overwritten by the next refresh and
-//! is almost never what the user meant. The shared classification lives here
-//! so both surfaces render the same state and the application can enforce the
-//! same rule, while Mixin overrides stay allowed by design.
+//! is almost never what the user meant. The classification lives in a neutral
+//! vocabulary so both surfaces render the same state and the application can
+//! enforce the same rule, while Mixin overrides stay allowed by design.
 
 use serde::{Deserialize, Serialize};
 
@@ -58,5 +58,49 @@ impl ProfileWriteProtection {
 
     pub const fn is_protected(self) -> bool {
         matches!(self, Self::RemoteSubscription)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProfileWriteAuthorization, ProfileWriteProtection};
+
+    #[test]
+    fn protection_classifies_by_subscription_url() {
+        assert_eq!(
+            ProfileWriteProtection::from_subscription_url("  "),
+            ProfileWriteProtection::Editable
+        );
+        assert_eq!(
+            ProfileWriteProtection::from_subscription_url("https://example.test/sub"),
+            ProfileWriteProtection::RemoteSubscription
+        );
+        assert!(!ProfileWriteProtection::default().is_protected());
+    }
+
+    #[test]
+    fn authorization_toggles_and_reports_protected_write() {
+        assert!(!ProfileWriteAuthorization::default().allows_protected_write());
+        assert!(
+            ProfileWriteAuthorization::RequireUnlock
+                .toggled()
+                .allows_protected_write()
+        );
+        assert_eq!(
+            ProfileWriteAuthorization::ExplicitUnlock.toggled(),
+            ProfileWriteAuthorization::RequireUnlock
+        );
+    }
+
+    #[test]
+    fn protection_serde_names_are_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&ProfileWriteProtection::RemoteSubscription).unwrap(),
+            "\"remote_subscription\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ProfileWriteAuthorization::RequireUnlock).unwrap(),
+            "\"require_unlock\""
+        );
     }
 }

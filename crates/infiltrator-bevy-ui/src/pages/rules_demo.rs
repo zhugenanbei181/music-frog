@@ -6,16 +6,16 @@
 use super::rules::{RuleItem, RuleProviderItem, RulesProjection};
 use infiltrator_contract::fixture_identities::{PROXIES, STREAMING};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
-};
 use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
 impl RulesProjection {

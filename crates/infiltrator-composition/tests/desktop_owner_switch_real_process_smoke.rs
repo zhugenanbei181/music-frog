@@ -12,12 +12,7 @@ use infiltrator_composition::engine_backend_factory::{
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceStore,
@@ -27,8 +22,13 @@ use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationP
 use infiltrator_ports::engine_backend_factory::{EngineBackendPorts, EngineBackendProvider};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_api::client::MihomoClient;

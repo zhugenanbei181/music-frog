@@ -1,17 +1,17 @@
 //! Engine-neutral identity, revision, and publication rules for profile workspaces.
 
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::{
+use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
+use lurker_core_contract::capability::Capability;
+use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
     ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
     ProfileSourceId, ProfileWorkspaceIdentity,
 };
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use lurker_core_contract::capability::Capability;
-use lurker_core_contract::error::{ErrorCode, Failure};
-use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};

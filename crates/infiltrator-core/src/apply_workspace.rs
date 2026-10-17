@@ -4,11 +4,7 @@ use crate::apply::{
     prepare_apply_strategy, restart_and_check, validate_config,
 };
 use crate::history::{DEFAULT_KEEP, prune_snapshots, save_snapshot};
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_store::{
@@ -18,8 +14,12 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;
 use std::str;

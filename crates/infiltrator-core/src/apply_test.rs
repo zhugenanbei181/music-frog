@@ -10,12 +10,7 @@ mod workspace;
 use super::*;
 use crate::apply_workspace::apply_active_profile_workspace_with_receipt;
 use crate::history::{list_snapshots, read_snapshot};
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
 use infiltrator_domain::rules::source_identity::identify_rules_document;
@@ -28,11 +23,16 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, FailureReason};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::owner_switch::CoreApplyFailureKind;
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::core_process::CoreProcess;
 use lurker_core_ports::error::PortError;

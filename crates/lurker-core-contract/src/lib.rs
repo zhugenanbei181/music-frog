@@ -4,6 +4,7 @@
 //! product contract (`infiltrator-contract`) and each engine driver depend on
 //! this crate, never the reverse.
 
+pub mod active_profile_reference;
 pub mod capability;
 pub mod core_process;
 pub mod error;
@@ -13,5 +14,7 @@ pub mod outbound;
 pub mod owner_switch;
 pub mod profile_document;
 pub mod profile_document_identity;
+pub mod profile_name;
+pub mod profile_protection;
 pub mod routing_intent;
 pub mod session;

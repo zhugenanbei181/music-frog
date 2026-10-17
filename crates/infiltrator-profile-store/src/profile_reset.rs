@@ -17,13 +17,13 @@ use crate::reset_fence::{
 };
 use crate::store::EngineProfileStore;
 use crate::workspace::sha256_hex;
-use infiltrator_contract::active_profile_reference::{
+use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{
     read_optional_bytes, remove_optional_durable, write_document_bytes_durable,

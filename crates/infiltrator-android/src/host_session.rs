@@ -13,10 +13,6 @@ use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileApplication, SelectedProfileApplyOutcome,
 };
 use infiltrator_application::vpn_application::VpnServiceApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState,
-};
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidHostProcessRole,
@@ -25,7 +21,6 @@ use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_active_profile_reference,
     failure_from_apply_error,
@@ -43,12 +38,17 @@ use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;

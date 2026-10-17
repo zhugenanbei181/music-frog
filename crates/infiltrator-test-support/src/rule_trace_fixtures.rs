@@ -2,7 +2,6 @@
 use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOwnerBinding, RuleTraceRequest, ScopedRuleTraceRequest,
@@ -25,6 +24,7 @@ use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
 };
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;

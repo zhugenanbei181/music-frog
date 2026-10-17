@@ -1,10 +1,10 @@
 //! Secure, engine-scoped Age credential editing with owner-fenced readback.
 
-use crate::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use crate::profile_document_identity::ProfileId;
 use lurker_core_contract::identity::{CoreScope, EngineId};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error;
@@ -505,13 +505,13 @@ mod tests {
         ProfileAgeCredentialReadOutcome, ProfileAgeCredentialRevision, ProfileAgeCredentialSecret,
         ProfileAgeCredentialState, ProfileAgeDecryptedContent, ProfileAgeEncryptedContent,
     };
-    use crate::active_profile_reference::{
+    use lurker_core_contract::active_profile_reference::{
         ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     };
-    use crate::profile_document_identity::ProfileId;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
     };
+    use lurker_core_contract::profile_document_identity::ProfileId;
 
     #[test]
     fn age_private_key_debug_is_redacted_and_not_serializable() {

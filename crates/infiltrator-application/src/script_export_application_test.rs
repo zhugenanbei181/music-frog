@@ -8,7 +8,6 @@
 use super::*;
 use crate::profile_application::ProfileApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::script_export::{
     ScriptExportKind, ScriptExportOutcome, ScriptExportReceipt,
 };
@@ -19,6 +18,7 @@ use infiltrator_test_support::filter_capture_store::FilterCaptureStore;
 use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 

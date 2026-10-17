@@ -31,9 +31,9 @@ use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReferenc
 use infiltrator_contract::{
     aggregator, command_catalogue, command_output, core_control, dialer_chain, dns, dns_latency,
     dns_leak, doctor, ime, lan, mini_hud, network_roaming, overview_layout, pac, port_conflict,
-    privileged_network, profile_protection, protocol_fidelity, protocol_form, provider_cache,
-    rule_document, rules_workspace, runtime_settings, service_mode, shortcuts, snapshot,
-    snapshot_history, speedtest, stun_probe, subscription_filter_form, subscription_filter_result,
+    privileged_network, protocol_fidelity, protocol_form, provider_cache, rule_document,
+    rules_workspace, runtime_settings, service_mode, shortcuts, snapshot, snapshot_history,
+    speedtest, stun_probe, subscription_filter_form, subscription_filter_result,
     subscription_import, surface_snapshot, system_proxy, uwp, version, vpn, yaml_ast_diff,
 };
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
@@ -51,6 +51,7 @@ use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use lurker_core_contract::error;
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_contract::outbound::{identity, inventory, preferences, probe};
+use lurker_core_contract::profile_protection;
 use lurker_core_contract::routing_intent;
 use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;

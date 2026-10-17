@@ -74,10 +74,8 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::aggregator::{AggregationReport, AggregationTemplate};
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::profile_editor_read::ProfileEditorReadSnapshot;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::script_export::ScriptExportSnapshot;
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
@@ -86,6 +84,8 @@ use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_test_support::subscription_filter_fixture;
 use lurker_core_contract::error::Failure;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 pub mod cards;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]

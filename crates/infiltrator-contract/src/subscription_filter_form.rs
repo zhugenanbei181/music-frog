@@ -1,6 +1,6 @@
 //! Toolkit-neutral fields and observations of the subscription filter form.
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::subscription_import::SubscriptionFilterDraft;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum FilterField {

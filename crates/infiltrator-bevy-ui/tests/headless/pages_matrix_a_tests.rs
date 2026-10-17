@@ -99,7 +99,6 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
@@ -113,6 +112,7 @@ use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 use std::sync::Mutex;

@@ -33,8 +33,6 @@ use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
     ProfileAgeCredentialReadOutcome, ProfileAgeCredentialState, ProfileAgeCredentialTarget,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
@@ -50,6 +48,8 @@ use lurker_core_contract::outbound::preferences::{
     OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
 };
 use lurker_core_contract::outbound::probe::OutboundSelectionRequest;
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env;
 use std::fs;

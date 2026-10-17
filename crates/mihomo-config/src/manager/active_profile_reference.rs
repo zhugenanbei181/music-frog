@@ -2,15 +2,6 @@
 //! Mihomo selection migration.
 
 use super::ConfigManager;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState,
-};
-#[cfg(test)]
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
-use infiltrator_contract::profile_document_identity::ProfileId;
 #[cfg(test)]
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
@@ -50,11 +41,20 @@ use infiltrator_profile_store::reset_fence::{
 };
 #[cfg(test)]
 use infiltrator_profile_store::workspace::sha256_hex;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState,
+};
+#[cfg(test)]
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 #[cfg(test)]
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use mihomo_api::error::MihomoError;

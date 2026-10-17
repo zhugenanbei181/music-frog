@@ -10,7 +10,6 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
@@ -20,6 +19,7 @@ use infiltrator_contract::rule_trace_run::{
 use infiltrator_contract::script_export::ScriptExportKind;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 impl CommandApplication {

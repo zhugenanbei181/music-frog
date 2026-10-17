@@ -5,8 +5,6 @@ use infiltrator_contract::android_control::core_launch::{
     AndroidCoreBinaryTarget, CoreLaunchArguments, CoreLaunchBinary,
 };
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::profile_document_identity::ProfileDocument;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionPort,
@@ -17,6 +15,8 @@ use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
+use lurker_core_contract::profile_document_identity::ProfileDocument;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;

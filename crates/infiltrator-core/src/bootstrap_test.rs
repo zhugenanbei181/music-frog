@@ -4,14 +4,14 @@
 use super::*;
 use crate::settings_io::app_config_manager_in;
 use crate::settings_io::test_support::RedirectGuard;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+};
 use mihomo_config::manager::ConfigManager;
 use tempfile::TempDir;
 use tokio::fs::read_to_string;

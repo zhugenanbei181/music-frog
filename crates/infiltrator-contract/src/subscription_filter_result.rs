@@ -1,5 +1,5 @@
 //! Detailed filtering facts and the actual source published by a commit.
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

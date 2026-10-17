@@ -1,7 +1,7 @@
 //! Product-wide active-profile reference persistence.
 
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };

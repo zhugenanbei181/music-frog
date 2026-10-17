@@ -17,8 +17,6 @@ use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::editor_viewport::EditorViewport;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use infiltrator_contract::rule_edit::LogicalDraft;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
@@ -37,6 +35,8 @@ use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
 use infiltrator_presentation::script_workbench::ScriptWorkbench;
 use infiltrator_presentation::snapshot_restore_workbench::SnapshotRestoreWorkbench;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use std::path::PathBuf;
 
 /// Loading phase for rule list editor.

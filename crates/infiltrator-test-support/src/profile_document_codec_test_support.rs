@@ -1,9 +1,6 @@
 use crate::rule_workspace_test_support::rule_workspace_with_identity;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
-};
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
@@ -24,6 +21,9 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{

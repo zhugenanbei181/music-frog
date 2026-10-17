@@ -6,12 +6,6 @@ use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
 use async_trait::async_trait;
 use chrono::Timelike;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget,
-};
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::subscription_import::{
     SubscriptionFilterDraft, SubscriptionImportChannel,
 };
@@ -28,8 +22,14 @@ use infiltrator_ports::subscription_source::{
 };
 use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 use infiltrator_test_support::profile_workspace_test_support::workspace_with_raw_sidecar;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;
 use std::future::ready;

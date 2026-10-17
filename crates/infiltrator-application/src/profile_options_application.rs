@@ -9,9 +9,6 @@ use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess, valid
 use crate::profile_document_application::document_snapshot;
 use crate::profile_editor_observations::EditorFacet;
 use infiltrator_contract::profile_document::ProfileWorkspaceReceipt;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
-};
 use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
@@ -22,6 +19,9 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
+};
 
 /// Resolve the sidecar profile: an explicit name, or the active profile.
 async fn resolve_profile(

@@ -1,16 +1,6 @@
 //! test-intent: behavior
 
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision,
-    ActiveProfileReferenceWriteAuthorization,
-};
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
-    ProfileSourceId, ProfileWorkspaceIdentity,
-};
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
@@ -21,10 +11,20 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId, ProfileWorkspaceIdentity,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use std::sync::atomic::{AtomicUsize, Ordering};

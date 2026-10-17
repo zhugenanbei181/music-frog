@@ -1,7 +1,6 @@
 //! Explicit simulation and immutable-reader behavior with real source adapters.
 use super::*;
 use futures_util::poll;
-use infiltrator_contract::profile_document_identity::ProfileDocumentRevision;
 use infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerObservation;
@@ -13,6 +12,7 @@ use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
 use infiltrator_test_support::rule_trace_fixtures::unknown_rule_trace_observation;
 use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileDocumentRevision;
 use std::future::pending;
 use std::task::Poll;
 

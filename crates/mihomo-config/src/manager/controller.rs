@@ -5,9 +5,9 @@
 use super::ConfigManager;
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
 use crate::yaml;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use mihomo_api::error::{MihomoError, Result};
 use ring::rand::{SecureRandom, SystemRandom};
 

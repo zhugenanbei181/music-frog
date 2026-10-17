@@ -2,14 +2,14 @@
 
 use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
+use infiltrator_domain::apply::ApplyStrategy;
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_domain::apply::ApplyStrategy;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 
 /// 仅在宿主提供的活动引擎 owner 与 revision 授权精确匹配时应用配置。

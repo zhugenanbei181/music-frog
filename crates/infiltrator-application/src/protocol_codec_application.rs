@@ -17,7 +17,6 @@ use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use infiltrator_contract::dialer_chain::DialerChainReport;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::{
     CodecAudit, ProtocolDraft, ProtocolFidelityReport, ProtocolStudioSnapshot,
 };
@@ -33,6 +32,7 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(test)]

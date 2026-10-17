@@ -1,8 +1,8 @@
 //! Coherent document/options reads and source-bound persistence proposals.
-use infiltrator_contract::profile_document_identity::{
+use lurker_core_contract::profile_document_identity::{
     ProfileDocument, ProfileSidecarRevision, ProfileWorkspaceIdentity,
 };
-use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
+use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProfileWorkspace {

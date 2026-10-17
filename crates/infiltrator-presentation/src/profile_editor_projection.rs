@@ -2,12 +2,12 @@
 use infiltrator_contract::apply_transaction::{ApplyTransactionSnapshot, ApplyTransactionStage};
 use infiltrator_contract::editor_viewport::EditorViewport;
 use infiltrator_contract::profile_document::DocumentInspection;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::yaml_snippets::SyntaxDiagnosticSnapshot;
 use infiltrator_domain::yaml_edit::format::FormatSkipReason;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 
 pub fn format_note(reason: FormatSkipReason, locale: &str) -> String {
     Lang(locale)

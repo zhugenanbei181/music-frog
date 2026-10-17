@@ -8,8 +8,6 @@
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -23,7 +21,9 @@ use infiltrator_ports::profile_document_codec::ProfileRuleWorkspaceUpdate;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;
 use std::sync::{Arc, Weak};

@@ -1,17 +1,7 @@
 use super::*;
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
-    ProfileSourceId,
-};
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::profile_store::{
@@ -21,9 +11,19 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspacePurpose;
 use infiltrator_ports::profile_workspace::ProfileWorkspaceUpdate;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::session::SessionToken;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::collections::VecDeque;

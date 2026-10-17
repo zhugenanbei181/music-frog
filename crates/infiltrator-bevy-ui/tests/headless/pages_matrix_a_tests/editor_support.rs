@@ -5,9 +5,9 @@ use infiltrator_bevy_ui::pages::profiles::ProfilesProjection;
 use infiltrator_contract::profile_document::{DocumentInspection, ProfileDocumentSnapshot};
 use infiltrator_contract::profile_editor_read::{ProfileEditorReadSnapshot, ProfileReadStatus};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_test_support::subscription_filter_fixture;
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 
 pub(super) fn editor_page_projection(
     protection: ProfileWriteProtection,

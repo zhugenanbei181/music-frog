@@ -7,7 +7,6 @@ use super::{
 };
 use crate::profile::Profile;
 use crate::profile_workspace_store::config_error;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -16,6 +15,7 @@ use infiltrator_ports::profile_workspace::{
 };
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::metadata::delete_subscription_url;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_ports::error::PortError;
 use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;

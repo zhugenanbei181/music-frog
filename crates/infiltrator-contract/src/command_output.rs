@@ -4,7 +4,6 @@ use crate::log_export::{LogExportReceipt, LogExportSummary};
 use crate::profile_document::{
     ProfileDocumentSaved, ProfileDocumentSnapshot, ProfileWorkspaceReceipt,
 };
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_options::ProfileOptionsSnapshot;
 use crate::rule_statistics::RuleStatisticsResetReceipt;
 use crate::script_export_review::{ScriptExportReview, ScriptExportSaved};
@@ -25,6 +24,7 @@ use lurker_core_contract::outbound::inventory::{
 };
 use lurker_core_contract::outbound::preferences::OutboundUiPreferencesSnapshot;
 use lurker_core_contract::outbound::probe::OutboundProbeBatchSnapshot;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use serde::{Deserialize, Serialize};
 
@@ -417,15 +417,15 @@ fn same_document_namespace(
 mod tests {
     use super::CommandOutput;
     use crate::command::{CommandIntent, CommandResult, RequestId};
-    use crate::profile_document_identity::{
-        ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-        ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
-        ProfileWorkspaceIdentity,
-    };
     use crate::profile_options::ProfileOptionsSnapshot;
     use crate::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
     use lurker_core_contract::error::{ErrorCode, Failure};
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{
+        ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+        ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+        ProfileWorkspaceIdentity,
+    };
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use lurker_core_contract::routing_intent::RoutingIntent;
 

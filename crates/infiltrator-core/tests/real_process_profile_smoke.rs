@@ -8,13 +8,8 @@
 //! It does not assert product capability matrix or composition wiring.
 
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_core::apply::{ConfigReloader, EndpointConfigReloader};
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -37,9 +32,14 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;

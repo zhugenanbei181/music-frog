@@ -8,7 +8,6 @@ use super::*;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::logs::LogStreamState;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -38,6 +37,7 @@ use lurker_core_contract::outbound::preferences::{
     OutboundHealthFilter, OutboundLayout, OutboundSortOrder, OutboundUiPreferencesSnapshot,
     OutboundUiPreferencesValues,
 };
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::env;
 use std::fs::{OpenOptions, create_dir_all};

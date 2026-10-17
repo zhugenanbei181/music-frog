@@ -3,8 +3,8 @@ use crate::core_application::{
     test_dispatch_at_current_scope, test_execute_result_at_current_scope,
 };
 use crate::core_capability_test_support::core_scope;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::lifecycle::CoreLifecycle;

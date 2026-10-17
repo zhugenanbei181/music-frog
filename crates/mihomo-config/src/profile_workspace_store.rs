@@ -1,12 +1,12 @@
 //! Mihomo namespace initialization before engine-neutral workspace reads.
 
 use crate::manager::ConfigManager;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::secure_store::SecureStore;
 #[cfg(test)]
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use mihomo_api::error::MihomoError;
 use std::io::ErrorKind;

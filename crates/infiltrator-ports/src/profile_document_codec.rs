@@ -7,9 +7,6 @@
 
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::DnsHostEntry;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
-};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
@@ -22,6 +19,9 @@ use infiltrator_contract::subscription_filter_result::FilterReport;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
 use lurker_core_contract::capability::Capability;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{

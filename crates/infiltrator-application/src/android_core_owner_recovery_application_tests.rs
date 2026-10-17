@@ -1,16 +1,11 @@
 use super::{AndroidCoreOwnerRecoveryApplication, AndroidCoreOwnerRecoveryOutcome};
 use crate::vpn_application::VpnServiceApplication;
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
     AndroidCoreProcessRecoveryReceipt, AndroidCoreProcessUnavailableReason,
     AndroidOwnedCoreProcess,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
@@ -20,10 +15,15 @@ use infiltrator_ports::active_profile_reference_store::{
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex};

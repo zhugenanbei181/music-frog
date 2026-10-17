@@ -1,6 +1,6 @@
 use crate::active_reference_file::ActiveProfileReferenceFile;
 use crate::active_reference_owner::ActiveProfileReferenceRecord;
-use infiltrator_contract::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
 use lurker_core_ports::error::PortError;

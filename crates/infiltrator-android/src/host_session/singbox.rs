@@ -4,7 +4,6 @@ use crate::core_version_owner::{core_binary_selection_port, core_version_applica
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_settings_application, map_mihomo_error};
 use infiltrator_application::android_control_application::AndroidControlApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::android_control::core_launch::AndroidCoreBinaryTarget;
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
@@ -20,6 +19,7 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReference;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::EngineId;

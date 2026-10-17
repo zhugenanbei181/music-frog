@@ -1,9 +1,9 @@
 use super::*;
 use infiltrator_contract::profile_document::DocumentInspection;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 impl CoreApplication {

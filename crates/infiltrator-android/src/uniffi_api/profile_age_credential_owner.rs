@@ -603,17 +603,17 @@ mod tests {
         RequestScopeMatch, decode_owner_request, request_scope_match,
     };
     use crate::ffi::FfiErrorCode;
-    use infiltrator_contract::active_profile_reference::{
-        ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    };
     use infiltrator_contract::profile_age_credential::{
         AgePrivateKey, ProfileAgeCredentialObservation, ProfileAgeCredentialOwnerMetadata,
         ProfileAgeCredentialOwnerRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
     };
-    use infiltrator_contract::profile_document_identity::ProfileId;
+    use lurker_core_contract::active_profile_reference::{
+        ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    };
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
     };
+    use lurker_core_contract::profile_document_identity::ProfileId;
 
     fn scope(generation: u64) -> CoreScope {
         CoreScope {

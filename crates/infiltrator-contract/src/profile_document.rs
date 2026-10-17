@@ -1,11 +1,11 @@
 //! Shared profile-document read model with engine-authored inspection facts.
 
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_options::ProfileOptionsSnapshot;
-use crate::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

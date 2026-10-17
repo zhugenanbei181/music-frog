@@ -1,15 +1,15 @@
 //! Memory-port fixtures retain typed document and sidecar identity semantics.
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
-    ProfileSourceId,
-};
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profile_source::hash_bytes;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 
 pub fn workspace_with_origin(

@@ -1,6 +1,6 @@
 //! Typed durable records for the product-wide active profile and Core owner.
 
-use infiltrator_contract::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
 use lurker_core_contract::capability::Capability;

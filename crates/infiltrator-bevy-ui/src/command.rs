@@ -25,8 +25,6 @@ use infiltrator_contract::log_export::LogExportIdentity;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::profile_document::DocumentInspection;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 #[cfg(any(test, feature = "capture-tools"))]
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
@@ -36,7 +34,6 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_contract::rule_document::RuleListCommit;
@@ -59,6 +56,9 @@ use lurker_core_contract::outbound::{
 };
 #[cfg(any(feature = "capture-tools", test))]
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 #[cfg(any(feature = "capture-tools", test))]

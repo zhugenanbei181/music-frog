@@ -1,10 +1,10 @@
 use super::*;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::profile_selection_clear::{
     ClearActiveProfileSelectionOutcome, ClearActiveProfileSelectionRequest,
     UnselectedProfileSelectionReadback,
+};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceWriteAuthorization,
 };
 use lurker_core_contract::identity::CoreInstanceId;
 

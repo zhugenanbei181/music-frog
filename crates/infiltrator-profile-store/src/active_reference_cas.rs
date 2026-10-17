@@ -1,12 +1,12 @@
 //! Typed revision compare and owner-fenced active-reference transition rules.
 
-use infiltrator_contract::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 
 /// Current owner authorization projection derived while its owner-state lock

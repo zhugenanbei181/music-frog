@@ -1,6 +1,4 @@
 use super::*;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::profile_store::{
@@ -8,7 +6,9 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
     ActiveProfileWorkspaceWriteLease,
 };
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{Mutex, OwnedMutexGuard};

@@ -5,10 +5,6 @@
 
 use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
-};
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_matrix::{
     ProtocolCodecMatrixReport, ProtocolCodecMatrixScenario,
@@ -19,6 +15,10 @@ use infiltrator_domain::protocol_draft_codec::uri_fidelity_gaps;
 use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationReadout, ProfileConfigurationUpdate,
+};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
 };
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;

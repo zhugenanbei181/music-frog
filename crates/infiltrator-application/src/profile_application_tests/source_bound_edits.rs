@@ -7,11 +7,11 @@ use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_editor_read::ProfileEditStatusFact;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase, ProfileEditSession,
 };
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use std::sync::Arc;
 
 #[tokio::test]

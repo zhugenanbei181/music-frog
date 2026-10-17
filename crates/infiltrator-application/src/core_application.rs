@@ -10,7 +10,6 @@ use crate::speedtest_application::{
     SpeedtestApplication, SpeedtestCompletionAdmission, SpeedtestTaskOutcome,
 };
 use futures_util::lock;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
 use infiltrator_contract::snapshot::{CoreEvent, CoreSnapshot};
@@ -24,6 +23,7 @@ use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamPort;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};

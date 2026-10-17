@@ -13,9 +13,6 @@
 use crate::apply_workspace::apply_active_profile_workspace_with_receipt;
 use crate::history::{DEFAULT_KEEP, prune_snapshots, save_snapshot};
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config};
@@ -33,6 +30,9 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::owner_switch::CoreApplyFailureKind;

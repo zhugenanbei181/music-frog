@@ -7,9 +7,9 @@
 
 use crate::metadata::{SUBSCRIPTION_SERVICE, legacy_subscription_key, subscription_key};
 use crate::store::EngineProfileStore;
-use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_name::validate_profile_name;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::namespace::{
     LegacyProfileNamespaceMigrationV1, PROFILE_NAMESPACE_SCHEMA_KEY,

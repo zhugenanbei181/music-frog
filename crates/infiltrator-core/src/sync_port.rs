@@ -4,7 +4,6 @@ use crate::remote_profile_namespace::{migrate_remote_profile_namespace, remote_p
 use crate::settings_io::load_webdav_password;
 use dav_client::DavClient;
 use dav_client::client::WebDavClient;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::sync::{SyncConflict, SyncProgress, SyncReport, SyncTransferReport};
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profiles::sanitize_profile_name;
@@ -15,6 +14,7 @@ use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;

@@ -3,7 +3,6 @@
 use crate::apply::{ApplyError, ApplyParams, ConfigReloader};
 use crate::apply_workspace::apply_codec_validated_workspace;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
@@ -22,6 +21,7 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use mihomo_config::manager::ConfigManager;

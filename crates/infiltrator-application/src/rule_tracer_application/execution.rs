@@ -1,6 +1,5 @@
 //! Commands own simulation; readers replay the last result without executing it.
 use super::RuleTracerApplication;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_condition::{ConditionIssue, RuleTraceIssue};
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_trace_run::{
@@ -10,6 +9,7 @@ use infiltrator_contract::rule_trace_run::{
 use infiltrator_contract::rule_tracer::{RuleTracerSnapshot, RuleTracerStatus};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use std::sync::{Arc, Mutex};
 
 impl RuleTracerApplication {

@@ -1,5 +1,4 @@
 use super::*;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_condition::{ConditionIssue, TrafficField};
 use infiltrator_contract::rule_trace_facts::DecisionStageFacts;
 use infiltrator_contract::rule_trace_run::{
@@ -28,6 +27,7 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
 };
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

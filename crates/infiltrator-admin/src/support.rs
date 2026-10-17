@@ -58,12 +58,12 @@ pub(crate) async fn select_test_profile<S>(manager: &ConfigManager<S>, profile: 
 where
     S: SecureStore,
 {
-    use infiltrator_contract::active_profile_reference::{
+    use infiltrator_ports::profile_store::ProfileStore;
+    use lurker_core_contract::active_profile_reference::{
         ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
         ActiveProfileReferenceWriteAuthorization,
     };
-    use infiltrator_contract::profile_document_identity::ProfileId;
-    use infiltrator_ports::profile_store::ProfileStore;
+    use lurker_core_contract::profile_document_identity::ProfileId;
 
     let expected = ProfileStore::read_active_profile_reference(manager.engine_profile_store())
         .await

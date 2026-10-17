@@ -6,10 +6,6 @@ use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessObservation, AndroidHostProcessRole,
@@ -26,8 +22,6 @@ use infiltrator_contract::core_capabilities::{
     VersionOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::vpn::VpnGeneration;
 use infiltrator_contract::vpn::{
@@ -46,6 +40,10 @@ use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::ErrorCode;
@@ -59,6 +57,8 @@ use lurker_core_contract::outbound::{
     probe::OutboundSelectionRequest,
 };
 use lurker_core_contract::profile_document_identity::ProfileFormatId;
+use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_ports::core_process::CoreReadiness;
 use lurker_core_ports::error::PortError;
 use mihomo_api::runtime_configuration::scope_resolver_from_owner;

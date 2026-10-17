@@ -1,8 +1,8 @@
 //! test-intent: behavior
 use super::*;
 
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_test_support::subscription_filter_fixture::{self, FIXTURE_DOCUMENT};
+use lurker_core_contract::profile_document_identity::ProfileId;
 fn observation(
     profile: &str,
     filter: &SubscriptionFilterDraft,

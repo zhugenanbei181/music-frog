@@ -6,17 +6,17 @@ use crate::workspace::{
     validate_document_format, validate_engine, validate_workspace_bytes,
     validate_workspace_identity, workspace_from_bytes,
 };
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
-use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
-use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use lurker_core_contract::profile_name::validate_profile_name;
+use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{
     read_optional_bytes, remove_optional, write_document_bytes_durable,

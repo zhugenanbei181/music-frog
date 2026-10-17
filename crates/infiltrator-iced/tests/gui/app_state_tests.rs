@@ -21,7 +21,6 @@ use infiltrator_application::runtime_configuration_application::RuntimeConfigura
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_control::CoreControlLabel;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::system_toggle::SystemToggleState;
@@ -42,6 +41,7 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::routing_intent::RoutingIntentStatus;

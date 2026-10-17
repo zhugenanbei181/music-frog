@@ -20,10 +20,10 @@ use crate::host_support::{
 };
 use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profiles;
 use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 
 // --- Profiles API ---
 

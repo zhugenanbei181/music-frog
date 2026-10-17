@@ -1,8 +1,8 @@
 //! Frozen export content is reviewed before a host write is admitted.
-use crate::profile_document_identity::ProfileDocumentIdentity;
 use crate::script_export::{ScriptExportKind, ScriptExportOutcome, ScriptExportSnapshot};
 use crate::script_run::MAX_SCRIPT_INPUT_BYTES;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -222,14 +222,14 @@ fn config_error(error: MihomoError) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::active_profile_reference::{
-        ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
-    };
     use infiltrator_ports::profile_store::{
         ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution,
         ProfileStore,
     };
     use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+    use lurker_core_contract::active_profile_reference::{
+        ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+    };
     #[cfg(test)]
     use std::net::TcpListener;
     use std::path::Path;

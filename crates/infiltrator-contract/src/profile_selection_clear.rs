@@ -1,6 +1,6 @@
 //! Typed request and readback for clearing one engine's active profile choice.
 
-use crate::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceWriteAuthorization,
 };

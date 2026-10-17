@@ -2,7 +2,6 @@
 
 use super::*;
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::subscription_import::SubscriptionFormat;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
@@ -10,6 +9,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument,
 };
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::EngineId;

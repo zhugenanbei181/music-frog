@@ -7,7 +7,6 @@ use infiltrator_application::core_capability_application::CoreCapabilityApplicat
 use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command::UiCommandSink;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command::RequestId;
@@ -23,6 +22,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::ErrorCode;

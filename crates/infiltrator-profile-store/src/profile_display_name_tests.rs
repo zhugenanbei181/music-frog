@@ -3,11 +3,11 @@ use infiltrator_contract::profile_display_name::{
     ProfileDisplayName, ProfileDisplayNameMutation, ProfileDisplayNameObservation,
     ProfileDisplayNameTarget,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{

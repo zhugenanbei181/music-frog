@@ -5,10 +5,6 @@ use crate::reset_fence::{
     acquire_reset_fenced_profile_mutation_for_dir, initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::named_override::NamedOverrideCatalog;
@@ -22,14 +18,18 @@ use infiltrator_contract::profile_catalog_order::{
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
 };
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 

@@ -1,14 +1,14 @@
 //! Owner-authorized Age credential editing, separate from profile snapshots.
 
 use super::ProfileApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialWriteRequest, ProfileAgeDecryptedContent,
     ProfileAgeEncryptedContent,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileId;
 
 pub(super) enum PreparedSubscriptionContent<'a> {
     Plaintext(&'a str),

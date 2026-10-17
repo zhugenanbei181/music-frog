@@ -1,7 +1,7 @@
 //! Snapshot-fenced ordering for an engine-scoped profile catalog.
 
-use crate::profile_document_identity::ProfileId;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::error;

@@ -6,11 +6,11 @@ use infiltrator_contract::command::{CommandIntent, CommandKind};
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate, SnifferConfiguration,
 };
-use infiltrator_contract::profile_document_identity::{
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
 };
-use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
 #[test]

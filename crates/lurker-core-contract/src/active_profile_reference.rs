@@ -1,7 +1,7 @@
-//! Cross-engine active-profile selection identity and revision fence.
+//! Engine-neutral active-profile selection identity and revision fence.
 
+use crate::identity::{CoreGeneration, CoreIdentity, EngineId};
 use crate::profile_document_identity::ProfileId;
-use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use serde::{Deserialize, Serialize};
 
 /// Monotonic revision for the one product-wide active-profile reference.
@@ -132,8 +132,8 @@ mod tests {
     use super::{
         ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     };
+    use crate::identity::EngineId;
     use crate::profile_document_identity::ProfileId;
-    use lurker_core_contract::identity::EngineId;
 
     #[test]
     fn reference_round_trip_preserves_engine_profile_and_revision() {
@@ -161,5 +161,22 @@ mod tests {
 
         assert_eq!(decoded, state);
         assert_eq!(decoded.revision(), ActiveProfileReferenceRevision::new(3));
+    }
+
+    #[test]
+    fn serialized_state_keeps_persisted_tag_and_field_names() {
+        let encoded = serde_json::to_value(ActiveProfileReferenceState::Selected(
+            ActiveProfileReference::new(
+                EngineId::new("mihomo").unwrap(),
+                ProfileId::new("main").unwrap(),
+                ActiveProfileReferenceRevision::new(4),
+            ),
+        ))
+        .unwrap();
+
+        assert_eq!(encoded["state"], "selected");
+        assert_eq!(encoded["reference"]["engine_id"], "mihomo");
+        assert_eq!(encoded["reference"]["profile_id"], "main");
+        assert_eq!(encoded["reference"]["revision"], 4);
     }
 }

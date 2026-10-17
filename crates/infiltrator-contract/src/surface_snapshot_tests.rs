@@ -4,11 +4,6 @@ use crate::android_control::{
     VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
 use crate::offline_startup::StartupNetworkPolicy;
-use crate::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
-    ProfileWorkspaceIdentity,
-};
 use crate::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use crate::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceOwnerObservation,
@@ -25,6 +20,11 @@ use lurker_core_contract::outbound::details::{OutboundDetailsSnapshot, OutboundD
 use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+    ProfileWorkspaceIdentity,
 };
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 #[cfg(test)]

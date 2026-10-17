@@ -2,8 +2,8 @@
 //! Real port effects prove frozen review, cancellation, permissions and source comparison.
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceRevision;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 fn fixture() -> (
     SnapshotApplication,
     Arc<FakeProfileStore>,

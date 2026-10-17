@@ -11,8 +11,8 @@
 //! application use-case and read by the surface projection, so a Bevy pane
 //! never reads the file itself.
 
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::subscription_import::SubscriptionFilterDraft;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use serde::{Deserialize, Serialize};
 
 /// The stored options of one profile, in surface-editable form.
@@ -57,11 +57,11 @@ mod tests {
     use super::*;
     use crate::subscription_import::SubscriptionFilterDraft;
     fn source() -> ProfileWorkspaceIdentity {
-        use crate::profile_document_identity::{
+        use lurker_core_contract::identity::EngineId;
+        use lurker_core_contract::profile_document_identity::{
             ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
             ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
         };
-        use lurker_core_contract::identity::EngineId;
         use lurker_core_contract::profile_document_identity::{
             ProfileFormatId, ProfileSchemaVersion,
         };

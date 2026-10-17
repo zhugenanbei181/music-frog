@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};

@@ -2,9 +2,6 @@ use super::ProfileApplication;
 use infiltrator_contract::profile_document::{
     DocumentInspection, DocumentInspectionUnavailableReason, DocumentInspectionUnsupportedReason,
 };
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocument, ProfileDocumentIdentity, ProfileWorkspaceIdentity,
-};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
@@ -19,6 +16,9 @@ use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+};
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCaret, ProfileDocumentCodecScope, ProfileDocumentSnippetOutcome,
 };

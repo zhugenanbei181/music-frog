@@ -1,9 +1,6 @@
 //! Mihomo YAML document inspection adapter.
 
 use crate::{profile_configuration_codec, profile_options_codec};
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
-};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
@@ -17,6 +14,9 @@ use infiltrator_ports::profile_document_codec::{
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{

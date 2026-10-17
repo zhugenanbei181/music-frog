@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, EngineReleaseChannel,
     InstalledCoreVersion,
@@ -24,6 +23,7 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreVersion;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;

@@ -8,9 +8,9 @@ use infiltrator_contract::profile_display_name::{
     ProfileDisplayName, ProfileDisplayNameMutation, ProfileDisplayNameObservation,
     ProfileDisplayNameTarget,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::settings::ensure_table;
 

@@ -1,12 +1,12 @@
 use super::*;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
-};
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationUpdate,
+};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
 };
 
 fn identity(codec: &SingBoxProfileDocumentCodec) -> ProfileDocumentIdentity {

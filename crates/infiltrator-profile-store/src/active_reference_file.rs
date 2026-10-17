@@ -4,7 +4,7 @@ use crate::active_reference_owner::{
     ACTIVE_CORE_OWNER_STATE_FILE, ActiveCoreOwnerProofRecord, ActiveProfileReferenceRecord,
     parse_active_core_owner_proof_record,
 };
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{
     RECORD_DURABILITY_UNCERTAIN_PREFIX, read_optional, write_document_bytes_durable,

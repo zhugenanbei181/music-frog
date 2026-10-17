@@ -19,11 +19,6 @@ use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
-};
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_platform::credentials::{
     clear_credential_store_override, set_credential_store_override,
@@ -31,6 +26,11 @@ use infiltrator_platform::credentials::{
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_test_support::memory_credential_store::MemoryCredentialStore;
+use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;

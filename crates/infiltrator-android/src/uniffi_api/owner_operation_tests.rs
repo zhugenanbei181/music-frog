@@ -8,11 +8,6 @@ use super::*;
 use crate::host_support::build_routing_application;
 use crate::uniffi_api::{VpnTunStack, VpnTunStackUpdate};
 use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::app_routing::AppRoutingRule;
 use infiltrator_platform::TEST_LOCK;
@@ -22,7 +17,12 @@ use infiltrator_platform::android_bridge::{
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use mihomo_config::manager::ConfigManager;
 use std::collections::BTreeMap;
 use std::env::temp_dir;
@@ -470,7 +470,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
 
 #[test]
 fn android_profile_target_resolves_a_validated_engine_scoped_reference() {
-    use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
+    use lurker_core_contract::active_profile_reference::ActiveProfileReferenceTarget;
 
     let target = AndroidProfileSelectionTarget::SingBox {
         profile_id: "mobile".to_owned(),

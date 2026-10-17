@@ -17,7 +17,6 @@ use infiltrator_contract::profile_document::{
     DocumentInspection, DocumentInspectionUnavailableReason, ProfileDocumentSnapshot,
 };
 use infiltrator_contract::profile_mixin_studio::ProfileMixinPreflight;
-use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_contract::yaml_snippets::{
     SyntaxDiagnosticSnapshot, byte_offset_of_column, column_of_byte_offset,
 };
@@ -27,6 +26,7 @@ use infiltrator_presentation::profile_edit_status_projection;
 use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the

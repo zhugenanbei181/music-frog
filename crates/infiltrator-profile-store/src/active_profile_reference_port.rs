@@ -10,16 +10,16 @@ use crate::reset_fence::{
     initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
     ActiveProfileOwnerStoppedSwitchLease, ActiveProfileOwnerSwitchLease,
     ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;

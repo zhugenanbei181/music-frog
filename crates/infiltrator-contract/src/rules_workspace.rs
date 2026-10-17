@@ -7,7 +7,7 @@
 //! order of every partition lives here once instead of being re-invented per
 //! surface.
 
-use crate::profile_document_identity::ProfileDocumentIdentity;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use serde::{Deserialize, Serialize};
 
 /// The four rule-management partitions both surfaces expose.
@@ -125,11 +125,11 @@ pub struct RulesJsonDocumentSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile_document_identity::{
+    use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
         ProfileId, ProfileSourceId,
     };
-    use lurker_core_contract::identity::EngineId;
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
     fn document_identity() -> ProfileDocumentIdentity {

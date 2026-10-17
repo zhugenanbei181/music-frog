@@ -4,11 +4,6 @@
 use super::{apply, read, read_rule_workspace};
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::DnsHostEntry;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
-    ProfileWorkspaceIdentity,
-};
 use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, KernelEtagSupportState};
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_domain::{dns, rules, sniffer, tun};
@@ -18,6 +13,11 @@ use infiltrator_ports::profile_document_codec::{
 };
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+    ProfileWorkspaceIdentity,
+};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use std::collections::BTreeMap;
 

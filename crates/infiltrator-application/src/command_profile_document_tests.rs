@@ -8,11 +8,11 @@ use crate::profile_document_application::ProfileDocumentApplication;
 use infiltrator_contract::profile_document::{
     DocumentInspection, DocumentInspectionUnavailableReason, DocumentInspectionUnsupportedReason,
 };
-use infiltrator_contract::profile_document_identity::{ProfileDocumentIdentity, ProfileId};
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_document_identity::{ProfileDocumentIdentity, ProfileId};
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use std::str::from_utf8;
 

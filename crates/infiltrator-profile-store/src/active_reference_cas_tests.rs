@@ -1,13 +1,13 @@
 use crate::active_reference_cas::{
     ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
 };
-use infiltrator_contract::active_profile_reference::{
+use lurker_core_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget,
 };
-use infiltrator_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
 
 fn unselected(revision: u64) -> ActiveProfileReferenceState {

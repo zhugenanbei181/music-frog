@@ -29,7 +29,6 @@ use infiltrator_contract::offline_startup::LocalAssetStatus;
 use infiltrator_contract::offline_startup::StartupNetworkPolicy;
 #[cfg(test)]
 use infiltrator_contract::offline_startup::StartupRemoteDependency;
-use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 use infiltrator_contract::vpn::VpnGeneration;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
@@ -42,6 +41,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::core_process::{CoreProcessStartAdmission, CoreReadiness};
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;

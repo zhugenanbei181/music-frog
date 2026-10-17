@@ -40,11 +40,11 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_session::active_profile_reference_state;
 use crate::host_support::get_runtime;
 use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_platform::android_bridge::get_android_bridge;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -281,9 +281,9 @@ pub enum AndroidProfileSelectionTarget {
 
 impl AndroidProfileSelectionTarget {
     pub(super) fn into_reference_target(self) -> Result<ActiveProfileReferenceTarget, FfiStatus> {
-        use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
-        use infiltrator_contract::profile_document_identity::ProfileId;
+        use lurker_core_contract::active_profile_reference::ActiveProfileReferenceTarget;
         use lurker_core_contract::identity::EngineId;
+        use lurker_core_contract::profile_document_identity::ProfileId;
 
         let (engine_id, profile_id) = match self {
             Self::Mihomo { profile_id } => (EngineId::mihomo(), profile_id),

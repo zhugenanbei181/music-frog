@@ -27,13 +27,9 @@ use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner,
 };
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
-use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
@@ -47,6 +43,10 @@ use infiltrator_ports::core_lifecycle::CoreOwnerTerminationPort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+};
+use lurker_core_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use lurker_core_ports::core_process::CoreReadiness;
 use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::endpoint::ProfileEndpointSource;
@@ -578,7 +578,7 @@ async fn require_owner_recovery(previous: &Arc<SharedCore>, failure: FfiStatus) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision;
+    use lurker_core_contract::active_profile_reference::ActiveProfileReferenceRevision;
     use lurker_core_contract::identity::EngineId;
 
     #[test]

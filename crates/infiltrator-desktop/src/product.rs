@@ -4,15 +4,15 @@ use crate::product_switch::{retry_default_product_engine, switch_default_product
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_application::SurfacePump;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-};
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::host_runtime::HostRuntime;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use std::error::Error;

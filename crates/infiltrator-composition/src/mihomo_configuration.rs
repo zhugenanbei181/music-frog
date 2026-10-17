@@ -6,11 +6,6 @@ use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
-    ProfileWorkspaceIdentity,
-};
 #[cfg(feature = "capture-fixtures")]
 use infiltrator_domain::profile_options::ProfileOptions;
 #[cfg(feature = "capture-fixtures")]
@@ -23,6 +18,11 @@ use infiltrator_ports::rule_tracer::RuleWorkspace;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 #[cfg(feature = "capture-fixtures")]
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+    ProfileWorkspaceIdentity,
+};
 #[cfg(feature = "capture-fixtures")]
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 #[cfg(feature = "capture-fixtures")]

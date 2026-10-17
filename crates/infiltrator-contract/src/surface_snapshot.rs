@@ -38,9 +38,7 @@ use crate::overview_layout::OverviewLayoutSnapshot;
 use crate::pac::PacSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
 use crate::privileged_network::PrivilegedNetworkSnapshot;
-use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_editor_read::ProfileEditorSnapshot;
-use crate::profile_protection::ProfileWriteProtection;
 use crate::protocol_fidelity::ProtocolStudioSnapshot;
 use crate::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use crate::public_ip::PublicIpProbeSnapshot;
@@ -85,6 +83,8 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState,
 };
 use lurker_core_contract::outbound::preferences::OutboundUiPreferencesSnapshot;
+use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use serde::{Deserialize, Serialize};
 

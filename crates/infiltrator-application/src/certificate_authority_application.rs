@@ -15,7 +15,6 @@
 //! access of its own; reading is the port's job.
 
 use crate::profile_application::ProfileApplication;
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::protocol_trust::{
     CaLoadStatus, CaTrustReport, CaTrustResolution, TlsTrustParams,
 };
@@ -26,6 +25,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationUpdate,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_ports::error::PortError;
 
 /// DUAL-05-13 shared CA use cases.

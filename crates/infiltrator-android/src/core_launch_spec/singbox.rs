@@ -5,7 +5,6 @@ use infiltrator_contract::android_control::core_launch::{
     CoreLaunchConfigurationIdentity, CoreLaunchPath, CoreLaunchSpec,
 };
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
-use infiltrator_contract::profile_document_identity::ProfileDocument;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_binary_selection::{
@@ -17,6 +16,7 @@ use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::ProfileDocument;
 use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;

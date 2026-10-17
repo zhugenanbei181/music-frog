@@ -1,13 +1,13 @@
 use crate::settings_io::app_config_manager_for_profile_reset;
 use anyhow::anyhow;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-};
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::profile_reset::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
+};
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
@@ -168,8 +168,8 @@ external-controller: 127.0.0.1:{}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::active_profile_reference::ActiveProfileReference;
-    use infiltrator_contract::profile_document_identity::ProfileId;
+    use lurker_core_contract::active_profile_reference::ActiveProfileReference;
+    use lurker_core_contract::profile_document_identity::ProfileId;
     use sha2::{Digest, Sha256};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};

@@ -4,11 +4,6 @@
 use super::*;
 use async_trait::async_trait;
 use chrono::Timelike;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision,
-    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
@@ -20,8 +15,6 @@ use infiltrator_contract::profile_catalog_order::{
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
 };
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::profile_store::{
@@ -35,8 +28,15 @@ use infiltrator_test_support::profile_document_codec_test_support::TestProfileDo
 use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision,
+    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;

@@ -6,7 +6,6 @@
 
 pub mod a11y;
 pub mod active_exit;
-pub mod active_profile_reference;
 pub mod adapter_operation_declaration;
 pub mod aggregator;
 pub mod android_control;
@@ -59,10 +58,8 @@ pub mod profile_catalog_order;
 pub mod profile_configuration;
 pub mod profile_display_name;
 pub mod profile_document;
-pub mod profile_document_identity;
 pub mod profile_mixin_studio;
 pub mod profile_options;
-pub mod profile_protection;
 pub mod profile_selection_clear;
 pub mod profile_source;
 pub mod protocol_fidelity;

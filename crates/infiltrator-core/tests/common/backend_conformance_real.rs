@@ -10,12 +10,7 @@ use infiltrator_composition::engine_backend_factory::{
     EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
 };
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
-    ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::core_capabilities::{AdapterRevision, EngineBinaryTarget};
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::{
     MihomoBinaryConfigurationCandidateValidator, MihomoProfileConfigurationTransactionAdapter,
@@ -29,10 +24,15 @@ use infiltrator_ports::profile_configuration_transaction::{
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
