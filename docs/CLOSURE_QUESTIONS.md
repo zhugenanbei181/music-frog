@@ -30,7 +30,7 @@
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部 `cargo check --locked` 通过；产品层仍只有 x86_64-linux，aarch64 产品包未验证 |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物） |
 | 3 | 部分 | L | Android 源码级接通，APK 在 v0.42.6 失败且修复未取证，真机 0；iOS `Unsupported`（626 行 stub） |
-| 4 | 部分 | L | Iced/Bevy 深接入；Slint 最小接入（5.0k 行/16 文件，无共享 kit）；Android 基础页 |
+| 4 | 部分 | L | Iced/Bevy 深接入；Slint 紧凑接入（约 5k 行含测试，6 组页面回调 + Lumen 投影；无共享 kit，功能验收未完成）；Android 基础页 |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；77/82 presentation 模块仍产品耦合 |
 | 6 | 缺失 | L | Android running runtime operations `Unsupported`；Slint/Bevy 功能验收未完成 |
 | 7 | 部分 | L | 文件级模块化完成；跨 UI 页面状态机仍各自实现，无共享页面模型层 |
@@ -41,7 +41,7 @@
 1. x86_64/aarch64：中性内核 8 个组合（Windows/Linux/macOS/Android × x64/arm64）全部 `cargo check --locked` 通过（macOS 仅编译检查，无产物）；产品层仍只有 x86_64-linux → 部分（L）。
 2. Windows/Linux/macOS：Windows/Linux 有旧 commit 的 CI 腿，macOS 无产物 → 部分（C 旧 + L）。
 3. Android/iOS：Android APK 无当前证据、真机 0；iOS 只有 host stub → 部分 / 缺失（L）。
-4. 各 UI：Iced 59.6k 行、Bevy 72.8k 行、Slint 5.0k 行、Android 23.6k 行，全部参与编译，但只有前两者是深接入 → 部分（L）。
+4. 各 UI：Iced 59.6k 行、Bevy 72.8k 行、Slint 约 5k 行（含测试，6 组页面回调 + Lumen 投影）、Android 23.6k 行，全部参与编译；Iced/Bevy 是深接入，Slint 与 Android 功能验收未完成 → 部分（L）。
 5. 复用：ports/kernel/UI kits 已复用；Slint 无共享 kit；`interpolate` 已去重；presentation 仍 5/82 中立 → 部分（L）。
 6. 功能接入：Android 运行态操作与版本安装入口未接；Slint/Bevy 验收未完成 → 缺失（L）。
 7. 模块化：文件级达标，复用级不达标，Iced/Bevy 页面状态机重复 → 部分（L）。

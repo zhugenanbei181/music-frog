@@ -23,6 +23,16 @@ contract + domain + ports ────────┼→ application → composi
 - “共享一个 Core”指共享 engine-neutral use case、身份/能力/命令/快照契约，不代表跨 Android 进程共享 Rust 静态变量。Android 中只有 `:vpn` 能创建 Core application、配置事务、VPN 和内核进程；Compose/Bevy 通过 typed IPC 访问 owner。桌面可在本机进程内组合 Core 与 adapter，但仍只允许一个活动 Core actor。
 - Core 必须允许每个后端使用各自独立的进程、原生配置格式、controller API 和版本资产 adapter；公共层只表达经验证的共同意图。`Unsupported` 属于对应 engine adapter 的逐操作能力，不改变职责拆分，细则见 [CORE_BACKENDS.md](CORE_BACKENDS.md)。
 
+## 扩展边界（新增引擎 / 平台 / UI 各自要做什么）
+
+| 扩展 | 必须实现 / 提供 | 不得修改或复制 |
+| --- | --- | --- |
+| 新引擎 | `CoreProcess`、`CoreReadiness`、`OutboundPort`、`RoutingIntentPort`、`ProfileDocumentCodecPort`，并提供 `EngineBackendProvider<EngineBackendPorts>` | 中性 contract/ports/store/runtime；不得把产品语义写进中立层 |
+| 新平台 | `StorePlatform`（原子替换、写锁、实例锁、目录/文件原语）；driver 内的 `CoreProcess` 进程监督；宿主组合 | `PURE_NEUTRAL` crate（contract/ports/ui-presentation）不得出现 `cfg(windows/unix)`、`libc`、`windows_sys` |
+| 新 UI | 消费 `SurfaceReader` 快照、发送 typed 意图、实现 `TextCatalog` 取文案 key | 不得直连 Core 副作用、不得自建业务真源、不得复制 presentation 的推导逻辑 |
+
+`CommandSink`（统一意图通道）属 PUB-004.2，尚未落地；当前各表面通过既有 typed command adapter 发送命令。扩展路径的门禁由 `lurker-neutrality-guard.py`、`core-boundary-guard.py` 与 `publish-order-guard.py` 共同约束。
+
 ## 架构未决处置与自底向上演进铁律（底层先决，严禁上层修补）
 
 本铁律适用于全仓所有 Core crate、适配层与所有 UI 表面（Iced、Bevy、Slint、Android Compose），全员强制遵照执行。
