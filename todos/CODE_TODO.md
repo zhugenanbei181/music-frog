@@ -63,7 +63,8 @@
 
 ### 5.3 统一双引擎调度器与高层 Facade SDK（4条 / 11pt）
 
-- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: Planned] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
+- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: InProgress] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
+  - 拆批：2a 中立契约/端口/协调器 + 内存 journal（fake 测试）；2b 产品迁移（ActiveProfileReferenceStore 实现中性 journal、composition selector 改用 coordinator）；2c profile-store part 3（CAS/租约/owner/reset 下沉）。
   - 产物：基于 CAS 租约与 Generation/Revision 围栏的无缝切换组件；失败时原主自动恢复。
   - 裁决：中性 `EngineSwitchStage<S>` + 持久化 wire 枚举只做一对一映射（不改 serde 名，免 schema 迁移）；旧 owner 终态之后只能 `RecoveryRequired`，禁止伪造自动恢复。
   - 依赖：PUB-003.1；PUB-001.3 需先裁决 store 是否对 selection 泛型（否则用产品本地 newtype 实现中性 journal）。
