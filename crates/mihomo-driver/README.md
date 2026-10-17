@@ -21,3 +21,20 @@ Mihomo（Clash.Meta）引擎驱动：REST/WebSocket 控制器客户端、wire DT
 - `driver`：`CoreProcess`（`ProcessCoreController`）与 `CoreReadiness`（`ControllerReadiness`）实现。
 - `version`：引擎标识、版本能力矩阵、目标制品清单与 fixture 生成。
 - `types`：控制器 wire DTO。
+
+## 运行示例
+
+`examples/lifecycle.rs` 用引擎无关的 port 演示完整生命周期：解析环境变量 → `CoreProcess` 启动 → `CoreReadiness` 就绪与版本 → `OutboundPort` 出站清单 → `CoreProcess` 停止并核对 `Stopped` 且无 PID 的终态读回。
+
+```bash
+cargo run -p mihomo-driver --example lifecycle
+```
+
+| 环境变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `MIHOMO_BINARY` | 是 | mihomo 可执行文件 |
+| `MIHOMO_CONFIG` | 是 | mihomo 配置文档 |
+| `MIHOMO_CONTROLLER` | 是 | 控制器 HTTP 端点，例如 `http://127.0.0.1:9090` |
+| `MIHOMO_SECRET` | 否 | 控制器 bearer secret |
+
+未设置 `MIHOMO_BINARY` / `MIHOMO_CONFIG` 时，示例不启动进程，只打印“未配置”的完整执行计划并成功退出，因此干净检出与 CI 无需引擎二进制也能直接运行。
