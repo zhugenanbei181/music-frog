@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v210`：当前现在佛 17 pt（8 条）/ 过去佛 49 pt（18 条）/ 未来佛 47 pt（24 条），联合未办结分母 113 pt；已归档交付 646 pt（244 条）；累计 759 pt，严格归档完成率 85.1%。
+- Point 基线 `musicfrog-todo-20261017-v211`：当前现在佛 17 pt（8 条）/ 过去佛 60 pt（23 条）/ 未来佛 47 pt（24 条），联合未办结分母 124 pt；已归档交付 635 pt（239 条）；累计 759 pt，严格归档完成率 83.7%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -63,7 +63,7 @@
 
 ### 5.3 统一双引擎调度器与高层 Facade SDK（4条 / 11pt）
 
-- [ ] PUB-003.1 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::registry] [status: Planned] 双引擎工厂注册器 `EngineBackendProviderRegistry` 泛型化
+- [ ] PUB-003.1 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::registry] [status: InProgress] 双引擎工厂注册器 `EngineBackendProviderRegistry` 泛型化
   - 产物：动态引擎注册机制，解耦编译期硬编码；应用可注入单引擎或双引擎 adapter。
   - 依赖：PUB-001.2、PUB-002.1、PUB-002.3。
   - 验收：支持动态挂载/卸载；未注册引擎强类型 fail-closed 拒绝操作；nextest 覆盖。

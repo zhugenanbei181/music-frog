@@ -135,6 +135,34 @@
   - 当前证据：JDK17 下 Gradle9.7.0 `help` 成功（配置、无源码编译）；`:core-host-tests:test` 183/183；toolchain check/self-test、doc governance、CI trigger guard 通过。兼容来源见 Android 工具链产品说明与 `.evidence/BANDROID-024.1-gradle-compatibility-20261013.md`。
   - 待验证：未运行 Android app/APK/设备；AGP9.3.1 的 JDK17 lint crash 已登记到未来 BANDROID-044.1，Lint 暂不启用；真实 tag CI 证据留在 BANDROID-018.2。
 
+## 七、中性内核（PUB）发布验收（5条 / 11pt）
+
+- [ ] PUB-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: mihomo-driver] [status: Integrated] Mihomo 驱动整合为独立 `mihomo-driver`
+  - 产物：控制器 REST/WS、outbound/routing port、进程监督与精确终态、版本/readiness，均以 `lurker-core-ports` trait 暴露。
+  - 依赖：PUB-001.1、PUB-001.2。
+  - 当前证据（L）：driver 152 本地 nextest（mock/fake）；四目标 `cargo check` 通过；clippy `-D warnings` 0。
+  - 待验证：真实 mihomo 二进制起停/readiness/selector 切换（driver 内无真进程测试，产品侧真进程 smoke 仍 `#[ignore]`）；`cargo publish --dry-run`（需 contract 先上架）；统一验证批次。
+- [ ] PUB-002.2 [kind: mechanism] [priority: P1] [points: 2] [owner: mihomo-driver::codec] [status: Integrated] Mihomo YAML 配置 Codec 独立化
+  - 产物：中性 YAML 解析/校验/`ProfileDocumentCodecPort`、字节保真 snippet 拼接（正文 `SnippetBodyLookup` 注入）、原生 `mihomo -t` dry-run。
+  - 依赖：PUB-001.1、PUB-001.2。
+  - 当前证据（L）：driver 130 + config 158 本地 nextest；parity 锚点已迁到 driver。
+  - 待验证：`cargo publish --dry-run`；统一验证批次。
+- [ ] PUB-002.3 [kind: mechanism] [priority: P1] [points: 3] [owner: singbox-driver] [status: Integrated] sing-box 驱动整合为独立 `singbox-driver`
+  - 产物：Clash API/selector、进程监督、readiness/outbound、版本探测，均以中性 trait 暴露。
+  - 依赖：PUB-001.1、PUB-001.2。
+  - 当前证据（L）：driver 13 + adapter 18 本地 nextest；四目标 `cargo check` 通过。
+  - 待验证：真实 sing-box 二进制拉起/readiness/selector 安全退出（driver 内无真进程测试）；`cargo publish --dry-run`；统一验证批次。
+- [ ] PUB-002.4 [kind: mechanism] [priority: P1] [points: 2] [owner: singbox-driver::codec] [status: Integrated] sing-box JSON 配置 Codec 独立化
+  - 产物：原生 JSON 模型、schema 校验、native `check` 事务与中性 `ProfileDocumentCodecPort`。
+  - 依赖：PUB-001.1、PUB-001.2。
+  - 当前证据（L）：driver codec 单测；产品 `SingBoxProfileConfigurationCodec` 只委托、typed 操作 fail-closed。
+  - 待验证：`cargo publish --dry-run`；统一验证批次。
+- [ ] PUB-002.5 [kind: evidence] [priority: P1] [points: 1] [owner: mihomo-driver + singbox-driver] [status: Integrated] 双引擎独立 example 与 nextest
+  - 产物：两个 driver 各含 `examples/lifecycle.rs` 与 CI 安全 smoke。
+  - 依赖：PUB-002.1～PUB-002.4。
+  - 当前证据（L）：未配置时打印计划并 0 退出；配置路径有代码但未跑真二进制；driver 148 本地 nextest。
+  - 待验证：**脱离本仓其他包的独立工程内 `cargo run --example` 真实生命周期**（当前是在仓内示例，且无引擎时只打印计划）；统一验证批次。
+
 ## 六、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。

@@ -58,16 +58,16 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v210`）
+## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v211`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 8 | 17 |
-| 过去佛 | 18 | 49 |
+| 过去佛 | 23 | 60 |
 | 未来佛 | 24 | 47 |
-| **未办结联合分母** | **50** | **113** |
+| **未办结联合分母** | **55** | **124** |
 
-- **严格交付率：646 / 759 = 85.1%**（archived 646pt / archived + 未办结 113pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：635 / 759 = 83.7%**（archived 635pt / archived + 未办结 124pt；PUB-002 五条因验收未达成已退回过去佛）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -106,18 +106,20 @@
 | 0.50 模板 / 1.0 治理 | 无 | — | PUB-005、PUB-006.1/.2/.4/.5 全部未开始 |
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
 | 引擎能力证据 | L | mihomo x86_64-linux adapter rev2；sing-box 手工 Linux smoke | 无跨平台、无 CI 复现 |
+| PUB-002 验收 | L（部分） | 实现与本地测试在工作区 | 真实二进制、独立工程、`publish --dry-run` 未达成；五条已退回过去佛 |
+| driver 装配 | — | 5 个 port trait 均有实现 | 无 `MihomoDriver`/`SingBoxDriver`，`EngineBackendBundle`/`Provider` 未实现，第三方仍需手写装配 |
+| 平台可替换性 | — | 纯中性 crate 零 per-OS 代码 | `lurker-profile-store` 有 45 处 `cfg(windows/unix)`/`libc`/`windows-sys` 且无 IO trait，"pure neutral" 声明不成立 |
+| 真进程测试 | 0 | 16 个 `#[ignore]` | 默认门禁从不执行 |
+| 可发布 crate 数 | — | 规划 6 个 | `lurker-ui-presentation` 使其变成 7，未经确认 |
+| i18n 覆盖 | — | 产品侧有 guard | `lurker-ui-presentation` 不在扫描范围 |
+| 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
-### 已归档交付原子条目（明细 243 条 / 645 pt；累计 244 条 / 646 pt）
+### 已归档交付原子条目（明细 238 条 / 634 pt；累计 239 条 / 635 pt）
 | 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
 | `PUB-001.1` 中立契约 `lurker-core-contract` | 2 | `cargo publish --dry-run -p lurker-core-contract` 通过（25 文件 / 133.6KiB 打包并校验）；637 个消费文件迁移，无 re-export 中转；中立性门禁证明零产品/UI/OS 私有符号；全量 5082/5082 nextest、`clippy -D warnings`、结构门全绿。 |
-| `PUB-002.2` Mihomo YAML codec 独立化 | 2 | `mihomo-driver::codec` 持有中性 YAML 解析/校验、`ProfileDocumentCodecPort`、字节保真 snippet 拼接（正文由 `SnippetBodyLookup` 注入）与原生 `mihomo -t` dry-run；`mihomo-config` 只保留 `MihomoProfileConfigurationCodec` 的 typed 配置语义。driver 288 本地 nextest 通过；parity 锚点已迁到 driver。 |
-| `PUB-002.5` 双引擎独立 example | 1 | 两个 driver 各含 `examples/lifecycle.rs`（未配置时输出计划并 0 退出；配置时 start→readiness→inventory→stop→终态读回）+ `tests/example_lifecycle_smoke.rs`；README 记录运行命令与 env；driver 148 nextest 通过，零产品路径/依赖。 |
-| `PUB-002.1` 中性 `mihomo-driver` | 3 | `mihomo-api`/`mihomo-process`/`mihomo-version` 的中性实现（REST/WS controller、outbound/routing、process supervisor、version/readiness）迁入 `mihomo-driver`；空壳 `mihomo-process` 删除；driver 111 + adapter 404 nextest 通过；neutrality/core-boundary/retired-surface/import 门禁全绿。 |
-| `PUB-002.3` 中性 `singbox-driver` | 3 | Clash API/selector、process supervisor、readiness/outbound、version probe 迁入 `singbox-driver`；空壳 `singbox-process` 删除；driver 13 + adapter 18 nextest；产品侧保留 capability provider、资产锁与 orphan-rule 委托 newtype；门禁全绿。 |
-| `PUB-002.4` sing-box JSON codec | 2 | 原生 JSON 模型、schema 校验、native `check` 事务与中性 `ProfileDocumentCodecPort`（scope/inspect/insert_snippet）在 driver 内；产品 `SingBoxProfileConfigurationCodec` 只委托，typed 操作保持 fail-closed。 |
 | `PUB-001.2` 中立端口 `lurker-core-ports` 与 codec 拆分 | 2 | 中性 `PortError`/`CoreProcess`/`CoreReadiness`/`OutboundPort`/`RoutingIntentPort`/`ProfileDocumentCodecPort`；`ProfileConfigurationCodecPort` 作产品扩展；连带 `Capability`/`CoreLifecycle`/`DocumentValidation`/`ProfileFormatId` 入中立契约；536 文件迁移；contract 打包通过、ports 打包待 contract 上架（发布顺序门）；5082/5082 nextest 全绿。 |
 | `SLINT-015` Slint 无感截图基础设施与场景矩阵 | 3 | `capture-tools` feature 与 `--demo`/`CAPTURE_READY` marker 接入；`scripts/capture-slint-matrix.sh`、`scripts/capture_slint_scenarios.tsv`（24 个场景）与 `scripts/parity/product_build.py` 接入生效；私有虚拟 Wayland 合成器（KWin + Niri IPC）实现 24/24 全量场景取证通过，manifest 100% 验证。 |
 | `SLINT-016` Slint 测试缺口补齐、Lumen 组件模块化（<=600行）与质量守卫 | 5 | 新增 18 项专项核心测试，49 项测试在 nextest（run ID `f55bd9e2`）中 100% PASS；Lumen 组件树彻底拆分为 22 个独立 `.slint` 模块，全仓手写 Slint 文件无一超标（`lumen-app.slint` 从 3587 行降至 599 行，严格达标 <= 600 行底线）；`slint-syntax-guard.py` 600 行门禁与 `check-structure.sh` 全绿通过。 |
