@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v217`：当前现在佛 28 pt（13 条）/ 过去佛 60 pt（23 条）/ 未来佛 68 pt（30 条），联合未办结分母 156 pt；已归档交付 642 pt（242 条）；累计 798 pt，严格归档完成率 80.5%。
+- Point 基线 `musicfrog-todo-20261018-v221`：当前现在佛 12 pt（7 条）/ 过去佛 78 pt（31 条）/ 未来佛 68 pt（30 条），联合未办结分母 158 pt；已归档交付 643 pt（243 条）；累计 801 pt，严格归档完成率 80.3%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -50,71 +50,28 @@
 
 > 阶段门 1.0-M1「中性内核可发布」：`lurker-core-contract`、`lurker-core-ports`、`lurker-profile-store`、`mihomo-driver`、`singbox-driver`、`lurker-engine-runtime` 六个中性 crate 按依赖顺序（contract → ports/profile-store → engines → runtime）`cargo package` 通过；`lurker-core-contract` 首发布后，其余五个 `cargo publish --dry-run` 通过，且不依赖任何产品私有 crate。注意：Cargo 的 dry-run 会去 registry 解析中性依赖，故 contract 未实际上架前其余 crate 的 dry-run 必然失败——这是发布顺序门，不是代码缺陷。UI 呈现标准化（PUB-004）、四套模板（PUB-005）、crates.io 自动发布（PUB-006）留在未来佛。中性 crate 采用「潜伏者 / Lurker」品牌前缀，单向权威、不做 re-export 兼容层。
 
-### 5.1 基础契约与中性端口解耦（3条 / 7pt）
+### 5.1 基础契约与中性端口解耦（已全部迁入过去佛）
 
-- [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: InProgress] 抽象通用 `lurker-profile-store` 与租约并发接口
-  - 产物：基于 CAS 与版本租约锁的通用存储/事务接口；剥离产品私有 Age 凭据、`infiltrator-platform` 依赖与硬编码路径。
-  - 进度：part 1 文件系统内核/`ProfileStoreCore`/settings/namespace；part 2 `document_path`/`profile_files`/`workspace`/`workspace_store`（`ProfileDeletionParticipant`、`ProfileSourceFacts` 注入，`EngineProfileStore` 公开 API 不变）均已迁入 `lurker-profile-store`。
-  - 裁决：part 3（CAS/租约/owner-switch/reset）与 PUB-003.2 的中性 `EngineSwitchStage<S>` 是同一份抽象，禁止设计两遍；part 3 随 PUB-003.2 一并落地并由其验收覆盖。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突、安全原子替换；零业务私有路径；`cargo package` 通过（dry-run 待 contract 上架）。
+### 5.2 双引擎专属驱动 crate 纯净化与打包（已全部迁入过去佛）
 
-### 5.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
+### 5.3 统一双引擎调度器与高层 Facade SDK（已全部迁入过去佛）
 
-### 5.3 统一双引擎调度器与高层 Facade SDK（4条 / 11pt）
-
-- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: InProgress] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
-  - 拆批：2a 中立契约/端口/协调器 + 内存 journal（fake 测试）；2b 产品迁移（ActiveProfileReferenceStore 实现中性 journal、composition selector 改用 coordinator）；2c profile-store part 3（CAS/租约/owner/reset 下沉）。
-  - 进度（2026-10-17，本地 L）：2a 完成 —— `EngineSwitchStage<S>`/`Snapshot`/`Recovery`/`FailurePhase`/`Disposition` 入中立契约，journal/lease traits 入中立端口，`EngineSwitchCoordinator` + 内存 journal 完成；10 个调用顺序/回滚/恢复/陈旧租约测试，三包 80/80 nextest。
-  - 产物：基于 CAS 租约与 Generation/Revision 围栏的无缝切换组件；失败时原主自动恢复。
-  - 裁决：中性 `EngineSwitchStage<S>` + 持久化 wire 枚举只做一对一映射（不改 serde 名，免 schema 迁移）；旧 owner 终态之后只能 `RecoveryRequired`，禁止伪造自动恢复。
-  - 依赖：PUB-003.1；PUB-001.3 需先裁决 store 是否对 selection 泛型（否则用产品本地 newtype 实现中性 journal）。
-  - 验收：nextest 覆盖正常切换与注入故障回滚，证明新旧进程生命周期严格互斥且终态可查。
-- [ ] PUB-003.2.1 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: InProgress] 让协调器支持延迟 apply 交接
-  - 背景：PUB-003.2b 落地时发现 `EngineSwitchCoordinator::finalize_switch` 自己执行 `apply_candidate` 且只返回快照，`reserve_switch` 也不暴露已分派的 bundle 与 binding lease；而 Desktop/Android 必须先拿到 `BindingNew` 准入、自行构造 `CoreApplication`、再 finalize，因此产品只能绕过协调器直接驱动 journal 租约 —— 003.2 的目标未达成。
-  - 产物：运行时新增 `reserve_switch`-家族 API，停在 `BindingNew` 并暴露 backend 与 binding lease（或等价 apply seam）；产品 selector 改为经由 `EngineSwitchCoordinator`，不再自己编排前向事务。
-  - 依赖：PUB-003.2b。
-  - 验收：composition/desktop/android 的前向切换全部走协调器；调用顺序测试仍证明旧 owner 终态早于新进程启动；失败回滚与 `RecoveryRequired` 语义不变。
-  - 待裁决：2b 把 provider 分派从「保留前」移到了「CAS 之后、持久化候选保留之前」（因为 `reserve_new_owner` 需要候选 `CoreIdentity`）。若分派失败会留下已改选择的 `SelectionChanged` journal。003.2.1 必须决定是恢复「保留前 prepare」还是在协调器 API 里显式建模该状态，不得默认接受。
-- [ ] PUB-003.2.2 [kind: mechanism] [priority: P1] [points: 1] [owner: lurker-core-ports::engine_switch + infiltrator-profile-store] [status: Planned] 统一 `discard_unstarted_candidate` 的终态语义
-  - 现状：中性 trait 文档与内存 journal 规定「回到 `SelectionChanged`，调用方可重试保留」；产品 `clear_candidate_owner_reservation` 实际写 `ActiveCoreOwnerState::Unowned` 并恢复旧终态证明（崩溃安全优先）。两处语义不一致。
-  - 裁决要求（二选一，不得两边各留一份）：方案 A 产品改回 `SelectionChanged`，保留协调器重试语义；方案 B 契约改为 `Unowned` 并删除「可重试」承诺，保留产品崩溃安全。必须同时改契约文档、内存 journal、产品实现与两侧测试。
-  - 依赖：PUB-003.2b。
-  - 验收：文档、内存 journal、产品实现、测试四处一致，`import-guard`/`typed-state-guard` 全绿，且恢复路径有 nextest 覆盖。
-- [ ] PUB-003.3 [kind: mechanism] [priority: P1] [points: 3] [owner: runtime facade] [status: Planned] 高层 Facade SDK `lurker-engine-runtime`
-  - 产物：`LurkerRuntimeBuilder` 式 Builder API，隐藏 Token/Generation 细节，暴露直观异步操控入口。
-  - 依赖：PUB-003.2。
-  - 验收：第三方 10 行内完成初始化并监听状态流；单测与文档示例验证；`cargo publish --dry-run` 通过。
-- [ ] PUB-003.3.1 [kind: mechanism] [priority: P1] [points: 1] [owner: lurker-core-ports::engine_switch] [status: Planned] `bind_owner` 必须交付 owner 租约
-  - 现状：`EngineSwitchJournal::bind_owner` 只返回 `EngineSwitchSnapshot`，不返回 `EngineOwnerLease`；`EngineOwnerLease` 也没有 release 方法。导致 facade `stop()` 后同一 journal 再次 `start()` 会在 `bind_owner` fail-closed，start→stop→start 不可用。
-  - 产物：`bind_owner` 返回 `(snapshot, Box<dyn EngineOwnerLease>)`（或新增 `release_bound_owner`），facade 在精确终态后释放租约；崩溃后仍走现有 recovery。
-  - 依赖：PUB-003.3。
-  - 验收：facade 测试覆盖 start→stop→start；无活 owner 时 journal 不得残留不可恢复的 Bound；recovery 路径不回归。
-- [ ] PUB-003.4 [kind: evidence] [priority: P1] [points: 2] [owner: test-support] [status: Planned] 双引擎 Conformance 跨平台验证套件
-  - 产物：通用适配器一致性测试套件，规范进程状态机、配置应用、节点读写、错误回读断言。
-  - 依赖：PUB-003.1～PUB-003.3。
-  - 验收：覆盖 Mihomo 与 sing-box 真实与 fake 适配器；第三方适配器跑通即证明兼容。
-
-### 5.4 收口八问缺口（GAP，4条 / 10pt）
+### 5.4 收口八问缺口（GAP，3条 / 8pt）
 
 - [ ] GAP-1.1 [kind: evidence] [priority: P1] [points: 3] [owner: product cross-target] [status: InProgress] 产品层 x86_64/aarch64 交叉检查
   - 产物：对 `infiltrator-core`/`infiltrator-composition`/`infiltrator-desktop` 及三个 UI crate 做 `aarch64-unknown-linux-gnu`、`aarch64-pc-windows-msvc` 的 `cargo check`，记录通过的组合与失败原因。
   - 依赖：无（中性内核矩阵已 8/8）。
   - 验收：脚本可复跑；通过/失败组合写入八问第 1 行；失败项若为平台专属代码，回流对应 owner。
   - 当前证据：本机 aarch64 `cargo check` 已通过 core/composition/desktop 与 Iced/Bevy/Slint：`aarch64-unknown-linux-gnu`（zig 0.14.1 + cargo-zigbuild，`zstd-sys`/`ring` 目标 C 编译通过）、`aarch64-pc-windows-msvc`（cargo-xwin clang sysroot）、`aarch64-linux-android`（NDK 29.0.14206865）。复跑脚本与最终产物证据待补，状态保持 InProgress。
-- [ ] GAP-5.1 [kind: mechanism] [priority: P1] [points: 2] [owner: lurker-ui-presentation] [status: Planned] PUB-004.1 B2：剩余 i18n 模块统一 `&dyn TextCatalog`
-  - 产物：45 个仍用 `locale: &str` 的 presentation 模块改为 `TextCatalog`；文案数据不下沉；join 到 `Lang` 的适配只保留一处。
-  - 依赖：PUB-004.1 B1（已完成）。
-  - 验收：presentation 内不再出现直接读取 locale 的文案折叠；nextest 与 i18n guard 全绿。
-- [ ] GAP-5.1.1 [kind: mechanism] [priority: P1] [points: 1] [owner: infiltrator-contract + infiltrator-shared] [status: Planned] `script_console_projection` 的双语标签所有权裁决
-  - 现状：该模块用 `language: &str` 并读取 `ScriptSandboxSnapshot::engine_label_en/zh` 与 capability 标签，这些字符串由 `infiltrator-contract` 拥有，不在 gettext catalog 里，无法通过 `TextCatalog` 解析。
-  - 裁决要求（二选一）：把双语标签改成 `infiltrator-shared` 的 key（contract 只留语言无关事实）；或保留 contract 字段但由产品在边界处做一次语言选择并注入。禁止在 presentation 里继续读 `starts_with("en")`。
-  - 依赖：GAP-5.1。
-  - 验收：presentation 不再有 `starts_with("en")` 式语言判断；contract 不含用户文案或由显式 owner 接口提供；i18n/typed-state 门禁全绿。
 - [ ] GAP-5.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-core-contract] [status: Planned] PUB-004.1 B3：`PageStatus`/`PageData`/`PageId`/`SurfaceOrigin` 下移中立契约
   - 产物：四个视图状态类型迁入 `lurker-core-contract`，重接 77/70/34/20 处引用；无 `pub use` 中转。
-  - 依赖：GAP-5.1。
+  - 依赖：PUB-004.1。
   - 验收：中立 crate 只依赖 `Failure`；presentation 可迁入 `core_status_projection`/`settings_preference_projection`；全量门禁绿。
+- [ ] GAP-5.2.1 [kind: mechanism] [priority: P1] [points: 1] [owner: lurker-core-contract + infiltrator-domain] [status: Planned] `redact` 脱敏策略归属裁决
+  - 现状：为让 `core_status_projection` 进中立层，596 行 `redact`（脱敏规则）从 `infiltrator-domain` 搬到 `lurker-core-contract::redact`，14 个产品消费端改接。此前审计明确建议「脱敏是产品安全策略，中立层不应拥有」。
+  - 裁决要求（二选一）：把 `redact` 退回 `infiltrator-domain`，中立投影改为注入一个脱敏端口；或确认脱敏规则本身是引擎/产品无关的通用安全策略，保留在契约并写明理由。
+  - 依赖：GAP-5.2。
+  - 验收：契约层要么不含产品安全策略，要么有明确裁决记录；消费端无同义双轨；neutrality/import 门禁全绿。
 - [ ] GAP-8.1 [kind: infra] [priority: P1] [points: 2] [owner: CI] [status: Planned] Android CI 套件裁剪与缓存
   - 产物：按输入选择 flavor/ABI/是否跑模拟器；复用 Rust 与 Gradle 缓存；避免每次全量重跑。
   - 依赖：无。
