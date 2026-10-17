@@ -27,7 +27,7 @@
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部 `cargo check --locked` 通过；产品层仍只有 x86_64-linux，aarch64 产品包未验证（GAP-1.1） |
+| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；产品层只有 x86_64-linux 原生，aarch64 产品层被 native build script（`zstd-sys`/`ring`）阻断，本机无交叉 C 工具链/NDK，须由 CI runner 取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1） |
 | 3 | 部分 | L | Android 源码级接通，APK 在 v0.42.6 失败且修复未取证，真机 0；iOS `Unsupported`（626 行 stub，GAP-3.2）；APK 取证见 GAP-3.1 |
 | 4 | 部分 | L | Iced/Bevy 深接入；Slint 紧凑接入（约 5k 行含测试，6 组页面回调 + Lumen 投影；无共享 kit，功能验收未完成）；Android 基础页；Slint 验收见 GAP-4.1 |
@@ -38,7 +38,7 @@
 
 ## 最近一批问答（2026-10-17）
 
-1. x86_64/aarch64：中性内核 8 个组合（Windows/Linux/macOS/Android × x64/arm64）全部 `cargo check --locked` 通过（macOS 仅编译检查，无产物）；产品层仍只有 x86_64-linux → 部分（L）。
+1. x86_64/aarch64：中性内核 8 个组合全部通过（macOS 仅编译检查，无产物）；产品层只有 x86_64-linux 原生，aarch64 产品层因 `zstd-sys`/`ring` 需要目标 C 工具链而无法本地验证（本机无 zig/aarch64-gcc/NDK），必须由 CI runner 取证 → 部分（L）。
 2. Windows/Linux/macOS：Windows/Linux 有旧 commit 的 CI 腿，macOS 无产物 → 部分（C 旧 + L）。
 3. Android/iOS：Android APK 无当前证据、真机 0；iOS 只有 host stub → 部分 / 缺失（L）。
 4. 各 UI：Iced 59.6k 行、Bevy 72.8k 行、Slint 约 5k 行（含测试，6 组页面回调 + Lumen 投影）、Android 23.6k 行，全部参与编译；Iced/Bevy 是深接入，Slint 与 Android 功能验收未完成 → 部分（L）。
