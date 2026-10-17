@@ -23,9 +23,6 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::document_store::{
-    read_optional_bytes, write_document, write_document_bytes,
-};
 use infiltrator_profile_store::profile_reset::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
@@ -34,6 +31,9 @@ use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_profile_store::document_store::{
+    read_optional_bytes, write_document, write_document_bytes,
+};
 use std::collections::HashMap;
 use std::str;
 use std::sync::{Arc, Mutex};

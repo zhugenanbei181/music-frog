@@ -8,10 +8,6 @@ use crate::active_reference_owner::{
 use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
 };
-use crate::document_store::{
-    read_optional_bytes, remove_optional_durable, write_document_bytes_durable,
-};
-use crate::file_lock::lock_profile_writes_for_dir;
 use crate::reset_fence::{
     ACTIVE_PROFILE_RESET_COMPLETE_FILE, ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE,
     ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE, ACTIVE_PROFILE_RESET_INTENT_FILE,
@@ -25,11 +21,14 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::document_store::{
+    read_optional_bytes, remove_optional_durable, write_document_bytes_durable,
+};
+use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use serde_json::to_vec_pretty;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
@@ -258,7 +257,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             &config_root,
         )?;
 
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         let default_path = reset_default_document_path(self).await?;
         let backup_path = self
             .config_dir()

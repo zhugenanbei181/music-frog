@@ -4,9 +4,6 @@ use crate::active_reference_file::ActiveProfileReferenceFile;
 use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
 };
-use crate::document_store::{remove_optional, write_document_bytes_durable};
-use crate::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
-use crate::profile_files::profile_document_backup_path;
 use crate::reset_fence::{
     ActiveProfileResetMutationAccess, ensure_no_pending_reset_in_engine_namespaces,
     initialize_namespace_with_reset_fence,
@@ -18,7 +15,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
@@ -32,6 +28,9 @@ use infiltrator_ports::profile_workspace::{
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
+use lurker_profile_store::file_lock::ProfileWriteGuard;
+use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 
 struct ActiveWorkspaceWriteGuards {
     _root: ThreadedInstanceLockGuard,
@@ -80,7 +79,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         self.validate_document_bytes(&update.document_bytes)?;
         initialize_namespace_with_reset_fence(self).await?;
         let selection = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.publish_profile_workspace_locked(
             expected,
             update,
@@ -97,7 +96,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         self.validate_profile_workspace_recovery(expected, previous)?;
         initialize_namespace_with_reset_fence(self).await?;
         let selection = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.restore_profile_workspace_locked(
             expected,
             previous,
@@ -166,7 +165,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             &ActiveProfileReferenceWriteAuthorization::Unowned,
             &config_root,
         )?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         let observed = self
             .read_profile_workspace_locked(&expected_reference.profile_id)
             .await?;
@@ -192,7 +191,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             .existing_profile_document_path(&expected_reference.profile_id)
             .await?;
         write_document_bytes_durable(&path, &update.document_bytes).await?;
-        if let Err(error) = remove_optional(&profile_document_backup_path(&path)).await {
+        if let Err(error) = remove_optional(&self.layout().document_backup_path(&path)).await {
             log::warn!("committed derived workspace backup cleanup failed: {error}");
         }
         Ok(workspace_for_update(
@@ -246,7 +245,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
                 .normalize_owner_state_unlocked(&mut record)
                 .await?;
         validate_reference_write_authorization(&owner_state, &authorization, &config_root)?;
-        let profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let profile_guard = self.lock_profile_writes().await?;
         let observed = self
             .read_profile_workspace_locked(&expected_reference.profile_id)
             .await?;

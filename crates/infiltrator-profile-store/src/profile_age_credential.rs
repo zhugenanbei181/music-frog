@@ -5,7 +5,6 @@ use crate::active_reference_owner::ActiveCoreOwnerState;
 use crate::active_reference_owner_coordinator::{
     ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
 };
-use crate::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
 use crate::reset_fence::{
     ActiveProfileResetMutationAccess, ensure_no_pending_reset_in_engine_namespaces,
     initialize_namespace_with_reset_fence,
@@ -23,12 +22,13 @@ use infiltrator_contract::profile_age_credential::{
     ProfileAgeEncryptedContent,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::file_lock::ProfileWriteGuard;
+use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use serde::{Deserialize, Serialize};
 use std::ptr;
 use std::str;
@@ -383,7 +383,7 @@ async fn acquire_age_credential_fence<S: SecureStore>(
             )));
         }
     }
-    let profile_guard = lock_profile_writes_for_dir(store.config_dir()).await?;
+    let profile_guard = store.lock_profile_writes().await?;
     Ok(ProfileAgeCredentialFence::Authorized(
         ProfileAgeCredentialWriteGuards {
             _root: root_guard,
@@ -418,7 +418,7 @@ async fn acquire_age_credential_use_fence<S: SecureStore>(
             )));
         }
     }
-    let profile_guard = lock_profile_writes_for_dir(store.config_dir()).await?;
+    let profile_guard = store.lock_profile_writes().await?;
     Ok(ProfileAgeCredentialUseGuards {
         _root: root_guard,
         _owner_state: owner_state_guard,

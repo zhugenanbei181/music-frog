@@ -1,6 +1,6 @@
 //! Durable whole-document and sidecar operations shared by engine stores.
 
-use infiltrator_platform::durable_replace::{DurableReplaceError, remove_durable, replace_durable};
+use crate::durable_replace::{DurableReplaceError, remove_durable, replace_durable};
 use lurker_core_ports::error::PortError;
 use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};

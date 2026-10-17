@@ -1,7 +1,5 @@
 //! Durable, engine-scoped ordering for profile catalog entries.
 
-use crate::file_lock::lock_profile_writes_for_dir;
-use crate::metadata::ensure_table;
 use crate::reset_fence::initialize_namespace_with_reset_fence;
 use crate::store::EngineProfileStore;
 use infiltrator_contract::profile_catalog_order::{
@@ -14,6 +12,7 @@ use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::settings::ensure_table;
 use std::collections::{BTreeMap, HashSet};
 
 pub(crate) fn apply_catalog_order(
@@ -103,7 +102,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             })?;
         initialize_namespace_with_reset_fence(self).await?;
         let selection = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
 
         let previous = snapshot_from_profile_info(
             self.engine_id(),

@@ -11,7 +11,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 #[cfg(test)]
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
@@ -57,6 +56,7 @@ use lurker_core_contract::identity::EngineId;
 #[cfg(test)]
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use mihomo_api::error::MihomoError;
 use std::fmt::Display;
 #[cfg(test)]

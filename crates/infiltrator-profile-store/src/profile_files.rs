@@ -1,20 +1,17 @@
 //! Engine-owned profile document reads, backups, and validated publication.
 
-use crate::document_store::{remove_optional, write_document_bytes_durable};
-use crate::file_lock::lock_profile_writes_for_dir;
 use crate::metadata::delete_subscription_url;
 use crate::profile_age_credential::retire_profile_age_credential_locked;
 use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
 use tokio::fs;
 
 impl<S: SecureStore> EngineProfileStore<S> {
@@ -44,7 +41,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         profile: &ProfileId,
     ) -> Result<Option<String>, PortError> {
         let path = self.profile_document_path(profile).await?;
-        match fs::read_to_string(profile_document_backup_path(&path)).await {
+        match fs::read_to_string(self.layout().document_backup_path(&path)).await {
             Ok(document) => Ok(Some(document)),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
             Err(error) => Err(PortError::Io(error.to_string())),
@@ -85,7 +82,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             )));
         }
         self.validate_document_bytes(document)?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.write_profile_document_validated_locked(profile, document)
             .await
     }
@@ -96,7 +93,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         document: &[u8],
     ) -> Result<(), PortError> {
         let path = self.profile_document_path(profile).await?;
-        let backup = profile_document_backup_path(&path);
+        let backup = self.layout().document_backup_path(&path);
         if fs::try_exists(&path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?
@@ -118,7 +115,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         profile: &ProfileId,
     ) -> Result<bool, PortError> {
         let path = self.profile_document_path(profile).await?;
-        let backup = profile_document_backup_path(&path);
+        let backup = self.layout().document_backup_path(&path);
         let previous = match fs::read(&backup).await {
             Ok(document) => document,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
@@ -146,7 +143,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
                 false,
             )));
         }
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.restore_profile_document_backup_locked(profile).await
     }
 
@@ -155,7 +152,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         profile: &ProfileId,
     ) -> Result<(), PortError> {
         let path = self.profile_document_path(profile).await?;
-        remove_optional(&profile_document_backup_path(&path)).await
+        remove_optional(&self.layout().document_backup_path(&path)).await
     }
 
     pub async fn profile_document_has_backup(
@@ -163,7 +160,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         profile: &ProfileId,
     ) -> Result<bool, PortError> {
         let path = self.profile_document_path(profile).await?;
-        fs::try_exists(profile_document_backup_path(&path))
+        fs::try_exists(self.layout().document_backup_path(&path))
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
@@ -188,7 +185,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
                 false,
             )));
         }
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.delete_profile_locked(profile).await
     }
 
@@ -201,7 +198,9 @@ impl<S: SecureStore> EngineProfileStore<S> {
         let previous_document = fs::read(&path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
-        let sidecar_path = options_path(self.config_dir(), profile.as_str());
+        let sidecar_path = self
+            .layout()
+            .options_path(self.config_dir(), profile.as_str());
         let previous_sidecar = match fs::read(&sidecar_path).await {
             Ok(sidecar) => Some(sidecar),
             Err(error) if error.kind() == ErrorKind::NotFound => None,
@@ -236,7 +235,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             return Err(error);
         }
 
-        if let Err(error) = remove_optional(&profile_document_backup_path(&path)).await {
+        if let Err(error) = remove_optional(&self.layout().document_backup_path(&path)).await {
             log::warn!("deleted profile backup cleanup failed: {error}");
         }
         self.remove_apply_transaction(profile.as_str());
@@ -248,14 +247,6 @@ impl<S: SecureStore> EngineProfileStore<S> {
         }
         self.remove_profile_metadata(profile.as_str()).await
     }
-}
-
-pub fn profile_document_backup_path(path: &Path) -> PathBuf {
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("profile.document");
-    path.with_file_name(format!("{file_name}.bak"))
 }
 
 #[cfg(test)]

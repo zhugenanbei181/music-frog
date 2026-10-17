@@ -1,6 +1,5 @@
 //! Production `ProfileStore` port over the engine-neutral persistence owner.
 
-use crate::file_lock::lock_profile_writes_for_dir;
 use crate::metadata::delete_subscription_url;
 use crate::reset_fence::{
     acquire_reset_fenced_profile_mutation_for_dir, initialize_namespace_with_reset_fence,
@@ -54,7 +53,7 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
             return Ok(Vec::new());
         }
         let selection = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.list_profile_info_locked(selection.state()).await
     }
 
@@ -109,7 +108,7 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         initialize_namespace_with_reset_fence(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         let profile = parse_profile_id(profile)?;
         self.read_profile_document(&profile).await
     }
@@ -136,7 +135,7 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
 
     async fn get_profile_metadata(&self, profile: &str) -> Result<ProfileMetadata, PortError> {
         initialize_namespace_with_reset_fence(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         let profile = parse_profile_id(profile)?;
         EngineProfileStore::get_profile_metadata(self, profile.as_str()).await
     }
@@ -256,7 +255,7 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
 
     async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
         initialize_namespace_with_reset_fence(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.load_aggregation_templates_locked().await
     }
 
@@ -271,7 +270,7 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
 
     async fn load_named_override_catalog(&self) -> Result<NamedOverrideCatalog, PortError> {
         initialize_namespace_with_reset_fence(self).await?;
-        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _profile_guard = self.lock_profile_writes().await?;
         self.load_named_override_catalog_locked().await
     }
 

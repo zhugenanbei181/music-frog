@@ -17,12 +17,12 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::http::{

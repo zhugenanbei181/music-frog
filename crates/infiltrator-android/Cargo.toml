@@ -26,6 +26,7 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
+lurker-profile-store = { path = "../lurker-profile-store" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 thiserror = { workspace = true }
 tokio = { workspace = true }

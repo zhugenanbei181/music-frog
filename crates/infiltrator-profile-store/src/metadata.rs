@@ -1,31 +1,19 @@
 //! Engine-scoped profile metadata and subscription-credential persistence.
 
-use crate::document_store::write_document_bytes_durable;
 use crate::store::EngineProfileStore;
 use chrono::{DateTime, Utc};
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
-use std::io::ErrorKind;
-use std::path::Path;
-use tokio::fs;
+use lurker_profile_store::settings::{
+    ensure_table, parse_u64, set_bool, set_optional_i64, set_optional_string, set_optional_u32,
+    set_optional_u64,
+};
 use toml::map::Map;
 
 pub const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Infiltrator";
 const SUBSCRIPTION_KEY_PREFIX: &str = "subscription";
-
-pub fn ensure_table(value: &mut toml::Value) -> Result<&mut Map<String, toml::Value>, PortError> {
-    if !matches!(value, toml::Value::Table(_)) {
-        *value = toml::Value::Table(Map::new());
-    }
-    match value {
-        toml::Value::Table(table) => Ok(table),
-        _ => Err(PortError::Io(
-            "profile settings table is invalid".to_owned(),
-        )),
-    }
-}
 
 /// Decode one engine-scoped metadata row, restoring a legacy plaintext URL
 /// into the secure store when the row predates credential indirection.
@@ -200,57 +188,11 @@ pub fn legacy_subscription_key(profile: &str) -> String {
     format!("{SUBSCRIPTION_KEY_PREFIX}:{profile}")
 }
 
-pub async fn read_settings_file(path: &Path) -> Result<toml::Value, PortError> {
-    let content = match fs::read_to_string(path).await {
-        Ok(content) => content,
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            return Ok(toml::Value::Table(Map::new()));
-        }
-        Err(error) => return Err(PortError::Io(error.to_string())),
-    };
-    toml::from_str(&content)
-        .map_err(|error| PortError::Io(format!("invalid profile settings: {error}")))
-}
-
-pub async fn write_settings_file(path: &Path, settings: &toml::Value) -> Result<(), PortError> {
-    let content = toml::to_string(settings)
-        .map_err(|error| PortError::Io(format!("failed to serialize profile settings: {error}")))?;
-    write_document_bytes_durable(path, content.as_bytes()).await
-}
-
-pub async fn remove_profile_metadata(path: &Path, profile: &str) -> Result<(), PortError> {
-    if !fs::try_exists(path)
-        .await
-        .map_err(|error| PortError::Io(error.to_string()))?
-    {
-        return Ok(());
-    }
-    let mut settings = read_settings_file(path).await?;
-    if let toml::Value::Table(root) = &mut settings
-        && let Some(toml::Value::Table(profiles)) = root.get_mut("profiles")
-    {
-        profiles.remove(profile);
-    }
-    write_settings_file(path, &settings).await
-}
-
 #[cfg(test)]
 #[path = "metadata_tests.rs"]
 mod tests;
 
 impl<S: SecureStore> EngineProfileStore<S> {
-    pub async fn read_settings_value(&self) -> Result<toml::Value, PortError> {
-        read_settings_file(self.settings_file()).await
-    }
-
-    pub async fn write_settings_value(&self, settings: &toml::Value) -> Result<(), PortError> {
-        write_settings_file(self.settings_file(), settings).await
-    }
-
-    pub async fn remove_profile_metadata(&self, profile: &str) -> Result<(), PortError> {
-        remove_profile_metadata(self.settings_file(), profile).await
-    }
-
     pub async fn get_profile_metadata(&self, profile: &str) -> Result<ProfileMetadata, PortError> {
         let settings = self.read_settings_value().await?;
         let table = settings
@@ -304,66 +246,11 @@ pub(crate) fn default_profile_metadata() -> ProfileMetadata {
     }
 }
 
-fn parse_u64(value: Option<&toml::Value>) -> Option<u64> {
-    value
-        .and_then(toml::Value::as_integer)
-        .and_then(|value| u64::try_from(value).ok())
-}
-
 fn parse_datetime(value: Option<&toml::Value>) -> Option<DateTime<Utc>> {
     value
         .and_then(toml::Value::as_str)
         .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
         .map(|parsed| parsed.with_timezone(&Utc))
-}
-
-fn set_optional_string(table: &mut Map<String, toml::Value>, key: &str, value: Option<String>) {
-    match value {
-        Some(value) => {
-            table.insert(key.to_owned(), toml::Value::String(value));
-        }
-        None => {
-            table.remove(key);
-        }
-    }
-}
-
-fn set_optional_u32(table: &mut Map<String, toml::Value>, key: &str, value: Option<u32>) {
-    match value {
-        Some(value) => {
-            table.insert(key.to_owned(), toml::Value::Integer(value as i64));
-        }
-        None => {
-            table.remove(key);
-        }
-    }
-}
-
-fn set_optional_u64(table: &mut Map<String, toml::Value>, key: &str, value: Option<u64>) {
-    match value {
-        Some(value) => {
-            let value = i64::try_from(value).unwrap_or(i64::MAX);
-            table.insert(key.to_owned(), toml::Value::Integer(value));
-        }
-        None => {
-            table.remove(key);
-        }
-    }
-}
-
-fn set_optional_i64(table: &mut Map<String, toml::Value>, key: &str, value: Option<i64>) {
-    match value {
-        Some(value) => {
-            table.insert(key.to_owned(), toml::Value::Integer(value));
-        }
-        None => {
-            table.remove(key);
-        }
-    }
-}
-
-fn set_bool(table: &mut Map<String, toml::Value>, key: &str, value: bool) {
-    table.insert(key.to_owned(), toml::Value::Boolean(value));
 }
 
 fn set_optional_datetime(

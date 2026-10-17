@@ -1,4 +1,4 @@
-use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use crate::store::EngineProfileStore;
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayName, ProfileDisplayNameMutation, ProfileDisplayNameObservation,
     ProfileDisplayNameTarget,
@@ -13,6 +13,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::store::ProfileDocumentExtension;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;

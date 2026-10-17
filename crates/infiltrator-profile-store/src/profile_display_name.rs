@@ -1,7 +1,5 @@
 //! Stable profile identity with a separately persisted display label.
 
-use crate::file_lock::lock_profile_writes_for_dir;
-use crate::metadata::ensure_table;
 use crate::reset_fence::{
     acquire_reset_fenced_profile_mutation_for_dir, initialize_namespace_with_reset_fence,
 };
@@ -14,6 +12,7 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::settings::ensure_table;
 
 impl<S: SecureStore> EngineProfileStore<S> {
     pub async fn profile_display_name(
@@ -21,7 +20,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         profile: &ProfileId,
     ) -> Result<ProfileDisplayNameObservation, PortError> {
         initialize_namespace_with_reset_fence(self).await?;
-        let _guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _guard = self.lock_profile_writes().await?;
         self.existing_profile_document_path(profile).await?;
         let settings = self.read_settings_value().await?;
         observation_from_settings(&settings, profile)

@@ -1,5 +1,4 @@
-use crate::profile_files::profile_document_backup_path;
-use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
@@ -8,7 +7,6 @@ use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialState, ProfileAgeCredentialTarget, ProfileAgeCredentialWriteRequest,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::identity::EngineId;
@@ -18,6 +16,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::store::ProfileDocumentExtension;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -102,8 +101,10 @@ async fn delete_profile_locked_removes_document_sidecar_and_backup() {
     let store = store(directory.path().to_path_buf(), MemorySecureStore::default());
     let profile = ProfileId::new("primary").unwrap();
     let document = store.config_dir().join("primary.yaml");
-    let backup = profile_document_backup_path(&document);
-    let sidecar = options_path(store.config_dir(), profile.as_str());
+    let backup = store.layout().document_backup_path(&document);
+    let sidecar = store
+        .layout()
+        .options_path(store.config_dir(), profile.as_str());
 
     store
         .write_profile_document_locked(&profile, b"mode: rule\n")
@@ -128,7 +129,9 @@ async fn delete_profile_locked_restores_document_when_sidecar_removal_fails() {
     let store = store(directory.path().to_path_buf(), secure_store);
     let profile = ProfileId::new("primary").unwrap();
     let document = store.config_dir().join("primary.yaml");
-    let sidecar = options_path(store.config_dir(), profile.as_str());
+    let sidecar = store
+        .layout()
+        .options_path(store.config_dir(), profile.as_str());
     let previous = b"mode: rule\n";
 
     store

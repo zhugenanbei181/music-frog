@@ -13,6 +13,7 @@ infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
+lurker-profile-store = { path = "../lurker-profile-store" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 infiltrator-platform = { path = "../infiltrator-platform" }

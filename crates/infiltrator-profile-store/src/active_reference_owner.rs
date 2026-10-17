@@ -8,7 +8,6 @@ use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use lurker_core_ports::error::PortError;
-use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 
 pub const ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION: u32 = 1;
@@ -27,8 +26,7 @@ pub struct ActiveOwnerToken(pub String);
 impl ActiveOwnerToken {
     pub fn generate() -> Result<Self, PortError> {
         let mut bytes = [0_u8; 16];
-        SystemRandom::new()
-            .fill(&mut bytes)
+        getrandom::fill(&mut bytes)
             .map_err(|_| PortError::Failed("could not create active owner fence token".into()))?;
         let value = bytes
             .iter()

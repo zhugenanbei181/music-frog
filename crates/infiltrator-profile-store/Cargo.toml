@@ -3,20 +3,20 @@ name = "infiltrator-profile-store"
 version.workspace = true
 edition = "2024"
 publish = false
-description = "Engine-neutral durable profile persistence for MusicFrog Infiltrator."
+description = "Product profile persistence for MusicFrog Infiltrator: credentials, catalog and owner state over the neutral lurker-profile-store kernel."
 
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
+lurker-profile-store = { path = "../lurker-profile-store" }
 lurker-core-contract = { path = "../lurker-core-contract" }
 age = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
-infiltrator-platform = { path = "../infiltrator-platform" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
-ring = "0.17"
+getrandom = "0.3"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }

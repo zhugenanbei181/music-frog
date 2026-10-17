@@ -17,7 +17,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
 };
@@ -26,6 +25,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 

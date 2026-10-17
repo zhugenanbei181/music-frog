@@ -16,6 +16,7 @@ infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
+lurker-profile-store = { path = "../lurker-profile-store" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }

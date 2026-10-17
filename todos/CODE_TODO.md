@@ -52,10 +52,12 @@
 
 ### 5.1 基础契约与中性端口解耦（3条 / 7pt）
 
-- [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: Planned] 抽象通用 `lurker-profile-store` 与租约并发接口
+- [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: InProgress] 抽象通用 `lurker-profile-store` 与租约并发接口
   - 产物：基于 CAS 与版本租约锁的通用存储/事务接口；剥离产品私有 Age 凭据、`infiltrator-platform` 依赖与硬编码路径。
+  - 进度：文件系统内核（原子替换/跨进程锁/opaque document store）、`ProfileStoreCore`、settings/namespace 已迁入 `lurker-profile-store`；产品包装 `EngineProfileStore` API 不变、历史磁盘布局逐字钉死、`ring`→`getrandom`。
+  - 阻塞：剩余 `document_path`/`profile_files`/`workspace`/CAS/租约/owner/reset 依赖 `ProfileId`/workspace/protection/active-reference 契约类型，须先迁入 `lurker-core-contract`（下一刀）。
   - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突、安全原子替换；零业务私有路径；`cargo publish --dry-run` 通过。
+  - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突、安全原子替换；零业务私有路径；`cargo package` 通过（dry-run 待 contract 上架）。
 
 ### 5.2 双引擎专属驱动 crate 纯净化与打包（5条 / 11pt）
 

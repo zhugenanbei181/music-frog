@@ -6,12 +6,13 @@ use crate::profile_options_codec;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::{ProfileOptions, options_path};
 use infiltrator_domain::profiles::validate_profile_name;
-use infiltrator_profile_store::document_store::{
-    read_optional_bytes, remove_optional, write_document_bytes,
-};
-use infiltrator_profile_store::file_lock::lock_profile_writes_for_dir;
+use infiltrator_profile_store::layout::product_layout;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::document_store::{
+    read_optional_bytes, remove_optional, write_document_bytes,
+};
+use lurker_profile_store::file_lock::lock_profile_writes_for_dir;
 use std::path::{Path, PathBuf};
 
 fn scoped_dir(config_root_or_scoped: &Path) -> Result<PathBuf, PortError> {
@@ -31,7 +32,7 @@ pub(crate) async fn read_options_bytes(
 ) -> Result<Option<Vec<u8>>, PortError> {
     let profile = validated_profile_id(profile)?;
     let config_dir = scoped_dir(config_dir)?;
-    let _guard = lock_profile_writes_for_dir(&config_dir).await?;
+    let _guard = lock_profile_writes_for_dir(product_layout(), &config_dir).await?;
     read_optional_bytes(&options_path(&config_dir, profile.as_str())).await
 }
 

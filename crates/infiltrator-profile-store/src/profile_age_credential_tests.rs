@@ -1,5 +1,5 @@
 use super::read_credential_record;
-use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use crate::store::EngineProfileStore;
 use age::secrecy::ExposeSecret;
 use age::x25519::Identity;
 use infiltrator_contract::active_profile_reference::{
@@ -23,6 +23,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::store::ProfileDocumentExtension;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

@@ -23,8 +23,73 @@
 //! cleanup logic and could deadlock the user out of the app after a crash.
 
 #[cfg(unix)]
-use std::fs;
-use std::io;
+mod unix_lock {
+    //! Raw `open(2)`/`flock(2)` owner for the cross-process lock.
+    //!
+    //! The descriptor is owned by the guard: closing it (on drop or process
+    //! exit) releases the kernel lock, exactly like the previous
+    //! `std::fs::File`-owned descriptor. `O_CLOEXEC` keeps lock ownership out
+    //! of spawned children, and the owner-only `0o600` creation mode matches
+    //! the coordination-artifact permissions.
+
+    use std::ffi::CString;
+    use std::io;
+    use std::path::Path;
+
+    pub struct LockFile(i32);
+
+    impl LockFile {
+        pub(super) fn descriptor(&self) -> i32 {
+            self.0
+        }
+    }
+
+    impl Drop for LockFile {
+        fn drop(&mut self) {
+            unsafe {
+                libc::close(self.0);
+            }
+        }
+    }
+
+    pub(super) fn try_acquire(lock_path: &Path) -> io::Result<Option<LockFile>> {
+        let path = CString::new(lock_path.as_os_str().as_encoded_bytes()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "lock path contains an interior NUL byte",
+            )
+        })?;
+        let descriptor = unsafe {
+            libc::open(
+                path.as_ptr(),
+                libc::O_RDWR | libc::O_CREAT | libc::O_CLOEXEC,
+                0o600 as libc::c_uint,
+            )
+        };
+        if descriptor < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let lock = LockFile(descriptor);
+        let result = unsafe { libc::flock(lock.descriptor(), libc::LOCK_EX | libc::LOCK_NB) };
+        if result == 0 {
+            return Ok(Some(lock));
+        }
+        let error = io::Error::last_os_error();
+        // EWOULDBLOCK == EAGAIN on every supported unix target (Linux, macOS,
+        // Android, iOS), so matching both would trip `unreachable_patterns`.
+        if error.kind() == io::ErrorKind::WouldBlock
+            || error.raw_os_error() == Some(libc::EWOULDBLOCK)
+        {
+            Ok(None)
+        } else {
+            Err(error)
+        }
+    }
+}
+
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
+#[cfg(windows)]
 use std::path::{Path, PathBuf};
 #[cfg(windows)]
 use std::ptr::null;
@@ -45,10 +110,10 @@ type Result<T> = result::Result<T, PortError>;
 /// guard is intentionally not shareable across threads: on Windows,
 /// `ReleaseMutex` must be called by the thread that acquired the mutex.
 pub struct InstanceLockGuard {
-    /// Unix: owning the `File` keeps the fd open; closing it (on drop or
-    /// process exit) releases the `flock`.
+    /// Unix: owning the descriptor keeps the `flock`; closing it (on drop or
+    /// process exit) releases it.
     #[cfg(unix)]
-    _file: fs::File,
+    _lock: unix_lock::LockFile,
     /// Windows: raw handle to the `Global\...` named mutex, released in
     /// [`InstanceLockGuard::Drop`]. `HANDLE` is `*mut c_void`, so the guard
     /// is `!Send`/`!Sync` by construction, matching the owning-thread rule.
@@ -218,38 +283,13 @@ pub fn mutex_name_for_path(lock_path: &Path) -> String {
 
 #[cfg(unix)]
 fn unix_try_acquire(lock_path: &Path) -> Result<Option<InstanceLockGuard>> {
-    use std::io::ErrorKind;
-    use std::os::fd::AsRawFd;
-    use std::os::unix::fs::OpenOptionsExt;
-
-    // Owner-only permissions: the file is a coordination artifact, not data.
-    let file = fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .mode(0o600)
-        .open(lock_path)?;
-
-    // Non-blocking exclusive lock; returns immediately instead of waiting,
-    // which is what turns "already running" into a fast, silent bail-out.
-    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if rc == 0 {
-        return Ok(Some(InstanceLockGuard { _file: file }));
-    }
-
-    let err = io::Error::last_os_error();
-    // EWOULDBLOCK == EAGAIN on every supported unix target (Linux, macOS,
-    // Android), so matching both would trip `unreachable_patterns`.
-    if err.kind() == ErrorKind::WouldBlock || err.raw_os_error() == Some(libc::EWOULDBLOCK) {
-        Ok(None)
-    } else {
-        Err(err.into())
-    }
+    let lock = unix_lock::try_acquire(lock_path)?;
+    Ok(lock.map(|lock| InstanceLockGuard { _lock: lock }))
 }
 
 #[cfg(windows)]
 fn windows_try_acquire(lock_path: &Path) -> Result<Option<InstanceLockGuard>> {
+    use std::io;
     use windows_sys::Win32::Foundation;
     use windows_sys::Win32::System::Threading;
 
@@ -298,6 +338,8 @@ impl Drop for InstanceLockGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CString;
+    use std::mem::MaybeUninit;
 
     #[test]
     fn first_acquire_succeeds() {
@@ -345,12 +387,19 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn lock_file_has_owner_only_permissions() {
-        use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let lock_path = dir.path().join("instance.lock");
         let _guard = try_acquire_instance_lock(&lock_path).unwrap().unwrap();
-        let mode = fs::metadata(&lock_path).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600, "lock file must be owner-only");
+        let path = CString::new(lock_path.as_os_str().as_encoded_bytes()).unwrap();
+        let mut metadata = MaybeUninit::<libc::stat>::uninit();
+        let result = unsafe { libc::stat(path.as_ptr(), metadata.as_mut_ptr()) };
+        assert_eq!(result, 0, "stat of the lock file must succeed");
+        let metadata = unsafe { metadata.assume_init() };
+        assert_eq!(
+            metadata.st_mode & 0o777,
+            0o600,
+            "lock file must be owner-only"
+        );
     }
 
     #[cfg(windows)]

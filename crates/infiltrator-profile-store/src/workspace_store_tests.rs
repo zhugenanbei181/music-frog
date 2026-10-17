@@ -1,9 +1,6 @@
-use crate::document_store::write_document_bytes_durable;
-use crate::file_lock::lock_profile_writes_for_dir;
-use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use crate::store::EngineProfileStore;
 use crate::workspace_store::ProfileWorkspacePublicationTarget;
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::ErrorCode;
@@ -14,6 +11,8 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::document_store::write_document_bytes_durable;
+use lurker_profile_store::store::ProfileDocumentExtension;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -73,7 +72,9 @@ async fn shared_workspace_publication_cas_writes_exact_document_and_sidecar_byte
         .write_profile_document_locked(&profile, br#"{"revision":1}"#)
         .await
         .unwrap();
-    let sidecar_path = options_path(store.config_dir(), profile.as_str());
+    let sidecar_path = store
+        .layout()
+        .options_path(store.config_dir(), profile.as_str());
     write_document_bytes_durable(&sidecar_path, b"sidecar-v1")
         .await
         .unwrap();
@@ -85,9 +86,7 @@ async fn shared_workspace_publication_cas_writes_exact_document_and_sidecar_byte
         sidecar_bytes: Some(b"sidecar-v2".to_vec()),
     };
 
-    let guard = lock_profile_writes_for_dir(store.config_dir())
-        .await
-        .unwrap();
+    let guard = store.lock_profile_writes().await.unwrap();
     let published = store
         .publish_profile_workspace_locked(
             &expected,
@@ -115,7 +114,9 @@ async fn shared_workspace_publication_rejects_stale_identity_without_writes() {
         .write_profile_document_locked(&profile, br#"{"revision":1}"#)
         .await
         .unwrap();
-    let sidecar_path = options_path(store.config_dir(), profile.as_str());
+    let sidecar_path = store
+        .layout()
+        .options_path(store.config_dir(), profile.as_str());
     write_document_bytes_durable(&sidecar_path, b"sidecar-v1")
         .await
         .unwrap();
@@ -127,9 +128,7 @@ async fn shared_workspace_publication_rejects_stale_identity_without_writes() {
         sidecar_bytes: Some(b"sidecar-v2".to_vec()),
     };
 
-    let guard = lock_profile_writes_for_dir(store.config_dir())
-        .await
-        .unwrap();
+    let guard = store.lock_profile_writes().await.unwrap();
     store
         .publish_profile_workspace_locked(
             &stale_identity,

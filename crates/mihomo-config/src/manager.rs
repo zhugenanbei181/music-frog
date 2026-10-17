@@ -24,18 +24,18 @@ pub(crate) mod profiles;
 
 use crate::profile_document_codec::MihomoProfileDocumentCodec;
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::file_lock::lock_profile_writes_for_dir;
-use infiltrator_profile_store::namespace::{
-    LegacyProfileNamespaceMigrationV1, ProfileNamespaceInitialization,
-};
 use infiltrator_profile_store::reset_fence::{
     ResetFencedProfileMutationGuard, acquire_reset_fenced_profile_mutation_for_dir,
     ensure_reset_not_pending_for_dir,
 };
-use infiltrator_profile_store::store::{EngineProfileStore, ProfileDocumentExtension};
+use infiltrator_profile_store::store::EngineProfileStore;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
+use lurker_profile_store::namespace::{
+    LegacyProfileNamespaceMigrationV1, ProfileNamespaceInitialization,
+};
+use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_api::error::{MihomoError, Result};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -220,7 +220,8 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Hold only across persistence comparison/publication; never across
     /// lifecycle callbacks that can themselves repair or save a profile.
     pub async fn lock_profile_writes(&self) -> Result<impl Send + '_> {
-        lock_profile_writes_for_dir(self.config_dir())
+        self.profile_store
+            .lock_profile_writes()
             .await
             .map_err(|error| MihomoError::Service(error.to_string()))
     }

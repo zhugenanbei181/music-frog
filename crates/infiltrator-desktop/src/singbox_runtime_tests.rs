@@ -24,10 +24,10 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use reqwest::Url;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;

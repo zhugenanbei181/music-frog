@@ -1,8 +1,5 @@
 //! Engine-scoped filesystem operations for coherent profile workspaces.
 
-use crate::document_store::{read_optional_bytes, remove_optional, write_document_bytes_durable};
-use crate::file_lock::lock_profile_writes_for_dir;
-use crate::profile_files::profile_document_backup_path;
 use crate::store::EngineProfileStore;
 use crate::workspace::{
     invalid_workspace_recovery, publish_document_pair, selection_matches_profile, source_identity,
@@ -12,7 +9,6 @@ use crate::workspace::{
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
-use infiltrator_domain::profile_options::options_path;
 use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::profile_workspace::{
@@ -22,6 +18,9 @@ use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::document_store::{
+    read_optional_bytes, remove_optional, write_document_bytes_durable,
+};
 use std::io::{self, ErrorKind};
 use tokio::fs;
 
@@ -85,8 +84,12 @@ impl<S: SecureStore> EngineProfileStore<S> {
         validate_profile_id(profile)?;
         let profile_path = self.existing_profile_document_path(profile).await?;
         let document_bytes = fs::read(profile_path).await.map_err(map_io_error)?;
-        let sidecar_bytes =
-            read_optional_bytes(&options_path(self.config_dir(), profile.as_str())).await?;
+        let sidecar_bytes = read_optional_bytes(
+            &self
+                .layout()
+                .options_path(self.config_dir(), profile.as_str()),
+        )
+        .await?;
         let protection = self.workspace_write_protection(profile).await?;
         let metadata = self.get_profile_metadata(profile.as_str()).await?;
         let source = source_identity(profile, protection, metadata.subscription_url.as_deref())?;
@@ -107,7 +110,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         profile: &ProfileId,
     ) -> Result<ProfileWorkspace, PortError> {
         validate_profile_id(profile)?;
-        let _guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        let _guard = self.lock_profile_writes().await?;
         self.read_profile_workspace_locked(profile).await
     }
 
@@ -177,7 +180,9 @@ impl<S: SecureStore> EngineProfileStore<S> {
         }
 
         let profile_path = self.existing_profile_document_path(profile).await?;
-        let sidecar_path = options_path(self.config_dir(), profile.as_str());
+        let sidecar_path = self
+            .layout()
+            .options_path(self.config_dir(), profile.as_str());
         let publication = write_document_bytes_durable(&profile_path, &update.document_bytes);
         publish_document_pair(
             &sidecar_path,
@@ -186,7 +191,9 @@ impl<S: SecureStore> EngineProfileStore<S> {
             publication,
         )
         .await?;
-        if let Err(error) = remove_optional(&profile_document_backup_path(&profile_path)).await {
+        if let Err(error) =
+            remove_optional(&self.layout().document_backup_path(&profile_path)).await
+        {
             log::warn!("committed workspace backup cleanup failed: {error}");
         }
 

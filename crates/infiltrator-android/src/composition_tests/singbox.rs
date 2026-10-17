@@ -20,12 +20,12 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
 };
-use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreVersion;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};

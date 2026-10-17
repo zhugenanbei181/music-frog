@@ -120,9 +120,9 @@ mod tests {
     use super::*;
     #[cfg(test)]
     use crate::manager;
-    use infiltrator_profile_store::namespace::ProfileNamespaceInitialization;
     #[cfg(test)]
     use lurker_core_ports::error::PortError;
+    use lurker_profile_store::namespace::ProfileNamespaceInitialization;
     #[cfg(test)]
     use std::env::remove_var;
     #[cfg(test)]

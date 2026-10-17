@@ -29,6 +29,12 @@ LURKER_NEUTRAL_CRATES = ("lurker-core-contract", "lurker-core-ports")
 NEUTRAL_FORBIDDEN_EXACT = {"tokio", "reqwest", "bevy", "iced", "slint"}
 NEUTRAL_FORBIDDEN_PREFIXES = ("infiltrator-", "mihomo-", "singbox-")
 
+# The neutral profile-store kernel owns durable async filesystem work itself, so
+# `tokio` is part of its design. Everything product-, engine-, transport- or
+# UI-specific stays forbidden.
+PROFILE_STORE_NEUTRAL_CRATE = "lurker-profile-store"
+PROFILE_STORE_FORBIDDEN_EXACT = {"reqwest", "bevy", "iced", "slint"}
+
 ENGINE_ADAPTER_CRATES = {
     "mihomo-api",
     "mihomo-config",
@@ -164,6 +170,10 @@ NEUTRAL_SOURCE_PATTERN = re.compile(
 SOURCE_PATTERNS = {
     "lurker-core-contract": NEUTRAL_SOURCE_PATTERN,
     "lurker-core-ports": NEUTRAL_SOURCE_PATTERN,
+    "lurker-profile-store": re.compile(
+        r"\b(?:reqwest|bevy|iced|slint"
+        r"|infiltrator_[a-z0-9_]+|mihomo_[a-z0-9_]+|singbox_[a-z0-9_]+)::"
+    ),
     "infiltrator-domain": re.compile(
         r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|process|version)|"
         r"singbox_(?:api|config|process|version)|infiltrator_platform)::"
@@ -327,29 +337,38 @@ def check(repo_root: pathlib.Path) -> list[str]:
                     f"{source}: concrete runtime/transport import violates the 0.30 boundary"
                 )
 
-    for package in LURKER_NEUTRAL_CRATES:
-        manifest = repo_root / "crates" / package / "Cargo.toml"
-        if not manifest.is_file():
-            problems.append(f"{manifest}: neutral crate manifest is missing")
-            continue
-        for dependency in sorted(direct_dependencies(manifest)):
-            forbidden = (
-                dependency in NEUTRAL_FORBIDDEN_EXACT
-                or dependency.startswith(NEUTRAL_FORBIDDEN_PREFIXES)
-            )
-            if forbidden:
-                problems.append(
-                    f"{manifest}: neutral crate must not depend on `{dependency}`"
+    neutral_groups = (
+        (LURKER_NEUTRAL_CRATES, NEUTRAL_FORBIDDEN_EXACT, NEUTRAL_SOURCE_PATTERN),
+        (
+            (PROFILE_STORE_NEUTRAL_CRATE,),
+            PROFILE_STORE_FORBIDDEN_EXACT,
+            SOURCE_PATTERNS[PROFILE_STORE_NEUTRAL_CRATE],
+        ),
+    )
+    for packages, forbidden_exact, source_pattern in neutral_groups:
+        for package in packages:
+            manifest = repo_root / "crates" / package / "Cargo.toml"
+            if not manifest.is_file():
+                problems.append(f"{manifest}: neutral crate manifest is missing")
+                continue
+            for dependency in sorted(direct_dependencies(manifest)):
+                forbidden = (
+                    dependency in forbidden_exact
+                    or dependency.startswith(NEUTRAL_FORBIDDEN_PREFIXES)
                 )
-        source_root = manifest.parent / "src"
-        for source in sorted(source_root.rglob("*.rs")):
-            clean = strip_test_attributes(
-                strip_comments(source.read_text(encoding="utf-8"))
-            )
-            if NEUTRAL_SOURCE_PATTERN.search(clean):
-                problems.append(
-                    f"{source}: neutral crate references a product/runtime/UI dependency"
+                if forbidden:
+                    problems.append(
+                        f"{manifest}: neutral crate must not depend on `{dependency}`"
+                    )
+            source_root = manifest.parent / "src"
+            for source in sorted(source_root.rglob("*.rs")):
+                clean = strip_test_attributes(
+                    strip_comments(source.read_text(encoding="utf-8"))
                 )
+                if source_pattern.search(clean):
+                    problems.append(
+                        f"{source}: neutral crate references a product/runtime/UI dependency"
+                    )
 
     ports_root = repo_root / "crates" / "infiltrator-ports" / "src"
     workspace_source = ports_root / "profile_workspace.rs"
@@ -413,6 +432,22 @@ def self_test() -> int:
             or dependency.startswith(NEUTRAL_FORBIDDEN_PREFIXES)
             for dependency in neutral_dependencies
         ), (name, neutral_dependencies)
+    profile_store_dependencies = direct_dependencies(
+        REPO_ROOT / "crates" / PROFILE_STORE_NEUTRAL_CRATE / "Cargo.toml"
+    )
+    assert "tokio" in profile_store_dependencies, profile_store_dependencies
+    assert not any(
+        dependency in PROFILE_STORE_FORBIDDEN_EXACT
+        or dependency.startswith(NEUTRAL_FORBIDDEN_PREFIXES)
+        for dependency in profile_store_dependencies
+    ), profile_store_dependencies
+    assert not SOURCE_PATTERNS[PROFILE_STORE_NEUTRAL_CRATE].search("use tokio::fs;")
+    assert SOURCE_PATTERNS[PROFILE_STORE_NEUTRAL_CRATE].search(
+        "use infiltrator_contract::snapshot::CoreSnapshot;"
+    )
+    assert SOURCE_PATTERNS[PROFILE_STORE_NEUTRAL_CRATE].search(
+        "use mihomo_api::client::MihomoClient;"
+    )
     ports_root = REPO_ROOT / "crates/infiltrator-ports/src"
     workspace_path = ports_root / "profile_workspace.rs"
     store_path = ports_root / "profile_store.rs"

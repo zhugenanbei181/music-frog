@@ -5,7 +5,8 @@
 
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
-use std::fs::{self, File};
+#[cfg(any(unix, windows))]
+use std::fs;
 use std::io;
 use std::path::Path;
 
@@ -61,6 +62,8 @@ pub fn remove_durable(path: &Path) -> Result<(), DurableReplaceError> {
 
 #[cfg(unix)]
 fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), DurableReplaceError> {
+    use std::fs::File;
+
     fs::rename(staged, destination).map_err(DurableReplaceError::NotCommitted)?;
 
     let parent = destination.parent().unwrap_or_else(|| Path::new("."));
@@ -92,13 +95,15 @@ fn remove_durable_impl(path: &Path) -> Result<(), DurableReplaceError> {
 
 #[cfg(unix)]
 fn sync_parent_directory(path: &Path) -> io::Result<()> {
+    use std::fs::File;
+
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     File::open(parent)?.sync_all()
 }
 
 #[cfg(windows)]
 fn sync_parent_directory(path: &Path) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
+    use crate::wide;
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_WRITE, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::Storage::FileSystem::{
@@ -107,7 +112,7 @@ fn sync_parent_directory(path: &Path) -> io::Result<()> {
     };
 
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let parent: Vec<u16> = parent.as_os_str().encode_wide().chain(Some(0)).collect();
+    let parent = wide::path(parent);
     let directory = unsafe {
         CreateFileW(
             parent.as_ptr(),
@@ -135,17 +140,13 @@ fn sync_parent_directory(path: &Path) -> io::Result<()> {
 
 #[cfg(windows)]
 fn replace_durable_impl(staged: &Path, destination: &Path) -> Result<(), DurableReplaceError> {
-    use std::os::windows::ffi::OsStrExt;
+    use crate::wide;
     use windows_sys::Win32::Storage::FileSystem::{
         MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     };
 
-    let staged: Vec<u16> = staged.as_os_str().encode_wide().chain(Some(0)).collect();
-    let destination: Vec<u16> = destination
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
+    let staged = wide::path(staged);
+    let destination = wide::path(destination);
     let result = unsafe {
         MoveFileExW(
             staged.as_ptr(),

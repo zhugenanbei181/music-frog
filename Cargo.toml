@@ -41,7 +41,8 @@ members = [
   "crates/infiltrator-bevy-widgets",
   "crates/infiltrator-bevy-ui",
   "crates/lurker-core-contract",
-  "crates/lurker-core-ports"]
+  "crates/lurker-core-ports",
+  "crates/lurker-profile-store"]
 
 [workspace.package]
 version = "0.42.6"

@@ -1,8 +1,7 @@
 //! Shared in-process and cross-process profile write fences.
 
-use infiltrator_platform::instance_lock::{
-    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
-};
+use crate::instance_lock::{ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock};
+use crate::layout::ProfileStoreLayout;
 use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::env::current_dir;
@@ -24,10 +23,11 @@ pub struct ProfileWriteGuard {
 
 /// Acquire the process-local and stable OS lock in the shared profile order.
 pub async fn lock_profile_writes_for_dir(
+    layout: &ProfileStoreLayout,
     config_dir: &Path,
 ) -> Result<ProfileWriteGuard, PortError> {
     let boundary = shared_boundary(config_dir).map_err(io_error)?;
-    let lock_path = profile_write_lock_path(config_dir).await?;
+    let lock_path = profile_write_lock_path(layout, config_dir).await?;
     let cross_process = loop {
         let attempt_path = lock_path.clone();
         let attempt = spawn_blocking(move || try_acquire_threaded_instance_lock(&attempt_path))
@@ -90,7 +90,10 @@ fn canonical_root(root: &Path) -> io::Result<PathBuf> {
     }
 }
 
-async fn profile_write_lock_path(config_dir: &Path) -> Result<PathBuf, PortError> {
+async fn profile_write_lock_path(
+    layout: &ProfileStoreLayout,
+    config_dir: &Path,
+) -> Result<PathBuf, PortError> {
     let engine = config_dir
         .file_name()
         .and_then(|name| name.to_str())
@@ -101,7 +104,7 @@ async fn profile_write_lock_path(config_dir: &Path) -> Result<PathBuf, PortError
         .ok_or_else(|| PortError::Io("engine config directory has no parent".into()))?;
     fs::create_dir_all(parent).await.map_err(io_error)?;
     let canonical_parent = fs::canonicalize(parent).await.map_err(io_error)?;
-    Ok(canonical_parent.join(format!(".profile-write-{engine}.lock")))
+    Ok(canonical_parent.join(layout.profile_write_lock_name(engine)))
 }
 
 fn io_error(error: io::Error) -> PortError {

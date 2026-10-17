@@ -1,4 +1,4 @@
-use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use crate::store::EngineProfileStore;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::identity::EngineId;
@@ -8,6 +8,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::store::ProfileDocumentExtension;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -1,52 +1,30 @@
-//! Engine-scoped storage identity and state shared by config facades.
+//! Engine-scoped storage facade: product credentials over the neutral kernel.
 
-use crate::namespace::ProfileNamespaceInitialization;
+use crate::layout::product_layout_owned;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_ports::secure_store::SecureStore;
-use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
+use lurker_profile_store::layout::ProfileStoreLayout;
+use lurker_profile_store::namespace::ProfileNamespaceInitialization;
+use lurker_profile_store::store::{ProfileDocumentExtension, ProfileStoreCore};
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use tokio::sync::OnceCell;
 
-/// Native filename suffix selected alongside the engine-owned document codec.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProfileDocumentExtension {
-    Json,
-    Yaml,
-}
-
-impl ProfileDocumentExtension {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Json => "json",
-            Self::Yaml => "yaml",
-        }
-    }
-}
-
-/// Shared persistence state for one engine-scoped profile namespace.
+/// Product persistence owner for one engine namespace.
 ///
-/// The format adapter remains injected; this owner stores only opaque bytes and
-/// immutable scope identity. Active-reference and workspace transactions are
-/// added here as they leave product-specific config facades.
+/// The neutral [`ProfileStoreCore`] owns layout, state schema and document I/O;
+/// this facade adds the product credential store and the in-process apply
+/// observations that config managers expose to surfaces.
 pub struct EngineProfileStore<S: SecureStore> {
-    engine_id: EngineId,
-    config_root: PathBuf,
-    config_dir: PathBuf,
-    settings_file: PathBuf,
-    document_codec: Arc<dyn ProfileDocumentCodecPort>,
-    document_codec_scope: ProfileDocumentCodecScope,
-    document_extension: ProfileDocumentExtension,
+    core: ProfileStoreCore,
     credential_store: S,
-    namespace_initialization: ProfileNamespaceInitialization,
-    namespace_initialized: OnceCell<()>,
     apply_observations: RwLock<BTreeMap<String, ApplyTransactionSnapshot>>,
 }
 
@@ -76,62 +54,73 @@ impl<S: SecureStore> EngineProfileStore<S> {
         credential_store: S,
         namespace_initialization: ProfileNamespaceInitialization,
     ) -> Result<Self, PortError> {
-        let document_codec_scope = document_codec.scope();
-        if document_codec_scope.engine_id != engine_id {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::Configuration,
-                format!(
-                    "profile codec for {} cannot initialize store for {}",
-                    document_codec_scope.engine_id.as_str(),
-                    engine_id.as_str()
-                ),
-                false,
-            )));
-        }
-        let config_dir = config_root.join("engines").join(engine_id.as_str());
-        let settings_file = config_dir.join("profile-state.toml");
-
-        Ok(Self {
+        Self::with_layout(
             engine_id,
             config_root,
-            config_dir,
-            settings_file,
+            Arc::new(product_layout_owned()),
             document_codec,
-            document_codec_scope,
             document_extension,
             credential_store,
             namespace_initialization,
-            namespace_initialized: OnceCell::new(),
+        )
+    }
+
+    /// Construct a store with an explicitly injected layout instead of the
+    /// product-pinned default.
+    pub fn with_layout(
+        engine_id: EngineId,
+        config_root: PathBuf,
+        layout: Arc<ProfileStoreLayout>,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+        credential_store: S,
+        namespace_initialization: ProfileNamespaceInitialization,
+    ) -> Result<Self, PortError> {
+        let core = ProfileStoreCore::new(
+            engine_id,
+            config_root,
+            layout,
+            document_codec,
+            document_extension,
+            namespace_initialization,
+        )?;
+        Ok(Self {
+            core,
+            credential_store,
             apply_observations: RwLock::new(BTreeMap::new()),
         })
     }
 
     pub fn engine_id(&self) -> EngineId {
-        self.engine_id.clone()
+        self.core.engine_id()
+    }
+
+    pub fn layout(&self) -> &Arc<ProfileStoreLayout> {
+        self.core.layout()
     }
 
     pub fn config_root(&self) -> &Path {
-        &self.config_root
+        self.core.config_root()
     }
 
     pub fn config_dir(&self) -> &Path {
-        &self.config_dir
+        self.core.config_dir()
     }
 
     pub fn settings_file(&self) -> &Path {
-        &self.settings_file
+        self.core.settings_file()
     }
 
     pub fn document_codec(&self) -> &Arc<dyn ProfileDocumentCodecPort> {
-        &self.document_codec
+        self.core.document_codec()
     }
 
     pub fn document_codec_scope(&self) -> &ProfileDocumentCodecScope {
-        &self.document_codec_scope
+        self.core.document_codec_scope()
     }
 
-    pub const fn document_extension(&self) -> ProfileDocumentExtension {
-        self.document_extension
+    pub fn document_extension(&self) -> ProfileDocumentExtension {
+        self.core.document_extension()
     }
 
     pub fn credential_store(&self) -> &S {
@@ -139,11 +128,29 @@ impl<S: SecureStore> EngineProfileStore<S> {
     }
 
     pub fn namespace_initialization(&self) -> &ProfileNamespaceInitialization {
-        &self.namespace_initialization
+        self.core.namespace_initialization()
     }
 
     pub fn namespace_is_initialized(&self) -> bool {
-        self.namespace_initialized.get().is_some()
+        self.core.namespace_is_initialized()
+    }
+
+    /// Acquire the shared engine write fence in process-local and cross-process
+    /// order. Every profile read/write path must hold it.
+    pub async fn lock_profile_writes(&self) -> Result<ProfileWriteGuard, PortError> {
+        lock_profile_writes_for_dir(self.layout(), self.config_dir()).await
+    }
+
+    pub async fn read_settings_value(&self) -> Result<toml::Value, PortError> {
+        self.core.read_settings_value().await
+    }
+
+    pub async fn write_settings_value(&self, settings: &toml::Value) -> Result<(), PortError> {
+        self.core.write_settings_value(settings).await
+    }
+
+    pub async fn remove_profile_metadata(&self, profile: &str) -> Result<(), PortError> {
+        self.core.remove_profile_metadata(profile).await
     }
 
     pub(crate) async fn initialize_namespace_with<F, Fut, E>(&self, initialize: F) -> Result<(), E>
@@ -151,10 +158,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<(), E>>,
     {
-        self.namespace_initialized
-            .get_or_try_init(initialize)
-            .await
-            .map(|_| ())
+        self.core.initialize_namespace_with(initialize).await
     }
 
     pub fn apply_transaction(&self, profile: &str) -> Option<ApplyTransactionSnapshot> {

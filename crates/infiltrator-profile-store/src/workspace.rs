@@ -1,6 +1,5 @@
 //! Engine-neutral identity, revision, and publication rules for profile workspaces.
 
-use crate::document_store::{remove_optional, write_document_bytes_durable};
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
@@ -15,6 +14,7 @@ use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
+use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use sha2::{Digest, Sha256};
 use std::future::Future;
 use std::path::Path;

@@ -1,5 +1,4 @@
-use crate::file_lock::lock_profile_writes_for_dir;
-use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
@@ -12,6 +11,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use lurker_profile_store::store::ProfileDocumentExtension;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -82,14 +82,10 @@ async fn profile_catalog_projects_activity_only_for_the_selected_engine() {
         ActiveProfileReferenceRevision::new(7),
     ));
 
-    let mihomo_guard = lock_profile_writes_for_dir(mihomo.config_dir())
-        .await
-        .unwrap();
+    let mihomo_guard = mihomo.lock_profile_writes().await.unwrap();
     let mihomo_profiles = mihomo.list_profile_info_locked(&selection).await.unwrap();
     drop(mihomo_guard);
-    let sing_box_guard = lock_profile_writes_for_dir(sing_box.config_dir())
-        .await
-        .unwrap();
+    let sing_box_guard = sing_box.lock_profile_writes().await.unwrap();
     let sing_box_profiles = sing_box.list_profile_info_locked(&selection).await.unwrap();
     drop(sing_box_guard);
 

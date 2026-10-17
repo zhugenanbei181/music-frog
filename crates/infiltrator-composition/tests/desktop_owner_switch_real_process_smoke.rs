@@ -27,10 +27,10 @@ use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationP
 use infiltrator_ports::engine_backend_factory::{EngineBackendPorts, EngineBackendProvider};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::store::ProfileDocumentExtension;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::readiness::ControllerReadiness;

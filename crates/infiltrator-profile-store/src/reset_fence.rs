@@ -1,17 +1,18 @@
 //! Product-wide profile-reset intent parsing and mutation fences.
 
 use crate::active_reference_file::ActiveProfileReferenceFile;
-use crate::document_store::read_optional_bytes;
-use crate::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
+use crate::layout::product_layout;
 use crate::store::EngineProfileStore;
 use crate::workspace::sha256_hex;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
+use lurker_profile_store::document_store::read_optional_bytes;
+use lurker_profile_store::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
+use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::io::ErrorKind;
@@ -287,7 +288,7 @@ pub async fn acquire_reset_fenced_profile_mutation_for_dir(
         ActiveProfileResetMutationAccess::OrdinaryMutation,
     )
     .await?;
-    let profile = lock_profile_writes_for_dir(config_dir).await?;
+    let profile = lock_profile_writes_for_dir(product_layout(), config_dir).await?;
     Ok(ResetFencedProfileMutationGuard {
         _root: root,
         _profile: profile,

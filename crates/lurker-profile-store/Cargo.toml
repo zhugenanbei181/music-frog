@@ -1,0 +1,34 @@
+[package]
+name = "lurker-profile-store"
+version.workspace = true
+edition = "2024"
+description = "Engine-neutral profile-store kernel: durable layout, atomic document I/O, settings/state schema and cross-process write fences."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zhugenanbei181/music-frog"
+
+[dependencies]
+lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
+lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
+async-trait = { workspace = true }
+getrandom = "0.3"
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# CloseHandle/INVALID_HANDLE_VALUE: Foundation. CreateFileW/FlushFileBuffers/
+# MoveFileExW: Storage_FileSystem. The Windows durable-replace and named-mutex
+# paths use only these imports.
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

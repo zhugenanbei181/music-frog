@@ -19,6 +19,7 @@ infiltrator-ios = { path = "../infiltrator-ios" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
+lurker-profile-store = { path = "../lurker-profile-store" }
 infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }

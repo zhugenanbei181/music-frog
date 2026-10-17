@@ -40,12 +40,13 @@ mod tests {
     use crate::manager::paths::engine_config_dir;
     use async_trait::async_trait;
     use infiltrator_ports::secure_store::SecureStore;
+    use infiltrator_profile_store::layout::product_layout;
     use infiltrator_profile_store::metadata::SUBSCRIPTION_SERVICE;
-    use infiltrator_profile_store::namespace::{
-        ProfileNamespaceSchema, merge_profile_state, profile_state_backup_path, read_profile_state,
-    };
     use lurker_core_contract::identity::EngineId;
     use lurker_core_ports::error::PortError;
+    use lurker_profile_store::namespace::{
+        ProfileNamespaceSchema, merge_profile_state, read_profile_state,
+    };
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
@@ -104,11 +105,12 @@ mod tests {
     async fn interrupted_state_replace_restores_backup_before_reading() {
         let home = tempfile::tempdir().unwrap();
         let path = home.path().join("profile-state.toml");
-        let backup = profile_state_backup_path(&path);
+        let layout = product_layout();
+        let backup = layout.profile_state_backup_path(&path);
         let previous = "[default]\nprofile = \"main\"\n";
         fs::write(&backup, previous).await.unwrap();
 
-        let state = read_profile_state(&path).await.unwrap();
+        let state = read_profile_state(layout, &path).await.unwrap();
 
         assert_eq!(state["default"]["profile"].as_str(), Some("main"));
         assert_eq!(fs::read_to_string(&path).await.unwrap(), previous);
