@@ -9,8 +9,7 @@ use crate::reset_fence::{
     initialize_namespace_with_reset_fence,
 };
 use crate::store::EngineProfileStore;
-use crate::workspace::{validate_workspace_identity, workspace_for_update};
-use crate::workspace_store::ProfileWorkspacePublicationTarget;
+use crate::workspace::workspace_for_update;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
@@ -31,6 +30,8 @@ use lurker_core_ports::error::PortError;
 use lurker_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use lurker_profile_store::file_lock::ProfileWriteGuard;
 use lurker_profile_store::instance_lock::ThreadedInstanceLockGuard;
+use lurker_profile_store::workspace::validate_workspace_identity;
+use lurker_profile_store::workspace_store::ProfileWorkspacePublicationTarget;
 
 struct ActiveWorkspaceWriteGuards {
     _root: ThreadedInstanceLockGuard,

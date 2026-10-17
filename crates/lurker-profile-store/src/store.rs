@@ -6,6 +6,7 @@
 //! subscription metadata, catalog ordering and reset transactions belong to the
 //! product facade that wraps this core.
 
+use crate::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
 use crate::layout::ProfileStoreLayout;
 use crate::namespace::ProfileNamespaceInitialization;
 use crate::settings::{read_settings_file, remove_profile_metadata, write_settings_file};
@@ -142,6 +143,12 @@ impl ProfileStoreCore {
             .get_or_try_init(initialize)
             .await
             .map(|_| ())
+    }
+
+    /// Acquire the shared engine write fence in process-local and cross-process
+    /// order. Every profile read/write path must hold it.
+    pub async fn lock_profile_writes(&self) -> Result<ProfileWriteGuard, PortError> {
+        lock_profile_writes_for_dir(&self.layout, &self.config_dir).await
     }
 
     /// Read the engine-scoped settings document.

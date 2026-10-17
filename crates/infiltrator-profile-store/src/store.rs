@@ -8,7 +8,7 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
-use lurker_profile_store::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
+use lurker_profile_store::file_lock::ProfileWriteGuard;
 use lurker_profile_store::layout::ProfileStoreLayout;
 use lurker_profile_store::namespace::ProfileNamespaceInitialization;
 use lurker_profile_store::store::{ProfileDocumentExtension, ProfileStoreCore};
@@ -127,6 +127,11 @@ impl<S: SecureStore> EngineProfileStore<S> {
         &self.credential_store
     }
 
+    /// The neutral kernel identity behind this product facade.
+    pub(crate) fn core(&self) -> &ProfileStoreCore {
+        &self.core
+    }
+
     pub fn namespace_initialization(&self) -> &ProfileNamespaceInitialization {
         self.core.namespace_initialization()
     }
@@ -138,7 +143,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
     /// Acquire the shared engine write fence in process-local and cross-process
     /// order. Every profile read/write path must hold it.
     pub async fn lock_profile_writes(&self) -> Result<ProfileWriteGuard, PortError> {
-        lock_profile_writes_for_dir(self.layout(), self.config_dir()).await
+        self.core.lock_profile_writes().await
     }
 
     pub async fn read_settings_value(&self) -> Result<toml::Value, PortError> {

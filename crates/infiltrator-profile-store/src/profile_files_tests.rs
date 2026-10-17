@@ -1,3 +1,4 @@
+use crate::profile_files::ProductDeletionParticipant;
 use crate::store::EngineProfileStore;
 use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest,
@@ -78,6 +79,18 @@ impl MemorySecureStore {
     }
 }
 
+/// Run the post-fence deletion worker the way the selection-fenced entry point
+/// does, but without constructing a product-wide lease.
+async fn delete_locked(
+    store: &EngineProfileStore<MemorySecureStore>,
+    profile: &ProfileId,
+) -> Result<(), PortError> {
+    store
+        .core()
+        .delete_profile_locked(profile, &ProductDeletionParticipant { store })
+        .await
+}
+
 fn store(root: PathBuf, secure_store: MemorySecureStore) -> EngineProfileStore<MemorySecureStore> {
     let engine = EngineId::new("mihomo").unwrap();
     let codec = Arc::new(TestCodec(ProfileDocumentCodecScope {
@@ -114,7 +127,7 @@ async fn delete_profile_locked_removes_document_sidecar_and_backup() {
     fs::create_dir_all(sidecar.parent().unwrap()).await.unwrap();
     fs::write(&sidecar, b"profile options\n").await.unwrap();
 
-    store.delete_profile_locked(&profile).await.unwrap();
+    delete_locked(&store, &profile).await.unwrap();
 
     assert!(!document.exists());
     assert!(!backup.exists());
@@ -171,7 +184,7 @@ async fn delete_profile_locked_restores_document_when_sidecar_removal_fails() {
         .await
         .unwrap();
 
-    assert!(store.delete_profile_locked(&profile).await.is_err());
+    assert!(delete_locked(&store, &profile).await.is_err());
     assert_eq!(fs::read(document).await.unwrap(), previous);
     assert!(secure_store_probe.contains_value(secret));
     let ProfileAgeCredentialReadOutcome::Observed { current, .. } =

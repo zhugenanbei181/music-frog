@@ -11,7 +11,7 @@ use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
-use std::fs::{create_dir, read, write};
+use std::fs::{read, write};
 use tempfile::TempDir;
 
 fn scope(engine: &str) -> ProfileDocumentCodecScope {
@@ -33,7 +33,7 @@ fn source() -> ProfileDocumentSourceIdentity {
 fn workspace_revision_tracks_raw_bytes_and_distinguishes_absent_sidecar() {
     let bytes = b"native document".to_vec();
     let workspace = workspace_from_bytes(
-        &scope("mihomo"),
+        &scope("engine-a"),
         ProfileId::new("main").unwrap(),
         source(),
         ProfileWriteProtection::Editable,
@@ -59,7 +59,7 @@ fn workspace_revision_tracks_raw_bytes_and_distinguishes_absent_sidecar() {
 #[test]
 fn codec_scope_rejects_a_foreign_engine_before_store_access() {
     let workspace = workspace_from_bytes(
-        &scope("sing-box"),
+        &scope("engine-b"),
         ProfileId::new("main").unwrap(),
         source(),
         ProfileWriteProtection::Editable,
@@ -68,7 +68,7 @@ fn codec_scope_rejects_a_foreign_engine_before_store_access() {
     );
 
     assert!(matches!(
-        validate_workspace_identity(&scope("mihomo"), &workspace.identity()),
+        validate_workspace_identity(&scope("engine-a"), &workspace.identity()),
         Err(PortError::Unsupported { .. })
     ));
 }
@@ -92,8 +92,7 @@ fn source_identity_hashes_subscription_urls_without_retaining_the_secret() {
 #[tokio::test]
 async fn failed_document_publication_restores_exact_previous_sidecar_bytes() {
     let directory = TempDir::new().unwrap();
-    let sidecar = directory.path().join("options/main.json");
-    create_dir(sidecar.parent().unwrap()).unwrap();
+    let sidecar = directory.path().join("sidecar.json");
     write(&sidecar, b"previous exact bytes").unwrap();
 
     let result = publish_document_pair(

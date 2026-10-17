@@ -5,7 +5,11 @@
     clippy::ptr_arg,
     clippy::items_after_test_module
 )]
-//! Engine-neutral durable profile persistence.
+//! Product profile persistence facade over the neutral `lurker-profile-store` kernel.
+//!
+//! Credentials, subscription records, catalog, overrides and templates stay
+//! product-side; document I/O, backups, workspace publication and deletion
+//! ordering are delegated to the kernel.
 
 pub mod active_owner_lease;
 pub mod active_owner_registry;

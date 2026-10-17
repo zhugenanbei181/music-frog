@@ -1,36 +1,26 @@
-//! Engine-scoped filesystem operations for coherent profile workspaces.
+//! Product facade over the neutral coherent-workspace kernel.
+//!
+//! The kernel validates and publishes exact document/sidecar bytes under caller
+//! held fences. This module supplies the product-owned profile source facts
+//! (write protection from the engine settings document and the subscription URL
+//! stored through the product credential store) and keeps the historical
+//! [`EngineProfileStore`] surface unchanged.
 
 use crate::store::EngineProfileStore;
-use crate::workspace::{
-    invalid_workspace_recovery, publish_document_pair, selection_matches_profile, source_identity,
-    validate_document_format, validate_engine, validate_workspace_bytes,
-    validate_workspace_identity, workspace_from_bytes,
-};
+use crate::workspace::{product_workspace, workspace_record};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
-use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
-use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
-use lurker_core_contract::profile_name::validate_profile_name;
-use lurker_core_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
+use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
-use lurker_profile_store::document_store::{
-    read_optional_bytes, remove_optional, write_document_bytes_durable,
+use lurker_profile_store::workspace::ProfileSourceFacts;
+use lurker_profile_store::workspace_store::{
+    ProfileWorkspaceEdit, ProfileWorkspacePublicationTarget,
 };
-use std::io::{self, ErrorKind};
-use tokio::fs;
-
-/// Selection evidence held by the caller while a workspace publication runs.
-/// `AuthorizedActive` is only used after the shared root/owner/profile fences
-/// and typed owner authorization have been acquired by the coordinator.
-pub enum ProfileWorkspacePublicationTarget<'a> {
-    InactiveSelection(&'a ActiveProfileReferenceState),
-    AuthorizedActive,
-}
 
 impl<S: SecureStore> EngineProfileStore<S> {
     /// Resolve the product-selected workspace under a retained root selection
@@ -39,40 +29,12 @@ impl<S: SecureStore> EngineProfileStore<S> {
         &self,
         selection: &dyn ActiveProfileReferenceLease,
     ) -> Result<ProfileWorkspace, PortError> {
-        let reference = match selection.state() {
-            ActiveProfileReferenceState::Unselected { .. } => {
-                return Err(PortError::unsupported(
-                    Capability::Profiles,
-                    "no product-wide active profile is selected",
-                ));
-            }
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == self.engine_id() =>
-            {
-                reference
-            }
-            ActiveProfileReferenceState::Selected(reference) => {
-                return Err(PortError::unsupported(
-                    Capability::Profiles,
-                    format!(
-                        "the active profile belongs to engine {} instead of {}",
-                        reference.engine_id.as_str(),
-                        self.engine_id().as_str()
-                    ),
-                ));
-            }
-        };
-        let workspace = self.read_profile_workspace(&reference.profile_id).await?;
-        if workspace.document.identity.engine_id != reference.engine_id
-            || workspace.document.identity.profile_id != reference.profile_id
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active profile reference does not match the persisted profile document",
-                true,
-            )));
-        }
-        Ok(workspace)
+        let facts = ProductProfileSourceFacts { store: self };
+        Ok(product_workspace(
+            self.core()
+                .read_active_workspace_under_selection(selection.state(), &facts)
+                .await?,
+        ))
     }
 
     /// Read one coherent document and sidecar while the caller holds the
@@ -81,26 +43,11 @@ impl<S: SecureStore> EngineProfileStore<S> {
         &self,
         profile: &ProfileId,
     ) -> Result<ProfileWorkspace, PortError> {
-        validate_profile_id(profile)?;
-        let profile_path = self.existing_profile_document_path(profile).await?;
-        let document_bytes = fs::read(profile_path).await.map_err(map_io_error)?;
-        let sidecar_bytes = read_optional_bytes(
-            &self
-                .layout()
-                .options_path(self.config_dir(), profile.as_str()),
-        )
-        .await?;
-        let protection = self.workspace_write_protection(profile).await?;
-        let metadata = self.get_profile_metadata(profile.as_str()).await?;
-        let source = source_identity(profile, protection, metadata.subscription_url.as_deref())?;
-
-        Ok(workspace_from_bytes(
-            self.document_codec_scope(),
-            profile.clone(),
-            source,
-            protection,
-            document_bytes,
-            sidecar_bytes,
+        let facts = ProductProfileSourceFacts { store: self };
+        Ok(product_workspace(
+            self.core()
+                .read_profile_workspace_locked(profile, &facts)
+                .await?,
         ))
     }
 
@@ -109,9 +56,10 @@ impl<S: SecureStore> EngineProfileStore<S> {
         &self,
         profile: &ProfileId,
     ) -> Result<ProfileWorkspace, PortError> {
-        validate_profile_id(profile)?;
-        let _guard = self.lock_profile_writes().await?;
-        self.read_profile_workspace_locked(profile).await
+        let facts = ProductProfileSourceFacts { store: self };
+        Ok(product_workspace(
+            self.core().read_profile_workspace(profile, &facts).await?,
+        ))
     }
 
     /// Validate recovery bytes before callers acquire filesystem locks or
@@ -121,22 +69,8 @@ impl<S: SecureStore> EngineProfileStore<S> {
         expected: &ProfileWorkspaceIdentity,
         previous: &ProfileWorkspace,
     ) -> Result<(), PortError> {
-        validate_workspace_identity(self.document_codec_scope(), expected)?;
-        validate_engine(&self.engine_id(), &previous.document.identity.engine_id)?;
-        validate_document_format(
-            self.document_codec_scope(),
-            &previous.document.identity.format_id,
-            previous.document.identity.schema_version,
-        )?;
-        validate_workspace_bytes(previous)?;
-        if previous.document.identity.profile_id != expected.document.profile_id
-            || previous.document.identity.source != expected.document.source
-        {
-            return Err(invalid_workspace_recovery(
-                "Recovery document does not belong to the observed profile source",
-            ));
-        }
-        self.validate_document_bytes(&previous.document.raw_bytes)
+        self.core()
+            .validate_profile_workspace_recovery(expected, &workspace_record(previous))
     }
 
     /// Publish exact document and sidecar bytes after the caller has acquired
@@ -147,63 +81,18 @@ impl<S: SecureStore> EngineProfileStore<S> {
         update: &ProfileWorkspaceUpdate,
         target: ProfileWorkspacePublicationTarget<'_>,
     ) -> Result<ProfileWorkspace, PortError> {
-        validate_workspace_identity(self.document_codec_scope(), expected)?;
-        self.validate_document_bytes(&update.document_bytes)?;
-
-        let profile = &expected.document.profile_id;
-        let workspace = self.read_profile_workspace_locked(profile).await?;
-        let target_matches = match target {
-            ProfileWorkspacePublicationTarget::InactiveSelection(selection) => {
-                !selection_matches_profile(selection, &self.engine_id(), profile.as_str())
-            }
-            ProfileWorkspacePublicationTarget::AuthorizedActive => true,
-        };
-        if workspace.identity() != *expected || !target_matches {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "The profile document or sidecar changed; reload and inspect before applying",
-                true,
-            )));
-        }
-        if matches!(
-            update.purpose,
-            ProfileWorkspacePurpose::DirectEdit {
-                authorization: ProfileWriteAuthorization::RequireUnlock
-            }
-        ) && workspace.write_protection.is_protected()
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::Configuration,
-                "Direct editing of this remote subscription requires an explicit unlock",
-                false,
-            )));
-        }
-
-        let profile_path = self.existing_profile_document_path(profile).await?;
-        let sidecar_path = self
-            .layout()
-            .options_path(self.config_dir(), profile.as_str());
-        let publication = write_document_bytes_durable(&profile_path, &update.document_bytes);
-        publish_document_pair(
-            &sidecar_path,
-            workspace.sidecar_bytes.as_deref(),
-            update.sidecar_bytes.as_deref(),
-            publication,
-        )
-        .await?;
-        if let Err(error) =
-            remove_optional(&self.layout().document_backup_path(&profile_path)).await
-        {
-            log::warn!("committed workspace backup cleanup failed: {error}");
-        }
-
-        Ok(workspace_from_bytes(
-            self.document_codec_scope(),
-            profile.clone(),
-            workspace.document.identity.source,
-            workspace.write_protection,
-            update.document_bytes.clone(),
-            update.sidecar_bytes.clone(),
+        let facts = ProductProfileSourceFacts { store: self };
+        Ok(product_workspace(
+            self.core()
+                .publish_profile_workspace_locked(
+                    &facts,
+                    expected,
+                    workspace_edit(update.purpose),
+                    &update.document_bytes,
+                    update.sidecar_bytes.as_deref(),
+                    target,
+                )
+                .await?,
         ))
     }
 
@@ -216,19 +105,22 @@ impl<S: SecureStore> EngineProfileStore<S> {
         previous: &ProfileWorkspace,
         target: ProfileWorkspacePublicationTarget<'_>,
     ) -> Result<ProfileWorkspace, PortError> {
-        self.validate_profile_workspace_recovery(expected, previous)?;
-        self.publish_profile_workspace_locked(
-            expected,
-            &ProfileWorkspaceUpdate {
-                purpose: ProfileWorkspacePurpose::Derived,
-                document_bytes: previous.document.raw_bytes.clone(),
-                sidecar_bytes: previous.sidecar_bytes.clone(),
-            },
-            target,
-        )
-        .await
+        let facts = ProductProfileSourceFacts { store: self };
+        Ok(product_workspace(
+            self.core()
+                .restore_profile_workspace_locked(
+                    &facts,
+                    expected,
+                    &workspace_record(previous),
+                    target,
+                )
+                .await?,
+        ))
     }
 
+    /// Product write-protection rule: a profile with a recorded subscription
+    /// URL is a remote subscription and needs an explicit unlock to edit
+    /// directly.
     async fn workspace_write_protection(
         &self,
         profile: &ProfileId,
@@ -254,14 +146,13 @@ impl<S: SecureStore> EngineProfileStore<S> {
     }
 }
 
-fn validate_profile_id(profile: &ProfileId) -> Result<(), PortError> {
-    validate_profile_name(profile.as_str()).map_err(|error| {
-        PortError::Rejected(Failure::new(
-            ErrorCode::InvalidInput,
-            error.to_string(),
-            false,
-        ))
-    })
+fn workspace_edit(purpose: ProfileWorkspacePurpose) -> ProfileWorkspaceEdit {
+    match purpose {
+        ProfileWorkspacePurpose::Derived => ProfileWorkspaceEdit::Derived,
+        ProfileWorkspacePurpose::DirectEdit { authorization } => {
+            ProfileWorkspaceEdit::DirectEdit { authorization }
+        }
+    }
 }
 
 fn invalid_metadata() -> PortError {
@@ -272,11 +163,26 @@ fn invalid_metadata() -> PortError {
     ))
 }
 
-fn map_io_error(error: io::Error) -> PortError {
-    if error.kind() == ErrorKind::PermissionDenied {
-        PortError::PermissionDenied(error.to_string())
-    } else {
-        PortError::Io(error.to_string())
+/// Product facts that classify a profile's document source.
+struct ProductProfileSourceFacts<'a, S: SecureStore> {
+    store: &'a EngineProfileStore<S>,
+}
+
+#[async_trait::async_trait]
+impl<S: SecureStore> ProfileSourceFacts for ProductProfileSourceFacts<'_, S> {
+    async fn write_protection(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<ProfileWriteProtection, PortError> {
+        self.store.workspace_write_protection(profile).await
+    }
+
+    async fn subscription_url(&self, profile: &ProfileId) -> Result<Option<String>, PortError> {
+        Ok(self
+            .store
+            .get_profile_metadata(profile.as_str())
+            .await?
+            .subscription_url)
     }
 }
 

@@ -1,5 +1,4 @@
 use crate::store::EngineProfileStore;
-use crate::workspace_store::ProfileWorkspacePublicationTarget;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::ErrorCode;
@@ -13,6 +12,7 @@ use lurker_core_ports::profile_document_codec::{
 };
 use lurker_profile_store::document_store::write_document_bytes_durable;
 use lurker_profile_store::store::ProfileDocumentExtension;
+use lurker_profile_store::workspace_store::ProfileWorkspacePublicationTarget;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;

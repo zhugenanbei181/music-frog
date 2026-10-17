@@ -90,6 +90,19 @@ impl ProfileStoreLayout {
         config_dir.join(&self.profile_state_file_name)
     }
 
+    /// Native profile document for one profile inside an engine namespace.
+    ///
+    /// The extension belongs to the injected document codec, so it is a caller
+    /// argument rather than a layout field.
+    pub fn profile_document_path(
+        &self,
+        config_dir: &Path,
+        profile: &str,
+        extension: &str,
+    ) -> PathBuf {
+        config_dir.join(format!("{profile}.{extension}"))
+    }
+
     /// Durable backup of the profile-state document.
     pub fn profile_state_backup_path(&self, profile_state_file: &Path) -> PathBuf {
         profile_state_file.with_extension(&self.profile_state_backup_extension)
