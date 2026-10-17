@@ -2,7 +2,7 @@
 name = "lurker-engine-runtime"
 version.workspace = true
 edition = "2024"
-description = "Engine-neutral backend provider registry for Lurker core hosts."
+description = "Engine-neutral backend registry, owner-switch coordinator and runtime facade for Lurker core hosts."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
@@ -10,6 +10,11 @@ repository = "https://github.com/zhugenanbei181/music-frog"
 lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
 lurker-core-ports = { version = "0.42.6", path = "../lurker-core-ports" }
 async-trait = { workspace = true }
+# Executor-neutral state fan-out and readiness deadline. No tokio dependency:
+# the facade must run on every host runtime.
+futures-channel = "0.3"
+futures-core = "0.3"
+futures-timer = "3.0"
 
 [dev-dependencies]
 futures-executor = "0.3"

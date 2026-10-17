@@ -5,5 +5,6 @@
 //! providers and drivers they support.
 
 pub mod error;
+pub mod facade;
 pub mod registry;
 pub mod switch;
