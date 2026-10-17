@@ -4,7 +4,6 @@ use crate::log_stream::{LogDriver, LogPump};
 use crate::log_stream_test_support::{LogGateway, TestRuntime};
 use futures_util::stream::{BoxStream, iter, pending};
 use infiltrator_contract::logs::{LogObservationSnapshot, LogSession, LogStreamState};
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
 };
@@ -12,6 +11,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreScope, EngineId};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering;

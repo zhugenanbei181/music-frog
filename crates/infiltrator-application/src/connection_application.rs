@@ -9,11 +9,11 @@ use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
 };
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_ports::core_scope::CoreScopeSource;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -239,7 +239,7 @@ fn current_unix_secs() -> u64 {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+    use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use lurker_core_ports::error::PortError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

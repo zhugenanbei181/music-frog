@@ -18,7 +18,6 @@ use infiltrator_ports::connection::{ConnectionPort, UnsupportedConnectionPort};
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::resources::{CoreResourcePort, UnsupportedCoreResourcePort};
@@ -31,6 +30,7 @@ use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteA
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -18,7 +18,6 @@ use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceA
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
@@ -53,6 +52,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use mihomo_api::connection_port::MihomoConnectionPort;

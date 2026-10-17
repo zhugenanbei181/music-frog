@@ -1,10 +1,10 @@
 //! Read-only real-controller smoke; callers own and clean up the isolated kernel process.
 use anyhow::{Context, Result, bail, ensure};
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::outbound::OutboundPort;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::outbound::MihomoOutboundAdapter;

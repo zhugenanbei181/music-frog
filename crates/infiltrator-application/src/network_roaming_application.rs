@@ -11,10 +11,10 @@ use infiltrator_domain::mtu_optimizer::MtuOptimizer;
 use infiltrator_domain::network_roaming::{
     NetworkRoamingBaseline, NetworkRoamingDecision, decide, select_active_interface,
 };
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::core_scope::CoreScopeSource;
 use std::sync::Arc;
 
 mod route_repair;
@@ -301,7 +301,6 @@ mod tests {
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
         NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
     };
-    use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use infiltrator_ports::runtime_configuration::TunConfigurationUpdate;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
@@ -313,6 +312,7 @@ mod tests {
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
+    use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use lurker_core_ports::error::PortError;
     #[cfg(test)]
     use std::sync;

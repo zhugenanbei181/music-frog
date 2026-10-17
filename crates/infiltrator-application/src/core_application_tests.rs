@@ -18,7 +18,6 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_contract::outbound::{
@@ -27,6 +26,7 @@ use lurker_core_contract::outbound::{
 };
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_ports::core_process::{CoreProcess, CoreProcessStartAdmission, CoreReadiness};
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize};

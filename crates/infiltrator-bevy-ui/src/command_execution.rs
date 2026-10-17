@@ -21,12 +21,12 @@ use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
 #[cfg(feature = "capture-tools")]
-use infiltrator_ports::core_scope::CoreScopeObservation;
-#[cfg(feature = "capture-tools")]
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 #[cfg(feature = "capture-tools")]
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
+#[cfg(feature = "capture-tools")]
+use lurker_core_ports::core_scope::CoreScopeObservation;
 #[cfg(feature = "capture-tools")]
 use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 #[cfg(feature = "capture-tools")]

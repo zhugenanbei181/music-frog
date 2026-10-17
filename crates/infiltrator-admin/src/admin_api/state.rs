@@ -13,7 +13,6 @@ use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceTarget;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -25,6 +24,7 @@ use lurker_core_contract::outbound::{
     probe::{OutboundProbeBatchSnapshot, OutboundSelectionRequest},
 };
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::outbound::OutboundPort;
 use std::env::var;
 use std::sync::atomic::{AtomicBool, Ordering};

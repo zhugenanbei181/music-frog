@@ -1,7 +1,6 @@
 //! Engine selection for product composition roots.
 
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
@@ -17,6 +16,7 @@ use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
 use lurker_core_ports::core_process::CoreProcess;
 use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
@@ -257,12 +257,12 @@ impl EngineBackendProvider for SingBoxEngineBackendProvider {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_ports::core_scope::CoreScopeObservation;
     use lurker_core_contract::capability::Capability;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
     };
     use lurker_core_contract::routing_intent::RoutingIntent;
+    use lurker_core_ports::core_scope::CoreScopeObservation;
     use singbox_api::http::{
         SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
     };

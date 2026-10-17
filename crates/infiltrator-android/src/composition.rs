@@ -34,7 +34,6 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
     EngineBackendProvider,
@@ -50,6 +49,7 @@ use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;

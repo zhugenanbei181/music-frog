@@ -1,6 +1,5 @@
 //! test-intent: real_process
 
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -15,6 +14,7 @@ use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;

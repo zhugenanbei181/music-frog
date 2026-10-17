@@ -6,11 +6,11 @@
 //! database fetch and installation are deliberately outside this evidence.
 
 use infiltrator_contract::geo_database::GeoDatabaseTriggerState;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::geo_database::GeoDatabasePort;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use std::env;

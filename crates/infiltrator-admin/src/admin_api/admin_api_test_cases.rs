@@ -28,7 +28,6 @@ use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_K
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::TEST_LOCK;
 use infiltrator_platform::defaults::DefaultCredentialStore;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
@@ -42,6 +41,7 @@ use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;

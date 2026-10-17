@@ -10,7 +10,6 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_stream::UnsupportedRuntimeStreamPort;
 use lurker_core_contract::active_profile_reference::ActiveProfileReference;
@@ -19,6 +18,7 @@ use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_document_identity::ProfileSidecarRevision;
 use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

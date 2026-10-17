@@ -8,7 +8,6 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::mtu::{MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::rules::RuleEntry;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::runtime_configuration::{
     ConfigurationApply, ConfigurationObservation, ConfigurationRevision, CoreLogLevelReadPort,
     DnsRuntimeConfiguration, Ipv6Configuration, Ipv6ConfigurationPort, Ipv6ConfigurationUpdate,
@@ -22,6 +21,7 @@ use infiltrator_ports::runtime_configuration::{
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use serde_json::{Value, json};
 use std::collections::hash_map::DefaultHasher;

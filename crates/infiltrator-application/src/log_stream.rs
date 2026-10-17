@@ -7,13 +7,13 @@ use futures_util::future::{AbortHandle, Abortable};
 use futures_util::{FutureExt, StreamExt, select};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_ports::core_scope::CoreScopeSource;
 use std::sync::Arc;
 use std::thread::{Builder, JoinHandle, current};
 use std::time::Duration;

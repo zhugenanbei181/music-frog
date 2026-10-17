@@ -1,6 +1,5 @@
 //! Engine-scoped process, configuration, and typed operation composition.
 
-use crate::core_scope::{CoreScopeObservation, CoreScopeSource};
 use crate::geo_database::{GeoDatabasePort, UnsupportedGeoDatabasePort};
 #[cfg(test)]
 use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
@@ -13,6 +12,7 @@ use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreIdentity, CoreScope, EngineId};
 use lurker_core_ports::core_process::CoreProcess;
 use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::OutboundPort;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
@@ -481,7 +481,6 @@ pub const ENGINE_BACKEND_CAPABILITY: Capability = Capability::CoreLifecycle;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core_scope::CoreScopeObservation;
     use crate::profile_document_codec::ProfileConfigurationCodecPort;
     use async_trait::async_trait;
     use lurker_core_contract::core_process::CoreProcessStartContext;
@@ -490,6 +489,7 @@ mod tests {
     use lurker_core_contract::profile_document::DocumentValidation;
     use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use lurker_core_ports::core_process::CoreReadiness;
+    use lurker_core_ports::core_scope::CoreScopeObservation;
     use lurker_core_ports::profile_document_codec::{
         ProfileDocumentCodecPort, ProfileDocumentCodecScope,
     };

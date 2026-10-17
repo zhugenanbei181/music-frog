@@ -38,9 +38,9 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::{LOG_QUERY, LogCaptureProcess};
+use lurker_core_ports::core_scope::CoreScopeObservation;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 

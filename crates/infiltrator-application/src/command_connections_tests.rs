@@ -3,7 +3,7 @@ use super::*;
 use crate::command_application::handler::ValidatedCoreCommandScope;
 use crate::connection_application::ConnectionApplication;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 
 struct UnavailableCoreScope;
 

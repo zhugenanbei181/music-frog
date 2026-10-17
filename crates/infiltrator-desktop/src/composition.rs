@@ -72,7 +72,6 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
@@ -85,6 +84,7 @@ use infiltrator_ports::subscription_source::SubscriptionSource;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;

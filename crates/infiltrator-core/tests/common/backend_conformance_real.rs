@@ -17,7 +17,6 @@ use infiltrator_core::profile_configuration_transaction::{
 };
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
@@ -37,6 +36,7 @@ use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::{OutboundProbeRequest, ProbeTarget};
 use mihomo_api::client::MihomoClient;

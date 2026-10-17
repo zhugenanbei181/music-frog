@@ -36,10 +36,10 @@ use infiltrator_contract::vpn::{
 };
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_scope::CoreScopeSource;
 #[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::core_scope::CoreScopeSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;

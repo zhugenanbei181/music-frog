@@ -7,7 +7,6 @@ mod mapping;
 use crate::error::MihomoError;
 use crate::network_error::network_error;
 use infiltrator_domain::proxy::{Proxy, ProxyHistory};
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
@@ -25,6 +24,7 @@ use lurker_core_contract::outbound::{
         SelectionAvailability,
     },
 };
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use std::collections::{BTreeSet, HashMap};

@@ -32,11 +32,11 @@ use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep, ApplicationTaskAdmission,
     ApplicationTaskId, ApplicationTaskShutdown,
 };
-use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::core_watchdog::CoreWatchdogPort;
 use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
+use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;

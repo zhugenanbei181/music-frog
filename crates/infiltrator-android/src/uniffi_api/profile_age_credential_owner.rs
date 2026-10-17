@@ -22,8 +22,8 @@ use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialWriteRequest,
 };
 use infiltrator_platform::android_bridge::get_android_bridge;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use serde::{Deserialize, Serialize};
 use std::mem;
 use std::ptr::write_volatile;

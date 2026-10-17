@@ -4,7 +4,6 @@ use crate::client::MihomoClient;
 use crate::error::MihomoError;
 use crate::types::ProxiesResponse;
 use infiltrator_domain::proxy::Proxy;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -20,6 +19,7 @@ use lurker_core_contract::outbound::{
         OutboundInventoryState, OutboundProbeState, OutboundSelectionState, SelectionAvailability,
     },
 };
+use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
 use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use mockito::{Matcher, Server};
