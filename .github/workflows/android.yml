@@ -57,6 +57,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: ${{ steps.android-toolchain.outputs.android_cmdline_tools_revision }}
 
       # Pin the SDK packages used by APK builds and the Gradle Managed Device.
       - name: Install Android platform, emulator, and system image

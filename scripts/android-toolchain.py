@@ -186,12 +186,14 @@ def ensure_source_links(values: Mapping[str, str]) -> None:
             "steps.android-toolchain.outputs.android_emulator_api",
             "steps.android-toolchain.outputs.android_emulator_image",
             "steps.android-toolchain.outputs.android_ndk_version",
+            "steps.android-toolchain.outputs.android_cmdline_tools_revision",
         ),
         ROOT / ".github/workflows/release.yml": (
             "steps.android-toolchain.outputs.java_major",
             "steps.android-toolchain.outputs.android_sdk_platform",
             "steps.android-toolchain.outputs.android_build_tools",
             "steps.android-toolchain.outputs.android_ndk_version",
+            "steps.android-toolchain.outputs.android_cmdline_tools_revision",
         ),
         ROOT / "scripts/android-emulator-tests.sh": (
             "scripts/android-toolchain.py",
@@ -402,6 +404,7 @@ def github_outputs(values: Mapping[str, str], destination: Path) -> None:
         "android_emulator_api": values["android.emulator.api"],
         "android_emulator_image": values["android.emulator.image"],
         "android_ndk_version": values["android.ndk.version"],
+        "android_cmdline_tools_revision": values["android.cmdline.tools.revision"],
     }
     with destination.open("a", encoding="utf-8") as output:
         for key, value in output_values.items():

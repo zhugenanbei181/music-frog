@@ -423,6 +423,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: ${{ steps.android-toolchain.outputs.android_cmdline_tools_revision }}
 
       # Install the registered Android platform and build-tools explicitly.
       - name: Install Android platform 37 and build-tools
