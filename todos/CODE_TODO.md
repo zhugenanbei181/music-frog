@@ -101,6 +101,11 @@
   - 产物：45 个仍用 `locale: &str` 的 presentation 模块改为 `TextCatalog`；文案数据不下沉；join 到 `Lang` 的适配只保留一处。
   - 依赖：PUB-004.1 B1（已完成）。
   - 验收：presentation 内不再出现直接读取 locale 的文案折叠；nextest 与 i18n guard 全绿。
+- [ ] GAP-5.1.1 [kind: mechanism] [priority: P1] [points: 1] [owner: infiltrator-contract + infiltrator-shared] [status: Planned] `script_console_projection` 的双语标签所有权裁决
+  - 现状：该模块用 `language: &str` 并读取 `ScriptSandboxSnapshot::engine_label_en/zh` 与 capability 标签，这些字符串由 `infiltrator-contract` 拥有，不在 gettext catalog 里，无法通过 `TextCatalog` 解析。
+  - 裁决要求（二选一）：把双语标签改成 `infiltrator-shared` 的 key（contract 只留语言无关事实）；或保留 contract 字段但由产品在边界处做一次语言选择并注入。禁止在 presentation 里继续读 `starts_with("en")`。
+  - 依赖：GAP-5.1。
+  - 验收：presentation 不再有 `starts_with("en")` 式语言判断；contract 不含用户文案或由显式 owner 接口提供；i18n/typed-state 门禁全绿。
 - [ ] GAP-5.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-core-contract] [status: Planned] PUB-004.1 B3：`PageStatus`/`PageData`/`PageId`/`SurfaceOrigin` 下移中立契约
   - 产物：四个视图状态类型迁入 `lurker-core-contract`，重接 77/70/34/20 处引用；无 `pub use` 中转。
   - 依赖：GAP-5.1。
