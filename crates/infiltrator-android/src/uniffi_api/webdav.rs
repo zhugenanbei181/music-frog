@@ -294,7 +294,7 @@ mod tests {
     use super::*;
     use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
     #[cfg(test)]
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
     #[cfg(test)]
     use std::collections::HashMap;
     #[cfg(test)]

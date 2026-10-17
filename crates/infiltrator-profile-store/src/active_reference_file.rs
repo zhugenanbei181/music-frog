@@ -12,7 +12,7 @@ use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_platform::instance_lock::{
     ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
 };
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::fs;

@@ -1,7 +1,6 @@
 use super::ProfileApplication;
 use infiltrator_contract::profile_document::{
-    DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
-    DocumentInspectionUnsupportedReason, DocumentValidation,
+    DocumentInspection, DocumentInspectionUnavailableReason, DocumentInspectionUnsupportedReason,
 };
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileWorkspaceIdentity,
@@ -11,19 +10,22 @@ use infiltrator_contract::profile_mixin_studio::{
 };
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_ports::profile_document_codec::{
-    ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
-    ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,
-    ProfileDocumentCodecScope, ProfileDocumentSnippetOutcome, ProfileFilterMutation,
+    ProfileConfigurationCodecPort, ProfileConfigurationMutation, ProfileConfigurationQuery,
+    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileFilterMutation,
     ProfileMixinMutation, ProfileOptionsCodecScope, ProfileOptionsProjection,
     ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCaret, ProfileDocumentCodecScope, ProfileDocumentSnippetOutcome,
+};
 use std::sync::Arc;
 
 impl ProfileApplication {
-    pub fn with_document_codec(mut self, codec: Arc<dyn ProfileDocumentCodecPort>) -> Self {
+    pub fn with_document_codec(mut self, codec: Arc<dyn ProfileConfigurationCodecPort>) -> Self {
         self.document_codec = Some(codec);
         self
     }
@@ -255,7 +257,7 @@ impl ProfileApplication {
     fn options_codec_for(
         &self,
         identity: &ProfileDocumentIdentity,
-    ) -> Result<Arc<dyn ProfileDocumentCodecPort>, Failure> {
+    ) -> Result<Arc<dyn ProfileConfigurationCodecPort>, Failure> {
         let store_engine = self.store.engine_id();
         if identity.engine_id != store_engine {
             return Err(inspection_unsupported_failure(
@@ -292,7 +294,7 @@ impl ProfileApplication {
     fn configuration_codec_for(
         &self,
         identity: &ProfileDocumentIdentity,
-    ) -> Result<Arc<dyn ProfileDocumentCodecPort>, Failure> {
+    ) -> Result<Arc<dyn ProfileConfigurationCodecPort>, Failure> {
         let store_engine = self.store.engine_id();
         if identity.engine_id != store_engine {
             return Err(inspection_unsupported_failure(

@@ -2,10 +2,7 @@
 
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_option_store;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion,
-};
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
     ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
@@ -20,12 +17,14 @@ use infiltrator_domain::mixin::{
     CascadeOverlayPipeline, MixinConfig, merge_profile_with_config_fidelity,
 };
 use infiltrator_domain::profile_options::{ProfileOptions, compose_content, strip_rule_lines};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCodecScope, ProfileFilterMutation, ProfileMixinMutation,
-    ProfileOptionsCodecScope, ProfileOptionsProjection,
+    ProfileFilterMutation, ProfileMixinMutation, ProfileOptionsCodecScope, ProfileOptionsProjection,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use std::fmt::Display;
 use std::path::Path;
 use std::str;

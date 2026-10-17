@@ -2,10 +2,10 @@
 
 use crate::core_application::CoreApplication;
 use crate::vpn_application::VpnServiceApplication;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::vpn::VpnSessionSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreIdentity;
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 
 #[derive(Clone)]
 pub struct CoreOwnerShutdownApplication {

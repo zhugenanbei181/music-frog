@@ -9,8 +9,8 @@ use infiltrator_contract::system_proxy::{
     SystemProxyRecoverySnapshot,
 };
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use lurker_core_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;

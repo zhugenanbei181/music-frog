@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::android_control::core_launch::CoreLaunchConfigurationIdentity;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileWorkspaceIdentity,
 };
@@ -11,11 +10,12 @@ use infiltrator_platform::android_bridge::{
     AndroidBridge, AndroidCoreConfigurationValidationOutcome,
     AndroidCoreConfigurationValidationRequest,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process;
@@ -257,12 +257,13 @@ mod tests {
     use super::*;
     use infiltrator_contract::profile_document_identity::{
         ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-        ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-        ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+        ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+        ProfileWorkspaceIdentity,
     };
     use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationCandidateValidatorPort;
-    use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+    use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
     use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
     use std::fs;
     use std::io::ErrorKind;

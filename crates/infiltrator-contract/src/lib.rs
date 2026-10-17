@@ -146,12 +146,13 @@ pub mod yaml_snippets;
 
 #[cfg(test)]
 mod tests {
-    use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
+    use super::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel};
     use super::ipv6::Ipv6RoutingSnapshot;
     use super::lan::LanCredentials;
     use super::surface::HostKind;
     use super::tun::TunStack;
+    use lurker_core_contract::capability::Capability;
     use lurker_core_contract::routing_intent::RoutingIntent;
 
     #[test]

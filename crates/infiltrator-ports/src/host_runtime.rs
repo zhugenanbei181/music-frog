@@ -10,7 +10,6 @@ use crate::dns_leak::DnsLeakProbePort;
 use crate::mini_hud_window::MiniHudWindowPort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
-use crate::outbound::OutboundPort;
 use crate::pac::PacServicePort;
 use crate::privileged_network::PrivilegedNetworkPort;
 use crate::resources::CoreResourcePort;
@@ -24,6 +23,7 @@ use crate::stun_probe::StunEgressProbePort;
 use crate::system_dns_cache::SystemDnsCachePort;
 use crate::system_proxy::SystemProxyPort;
 use crate::vpn_service::VpnServicePort;
+use lurker_core_ports::outbound::OutboundPort;
 use std::path::PathBuf;
 use std::sync::Arc;
 

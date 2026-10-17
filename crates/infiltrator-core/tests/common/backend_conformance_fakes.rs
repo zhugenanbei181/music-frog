@@ -16,28 +16,19 @@ use async_trait::async_trait;
 use infiltrator_contract::adapter_operation_declaration::{
     AdapterOperationOwner, AdapterOperationSupport,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     AdapterRevision, CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, OutboundOperation,
     ProfileOperation, ProxyControlOperation, VersionOperation,
 };
-use infiltrator_contract::profile_document::DocumentValidation;
-use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
-use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
-};
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::{
     OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
     OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot,
@@ -48,9 +39,18 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot, OutboundProbeState,
     OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
 };
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+};
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Builder;
 

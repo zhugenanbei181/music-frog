@@ -7,9 +7,9 @@
 //! it read an empty string.
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 #[cfg(all(unix, not(target_os = "macos")))]
 use std::env::var_os;
 use std::process;

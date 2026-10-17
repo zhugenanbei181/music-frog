@@ -1,7 +1,7 @@
 //! The host owns the export destination and durable file publication.
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::log_export::{LogExportArtifact, LogExportReceipt};
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait LogExportPort: Send + Sync {

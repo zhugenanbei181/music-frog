@@ -61,7 +61,7 @@ use crate::script_export::ScriptExportSnapshot;
 use crate::script_sandbox::ScriptSandboxSnapshot;
 use crate::service_mode::ServiceModeSnapshot;
 use crate::shell_readout::ShellReadoutSnapshot;
-use crate::snapshot::{CoreLifecycle, CoreSnapshot};
+use crate::snapshot::CoreSnapshot;
 use crate::snapshot_history::SnapshotHistorySnapshot;
 use crate::speedtest::SpeedtestSnapshot;
 use crate::stun_probe::StunProbeReport;
@@ -79,6 +79,7 @@ use crate::version::CoreVersionSnapshot;
 use crate::vpn::VpnSurfaceObservation;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::OutboundDetailsSnapshot;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState,

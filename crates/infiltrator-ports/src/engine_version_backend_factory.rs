@@ -1,9 +1,9 @@
 //! Composition seam for the engine-scoped version application.
 
 use crate::core_binary_selection::CoreBinarySelectionPort;
-use crate::error::PortError;
 use crate::version::VersionPort;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 /// Resolves an engine to a concrete version adapter that the host actually

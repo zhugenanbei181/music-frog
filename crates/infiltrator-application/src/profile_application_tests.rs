@@ -9,7 +9,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeContentDecryption, ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
     ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
@@ -25,7 +24,6 @@ use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspac
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::ProfileMetadata;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
@@ -37,7 +35,9 @@ use infiltrator_test_support::profile_document_codec_test_support::TestProfileDo
 use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

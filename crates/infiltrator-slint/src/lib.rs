@@ -552,7 +552,7 @@ fn network_mode_action(
     snapshot: &SurfaceSnapshot,
     requested: &str,
 ) -> Result<SlintAction, Failure> {
-    use infiltrator_contract::snapshot::CoreLifecycle;
+    use lurker_core_contract::lifecycle::CoreLifecycle;
     if cfg!(target_os = "android") {
         return if requested != "VPN" {
             Err(Failure::unsupported(

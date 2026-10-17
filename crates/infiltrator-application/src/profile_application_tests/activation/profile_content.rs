@@ -3,8 +3,8 @@
 use super::*;
 use crate::profile_application::ProfileContentSaveOutcome;
 use crate::profile_application::SelectedProfileApplyOutcome;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 #[tokio::test]
 async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {

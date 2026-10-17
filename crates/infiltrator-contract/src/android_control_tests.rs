@@ -10,13 +10,13 @@ use super::{
 };
 use crate::command::{CommandIntent, CommandResult, RequestId};
 use crate::core_identity::CoreCommandOutcome;
-use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use crate::vpn::VpnGeneration;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::session::SessionToken;
 
 #[test]

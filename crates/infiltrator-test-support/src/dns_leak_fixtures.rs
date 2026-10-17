@@ -5,7 +5,7 @@ use infiltrator_contract::dns_leak::{
     DnsLeakProbeTransport,
 };
 use infiltrator_ports::dns_leak::DnsLeakEchoPort;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 #[derive(Clone, Copy)]

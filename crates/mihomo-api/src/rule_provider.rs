@@ -10,10 +10,10 @@ use infiltrator_contract::rule_provider_runtime::{
     RuleProviderPayloadSnapshot, RuleProviderRefreshReceipt, RuleProviderRevision,
 };
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -313,11 +313,11 @@ mod tests {
         RuleProviderId, RuleProviderPayload, RuleProviderRevision,
     };
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
+    use lurker_core_ports::error::PortError;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};

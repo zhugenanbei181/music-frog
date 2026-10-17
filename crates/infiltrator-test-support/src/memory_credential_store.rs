@@ -6,8 +6,8 @@
 //! store). Headless CI runners have no keyring, so the default store fails there.
 
 use async_trait::async_trait;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 

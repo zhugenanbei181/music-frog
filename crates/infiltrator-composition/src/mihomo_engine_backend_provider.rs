@@ -1,18 +1,18 @@
 //! Shared production Mihomo engine backend provider.
 
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineBackendProvider, EngineOperationPort,
     EngineOperationPorts,
 };
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::OutboundPort;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::outbound::MihomoOutboundAdapter;
@@ -90,7 +90,7 @@ impl EngineBackendProvider for MihomoEngineBackendProvider {
 
     fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
         let engine_id = self.engine_id();
-        let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(MihomoProfileDocumentCodec);
+        let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileDocumentCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
         ));

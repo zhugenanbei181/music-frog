@@ -33,7 +33,7 @@ impl TrafficWaveformApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::snapshot::CoreLifecycle;
+    use lurker_core_contract::lifecycle::CoreLifecycle;
 
     #[test]
     fn application_records_only_live_core_samples() {

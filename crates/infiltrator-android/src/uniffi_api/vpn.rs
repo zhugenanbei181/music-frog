@@ -29,8 +29,6 @@ use infiltrator_application::vpn_preparation::{
 };
 #[cfg(target_os = "android")]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
-#[cfg(target_os = "android")]
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::tun::{TunStack, TunStackUpdate};
 use infiltrator_contract::vpn::VpnConfigurationActivationLease;
 #[cfg(target_os = "android")]
@@ -45,6 +43,8 @@ use infiltrator_domain::tun;
 use infiltrator_platform::android_bridge::get_android_bridge;
 #[cfg(target_os = "android")]
 use lurker_core_contract::identity::CoreScope;
+#[cfg(target_os = "android")]
+use lurker_core_contract::lifecycle::CoreLifecycle;
 #[cfg(target_os = "android")]
 use std::net::IpAddr;
 #[cfg(target_os = "android")]

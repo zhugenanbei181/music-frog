@@ -5,11 +5,13 @@
 //! channels; no Bevy/Iced/FFI type or concrete HTTP client is part of the
 //! seam.
 
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, channel, sync_channel};
 use std::sync::{Arc, Mutex};

@@ -1,6 +1,6 @@
 use super::*;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
-use infiltrator_contract::capability::Capability;
+use lurker_core_contract::capability::Capability;
 use tokio::sync::Mutex;
 
 #[derive(Clone, Copy)]

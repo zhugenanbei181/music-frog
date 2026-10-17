@@ -3,15 +3,15 @@
 //! The host owns the path layout (`-d <config dir>` plus mihomo's
 //! `rules/<md5(url)>` cache naming); the application owns the policy. A host
 //! without any provider cache location returns
-//! [`infiltrator_ports::error::PortError::unsupported`] instead of pretending
+//! [`lurker_core_ports::error::PortError::unsupported`] instead of pretending
 //! it purged or read something.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint, RuleProviderCacheSnapshot,
 };
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 
 /// Raw provider bytes the host found on disk.

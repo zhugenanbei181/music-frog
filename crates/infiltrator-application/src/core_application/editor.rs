@@ -4,7 +4,7 @@ use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 impl CoreApplication {
     /// Inspect an editor-owned buffer through the configured engine codec.

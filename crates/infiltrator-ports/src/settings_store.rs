@@ -1,8 +1,8 @@
 //! Runtime-neutral application settings persistence port.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_domain::settings::AppSettings;
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait SettingsStore: Send + Sync {

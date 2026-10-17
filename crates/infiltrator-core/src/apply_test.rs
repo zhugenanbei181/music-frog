@@ -17,13 +17,10 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::rule_source::RuleSourceIdentity;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
 use infiltrator_domain::rules::source_identity::identify_rules_document;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::CoreProcess;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryLease,
     ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
@@ -34,8 +31,11 @@ use infiltrator_ports::profile_workspace::{
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, FailureReason};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::owner_switch::CoreApplyFailureKind;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::core_process::CoreProcess;
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};

@@ -23,9 +23,9 @@ use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::system_toggle_projection;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::{
     details::{
         OutboundCollectionKind, OutboundDetailsState, OutboundFeature, OutboundHealthObservation,

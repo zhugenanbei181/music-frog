@@ -4,8 +4,8 @@ use crate::error::MihomoError;
 use crate::network_error::network_error;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsQueryResponse, DnsQuestion, DnsRecord};
 use infiltrator_ports::dns_query::DnsQueryPort;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

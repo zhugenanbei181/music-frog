@@ -53,7 +53,6 @@ use infiltrator_composition::active_profile_backend::{
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
     DnsOperation, EngineBinaryTarget, FakeIpCacheOperation, GeoOperation, LogsOperation,
@@ -80,12 +79,13 @@ use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;

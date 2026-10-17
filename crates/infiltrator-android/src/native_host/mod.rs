@@ -27,9 +27,9 @@ use lifecycle::LifecycleUpdate;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::touch_gesture::TouchGestureHostReport;
 use infiltrator_ports::touch_gesture::TouchGesturePort;
+use lurker_core_ports::error::PortError;
 
 /// The typed host facts the shared shell consumes.
 #[derive(Clone, Copy, Debug, PartialEq)]

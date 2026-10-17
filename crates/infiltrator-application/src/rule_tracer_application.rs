@@ -11,7 +11,7 @@ use infiltrator_contract::rule_tracer::{
     TracerRuleOverride, TracerRuleOverrideResult, TracerRuleOverrideStatus, TrafficContextSnapshot,
 };
 #[cfg(test)]
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_domain::rules::tracer::decision_chain::build_decision_chain;
 use infiltrator_domain::rules::tracer::named::trace_named_rules;
 use infiltrator_domain::rules::tracer::{RuleTraceMatch, TrafficContext, trace_rules};
@@ -23,6 +23,8 @@ use infiltrator_test_support::rule_trace_fixtures::{
     rule_trace_test_scope, unknown_rule_trace_observation,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+#[cfg(test)]
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::{OutboundObservation, OutboundProtocolObservation};
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::{

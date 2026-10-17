@@ -1,7 +1,5 @@
 use crate::outbound_application::OutboundApplication;
 use async_trait::async_trait;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -23,6 +21,8 @@ use lurker_core_contract::outbound::{
         ProbeOutboundBatchRequest,
     },
 };
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

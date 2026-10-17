@@ -6,14 +6,14 @@ use crate::core_capability_test_support::{core_scope, with_test_capabilities};
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use infiltrator_contract::profile_document::{
-    DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
-    DocumentInspectionUnsupportedReason, DocumentValidation,
+    DocumentInspection, DocumentInspectionUnavailableReason, DocumentInspectionUnsupportedReason,
 };
 use infiltrator_contract::profile_document_identity::{ProfileDocumentIdentity, ProfileId};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_test_support::profile_document_codec_test_support::TestProfileDocumentCodec;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use std::str::from_utf8;
 
 fn profile_id(name: &str) -> ProfileId {

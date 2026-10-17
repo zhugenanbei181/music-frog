@@ -26,12 +26,12 @@ use infiltrator_contract::profile_display_name::{
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 
 #[async_trait::async_trait]

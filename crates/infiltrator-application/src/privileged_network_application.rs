@@ -5,9 +5,9 @@ use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
 use infiltrator_domain::privileged_network_policy::validate_request;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 struct State {
@@ -241,7 +241,7 @@ mod tests {
     use infiltrator_contract::privileged_network::{
         PrivilegedNetworkOperation, PrivilegedNetworkRequest,
     };
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
     #[cfg(test)]
     use std::sync;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

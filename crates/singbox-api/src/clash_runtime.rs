@@ -1,11 +1,8 @@
 //! Typed, CoreScope-fenced sing-box Clash API operations.
 
 use crate::clash_api::{SingBoxClashApiClient, SingBoxCoreVersionProvider};
-use infiltrator_contract::capability::Capability;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
-use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_contract::outbound::details::{
@@ -20,6 +17,9 @@ use lurker_core_contract::outbound::inventory::{
 use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::sync::Arc;

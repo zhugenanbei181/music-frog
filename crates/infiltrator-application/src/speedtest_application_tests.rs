@@ -6,8 +6,6 @@ use infiltrator_contract::speedtest::{
     SpeedtestResultState, SpeedtestRounds, SpeedtestRunState, SpeedtestTarget,
 };
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use infiltrator_ports::settings_store::SettingsStore;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -24,6 +22,8 @@ use lurker_core_contract::outbound::inventory::{
     SelectionAvailability,
 };
 use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;

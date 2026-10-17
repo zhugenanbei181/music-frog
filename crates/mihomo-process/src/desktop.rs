@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::result;
 use std::sync::{Mutex, PoisonError};
@@ -353,7 +353,7 @@ impl CoreProcess for ProcessCoreController {
 }
 
 mod process {
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
     #[cfg(windows)]
     use std::ffi::c_void;
     use std::fs::{File, OpenOptions, canonicalize};

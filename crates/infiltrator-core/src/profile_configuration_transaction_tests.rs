@@ -10,22 +10,17 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::profile_document_identity::{
-    ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
-};
-use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profile_options::options_path;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
     ProfileConfigurationTransactionOutcome, ProfileConfigurationTransactionPort,
     ProfileConfigurationTransactionRequest, ProfileConfigurationTransactionScope,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceWriteLease, ProfileStore,
@@ -33,8 +28,12 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::collections::HashMap;
@@ -157,7 +156,7 @@ async fn transaction_fixture_with_store_behavior(
         fail: false,
         calls: AtomicU64::new(0),
     });
-    let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(MihomoProfileDocumentCodec);
+    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileDocumentCodec);
     let scope = ProfileConfigurationTransactionScope::new(codec.scope());
     let validator = Arc::new(FakeStoppedValidator::new(scope, validation));
     let validator_port: Arc<dyn ProfileConfigurationCandidateValidatorPort> = validator.clone();

@@ -14,16 +14,16 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
     ActiveProfileOwnerStoppedSwitchLease, ActiveProfileOwnerSwitchLease,
     ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::error::PortError;
 
 #[async_trait::async_trait]
 impl<S: SecureStore> ActiveProfileReferenceStore for EngineProfileStore<S> {

@@ -2,9 +2,9 @@
 
 use crate::active_reference_owner::ActiveOwnerToken;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock};

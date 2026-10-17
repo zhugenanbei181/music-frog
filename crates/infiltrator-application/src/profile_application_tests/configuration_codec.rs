@@ -11,13 +11,10 @@ use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteA
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::profile_configuration;
 use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentRevision, ProfileFormatId, ProfileSchemaVersion,
-};
+use infiltrator_contract::profile_document_identity::ProfileDocumentRevision;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::{CodecAudit, NodeCodecFormat, ProtocolDraft};
 use infiltrator_contract::protocol_trust::TlsTrustParams;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::tun::TunConfig;
@@ -34,6 +31,8 @@ use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::identity::CoreInstanceId;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;

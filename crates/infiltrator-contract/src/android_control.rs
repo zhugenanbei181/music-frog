@@ -8,11 +8,11 @@ pub mod core_launch;
 
 use crate::command::CommandIntent;
 use crate::core_identity::CoreCommandOutcome;
-use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use crate::vpn::{VpnGeneration, VpnOwnerStopReceipt};
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 

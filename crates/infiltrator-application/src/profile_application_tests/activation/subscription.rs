@@ -3,7 +3,6 @@
 use super::*;
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use async_trait::async_trait;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_import::StoreForNextStartReason;
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
@@ -13,6 +12,7 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use std::future::ready;
 use std::task::{Context, Poll, Waker};
 use std::thread;

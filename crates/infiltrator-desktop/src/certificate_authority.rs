@@ -6,7 +6,7 @@
 //! failure to a typed port error instead of an empty success.
 
 use infiltrator_ports::certificate_authority::{CaFile, CertificateAuthorityPort};
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::fs;
 use std::io::ErrorKind;
 

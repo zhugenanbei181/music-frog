@@ -7,7 +7,6 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::profile_document_identity::{
     ProfileId, ProfileSidecarRevision, ProfileWorkspaceIdentity,
 };
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_quota::QuotaProfileIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profile_source::hash_document_bytes;
@@ -20,6 +19,7 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 enum WorkspaceReferenceTarget<'a> {
     Selected(&'a ActiveProfileReference),

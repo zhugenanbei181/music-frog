@@ -3,8 +3,8 @@ use infiltrator_contract::capability::Availability;
 use infiltrator_contract::core_control::{
     CoreControlAction, CoreControlLabel, CoreControlProjection,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 
 pub fn project_core_control(
     core: &CoreLifecycleSnapshot,

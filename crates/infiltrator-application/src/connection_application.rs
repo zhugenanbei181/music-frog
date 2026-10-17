@@ -240,7 +240,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct UnavailableScope;

@@ -20,7 +20,6 @@ use infiltrator_contract::core_capabilities::{
     EngineCapabilityDecision, HostCapabilityDecision,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -28,10 +27,11 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
 use tokio::runtime::Builder;
 use tokio::time::sleep;
 

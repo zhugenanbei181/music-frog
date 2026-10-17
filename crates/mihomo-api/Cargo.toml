@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }

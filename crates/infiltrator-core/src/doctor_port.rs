@@ -8,7 +8,7 @@ use infiltrator_contract::doctor::{
     DoctorFixReport, DoctorReport, DoctorStatus,
 };
 use infiltrator_ports::doctor::DoctorPort;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 

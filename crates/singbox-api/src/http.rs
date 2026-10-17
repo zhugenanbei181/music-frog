@@ -1,7 +1,7 @@
 //! Injectable, loopback-only HTTP boundary for sing-box's Clash API.
 
 use async_trait::async_trait;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use reqwest::header::CONTENT_TYPE;
 use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;

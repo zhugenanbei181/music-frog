@@ -15,7 +15,6 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityMatrix, CoreOperation, EngineBinaryTarget,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -24,10 +23,11 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 use mihomo_config::manager::ConfigManager;
 use reqwest::Url;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;

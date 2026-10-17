@@ -9,40 +9,40 @@ use infiltrator_contract::adapter_operation_declaration::{
 use infiltrator_contract::core_capabilities::{
     AdapterRevision, CoreOperation, EngineBinaryTarget, OutboundOperation, ProxyControlOperation,
 };
-use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
     ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
     ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::OutboundDetailsState;
 use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
 use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
+use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

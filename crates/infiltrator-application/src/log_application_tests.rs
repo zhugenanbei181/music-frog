@@ -9,12 +9,13 @@ use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogObservationSnapshot, LogSession, LogStreamState,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::session::SessionToken;
 
 fn bind(logs: &LogApplication, session: LogSession) {

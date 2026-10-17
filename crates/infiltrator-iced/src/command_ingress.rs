@@ -13,9 +13,9 @@ use infiltrator_contract::profile_mixin_studio::{
 };
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 #[derive(Clone)]
 pub(crate) struct CoreCommandIngress {

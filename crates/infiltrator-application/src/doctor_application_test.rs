@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use futures_util::{future, poll};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::doctor::{DoctorCheckResult, DoctorObservation, DoctorStatus};
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[derive(Default)]

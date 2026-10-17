@@ -2,14 +2,14 @@
 
 use crate::client::MihomoClient;
 use crate::network_error::network_error;
-use infiltrator_contract::capability::Capability;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use serde_json::json;
 
 #[derive(Clone)]

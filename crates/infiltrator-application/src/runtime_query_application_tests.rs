@@ -8,7 +8,6 @@ use infiltrator_contract::resources::{
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::{
     CoreResourcePort, GarbageCollectionOutcome, ScopedGarbageCollection, ScopedResourceObservation,
 };
@@ -20,6 +19,7 @@ use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 

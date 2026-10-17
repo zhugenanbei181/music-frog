@@ -41,7 +41,6 @@ use infiltrator_platform::android_bridge::{
     AndroidCoreConfigurationValidationReply, AndroidCoreConfigurationValidationRequest,
     CoreProcessStartReceipt, CoreProcessStopReceipt, set_android_bridge,
 };
-use infiltrator_ports::error::PortError;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
 use jni::signature::RuntimeMethodSignature;
@@ -49,6 +48,7 @@ use jni::strings::JNIString;
 use jni::sys::{jfloat, jint, jlong, jstring};
 use jni::{Env, EnvUnowned, JavaVM, errors};
 use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;

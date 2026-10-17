@@ -12,8 +12,8 @@ use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_domain::core_state::CoreEvent;
 use infiltrator_domain::watchdog::{WatchdogConfig, WatchdogDecision, WatchdogMachine};
 use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 

@@ -3,8 +3,8 @@
 use crate::document_store::{read_optional, remove_optional, write_document};
 use crate::store::EngineProfileStore;
 use infiltrator_contract::named_override::NamedOverrideCatalog;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_ports::error::PortError;
 use std::path::{Path, PathBuf};
 
 const NAMED_OVERRIDES_FILE: &str = ".named-overrides.yaml";

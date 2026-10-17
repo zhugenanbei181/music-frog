@@ -17,6 +17,7 @@ default = ["script-engine-boa"]
 script-engine-boa = ["dep:boa_engine"]
 
 [dependencies]
+lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
 zhuge-ui-core.workspace = true
 async-trait = { workspace = true }

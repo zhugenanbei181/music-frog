@@ -2,9 +2,7 @@
 
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreCapabilityMatrix,
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
@@ -15,6 +13,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
 use std::sync::Arc;
 

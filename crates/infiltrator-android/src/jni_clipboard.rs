@@ -12,8 +12,6 @@ use crate::jni_bridge::map_jni_error;
 use crate::jni_bridge::parse_method_signature;
 use crate::native_host::clipboard::NativeClipboardChannel;
 use crate::native_host::clipboard::NativeClipboardWriteReceipt;
-use infiltrator_contract::capability::Capability;
-use infiltrator_ports::error::PortError;
 use jni::JavaVM;
 use jni::errors;
 use jni::objects::Global;
@@ -22,6 +20,8 @@ use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::Reference as _;
 use jni::strings::JNIString;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
 const SIG_STRING_INT: &str = "(Ljava/lang/String;)I";

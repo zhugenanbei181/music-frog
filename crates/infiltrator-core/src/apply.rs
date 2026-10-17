@@ -17,7 +17,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config};
 use infiltrator_domain::yaml_edit::mixin_fidelity::{
@@ -35,6 +34,7 @@ use infiltrator_ports::profile_workspace::{
 };
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::owner_switch::CoreApplyFailureKind;
 use lurker_core_contract::session::SessionToken;
 use mihomo_api::client::MihomoClient;

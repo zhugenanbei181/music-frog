@@ -2,8 +2,8 @@ use super::*;
 use infiltrator_contract::android_control::{
     VpnOwnerCoreReadback, VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::vpn::VpnGeneration;
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 
 fn owner_snapshot(
     state: VpnOwnerLifecycle,

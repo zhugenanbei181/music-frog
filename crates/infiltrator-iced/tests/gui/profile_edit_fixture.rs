@@ -3,12 +3,11 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::profile_edit::{ProfileDocumentReadReply, ProfileOptionsReadReply};
-use infiltrator_contract::profile_document::{
-    DocumentInspection, DocumentValidation, ProfileDocumentSnapshot,
-};
+use infiltrator_contract::profile_document::{DocumentInspection, ProfileDocumentSnapshot};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_test_support::subscription_filter_fixture;
+use lurker_core_contract::profile_document::DocumentValidation;
 use std::path::PathBuf;
 
 pub fn document(state: &mut AppState, path: PathBuf, content: String) -> Message {

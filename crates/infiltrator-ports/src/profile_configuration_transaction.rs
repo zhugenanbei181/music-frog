@@ -1,16 +1,16 @@
 //! Engine/format/schema scoped native configuration transactions.
 
-use crate::error::PortError;
-use crate::profile_document_codec::ProfileDocumentCodecScope;
 use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use std::sync::{Arc, Mutex};
 
 /// Exact codec scope serviced by one native configuration transaction owner.

@@ -77,8 +77,6 @@ use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::surface::SurfaceReader;
@@ -96,6 +94,8 @@ use lurker_core_contract::outbound::inventory::{
 };
 use lurker_core_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use outbound_observation::{
     SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,
     surface_read_scope_changed,

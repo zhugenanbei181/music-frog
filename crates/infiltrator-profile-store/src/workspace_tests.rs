@@ -3,13 +3,14 @@ use super::{
     validate_workspace_identity, workspace_from_bytes,
 };
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
-    ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecScope;
 use std::fs::{create_dir, read, write};
 use tempfile::TempDir;
 

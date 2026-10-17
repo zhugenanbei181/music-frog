@@ -25,8 +25,6 @@ use infiltrator_contract::log_export::LogExportIdentity;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::profile_document::DocumentInspection;
-#[cfg(any(feature = "capture-tools", test))]
-use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 #[cfg(any(test, feature = "capture-tools"))]
@@ -54,13 +52,15 @@ use infiltrator_contract::subscription_import::{
     SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
 use infiltrator_contract::tun::TunStack;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::outbound::{
     preferences::OutboundUiPreferenceRequest,
     probe::{OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest},
 };
+#[cfg(any(feature = "capture-tools", test))]
+use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 #[cfg(any(feature = "capture-tools", test))]
 use std::collections::VecDeque;
 #[cfg(any(feature = "capture-tools", test))]

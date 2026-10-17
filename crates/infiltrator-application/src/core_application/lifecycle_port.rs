@@ -175,8 +175,8 @@ impl CoreApplication {
 
 use super::*;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 
 #[async_trait::async_trait]
 impl CoreLifecyclePort for CoreApplication {

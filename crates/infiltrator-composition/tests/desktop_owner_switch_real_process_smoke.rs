@@ -18,7 +18,6 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceStore,
@@ -26,11 +25,12 @@ use infiltrator_ports::active_profile_reference_store::{
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
 use infiltrator_ports::engine_backend_factory::{EngineBackendPorts, EngineBackendProvider};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::readiness::ControllerReadiness;

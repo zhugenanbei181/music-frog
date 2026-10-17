@@ -9,22 +9,21 @@
 pub mod ffi;
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::CoreIdentity;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::core_process::CoreProcess;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -318,8 +317,8 @@ mod tests {
         ApplicationFuture, ApplicationRuntime, ApplicationSleep,
     };
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-    use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
     use lurker_core_contract::identity::{CoreInstanceId, EngineId};
+    use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
     use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
     use std::sync::Mutex;
     #[cfg(test)]

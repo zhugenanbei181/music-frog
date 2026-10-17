@@ -6,9 +6,7 @@ use infiltrator_application::command_application::handler::{
 };
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
@@ -16,9 +14,8 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
     HostCapabilityDecision,
 };
-use infiltrator_contract::profile_document::{DocumentInspection, DocumentValidation};
+use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
@@ -27,14 +24,17 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
-};
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
+};
 use std::collections::VecDeque;
 use std::iter::empty;
 use std::sync::{Arc, Mutex};

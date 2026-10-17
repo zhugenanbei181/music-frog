@@ -23,6 +23,12 @@ import tomllib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
+# Neutral framework crates must stay usable from every engine, platform and UI.
+# Any product/engine crate, runtime, transport or UI toolkit would break that.
+LURKER_NEUTRAL_CRATES = ("lurker-core-contract", "lurker-core-ports")
+NEUTRAL_FORBIDDEN_EXACT = {"tokio", "reqwest", "bevy", "iced", "slint"}
+NEUTRAL_FORBIDDEN_PREFIXES = ("infiltrator-", "mihomo-", "singbox-")
+
 ENGINE_ADAPTER_CRATES = {
     "mihomo-api",
     "mihomo-config",
@@ -150,7 +156,14 @@ FORBIDDEN_DIRECT = {
     },
 }
 
+NEUTRAL_SOURCE_PATTERN = re.compile(
+    r"\b(?:tokio|reqwest|bevy|iced|slint"
+    r"|infiltrator_[a-z0-9_]+|mihomo_[a-z0-9_]+|singbox_[a-z0-9_]+)::"
+)
+
 SOURCE_PATTERNS = {
+    "lurker-core-contract": NEUTRAL_SOURCE_PATTERN,
+    "lurker-core-ports": NEUTRAL_SOURCE_PATTERN,
     "infiltrator-domain": re.compile(
         r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|process|version)|"
         r"singbox_(?:api|config|process|version)|infiltrator_platform)::"
@@ -314,6 +327,30 @@ def check(repo_root: pathlib.Path) -> list[str]:
                     f"{source}: concrete runtime/transport import violates the 0.30 boundary"
                 )
 
+    for package in LURKER_NEUTRAL_CRATES:
+        manifest = repo_root / "crates" / package / "Cargo.toml"
+        if not manifest.is_file():
+            problems.append(f"{manifest}: neutral crate manifest is missing")
+            continue
+        for dependency in sorted(direct_dependencies(manifest)):
+            forbidden = (
+                dependency in NEUTRAL_FORBIDDEN_EXACT
+                or dependency.startswith(NEUTRAL_FORBIDDEN_PREFIXES)
+            )
+            if forbidden:
+                problems.append(
+                    f"{manifest}: neutral crate must not depend on `{dependency}`"
+                )
+        source_root = manifest.parent / "src"
+        for source in sorted(source_root.rglob("*.rs")):
+            clean = strip_test_attributes(
+                strip_comments(source.read_text(encoding="utf-8"))
+            )
+            if NEUTRAL_SOURCE_PATTERN.search(clean):
+                problems.append(
+                    f"{source}: neutral crate references a product/runtime/UI dependency"
+                )
+
     ports_root = repo_root / "crates" / "infiltrator-ports" / "src"
     workspace_source = ports_root / "profile_workspace.rs"
     store_source = ports_root / "profile_store.rs"
@@ -361,6 +398,21 @@ def self_test() -> int:
     assert SOURCE_PATTERNS["infiltrator-iced"].search(
         "use infiltrator_core::settings_io;"
     )
+    assert not NEUTRAL_SOURCE_PATTERN.search(
+        "use lurker_core_contract::identity::EngineId;"
+    )
+    assert NEUTRAL_SOURCE_PATTERN.search("use tokio::runtime::Builder;")
+    assert NEUTRAL_SOURCE_PATTERN.search("use mihomo_api::client::MihomoClient;")
+    assert NEUTRAL_SOURCE_PATTERN.search("use infiltrator_contract::snapshot::CoreSnapshot;")
+    for name in LURKER_NEUTRAL_CRATES:
+        neutral_dependencies = direct_dependencies(
+            REPO_ROOT / "crates" / name / "Cargo.toml"
+        )
+        assert not any(
+            dependency in NEUTRAL_FORBIDDEN_EXACT
+            or dependency.startswith(NEUTRAL_FORBIDDEN_PREFIXES)
+            for dependency in neutral_dependencies
+        ), (name, neutral_dependencies)
     ports_root = REPO_ROOT / "crates/infiltrator-ports/src"
     workspace_path = ports_root / "profile_workspace.rs"
     store_path = ports_root / "profile_store.rs"

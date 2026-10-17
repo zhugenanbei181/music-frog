@@ -49,9 +49,10 @@ mod tests {
     use crate::command::CommandIntent;
     use crate::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
-        ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+        ProfileId, ProfileSourceId,
     };
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
     #[test]
     fn typed_profile_configuration_wire_keeps_engine_format_schema_and_revision() {

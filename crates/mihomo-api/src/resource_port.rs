@@ -4,15 +4,15 @@ use crate::client::MihomoClient;
 use crate::error::MihomoError;
 use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::resources::ResourceAvailability;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::{
     CoreResourcePort, CpuResourceObserver, GarbageCollectionOutcome, ScopedGarbageCollection,
     ScopedResourceObservation,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 #[derive(Clone)]

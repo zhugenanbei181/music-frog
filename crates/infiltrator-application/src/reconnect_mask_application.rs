@@ -1,7 +1,8 @@
 //! Application logic deriving the reconnect/reload graceful degradation mask snapshot.
 
 use infiltrator_contract::reconnect_mask::{ReconnectMaskSnapshot, ReconnectMaskStatus};
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot, CoreWatchdogState};
+use infiltrator_contract::snapshot::{CoreSnapshot, CoreWatchdogState};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 /// Application service projecting the core lifecycle state into an overlay mask snapshot.
 #[derive(Clone, Copy, Debug, Default)]

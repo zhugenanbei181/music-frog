@@ -9,15 +9,15 @@ use crate::active_reference_owner::{
 };
 use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::capability::Capability;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerLease, ActiveProfileReferenceLease,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use tokio::task::spawn_blocking;
 

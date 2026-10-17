@@ -10,7 +10,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 #[cfg(test)]
@@ -18,7 +17,6 @@ use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
     ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceStore,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 #[cfg(test)]
 use infiltrator_profile_store::active_owner_registry::remove_local_owner_registration;
@@ -53,10 +51,12 @@ use infiltrator_profile_store::reset_fence::{
 };
 #[cfg(test)]
 use infiltrator_profile_store::workspace::sha256_hex;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 #[cfg(test)]
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_ports::error::PortError;
 use mihomo_api::error::MihomoError;
 use std::fmt::Display;
 #[cfg(test)]

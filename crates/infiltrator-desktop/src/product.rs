@@ -9,12 +9,12 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::host_runtime::HostRuntime;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::mem;
@@ -783,7 +783,7 @@ mod tests;
 #[cfg(test)]
 mod recomposition_tests {
     use super::{CoreRecompositionResume, core_recomposition_resume};
-    use infiltrator_contract::snapshot::CoreLifecycle;
+    use lurker_core_contract::lifecycle::CoreLifecycle;
 
     #[test]
     fn profile_recomposition_preserves_the_observed_core_running_state() {

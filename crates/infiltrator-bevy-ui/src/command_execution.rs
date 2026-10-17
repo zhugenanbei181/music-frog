@@ -25,10 +25,10 @@ use infiltrator_contract::profile_mixin_studio::{
 #[cfg(feature = "capture-tools")]
 use infiltrator_ports::core_scope::CoreScopeObservation;
 #[cfg(feature = "capture-tools")]
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-#[cfg(feature = "capture-tools")]
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
+#[cfg(feature = "capture-tools")]
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 #[cfg(feature = "capture-tools")]
 use std::collections::HashMap;
 use std::mem;

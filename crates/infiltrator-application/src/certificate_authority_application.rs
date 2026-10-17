@@ -21,12 +21,12 @@ use infiltrator_contract::protocol_trust::{
 };
 use infiltrator_domain::tls_trust;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileConfigurationUpdate,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 
 /// DUAL-05-13 shared CA use cases.
 pub struct CertificateAuthorityApplication;

@@ -59,10 +59,12 @@ mod tests {
     fn source() -> ProfileWorkspaceIdentity {
         use crate::profile_document_identity::{
             ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-            ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-            ProfileSidecarRevision, ProfileSourceId,
+            ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
         };
         use lurker_core_contract::identity::EngineId;
+        use lurker_core_contract::profile_document_identity::{
+            ProfileFormatId, ProfileSchemaVersion,
+        };
 
         ProfileWorkspaceIdentity::new(
             ProfileDocumentIdentity::new(

@@ -1,10 +1,10 @@
 //! Cancellation crosses the real manager/port boundary without network or installation effects.
 //! test-intent: behavior
 use super::*;
-use infiltrator_contract::capability::Capability;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{VersionInstallRequest, VersionPort, VersionProgressSink};
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use mihomo_version::manager::VersionManager;
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;

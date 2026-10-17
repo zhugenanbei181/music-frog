@@ -33,7 +33,6 @@ use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface_snapshot::{
     PageData, PageStatus, SurfaceOrigin, SurfaceSnapshot,
 };
@@ -47,6 +46,7 @@ use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_contract::outbound::preferences::OutboundFavoriteState;
 use lurker_core_contract::outbound::preferences::OutboundGroupExpansion;

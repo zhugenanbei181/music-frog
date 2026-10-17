@@ -6359,6 +6359,7 @@ dependencies = [
  "infiltrator-test-support",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
  "mockito",
@@ -6396,6 +6397,7 @@ dependencies = [
  "libc",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
  "reqwest",
@@ -6434,6 +6436,7 @@ dependencies = [
  "infiltrator-test-support",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-config",
  "regex",
  "serde_json",
@@ -6454,6 +6457,7 @@ dependencies = [
  "infiltrator-desktop",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
 ]
 
 [[package]]
@@ -6474,6 +6478,7 @@ dependencies = [
  "infiltrator-shared",
  "infiltrator-test-support",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mockito",
  "openssl",
  "serde",
@@ -6513,6 +6518,7 @@ dependencies = [
  "infiltrator-platform",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
  "mihomo-process",
@@ -6538,6 +6544,7 @@ dependencies = [
  "infiltrator-test-support",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
  "mihomo-process",
@@ -6583,6 +6590,7 @@ dependencies = [
  "infiltrator-profile-store",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
  "mihomo-process",
@@ -6627,6 +6635,7 @@ dependencies = [
  "infiltrator-test-support",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "mihomo-config",
  "mihomo-process",
@@ -6711,6 +6720,7 @@ dependencies = [
  "ksni",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-version",
  "muda",
  "naga 27.0.3",
@@ -6742,6 +6752,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "tokio",
 ]
@@ -6760,6 +6771,7 @@ dependencies = [
  "libc",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "regex",
  "serde",
  "serde_json",
@@ -6781,9 +6793,8 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "lurker-core-contract",
- "serde_json",
+ "lurker-core-ports",
  "tokio",
- "url",
 ]
 
 [[package]]
@@ -6815,6 +6826,7 @@ dependencies = [
  "infiltrator-ports",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "ring",
  "serde",
  "serde_json",
@@ -6868,6 +6880,7 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "serde_json",
  "serde_yaml_ng",
 ]
@@ -7596,6 +7609,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lurker-core-ports"
+version = "0.42.6"
+dependencies = [
+ "async-trait",
+ "lurker-core-contract",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "lyon"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7785,6 +7808,7 @@ dependencies = [
  "infiltrator-ports",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mockito",
  "reqwest",
  "serde",
@@ -7810,6 +7834,7 @@ dependencies = [
  "infiltrator-profile-store",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "mihomo-api",
  "ring",
  "serde",
@@ -7833,6 +7858,7 @@ dependencies = [
  "libc",
  "log",
  "lurker-core-contract",
+ "lurker-core-ports",
  "sysinfo",
  "tempfile",
  "tokio",
@@ -10686,6 +10712,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "reqwest",
  "serde",
  "serde_json",
@@ -10702,6 +10729,7 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "serde_json",
  "singbox-process",
  "tempfile",
@@ -10716,6 +10744,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "tokio",
 ]
 
@@ -10729,6 +10758,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-ports",
  "lurker-core-contract",
+ "lurker-core-ports",
  "reqwest",
  "serde",
  "serde_json",

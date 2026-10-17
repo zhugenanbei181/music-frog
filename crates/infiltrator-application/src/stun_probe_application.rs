@@ -13,13 +13,13 @@
 //! publishes a mapping with an explicit `Unknown` comparison instead of an
 //! implied "no leak".
 
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::stun_probe::{
     DEFAULT_STUN_SERVER, DEFAULT_STUN_TIMEOUT_MS, MAX_STUN_TIMEOUT_MS, StunMappedAddress,
     StunProbeReport, StunProbeRequest, StunProbeStatus, StunProbeTransport,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::stun_probe::{StunEgressProbePort, StunProbePort};
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
 

@@ -11,7 +11,6 @@ use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
@@ -24,6 +23,7 @@ use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::{
     OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEndpoint,
     OutboundFeature, OutboundHealthObservation, OutboundLatencySample, OutboundObservation,

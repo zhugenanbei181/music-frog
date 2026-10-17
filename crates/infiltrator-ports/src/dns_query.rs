@@ -1,7 +1,7 @@
 //! Only the running controller's DNS query; no UI or full host handle.
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsQueryResponse};
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait DnsQueryPort: Send + Sync {

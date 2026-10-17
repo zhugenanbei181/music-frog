@@ -17,11 +17,11 @@ use infiltrator_contract::dns_cache::{
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushRequest, ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]

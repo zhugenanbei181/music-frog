@@ -1,29 +1,6 @@
 use crate::surface::HostKind;
+use lurker_core_contract::capability::Capability;
 use serde::{Deserialize, Serialize};
-
-/// A capability describes what a host can actually perform.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Capability {
-    CoreLifecycle,
-    Profiles,
-    RoutingIntent,
-    Connections,
-    Logs,
-    Dns,
-    Tun,
-    SystemProxy,
-    LanAccessControl,
-    Ipv6Routing,
-    UwpLoopback,
-    PacService,
-    NetworkRoaming,
-    VpnService,
-    Autostart,
-    CoreVersionInstall,
-    WebDavSync,
-    AppRouting,
-    Speedtest,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Availability {

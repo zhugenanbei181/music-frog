@@ -29,9 +29,7 @@ use infiltrator_composition::engine_backend_factory::{
     EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
 };
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
@@ -41,11 +39,13 @@ use infiltrator_ports::core_binary_selection::{BundledBinarySource, CoreBinarySe
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendFactory, EngineBackendProvider, EngineBackendProviderAvailability,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;

@@ -19,12 +19,12 @@ use infiltrator_ports::core_binary_selection::{
     CoreBinarySelectionSource,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
-use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::core_process::CoreReadiness;
 use mihomo_config::manager::ConfigManager;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;

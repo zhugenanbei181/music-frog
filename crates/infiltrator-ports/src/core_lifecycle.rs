@@ -1,10 +1,10 @@
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreIdentity;
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use std::time::Duration;
 
 /// Application-facing lifecycle capability used by config transactions and

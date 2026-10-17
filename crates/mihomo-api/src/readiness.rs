@@ -4,9 +4,9 @@
 //! application layer sees only the runtime-neutral `CoreReadiness` port.
 
 use crate::client::MihomoClient;
-use infiltrator_ports::core_process::CoreReadiness;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::identity::CoreVersion;
+use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::error::PortError;
 
 /// Probes a controller endpoint by asking the live core for its version.
 #[derive(Clone)]

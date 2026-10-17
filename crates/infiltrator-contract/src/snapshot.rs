@@ -1,20 +1,10 @@
 use crate::command::{CommandKind, RequestId};
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
-
-/// Stable lifecycle vocabulary for REST, UI projection, and FFI.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CoreLifecycle {
-    Stopped,
-    Starting,
-    Ready,
-    Running,
-    Stopping,
-    Failed,
-}
 
 /// State of the application-owned crash recovery loop.
 ///
@@ -48,73 +38,6 @@ impl Default for CoreWatchdogSnapshot {
             consecutive_failures: 0,
             last_error: None,
         }
-    }
-}
-
-/// Minimal lifecycle read model shared by every inbound surface. It is
-/// derived from [`CoreSnapshot`] so lifecycle, generation, session identity
-/// and failure cannot drift between UI implementations.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CoreLifecycleSnapshot {
-    #[serde(default)]
-    pub identity: Option<CoreIdentity>,
-    pub lifecycle: CoreLifecycle,
-    pub generation: u64,
-    #[serde(default, with = "core_lifecycle_session_token_wire")]
-    pub session_token: Option<SessionToken>,
-    pub revision: u64,
-    pub failure: Option<Failure>,
-}
-
-impl Default for CoreLifecycleSnapshot {
-    fn default() -> Self {
-        Self {
-            identity: None,
-            lifecycle: CoreLifecycle::Stopped,
-            generation: 0,
-            session_token: None,
-            revision: 0,
-            failure: None,
-        }
-    }
-}
-
-impl CoreLifecycleSnapshot {
-    pub fn scope(&self) -> Option<CoreScope> {
-        self.identity.clone().map(|identity| CoreScope {
-            identity,
-            generation: CoreGeneration::from(self.generation),
-            session_token: self.session_token,
-        })
-    }
-}
-
-mod core_lifecycle_session_token_wire {
-    use lurker_core_contract::session::SessionToken;
-    use serde::de::Error as _;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S>(token: &Option<SessionToken>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        token
-            .map(|value| value.value().to_string())
-            .serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<SessionToken>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Option::<String>::deserialize(deserializer)?
-            .map(|value| {
-                value
-                    .parse::<u128>()
-                    .map(SessionToken::new)
-                    .map_err(D::Error::custom)
-            })
-            .transpose()
     }
 }
 

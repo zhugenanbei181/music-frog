@@ -1,11 +1,11 @@
 //! test-intent: behavior
 use super::*;
 use crate::routing_intent_actions::RoutingIntentFinishOutcome;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::EngineDefinedRoutingIntent;
 use lurker_core_contract::routing_intent::RoutingIntentExtensionId;
 

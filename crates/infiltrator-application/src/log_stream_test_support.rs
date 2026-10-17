@@ -6,11 +6,11 @@ use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 use mem::take;
 use std::collections::VecDeque;
 use std::mem;

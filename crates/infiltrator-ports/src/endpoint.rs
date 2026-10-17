@@ -1,5 +1,5 @@
-use crate::error::PortError;
 use async_trait::async_trait;
+use lurker_core_ports::error::PortError;
 
 /// Controller URL plus its authentication material. Secrets are carried only
 /// between host adapters, private transport clients and private application

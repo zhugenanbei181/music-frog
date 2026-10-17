@@ -419,13 +419,14 @@ mod tests {
     use crate::command::{CommandIntent, CommandResult, RequestId};
     use crate::profile_document_identity::{
         ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-        ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-        ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+        ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+        ProfileWorkspaceIdentity,
     };
     use crate::profile_options::ProfileOptionsSnapshot;
     use crate::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
     use lurker_core_contract::error::{ErrorCode, Failure};
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use lurker_core_contract::routing_intent::RoutingIntent;
 
     #[test]

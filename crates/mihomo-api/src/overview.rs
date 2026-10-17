@@ -2,9 +2,9 @@
 
 use crate::client::MihomoClient;
 use crate::network_error::network_error;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 use std::time;
 
 /// Reads the minimal set of controller endpoints required by the Overview

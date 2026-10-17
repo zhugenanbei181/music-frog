@@ -13,8 +13,8 @@
 
 use async_trait::async_trait;
 use infiltrator_contract::mini_hud::{MiniHudHostOutcome, MiniHudPlacement};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::mini_hud_window::{MiniHudWindowHandle, MiniHudWindowPort};
+use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex, OnceLock};
 
 type HandleSlot = Arc<Mutex<Option<Arc<dyn MiniHudWindowHandle>>>>;

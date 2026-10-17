@@ -15,8 +15,6 @@ use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
-#[cfg(not(target_os = "android"))]
-use infiltrator_contract::capability::Capability;
 #[cfg(any(target_os = "android", test))]
 use infiltrator_contract::vpn::VpnSessionState;
 use infiltrator_contract::vpn::{
@@ -27,10 +25,12 @@ use infiltrator_contract::vpn::{
     VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome, VpnStopTarget,
 };
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+#[cfg(not(target_os = "android"))]
+use lurker_core_contract::capability::Capability;
 #[cfg(any(target_os = "android", test))]
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 #[cfg(target_os = "android")]
 use std::thread::Builder;

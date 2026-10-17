@@ -16,7 +16,6 @@ use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::snapshots::content_hash;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_presentation::snapshot_presentation;
@@ -24,6 +23,7 @@ use infiltrator_test_support::profile_workspace_test_support::{
     workspace_with_origin, workspace_with_raw_sidecar,
 };
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;

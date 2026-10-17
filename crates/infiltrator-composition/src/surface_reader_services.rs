@@ -2,7 +2,7 @@
 
 use super::ProductSurfaceReader;
 use infiltrator_contract::android_control::VpnAuthorizationState;
-use infiltrator_contract::capability::{Availability, Capability};
+use infiltrator_contract::capability::Availability;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
@@ -17,6 +17,7 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
 impl ProductSurfaceReader {

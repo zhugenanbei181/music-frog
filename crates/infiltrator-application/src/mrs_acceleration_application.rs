@@ -4,8 +4,9 @@ use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
 use infiltrator_contract::rule_provider_runtime::RuleProviderFact;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_domain::mrs::{Behavior, CompressionType, validate_mrs_bytes};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MrsAccelerationApplication;

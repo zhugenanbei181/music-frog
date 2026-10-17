@@ -7,12 +7,12 @@ use infiltrator_contract::android_control::{
     VpnOwnerReadiness,
 };
 use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::vpn::{VpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::session::SessionToken;
 
 fn launch_spec() -> CoreLaunchSpec {

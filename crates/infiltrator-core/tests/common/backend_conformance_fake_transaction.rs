@@ -2,10 +2,7 @@ use super::super::backend_conformance::profile_support::{
     ConformanceLifecycleSession, ConformanceProfileStore,
 };
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
@@ -15,7 +12,10 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 pub(super) struct FakeNativeProfile {

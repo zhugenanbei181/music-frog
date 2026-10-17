@@ -1,6 +1,5 @@
 //! Narrow owner- and revision-fenced controller operations for rule providers.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::rule_provider_runtime::{
     RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayloadSnapshot,
@@ -8,6 +7,7 @@ use infiltrator_contract::rule_provider_runtime::{
 };
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait RuleProviderPort: Send + Sync {

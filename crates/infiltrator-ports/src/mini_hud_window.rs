@@ -6,8 +6,8 @@
 //! [`MiniHudHostOutcome::Unsupported`] with a reason instead of pretending the
 //! window moved.
 
-use crate::error::PortError;
 use infiltrator_contract::mini_hud::{MiniHudHostOutcome, MiniHudPlacement};
+use lurker_core_ports::error::PortError;
 
 #[async_trait::async_trait]
 pub trait MiniHudWindowPort: Send + Sync {

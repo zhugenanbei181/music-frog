@@ -109,11 +109,11 @@ use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::rules::RuleEntry;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 use std::sync::Mutex;
 

@@ -16,11 +16,12 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
 use infiltrator_contract::protocol_trust::CaLoadStatus;
 use infiltrator_ports::profile_document_codec::{
-    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
+    ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_presentation::protocol_form::draft_from_uri;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 
 fn mihomo_identity(codec: &dyn ProfileDocumentCodecPort) -> ProfileDocumentIdentity {
     let scope = codec.scope();

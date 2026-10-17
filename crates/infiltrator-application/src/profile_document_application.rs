@@ -16,13 +16,13 @@ use infiltrator_contract::profile_document_identity::{
 };
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCaret, ProfileDocumentSnippetOutcome,
-};
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCaret, ProfileDocumentSnippetOutcome,
+};
 
 #[derive(Clone)]
 pub struct ProfileDocumentApplication {

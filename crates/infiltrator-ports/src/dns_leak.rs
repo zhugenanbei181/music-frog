@@ -11,9 +11,9 @@
 //! default and both surfaces publish a typed unsupported state instead of a
 //! fabricated leak verdict (the old panel's hardcoded `country`/`isp`).
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::dns_leak::{DnsLeakEchoReport, DnsLeakEchoRequest, DnsLeakReport};
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait DnsLeakEchoPort: Send + Sync {

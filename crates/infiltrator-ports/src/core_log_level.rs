@@ -1,8 +1,8 @@
 //! Typed control for the running core's log verbosity.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::command::CoreLogLevel;
+use lurker_core_ports::error::PortError;
 
 /// Writes a core log level and returns the adapter's typed readback.
 ///

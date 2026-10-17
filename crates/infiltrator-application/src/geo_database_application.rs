@@ -55,11 +55,11 @@ mod tests {
     use crate::core_capability_application::CoreCapabilityApplication;
     use crate::core_capability_test_support::{capability_application, core_scope};
     use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::geo_database::GeoDatabasePort;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
+    use lurker_core_ports::error::PortError;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

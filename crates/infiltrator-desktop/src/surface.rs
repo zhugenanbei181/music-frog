@@ -44,9 +44,7 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_core::settings_io::app_config_manager;
@@ -54,9 +52,10 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::resources::CoreResourcePort;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;

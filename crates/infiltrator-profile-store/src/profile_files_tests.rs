@@ -7,18 +7,17 @@ use infiltrator_contract::profile_age_credential::{
     AgePrivateKey, ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest,
     ProfileAgeCredentialState, ProfileAgeCredentialTarget, ProfileAgeCredentialWriteRequest,
 };
-use infiltrator_contract::profile_document::DocumentValidation;
-use infiltrator_contract::profile_document_identity::{
-    ProfileFormatId, ProfileId, ProfileSchemaVersion,
-};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::options_path;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
-};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

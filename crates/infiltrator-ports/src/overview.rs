@@ -1,6 +1,6 @@
-use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::snapshot::CoreLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 
 /// One transport-independent observation of the running core.
 #[derive(Clone, Debug, PartialEq)]

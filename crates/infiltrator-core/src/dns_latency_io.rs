@@ -23,7 +23,7 @@ use infiltrator_contract::dns_latency::{
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::header::{ACCEPT, CONTENT_TYPE};
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::{Duration, Instant, SystemTime};

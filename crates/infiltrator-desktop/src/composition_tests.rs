@@ -1,6 +1,5 @@
 use super::*;
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
 };
@@ -8,6 +7,7 @@ use infiltrator_ports::core_binary_selection::{
     BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProviderError;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
 use std::env;
 use std::sync::Arc;

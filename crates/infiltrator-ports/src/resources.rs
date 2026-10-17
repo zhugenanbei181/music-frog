@@ -1,10 +1,10 @@
 //! Owner-scoped resource observation and garbage-collection operations.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::resources::ResourceAvailability;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScopedResourceObservation {

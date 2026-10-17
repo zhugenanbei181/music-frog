@@ -4,8 +4,8 @@ use infiltrator_contract::core_capabilities::CoreCapabilityMatrix;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::sync::Arc;
 

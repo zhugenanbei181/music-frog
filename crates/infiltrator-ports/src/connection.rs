@@ -1,15 +1,15 @@
 //! Scope- and observation-revision-fenced connection access.
 
-use crate::error::PortError;
 use crate::runtime_stream::ScopedRuntimeStream;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::connection::{
     ConnectionContractError, ConnectionId, validate_connection_ids,
 };
 use infiltrator_domain::runtime::ConnectionSnapshot;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_ports::error::PortError;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};

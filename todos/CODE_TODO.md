@@ -92,13 +92,14 @@
 
 ### 5.3 统一双引擎调度器与高层 Facade SDK（4条 / 11pt）
 
-- [ ] PUB-003.1 [kind: mechanism] [priority: P1] [points: 3] [owner: composition::factory] [status: Planned] 双引擎工厂注册器 `EngineBackendFactoryRegistry` 泛型化
+- [ ] PUB-003.1 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::registry] [status: Planned] 双引擎工厂注册器 `EngineBackendProviderRegistry` 泛型化
   - 产物：动态引擎注册机制，解耦编译期硬编码；应用可注入单引擎或双引擎 adapter。
   - 依赖：PUB-001.2、PUB-002.1、PUB-002.3。
   - 验收：支持动态挂载/卸载；未注册引擎强类型 fail-closed 拒绝操作；nextest 覆盖。
-- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: application::owner_switch] [status: Planned] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
+- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: Planned] 双引擎原子切换抽象为 `EngineSwitchCoordinator`
   - 产物：基于 CAS 租约与 Generation/Revision 围栏的无缝切换组件；失败时原主自动恢复。
-  - 依赖：PUB-003.1。
+  - 裁决：中性 `EngineSwitchStage<S>` + 持久化 wire 枚举只做一对一映射（不改 serde 名，免 schema 迁移）；旧 owner 终态之后只能 `RecoveryRequired`，禁止伪造自动恢复。
+  - 依赖：PUB-003.1；PUB-001.3 需先裁决 store 是否对 selection 泛型（否则用产品本地 newtype 实现中性 journal）。
   - 验收：nextest 覆盖正常切换与注入故障回滚，证明新旧进程生命周期严格互斥且终态可查。
 - [ ] PUB-003.3 [kind: mechanism] [priority: P1] [points: 3] [owner: runtime facade] [status: Planned] 高层 Facade SDK `lurker-engine-runtime`
   - 产物：`LurkerRuntimeBuilder` 式 Builder API，隐藏 Token/Generation 细节，暴露直观异步操控入口。

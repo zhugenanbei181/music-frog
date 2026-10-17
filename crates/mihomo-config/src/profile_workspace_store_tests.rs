@@ -8,11 +8,10 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-    ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+    ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::{
@@ -33,6 +32,8 @@ use infiltrator_profile_store::profile_reset::{
 use infiltrator_profile_store::workspace::{document_revision, publish_document_pair, sha256_hex};
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use std::collections::HashMap;
 use std::str;
 use std::sync::{Arc, Mutex};

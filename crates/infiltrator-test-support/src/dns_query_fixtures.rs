@@ -2,11 +2,11 @@
 use async_trait::async_trait;
 use futures_util::future::{pending, poll_fn};
 use futures_util::task::AtomicWaker;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsQueryResponse, DnsQuestion, DnsRecord};
 use infiltrator_ports::dns_query::DnsQueryPort;
-use infiltrator_ports::error::PortError;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::Mutex;
 use std::task::Poll;
 

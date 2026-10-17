@@ -9,9 +9,9 @@
 //! never shows "copied" before the platform accepted the text.
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::sync::{Arc, OnceLock, RwLock};
 
 /// Native clipboard pull/push channel implemented by the JNI bridge. JNI and

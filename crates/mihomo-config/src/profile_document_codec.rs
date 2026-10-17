@@ -1,25 +1,28 @@
 //! Mihomo YAML document inspection adapter.
 
 use crate::{profile_configuration_codec, profile_options_codec};
-use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
-    ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
-    ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,
-    ProfileDocumentCodecScope, ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
-    ProfileFilterMutation, ProfileMixinMutation, ProfileOptionsCodecScope,
-    ProfileOptionsProjection, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
-    ProfileRuleWorkspaceUpdate,
+    ProfileConfigurationCodecPort, ProfileConfigurationMutation, ProfileConfigurationQuery,
+    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileFilterMutation,
+    ProfileMixinMutation, ProfileOptionsCodecScope, ProfileOptionsProjection,
+    ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCaret, ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+    ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
+};
 use std::str::from_utf8;
 use yaml_rust2::YamlLoader;
 
@@ -53,41 +56,6 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
                 }],
             }),
         }
-    }
-
-    fn read_configuration(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        raw_bytes: &[u8],
-        query: ProfileConfigurationQuery,
-    ) -> Result<ProfileConfigurationReadout, PortError> {
-        profile_configuration_codec::read(identity, raw_bytes, query)
-    }
-
-    fn apply_configuration(
-        &self,
-        identity: &ProfileDocumentIdentity,
-        raw_bytes: &[u8],
-        update: ProfileConfigurationUpdate,
-    ) -> Result<ProfileConfigurationMutation, PortError> {
-        profile_configuration_codec::apply(identity, raw_bytes, update)
-    }
-
-    fn read_rule_workspace(
-        &self,
-        workspace: &ProfileWorkspaceIdentity,
-        raw_bytes: &[u8],
-    ) -> Result<ProfileRuleWorkspaceProjection, PortError> {
-        profile_configuration_codec::read_rule_workspace(workspace, raw_bytes)
-    }
-
-    fn apply_rule_workspace(
-        &self,
-        workspace: &ProfileWorkspaceIdentity,
-        raw_bytes: &[u8],
-        update: ProfileRuleWorkspaceUpdate,
-    ) -> Result<ProfileRuleWorkspaceMutation, PortError> {
-        profile_configuration_codec::apply_rule_workspace(workspace, raw_bytes, update)
     }
 
     fn insert_snippet(
@@ -127,6 +95,43 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
                 validation,
             },
         ))
+    }
+}
+
+impl ProfileConfigurationCodecPort for MihomoProfileDocumentCodec {
+    fn read_configuration(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        raw_bytes: &[u8],
+        query: ProfileConfigurationQuery,
+    ) -> Result<ProfileConfigurationReadout, PortError> {
+        profile_configuration_codec::read(identity, raw_bytes, query)
+    }
+
+    fn apply_configuration(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        raw_bytes: &[u8],
+        update: ProfileConfigurationUpdate,
+    ) -> Result<ProfileConfigurationMutation, PortError> {
+        profile_configuration_codec::apply(identity, raw_bytes, update)
+    }
+
+    fn read_rule_workspace(
+        &self,
+        workspace: &ProfileWorkspaceIdentity,
+        raw_bytes: &[u8],
+    ) -> Result<ProfileRuleWorkspaceProjection, PortError> {
+        profile_configuration_codec::read_rule_workspace(workspace, raw_bytes)
+    }
+
+    fn apply_rule_workspace(
+        &self,
+        workspace: &ProfileWorkspaceIdentity,
+        raw_bytes: &[u8],
+        update: ProfileRuleWorkspaceUpdate,
+    ) -> Result<ProfileRuleWorkspaceMutation, PortError> {
+        profile_configuration_codec::apply_rule_workspace(workspace, raw_bytes, update)
     }
 
     fn options_scope(&self) -> Result<ProfileOptionsCodecScope, PortError> {

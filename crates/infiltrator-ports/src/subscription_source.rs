@@ -1,9 +1,9 @@
 //! Outbound port for fetching a profile's prepared subscription document.
 
-use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserInfo};
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SubscriptionDocument {
@@ -82,7 +82,7 @@ pub trait SubscriptionSource: Send + Sync {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_contract::capability::Capability;
+    use lurker_core_contract::capability::Capability;
     use std::future::Future;
     use std::pin::pin;
     use std::task::{Context, Poll, Waker};

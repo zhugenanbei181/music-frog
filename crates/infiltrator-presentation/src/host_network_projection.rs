@@ -271,10 +271,10 @@ mod tests {
     use infiltrator_contract::privileged_network::{
         PrivilegedNetworkSnapshot, PrivilegedNetworkState,
     };
-    use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
     use lurker_core_contract::error::{ErrorCode, Failure};
     use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+    use lurker_core_contract::lifecycle::CoreLifecycle;
     use lurker_core_contract::session::SessionToken;
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
     }
 
     fn running_owner() -> VpnOwnerSnapshot {
-        use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+        use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 
         VpnOwnerSnapshot {
             owner_session_id: "owner-session".to_owned(),

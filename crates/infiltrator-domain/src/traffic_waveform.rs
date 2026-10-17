@@ -1,6 +1,8 @@
 //! Runtime-neutral traffic sampling and cubic Bezier value projection.
 
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::traffic_waveform::{
     TRAFFIC_WAVEFORM_CAPACITY, TrafficSample, TrafficWaveformSnapshot,
 };

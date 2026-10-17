@@ -14,8 +14,8 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
 };
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::core_process::CoreProcessStartContext;
+use lurker_core_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::result;

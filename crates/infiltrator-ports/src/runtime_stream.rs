@@ -1,12 +1,12 @@
 //! Core-scoped runtime stream contract.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
-use infiltrator_contract::capability::Capability;
 use infiltrator_domain::runtime::TrafficData;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeStreamEvent<T> {

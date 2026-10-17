@@ -1,10 +1,10 @@
 //! Host port for physical-link observations and safe TUN route repair.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::network_roaming::{
     NetworkObservation, NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
 };
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait NetworkRoamingPort: Send + Sync {

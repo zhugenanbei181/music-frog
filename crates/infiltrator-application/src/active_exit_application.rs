@@ -1,9 +1,10 @@
 //! Application seam for the selected outbound node read model.
 
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_domain::active_exit::derive;
 use lurker_core_contract::error::Failure;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::inventory::OutboundObservationSnapshot;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -72,7 +73,7 @@ impl ActiveExitApplication {
 mod tests {
     use super::*;
     use infiltrator_contract::active_exit::ActiveExitStatus;
-    use infiltrator_contract::snapshot::CoreLifecycle;
+    use lurker_core_contract::lifecycle::CoreLifecycle;
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {

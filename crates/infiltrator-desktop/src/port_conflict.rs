@@ -7,8 +7,8 @@
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_core::settings_io::app_config_manager_in;
 use infiltrator_platform::defaults::DefaultCredentialStore;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::port_conflict::PortConflictPort;
+use lurker_core_ports::error::PortError;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::port::{is_port_available, parse_port_from_addr, split_listen_addr};

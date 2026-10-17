@@ -14,10 +14,8 @@ use crate::tun_service::{ServiceModeStatus, TunServiceManager};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::resources::ResourceAvailability;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::failure_from_apply_error;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
@@ -27,12 +25,10 @@ use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::mini_hud_window::MiniHudWindowPort;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
-use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::pac::PacServicePort;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::profile_configuration_transaction::{
@@ -53,8 +49,12 @@ use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::OutboundPort;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::runtime_configuration::MihomoRuntimeConfigurationAdapter;

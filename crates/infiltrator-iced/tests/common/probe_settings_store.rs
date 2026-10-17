@@ -1,8 +1,8 @@
 //! test-intent: behavior
 use async_trait::async_trait;
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_ports::error::PortError;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 

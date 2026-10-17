@@ -1,12 +1,12 @@
 //! Identified, hostless lifecycle fixture for capability-gated UI tests.
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 struct IdentifiedLanguageCaptureProcess;

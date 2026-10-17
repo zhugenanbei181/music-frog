@@ -10,7 +10,6 @@
 //! observed facts and never guesses which one is a leak.
 
 use futures_util::lock;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_leak::{
     DEFAULT_ECHO_TIMEOUT_MS, DnsLeakEchoProbe, DnsLeakEchoRecord, DnsLeakEchoRequest,
     DnsLeakObservation, DnsLeakObservationOutcome, DnsLeakOperation, DnsLeakProbeName,
@@ -18,8 +17,9 @@ use infiltrator_contract::dns_leak::{
     MAX_PROBE_NAME_LEN,
 };
 use infiltrator_ports::dns_leak::{DnsLeakEchoPort, DnsLeakProbePort};
-use infiltrator_ports::error::PortError;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::fmt;
 use std::process::id;
 use std::sync::atomic::{AtomicU64, Ordering};

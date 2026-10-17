@@ -4,7 +4,7 @@ use crate::document_store::RECORD_DURABILITY_UNCERTAIN_PREFIX;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState,
 };
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tempfile::TempDir;

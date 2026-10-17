@@ -4,12 +4,12 @@ use crate::core_application::{
 };
 use crate::core_capability_test_support::core_scope;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::CoreGeneration;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::error::PortError;
 use tokio::sync::Notify;
 
 #[tokio::test]

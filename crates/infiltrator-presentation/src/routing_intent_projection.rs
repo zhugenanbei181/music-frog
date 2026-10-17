@@ -1,11 +1,11 @@
 //! Shared localized labels for routing intent state and change failures.
 
 use crate::routing_intent_actions::RoutingIntentActions;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };

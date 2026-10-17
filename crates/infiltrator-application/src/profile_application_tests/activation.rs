@@ -7,11 +7,9 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
@@ -23,6 +21,8 @@ use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::CoreIdentity;
 use lurker_core_contract::identity::CoreInstanceId;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

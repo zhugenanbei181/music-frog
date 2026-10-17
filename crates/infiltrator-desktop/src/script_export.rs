@@ -10,10 +10,10 @@
 //! component; the adapter re-checks that contract and refuses anything that is
 //! not a plain name, so an export can never escape the exports directory.
 
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::script_export::{ScriptExportReceipt, ScriptExportRequest};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::script_export::ScriptExportPort;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};

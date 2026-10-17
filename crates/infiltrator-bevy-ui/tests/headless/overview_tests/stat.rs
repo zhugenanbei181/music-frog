@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_contract::snapshot::CoreLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 
 /// The four stat chips carry labeled Group semantics ("name value") that

@@ -10,7 +10,8 @@ pub type PublicIpFactTuple = (
 );
 
 use infiltrator_contract::public_ip::{PublicIpProbeSnapshot, PublicIpProbeStatus};
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PublicIpApplication;
@@ -66,7 +67,7 @@ impl PublicIpApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::snapshot::CoreLifecycle;
+    use lurker_core_contract::lifecycle::CoreLifecycle;
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {

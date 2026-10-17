@@ -1,10 +1,9 @@
 //! Desktop host capability declaration for the 0.30 application seam.
 
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
+use lurker_core_contract::capability::Capability;
 
 /// Static desktop capability set. Dynamic availability (for example a
 /// missing privilege or an unavailable helper service) is reported by the

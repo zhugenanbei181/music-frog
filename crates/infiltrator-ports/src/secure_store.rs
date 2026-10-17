@@ -1,5 +1,5 @@
-use crate::error::PortError;
 use async_trait::async_trait;
+use lurker_core_ports::error::PortError;
 
 /// Secure credential storage supplied by the selected host.
 #[async_trait]

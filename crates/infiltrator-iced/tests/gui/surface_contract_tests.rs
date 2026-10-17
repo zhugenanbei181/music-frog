@@ -18,7 +18,7 @@ use infiltrator_contract::resources::{
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
+use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
@@ -30,13 +30,14 @@ use infiltrator_contract::version::{
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::surface::SurfaceReader;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};

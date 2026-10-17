@@ -5,16 +5,14 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
-    ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::profile_source::hash_bytes;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
@@ -23,8 +21,11 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

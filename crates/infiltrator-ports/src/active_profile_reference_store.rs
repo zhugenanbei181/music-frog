@@ -1,15 +1,15 @@
 //! Product-wide active-profile reference persistence.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::error::PortError;
 
 /// Durable owner-switch progress. Each variant is a legal transaction stage;
 /// the store persists it so a process restart cannot erase an unfinished

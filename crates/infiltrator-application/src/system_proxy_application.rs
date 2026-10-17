@@ -4,9 +4,9 @@ use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
     SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus, SystemProxySnapshot,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

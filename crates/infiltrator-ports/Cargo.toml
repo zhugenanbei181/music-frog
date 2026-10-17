@@ -7,12 +7,11 @@ description = "Runtime-neutral outbound ports for MusicFrog Infiltrator applicat
 
 [dependencies]
 lurker-core-contract = { path = "../lurker-core-contract" }
+lurker-core-ports = { path = "../lurker-core-ports" }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
-serde_json = { workspace = true }
-url = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

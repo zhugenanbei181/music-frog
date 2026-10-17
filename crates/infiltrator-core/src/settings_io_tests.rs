@@ -2,7 +2,7 @@ use super::*;
 use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
 use infiltrator_domain::settings::AdminServerConfig;
 #[cfg(test)]
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use mihomo_config::manager::paths::engine_config_dir;
 #[cfg(test)]
 use std::collections::HashMap;

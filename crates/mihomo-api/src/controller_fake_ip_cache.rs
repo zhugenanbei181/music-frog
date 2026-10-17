@@ -2,13 +2,13 @@
 
 use crate::client::MihomoClient;
 use crate::network_error::network_error;
-use infiltrator_contract::capability::Capability;
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
     ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
-use infiltrator_ports::error::PortError;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 
 #[derive(Clone)]
 pub struct MihomoControllerFakeIpCacheAdapter {

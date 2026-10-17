@@ -1,6 +1,5 @@
 //! Runtime-neutral core-version delivery port.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot,
@@ -8,6 +7,7 @@ use infiltrator_contract::version::{
     VersionDownloadProgress,
 };
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 pub trait VersionProgressSink: Send + Sync {

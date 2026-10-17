@@ -1,6 +1,6 @@
 //! Profile reset capability supplied by a host adapter.
 
-use crate::error::PortError;
+use lurker_core_ports::error::PortError;
 
 #[async_trait::async_trait]
 pub trait ProfileResetPort: Send + Sync {

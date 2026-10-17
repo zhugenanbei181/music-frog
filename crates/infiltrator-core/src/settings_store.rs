@@ -6,9 +6,9 @@ use crate::settings_io::{
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 
 pub struct FileSettingsStore<S = DefaultCredentialStore> {

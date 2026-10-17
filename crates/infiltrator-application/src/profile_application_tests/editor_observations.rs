@@ -5,12 +5,11 @@ use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_editor_observations::EditorFacet;
 use crate::profile_options_application::ProfileOptionsApplication;
-use infiltrator_contract::profile_document::{
-    DocumentInspection, DocumentValidation, ProfileDocumentSnapshot,
-};
+use infiltrator_contract::profile_document::{DocumentInspection, ProfileDocumentSnapshot};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use lurker_core_contract::profile_document::DocumentValidation;
 
 #[tokio::test]
 async fn independent_products_cannot_borrow_documents_options_or_foreign_read_tickets_even_over_one_store()

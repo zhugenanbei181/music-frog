@@ -5,7 +5,6 @@ use crate::core_capability_application::{
     CoreCommandEffect,
 };
 use infiltrator_contract::core_capabilities::{CoreOperation, ProxyControlOperation};
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::identity::EngineId;
@@ -13,6 +12,7 @@ use lurker_core_contract::routing_intent::EngineDefinedRoutingIntent;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentExtensionId, RoutingIntentSnapshot, RoutingIntentStatus,
 };
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::sync::Arc;
 
 const ROUTING_INTENT_REQUIREMENT: CoreCapabilityRequirement = CoreCapabilityRequirement::new(

@@ -179,7 +179,6 @@ mod tests {
     #[cfg(test)]
     use infiltrator_domain::rules::RuleEntry;
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::pac::PacServicePort;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationObservation, ConfigurationRevision, PacRuleReadPort, ProxyPortsConfiguration,
@@ -190,6 +189,7 @@ mod tests {
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
+    use lurker_core_ports::error::PortError;
 
     #[derive(Default)]
     struct FakeService {

@@ -4,7 +4,7 @@
 use super::*;
 use infiltrator_domain::tls_trust::sha256_fingerprint;
 use infiltrator_ports::certificate_authority::CaFile;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 
 const TEST_PEM: &str = "\
 -----BEGIN CERTIFICATE-----

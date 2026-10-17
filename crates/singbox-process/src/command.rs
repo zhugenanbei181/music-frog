@@ -1,7 +1,7 @@
 //! Injectable command boundary for native sing-box checks and child startup.
 
 use async_trait::async_trait;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::process::Stdio;

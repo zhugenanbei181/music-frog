@@ -7,8 +7,6 @@ use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
 use async_trait::async_trait;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{CoreScope, EngineId};
@@ -32,6 +30,8 @@ use lurker_core_contract::outbound::{
         OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest,
     },
 };
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]

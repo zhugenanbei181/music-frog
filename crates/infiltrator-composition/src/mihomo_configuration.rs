@@ -6,26 +6,27 @@ use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
-#[cfg(feature = "capture-fixtures")]
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-    ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+    ProfileWorkspaceIdentity,
 };
 #[cfg(feature = "capture-fixtures")]
 use infiltrator_domain::profile_options::ProfileOptions;
 #[cfg(feature = "capture-fixtures")]
 use infiltrator_domain::profile_source::hash_document_bytes;
 #[cfg(feature = "capture-fixtures")]
-use infiltrator_ports::error::PortError;
-#[cfg(feature = "capture-fixtures")]
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 #[cfg(feature = "capture-fixtures")]
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 #[cfg(feature = "capture-fixtures")]
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 #[cfg(feature = "capture-fixtures")]
 use lurker_core_contract::identity::EngineId;
+#[cfg(feature = "capture-fixtures")]
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+#[cfg(feature = "capture-fixtures")]
+use lurker_core_ports::error::PortError;
 #[cfg(feature = "capture-fixtures")]
 use mihomo_config::profile_option_store::{delete_options, save_options};
 #[cfg(feature = "capture-fixtures")]
@@ -50,7 +51,7 @@ pub fn for_mihomo_profiles(profiles: ProfileApplication) -> ConfigurationApplica
 /// Provide the Mihomo codec through its neutral port for composition-level
 /// adapter conformance and isolated capture fixtures.
 #[cfg(feature = "capture-fixtures")]
-pub fn profile_document_codec_fixture() -> Arc<dyn ProfileDocumentCodecPort> {
+pub fn profile_document_codec_fixture() -> Arc<dyn ProfileConfigurationCodecPort> {
     Arc::new(MihomoProfileDocumentCodec)
 }
 

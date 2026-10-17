@@ -109,8 +109,8 @@ mod tests {
     #[cfg(test)]
     use infiltrator_contract::shortcuts::ShortcutBinding;
     use infiltrator_domain::settings::AppSettings;
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::settings_store::SettingsStore;
+    use lurker_core_ports::error::PortError;
     use std::sync::Mutex;
     #[cfg(test)]
     use tokio::runtime::Builder;

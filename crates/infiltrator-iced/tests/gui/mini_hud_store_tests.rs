@@ -3,8 +3,8 @@ use crate::mini_hud_window::install_host_handle;
 use async_trait::async_trait;
 use infiltrator_contract::mini_hud::{MiniHudDisplay, MiniHudHostOutcome};
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex};
 use tokio::runtime::{Builder, Runtime};
 

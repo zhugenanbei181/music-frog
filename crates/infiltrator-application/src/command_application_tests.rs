@@ -30,7 +30,6 @@ use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
@@ -49,6 +48,7 @@ use infiltrator_test_support::profile_workspace_test_support::{
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

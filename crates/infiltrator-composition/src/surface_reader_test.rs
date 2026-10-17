@@ -28,7 +28,6 @@ use infiltrator_contract::runtime_status::{
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::SystemProxyObservation;
 use infiltrator_contract::version::{
@@ -45,12 +44,10 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
@@ -64,6 +61,7 @@ use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{
     CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::inventory::OutboundSelectionState;
 use lurker_core_contract::outbound::inventory::SelectionAvailability;
 use lurker_core_contract::outbound::{
@@ -78,6 +76,8 @@ use lurker_core_contract::outbound::{
         OutboundSelectionSet,
     },
 };
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::runtime::Builder;

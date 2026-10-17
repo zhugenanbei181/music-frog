@@ -8,8 +8,8 @@
 //! without a clipboard (or a sandboxed/mobile shell) returns a typed
 //! unsupported error rather than pretending it read an empty document.
 
-use crate::error::PortError;
 use async_trait::async_trait;
+use lurker_core_ports::error::PortError;
 
 /// Host-provided document sources for local/剪贴板 imports.
 #[async_trait]
@@ -27,7 +27,7 @@ pub trait SubscriptionImportPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::capability::Capability;
+    use lurker_core_contract::capability::Capability;
     #[cfg(test)]
     use std::future::Future;
     #[cfg(test)]

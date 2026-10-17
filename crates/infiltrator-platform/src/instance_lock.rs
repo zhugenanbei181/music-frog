@@ -34,7 +34,7 @@ use std::sync::{Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 
 type Result<T> = result::Result<T, PortError>;
 

@@ -24,12 +24,12 @@ use crate::workspace::sha256_hex;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use serde_json::to_vec_pretty;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};

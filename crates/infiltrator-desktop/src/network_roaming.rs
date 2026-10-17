@@ -2,16 +2,16 @@
 
 use crate::mtu::{apply_link_mtu, link_mtu_table};
 use async_trait::async_trait;
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
     NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
 };
 use infiltrator_platform::interface_watcher;
 use infiltrator_platform::interface_watcher::{InterfaceType, NetworkInterfaceWatcher};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::net::IpAddr;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};

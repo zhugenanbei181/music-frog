@@ -18,9 +18,9 @@ use infiltrator_contract::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, ScopedRuleTraceRequest,
 };
 use infiltrator_contract::script_export::ScriptExportKind;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 impl CommandApplication {
     pub async fn execute_output(&self, intent: CommandIntent) -> Result<CommandOutput, Failure> {

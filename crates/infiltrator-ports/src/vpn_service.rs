@@ -1,11 +1,11 @@
 //! Host port for Android VpnService permission, foreground and tunnel state.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnStartRequest, VpnSurfaceObservation,
 };
+use lurker_core_ports::error::PortError;
 
 /// Typed acknowledgement that this specific TUN data-plane start operation
 /// completed. Android publishes its service-level `Running` state only after

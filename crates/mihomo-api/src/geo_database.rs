@@ -6,10 +6,10 @@ use crate::network_error::network_error;
 use async_trait::async_trait;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::geo_database::GeoDatabasePort;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreScope, EngineId};
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 #[async_trait]

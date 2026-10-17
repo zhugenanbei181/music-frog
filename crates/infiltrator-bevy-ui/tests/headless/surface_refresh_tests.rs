@@ -10,11 +10,11 @@ use infiltrator_bevy_ui::surface::{
     LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource, SurfaceSourceRefreshPlugin,
     UnavailableSurfaceSource, overview_projection,
 };
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceOrigin, SurfaceSnapshot};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 

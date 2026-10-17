@@ -267,8 +267,8 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::rule_provider_cache::{ProviderCacheEntry, ProviderFileFact};
+    use lurker_core_ports::error::PortError;
     use serde_json::json;
     use std::path::PathBuf;
 

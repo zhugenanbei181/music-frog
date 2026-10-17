@@ -1,13 +1,13 @@
 //! Desktop physical-link MTU observation.
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_platform::interface_watcher::{
     GatewayPriorityArbiter, NetworkInterfaceSnapshot, NetworkInterfaceWatcher,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::process::Command;
 use tokio::task::spawn_blocking;

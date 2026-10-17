@@ -8,9 +8,7 @@ use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command::UiCommandSink;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
@@ -19,21 +17,20 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreOperation, DnsOperation, EngineCapabilityDecision,
     FakeIpCacheOperation, HostCapabilityDecision,
 };
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::{
     identity::SnapshotRevision,
     preferences::{
@@ -41,6 +38,8 @@ use lurker_core_contract::outbound::{
         OutboundUiPreferenceRequest, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
     },
 };
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
 use mem::take;
 use std::mem;
 use std::sync::{Arc, Mutex};

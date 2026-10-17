@@ -24,7 +24,6 @@ use infiltrator_contract::core_control::CoreControlLabel;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::system_toggle::SystemToggleState;
 use infiltrator_domain::connection_rate::pulse_intensity;
 use infiltrator_domain::profiles::ProfileInfo;
@@ -42,6 +41,7 @@ use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use lurker_core_contract::routing_intent::RoutingIntentStatus;

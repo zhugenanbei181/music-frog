@@ -20,9 +20,9 @@ use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::Arc;
 

@@ -29,6 +29,7 @@ capture-controller = ["capture-tools"]
 static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
+lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
 zhuge-ui-core.workspace = true
 infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }

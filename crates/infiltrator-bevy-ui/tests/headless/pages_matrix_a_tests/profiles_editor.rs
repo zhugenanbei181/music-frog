@@ -8,19 +8,18 @@ use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::profiles_editor_transactions::EditorDiscardButton;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::profile_document::{
-    DocumentDiagnosticSnapshot, DocumentInspection, DocumentValidation,
-};
+use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, YAML_SNIPPETS, insert_at_caret};
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetInsertion;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 #[test]
 fn test_profiles_editor_runs_the_shared_preflight_and_formatter() {

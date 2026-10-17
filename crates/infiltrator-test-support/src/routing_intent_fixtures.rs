@@ -1,23 +1,23 @@
 //! Isolated controller fixture for routing-intent command scenarios.
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
-use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::sync::Mutex;
 
 pub struct RoutingIntentScenarioController {

@@ -1,24 +1,24 @@
 //! test-intent: real_process
 
-use infiltrator_contract::profile_document::DocumentValidation;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundPort;
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundSelectionState, SelectionAvailability,
 };
+use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::OutboundPort;
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use singbox_api::clash_api::SingBoxClashApiClient;
 use singbox_api::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;

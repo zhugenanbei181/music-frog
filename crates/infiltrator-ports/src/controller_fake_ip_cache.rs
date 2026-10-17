@@ -1,9 +1,9 @@
 //! Scoped controller operation for clearing a running core's Fake-IP table.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 
 /// One controller Fake-IP flush tied to the Core owner activation and command.
 #[derive(Clone, Debug, PartialEq, Eq)]

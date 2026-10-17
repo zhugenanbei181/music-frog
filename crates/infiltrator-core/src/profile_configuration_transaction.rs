@@ -3,18 +3,14 @@
 use crate::apply::{ApplyError, ApplyParams, ConfigReloader};
 use crate::apply_workspace::apply_codec_validated_workspace;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
     ProfileConfigurationTransactionOutcome, ProfileConfigurationTransactionPort,
     ProfileConfigurationTransactionRequest, ProfileConfigurationTransactionScope,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
@@ -22,7 +18,12 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::fs;
@@ -41,7 +42,7 @@ static NATIVE_VALIDATION_CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 /// Mihomo's native transaction adapter. Pure codec inspection is injected
 /// independently and is used before any workspace persistence/runtime effect.
 pub struct MihomoProfileConfigurationTransactionAdapter<S: SecureStore> {
-    codec: Arc<dyn ProfileDocumentCodecPort>,
+    codec: Arc<dyn ProfileConfigurationCodecPort>,
     stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort>,
     scope: ProfileConfigurationTransactionScope,
     session: Arc<dyn CoreLifecyclePort>,
@@ -68,7 +69,7 @@ impl<S: SecureStore> Clone for MihomoProfileConfigurationTransactionAdapter<S> {
 
 impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
     pub fn new(
-        codec: Arc<dyn ProfileDocumentCodecPort>,
+        codec: Arc<dyn ProfileConfigurationCodecPort>,
         stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort>,
         session: Arc<dyn CoreLifecyclePort>,
         config: Arc<ConfigManager<S>>,
@@ -89,7 +90,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
 
     #[cfg(test)]
     pub(crate) fn new_with_profile_store_for_test(
-        codec: Arc<dyn ProfileDocumentCodecPort>,
+        codec: Arc<dyn ProfileConfigurationCodecPort>,
         stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort>,
         session: Arc<dyn CoreLifecyclePort>,
         config: Arc<ConfigManager<S>>,
@@ -109,7 +110,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
     }
 
     fn build(
-        codec: Arc<dyn ProfileDocumentCodecPort>,
+        codec: Arc<dyn ProfileConfigurationCodecPort>,
         stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort>,
         session: Arc<dyn CoreLifecyclePort>,
         config: Arc<ConfigManager<S>>,

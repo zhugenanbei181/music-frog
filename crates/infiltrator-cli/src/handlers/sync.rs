@@ -106,9 +106,9 @@ mod tests {
         clear_webdav_password, load_settings, save_settings, save_webdav_password,
     };
     use infiltrator_domain::settings::{AppSettings, WebDavConfig};
-    #[cfg(test)]
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
+    #[cfg(test)]
+    use lurker_core_ports::error::PortError;
     #[cfg(test)]
     use std::collections::HashMap;
     #[cfg(test)]

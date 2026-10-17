@@ -10,11 +10,11 @@ use bevy::ui::widget::InlineImage;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_presentation::shell_readout::{
     count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 #[derive(Component, Clone, Copy, Default)]
 pub enum ShellReadoutText {

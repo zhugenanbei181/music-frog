@@ -1,7 +1,6 @@
 //! Shared outbound inventory, selection, and probe use-cases.
 
 use futures_util::stream::{self, StreamExt};
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::inventory::OutboundProbeState;
@@ -26,6 +25,7 @@ use lurker_core_contract::outbound::{
         ProbeOutboundRequest,
     },
 };
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 

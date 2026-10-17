@@ -5,9 +5,9 @@ use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupNetworkPolicy,
     StartupRemoteDependency,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use mihomo_config::yaml::validate;
 use std::path::{Path, PathBuf};
 use tokio::fs::{metadata, read_to_string};

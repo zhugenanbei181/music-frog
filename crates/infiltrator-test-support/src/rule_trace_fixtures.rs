@@ -2,7 +2,6 @@
 use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{
@@ -10,13 +9,13 @@ use infiltrator_contract::rule_trace_run::{
 };
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::rules::RuleEntry;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCodecPort, ProfileRuleWorkspaceUpdate,
+    ProfileConfigurationCodecPort, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -27,6 +26,7 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
 };
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{
@@ -87,7 +87,7 @@ struct Files {
 }
 pub struct RuleTraceStore {
     files: Mutex<Files>,
-    document_codec: Arc<dyn ProfileDocumentCodecPort>,
+    document_codec: Arc<dyn ProfileConfigurationCodecPort>,
     pub deny_read: AtomicBool,
     pub deny_write: AtomicBool,
     pub writes: AtomicUsize,
@@ -100,7 +100,7 @@ impl Default for RuleTraceStore {
 }
 
 impl RuleTraceStore {
-    pub fn with_document_codec(document_codec: Arc<dyn ProfileDocumentCodecPort>) -> Self {
+    pub fn with_document_codec(document_codec: Arc<dyn ProfileConfigurationCodecPort>) -> Self {
         Self {
             files: Mutex::new(Files {
                 current: TRACE_PROFILE.into(),
@@ -114,7 +114,7 @@ impl RuleTraceStore {
         }
     }
 
-    fn codec(&self) -> &dyn ProfileDocumentCodecPort {
+    fn codec(&self) -> &dyn ProfileConfigurationCodecPort {
         self.document_codec.as_ref()
     }
 

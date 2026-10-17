@@ -2,8 +2,8 @@
 //! test-intent: behavior
 
 use super::profile_document_codec::MihomoProfileDocumentCodec;
-use infiltrator_contract::profile_document::DocumentValidation;
-use infiltrator_ports::profile_document_codec::{
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCaret, ProfileDocumentCodecPort, ProfileDocumentSnippetInsertion,
     ProfileDocumentSnippetOutcome,
 };

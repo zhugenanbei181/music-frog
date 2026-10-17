@@ -3,9 +3,7 @@
 use crate::command_application::CommandApplication;
 use crate::command_application::handler::{CommandHandler, ValidatedCoreCommandScope};
 use crate::core_capability_application::CoreCapabilityApplication;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
@@ -17,6 +15,7 @@ use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,

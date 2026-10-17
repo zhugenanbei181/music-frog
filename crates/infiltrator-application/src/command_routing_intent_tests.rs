@@ -3,12 +3,12 @@ use crate::command_application::handler::{CommandHandler, ValidatedCoreCommandSc
 use crate::core_capability_test_support::{capability_application, core_scope};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_contract::routing_intent::RoutingIntentStatus;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]

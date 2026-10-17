@@ -11,7 +11,6 @@ use infiltrator_contract::rule_tracer::RuleTracerStatus;
 use infiltrator_contract::rule_tracer::{
     DecisionStageKind, RuleTraceOutboundResolution, RuleTraceRuntimeMode,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::rule_trace_projection::present_chain;
 use infiltrator_test_support::rule_trace_fixtures::rule_trace_test_scope;
@@ -29,6 +28,7 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
 };
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn scoped_for_test(

@@ -29,7 +29,6 @@ use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
@@ -38,6 +37,7 @@ use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_presentation::shell_readout::observed_rate;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 #[cfg(any(feature = "capture-tools", test))]
 use std::sync::Arc;

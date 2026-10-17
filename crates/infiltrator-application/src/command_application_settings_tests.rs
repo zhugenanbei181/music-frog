@@ -12,8 +12,8 @@ use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_contract::shortcuts::ShortcutAction;
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::settings_store::SettingsStore;
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 

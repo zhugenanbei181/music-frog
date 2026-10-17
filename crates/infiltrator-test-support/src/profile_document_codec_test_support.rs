@@ -1,10 +1,8 @@
 use crate::rule_workspace_test_support::rule_workspace_with_identity;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
-use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
@@ -16,17 +14,22 @@ use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config_fidelity}
 use infiltrator_domain::profile_options::{ProfileOptions, strip_rule_lines};
 use infiltrator_domain::yaml_edit::rule_location::replace_rule_at_location;
 use infiltrator_domain::{dns, dns_hosts, fake_ip, proxy_providers, rules, sniffer, tun};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
-    ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
-    ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,
-    ProfileDocumentCodecScope, ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
-    ProfileFilterMutation, ProfileMixinMutation, ProfileOptionsCodecScope,
-    ProfileOptionsProjection, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
-    ProfileRuleWorkspaceUpdate,
+    ProfileConfigurationCodecPort, ProfileConfigurationMutation, ProfileConfigurationQuery,
+    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileFilterMutation,
+    ProfileMixinMutation, ProfileOptionsCodecScope, ProfileOptionsProjection,
+    ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCaret, ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+    ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
+};
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::str::from_utf8;
@@ -135,6 +138,42 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
             .unwrap_or(DocumentValidation::Valid))
     }
 
+    fn insert_snippet(
+        &self,
+        content: &str,
+        snippet_id: &str,
+        caret: ProfileDocumentCaret,
+    ) -> Result<ProfileDocumentSnippetOutcome, PortError> {
+        self.insertions.fetch_add(1, Ordering::SeqCst);
+        let previous = self.inspect(content.as_bytes())?;
+        let insertion = insert_at_caret(
+            content,
+            snippet_id,
+            SnippetCaret {
+                line: caret.line,
+                column: caret.column,
+            },
+        )
+        .map_err(|error| PortError::Failed(error.to_string()))?;
+        let validation = self.inspect(insertion.content.as_bytes())?;
+        if matches!(&previous, DocumentValidation::Valid)
+            && matches!(&validation, DocumentValidation::Invalid { .. })
+        {
+            return Ok(ProfileDocumentSnippetOutcome::Rejected { validation });
+        }
+        Ok(ProfileDocumentSnippetOutcome::Inserted(
+            ProfileDocumentSnippetInsertion {
+                snippet_id: insertion.snippet_id.to_owned(),
+                content: insertion.content,
+                cursor_line: insertion.cursor_line,
+                cursor_column: insertion.cursor_column,
+                validation,
+            },
+        ))
+    }
+}
+
+impl ProfileConfigurationCodecPort for TestProfileDocumentCodec {
     fn read_configuration(
         &self,
         _identity: &ProfileDocumentIdentity,
@@ -223,40 +262,6 @@ impl ProfileDocumentCodecPort for TestProfileDocumentCodec {
             document_bytes: updated.into_bytes(),
             readback: projection,
         })
-    }
-
-    fn insert_snippet(
-        &self,
-        content: &str,
-        snippet_id: &str,
-        caret: ProfileDocumentCaret,
-    ) -> Result<ProfileDocumentSnippetOutcome, PortError> {
-        self.insertions.fetch_add(1, Ordering::SeqCst);
-        let previous = self.inspect(content.as_bytes())?;
-        let insertion = insert_at_caret(
-            content,
-            snippet_id,
-            SnippetCaret {
-                line: caret.line,
-                column: caret.column,
-            },
-        )
-        .map_err(|error| PortError::Failed(error.to_string()))?;
-        let validation = self.inspect(insertion.content.as_bytes())?;
-        if matches!(&previous, DocumentValidation::Valid)
-            && matches!(&validation, DocumentValidation::Invalid { .. })
-        {
-            return Ok(ProfileDocumentSnippetOutcome::Rejected { validation });
-        }
-        Ok(ProfileDocumentSnippetOutcome::Inserted(
-            ProfileDocumentSnippetInsertion {
-                snippet_id: insertion.snippet_id.to_owned(),
-                content: insertion.content,
-                cursor_line: insertion.cursor_line,
-                cursor_column: insertion.cursor_column,
-                validation,
-            },
-        ))
     }
 
     fn options_scope(&self) -> Result<ProfileOptionsCodecScope, PortError> {

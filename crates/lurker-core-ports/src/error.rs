@@ -1,4 +1,4 @@
-use infiltrator_contract::capability::Capability;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::fmt::{Display, Formatter};
 use std::{error, fmt, io};
@@ -75,3 +75,22 @@ impl Display for PortError {
 }
 
 impl error::Error for PortError {}
+
+#[cfg(test)]
+mod tests {
+    use super::PortError;
+    use lurker_core_contract::capability::Capability;
+    use lurker_core_contract::error::{ErrorCode, Failure};
+
+    #[test]
+    fn adapter_error_maps_to_contract_failure_without_runtime_types() {
+        let failure: Failure = PortError::unsupported(
+            Capability::SystemProxy,
+            "Android VpnService owns proxy routing",
+        )
+        .into();
+        assert_eq!(failure.code, ErrorCode::Unsupported);
+        assert!(!failure.retryable);
+        assert!(failure.message.contains("SystemProxy"));
+    }
+}

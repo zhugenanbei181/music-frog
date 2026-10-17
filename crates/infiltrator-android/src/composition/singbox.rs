@@ -174,7 +174,7 @@ where
         launch_spec_source,
         Arc::clone(&operation_gate),
     ));
-    let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
+    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
     let transaction_binding = Arc::new(ProfileConfigurationTransactionBinding::new(
         ProfileConfigurationTransactionScope::new(codec.scope()),
     ));
@@ -270,7 +270,7 @@ struct AndroidSingBoxBackendProvider {
     engine_id: EngineId,
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
-    codec: Arc<dyn ProfileDocumentCodecPort>,
+    codec: Arc<dyn ProfileConfigurationCodecPort>,
     transaction_binding: Arc<ProfileConfigurationTransactionBinding>,
 }
 

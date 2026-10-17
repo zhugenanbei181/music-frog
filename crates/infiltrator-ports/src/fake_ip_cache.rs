@@ -2,7 +2,7 @@
 //! running controller's Fake-IP table. That operation uses
 //! [`crate::controller_fake_ip_cache::ControllerFakeIpCachePort`].
 
-use crate::error::PortError;
+use lurker_core_ports::error::PortError;
 
 #[async_trait::async_trait]
 pub trait FakeIpCachePort: Send + Sync {

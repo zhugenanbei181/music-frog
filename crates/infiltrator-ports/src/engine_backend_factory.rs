@@ -1,21 +1,21 @@
 //! Engine-scoped process, configuration, and typed operation composition.
 
-use crate::core_process::CoreProcess;
-use crate::core_process::CoreReadiness;
 use crate::core_scope::{CoreScopeObservation, CoreScopeSource};
-use crate::error::PortError;
 use crate::geo_database::{GeoDatabasePort, UnsupportedGeoDatabasePort};
-use crate::outbound::OutboundPort;
 #[cfg(test)]
 use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use crate::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionPort,
 };
-use crate::profile_document_codec::ProfileDocumentCodecPort;
-use crate::routing_intent::RoutingIntentPort;
+use crate::profile_document_codec::ProfileConfigurationCodecPort;
 use crate::rule_provider_runtime::{RuleProviderPort, UnsupportedRuleProviderPort};
-use infiltrator_contract::capability::Capability;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreIdentity, CoreScope, EngineId};
+use lurker_core_ports::core_process::CoreProcess;
+use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::OutboundPort;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -338,7 +338,7 @@ pub struct EngineBackendPorts {
     engine_id: EngineId,
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
-    configuration: Arc<dyn ProfileDocumentCodecPort>,
+    configuration: Arc<dyn ProfileConfigurationCodecPort>,
     configuration_transaction: Arc<ProfileConfigurationTransactionBinding>,
     operations: EngineOperationPorts,
 }
@@ -348,7 +348,7 @@ impl EngineBackendPorts {
         engine_id: EngineId,
         process: Arc<dyn CoreProcess>,
         readiness: Arc<dyn CoreReadiness>,
-        configuration: Arc<dyn ProfileDocumentCodecPort>,
+        configuration: Arc<dyn ProfileConfigurationCodecPort>,
         configuration_transaction: Arc<ProfileConfigurationTransactionBinding>,
         operations: EngineOperationPorts,
     ) -> Result<Self, PortError> {
@@ -416,7 +416,7 @@ impl EngineBackendPorts {
         Arc::clone(&self.readiness)
     }
 
-    pub fn configuration(&self) -> Arc<dyn ProfileDocumentCodecPort> {
+    pub fn configuration(&self) -> Arc<dyn ProfileConfigurationCodecPort> {
         Arc::clone(&self.configuration)
     }
 
@@ -481,15 +481,18 @@ pub const ENGINE_BACKEND_CAPABILITY: Capability = Capability::CoreLifecycle;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core_process::CoreReadiness;
     use crate::core_scope::CoreScopeObservation;
-    use crate::profile_document_codec::ProfileDocumentCodecScope;
+    use crate::profile_document_codec::ProfileConfigurationCodecPort;
     use async_trait::async_trait;
-    use infiltrator_contract::profile_document::DocumentValidation;
-    use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
-    use infiltrator_contract::snapshot::CoreLifecycle;
     use lurker_core_contract::core_process::CoreProcessStartContext;
     use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
+    use lurker_core_contract::lifecycle::CoreLifecycle;
+    use lurker_core_contract::profile_document::DocumentValidation;
+    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+    use lurker_core_ports::core_process::CoreReadiness;
+    use lurker_core_ports::profile_document_codec::{
+        ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+    };
 
     struct FakeProcess {
         identity: CoreIdentity,
@@ -540,6 +543,8 @@ mod tests {
             Ok(DocumentValidation::Valid)
         }
     }
+
+    impl ProfileConfigurationCodecPort for FakeConfiguration {}
 
     fn engine_id(value: &str) -> EngineId {
         EngineId::new(value).expect("test engine ID is valid")

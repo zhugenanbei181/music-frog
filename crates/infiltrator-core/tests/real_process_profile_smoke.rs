@@ -12,11 +12,9 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{ConfigReloader, EndpointConfigReloader};
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -24,24 +22,26 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::dns_query::DnsQueryPort;
 use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
     ProfileConfigurationTransactionOutcome, ProfileConfigurationTransactionPort,
     ProfileConfigurationTransactionRequest, ProfileConfigurationTransactionScope,
     UnavailableProfileConfigurationCandidateValidator,
 };
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
-    ProfileDocumentCodecPort,
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -341,7 +341,7 @@ async fn profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transa
         client: client.clone(),
     });
     let reloader: Arc<dyn ConfigReloader> = Arc::new(EndpointConfigReloader::new(endpoint_source));
-    let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(MihomoProfileDocumentCodec);
+    let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(MihomoProfileDocumentCodec);
     let stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort> =
         Arc::new(UnavailableProfileConfigurationCandidateValidator::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),

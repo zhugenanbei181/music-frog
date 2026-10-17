@@ -1,10 +1,11 @@
 //! A single pure parser for original controller log records on all peers.
 use infiltrator_contract::logs::RawLogRecord;
 use infiltrator_contract::logs::{LogFactsSnapshot, LogLevel, LogSession, LogStreamState};
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
 use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructuredLogLine {

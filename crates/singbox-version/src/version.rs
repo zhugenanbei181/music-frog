@@ -13,7 +13,6 @@ use state::{
 };
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot,
@@ -24,13 +23,14 @@ use infiltrator_ports::core_binary_selection::{
     CoreBinarySelectionRequest, CoreBinarySelectionSource,
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionProgressSink,
     VersionRollbackRequest, VersionUninstallRequest,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::{CoreVersion, EngineId};
+use lurker_core_ports::error::PortError;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::io::{Error, ErrorKind};

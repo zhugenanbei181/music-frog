@@ -1,9 +1,9 @@
 //! Mihomo facade for the shared engine-scoped namespace owner.
 
 use super::{ConfigManager, lock_reset_fenced_profile_mutation_for_dir};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::ErrorCode;
+use lurker_core_ports::error::PortError;
 use mihomo_api::error::{MihomoError, Result};
 use std::io::{Error, ErrorKind};
 
@@ -39,13 +39,13 @@ mod tests {
     use crate::manager::ConfigManager;
     use crate::manager::paths::engine_config_dir;
     use async_trait::async_trait;
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
     use infiltrator_profile_store::metadata::SUBSCRIPTION_SERVICE;
     use infiltrator_profile_store::namespace::{
         ProfileNamespaceSchema, merge_profile_state, profile_state_backup_path, read_profile_state,
     };
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_ports::error::PortError;
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};

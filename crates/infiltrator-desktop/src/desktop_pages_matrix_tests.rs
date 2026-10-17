@@ -8,7 +8,6 @@
 
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
@@ -20,6 +19,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState,

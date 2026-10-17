@@ -1,8 +1,8 @@
 //! Host-owned port conflict detection and safe repair.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait PortConflictPort: Send + Sync {

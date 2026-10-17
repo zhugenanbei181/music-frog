@@ -6,7 +6,6 @@ use crate::runtime_stream_application::scope_checked;
 use futures_util::future::{AbortHandle, Abortable};
 use futures_util::{FutureExt, StreamExt, select};
 use infiltrator_contract::logs::LogSession;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::{
@@ -14,6 +13,7 @@ use infiltrator_ports::runtime_stream::{
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use std::sync::Arc;
 use std::thread::{Builder, JoinHandle, current};
 use std::time::Duration;

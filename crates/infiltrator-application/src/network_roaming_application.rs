@@ -296,24 +296,24 @@ impl NetworkRoamingApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_contract::capability::Capability;
     #[cfg(test)]
     use infiltrator_contract::network_roaming::{
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
         NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
     };
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_configuration::TunConfigurationUpdate;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
         RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
     };
+    use lurker_core_contract::capability::Capability;
     #[cfg(test)]
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
+    use lurker_core_ports::error::PortError;
     #[cfg(test)]
     use std::sync;
     use std::sync::atomic::{AtomicUsize, Ordering};

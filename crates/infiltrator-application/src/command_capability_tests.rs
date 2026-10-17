@@ -10,7 +10,6 @@ use crate::core_capability_application::{
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
 use crate::profile_application::ProfileApplication;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, ConnectionOperation, CoreCapabilityEntry,
@@ -31,15 +30,16 @@ use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

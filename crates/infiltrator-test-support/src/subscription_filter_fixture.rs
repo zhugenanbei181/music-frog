@@ -1,8 +1,8 @@
 //! Explicit demo/test observations derived from their supplied documents.
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-    ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision, ProfileSourceId,
+    ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::subscription_filter_form::FilterObservation;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
@@ -11,6 +11,7 @@ use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profile_source::{hash_bytes, hash_document_bytes};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
 pub const FIXTURE_DOCUMENT: &str = "mode: rule\n";
 

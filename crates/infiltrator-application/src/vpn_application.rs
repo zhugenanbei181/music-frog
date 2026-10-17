@@ -152,11 +152,11 @@ mod tests {
         PreparedVpnConfiguration, VpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute,
         VpnSessionState, VpnStartRequest,
     };
-    use infiltrator_ports::error::PortError;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
+    use lurker_core_ports::error::PortError;
     #[cfg(test)]
     use std::sync;
 

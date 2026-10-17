@@ -8,15 +8,16 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
-    ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId, ProfileSidecarRevision,
+    ProfileSourceId, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::profile_source::hash_bytes;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::mem;
 use std::path::PathBuf;

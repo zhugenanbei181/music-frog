@@ -7,7 +7,6 @@
 
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_protocol_codec;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::validate_hosts;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
@@ -16,13 +15,14 @@ use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_domain::rules::source_identity::identify_rules_document;
 use infiltrator_domain::yaml_edit::rule_location::replace_rule_at_location;
 use infiltrator_domain::{dns, dns_hosts, fake_ip, proxy_providers, rules, sniffer, tun};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileConfigurationUpdate, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
     ProfileRuleWorkspaceUpdate,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use serde_yaml_ng::Value;
 use std::collections::BTreeMap;
 use std::fmt::Display;

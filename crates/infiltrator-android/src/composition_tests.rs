@@ -16,7 +16,6 @@ use infiltrator_contract::android_control::{
     AndroidOwnedCoreProcess, AndroidProductCommand, AndroidProductCommandRequest,
     VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
@@ -27,10 +26,8 @@ use infiltrator_contract::core_capabilities::{
     VersionOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
-use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileId};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::vpn::VpnGeneration;
 use infiltrator_contract::vpn::{
@@ -45,21 +42,25 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use infiltrator_ports::engine_backend_factory::EngineBackendProvider;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreGeneration;
 use lurker_core_contract::identity::{CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 use lurker_core_contract::outbound::{
     identity::{OutboundId, SnapshotRevision},
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::profile_document_identity::ProfileFormatId;
+use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::error::PortError;
 use mihomo_api::runtime_configuration::scope_resolver_from_owner;
 use mihomo_config::manager::ConfigManager;
 use std::env;

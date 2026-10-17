@@ -2,8 +2,8 @@ use super::asset::LockedSingBoxRelease;
 use super::{
     SingBoxBinaryTarget, VERSION_STATE_SCHEMA, engine_id, invalid_journal, validate_version,
 };
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::identity::CoreVersion;
+use lurker_core_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process;

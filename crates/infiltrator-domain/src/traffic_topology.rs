@@ -1,12 +1,12 @@
 //! Pure topology derivation from typed runtime observations.
 
 use crate::runtime::Connection;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::{
     RttJitterHistogram, TrafficTopologyNodeSnapshot, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus, adjacent_links,
 };
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::details::{OutboundDetailsState, OutboundObservation};
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::{

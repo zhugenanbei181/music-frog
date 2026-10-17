@@ -5,11 +5,11 @@ use infiltrator_contract::mtu::{
     MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES, MtuNegotiationSnapshot, MtuProbeState,
 };
 use infiltrator_domain::mtu_optimizer::MtuOptimizer;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -125,9 +125,9 @@ impl MtuApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    #[cfg(test)]
-    use infiltrator_contract::capability::Capability;
     use infiltrator_contract::mtu::{MtuProbeState, PhysicalMtuSnapshot};
+    #[cfg(test)]
+    use lurker_core_contract::capability::Capability;
 
     struct ReadyProbe;
 

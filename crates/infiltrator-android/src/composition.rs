@@ -23,7 +23,6 @@ use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
     OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation,
@@ -35,22 +34,23 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
     EngineBackendProvider,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionPort,
     ProfileConfigurationTransactionScope, UnavailableProfileConfigurationTransaction,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
@@ -260,7 +260,7 @@ impl<S: SecureStore + 'static> AndroidCoreComposition<S> {
 
     fn profile_application(
         &self,
-        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_codec: Arc<dyn ProfileConfigurationCodecPort>,
     ) -> ProfileApplication {
         let store: Arc<dyn ProfileStore> = self.profile_store.shared_engine_profile_store();
         ProfileApplication::new(store).with_document_codec(document_codec)

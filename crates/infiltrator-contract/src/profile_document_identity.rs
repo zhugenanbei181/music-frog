@@ -1,43 +1,12 @@
 //! Engine- and source-bound identity for opaque profile documents.
 
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentIdentityError, ProfileFormatId, ProfileSchemaVersion,
+};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
 use std::str;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProfileDocumentIdentityError {
-    InvalidProfileId,
-    InvalidSourceId,
-    InvalidRevision,
-    InvalidFormatId,
-    InvalidSchemaVersion,
-}
-
-impl Display for ProfileDocumentIdentityError {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidProfileId => formatter
-                .write_str(
-                    "profile ID must be non-empty, bounded, contain no controls, and contain no path characters",
-                ),
-            Self::InvalidSourceId => formatter
-                .write_str("profile source ID must be non-empty, bounded, and contain no controls"),
-            Self::InvalidRevision => formatter.write_str(
-                "profile document revision must be non-empty, bounded, and contain no controls",
-            ),
-            Self::InvalidFormatId => formatter
-                .write_str("profile format ID must use lowercase ASCII identifier characters"),
-            Self::InvalidSchemaVersion => {
-                formatter.write_str("profile schema version must be greater than zero")
-            }
-        }
-    }
-}
-
-impl Error for ProfileDocumentIdentityError {}
 
 /// Stable application identity for a profile, not a filesystem path.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -145,68 +114,6 @@ impl<'de> Deserialize<'de> for ProfileDocumentRevision {
         D: Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        Self::new(value).map_err(D::Error::custom)
-    }
-}
-
-/// Adapter-defined native document format, such as `mihomo-yaml` or `sing-box-json`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
-#[serde(transparent)]
-pub struct ProfileFormatId(String);
-
-impl ProfileFormatId {
-    pub fn new(value: impl Into<String>) -> Result<Self, ProfileDocumentIdentityError> {
-        let value = value.into();
-        if value.is_empty()
-            || value.len() > 64
-            || !value.bytes().all(|byte| {
-                byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"-_.".contains(&byte)
-            })
-        {
-            return Err(ProfileDocumentIdentityError::InvalidFormatId);
-        }
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for ProfileFormatId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        Self::new(value).map_err(D::Error::custom)
-    }
-}
-
-/// Positive schema revision within one adapter-defined format.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-pub struct ProfileSchemaVersion(u32);
-
-impl ProfileSchemaVersion {
-    pub const fn new(value: u32) -> Result<Self, ProfileDocumentIdentityError> {
-        if value == 0 {
-            return Err(ProfileDocumentIdentityError::InvalidSchemaVersion);
-        }
-        Ok(Self(value))
-    }
-
-    pub const fn value(self) -> u32 {
-        self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for ProfileSchemaVersion {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = u32::deserialize(deserializer)?;
         Self::new(value).map_err(D::Error::custom)
     }
 }
@@ -319,10 +226,11 @@ fn valid_source_identifier(value: &str) -> bool {
 mod tests {
     use super::{
         ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
-        ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
-        ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+        ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId,
+        ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
     };
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
     fn identity(
         engine_id: &str,
@@ -473,19 +381,18 @@ mod tests {
         assert!(ProfileSourceId::new("").is_err());
         assert!(ProfileSourceId::new("https://example.test/profile").is_err());
         assert!(ProfileDocumentRevision::new("\0").is_err());
-        assert!(ProfileFormatId::new("Mihomo-YAML").is_err());
-        assert!(ProfileSchemaVersion::new(0).is_err());
     }
 
     #[test]
-    fn serde_cannot_bypass_identifier_and_schema_validation() {
+    fn serde_cannot_bypass_identifier_validation() {
         let invalid_profile = serde_json::from_value::<ProfileId>(serde_json::json!(""));
-        let invalid_format = serde_json::from_value::<ProfileFormatId>(serde_json::json!("YAML"));
-        let invalid_schema = serde_json::from_value::<ProfileSchemaVersion>(serde_json::json!(0));
+        let invalid_source = serde_json::from_value::<ProfileSourceId>(serde_json::json!(""));
+        let invalid_revision =
+            serde_json::from_value::<ProfileDocumentRevision>(serde_json::json!("\0"));
 
         assert!(invalid_profile.is_err());
-        assert!(invalid_format.is_err());
-        assert!(invalid_schema.is_err());
+        assert!(invalid_source.is_err());
+        assert!(invalid_revision.is_err());
     }
 
     #[test]

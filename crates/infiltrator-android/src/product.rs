@@ -370,16 +370,16 @@ mod tests {
         AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, VpnOwnerCoreReadback,
         VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
     };
-    use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
     use infiltrator_contract::vpn::VpnGeneration;
     use infiltrator_platform::android_bridge::{
         AndroidBridgeResult, CoreProcessStartReceipt, CoreProcessStopReceipt, clear_android_bridge,
         get_android_bridge, set_android_bridge,
     };
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
     use lurker_core_contract::core_process::CoreProcessStartContext;
     use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+    use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+    use lurker_core_ports::error::PortError;
     use mihomo_config::manager::ConfigManager;
     use std::env;
     use std::fs;

@@ -5,7 +5,7 @@
 //! this port; hosts that cannot return the explicit `Unsupported` variant,
 //! which the application reports honestly instead of fabricating a refresh.
 
-use crate::error::PortError;
+use lurker_core_ports::error::PortError;
 
 /// One system DNS-cache flush capability outcome.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

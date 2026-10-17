@@ -3,6 +3,7 @@ use crate::active_profile_backend::SelectedActiveProfileBackend;
 use crate::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_contract::core_capabilities::AdapterRevision;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use tokio::time::timeout;
 
@@ -239,7 +240,7 @@ impl EngineBackendProvider for FakeProvider {
             format_id: format_id(self.engine_id.as_str()),
             schema_version: ProfileSchemaVersion::new(1).unwrap(),
         };
-        let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(FakeCodec {
+        let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(FakeCodec {
             scope: codec_scope.clone(),
         });
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
@@ -307,6 +308,8 @@ impl ProfileDocumentCodecPort for FakeCodec {
         Ok(DocumentValidation::Valid)
     }
 }
+
+impl ProfileConfigurationCodecPort for FakeCodec {}
 
 pub(crate) struct FakeOwner {
     before: CoreLifecycleSnapshot,

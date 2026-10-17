@@ -21,7 +21,6 @@ pub mod core_binary_selection;
 pub mod core_capability_provider;
 pub mod core_lifecycle;
 pub mod core_log_level;
-pub mod core_process;
 pub mod core_scope;
 pub mod core_watchdog;
 pub mod data_dir;
@@ -33,7 +32,6 @@ pub mod doctor;
 pub mod endpoint;
 pub mod engine_backend_factory;
 pub mod engine_version_backend_factory;
-pub mod error;
 pub mod fake_ip_cache;
 pub mod geo_database;
 pub mod host_runtime;
@@ -42,7 +40,6 @@ pub mod mini_hud_window;
 pub mod mtu_probe;
 pub mod network_roaming;
 pub mod offline_startup;
-pub mod outbound;
 pub mod overview;
 pub mod pac;
 pub mod port_conflict;
@@ -54,7 +51,6 @@ pub mod profile_store;
 pub mod profile_workspace;
 pub mod public_ip_probe;
 pub mod resources;
-pub mod routing_intent;
 pub mod rule_provider_cache;
 pub mod rule_provider_runtime;
 pub mod rule_tracer;
@@ -80,22 +76,3 @@ pub mod touch_gesture;
 pub mod uwp_loopback;
 pub mod version;
 pub mod vpn_service;
-
-#[cfg(test)]
-mod tests {
-    use super::error::PortError;
-    use infiltrator_contract::capability::Capability;
-    use lurker_core_contract::error::{ErrorCode, Failure};
-
-    #[test]
-    fn adapter_error_maps_to_contract_failure_without_runtime_types() {
-        let failure: Failure = PortError::unsupported(
-            Capability::SystemProxy,
-            "Android VpnService owns proxy routing",
-        )
-        .into();
-        assert_eq!(failure.code, ErrorCode::Unsupported);
-        assert!(!failure.retryable);
-        assert!(failure.message.contains("SystemProxy"));
-    }
-}

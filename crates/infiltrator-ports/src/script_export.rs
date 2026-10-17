@@ -4,13 +4,13 @@
 //! port owns the host decision of *where* it lands: a native save dialog, or a
 //! host-owned export directory. A host that offers neither implements
 //! [`UnsupportedScriptExportPort`] and every export answers
-//! [`infiltrator_ports::error::PortError::unsupported`] — the surface then
+//! [`lurker_core_ports::error::PortError::unsupported`] — the surface then
 //! shows the composed content plus a typed "this host has no file dialog"
 //! outcome instead of pretending a file exists.
 
-use crate::error::PortError;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::script_export::{ScriptExportReceipt, ScriptExportRequest};
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 
 /// Persist one composed export artifact and report the real path written.
 ///

@@ -1,10 +1,10 @@
 //! Core-scoped GeoIP/GeoSite database trigger port.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait GeoDatabasePort: Send + Sync {

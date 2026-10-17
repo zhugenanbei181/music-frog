@@ -8,9 +8,9 @@ use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use std::future::Future;
 use std::pin::Pin;
 

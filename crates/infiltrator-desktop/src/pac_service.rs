@@ -1,8 +1,8 @@
 //! Loopback HTTP server for generated PAC scripts.
 
 use async_trait::async_trait;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::pac::PacServicePort;
+use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};

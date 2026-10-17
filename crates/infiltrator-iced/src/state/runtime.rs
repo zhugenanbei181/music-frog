@@ -24,7 +24,6 @@ use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
 use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
@@ -46,6 +45,7 @@ use infiltrator_presentation::routing_intent_actions::RoutingIntentActions;
 use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsEditor;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 use lurker_core_contract::outbound::{
     details::OutboundDetailsSnapshot,
     identity::OutboundId,

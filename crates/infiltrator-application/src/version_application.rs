@@ -7,13 +7,13 @@ use infiltrator_contract::version::{
     EngineReleaseChannel, InstalledCoreVersion, VersionDownloadProgress,
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionProgressSink,
     VersionRollbackRequest, VersionUninstallRequest,
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -282,11 +282,11 @@ impl VersionProgressSink for QuietVersionProgress {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_contract::capability::Capability;
     use infiltrator_contract::version::{CoreRelease, ReleaseChannelId};
     use infiltrator_ports::version::{
         VersionActivationRequest, VersionInstallRequest, VersionUninstallRequest,
     };
+    use lurker_core_contract::capability::Capability;
     use std::sync::Mutex;
 
     struct FakeVersionPort {

@@ -1,0 +1,15 @@
+[package]
+name = "lurker-core-ports"
+version.workspace = true
+edition = "2024"
+description = "Engine-neutral ports shared by every Lurker core host: process, outbound, routing intent and document inspection."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zhugenanbei181/music-frog"
+
+[dependencies]
+lurker-core-contract = { version = "0.42.6", path = "../lurker-core-contract" }
+async-trait = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

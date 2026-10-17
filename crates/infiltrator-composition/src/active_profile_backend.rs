@@ -7,13 +7,11 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
 use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
     ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
@@ -24,12 +22,14 @@ use infiltrator_ports::core_lifecycle::CoreOwnerTerminationPort;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendFactory, EngineBackendPorts, EngineBackendProviderAvailability,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, EngineId};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;

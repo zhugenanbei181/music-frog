@@ -1,12 +1,13 @@
 //! Pure sing-box JSON document inspection.
 
-use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
-use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::{
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
+use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
-use lurker_core_contract::identity::EngineId;
 
 pub const PROFILE_FORMAT: &str = "sing-box-json";
 pub const PROFILE_SCHEMA_VERSION: u32 = 1;
@@ -52,6 +53,10 @@ impl ProfileDocumentCodecPort for SingBoxProfileDocumentCodec {
         }
     }
 }
+
+/// sing-box does not implement any typed configuration extension; every
+/// product-level operation fails closed through the trait defaults.
+impl ProfileConfigurationCodecPort for SingBoxProfileDocumentCodec {}
 
 #[cfg(test)]
 #[path = "profile_document_codec_tests.rs"]

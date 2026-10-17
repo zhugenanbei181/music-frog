@@ -3,26 +3,25 @@ use infiltrator_contract::android_control::core_launch::CoreLaunchSpec;
 use infiltrator_contract::android_control::{
     AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
 };
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_platform::android_bridge::AndroidBridge;
 #[cfg(test)]
 use infiltrator_platform::android_bridge::{CoreProcessStartReceipt, CoreProcessStopReceipt};
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
 use infiltrator_ports::data_dir::DataDirProvider;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::core_process::{CoreProcess, CoreProcessStartAdmission};
+use lurker_core_ports::error::PortError;
 use singbox_process::process::SingBoxCoreOperationGate;
 use std::path::PathBuf;
 use std::result;

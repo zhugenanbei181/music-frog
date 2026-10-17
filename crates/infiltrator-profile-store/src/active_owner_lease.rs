@@ -9,12 +9,12 @@ use crate::active_reference_owner::{
     ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveOwnerToken, transition_rejected,
 };
 use crate::active_reference_owner_coordinator::validate_terminal_for_owner;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
+use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
+use lurker_core_ports::error::PortError;
 use std::path::{Path, PathBuf};
 use tokio::task::spawn_blocking;
 

@@ -16,7 +16,6 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_import::{
     StoreForNextStartReason, SubscriptionBatchReport, SubscriptionContentEffectOutcome,
     SubscriptionImportChannel, SubscriptionImportReport, SubscriptionQuotaFacts,
@@ -33,8 +32,7 @@ use infiltrator_domain::subscription_scheduler_policy::{
     CronSchedule, FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
 };
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
@@ -45,7 +43,9 @@ use infiltrator_ports::subscription_source::{
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::owner_switch::{ActiveProfileRecoveryOutcome, CoreApplyFailureKind};
+use lurker_core_ports::error::PortError;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -59,7 +59,7 @@ use workspace::{ProfileWorkspaceEffect, ProfileWorkspaceStoreReason};
 #[derive(Clone)]
 pub struct ProfileApplication {
     store: Arc<dyn ProfileStore>,
-    document_codec: Option<Arc<dyn ProfileDocumentCodecPort>>,
+    document_codec: Option<Arc<dyn ProfileConfigurationCodecPort>>,
     pub(crate) editor_observations: Arc<Mutex<EditorObservations>>,
 }
 

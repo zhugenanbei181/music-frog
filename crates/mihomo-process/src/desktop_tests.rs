@@ -4,7 +4,7 @@ use infiltrator_platform::TEST_LOCK;
 use infiltrator_platform::paths::clear_home_dir_override;
 #[cfg(all(test, target_os = "linux"))]
 use infiltrator_platform::paths::set_home_dir_override;
-use infiltrator_ports::core_process::CoreProcess;
+use lurker_core_ports::core_process::CoreProcess;
 #[cfg(all(test, target_os = "linux"))]
 use std::env::{current_exe, split_paths, var_os};
 #[cfg(all(test, target_os = "linux"))]

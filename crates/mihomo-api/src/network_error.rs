@@ -1,6 +1,6 @@
 use crate::error::MihomoError;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 
 pub(crate) fn network_error(error: MihomoError) -> PortError {
     if let MihomoError::Http(http) = &error {

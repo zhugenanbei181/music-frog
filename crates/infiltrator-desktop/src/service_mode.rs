@@ -6,12 +6,12 @@
 //! reaches a ready state.
 
 use crate::tun_service::{ServiceModeStatus, TunServiceManager};
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::service_mode::ServiceModePort;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::path::{Path, PathBuf};
 
 pub struct DesktopServiceMode {

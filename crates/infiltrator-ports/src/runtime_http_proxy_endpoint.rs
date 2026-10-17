@@ -1,7 +1,7 @@
 //! Typed observation of the host's local HTTP proxy endpoint.
 
-use crate::error::PortError;
 use async_trait::async_trait;
+use lurker_core_ports::error::PortError;
 
 /// Whether a usable local HTTP proxy endpoint is configured for the active
 /// runtime. Absence is a domain state, not `None` or a synthetic endpoint.

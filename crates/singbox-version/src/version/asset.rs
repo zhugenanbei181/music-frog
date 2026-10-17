@@ -1,8 +1,8 @@
 use super::{
     EMBEDDED_ASSET_LOCK, SingBoxBinaryTarget, invalid_lock, valid_digest, validate_version,
 };
-use infiltrator_contract::capability::Capability;
-use infiltrator_ports::error::PortError;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::path::Path;

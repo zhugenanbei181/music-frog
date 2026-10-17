@@ -16,11 +16,11 @@ use infiltrator_contract::protocol_matrix::{
 use infiltrator_contract::protocol_params_ext::PluginOptValue;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_domain::protocol_draft_codec::uri_fidelity_gaps;
-use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationReadout, ProfileConfigurationUpdate,
-    ProfileDocumentCodecPort,
 };
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -49,7 +49,7 @@ fn draft(family: &str, name: &str) -> ProtocolDraft {
     draft
 }
 
-fn matrix_identity(codec: &dyn ProfileDocumentCodecPort) -> ProfileDocumentIdentity {
+fn matrix_identity(codec: &dyn ProfileConfigurationCodecPort) -> ProfileDocumentIdentity {
     let scope = codec.scope();
     ProfileDocumentIdentity::new(
         ProfileId::new("protocol-matrix").expect("matrix profile ID"),
@@ -65,7 +65,7 @@ fn matrix_identity(codec: &dyn ProfileDocumentCodecPort) -> ProfileDocumentIdent
 }
 
 fn apply_protocol(
-    codec: &dyn ProfileDocumentCodecPort,
+    codec: &dyn ProfileConfigurationCodecPort,
     identity: &ProfileDocumentIdentity,
     raw_bytes: &[u8],
     draft: ProtocolDraft,
@@ -78,7 +78,7 @@ fn apply_protocol(
 }
 
 fn round_trip(
-    codec: &dyn ProfileDocumentCodecPort,
+    codec: &dyn ProfileConfigurationCodecPort,
     draft: &ProtocolDraft,
 ) -> Result<ProtocolDraft, String> {
     if !draft.report().is_valid() {
@@ -98,7 +98,7 @@ fn round_trip(
 }
 
 fn round_trip_check<F>(
-    codec: &dyn ProfileDocumentCodecPort,
+    codec: &dyn ProfileConfigurationCodecPort,
     draft: &ProtocolDraft,
     check: F,
 ) -> Check
@@ -119,9 +119,9 @@ pub struct ProtocolCodecMatrixApplication;
 
 impl ProtocolCodecMatrixApplication {
     pub fn run_deterministic_matrix(
-        codec: Arc<dyn ProfileDocumentCodecPort>,
+        codec: Arc<dyn ProfileConfigurationCodecPort>,
     ) -> ProtocolCodecMatrixReport {
-        let codec: &dyn ProfileDocumentCodecPort = codec.as_ref();
+        let codec: &dyn ProfileConfigurationCodecPort = codec.as_ref();
         let identity = matrix_identity(codec);
         let mut scenarios = vec![
             closed(
@@ -207,7 +207,7 @@ impl ProtocolCodecMatrixApplication {
     }
 }
 
-fn check_cipher(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_cipher(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("ss", "matrix-ss");
     node.cipher = "2022-blake3-aes-128-gcm".to_owned();
     node.password = "AAAAAAAAAAAAAAAAAAAAAA==".to_owned();
@@ -232,7 +232,7 @@ fn check_cipher(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_reality(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_reality(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("vless", "matrix-vless");
     node.flow = "xtls-rprx-vision".to_owned();
     node.tls = true;
@@ -262,7 +262,7 @@ fn check_reality(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_tuic_hysteria(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_tuic_hysteria(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut tuic = draft("tuic", "matrix-tuic");
     tuic.params.tuic.congestion_controller = "bbr".to_owned();
     tuic.params.tuic.udp_relay_mode = "native".to_owned();
@@ -285,7 +285,7 @@ fn check_tuic_hysteria(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_wireguard(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_wireguard(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("wireguard", "matrix-wg");
     node.params.wireguard.private_key = format!("{}=", "A".repeat(43));
     node.params.wireguard.public_key = format!("{}=", "B".repeat(43));
@@ -321,7 +321,7 @@ fn check_wireguard(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_transports(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_transports(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("vless", "matrix-transport");
     node.params.transport.network = "ws".to_owned();
     node.params.transport.ws.path = "/ws".to_owned();
@@ -354,7 +354,7 @@ fn check_transports(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_plugin(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_plugin(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("ss", "matrix-plugin");
     node.cipher = "aes-128-gcm".to_owned();
     node.params.plugin.name = "obfs".to_owned();
@@ -367,7 +367,7 @@ fn check_plugin(codec: &dyn ProfileDocumentCodecPort) -> Check {
     })
 }
 
-fn check_ssh(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_ssh(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("ssh", "matrix-ssh");
     node.params.ssh.username = "root".to_owned();
     node.params.ssh.private_key = "key-material".to_owned();
@@ -378,7 +378,7 @@ fn check_ssh(codec: &dyn ProfileDocumentCodecPort) -> Check {
     })
 }
 
-fn check_anytls_trojan(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_anytls_trojan(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut anytls = draft("anytls", "matrix-anytls");
     anytls.params.anytls.idle_session_timeout = 30_000;
     anytls.params.anytls.min_idle_session = 2;
@@ -401,7 +401,7 @@ fn check_anytls_trojan(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_dialer_hop(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_dialer_hop(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("vless", "matrix-hop");
     node.dialer_proxy = "gateway".to_owned();
     let roundtrip = round_trip_check(codec, &node, |returned| returned.dialer_proxy == "gateway");
@@ -419,7 +419,7 @@ fn check_dialer_cycles() -> Check {
     (loop_found, format!("cycle-detected={loop_found}"))
 }
 
-fn check_smux(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_smux(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("ss", "matrix-smux");
     node.cipher = "aes-128-gcm".to_owned();
     node.smux.enabled = true;
@@ -436,7 +436,7 @@ fn check_smux(codec: &dyn ProfileDocumentCodecPort) -> Check {
     )
 }
 
-fn check_ech(codec: &dyn ProfileDocumentCodecPort) -> Check {
+fn check_ech(codec: &dyn ProfileConfigurationCodecPort) -> Check {
     let mut node = draft("vless", "matrix-ech");
     node.params.ech.enabled = true;
     node.params.ech.config = "AQIDBA==".to_owned();
@@ -454,7 +454,7 @@ fn check_ech(codec: &dyn ProfileDocumentCodecPort) -> Check {
 }
 
 fn check_custom_ca(
-    codec: &dyn ProfileDocumentCodecPort,
+    codec: &dyn ProfileConfigurationCodecPort,
     identity: &ProfileDocumentIdentity,
 ) -> Check {
     let path_params = TlsTrustParams {
@@ -510,7 +510,7 @@ fn check_custom_ca(
 }
 
 fn check_lossless_upsert(
-    codec: &dyn ProfileDocumentCodecPort,
+    codec: &dyn ProfileConfigurationCodecPort,
     identity: &ProfileDocumentIdentity,
 ) -> Check {
     let profile = b"mode: rule\nproxies:\n  - name: keep\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: old\n    future-flag: 7\nproxy-groups:\n  - name: PROXY\n    type: select\n    proxies: [keep]\nrules:\n  - MATCH,PROXY\n";

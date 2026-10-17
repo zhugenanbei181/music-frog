@@ -1,9 +1,9 @@
 //! Runtime-neutral WebDAV synchronization port.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::sync::{SyncProgress, SyncReport, SyncTransferReport};
 use infiltrator_domain::settings::WebDavConfig;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]

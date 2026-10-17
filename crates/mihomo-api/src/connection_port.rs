@@ -5,19 +5,19 @@ use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::runtime_stream::scope_stream;
 use futures_util::{StreamExt, stream};
-use infiltrator_contract::capability::Capability;
 use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 

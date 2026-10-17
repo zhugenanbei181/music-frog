@@ -1,7 +1,7 @@
 //! Persistence port for per-app routing preferences.
 
-use crate::error::PortError;
 use infiltrator_domain::app_routing::AppRoutingConfig;
+use lurker_core_ports::error::PortError;
 
 pub trait AppRoutingStore: Send + Sync {
     fn load(&self) -> Result<AppRoutingConfig, PortError>;

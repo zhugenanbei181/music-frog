@@ -1,19 +1,19 @@
 //! Adapter from the concrete mihomo-version manager to the version port.
 
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot,
     EngineNeutralReleaseChannel, EngineReleaseChannel, InstalledCoreVersion, ReleaseChannelId,
     VersionDownloadProgress,
 };
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionRollbackRequest,
     VersionUninstallRequest,
 };
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use mihomo_api::error::MihomoError;
 use mihomo_version::channel::{Channel, fetch_latest, fetch_releases};
 use mihomo_version::download::DownloadProgress;

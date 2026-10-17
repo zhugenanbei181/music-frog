@@ -16,9 +16,7 @@ use infiltrator_ports::controller_fake_ip_cache::{
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::dns_query::DnsQueryPort;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamPort};
 use lurker_core_contract::identity::{
@@ -28,6 +26,8 @@ use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
 use lurker_core_contract::routing_intent::RoutingIntent;
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;

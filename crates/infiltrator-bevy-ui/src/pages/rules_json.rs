@@ -682,9 +682,10 @@ mod tests {
     use super::*;
     use infiltrator_contract::profile_document_identity::{
         ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
-        ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+        ProfileId, ProfileSourceId,
     };
     use lurker_core_contract::identity::EngineId;
+    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
     fn identity(revision: &str) -> ProfileDocumentIdentity {
         ProfileDocumentIdentity::new(

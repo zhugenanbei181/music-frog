@@ -1,13 +1,13 @@
 //! test-intent: behavior
 
 use async_trait::async_trait;
-use infiltrator_contract::profile_document::DocumentValidation;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::profile_document::DocumentValidation;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::ProfileDocumentCodecPort;
 use serde_json::Value;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::controller_configuration::SingBoxControllerConfigurationError;

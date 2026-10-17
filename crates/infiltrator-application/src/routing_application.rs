@@ -96,7 +96,7 @@ mod tests {
     use super::*;
     use infiltrator_domain::app_routing::AppRoutingRule;
     use infiltrator_ports::app_routing_store::AppRoutingStore;
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
     use std::collections::{HashMap, HashSet};
     use std::sync::Mutex;
 

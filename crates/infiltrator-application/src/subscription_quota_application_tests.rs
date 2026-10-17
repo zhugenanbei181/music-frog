@@ -1,7 +1,7 @@
 //! Quota source changes, failed reads, real zero and actual request ordering.
 //! test-intent: behavior
 use super::*;
-use infiltrator_contract::snapshot::CoreLifecycle;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::session::SessionToken;
 fn core(generation: u64, token: Option<SessionToken>) -> CoreSnapshot {
     CoreSnapshot {

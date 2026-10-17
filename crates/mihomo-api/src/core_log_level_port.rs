@@ -6,7 +6,7 @@ use crate::network_error::network_error;
 use async_trait::async_trait;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 impl CoreLogLevelPort for MihomoClient {

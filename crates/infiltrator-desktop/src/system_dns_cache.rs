@@ -12,9 +12,9 @@
 //! instead of claiming a refresh.
 
 use async_trait::async_trait;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::env::consts::OS;
 use std::io::{self, ErrorKind};
 use std::process::{Command, Output};

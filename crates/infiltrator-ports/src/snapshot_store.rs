@@ -1,9 +1,9 @@
 //! Runtime-neutral configuration snapshot persistence port.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_domain::snapshots::SnapshotMeta;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::path::Path;
 
 #[async_trait]

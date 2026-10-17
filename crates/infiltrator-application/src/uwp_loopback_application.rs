@@ -2,9 +2,9 @@
 
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
 use infiltrator_domain::uwp::validate_app_container_sid;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::uwp_loopback::UwpLoopbackPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -135,7 +135,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::uwp::UwpPackageSnapshot;
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
     use std::sync::Mutex;
 
     #[derive(Default)]

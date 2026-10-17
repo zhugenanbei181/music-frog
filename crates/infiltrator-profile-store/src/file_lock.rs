@@ -3,7 +3,7 @@
 use infiltrator_platform::instance_lock::{
     ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
 };
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::fs::canonicalize;

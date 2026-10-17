@@ -1,25 +1,25 @@
 //! Engine selection for product composition roots.
 
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::CoreProcess;
-use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
     EngineBackendProviderAvailability, EngineOperationPort, EngineOperationPorts,
 };
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::ProfileConfigurationCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{CoreInstanceId, EngineId};
+use lurker_core_ports::core_process::CoreProcess;
+use lurker_core_ports::core_process::CoreReadiness;
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::outbound::OutboundPort;
+use lurker_core_ports::routing_intent::RoutingIntentPort;
 use singbox_api::clash_api::SingBoxClashApiClient;
 use singbox_api::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
@@ -143,7 +143,7 @@ impl SingBoxEngineBackendProvider {
         let api = SingBoxClashApiClient::new(controller.clone(), Arc::clone(&http))?;
         let readiness: Arc<dyn CoreReadiness> =
             Arc::new(SingBoxControllerReadiness::new(controller, http)?);
-        let codec: Arc<dyn ProfileDocumentCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
+        let codec: Arc<dyn ProfileConfigurationCodecPort> = Arc::new(SingBoxProfileDocumentCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(codec.scope()),
         ));
@@ -257,8 +257,8 @@ impl EngineBackendProvider for SingBoxEngineBackendProvider {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use infiltrator_contract::capability::Capability;
     use infiltrator_ports::core_scope::CoreScopeObservation;
+    use lurker_core_contract::capability::Capability;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
     };

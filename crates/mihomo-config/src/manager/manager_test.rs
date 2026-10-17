@@ -14,10 +14,10 @@ mod tests {
     };
     use infiltrator_contract::profile_document_identity::ProfileId;
     use infiltrator_ports::endpoint::EndpointSource;
-    #[cfg(test)]
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::profile_store::ProfileStore;
     use infiltrator_ports::secure_store::SecureStore;
+    #[cfg(test)]
+    use lurker_core_ports::error::PortError;
     use std::collections::HashMap;
     use std::path::PathBuf;
     #[cfg(test)]

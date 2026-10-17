@@ -35,7 +35,7 @@ use infiltrator_contract::dns_leak::{
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::header::{ACCEPT, CONTENT_TYPE};
 use infiltrator_ports::dns_leak::DnsLeakEchoPort;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::fs::read_to_string;
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};

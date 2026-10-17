@@ -17,10 +17,10 @@ use infiltrator_domain::subscription::{
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::Response;
 use infiltrator_http::reqwest::header::HeaderMap;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
+use lurker_core_ports::error::PortError;
 
 /// 订阅本质上是配置文件；上限只为拦截把下载接口当无限代理用的滥用。
 const MAX_SUBSCRIPTION_BYTES: usize = 32 * 1024 * 1024;

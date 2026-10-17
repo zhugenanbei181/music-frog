@@ -20,7 +20,6 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
@@ -32,6 +31,7 @@ use infiltrator_ports::profile_workspace::{
 };
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 
 struct ActiveWorkspaceWriteGuards {
     _root: ThreadedInstanceLockGuard,

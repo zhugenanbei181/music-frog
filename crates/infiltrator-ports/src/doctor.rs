@@ -1,10 +1,10 @@
 //! Host-provided diagnostics and bootstrap port.
 
-use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::doctor::{
     BootstrapReport, DoctorCheckMeta, DoctorFixReport, DoctorReport,
 };
+use lurker_core_ports::error::PortError;
 
 #[async_trait]
 pub trait DoctorPort: Send + Sync {

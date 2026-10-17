@@ -4,9 +4,10 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use iced::Task;
 use infiltrator_contract::core_control::CoreControlAction;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 impl AppState {
     pub(super) fn submit_shared_core_control(

@@ -22,15 +22,16 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::capability::{Availability, Capability};
+use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::core_control::{
     CoreControlAction, CoreControlLabel, CoreControlProjection,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_presentation::core_control_projection::project_core_control;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlButton;

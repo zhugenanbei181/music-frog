@@ -32,7 +32,7 @@ mod tests {
     use infiltrator_contract::offline_startup::{
         LocalAssetStatus, OfflineStartupState, StartupRemoteDependency,
     };
-    use infiltrator_ports::error::PortError;
+    use lurker_core_ports::error::PortError;
 
     struct ReadyPort;
 

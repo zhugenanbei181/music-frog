@@ -2,10 +2,10 @@
 
 use crate::uwp_loopback::{clear_all, exempt_all, set_loopback_exempt, try_list_app_containers};
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::uwp::UwpPackageSnapshot;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::uwp_loopback::UwpLoopbackPort;
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DesktopUwpLoopbackPort;

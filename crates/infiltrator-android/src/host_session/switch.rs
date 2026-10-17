@@ -44,11 +44,11 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreOwnerTerminationPort;
-use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
+use lurker_core_ports::core_process::CoreReadiness;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;

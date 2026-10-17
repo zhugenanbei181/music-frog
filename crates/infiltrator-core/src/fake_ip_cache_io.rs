@@ -2,8 +2,8 @@
 
 use crate::settings_io::app_config_manager;
 use anyhow::Context;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use lurker_core_ports::error::PortError;
 use tokio::fs::{remove_file, try_exists};
 
 pub struct FileFakeIpCache;

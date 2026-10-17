@@ -8,9 +8,10 @@ use infiltrator_contract::profile_configuration::{
 };
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
-    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
 };
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 
 #[test]
 fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {

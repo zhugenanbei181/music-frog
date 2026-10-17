@@ -10,18 +10,18 @@ use crate::workspace::{
     validate_workspace_identity, workspace_from_bytes,
 };
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_domain::profile_options::options_path;
 use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_ports::error::PortError;
 use std::io::{self, ErrorKind};
 use tokio::fs;
 

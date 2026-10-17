@@ -8,14 +8,11 @@ use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_composition::spawn_core_watchdog;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
-use infiltrator_contract::capability::{
-    Availability, Capability, CapabilitySnapshot, CapabilityStatus,
-};
+use infiltrator_contract::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::connection::{ConnectionPort, UnsupportedConnectionPort};
@@ -23,7 +20,6 @@ use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_scope::CoreScopeSource;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::resources::{CoreResourcePort, UnsupportedCoreResourcePort};
@@ -32,7 +28,10 @@ use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::error::PortError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;

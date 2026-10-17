@@ -1,12 +1,14 @@
-//! Engine/format/schema-scoped inspection for opaque profile document bytes.
+//! Engine/format/schema-scoped typed profile configuration operations.
+//!
+//! The neutral inspection trait (`scope`/`inspect`/`insert_snippet`) lives in
+//! `lurker-core-ports`. This product extension adds typed configuration,
+//! workspace, mixin and subscription-filter operations that depend on
+//! product-owned contract types.
 
-use crate::error::PortError;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::DnsHostEntry;
-use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinStudioObservation, ProfileMixinToggleId,
@@ -19,15 +21,13 @@ use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::subscription_filter_result::FilterReport;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
-use lurker_core_contract::identity::EngineId;
+use lurker_core_contract::capability::Capability;
+use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use lurker_core_ports::error::PortError;
+use lurker_core_ports::profile_document_codec::{
+    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+};
 use std::collections::BTreeMap;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileDocumentCodecScope {
-    pub engine_id: EngineId,
-    pub format_id: ProfileFormatId,
-    pub schema_version: ProfileSchemaVersion,
-}
 
 /// Sidecar schema owned by the same engine/format adapter as its profile
 /// document codec.
@@ -171,41 +171,11 @@ pub struct ProfileRuleWorkspaceMutation {
     pub readback: ProfileRuleWorkspaceProjection,
 }
 
-/// Character-based caret used by format adapters that support editor snippets.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ProfileDocumentCaret {
-    /// One-based line number.
-    pub line: usize,
-    /// Zero-based character column.
-    pub column: usize,
-}
-
-/// Format-neutral result of a successful editor snippet splice.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileDocumentSnippetInsertion {
-    pub snippet_id: String,
-    pub content: String,
-    pub cursor_line: usize,
-    pub cursor_column: usize,
-    pub validation: DocumentValidation,
-}
-
-/// A splice may be applied to an already-invalid document, but a splice that
-/// makes a valid document invalid is rejected with neutral diagnostics.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProfileDocumentSnippetOutcome {
-    Inserted(ProfileDocumentSnippetInsertion),
-    Rejected { validation: DocumentValidation },
-}
-
-/// Pure format inspection for exact document bytes. Implementations must not
-/// read or write the profile store or contact a running core.
-pub trait ProfileDocumentCodecPort: Send + Sync {
-    /// Return immutable adapter identity without performing I/O.
-    fn scope(&self) -> ProfileDocumentCodecScope;
-    /// Inspect the supplied bytes without mutating them or invoking runtime work.
-    fn inspect(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, PortError>;
-
+/// Typed product-level extensions of the neutral document inspection port.
+///
+/// Implementations must not read or write the profile store or contact a
+/// running core: they transform bytes and return adapter-authored readback.
+pub trait ProfileConfigurationCodecPort: ProfileDocumentCodecPort {
     /// Decode one typed configuration view from opaque document bytes.
     fn read_configuration(
         &self,
@@ -257,20 +227,6 @@ pub trait ProfileDocumentCodecPort: Send + Sync {
         Err(PortError::unsupported(
             Capability::Profiles,
             "engine-scoped rule workspace update",
-        ))
-    }
-
-    /// Insert one adapter-owned editor snippet without touching profile
-    /// storage or runtime state. Formats without snippet support fail closed.
-    fn insert_snippet(
-        &self,
-        _content: &str,
-        _snippet_id: &str,
-        _caret: ProfileDocumentCaret,
-    ) -> Result<ProfileDocumentSnippetOutcome, PortError> {
-        Err(PortError::unsupported(
-            Capability::Profiles,
-            "profile editor snippets",
         ))
     }
 

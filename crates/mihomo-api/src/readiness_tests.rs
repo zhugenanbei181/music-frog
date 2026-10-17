@@ -1,5 +1,5 @@
 use super::readiness::ControllerReadiness;
-use infiltrator_ports::core_process::CoreReadiness;
+use lurker_core_ports::core_process::CoreReadiness;
 use mockito::Server;
 
 #[tokio::test]

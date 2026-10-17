@@ -8,11 +8,11 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_test_support::dns_leak_fixtures::IsolatedEcho;
 use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

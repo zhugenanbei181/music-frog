@@ -10,10 +10,10 @@ use infiltrator_contract::profile_catalog_order::{
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
+use lurker_core_ports::error::PortError;
 use std::collections::{BTreeMap, HashSet};
 
 pub(crate) fn apply_catalog_order(

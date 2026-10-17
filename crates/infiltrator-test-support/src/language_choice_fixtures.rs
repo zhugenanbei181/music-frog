@@ -1,12 +1,12 @@
 //! Isolated capture persistence: real settings commands, no operator files or processes.
 use async_trait::async_trait;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::settings_store::SettingsStore;
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};
+use lurker_core_ports::error::PortError;
 use std::sync::Mutex;
 
 #[derive(Default)]

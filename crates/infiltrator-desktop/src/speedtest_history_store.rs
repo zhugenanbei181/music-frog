@@ -2,8 +2,8 @@
 
 use infiltrator_contract::speedtest::{HistoricalSpeedtestRecord, SpeedtestRunId};
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
+use lurker_core_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::PathBuf;

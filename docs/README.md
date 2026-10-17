@@ -26,6 +26,7 @@
 - Bevy desktop host：[infiltrator-bevy-desktop-host](../crates/infiltrator-bevy-desktop-host/README.md)。
 - Slint：[infiltrator-slint/docs/README.md](../crates/infiltrator-slint/docs/README.md)。
 - 双端共享 UI 契约：[infiltrator-contract/docs/README.md](../crates/infiltrator-contract/docs/README.md)。
+- 引擎/平台/UI 中性核心层：[lurker-core-contract](../crates/lurker-core-contract/Cargo.toml)、[lurker-core-ports](../crates/lurker-core-ports/Cargo.toml)。
 - 跨表面纯呈现投影：[infiltrator-presentation/README.md](../crates/infiltrator-presentation/README.md)。
 - Android：[android/docs/README.md](../android/docs/README.md)。
 - Mihomo adapters：[mihomo-api/docs/README.md](../crates/mihomo-api/docs/README.md)、[mihomo-config](../crates/mihomo-config/README.md)、[mihomo-process](../crates/mihomo-process/README.md)、[mihomo-version](../crates/mihomo-version/README.md)。

@@ -180,11 +180,11 @@ mod tests {
         RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayload,
         RuleProviderPayloadSnapshot, RuleProviderRefreshReceipt, RuleProviderRevision,
     };
-    use infiltrator_ports::error::PortError;
     use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
+    use lurker_core_ports::error::PortError;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

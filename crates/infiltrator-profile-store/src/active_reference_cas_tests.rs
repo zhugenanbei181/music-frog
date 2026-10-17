@@ -6,9 +6,9 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceTarget,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_ports::error::PortError;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_ports::error::PortError;
 
 fn unselected(revision: u64) -> ActiveProfileReferenceState {
     ActiveProfileReferenceState::Unselected {

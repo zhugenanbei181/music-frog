@@ -11,7 +11,6 @@
 //! untouched.
 
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint, RuleProviderCacheSnapshot,
 };
@@ -20,10 +19,11 @@ use infiltrator_domain::rules::provider_store::{
     provider_source_candidates,
 };
 use infiltrator_domain::snapshots::content_hash;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};

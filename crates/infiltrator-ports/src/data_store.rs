@@ -1,5 +1,5 @@
-use crate::error::PortError;
 use async_trait::async_trait;
+use lurker_core_ports::error::PortError;
 
 /// Byte-oriented persistence port. Serialization policy belongs to the
 /// application/domain layer; filesystem/database details stay in adapters.

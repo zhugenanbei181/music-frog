@@ -37,12 +37,12 @@ use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperat
 use infiltrator_contract::log_export::{LogExportArtifact, LogExportReceipt};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use lurker_core_contract::error::ErrorCode;
+use lurker_core_ports::error::PortError;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;

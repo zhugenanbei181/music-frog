@@ -11,7 +11,6 @@ use infiltrator_contract::android_control::{
     AndroidOwnedCoreProcess,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
@@ -20,12 +19,13 @@ use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
 use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::session::SessionToken;
+use lurker_core_ports::error::PortError;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

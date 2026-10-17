@@ -5,7 +5,7 @@ use infiltrator_contract::doctor::{
     DoctorStatus,
 };
 use infiltrator_ports::doctor::DoctorPort;
-use infiltrator_ports::error::PortError;
+use lurker_core_ports::error::PortError;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 #[derive(Default)]
 pub struct DiagnosticPort {

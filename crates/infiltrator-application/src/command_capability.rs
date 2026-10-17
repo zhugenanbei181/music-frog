@@ -1,7 +1,6 @@
 //! Exhaustive classification of product commands before command dispatch.
 
 use crate::core_capability_application::{CoreCapabilityRequirement, CoreCommandEffect};
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
@@ -10,6 +9,7 @@ use infiltrator_contract::core_capabilities::{
     SubscriptionOperation, TunOperation, VersionOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandOutcome;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 

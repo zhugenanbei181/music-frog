@@ -1,13 +1,13 @@
 //! Narrow, scope-bound observations and writes for live core configuration.
 
-use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::rules::RuleEntry;
+use lurker_core_contract::capability::Capability;
 use lurker_core_contract::identity::CoreScope;
+use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
 /// Adapter-authored revision for the exact configuration feature observed.

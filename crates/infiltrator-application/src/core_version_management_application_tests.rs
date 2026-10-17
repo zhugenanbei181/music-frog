@@ -1,6 +1,5 @@
 use super::*;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::version::{
     CoreRelease, CoreReleaseSummary, EngineNeutralReleaseChannel, EngineReleaseChannel,
     InstalledCoreVersion,
@@ -10,11 +9,12 @@ use infiltrator_ports::application_runtime::{
     ApplicationTaskId,
 };
 use infiltrator_ports::core_binary_selection::CoreBinarySelectionPort;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionRollbackRequest,
     VersionUninstallRequest,
 };
+use lurker_core_contract::capability::Capability;
+use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};

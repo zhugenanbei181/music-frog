@@ -1,9 +1,9 @@
 //! Shared lifecycle and source copy; native products replay the same observed facts.
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 
 pub fn lifecycle_copy(lifecycle: &CoreLifecycle, language: &str) -> String {
     let key = match lifecycle {

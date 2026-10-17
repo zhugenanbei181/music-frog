@@ -3,9 +3,10 @@ use infiltrator_contract::logs::{
     LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
     LogStreamState, RawLogRecord,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 

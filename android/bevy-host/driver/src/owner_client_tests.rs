@@ -3,11 +3,12 @@ use infiltrator_contract::android_control::{
     AndroidProductControlIntent, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
     VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot};
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::vpn::{VpnGeneration, VpnOwnerStopReceipt};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::sync::atomic::AtomicBool;
 
