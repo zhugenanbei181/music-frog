@@ -1,0 +1,9 @@
+[package]
+name = "singbox-driver"
+version.workspace = true
+edition = "2024"
+description = "Engine driver for the sing-box core: control API, configuration codec and process supervision."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/zhugenanbei181/music-frog"
+
+[dependencies]

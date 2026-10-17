@@ -7871,6 +7871,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mihomo-driver"
+version = "0.42.6"
+
+[[package]]
 name = "mihomo-process"
 version = "0.1.0"
 dependencies = [
@@ -10758,6 +10762,10 @@ dependencies = [
  "tempfile",
  "tokio",
 ]
+
+[[package]]
+name = "singbox-driver"
+version = "0.42.6"
 
 [[package]]
 name = "singbox-process"
