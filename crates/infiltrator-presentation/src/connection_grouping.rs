@@ -1,6 +1,5 @@
 //! One cached grouping fold for native peers; renderers only replay its rows.
-use crate::connection_search::project_search_row;
-use infiltrator_contract::connection_search::ConnectionSearchRow;
+use crate::connection_search::{ConnectionSearchRow, project_search_row};
 use infiltrator_domain::connection_view::{
     self, ConnectionGroupingMode, ConnectionSortKey, ConnectionView,
 };

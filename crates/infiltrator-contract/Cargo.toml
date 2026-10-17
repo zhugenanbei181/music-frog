@@ -6,7 +6,6 @@ publish = false
 description = "Stable cross-surface commands, snapshots, events, capabilities, and failures."
 
 [dependencies]
-zhuge-ui-core.workspace = true
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -6552,7 +6552,6 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
- "zhuge-ui-core",
 ]
 
 [[package]]

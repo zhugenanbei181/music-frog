@@ -1,8 +1,19 @@
 //! One match and text presentation fold for live and projected connection facts.
-use infiltrator_contract::connection_search::ConnectionSearchRow;
 use infiltrator_domain::connection_view::display_endpoint;
 use infiltrator_domain::connection_view::{self, ConnectionView};
-use zhuge_ui_core::text::{CaseSensitivity, project_text_runs};
+use zhuge_ui_core::text::{CaseSensitivity, SearchTextRun, project_text_runs};
+
+/// Immutable search decision and highlighted original text for one connection row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConnectionSearchRow {
+    pub visible: bool,
+    pub endpoint: Vec<SearchTextRun>,
+    pub process_name: Vec<SearchTextRun>,
+    pub process_rule: Vec<SearchTextRun>,
+    /// Original matching observation, including metadata absent from the normal headline.
+    pub matched_term: Vec<SearchTextRun>,
+}
+
 pub fn project_search_row<C: ConnectionView>(row: &C, query: &str) -> ConnectionSearchRow {
     let query = query.trim();
     let endpoint = display_endpoint(

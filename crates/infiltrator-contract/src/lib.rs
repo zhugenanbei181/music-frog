@@ -18,7 +18,6 @@ pub mod command;
 pub mod command_catalogue;
 pub mod command_output;
 pub mod connection;
-pub mod connection_search;
 pub mod controller;
 pub mod core_capabilities;
 pub mod core_control;
