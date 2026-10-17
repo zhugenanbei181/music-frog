@@ -29,6 +29,7 @@ script-engine-boa = ["infiltrator-application/script-engine-boa"]
 capture-tools = ["infiltrator-composition/capture-fixtures", "dep:infiltrator-test-support"]
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 zhuge-ui-tokens.workspace = true
 zhuge-ui-kit-iced.workspace = true
 zhuge-ui-core.workspace = true

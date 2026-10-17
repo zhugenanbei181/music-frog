@@ -6,7 +6,6 @@ use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_domain::settings::AppSettings;
@@ -15,6 +14,7 @@ use infiltrator_ports::runtime_configuration::{
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use lurker_core_contract::session::SessionToken;
 
 fn known_readout() -> RuntimeConfigurationReadout {
     let scope = CoreScope {

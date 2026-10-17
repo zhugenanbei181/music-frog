@@ -6,6 +6,7 @@ publish = false
 description = "Runtime- and UI-independent domain state and algorithms for MusicFrog Infiltrator."
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 base64 = "0.22"
 chrono = { workspace = true }

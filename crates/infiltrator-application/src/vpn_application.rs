@@ -151,12 +151,12 @@ mod tests {
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
-    use infiltrator_contract::session::SessionToken;
     use infiltrator_contract::vpn::{
         PreparedVpnConfiguration, VpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute,
         VpnSessionState, VpnStartRequest,
     };
     use infiltrator_ports::error::PortError;
+    use lurker_core_contract::session::SessionToken;
     #[cfg(test)]
     use std::sync;
 

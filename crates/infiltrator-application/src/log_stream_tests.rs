@@ -6,13 +6,13 @@ use futures_util::stream::{BoxStream, iter, pending};
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreScope, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::{LogObservationSnapshot, LogSession, LogStreamState};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
 };
+use lurker_core_contract::session::SessionToken;
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};

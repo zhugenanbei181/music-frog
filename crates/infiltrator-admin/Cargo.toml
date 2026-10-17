@@ -4,6 +4,7 @@ version.workspace = true
 edition = "2024"
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }

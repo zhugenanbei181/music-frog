@@ -273,9 +273,9 @@ mod tests {
     use infiltrator_contract::privileged_network::{
         PrivilegedNetworkSnapshot, PrivilegedNetworkState,
     };
-    use infiltrator_contract::session::SessionToken;
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
+    use lurker_core_contract::session::SessionToken;
 
     #[test]
     fn host_lifecycle_facts_keep_unknown_mtu_errors_and_inflight_actions_distinct() {

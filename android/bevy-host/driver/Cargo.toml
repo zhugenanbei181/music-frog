@@ -22,6 +22,7 @@ crate-type = ["cdylib"]
 # state and commands are obtained through the typed :vpn IPC client.
 infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui", default-features = false }
 infiltrator-contract = { path = "../../../crates/infiltrator-contract" }
+lurker-core-contract = { path = "../../../crates/lurker-core-contract" }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 

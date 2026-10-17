@@ -32,7 +32,6 @@ use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::rule_provider_runtime::RuleProviderId;
 use infiltrator_contract::rule_provider_runtime::RuleProviderRevision;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
@@ -40,6 +39,7 @@ use infiltrator_ports::core_capability_provider::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
+use lurker_core_contract::session::SessionToken;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

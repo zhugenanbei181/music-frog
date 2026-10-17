@@ -79,7 +79,7 @@ fn core_scope(instance: &str, generation: u64, token: Option<u128>) -> CoreScope
             None,
         ),
         generation: CoreGeneration::new(generation),
-        session_token: token.map(infiltrator_contract::session::SessionToken::new),
+        session_token: token.map(lurker_core_contract::session::SessionToken::new),
     }
 }
 

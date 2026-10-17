@@ -33,7 +33,6 @@ use infiltrator_contract::offline_startup::StartupNetworkPolicy;
 #[cfg(test)]
 use infiltrator_contract::offline_startup::StartupRemoteDependency;
 use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::vpn::VpnGeneration;
@@ -44,6 +43,7 @@ use infiltrator_contract::vpn::{
 use infiltrator_platform::android_bridge::AndroidBridgeResult;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcessStartAdmission, CoreReadiness};
+use lurker_core_contract::session::SessionToken;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use std::collections::HashMap;
 use std::sync::Mutex;

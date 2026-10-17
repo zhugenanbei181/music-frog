@@ -13,7 +13,6 @@ use infiltrator_contract::profile_document_identity::{
     ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
@@ -24,6 +23,7 @@ use infiltrator_ports::profile_store::{
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspacePurpose;
 use infiltrator_ports::profile_workspace::ProfileWorkspaceUpdate;
+use lurker_core_contract::session::SessionToken;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::collections::VecDeque;
 use std::fs;

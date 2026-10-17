@@ -78,10 +78,10 @@ mod tests {
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
-    use infiltrator_contract::session::SessionToken;
     use infiltrator_contract::vpn::{
         PreparedVpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute, VpnStartRequest,
     };
+    use lurker_core_contract::session::SessionToken;
 
     fn request() -> VpnStartRequest {
         VpnStartRequest {

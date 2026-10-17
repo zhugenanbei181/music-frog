@@ -5,8 +5,8 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::log_export::{LogExportReceipt, LogExportSummary};
 use infiltrator_contract::logs::LogSession;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::log_export::prepare_log_export;
+use lurker_core_contract::session::SessionToken;
 
 fn summary() -> LogExportSummary {
     prepare_log_export(

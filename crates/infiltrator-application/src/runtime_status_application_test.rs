@@ -12,12 +12,12 @@ use infiltrator_contract::runtime_status::{
     ControllerApiObservation, CoreProcessObservation, ProxyEffectivenessObservation,
     ProxyReadinessBlocker, TunDataPlaneObservation, VpnAuthorizationObservation,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStatus};
 use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
+use lurker_core_contract::session::SessionToken;
 
 fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
     CoreSnapshot {

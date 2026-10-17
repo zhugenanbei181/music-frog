@@ -27,7 +27,6 @@ use infiltrator_contract::profile_document_identity::{
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::routing_intent::RoutingIntent;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
@@ -43,6 +42,7 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use lurker_core_contract::session::SessionToken;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -3,7 +3,7 @@ use super::prepare_log_export;
 use crate::profile_source::hash_document_bytes;
 use crate::redact::redact_line;
 use infiltrator_contract::logs::LogSession;
-use infiltrator_contract::session::SessionToken;
+use lurker_core_contract::session::SessionToken;
 
 #[test]
 fn export_preserves_record_order_and_utf8_bytes_while_removing_structural_and_short_known_secrets()

@@ -115,7 +115,6 @@ pub mod script_run;
 pub mod script_sandbox;
 pub mod script_sandbox_matrix;
 pub mod service_mode;
-pub mod session;
 pub mod shell_gesture;
 pub mod shell_readout;
 pub mod shortcuts;

@@ -6,6 +6,7 @@ publish = false
 description = "Pure cross-surface read-model projections and presentation folds."
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 chrono = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }

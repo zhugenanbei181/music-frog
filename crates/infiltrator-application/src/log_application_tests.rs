@@ -13,9 +13,9 @@ use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogObservationSnapshot, LogSession, LogStreamState,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use lurker_core_contract::session::SessionToken;
 
 fn bind(logs: &LogApplication, session: LogSession) {
     assert_eq!(

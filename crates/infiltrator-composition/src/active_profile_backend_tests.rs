@@ -26,7 +26,6 @@ use infiltrator_contract::profile_document_identity::{
     ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
@@ -56,6 +55,7 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
+use lurker_core_contract::session::SessionToken;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

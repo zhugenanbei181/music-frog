@@ -1,7 +1,7 @@
 //! Engine-neutral identity and fencing types for a single active core.
 
 use crate::command::{CommandIntent, CommandResult};
-use crate::session::SessionToken;
+use lurker_core_contract::session::SessionToken;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;

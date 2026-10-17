@@ -7,9 +7,9 @@ use infiltrator_contract::logs::{
     LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
     LogStreamState, RawLogRecord,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::session::SessionToken;
 use std::iter::empty;
 
 fn session(generation: u64, token: u128) -> LogSession {

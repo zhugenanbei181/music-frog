@@ -3134,6 +3134,7 @@ dependencies = [
  "infiltrator-bevy-ui",
  "infiltrator-contract",
  "jni",
+ "lurker-core-contract",
  "serde",
  "serde_json",
 ]
@@ -3151,6 +3152,7 @@ dependencies = [
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-shared",
+ "lurker-core-contract",
  "serde",
  "serde_json",
  "zhuge-ui-core",
@@ -3174,10 +3176,10 @@ name = "infiltrator-contract"
 version = "0.42.4"
 dependencies = [
  "anyhow",
+ "lurker-core-contract",
  "serde",
  "serde_json",
  "url",
- "zhuge-ui-core",
 ]
 
 [[package]]
@@ -3190,6 +3192,7 @@ dependencies = [
  "flate2",
  "infiltrator-contract",
  "ipnet",
+ "lurker-core-contract",
  "md5",
  "regex",
  "ring",
@@ -3212,6 +3215,7 @@ dependencies = [
  "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
+ "lurker-core-contract",
  "serde_json",
  "url",
 ]
@@ -3224,6 +3228,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-shared",
+ "lurker-core-contract",
  "regex",
  "serde_json",
  "serde_yaml_ng",
@@ -3570,6 +3575,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d3a9855747c17eaf4383823f135220716ab49bea5fbea7dd42cc9a92f8aa31"
 dependencies = [
  "logos-codegen",
+]
+
+[[package]]
+name = "lurker-core-contract"
+version = "0.42.4"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

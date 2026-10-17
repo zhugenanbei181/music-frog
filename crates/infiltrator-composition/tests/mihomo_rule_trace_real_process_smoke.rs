@@ -16,7 +16,6 @@ use infiltrator_contract::rule_trace_run::{
 use infiltrator_contract::rule_tracer::{
     RuleTraceOutboundResolution, RuleTraceRuntimeMode, RuleTracerStatus, TrafficContextSnapshot,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
@@ -24,6 +23,7 @@ use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::session::SessionToken;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_config::manager::ConfigManager;

@@ -17,7 +17,6 @@ use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVers
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{ConfigReloader, EndpointConfigReloader};
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
@@ -42,6 +41,7 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use lurker_core_contract::session::SessionToken;
 use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;

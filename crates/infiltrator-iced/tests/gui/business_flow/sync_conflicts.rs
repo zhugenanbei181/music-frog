@@ -33,7 +33,6 @@ use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
@@ -44,6 +43,7 @@ use infiltrator_ports::runtime_configuration::{
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use lurker_core_contract::session::SessionToken;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::write;
 use std::net::SocketAddr;

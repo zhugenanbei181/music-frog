@@ -22,12 +22,12 @@ use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use lurker_core_contract::session::SessionToken;
 use std::sync::Arc;
 
 fn tun_readout() -> RuntimeConfigurationReadout {

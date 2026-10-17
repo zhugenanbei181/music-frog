@@ -29,7 +29,6 @@ use infiltrator_contract::error::Failure;
 use infiltrator_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::version::{
     CoreRelease, CoreReleaseSummary, EngineReleaseChannel, InstalledCoreVersion,
 };
@@ -43,6 +42,7 @@ use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
 };
+use lurker_core_contract::session::SessionToken;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::outbound::MihomoOutboundAdapter;

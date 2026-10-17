@@ -2,8 +2,8 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
+use lurker_core_contract::session::SessionToken;
 
 /// Result of one bounded watchdog poll.
 #[derive(Clone, Debug, PartialEq, Eq)]

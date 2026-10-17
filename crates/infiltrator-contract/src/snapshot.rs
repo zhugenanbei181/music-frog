@@ -2,7 +2,7 @@ use crate::command::{CommandKind, RequestId};
 use crate::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
 use crate::error::Failure;
 use crate::routing_intent::RoutingIntentSnapshot;
-use crate::session::SessionToken;
+use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
 /// Stable lifecycle vocabulary for REST, UI projection, and FFI.
@@ -99,7 +99,7 @@ impl CoreLifecycleSnapshot {
 }
 
 mod core_lifecycle_session_token_wire {
-    use crate::session::SessionToken;
+    use lurker_core_contract::session::SessionToken;
     use serde::de::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

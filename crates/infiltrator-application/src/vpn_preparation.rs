@@ -368,8 +368,8 @@ mod tests {
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
-    use infiltrator_contract::session::SessionToken;
     use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute};
+    use lurker_core_contract::session::SessionToken;
 
     fn core_scope(session: u128) -> CoreScope {
         CoreScope {

@@ -1,7 +1,7 @@
 //! Observed shell facts; unavailable observations never become believable defaults.
 use crate::error::Failure;
 use crate::mini_hud::MiniHudWaveformStrip;
-use crate::session::SessionToken;
+use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

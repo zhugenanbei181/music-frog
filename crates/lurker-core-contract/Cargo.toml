@@ -1,0 +1,11 @@
+[package]
+name = "lurker-core-contract"
+version.workspace = true
+edition = "2024"
+description = "Engine-neutral proxy core contract: identity, lifecycle, outbound, routing intent and typed failure."
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

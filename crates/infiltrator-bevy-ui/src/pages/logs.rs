@@ -48,8 +48,8 @@ use infiltrator_bevy_widgets::theme::space;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_contract::fixture_identities::{HK_PRIMARY, PROXIES, US};
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::session::SessionToken;
 
 /// Root marker on the Logs page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]

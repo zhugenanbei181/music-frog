@@ -6,6 +6,7 @@ publish = false
 description = "Engine-neutral fake ports and deterministic fixtures for MusicFrog tests and captures."
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }

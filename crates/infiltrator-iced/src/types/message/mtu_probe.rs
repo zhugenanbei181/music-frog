@@ -1,5 +1,5 @@
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
-use infiltrator_contract::session::SessionToken;
+use lurker_core_contract::session::SessionToken;
 
 #[derive(Clone)]
 pub struct MtuProbeCompletion {

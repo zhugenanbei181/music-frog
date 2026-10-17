@@ -6,8 +6,8 @@
 //! future native surface without selecting an executor.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
+use lurker_core_contract::session::SessionToken;
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
 use std::{error, fmt};

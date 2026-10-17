@@ -34,7 +34,6 @@ use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot}
 use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
 use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface_snapshot::PageData;
@@ -55,6 +54,7 @@ use infiltrator_presentation::protocol_form::ProtocolInputs;
 use infiltrator_presentation::proxy_group_order_editor::ProxyGroupOrderEditor;
 use infiltrator_presentation::routing_intent_actions::RoutingIntentActions;
 use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsEditor;
+use lurker_core_contract::session::SessionToken;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;

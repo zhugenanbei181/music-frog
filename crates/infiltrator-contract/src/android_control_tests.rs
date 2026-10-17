@@ -15,9 +15,9 @@ use crate::core_identity::{
 };
 use crate::core_process::CoreProcessStartContext;
 use crate::error::{ErrorCode, Failure, FailureReason};
-use crate::session::SessionToken;
 use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use crate::vpn::VpnGeneration;
+use lurker_core_contract::session::SessionToken;
 
 #[test]
 fn android_lifecycle_snapshot_uses_decimal_text_for_full_width_session_tokens() {

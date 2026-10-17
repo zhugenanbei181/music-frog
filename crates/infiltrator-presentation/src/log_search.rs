@@ -1,8 +1,8 @@
 //! Shared regex compilation, filtering, highlight spans and source availability.
 use crate::log_follow::LogFollowState;
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
+use lurker_core_contract::session::SessionToken;
 use regex::{Regex, RegexBuilder};
 use zhuge_ui_core::text::SearchTextRun;
 use zhuge_ui_core::text::project_match_ranges;

@@ -306,7 +306,6 @@ mod tests {
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
         NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
     };
-    use infiltrator_contract::session::SessionToken;
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_configuration::TunConfigurationUpdate;
@@ -314,6 +313,7 @@ mod tests {
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
         RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
     };
+    use lurker_core_contract::session::SessionToken;
     #[cfg(test)]
     use std::sync;
     use std::sync::atomic::{AtomicUsize, Ordering};

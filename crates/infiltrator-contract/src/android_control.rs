@@ -10,9 +10,9 @@ use crate::command::CommandIntent;
 use crate::core_identity::{CoreCommandOutcome, CoreGeneration, CoreIdentity, CoreScope};
 use crate::core_process::CoreProcessStartContext;
 use crate::error::{ErrorCode, Failure};
-use crate::session::SessionToken;
 use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use crate::vpn::{VpnGeneration, VpnOwnerStopReceipt};
+use lurker_core_contract::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
 /// Process role reported by the Android host bridge.
@@ -160,7 +160,7 @@ impl From<CoreLifecycleSnapshot> for AndroidCoreLifecycleSnapshot {
 }
 
 mod session_token_wire {
-    use crate::session::SessionToken;
+    use lurker_core_contract::session::SessionToken;
     use serde::de::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

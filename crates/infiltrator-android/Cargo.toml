@@ -15,6 +15,7 @@ default = []
 slint-ui = ["dep:infiltrator-slint", "dep:slint"]
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }

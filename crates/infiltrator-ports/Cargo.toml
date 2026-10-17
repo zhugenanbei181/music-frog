@@ -6,6 +6,7 @@ publish = false
 description = "Runtime-neutral outbound ports for MusicFrog Infiltrator application services."
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }

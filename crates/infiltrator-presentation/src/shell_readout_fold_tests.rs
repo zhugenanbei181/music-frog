@@ -11,12 +11,12 @@ use infiltrator_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
     OutboundSelectionState, SelectionAvailability,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     PageId, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
 };
+use lurker_core_contract::session::SessionToken;
 use serde_json::{from_value, json};
 
 fn snapshot() -> SurfaceSnapshot {

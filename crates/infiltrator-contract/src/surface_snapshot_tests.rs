@@ -24,10 +24,10 @@ use crate::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceOwnerObservation,
 };
 use crate::runtime_status::{CoreProcessObservation, ProxyEffectivenessObservation};
-#[cfg(test)]
-use crate::session::SessionToken;
 use crate::snapshot::CoreLifecycleSnapshot;
 use crate::vpn::VpnGeneration;
+#[cfg(test)]
+use lurker_core_contract::session::SessionToken;
 
 #[test]
 fn page_vocabulary_has_exactly_eleven_entries() {

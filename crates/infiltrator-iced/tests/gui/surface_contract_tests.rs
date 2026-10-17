@@ -22,7 +22,6 @@ use infiltrator_contract::resources::{
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -37,6 +36,7 @@ use infiltrator_ports::application_runtime::{
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::surface::SurfaceReader;
+use lurker_core_contract::session::SessionToken;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};

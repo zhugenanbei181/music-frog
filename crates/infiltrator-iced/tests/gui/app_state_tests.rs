@@ -31,7 +31,6 @@ use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::routing_intent::RoutingIntentStatus;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::system_toggle::SystemToggleState;
 use infiltrator_domain::connection_rate::pulse_intensity;
@@ -46,6 +45,7 @@ use infiltrator_ports::runtime_configuration::{
 use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_core_contract::session::SessionToken;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

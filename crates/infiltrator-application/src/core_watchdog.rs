@@ -8,12 +8,12 @@ use super::runtime_projection;
 use super::{CoreApplication, CoreState};
 use crate::core_capability_application::{CoreCapabilityRequirement, CoreCommandEffect};
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_domain::core_state::CoreEvent;
 use infiltrator_domain::watchdog::{WatchdogConfig, WatchdogDecision, WatchdogMachine};
 use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};
 use infiltrator_ports::error::PortError;
+use lurker_core_contract::session::SessionToken;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 

@@ -12,6 +12,7 @@ edition = "2024"
 network-tests = []
 
 [dependencies]
+lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }

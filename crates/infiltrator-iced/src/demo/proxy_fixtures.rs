@@ -29,10 +29,10 @@ use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
+use lurker_core_contract::session::SessionToken;
 
 const GLOBAL: &str = "GLOBAL";
 const DMIT: &str = "DMIT";

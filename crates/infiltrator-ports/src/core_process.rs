@@ -64,7 +64,7 @@ mod tests {
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
     };
-    use infiltrator_contract::session::SessionToken;
+    use lurker_core_contract::session::SessionToken;
 
     #[test]
     fn managed_start_context_uses_the_android_wire_tag_and_exact_fences() {

@@ -1,10 +1,10 @@
 //! Runtime-neutral traffic sampling and cubic Bezier value projection.
 
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::traffic_waveform::{
     TRAFFIC_WAVEFORM_CAPACITY, TrafficSample, TrafficWaveformSnapshot,
 };
+use lurker_core_contract::session::SessionToken;
 use std::collections::VecDeque;
 
 /// Application-owned bounded live sample history. UI toolkits only receive

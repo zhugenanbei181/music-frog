@@ -17,7 +17,6 @@ use infiltrator_contract::core_identity::{
 };
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreEvent, CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::speedtest::{SpeedtestRunId, SpeedtestSnapshot};
 use infiltrator_domain::core_state;
@@ -33,6 +32,7 @@ use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamPort;
+use lurker_core_contract::session::SessionToken;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, SyncSender, sync_channel};

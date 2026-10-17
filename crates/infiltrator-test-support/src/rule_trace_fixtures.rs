@@ -17,7 +17,6 @@ use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOwnerBinding, RuleTraceRequest, ScopedRuleTraceRequest,
 };
-use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
@@ -27,6 +26,7 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use lurker_core_contract::session::SessionToken;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{

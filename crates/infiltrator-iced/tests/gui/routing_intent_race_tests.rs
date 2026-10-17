@@ -8,7 +8,6 @@ use infiltrator_contract::core_identity::{
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntentStatus;
 use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -17,6 +16,7 @@ use infiltrator_ports::runtime_configuration::{
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use lurker_core_contract::session::SessionToken;
 
 fn unreported_runtime_readout() -> RuntimeConfigurationReadout {
     let scope = CoreScope {

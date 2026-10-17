@@ -180,7 +180,6 @@ mod tests {
     };
     #[cfg(test)]
     use infiltrator_contract::pac::PacServiceState;
-    use infiltrator_contract::session::SessionToken;
     #[cfg(test)]
     use infiltrator_domain::rules::RuleEntry;
     use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
@@ -190,6 +189,7 @@ mod tests {
         ConfigurationObservation, ConfigurationRevision, PacRuleReadPort, ProxyPortsConfiguration,
         ProxyPortsReadPort, RuntimeConfigurationPorts,
     };
+    use lurker_core_contract::session::SessionToken;
 
     #[derive(Default)]
     struct FakeService {

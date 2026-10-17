@@ -12,8 +12,8 @@ use crate::pages::logs::{LogEntry, LogsProjection};
 use bevy::ecs::resource::Resource;
 use infiltrator_bevy_widgets::chart::ring_buffer::FixedRingBuffer;
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::session::SessionToken;
 
 /// Maximum number of log entries the UI layer keeps in memory. The shared
 /// charter names a 500-entry ring (BEVY-020); the mounted row topology is
