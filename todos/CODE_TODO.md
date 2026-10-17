@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v206`：当前现在佛 32 pt（15 条）/ 过去佛 49 pt（18 条）/ 未来佛 47 pt（24 条），联合未办结分母 128 pt；已归档交付 631 pt（237 条）；累计 759 pt，严格归档完成率 83.1%。
+- Point 基线 `musicfrog-todo-20261017-v207`：当前现在佛 28 pt（13 条）/ 过去佛 49 pt（18 条）/ 未来佛 47 pt（24 条），联合未办结分母 124 pt；已归档交付 635 pt（239 条）；累计 759 pt，严格归档完成率 83.7%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -52,16 +52,6 @@
 
 ### 5.1 基础契约与中性端口解耦（3条 / 7pt）
 
-- [ ] PUB-001.1 [kind: mechanism] [priority: P1] [points: 2] [owner: contract] [status: InProgress] 抽取零外部重依赖的通用 `lurker-core-contract`
-  - 产物：独立 crate，只收敛 EngineId、CoreLifecycle、Outbound/Group 模型、RoutingIntent、CoreScope 与 typed Failure；剔除全部产品私有字段与 UI 类型。
-  - 前置实测：`infiltrator-contract` 现仅经 `src/connection_search.rs` 依赖 `zhuge-ui-core::text::SearchTextRun`，必须先迁出该耦合，`infiltrator-contract` 改为依赖本 crate（不反向转发）。
-  - 依赖：双后端 Core 契约稳定（已满足）。
-  - 验收：仅 serde/serde_json/url 依赖；`cargo check -p lurker-core-contract` 与 `cargo publish --dry-run` 独立通过；仓库搜索确认零产品私有符号、零 zhuge-ui-core 引用。
-- [ ] PUB-001.2 [kind: mechanism] [priority: P1] [points: 2] [owner: ports] [status: InProgress] 抽取中性端口 `lurker-core-ports`
-  - 产物：独立端口 crate，定义 CoreProcess、CoreReadiness、OutboundPort、RoutingIntentPort 与中性 `ProfileDocumentCodecPort`（scope/inspect/insert_snippet）。
-  - 裁决：typed 配置/工作台/mixin/filter 方法留在产品扩展 Trait `ProfileConfigurationCodecPort: ProfileDocumentCodecPort`，随 PUB-002.2/002.4 的配置模型迁移；本切片只交付引擎面向的中性端口面。
-  - 依赖：PUB-001.1；连带把 `Capability`、`CoreLifecycle`/`CoreLifecycleSnapshot`、`DocumentValidation`、`ProfileFormatId`/`ProfileSchemaVersion` 移入 `lurker-core-contract`。
-  - 验收：纯 Trait，零 Tokio runtime/channel/UI 类型；`cargo package` 通过；多引擎可独立实现；`cargo publish --dry-run` 待 contract 首发布后通过。
 - [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: Planned] 抽象通用 `lurker-profile-store` 与租约并发接口
   - 产物：基于 CAS 与版本租约锁的通用存储/事务接口；剥离产品私有 Age 凭据、`infiltrator-platform` 依赖与硬编码路径。
   - 依赖：PUB-001.1、PUB-001.2。

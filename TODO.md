@@ -57,16 +57,16 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v206`）
+## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v207`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 15 | 32 |
+| 现在佛 | 13 | 28 |
 | 过去佛 | 18 | 49 |
 | 未来佛 | 24 | 47 |
-| **未办结联合分母** | **57** | **128** |
+| **未办结联合分母** | **55** | **124** |
 
-- **严格交付率：631 / 759 = 83.1%**（archived 631pt / archived + 未办结 128pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：635 / 759 = 83.7%**（archived 635pt / archived + 未办结 124pt）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -88,9 +88,11 @@
 - **外部依赖**：`BANDROID-039.1`（release keystore）、`015.2`、`039.2` 需用户提供 secrets；未提供时停留 0.9x 并跳过签名腿，不阻塞其余条目。
 - **不跳档承诺**：`0.43` 的六个中性 crate 是 1.0 的硬前置；`0.44`/`0.5x`/`0.6x` 依次建立发布与模板能力，`0.9x` 才做产品级收口。
 
-### 已归档交付原子条目（明细 236 条 / 630 pt；累计 237 条 / 631 pt）
+### 已归档交付原子条目（明细 238 条 / 634 pt；累计 239 条 / 635 pt）
 | 条目 | pt | 证据身份 |
 | --- | ---: | --- |
+| `PUB-001.1` 中立契约 `lurker-core-contract` | 2 | `cargo publish --dry-run -p lurker-core-contract` 通过（25 文件 / 133.6KiB 打包并校验）；637 个消费文件迁移，无 re-export 中转；中立性门禁证明零产品/UI/OS 私有符号；全量 5082/5082 nextest、`clippy -D warnings`、结构门全绿。 |
+| `PUB-001.2` 中立端口 `lurker-core-ports` 与 codec 拆分 | 2 | 中性 `PortError`/`CoreProcess`/`CoreReadiness`/`OutboundPort`/`RoutingIntentPort`/`ProfileDocumentCodecPort`；`ProfileConfigurationCodecPort` 作产品扩展；连带 `Capability`/`CoreLifecycle`/`DocumentValidation`/`ProfileFormatId` 入中立契约；536 文件迁移；contract 打包通过、ports 打包待 contract 上架（发布顺序门）；5082/5082 nextest 全绿。 |
 | `SLINT-015` Slint 无感截图基础设施与场景矩阵 | 3 | `capture-tools` feature 与 `--demo`/`CAPTURE_READY` marker 接入；`scripts/capture-slint-matrix.sh`、`scripts/capture_slint_scenarios.tsv`（24 个场景）与 `scripts/parity/product_build.py` 接入生效；私有虚拟 Wayland 合成器（KWin + Niri IPC）实现 24/24 全量场景取证通过，manifest 100% 验证。 |
 | `SLINT-016` Slint 测试缺口补齐、Lumen 组件模块化（<=600行）与质量守卫 | 5 | 新增 18 项专项核心测试，49 项测试在 nextest（run ID `f55bd9e2`）中 100% PASS；Lumen 组件树彻底拆分为 22 个独立 `.slint` 模块，全仓手写 Slint 文件无一超标（`lumen-app.slint` 从 3587 行降至 599 行，严格达标 <= 600 行底线）；`slint-syntax-guard.py` 600 行门禁与 `check-structure.sh` 全绿通过。 |
 | `BANDROID-044.3` Kotlin 800 行文件预算 | 1 | 结构检查扫描 Android 219 个手写 .kt 文件，排除生成目录与 infiltrator_android.kt；4 个超预算文件（MihomoVpnService.kt、MihomoControlService.kt、MihomoControlClient.kt、VpnProcessStateTest.kt）沿组件边界拆分完毕；`kt-line-guard.py --mode enforce` 清零；5 项单元测试 100% 全绿；Android 113 项 Gradle 测试全绿。 |
