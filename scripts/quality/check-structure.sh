@@ -23,6 +23,8 @@ python3 scripts/quality/test-layout-guard.py --mode enforce
 python3 scripts/quality/typed-state-guard.py --self-test
 python3 scripts/quality/typed-state-guard.py --mode enforce
 python3 scripts/quality/retired-surface-guard.py
+python3 scripts/quality/lurker-neutrality-guard.py --self-test
+python3 scripts/quality/lurker-neutrality-guard.py
 python3 scripts/quality/android-bevy-driver-dependency-guard.py --self-test
 python3 scripts/quality/android-bevy-driver-dependency-guard.py
 python3 scripts/quality/bevy-desktop-host-boundary-guard.py --self-test
