@@ -27,13 +27,13 @@
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部 `cargo check --locked` 通过；产品层仍只有 x86_64-linux，aarch64 产品包未验证 |
-| 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物） |
-| 3 | 部分 | L | Android 源码级接通，APK 在 v0.42.6 失败且修复未取证，真机 0；iOS `Unsupported`（626 行 stub） |
-| 4 | 部分 | L | Iced/Bevy 深接入；Slint 紧凑接入（约 5k 行含测试，6 组页面回调 + Lumen 投影；无共享 kit，功能验收未完成）；Android 基础页 |
-| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；77/82 presentation 模块仍产品耦合 |
-| 6 | 缺失 | L | Android running runtime operations `Unsupported`；Slint/Bevy 功能验收未完成 |
-| 7 | 部分 | L | 文件级模块化完成；跨 UI 页面状态机仍各自实现，无共享页面模型层 |
+| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部 `cargo check --locked` 通过；产品层仍只有 x86_64-linux，aarch64 产品包未验证（GAP-1.1） |
+| 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1） |
+| 3 | 部分 | L | Android 源码级接通，APK 在 v0.42.6 失败且修复未取证，真机 0；iOS `Unsupported`（626 行 stub，GAP-3.2）；APK 取证见 GAP-3.1 |
+| 4 | 部分 | L | Iced/Bevy 深接入；Slint 紧凑接入（约 5k 行含测试，6 组页面回调 + Lumen 投影；无共享 kit，功能验收未完成）；Android 基础页；Slint 验收见 GAP-4.1 |
+| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；77/82 presentation 模块仍产品耦合（GAP-5.1 / GAP-5.2） |
+| 6 | 缺失 | L | Android running runtime operations `Unsupported`；Slint/Bevy 功能验收未完成（GAP-4.1 / GAP-3.1） |
+| 7 | 部分 | L | 文件级模块化完成；跨 UI 页面状态机仍各自实现，无共享页面模型层（GAP-7.1） |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；Android 模拟器套件仍不可裁剪 |
 
 ## 最近一批问答（2026-10-17）

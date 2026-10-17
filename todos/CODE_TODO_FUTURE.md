@@ -124,3 +124,30 @@
   - 产物：`v1.0.0` tag、release notes、crates.io 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）顺序发布回执与 docs.rs 构建链接。
   - 依赖：PUB-006.1、PUB-006.3、PUB-006.4。
   - 验收：crates.io 六 crate 版本严格对齐；docs.rs 六页构建成功；回执绑定 tag 与 commit。
+
+## 收口八问缺口（延迟项，6条 / 21pt）
+
+- [ ] GAP-2.1 [kind: evidence] [priority: P2] [points: 2] [owner: release] Windows/Linux 安装包与系统集成验证
+  - 产物：NSIS/AppImage/deb 产物与安装、托盘、TUN 回执。
+  - 依赖：`GAP-3.1` 之外的发布流水线；需要 CI 或本机打包环境。
+  - 验收：每个安装包有可复跑构建与安装回执；不达标项显式 Unsupported。
+- [ ] GAP-2.2 [kind: evidence] [priority: P2] [points: 3] [owner: release] macOS 产物与签名
+  - 产物：App bundle、签名、权限与安装运行回执。
+  - 依赖：Apple target 解禁（当前由 `apple-ci-deferral-guard.py` 显式禁止）。
+  - 验收：更新平台矩阵并取得目标产物证据。
+- [ ] GAP-3.1 [kind: evidence] [priority: P1] [points: 3] [owner: android/release] Android APK 构建修复取证
+  - 产物：cmdline-tools 重链修复后的 APK 与模拟器/真机回执。
+  - 依赖：CI tag 或本机完整 SDK/Gradle。
+  - 验收：APK 产物 + 启动/触摸/权限回执；否则保持 Unsupported。
+- [ ] GAP-3.2 [kind: mechanism] [priority: P2] [points: 5] [owner: ios] iOS target 与应用骨架
+  - 产物：`aarch64-apple-ios` 构建、应用包与 NetworkExtension 骨架。
+  - 依赖：Apple target 解禁。
+  - 验收：真实 target 构建 + 包结构检查；当前只有 626 行 host stub。
+- [ ] GAP-4.1 [kind: evidence] [priority: P2] [points: 3] [owner: slint] Slint 功能验收与 parity
+  - 产物：Slint 六个页面回调对应的功能验收与 parity cell。
+  - 依赖：目标产物与交互证据。
+  - 验收：parity 锚点 + 屏幕回执；否则在八问表保持「部分」。
+- [ ] GAP-7.1 [kind: mechanism] [priority: P2] [points: 5] [owner: presentation] 跨 UI 页面模型去重
+  - 产物：Iced/Bevy/Slint 共享的页面模型层，消灭各自实现的同义状态机。
+  - 依赖：GAP-5.2 完成后评估。
+  - 验收：同一页面在三个表面只保留一份状态推导；UI 只做渲染与事件投递。

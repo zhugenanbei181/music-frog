@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261017-v214`：当前现在佛 14 pt（7 条）/ 过去佛 60 pt（23 条）/ 未来佛 47 pt（24 条），联合未办结分母 121 pt；已归档交付 642 pt（242 条）；累计 763 pt，严格归档完成率 84.1%。
+- Point 基线 `musicfrog-todo-20261017-v215`：当前现在佛 24 pt（11 条）/ 过去佛 60 pt（23 条）/ 未来佛 68 pt（30 条），联合未办结分母 152 pt；已归档交付 642 pt（242 条）；累计 794 pt，严格归档完成率 80.9%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -78,3 +78,22 @@
   - 产物：通用适配器一致性测试套件，规范进程状态机、配置应用、节点读写、错误回读断言。
   - 依赖：PUB-003.1～PUB-003.3。
   - 验收：覆盖 Mihomo 与 sing-box 真实与 fake 适配器；第三方适配器跑通即证明兼容。
+
+### 5.4 收口八问缺口（GAP，4条 / 10pt）
+
+- [ ] GAP-1.1 [kind: evidence] [priority: P1] [points: 3] [owner: product cross-target] [status: InProgress] 产品层 x86_64/aarch64 交叉检查
+  - 产物：对 `infiltrator-core`/`infiltrator-composition`/`infiltrator-desktop` 及三个 UI crate 做 `aarch64-unknown-linux-gnu`、`aarch64-pc-windows-msvc` 的 `cargo check`，记录通过的组合与失败原因。
+  - 依赖：无（中性内核矩阵已 8/8）。
+  - 验收：脚本可复跑；通过/失败组合写入八问第 1 行；失败项若为平台专属代码，回流对应 owner。
+- [ ] GAP-5.1 [kind: mechanism] [priority: P1] [points: 2] [owner: lurker-ui-presentation] [status: Planned] PUB-004.1 B2：剩余 i18n 模块统一 `&dyn TextCatalog`
+  - 产物：45 个仍用 `locale: &str` 的 presentation 模块改为 `TextCatalog`；文案数据不下沉；join 到 `Lang` 的适配只保留一处。
+  - 依赖：PUB-004.1 B1（已完成）。
+  - 验收：presentation 内不再出现直接读取 locale 的文案折叠；nextest 与 i18n guard 全绿。
+- [ ] GAP-5.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-core-contract] [status: Planned] PUB-004.1 B3：`PageStatus`/`PageData`/`PageId`/`SurfaceOrigin` 下移中立契约
+  - 产物：四个视图状态类型迁入 `lurker-core-contract`，重接 77/70/34/20 处引用；无 `pub use` 中转。
+  - 依赖：GAP-5.1。
+  - 验收：中立 crate 只依赖 `Failure`；presentation 可迁入 `core_status_projection`/`settings_preference_projection`；全量门禁绿。
+- [ ] GAP-8.1 [kind: infra] [priority: P1] [points: 2] [owner: CI] [status: Planned] Android CI 套件裁剪与缓存
+  - 产物：按输入选择 flavor/ABI/是否跑模拟器；复用 Rust 与 Gradle 缓存；避免每次全量重跑。
+  - 依赖：无。
+  - 验收：同一次 dispatch 的耗时与缓存命中率有记录；不降低已有 APK/模拟器证据门槛。
