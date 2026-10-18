@@ -33,6 +33,6 @@ tokio = { workspace = true, features = ["test-util"] }
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-test-support = { path = "../infiltrator-test-support" }
 mihomo-api = { path = "../mihomo-api" }
-mihomo-driver = { version = "0.42.6", path = "../mihomo-driver" }
+mihomo-driver = { version = "0.50.0", path = "../mihomo-driver" }
 tempfile = { workspace = true }
 mockito = { workspace = true }

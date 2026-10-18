@@ -15,7 +15,7 @@ network-tests = []
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
-lurker-engine-runtime = { version = "0.42.6", path = "../lurker-engine-runtime" }
+lurker-engine-runtime = { version = "0.50.0", path = "../lurker-engine-runtime" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 dav-client = { path = "../mihomo-dav-sync/dav-client" }
@@ -30,7 +30,7 @@ mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 mihomo-api = { path = "../mihomo-api" }
-mihomo-driver = { version = "0.42.6", path = "../mihomo-driver" }
+mihomo-driver = { version = "0.50.0", path = "../mihomo-driver" }
 mihomo-version = { path = "../mihomo-version" }
 infiltrator-http = { path = "../infiltrator-http" }
 ring = "0.17"
