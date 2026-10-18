@@ -31,7 +31,7 @@ contract + domain + ports ────────┼→ application → composi
 | 新平台 | `StorePlatform`（原子替换、写锁、实例锁、目录/文件原语）；driver 内的 `CoreProcess` 进程监督；宿主组合 | `PURE_NEUTRAL` crate（contract/ports/ui-presentation）不得出现 `cfg(windows/unix)`、`libc`、`windows_sys` |
 | 新 UI | 消费 `SurfaceReader` 快照、发送 typed 意图、实现 `TextCatalog` 取文案 key | 不得直连 Core 副作用、不得自建业务真源、不得复制 presentation 的推导逻辑 |
 
-`CommandSink`（统一意图通道）属 PUB-004.2，尚未落地；当前各表面通过既有 typed command adapter 发送命令。扩展路径的门禁由 `lurker-neutrality-guard.py`、`core-boundary-guard.py` 与 `publish-order-guard.py` 共同约束。
+`CommandSink`（统一意图通道）已通过 PUB-004.2/PUB-004.3 全量落地；当前各表面纯粹作为被动消费者，通过 `SurfaceReader` 读取快照并通过 `CommandSink` 发送 typed 意图命令。扩展路径的门禁由 `lurker-neutrality-guard.py`、`core-boundary-guard.py` 与 `publish-order-guard.py` 共同约束。
 
 ## 架构未决处置与自底向上演进铁律（底层先决，严禁上层修补）
 

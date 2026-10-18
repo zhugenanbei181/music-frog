@@ -58,16 +58,16 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-18，基线 `musicfrog-todo-20261018-v234`）
+## Points 与完成度台账（2026-10-18，基线 `musicfrog-todo-20261018-v236`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 3 | 3 |
 | 过去佛 | 26 | 69 |
-| 未来佛 | 21 | 49 |
-| **未办结联合分母** | **50** | **121** |
+| 未来佛 | 19 | 47 |
+| **未办结联合分母** | **48** | **119** |
 
-- **严格交付率：680 / 801 = 84.9%**（archived 680pt / archived + 未办结 121pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：682 / 801 = 85.1%**（archived 682pt / archived + 未办结 119pt）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -142,11 +142,13 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 260 条 / 679 pt；累计 261 条 / 680 pt）
+### 已归档交付原子条目（明细 262 条 / 681 pt；累计 263 条 / 682 pt）
 | 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
+| `PUB-006.2` 架构设计说明书与 UI 框架选型指南 | 1 | 交付架构白皮书与跨 UI 选型指南，包含系统整体架构拓扑、四 UI 架构模型深度对比、性能实测 Benchmark 数据表与选型决策树；通过 `doc-governance-guard` 校验。 |
+| `PUB-006.4` 开源仓库治理体系与中立迁移指南 | 1 | 交付社区贡献指南、安全漏洞披露策略、行为准则与架构平滑迁移指南；规范社区治理流程与平滑迁移路径；链接全部可解析并通过文档门禁。 |
 | `PUB-005.1` Slint 桌面轻量独立模板工程规范化 | 2 | 交付独立模板工程 `templates/slint`，包含 appwindow.slint、build.rs、main.rs 与 README；单向接入 `SurfaceReader` + `CommandSink`；`cargo check -p lurker-template-slint` 0 警告通过。 |
 | `PUB-005.2` Iced 桌面响应式独立模板工程规范化 | 2 | 交付独立模板工程 `templates/iced`，演示严格 Elm 架构与 Task 异步意图通道；支持动态主题切换；`cargo check -p lurker-template-iced` 0 警告通过。 |
 | `PUB-005.3` Bevy 0.20 极端性能/ECS 模板工程规范化 | 2 | 交付独立模板工程 `templates/bevy`，落实 Bevy 0.20 UI 规范；无头 ECS 调度测试 `headless_ecs_schedule_and_command_intent_pipeline_test` 100% 通过。 |

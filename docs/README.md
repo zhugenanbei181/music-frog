@@ -17,6 +17,8 @@
 | 代码与仓库质量底线 | [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md) |
 | 跨产品共享 UI 包与资源 | [SHARED_UI_PACKAGES.md](SHARED_UI_PACKAGES.md) |
 | 批次收口八问 | [CLOSURE_QUESTIONS.md](CLOSURE_QUESTIONS.md) |
+| 架构白皮书与跨 UI 框架选型指南 | [FRAMEWORK_SELECTION.md](FRAMEWORK_SELECTION.md) |
+| 中立内核接入与架构迁移指南 | [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) |
 | 上游依赖升级 | [UPSTREAM.md](UPSTREAM.md) |
 
 ## 包级文档入口

@@ -69,19 +69,11 @@
 
 ### 4.5 多 UI 模板化与工程脚手架（已全部迁入现在佛推进）
 
-### 4.6 开源合规发布、交付文档与发布自动化生态（11条 / 17pt）
+### 4.6 开源合规发布、交付文档与发布自动化生态（9条 / 15pt，PUB-006.2/006.4 已迁入现在佛推进）
 - [ ] PUB-006.1 [kind: infra] [priority: P1] [points: 2] [owner: CI] Crates.io 自动化发布 CI 工作流
   - 产物：GitHub Actions 发布流水线；包含发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布。
   - 依赖：PUB-001.1～PUB-003.3。
   - 验收：本地与 CI 环境下执行 dry-run 发布成功，依赖图谱无环且版本严格对齐。
-- [ ] PUB-006.2 [kind: evidence] [priority: P1] [points: 1] [owner: docs] 架构设计说明书与 UI 框架选型指南
-  - 产物：编写顶层架构说明、开发者接入指南、以及各 UI（Slint/Iced/Bevy/Android）在性能与开销上的选型对比。
-  - 依赖：PUB-005.1～PUB-005.5。
-  - 验收：文档包含快速上手代码、架构图与不同 UI 内存/包体 benchmark 详实数据。
-- [ ] PUB-006.4 [kind: evidence] [priority: P1] [points: 1] [owner: docs] 开源仓库治理文档
-  - 产物：README（快速上手/特性/截图）、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT，以及从产品仓迁移到中立内核的迁移指南。
-  - 依赖：PUB-006.2、PUB-005.5。
-  - 验收：文档链接全部可解析；新开发者按 README 能在干净环境跑通 example 与模板。
 - [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] Docs.rs 预览与公共 API 文档质量门
   - 产物：配置全中性 crate 的 docs.rs 渲染模拟与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]`，公开接口提供标准 Rustdoc 注释与 doctest。
   - 依赖：PUB-006.1、PUB-006.2。

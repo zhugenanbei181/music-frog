@@ -40,7 +40,7 @@ def doc_level(rel: str) -> int:
     """Assigned authority by document scope; -1 means 'outside the map'."""
     if rel == "AGENTS.md":
         return 0
-    if rel in ("README.md", "TESTING.md", "THIRD-PARTY-NOTICES.md"):
+    if rel in ("README.md", "TESTING.md", "THIRD-PARTY-NOTICES.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md"):
         return 1
     if rel == "TODO.md":
         return 4
