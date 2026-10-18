@@ -11,4 +11,4 @@ Android 表面与 Native 宿主严格遵照执行自底向上裁决铁律：
 - 严禁在上层通过容错分支、默认值或临时标志位修补底层架构未决问题；
 - 遇底层能力未决必须先在底层收口，再向上接入。
 
-Gradle flavors 和 Rust/NativeActivity 子包见 [Android 工程地图](../README.md)、[infiltrator-android](../../crates/infiltrator-android/README.md)、[Bevy driver](../bevy-host/driver/README.md) 与 [Slint 表面](../../crates/infiltrator-slint/docs/README.md)。
+Gradle flavors 和 Rust/NativeActivity 子包见 [Android 工程地图](../README.md)、[infiltrator-android](../../crates/infiltrator-android/README.md)、[Bevy driver](../bevy-host/driver/README.md) 与 [Slint 表面](../../crates/infiltrator-slint/docs/SURFACE.md)。

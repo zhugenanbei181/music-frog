@@ -47,6 +47,11 @@ pub(super) fn register(
         }
         #[cfg(target_os = "android")]
         {
+            let _ = (
+                &latest_for_export_profile,
+                &tx_for_export_profile,
+                &profile_id,
+            );
             show_unsupported(
                 &weak_for_export_profile,
                 "Android SAF file export is handled through Intent",

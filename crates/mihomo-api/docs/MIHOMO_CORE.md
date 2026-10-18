@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-本页只记录 Mihomo 特有规则；crate 职责见 [README.md](../README.md)。
+本页只记录 Mihomo 特有规则；crate 职责见 [crate README](../README.md)。
 
 - `mihomo-driver` 封装 REST/WebSocket、wire DTO、鉴权、错误映射与进程监督；`mihomo-api` 只在其上实现产品端口。这些中立类型不得进入共享业务或 UI。
 - 运行中 Fake-IP 清理通过 scoped `ControllerFakeIpCachePort` 调用 Mihomo controller。两个锁定 Mihomo 版本都接受 `POST /cache/fakeip/flush` 并返回 `204`（[官方 API 文档](https://github.com/MetaCubeX/Meta-Docs/blob/main/docs/api/index.md)）；typed adapter receipt 绑定请求 scope/operation，但 controller 不提供缓存内容读回，因此该证据不声称读回证明缓存为空。adapter nextest：v1.19.32 `b5961bde-fa5a-4a01-8b1f-72cf3dfd0768`；v1.19.18 `ffabc9df-cb80-48d3-92a6-cf928f154c6f`；non-UI Core unified nextest `4c298ab9-2610-45bc-bb52-e9b611477f4c`（3218 passed、11 skipped）。`fake_ip_cache.flush` evidence 只授权 Linux amd64、revision 2 与这两个精确版本。

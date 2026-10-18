@@ -25,8 +25,8 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{ThemeSkin, TokenColor, contrast};
-use infiltrator_contract::surface_snapshot::PageStatus;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::PageStatus;
 use std::sync::Arc;
 
 #[test]

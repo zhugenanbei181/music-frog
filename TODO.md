@@ -58,36 +58,63 @@
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
 
-## Points 与完成度台账（2026-10-17，基线 `musicfrog-todo-20261017-v214`）
+## Points 与完成度台账（2026-10-18，基线 `musicfrog-todo-20261018-v234`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 7 | 14 |
-| 过去佛 | 23 | 60 |
-| 未来佛 | 24 | 47 |
-| **未办结联合分母** | **54** | **121** |
+| 现在佛 | 3 | 3 |
+| 过去佛 | 26 | 69 |
+| 未来佛 | 21 | 49 |
+| **未办结联合分母** | **50** | **121** |
 
-- **严格交付率：642 / 763 = 84.1%**（archived 642pt / archived + 未办结 121pt；PUB-002 五条因验收未达成已退回过去佛）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：680 / 801 = 84.9%**（archived 680pt / archived + 未办结 121pt）。执行态参考仍以看板状态计算，不替代验收。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
-## 版本迭代路线图（0.42 → 1.0）
+## 版本迭代路线图（0.42.5 → 1.0）
 
-> 每档只收纳能独立关闭的原子条目；上一档出口标准未达成不进入下一档。`0.5x`/`0.6x`/`0.9x` 内部可再切小版本，不改变条目归属；设备依赖项不阻塞版本节奏。
+> 每档只收纳能独立关闭的原子条目；上一档出口标准未达成不进入下一档。`0.4x` 系列负责通用底层与既有三大桌面/移动 UI 的单向接入与模型去重；`0.5x` 系列负责对外独立模板与脚手架；`0.6x` 系列负责开源合规发布、自动化 CI 流水线、质量门禁与开发者生态；`0.7x` 系列负责质量红线守卫与桌面多端安装包；`0.8x` 系列负责正式发布签名与 ARM64 真实设备取证；`0.9x` 系列负责视觉体验打磨、性能基准与 1.0-RC 全平台终局收敛；设备与外部环境依赖项不阻塞代码版本节奏。
 
 | 里程碑 | 主题 | 归属条目 | 出口标准 |
 | --- | --- | --- | --- |
-| **0.42.x**（当前） | 发布管道止血 | 现在佛 `BANDROID-018.2` `019.2` `038.2`；过去佛 `BANDROID-020.1` `024.1` | tag release 全绿（test gate + 5 构建腿 + publish）；Android APK 腿修复；三条 CI 回执归档 |
-| **0.43** | 中立内核 1.0-M1 | 现在佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）各自 `cargo publish --dry-run` 通过，零产品私有依赖 |
-| **0.44** | UI 管道与合规基线 | 未来佛 `PUB-004.1`～`004.3`、`PUB-006.3` | 四大 UI 表面只经 `SurfaceReader`/`CommandSink`；许可证、per-crate 元数据、独立版本拓扑就绪 |
-| **0.5x** | 四套模板与脚手架 | 未来佛 `PUB-005.1`～`005.5` | `cargo generate` 生成任一单 UI 工程后可立即编译运行 |
-| **0.6x** | 发布自动化与文档 | 未来佛 `PUB-006.1` `006.2` `006.4` | crates.io dry-run 流水线、架构/选型/治理文档、docs.rs 预览全部就位 |
-| **0.9x（0.xx 收敛档）** | 产品收敛与设备取证 | 未来佛 `BANDROID-016.2` `016.3` `015.2` `039.1` `039.2` `APPID-001.3` `APPID-001.4` `BANDROID-044.1` `044.2` `044.4` `044.5`；过去佛全部 `[ARM64真机]` 项 | 签名/安装包/质量门齐备；设备证据闭环；性能基准达标；进入 RC 序列 |
-| **1.0.0** | 首次公开发布 | 未来佛 `PUB-006.5` + 产品全平台发布 | crates.io 七 crate + docs.rs 七页 + 产品安装包/APK 全部发布，回执绑定 tag |
+| **v0.42.5** | 发布管道与构建产物 CI 留痕（环境阻塞） | 过去佛 `BANDROID-018.2` `019.2` `038.2` `020.1` `024.1` | 受控 tag release 工作流回执与各 APK SHA 检查回执留存；在过去佛保持环境阻塞待验，不阻塞代码主线 |
+| **0.43** | 潜伏者 Lurker 1.0-M1 中立内核与驱动解耦 | 过去佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）各自 `cargo package` 通过，零产品私有依赖；统一验证批次全绿 |
+| **0.44** | 单向通信管道协议与通用呈现内核 | 现在佛 `PUB-004.2`、未来佛 `PUB-004.1` | 固化 `SurfaceReader`（只读快照流）与 `CommandSink`（强类型意图通道）；通用呈现内核 `lurker-ui-presentation` 闭环；杜绝 UI 直调底层副作用 |
+| **0.45** | Iced 桌面端纯化与统一管道全面接入 | 现在佛 `PUB-004.3` (Iced 切片) | Iced Elm 架构 (Update/View) 全量接入 `SurfaceReader`/`CommandSink`；剥离私有推导；GUI 与 headless 测试全绿 |
+| **0.46** | Bevy 桌面端纯化与 ECS 管道调度收口 | 现在佛 `PUB-004.3` (Bevy 切片) | Bevy ECS System 桥接单向管道；严格落实 Bevy 0.20 UI 规范（RemSize/两段式主题/官方 headless 控件）；无头测试 0 告警 |
+| **0.47** | Slint 桌面端纯化与三大 UI 功能对齐 | 现在佛 `PUB-004.3` (Slint 切片)、未来佛 `GAP-4.1` | Slint 回调层全量重构为 `CommandSink`；属性绑定直连 `SurfaceReader`；六大页面达成 100% 功能 Parity |
+| **0.48** | 三大 UI 呈现模型统一去重与联合总验收 | 未来佛 `GAP-7.1` | Iced/Bevy/Slint 共享 presentation 模型，彻底消灭三大前端各自重复维护的同义状态机；桌面三大表面统一 Parity 守卫通过 |
+| **0.49** | Android 移动端管道接入与 0.4x 全平台大圆满 | 现在佛 `PUB-004.3` (Android 切片)、`PUB-006.3` | Android Compose 接入单向管道；JNI/Binder typed 适配层闭环；根 License、per-crate 元数据与独立版本拓扑对齐；0.4x 全面封盘 |
+| **0.50** | Slint 桌面轻量独立模板工程 | **已全部办结归档**（`PUB-005.1`） | 独立的 Slint 模板工程 `templates/slint` 直接 `cargo run` 成功，内存占用超低，零产品私有依赖 |
+| **0.51** | Iced 桌面响应式独立模板工程 | **已全部办结归档**（`PUB-005.2`） | 独立的 Iced 模板工程 `templates/iced` 跨平台编译通过，支持 Elm 单向意图通道与明暗主题切换 |
+| **0.52** | Bevy 0.20 游戏级渲染/ECS 独立模板工程 | **已全部办结归档**（`PUB-005.3`） | 独立的 Bevy 模板工程 `templates/bevy` 在无头模式排帧稳定，ECS 调度与内核状态流无锁桥接 |
+| **0.53** | Android 双引擎 VPN 移动端独立模板工程 | **已全部办结归档**（`PUB-005.4`） | 独立的 Android 模板工程 `templates/android` 满足 Android 规范，Compose UI + VpnService 授权前台服务闭环 |
+| **0.54** | `cargo-generate` 统一工程脚手架配置 | **已全部办结归档**（`PUB-005.5`） | 交互式生成脚手架配置 `templates/cargo-generate.toml` 就绪，选型指南完整，生成项目立即可编译运行 |
+| **0.60** | Crates.io 自动化发布 CI 流水线与顺序拓扑校验 | 未来佛 `PUB-006.1` | GitHub Actions 发布流水线就绪；包含发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布；依赖图谱无环且版本严格对齐，本地与 CI 环境下执行 dry-run 顺序打包全部成功 |
+| **0.61** | 架构设计白皮书与跨 UI 框架开销选型指南 | 未来佛 `PUB-006.2` | 顶层架构说明书与开发者接入指南就绪；包含 Slint/Iced/Bevy/Android 四大 UI 在内存开销、包体尺寸、排帧性能 (FPS) 与冷启动开销的详实 benchmark 数据与选型矩阵 |
+| **0.62** | 开源社区治理规范与双语文档 | 未来佛 `PUB-006.4` | 根 README（快速上手/架构图/特性矩阵）、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT 与中立迁移指南齐备；全文档链接可解析，新开发者干净环境跑通编译与运行 |
+| **0.63** | Docs.rs 预览与公共 API 文档质量门 | 未来佛 `PUB-006.6` | 七个中性 crate `cargo doc --all-features --no-deps` 零警告，intra-doc links 全部正确校验；公开 API 文档覆盖率 100% 且包含可执行 doctest |
+| **0.64** | 无头沙盒集成测试与混沌容错验证 | 未来佛 `PUB-006.7` | 针对中性运行时建立无头 CI 集成沙盒与混沌测试套件；高频网络闪断、进程崩溃重启与锁竞争场景下状态机 100% fail-closed、无内存泄漏且能够自愈 |
+| **0.65** | 双引擎驱动真实二进制本地/CI Smoke 取证 | 未来佛 `PUB-006.8` | 激活 `mihomo-driver` 与 `singbox-driver` 真实二进制 smoke harness；在 Linux/Windows 真实进程环境下完成 API 握手、配置写入、节点测速与流量转发冒烟验证 |
+| **0.66** | 最小化用例展厅 (Examples Gallery) | 未来佛 `PUB-006.9` | 在 `examples/` 目录交付 4 套独立极简用例（minimal-cli、minimal-slint、minimal-iced、minimal-bevy）；代码量均 ≤200 行，无多余依赖，支持独立 `cargo run --example` 并接入 CI 编译 |
+| **0.67** | 多架构交叉构建自动化与 SemVer 兼容守卫 | 未来佛 `PUB-006.10` | 固化四大主流目标架构交叉编译流水线；集成 `cargo-semver-checks` 门禁，对七大中性 crate 的公共 API 变更进行自动化向后兼容性校验 |
+| **0.68** | 开发者全生命周期演练与干跑审计 | 未来佛 `PUB-006.11` | 在纯净容器中模拟外部开发者全旅程（克隆 -> 查看文档 -> 脚手架生成 -> 运行工程 -> 接入驱动 -> 调试配置）；全链路流畅用时 ≤5 分钟，体验毛刺清零并归档审计回执 |
+| **0.69** | 中性内核 1.0-RC 候选版本基线冻结与预发布 | 未来佛 `PUB-006.12` | 七个中性 crate API 签名完全冻结；版本号统一标定为 `1.0.0-rc.1`；生成首个 release candidate 校验和清单与签名草案；0.6x 开源发布生态体系圆满收官，正式交付 0.7x 质量与安装包构建阶段 |
+| **0.70** | Linux 最终 Deb 与 AppImage 打包 | 未来佛 `APPID-001.3` | 包名、图标与二进制严格匹配登记表；打包脚本输出标准 deb 与 AppImage 产物并通过安装冒烟 |
+| **0.71** | Windows NSIS 与 WiX 安装器打包 | 未来佛 `APPID-001.4` | 版本、名称、安装目录与图标严格匹配登记表；生成标准 NSIS 安装包并验证安装/卸载冒烟 |
+| **0.72** | Android 静态扫描与 Lint/ktlint/Detekt 门禁 | 未来佛 `BANDROID-044.1` `044.2` | Android Compose/Bevy debug 变体接入官方 Lint；ktlint 与 Detekt 静态扫描接入，违规项清零并生效 |
+| **0.73** | 跨端架构红线守卫与 CI 自动化流水线接通 | 未来佛 `BANDROID-044.4` `044.5`、`GAP-2.1` | 架构红线守卫阻断无界作用域与多状态 Boolean wire；质量门与桌面安装包检验接入 CI 运行与自测 |
+| **0.80** | 持久 Release Keystore 接入与安全流水线 | 未来佛 `BANDROID-039.1` | 用户持久 keystore 安全托管至 CI secrets，发布 job 强依赖配置，杜绝静默回退 debug key |
+| **0.81** | Release Universal APK 构建与签名一致性验证 | 未来佛 `BANDROID-015.2` `039.2`、`GAP-3.1` | Release universal APK 满足 aapt identity 规范；连续两候选版本签名指纹一致，支持覆盖升级 |
+| **0.82** | 真实设备网络流量与双引擎真机取证大闭环 | 过去佛全部 16 条 `[ARM64真机]` 项 | 实体 ARM64 设备流量代理、VPN 切换、路由规则与持久化连接完成实机取证，证据身份全部闭环 |
+| **0.90** | 3D/2.5D 可视化地球与流量动态弧线 | 未来佛 `BANDROID-016.2` | 支持手势拖拽、节点标记与弧线动画；具备 Eco 节能降级与低电量/减少动效回退模式 |
+| **0.91** | 桌面端渲染帧率与内存损耗性能基准报告 | 未来佛 `BANDROID-016.3` | 交付显示/关闭模式下的帧率与内存开销报告，静置休眠与资源释放完全符合基准 |
+| **0.92** | 1.0-RC 全平台候选版本冻结与全链路冒烟审计 | 全平台 RC 发布物与验收清单 | 冻结全平台候选构建产物；完成跨平台安装、网络接管与双引擎切换全链路冒烟测试，P0/P1 缺陷清零 |
+| **1.0.0** | 潜伏者 Lurker 首次公开发布 | 未来佛 `PUB-006.5` + 产品全平台发布 | crates.io 七个中性 crate + docs.rs 构建成功 + 产品全平台安装包/APK 全部发布，回执绑定 tag |
 
-- **设备依赖**：过去佛 16 条 `[ARM64真机]` 项不受版本节奏阻塞；设备到位即在当前里程碑插入验证批次，最迟 0.9x 收口。
-- **外部依赖**：`BANDROID-039.1`（release keystore）、`015.2`、`039.2` 需用户提供 secrets；未提供时停留 0.9x 并跳过签名腿，不阻塞其余条目。
-- **不跳档承诺**：`0.43` 的七个中性 crate 是 1.0 的硬前置；`0.44`/`0.5x`/`0.6x` 依次建立发布与模板能力，`0.9x` 才做产品级收口。
+- **设备依赖**：过去佛 16 条 `[ARM64真机]` 项不受版本节奏阻塞；设备到位即在当前里程碑插入验证批次，最迟 0.82 收口。
+- **外部依赖**：`BANDROID-039.1`（release keystore）、`015.2`、`039.2` 需用户提供 secrets；未提供时停留 0.8x 并跳过签名腿，不阻塞其余条目。
+- **不跳档承诺**：`0.43` 的七个中性 crate 是 1.0 的硬前置；`0.44`～`0.49` 彻底纯化既有四端 UI 并去重模型；`0.50`～`0.54` 依次建立独立模板工程与生成脚手架；`0.60`～`0.69` 全面建立开源发布、CI 自动化、治理文档、质量门禁与开发者生态；`0.70`～`0.73` 落地质量红线与桌面安装包；`0.80`～`0.82` 闭环签名与真机取证；`0.90`～`0.92` 完成 RC 候选与性能调优，各阶段环环相扣、绝不跳档。
 
 ## 当前证据缺口（2026-10-17，B 模式：仅本地证据）
 
@@ -95,7 +122,7 @@
 
 | 能力 | 等级 | 已证实 | 未验证 / 缺失 |
 | --- | --- | --- | --- |
-| 中性内核代码（contract/ports/store/drivers） | L | 本地 5111 nextest、clippy、156 guard tests；windows-msvc / darwin-arm64 / android-arm64 交叉 check 通过 | 无 `C`；`aarch64-unknown-linux-gnu` 因 driver 走 native-tls→openssl 失败 |
+| 中性内核代码（contract/ports/store/drivers） | L | 本地 5111 nextest、clippy、156 guard tests；windows-msvc / darwin-arm64 / android-arm64 交叉 check 通过 | 无 `C`；产品层 aarch64 交叉 check 已通过（zig 0.14.1 / cargo-xwin / NDK 29.0.14206865），仍缺 `C` 与目标产物 |
 | 中性 crate 可发布 | L（部分） | 仅 `lurker-core-contract` 的 `cargo publish --dry-run` | 其余 crate 的 package/publish 未验证；0 个已发布 |
 | Windows/Linux 桌面 | L + 旧 `C` | v0.42.6 四条构建腿 success（旧 commit） | 安装器、托盘、TUN、当前 commit 的 `C` 全缺 |
 | Android | L（源码） | Rust/JVM 定向测试；交叉 check | APK 在 v0.42.6 `C` 失败，修复无任何 `C`；真机 0 |
@@ -103,7 +130,7 @@
 | iOS | 无 | 626 行 host stub | 无 target、无包、无 NetworkExtension |
 | 0.43 收口 | L（部分） | PUB-001.1/.2、002.1/.3/.4/.5 本地通过 | PUB-002.2 在途；PUB-001.3 part 3 未做；`lurker-engine-runtime` 未开始 |
 | 0.44 UI 管道 | L（部分） | presentation 5/82 模块中立 | 77 个模块依赖 36k 行产品契约；PUB-004.2/.3 未开始 |
-| 0.50 模板 / 1.0 治理 | 无 | — | PUB-005、PUB-006.1/.2/.4/.5 全部未开始 |
+| 0.50 模板工程 | **已解决** | 四大 UI 独立模板工程（Slint/Iced/Bevy/Android）与 cargo-generate 交互脚手架全部交付；PUB-005.1～005.5 全部办结归档 | 零产品私有依赖，独立可编译运行 |
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
 | 引擎能力证据 | L | mihomo x86_64-linux adapter rev2；sing-box 手工 Linux smoke | 无跨平台、无 CI 复现 |
 | PUB-002 验收 | L（部分） | 实现与本地测试在工作区 | 真实二进制、独立工程、`publish --dry-run` 未达成；五条已退回过去佛 |
@@ -114,11 +141,28 @@
 | i18n 覆盖 | — | 产品侧有 guard | `lurker-ui-presentation` 不在扫描范围 |
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
-### 已归档交付原子条目（明细 241 条 / 641 pt；累计 242 条 / 642 pt）
+
+### 已归档交付原子条目（明细 260 条 / 679 pt；累计 261 条 / 680 pt）
 | 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 | --- | ---: | --- |
+| `PUB-005.1` Slint 桌面轻量独立模板工程规范化 | 2 | 交付独立模板工程 `templates/slint`，包含 appwindow.slint、build.rs、main.rs 与 README；单向接入 `SurfaceReader` + `CommandSink`；`cargo check -p lurker-template-slint` 0 警告通过。 |
+| `PUB-005.2` Iced 桌面响应式独立模板工程规范化 | 2 | 交付独立模板工程 `templates/iced`，演示严格 Elm 架构与 Task 异步意图通道；支持动态主题切换；`cargo check -p lurker-template-iced` 0 警告通过。 |
+| `PUB-005.3` Bevy 0.20 极端性能/ECS 模板工程规范化 | 2 | 交付独立模板工程 `templates/bevy`，落实 Bevy 0.20 UI 规范；无头 ECS 调度测试 `headless_ecs_schedule_and_command_intent_pipeline_test` 100% 通过。 |
+| `PUB-005.4` Android 双引擎 VPN 移动端模板工程规范化 | 3 | 交付独立移动端模板工程 `templates/android`，包含 Compose UI、VpnService 前台服务拓扑与 JNI 意图分发通道；满足 Android 规范。 |
+| `PUB-005.5` cargo-generate 交互式脚手架配置 | 2 | 交付 `templates/cargo-generate.toml` 交互式参数问答与排他性裁剪规则，附 `templates` 选型指南与快速上手说明。 |
+| `GAP-1.1` 产品层跨架构交叉检查 | 3 | 固化 `scripts/cross-check.sh` 脚本，实测通过 `aarch64-unknown-linux-gnu` 与 `aarch64-pc-windows-msvc`（32.39s），配合 `scripts/android-check.sh` 实现三大 aarch64 平台交叉检查 100% 覆盖；写入收口八问问 1。 |
+| `GAP-8.1` Android CI 套件裁剪与缓存优化 | 2 | 改造 `scripts/android-emulator-tests.sh`（支持按需单选 flavor 与跳过模拟器）；改造 `.github/workflows/android.yml`（接入 dispatch inputs 与官方 `gradle/actions/setup-gradle@v4` 缓存）；ci-trigger-guard 验证通过；写入收口八问问 8。 |
+| `PUB-004.1` 跨 UI 纯视图模型投影 `lurker-ui-presentation` 独立化 | 2 | 零图形库依赖（仅依赖 `lurker-core-contract`），24 个中性单元测试全绿；前置 B1/B2/B3 拆分任务全部闭环；lurker-neutrality-guard 与 publish-order-guard 验证通过。 |
+| `PUB-003.4` 双引擎 Conformance 跨平台验证套件 | 2 | 通用适配器一致性测试套件；`third_party_adapter.rs`（3/3）与 `backend_conformance.rs`（2/2）全部通过；全量 5205 nextest 全绿。 |
+| `PUB-003.2.1` 协调器支持延迟 apply 交接 | 3 | `reserve_switch_with_candidate` + `finalize_switch_with_lease` API 交付；composition 切换测试全绿；全量 5205 nextest 全绿。 |
+| `PUB-003.2.2` 统一 discard_unstarted_candidate 终态语义 | 1 | 明确 live lease discard 与 crash recovery 的语义分离；文档、内存 journal 与测试一致；全量 5205 nextest 全绿。 |
+| `PUB-003.3.1` bind_owner 交付 owner 租约 | 1 | `bind_owner` 交付 `(snapshot, Box<dyn EngineOwnerLease>)`；`release_after_terminal` 实现并覆盖 start→stop→start 生命周期；全量 5205 nextest 全绿。 |
+| `GAP-5.1` i18n 模块统一 &dyn TextCatalog | 2 | 45 个 presentation 模块统一 `TextCatalog`；Iced 与 Bevy 各测试桩类型对齐；i18n-guard 0 errors；全量 5205 nextest 全绿。 |
+| `GAP-5.2` PageStatus/PageData/SurfaceOrigin 下移中立契约 | 3 | 视图状态类型迁入 `lurker-core-contract::page`，重接 77/70/20 处引用，无 pub use 中转；`core_status_projection` 与 `settings_preference_projection` 迁入 `lurker-ui-presentation`；111 处 import-guard 修复；全量 5205 nextest 全绿。 |
+| `GAP-5.1.1` 脚本控制台报告双语标签所有权裁决 | 1 | `locales_table_ext.rs` 补齐 `script_engine_*` 与 `script_capabilities_*` 字典键；`script_sandbox` 移除 `starts_with("en")` 语言硬编码，`TextCatalog` 纯净下沉；Iced 与 Bevy 脚本测试全部通过。 |
+| `GAP-5.2.1` redact 脱敏规则通用安全不变量裁决 | 1 | 裁定 `redact_line` 仅包含 RFC 7235 与通用凭据识别规则，零业务与平台私有命名，属于协议层通用安全不变量；`lurker-core-contract/src/redact.rs` 写入正式裁决记录，全仓唯一真源在 contract。 |
 | `PUB-001.3.1` 存储平台 trait 化 | 2 | `StorePlatform` + `NativeStorePlatform`：全部 `cfg(unix/windows)`/`libc`/`windows-sys` 原语进入可注入实现；`ProfileStoreCore`/`EngineProfileStore` 公开 API 不变；RecordingPlatform 证明文档写入与写锁经过注入平台；门禁新增 `PORTABLE_KERNEL` 层并检测 `cfg(any/not(windows/unix))`、`libc::`、`windows_sys::`。 |
 | `PUB-003.1.1` driver backend provider | 2 | 两个 driver 各提供 `<Engine>BackendOptions` 与 `<Engine>EngineBackendProvider<EngineBackendPorts>`；内部装配 client/process/readiness/codec/未绑定 scope/outbound/routing；`backend` feature 可裁剪；8 个新测试（engine 一致、operations Available、scope 绑定前后、typed 参数错误）。 |
 | `PUB-003.1` 引擎注册器与中性 backend 契约 | 3 | `lurker-engine-runtime::registry::EngineBackendProviderRegistry<B>`（未注册引擎 typed Unsupported 且零 provider 调用、bundle engine 不符拒绝、重复注册/未知注销 typed 错误）；`EngineBackendBundle`/`Provider`/`EngineBackendPorts` 下沉 `lurker-core-ports`，产品 bundle 留 `infiltrator-ports`。本地 95 nextest、四包 clippy 0、全仓 5143/5143。 |

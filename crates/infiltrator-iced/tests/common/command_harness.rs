@@ -16,7 +16,7 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::yaml_snippets::yaml_snippet;
 use infiltrator_iced::state::AppState;
 use infiltrator_ports::capability_provider::CapabilityProvider;
@@ -28,6 +28,7 @@ use lurker_core_contract::core_process::CoreProcessStartContext;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::SurfaceOrigin;
 use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_ports::core_process::{CoreProcess, CoreReadiness};

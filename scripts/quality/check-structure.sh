@@ -20,6 +20,8 @@ python3 scripts/quality/kt-line-guard.py --mode enforce
 python3 scripts/quality/doc-governance-guard.py --self-test
 python3 scripts/quality/doc-governance-guard.py --mode enforce
 python3 scripts/quality/test-layout-guard.py --mode enforce
+python3 scripts/quality/mod-rs-guard.py --self-test
+python3 scripts/quality/mod-rs-guard.py --mode enforce
 python3 scripts/quality/typed-state-guard.py --self-test
 python3 scripts/quality/typed-state-guard.py --mode enforce
 python3 scripts/quality/retired-surface-guard.py

@@ -222,6 +222,7 @@ pub(super) fn register(
         }
         #[cfg(target_os = "android")]
         {
+            let _ = (&latest_for_export_logs, &tx_for_export_logs);
             show_unsupported(
                 &weak_for_export_logs,
                 "Android SAF log export is handled through Intent",

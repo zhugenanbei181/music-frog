@@ -5,7 +5,7 @@ use super::*;
 use bevy::ecs::query::With;
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
 use infiltrator_contract::doctor::DoctorStatus;
-use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::page::PageStatus;
 
 #[test]
 fn test_doctor_page_mounting_and_default_state() {

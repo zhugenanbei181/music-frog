@@ -39,7 +39,7 @@ REAL_GEO_UPDATE_TEST = Path(
 CORE_APPLY_SOURCE = Path("crates/infiltrator-core/src/apply.rs")
 CORE_PROFILE_TRANSACTION_SOURCE = Path("crates/infiltrator-core/src/profile_configuration_transaction.rs")
 MIHOMO_CLIENT_SOURCE = Path("crates/mihomo-driver/src/api/client.rs")
-MIHOMO_API_SOURCE = Path("crates/mihomo-driver/src/api/mod.rs")
+MIHOMO_API_SOURCE = Path("crates/mihomo-driver/src/api.rs")
 REQUIRED_VERSIONS = {"v1.19.18", "v1.19.32"}
 REQUIRED_OPERATIONS = (
     "profile.validate",

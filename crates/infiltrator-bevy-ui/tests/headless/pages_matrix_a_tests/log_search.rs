@@ -18,8 +18,8 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
-use infiltrator_contract::surface_snapshot::PageStatus;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::PageStatus;
 use std::sync::Arc;
 
 fn setup() -> (App, Arc<DemoCommandSink>, Entity) {

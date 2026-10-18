@@ -313,47 +313,43 @@ impl AndroidVpnServicePort {
                     format!("failed to spawn tun2proxy: {error}"),
                     true,
                 );
-                return Err(PortError::Io(failure.message));
+                Err(PortError::Io(failure.message))
             }
             Ok(_worker) => match receipt_receiver.await {
                 Ok(WorkerStartReceipt::Started) => match publish_worker_ready(worker_generation) {
-                    Ok(WorkerReadyOutcome::Published) => {
-                        return Ok(VpnStartReceipt::Started(running));
-                    }
+                    Ok(WorkerReadyOutcome::Published) => Ok(VpnStartReceipt::Started(running)),
                     Ok(WorkerReadyOutcome::StopInProgress) => {
-                        return Err(PortError::Rejected(Failure::new(
+                        Err(PortError::Rejected(Failure::new(
                             ErrorCode::Canceled,
                             "VPN worker became ready after its stop was requested",
                             true,
-                        )));
+                        )))
                     }
                     Ok(WorkerReadyOutcome::StaleGeneration) => {
-                        return Err(PortError::Rejected(Failure::new(
+                        Err(PortError::Rejected(Failure::new(
                             ErrorCode::NotReady,
                             "VPN worker readiness receipt belongs to a stale generation",
                             true,
-                        )));
+                        )))
                     }
                     Err(WorkerControlError::Busy(activity)) => {
-                        return Err(PortError::Rejected(Failure::new(
+                        Err(PortError::Rejected(Failure::new(
                             ErrorCode::NotReady,
                             format!(
                                 "VPN worker lifecycle changed to {activity:?} before readiness publication"
                             ),
                             true,
-                        )));
+                        )))
                     }
-                    Err(WorkerControlError::Unavailable) => {
-                        return Err(PortError::Failed(
-                            "VPN worker lifecycle became unavailable before readiness publication"
-                                .to_owned(),
-                        ));
-                    }
+                    Err(WorkerControlError::Unavailable) => Err(PortError::Failed(
+                        "VPN worker lifecycle became unavailable before readiness publication"
+                            .to_owned(),
+                    )),
                 },
                 Ok(WorkerStartReceipt::Failed(failure)) => {
                     let message = failure.to_string();
                     let failed = Failure::new(ErrorCode::NotReady, message, true);
-                    return Err(PortError::Rejected(failed));
+                    Err(PortError::Rejected(failed))
                 }
                 Err(_) => {
                     let failure = Failure::new(
@@ -361,7 +357,7 @@ impl AndroidVpnServicePort {
                         "tun2proxy worker exited before sending a readiness receipt",
                         true,
                     );
-                    return Err(PortError::Rejected(failure));
+                    Err(PortError::Rejected(failure))
                 }
             },
         }

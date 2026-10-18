@@ -90,6 +90,7 @@ pub(super) fn register(
         }
         #[cfg(target_os = "android")]
         {
+            let _ = (&name, &private_key, &tx_for_file, &latest_for_file);
             show_unsupported(
                 &weak_for_file,
                 "Android SAF file selection is handled through Intent",

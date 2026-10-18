@@ -183,7 +183,7 @@ impl JniBridge {
                 let admission = match env.call_method(
                     self.host.as_obj(),
                     &name,
-                    &signature.method_signature(),
+                    signature.method_signature(),
                     &arguments,
                 ) {
                     Ok(value) => value.i(),
@@ -309,7 +309,7 @@ impl JniBridge {
             env.call_method(
                 self.host.as_obj(),
                 &name,
-                &signature.method_signature(),
+                signature.method_signature(),
                 &arguments,
             )?
             .i()?;

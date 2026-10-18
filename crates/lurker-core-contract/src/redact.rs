@@ -1,4 +1,16 @@
-//! Structural log redaction of credential-bearing fragments (CORE-001).
+//! Structural log redaction of credential-bearing fragments (CORE-001, GAP-5.2.1).
+//!
+//! # Neutrality & Contract Ownership (GAP-5.2.1 Ruling)
+//! Redaction is ruled as a generic, engine- and product-neutral security invariant
+//! rather than a product-specific policy:
+//! 1. Neutral vocabulary: scans only RFC-standard credential patterns (`authorization`,
+//!    `proxy-authorization`, `password`, `secret`, `token`, and URL userinfo/query keys)
+//!    with zero product or platform dependencies.
+//! 2. Security fail-closed: neutral presentation modules (`lurker-ui-presentation`)
+//!    directly sanitize status messages to prevent credential leakage (CWE-532) in any
+//!    third-party embedding surface without relying on an optional port injection.
+//! 3. Single source of truth: authoritative in `lurker-core-contract::redact`, eliminating
+//!    divergent duplicate implementations in product domain layers.
 //!
 //! Log lines written around profiles, subscriptions and the controller
 //! routinely carry credentials: subscription URLs embed access tokens,

@@ -1,0 +1,18 @@
+[package]
+name = "lurker-template-slint"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Lightweight desktop proxy client template built on Slint."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+lurker-core-contract = { path = "../../crates/lurker-core-contract" }
+lurker-core-ports = { path = "../../crates/lurker-core-ports" }
+infiltrator-contract = { path = "../../crates/infiltrator-contract" }
+infiltrator-ports = { path = "../../crates/infiltrator-ports" }
+slint = { workspace = true, features = ["backend-winit"] }
+tokio = { workspace = true, features = ["full"] }
+
+[build-dependencies]
+slint-build = { workspace = true }

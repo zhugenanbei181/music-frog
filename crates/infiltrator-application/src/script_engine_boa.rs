@@ -42,6 +42,7 @@ const LOOP_ITERATIONS_PER_MS: u64 = 100_000;
 
 thread_local! {
     /// Console capture for the single synchronous `execute` on this thread.
+    #[allow(clippy::missing_const_for_thread_local)]
     static CONSOLE_LOG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 

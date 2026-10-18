@@ -18,7 +18,7 @@ use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::OutboundInventorySnapshot;
@@ -31,6 +31,7 @@ use lurker_core_contract::outbound::{
         OutboundProbeBatchSnapshot,
     },
 };
+use lurker_core_contract::page::PageData;
 use std::sync::Arc;
 
 fn mounted_proxy_page() -> (App, Arc<DemoCommandSink>) {

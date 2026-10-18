@@ -11,11 +11,11 @@ pub(crate) mod seam;
 mod stream;
 
 #[cfg(test)]
-#[path = "client_auth_tests.rs"]
+#[path = "api/client_auth_tests.rs"]
 mod auth_tests;
 #[cfg(test)]
-#[path = "client_tests.rs"]
+#[path = "api/client_tests.rs"]
 mod client_tests;
 #[cfg(test)]
-#[path = "proxy_wire_tests.rs"]
+#[path = "api/proxy_wire_tests.rs"]
 mod proxy_wire_tests;

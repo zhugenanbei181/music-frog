@@ -12,13 +12,14 @@ use infiltrator_slint::age_action::execute_slint_age_action;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
-    PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
+    ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_slint::{SlintAction, SlintProductHost};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::page::PageData;
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;

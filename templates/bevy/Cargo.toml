@@ -1,0 +1,18 @@
+[package]
+name = "lurker-template-bevy"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "High-performance ECS desktop proxy client template built on Bevy 0.20."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+lurker-core-contract = { path = "../../crates/lurker-core-contract" }
+lurker-core-ports = { path = "../../crates/lurker-core-ports" }
+infiltrator-contract = { path = "../../crates/infiltrator-contract" }
+infiltrator-ports = { path = "../../crates/infiltrator-ports" }
+bevy = { version = "0.20", default-features = false, features = ["bevy_ui", "bevy_ui_widgets", "bevy_winit", "bevy_render", "bevy_core_pipeline", "x11"] }
+tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+bevy = { version = "0.20", default-features = false }

@@ -113,6 +113,7 @@ pub(super) fn register(
         }
         #[cfg(target_os = "android")]
         {
+            let _ = (&latest_for_override_file, &tx_for_override_file);
             show_unsupported(
                 &weak_for_override_file,
                 "Android SAF file selection is handled through Intent",
@@ -167,6 +168,11 @@ pub(super) fn register(
         }
         #[cfg(target_os = "android")]
         {
+            let _ = (
+                &override_id,
+                &latest_for_override_export,
+                &tx_for_override_export,
+            );
             show_unsupported(
                 &weak_for_override_export,
                 "Android SAF file export is handled through Intent",

@@ -1,0 +1,82 @@
+import { Button, VerticalBox, HorizontalBox, GroupBox } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "Lurker Slint Desktop Template";
+    preferred-width: 480px;
+    preferred-height: 360px;
+    min-width: 400px;
+    min-height: 300px;
+
+    in-out property <string> core_status: "Stopped";
+    in-out property <string> routing_intent: "FollowRules";
+    in-out property <string> active_profile: "default.yaml";
+    in-out property <string> latency_text: "--- ms";
+
+    callback start_core();
+    callback stop_core();
+    callback switch_mode(string);
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 16px;
+
+        GroupBox {
+            title: "Core Status";
+            VerticalBox {
+                spacing: 8px;
+                HorizontalBox {
+                    Text { text: "Status:"; font-size: 14px; width: 120px; }
+                    Text { text: root.core_status; font-size: 14px; font-weight: 700; color: root.core_status == "Running" ? #10b981 : #ef4444; }
+                }
+                HorizontalBox {
+                    Text { text: "Routing Mode:"; font-size: 14px; width: 120px; }
+                    Text { text: root.routing_intent; font-size: 14px; }
+                }
+                HorizontalBox {
+                    Text { text: "Active Profile:"; font-size: 14px; width: 120px; }
+                    Text { text: root.active_profile; font-size: 14px; }
+                }
+                HorizontalBox {
+                    Text { text: "Latency:"; font-size: 14px; width: 120px; }
+                    Text { text: root.latency_text; font-size: 14px; }
+                }
+            }
+        }
+
+        GroupBox {
+            title: "Command Actions";
+            HorizontalBox {
+                spacing: 12px;
+                Button {
+                    text: "Start Core";
+                    enabled: root.core_status != "Running";
+                    clicked => { root.start_core(); }
+                }
+                Button {
+                    text: "Stop Core";
+                    enabled: root.core_status == "Running";
+                    clicked => { root.stop_core(); }
+                }
+            }
+        }
+
+        GroupBox {
+            title: "Routing Intent";
+            HorizontalBox {
+                spacing: 12px;
+                Button {
+                    text: "Rules";
+                    clicked => { root.switch_mode("rules"); }
+                }
+                Button {
+                    text: "Global Proxy";
+                    clicked => { root.switch_mode("global"); }
+                }
+                Button {
+                    text: "Direct Bypass";
+                    clicked => { root.switch_mode("direct"); }
+                }
+            }
+        }
+    }
+}

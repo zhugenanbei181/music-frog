@@ -13,7 +13,6 @@ use infiltrator_contract::runtime_settings::{
     DEFAULT_RUNTIME_PROBE_URL, RuntimeProbeSettings, RuntimeProbeSettingsState,
 };
 use infiltrator_contract::shortcuts::KeyModifiers;
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::state::proxy_probe;
 use infiltrator_iced::types::app::Route;
@@ -33,6 +32,7 @@ use lurker_core_contract::outbound::{
         OutboundProbeState, OutboundSelectionState,
     },
 };
+use lurker_core_contract::page::PageData;
 use tokio::runtime::Builder;
 
 fn state() -> AppState {

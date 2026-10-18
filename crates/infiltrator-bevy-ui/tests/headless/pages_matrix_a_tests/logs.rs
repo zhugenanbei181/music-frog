@@ -7,7 +7,7 @@ use infiltrator_bevy_ui::pages::logs_rows::LogRowIdentity;
 use infiltrator_bevy_ui::pages::logs_virtual::{LogsVirtualNodes, LogsVirtualSlot};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::page::PageStatus;
 
 #[test]
 fn test_logs_page_mounting_and_default_state() {

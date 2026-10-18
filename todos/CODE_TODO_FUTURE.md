@@ -61,49 +61,15 @@
   - 依赖：BANDROID-044.1~044.4。
   - 验收：正反例验证任务注册/排除/放行/拒绝；真实执行后才称质量门接通。
 
-## 四、开源独立发布与多 UI 模板框架架构（13条 / 24pt）
+## 四、开源独立发布、多 UI 模板与发布自动化生态（16条 / 28pt）
 
 > 1.0 中性内核（原 4.1–4.3，PUB-001～003）已迁入[现在佛](CODE_TODO.md)作为 1.0 主工作流；本板保留 UI 呈现标准化、四套模板脚手架与开源发布自动化。
 
-### 4.4 UI 消费端管道标准化与 Presentation 纯净化（3条 / 6pt）
-- [ ] PUB-004.1 [kind: mechanism] [priority: P1] [points: 2] [owner: presentation] [status: InProgress] 跨 UI 纯视图模型投影 `lurker-ui-presentation` 独立化
-  - 产物：纯数据模型与国际化文案折叠库，零 UI 框架依赖，仅负责将底层快照转换为各表面易读的 ViewModel。
-  - 裁决：`infiltrator-presentation` 82 个生产模块中只有 5 个（1,063 行）当前零契约改动；其余 77 个依赖 36k 行 `infiltrator-contract`。本条目只交付「种子 crate + `TextCatalog` 端口」，全量迁移拆为 B2 文案统一 / B3 `surface_snapshot` 契约下移，禁止在 PUB-004.1 内承诺 20.4k 行迁移。
-  - 依赖：PUB-001.1。
-  - 进度（2026-10-17，本地 L）：B1 完成 —— `lurker-ui-presentation` 已建（仅依赖 `lurker-core-contract`），迁入 `failure_projection`/`proxy_group_order_editor`/`routing_intent_actions`/`log_follow`/`dns_leak_actions` 与 `TextCatalog` 端口，26 个消费文件已改接；中性 crate 21 测试、六表面 1246 passed / 2 skipped。B2（45 个 i18n 模块统一 `&dyn TextCatalog`）与 B3（`PageStatus`/`PageData`/`PageId`/`SurfaceOrigin` 下移中立契约）未开始。
-  - 验收：`cargo check` 零图形库依赖；单元测试覆盖各页面状态折叠，禁止私有逻辑残留。
-- [ ] PUB-004.2 [kind: mechanism] [priority: P1] [points: 2] [owner: contract] 标准单向 UI 通信管道协议规范化
-  - 产物：固化 `SurfaceReader`（只读快照流）与 `CommandSink`（强类型意图通道），作为模板框架的唯一前后端接口。
-  - 依赖：PUB-004.1、PUB-003.3。
-  - 验收：UI 表面与底层交互仅能通过快照拉取与意图投递完成，杜绝任何 UI 层直调 Core 副作用。
-- [ ] PUB-004.3 [kind: validation] [priority: P1] [points: 2] [owner: UI crates] 现有全 UI 表面接入统一管道回归验证
-  - 产物：Iced、Bevy、Slint 桌面表面与 Android 呈现端纯粹作为消费者接入统一管道。
-  - 依赖：PUB-004.2。
-  - 验收：四大 UI 表面全部通过编译与无副作用回归，无任何 UI 私有业务状态推导。
+### 4.4 UI 消费端管道标准化与 Presentation 纯净化（已全部迁入现在佛推进）
 
-### 4.5 多 UI 模板化与工程脚手架（5条 / 11pt）
-- [ ] PUB-005.1 [kind: mechanism] [priority: P1] [points: 2] [owner: templates/slint] Slint 桌面轻量模板工程规范化
-  - 产物：独立的 Slint 客户端工程模板；包含轻量现代 UI 布局、页面路由与单向状态绑定，可独立打包分发。
-  - 依赖：PUB-004.2。
-  - 验收：独立工程直接 `cargo run` 成功，内存占用低且页面切换无卡顿。
-- [ ] PUB-005.2 [kind: mechanism] [priority: P1] [points: 2] [owner: templates/iced] Iced 桌面响应式模板工程规范化
-  - 产物：独立的 Iced 客户端工程模板；演示标准 Elm 架构、响应式状态管理、自定义样式与系统托盘接入。
-  - 依赖：PUB-004.2。
-  - 验收：独立工程支持跨平台桌面窗口、托盘事件响应与明暗主题切换。
-- [ ] PUB-005.3 [kind: mechanism] [priority: P1] [points: 2] [owner: templates/bevy] Bevy 0.20 极端性能/ECS 模板工程规范化
-  - 产物：独立的 Bevy 客户端工程模板；展示 ECS 架构与 Core 管道的高性能绑定、headless 测试与无头模式支持。
-  - 依赖：PUB-004.2。
-  - 验收：独立工程在无头环境与桌面窗口下均能稳定排帧，通过 ECS 调度验证。
-- [ ] PUB-005.4 [kind: mechanism] [priority: P1] [points: 3] [owner: templates/android] Android 双引擎 VPN 移动端模板工程规范化
-  - 产物：独立的 Android 工程模板；包含 Compose UI、Rust JNI 桥接、VPNService 权限与前台服务拓扑。
-  - 依赖：PUB-004.2。
-  - 验收：Gradle 直接组装 Debug APK 成功，安装后能正常拉起 VPN 授权并展示双引擎状态。
-- [ ] PUB-005.5 [kind: infra] [priority: P1] [points: 2] [owner: cargo-generate] 交互式工程生成脚手架配置
-  - 产物：配置 `cargo-generate` 规则与参数问答，支持开发者一键选择特定 UI 表面裁剪生成新项目。
-  - 依赖：PUB-005.1～PUB-005.4。
-  - 验收：执行 `cargo generate` 挑选单一 UI 框架后，生成的子项目立即可编译运行且无其他 UI 残留。
+### 4.5 多 UI 模板化与工程脚手架（已全部迁入现在佛推进）
 
-### 4.6 开源合规发布与交付文档（5条 / 7pt）
+### 4.6 开源合规发布、交付文档与发布自动化生态（11条 / 17pt）
 - [ ] PUB-006.1 [kind: infra] [priority: P1] [points: 2] [owner: CI] Crates.io 自动化发布 CI 工作流
   - 产物：GitHub Actions 发布流水线；包含发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布。
   - 依赖：PUB-001.1～PUB-003.3。
@@ -112,17 +78,41 @@
   - 产物：编写顶层架构说明、开发者接入指南、以及各 UI（Slint/Iced/Bevy/Android）在性能与开销上的选型对比。
   - 依赖：PUB-005.1～PUB-005.5。
   - 验收：文档包含快速上手代码、架构图与不同 UI 内存/包体 benchmark 详实数据。
-- [ ] PUB-006.3 [kind: infra] [priority: P1] [points: 2] [owner: release] 开源合规与可发布基线
-  - 产物：根 `LICENSE-MIT` + `LICENSE-APACHE`（MIT OR Apache-2.0）；每个中性 crate 的 `description`/`license`/`repository`/`README`；产品 crate 全量 `publish = false` 审计；中性 crate 独立版本拓扑（1.0.x，产品保持 0.4x）与发布顺序。
-  - 依赖：PUB-001.1～PUB-003.3。
-  - 验收：`cargo package --list` 无产品私有文件；每个中性 crate `cargo publish --dry-run` 通过；`cargo metadata` 证明中性 crate 不依赖任何产品 crate。
 - [ ] PUB-006.4 [kind: evidence] [priority: P1] [points: 1] [owner: docs] 开源仓库治理文档
   - 产物：README（快速上手/特性/截图）、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT，以及从产品仓迁移到中立内核的迁移指南。
   - 依赖：PUB-006.2、PUB-005.5。
   - 验收：文档链接全部可解析；新开发者按 README 能在干净环境跑通 example 与模板。
+- [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] Docs.rs 预览与公共 API 文档质量门
+  - 产物：配置全中性 crate 的 docs.rs 渲染模拟与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]`，公开接口提供标准 Rustdoc 注释与 doctest。
+  - 依赖：PUB-006.1、PUB-006.2。
+  - 验收：`cargo doc --all-features --no-deps` 零警告，intra-doc links 全部正确校验；公开 API 文档覆盖率 100% 且包含可执行 doctest。
+- [ ] PUB-006.7 [kind: mechanism] [priority: P1] [points: 2] [owner: test-infra] 无头沙盒集成测试与混沌容错验证
+  - 产物：针对中性运行时建立无头 CI 集成沙盒与混沌测试套件；覆盖高频网络波动、内核进程猝死拉起、锁竞争与损坏配置热恢复。
+  - 依赖：PUB-003.4、PUB-006.1。
+  - 验收：异常注入场景下状态机 100% fail-closed、租约安全回收、内存无泄漏且能够自愈，沙盒集成测试全部通过。
+- [ ] PUB-006.8 [kind: evidence] [priority: P1] [points: 2] [owner: core/drivers] 双引擎驱动真实二进制本地/CI Smoke 取证
+  - 产物：激活 `mihomo-driver` 与 `singbox-driver` 中预置的真实二进制 smoke 测试套件；实现驱动在 CI 环境下自动加载二进制并执行本地通信测试。
+  - 依赖：PUB-002.1、PUB-002.3、PUB-006.1。
+  - 验收：在 Linux/Windows 真实进程环境下完成 API 握手、配置写入、节点测速与流量分发冒烟验证，取得真实二进制执行证据。
+- [ ] PUB-006.9 [kind: mechanism] [priority: P1] [points: 2] [owner: examples] 最小化用例展厅 (Examples Gallery)
+  - 产物：在 `examples/` 目录交付 4 套独立极简用例（`minimal-cli`、`minimal-slint`、`minimal-iced`、`minimal-bevy`）；演示无需脚手架时直接引用中性 crate 的最简范式。
+  - 依赖：PUB-005.1～PUB-005.3、PUB-004.2。
+  - 验收：四个极简 example 工程独立 `cargo run --example` 成功，代码量均 ≤200 行，无多余外部依赖并接入 CI 编译守卫。
+- [ ] PUB-006.10 [kind: infra] [priority: P1] [points: 2] [owner: CI] 多架构交叉构建自动化与 SemVer 兼容守卫
+  - 产物：自动化跨架构编译流水线（涵盖 Linux/Windows/Android aarch64 与 x86_64）与 `cargo-semver-checks` 门禁集成。
+  - 依赖：GAP-1.1、PUB-006.1。
+  - 验收：四大目标架构交叉编译 100% 通过；SemVer 门禁能够拦截中性 crate 公开 API 的隐式破坏性变更。
+- [ ] PUB-006.11 [kind: evidence] [priority: P1] [points: 1] [owner: docs/qa] 开发者全生命周期演练与干跑审计
+  - 产物：在全新纯净容器中模拟外部开发者全流程旅程（克隆代码 -> 查看文档 -> 脚手架生成 -> 运行工程 -> 接入驱动 -> 调试配置）；输出端到端审计报告。
+  - 依赖：PUB-005.5、PUB-006.4、PUB-006.9。
+  - 验收：第三方开发者旅程零阻滞，全链路安装与交互用时 ≤5 分钟，所有体验毛刺清零并形成归档回执。
+- [ ] PUB-006.12 [kind: release] [priority: P1] [points: 1] [owner: release] 1.0-RC 候选版本基线冻结与预发布
+  - 产物：锁定七大中性 crate 版本为 `1.0.0-rc.1`；生成首个 release candidate 校验和清单、GPG 签名草案与预发布发布说明（Release Notes）。
+  - 依赖：PUB-006.1～PUB-006.11。
+  - 验收：七个中性 crate API 签名完全冻结；预发布打包 dry-run 100% 成功；0.6x 开源发布与生态体系完备收官，正式进入 0.7x 质量与安装包阶段。
 - [ ] PUB-006.5 [kind: evidence] [priority: P1] [points: 1] [owner: release] 1.0.0 首发布回执
   - 产物：`v1.0.0` tag、release notes、crates.io 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）顺序发布回执与 docs.rs 构建链接。
-  - 依赖：PUB-006.1、PUB-006.3、PUB-006.4。
+  - 依赖：PUB-006.1、PUB-006.3、PUB-006.4、PUB-006.12。
   - 验收：crates.io 六 crate 版本严格对齐；docs.rs 六页构建成功；回执绑定 tag 与 commit。
 
 ## 收口八问缺口（延迟项，6条 / 21pt）

@@ -12,8 +12,8 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::subscription_filter_form::FilterField;
-use infiltrator_contract::surface_snapshot::PageStatus;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::page::PageStatus;
 
 fn input(app: &mut App, kind: FilterField) -> Entity {
     app.world_mut()

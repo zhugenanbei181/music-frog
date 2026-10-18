@@ -32,35 +32,33 @@ use bevy::ui_widgets::{Activate, Button, ButtonPlugin, ScrollArea};
 use bevy::window::{PrimaryWindow, Window, WindowEvent, WindowResolution};
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::scrollarea::{
-    ScrollMotion, ScrollMotionPreference, ScrollMotionState,
-};
+use infiltrator_bevy_widgets::scrollarea::{ScrollMotion, ScrollMotionState};
 use infiltrator_bevy_widgets::theme::Theme;
 use std::time::Duration;
 #[derive(Resource, Default)]
 struct PointerInputCapture(Vec<PointerInput>);
 
-struct TouchScrollTargets {
-    window: Entity,
-    fixed_top: Entity,
-    scroll_area: Entity,
-    scroll_row: Entity,
-    fixed_bottom: Entity,
+pub(super) struct TouchScrollTargets {
+    pub(super) window: Entity,
+    pub(super) fixed_top: Entity,
+    pub(super) scroll_area: Entity,
+    pub(super) scroll_row: Entity,
+    pub(super) fixed_bottom: Entity,
 }
 
 #[derive(Resource, Default)]
-struct PickingTrace {
-    pointer_inputs: Vec<PointerInput>,
-    hits: Vec<PointerHits>,
-    drag_starts: Vec<PointerDragStart>,
-    drags: Vec<PointerDrag>,
-    drag_ends: Vec<PointerDragEnd>,
-    cancels: Vec<PointerCancel>,
-    clicks: Vec<PointerClick>,
+pub(super) struct PickingTrace {
+    pub(super) pointer_inputs: Vec<PointerInput>,
+    pub(super) hits: Vec<PointerHits>,
+    pub(super) drag_starts: Vec<PointerDragStart>,
+    pub(super) drags: Vec<PointerDrag>,
+    pub(super) drag_ends: Vec<PointerDragEnd>,
+    pub(super) cancels: Vec<PointerCancel>,
+    pub(super) clicks: Vec<PointerClick>,
 }
 
 #[derive(Resource, Default)]
-struct ActivationCount(usize);
+pub(super) struct ActivationCount(pub(super) usize);
 
 fn count_activations(_: On<Activate>, mut count: ResMut<ActivationCount>) {
     count.0 += 1;
@@ -84,7 +82,13 @@ struct PickingTraceMessages<'w, 's> {
     clicks: MessageReader<'w, 's, PointerClick>,
 }
 
-fn send_window_touch(app: &mut App, window: Entity, id: u64, phase: TouchPhase, position: Vec2) {
+pub(super) fn send_window_touch(
+    app: &mut App,
+    window: Entity,
+    id: u64,
+    phase: TouchPhase,
+    position: Vec2,
+) {
     app.world_mut()
         .write_message(WindowEvent::TouchInput(TouchInput {
             phase,
@@ -109,7 +113,7 @@ fn capture_picking_trace(mut messages: PickingTraceMessages, mut trace: ResMut<P
     trace.clicks.extend(messages.clicks.read().cloned());
 }
 
-fn touch_scroll_app() -> (App, TouchScrollTargets) {
+pub(super) fn touch_scroll_app() -> (App, TouchScrollTargets) {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
         .add_plugins(AssetPlugin::default())
@@ -551,290 +555,5 @@ fn cancelled_touch_before_drag_releases_the_pressed_control() {
     );
 }
 
-#[test]
-fn fixed_shell_bars_stay_outside_the_independent_touch_scroll_area() {
-    let (mut app, targets) = touch_scroll_app();
-    let window = targets.window;
-    let scroll_area = targets.scroll_area;
-
-    send_window_touch(
-        &mut app,
-        window,
-        20,
-        TouchPhase::Started,
-        Vec2::new(200.0, 50.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        20,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 50.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        21,
-        TouchPhase::Started,
-        Vec2::new(200.0, 750.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        21,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 750.0),
-    );
-    app.update();
-    assert_eq!(app.world().resource::<ActivationCount>().0, 2);
-    assert!(
-        app.world()
-            .resource::<PickingTrace>()
-            .hits
-            .iter()
-            .any(|hits| {
-                hits.pointer == PointerId::Touch(20)
-                    && hits
-                        .picks
-                        .iter()
-                        .any(|(entity, _)| *entity == targets.fixed_top)
-            })
-    );
-    assert!(
-        app.world()
-            .resource::<PickingTrace>()
-            .hits
-            .iter()
-            .any(|hits| {
-                hits.pointer == PointerId::Touch(21)
-                    && hits
-                        .picks
-                        .iter()
-                        .any(|(entity, _)| *entity == targets.fixed_bottom)
-            })
-    );
-
-    send_window_touch(
-        &mut app,
-        window,
-        22,
-        TouchPhase::Started,
-        Vec2::new(200.0, 50.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        22,
-        TouchPhase::Moved,
-        Vec2::new(200.0, 70.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        22,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 70.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        23,
-        TouchPhase::Started,
-        Vec2::new(200.0, 750.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        23,
-        TouchPhase::Moved,
-        Vec2::new(200.0, 730.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        23,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 730.0),
-    );
-    app.update();
-    assert_eq!(
-        app.world().get::<ScrollPosition>(scroll_area).unwrap().y,
-        0.0
-    );
-    assert_eq!(app.world().resource::<ActivationCount>().0, 2);
-
-    send_window_touch(
-        &mut app,
-        window,
-        24,
-        TouchPhase::Started,
-        Vec2::new(200.0, 500.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        24,
-        TouchPhase::Moved,
-        Vec2::new(200.0, 400.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        24,
-        TouchPhase::Moved,
-        Vec2::new(200.0, 395.0),
-    );
-    app.update();
-    assert_eq!(
-        app.world().get::<ScrollPosition>(scroll_area).unwrap().y,
-        105.0
-    );
-    send_window_touch(
-        &mut app,
-        window,
-        24,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 395.0),
-    );
-    app.update();
-    for _ in 0..100 {
-        app.update();
-    }
-    let scroll_after_fling = app.world().get::<ScrollPosition>(scroll_area).unwrap().y;
-    assert!(scroll_after_fling > 100.0);
-    assert!(scroll_after_fling <= 400.0);
-    assert_eq!(
-        app.world()
-            .get::<ScrollPosition>(targets.fixed_top)
-            .unwrap()
-            .0,
-        Vec2::ZERO
-    );
-    assert_eq!(
-        app.world()
-            .get::<ScrollPosition>(targets.fixed_bottom)
-            .unwrap()
-            .0,
-        Vec2::ZERO
-    );
-
-    send_window_touch(
-        &mut app,
-        window,
-        25,
-        TouchPhase::Started,
-        Vec2::new(200.0, 50.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        25,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 50.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        26,
-        TouchPhase::Started,
-        Vec2::new(200.0, 750.0),
-    );
-    app.update();
-    send_window_touch(
-        &mut app,
-        window,
-        26,
-        TouchPhase::Ended,
-        Vec2::new(200.0, 750.0),
-    );
-    app.update();
-    assert_eq!(app.world().resource::<ActivationCount>().0, 4);
-    assert_eq!(
-        app.world().get::<ScrollPosition>(scroll_area).unwrap().y,
-        scroll_after_fling
-    );
-}
-
-#[test]
-fn ten_alternating_touch_swipes_reach_both_bounds_without_activating_the_row() {
-    let (mut app, targets) = touch_scroll_app();
-    *app.world_mut().resource_mut::<ScrollMotionPreference>() = ScrollMotionPreference::Reduced;
-
-    for swipe in 0..10 {
-        let (start_y, end_y, expected_position) = if swipe % 2 == 0 {
-            (600.0, 120.0, 400.0)
-        } else {
-            (120.0, 600.0, 0.0)
-        };
-        let pointer_id = 40 + swipe;
-        send_window_touch(
-            &mut app,
-            targets.window,
-            pointer_id,
-            TouchPhase::Started,
-            Vec2::new(200.0, start_y),
-        );
-        app.update();
-        send_window_touch(
-            &mut app,
-            targets.window,
-            pointer_id,
-            TouchPhase::Moved,
-            Vec2::new(200.0, end_y),
-        );
-        app.update();
-
-        assert_eq!(
-            app.world()
-                .get::<ScrollPosition>(targets.scroll_area)
-                .unwrap()
-                .y,
-            expected_position,
-            "swipe {swipe} reaches its clamped logical endpoint"
-        );
-        assert_eq!(app.world().resource::<ActivationCount>().0, 0);
-
-        send_window_touch(
-            &mut app,
-            targets.window,
-            pointer_id,
-            TouchPhase::Ended,
-            Vec2::new(200.0, end_y),
-        );
-        app.update();
-    }
-
-    assert!(
-        app.world()
-            .resource::<PickingTrace>()
-            .hits
-            .iter()
-            .any(|hits| {
-                hits.pointer == PointerId::Touch(49)
-                    && hits
-                        .picks
-                        .iter()
-                        .any(|(entity, _)| *entity == targets.scroll_row)
-            })
-    );
-    assert_eq!(
-        app.world()
-            .get::<ScrollPosition>(targets.scroll_area)
-            .unwrap()
-            .y,
-        0.0
-    );
-    assert_eq!(app.world().resource::<ActivationCount>().0, 0);
-}
+#[path = "scrollarea_touch_tests/shell_and_swipes.rs"]
+mod shell_and_swipes;

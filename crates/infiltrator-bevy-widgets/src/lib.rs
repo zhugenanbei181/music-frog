@@ -1,6 +1,6 @@
 //! Business-agnostic Bevy UI widget layer for MusicFrog.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md): static structure composes
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md): static structure composes
 //! declaratively with `bsn!` scene functions; runtime changes restamp
 //! components via observers, never rebuild trees; every color and metric
 //! originates in [`theme`] tokens and becomes a bevy value only inside

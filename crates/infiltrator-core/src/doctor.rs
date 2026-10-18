@@ -23,7 +23,7 @@ use lurker_core_contract::profile_document_identity::ProfileId;
 use mihomo_driver::error;
 mod checks;
 #[cfg(test)]
-#[path = "doctor_test.rs"]
+#[path = "doctor/doctor_test.rs"]
 mod doctor_test;
 mod fixes;
 mod pidfile;

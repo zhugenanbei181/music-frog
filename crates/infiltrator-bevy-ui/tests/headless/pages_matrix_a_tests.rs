@@ -6,6 +6,7 @@
 
 #[path = "pages_matrix_a_tests/editor_support.rs"]
 mod editor_support;
+use editor_support::*;
 #[path = "pages_matrix_a_tests/filter_support.rs"]
 mod filter_support;
 use crate::configuration_codec::mihomo_rule_workspace;
@@ -15,8 +16,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::With;
 use bevy::ecs::world::World;
-use bevy::input::ButtonState;
-use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::keyboard::Key;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::Text;
 use bevy::ui::{Checked, ScrollPosition};
@@ -37,10 +37,10 @@ use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
 use infiltrator_bevy_ui::pages::profiles_aggregator::{
     AddAggregatorCustomGroupButton, AggregatorCustomGroupKeywordsField,
-    AggregatorCustomGroupNameField, AggregatorNameField, AggregatorRenamesField,
-    AggregatorSourceToggle, AggregatorSwitch, AggregatorSwitchKind, AggregatorTemplateNameField,
-    DeleteAggregationTemplateButton, PreviewAggregationButton, ReAggregateTemplateButton,
-    SaveAggregatedProfileButton, SaveAggregationTemplateButton, UseAggregationTemplateButton,
+    AggregatorCustomGroupNameField, AggregatorNameField, AggregatorRenamesField, AggregatorSwitch,
+    AggregatorSwitchKind, AggregatorTemplateNameField, DeleteAggregationTemplateButton,
+    PreviewAggregationButton, ReAggregateTemplateButton, SaveAggregatedProfileButton,
+    SaveAggregationTemplateButton, UseAggregationTemplateButton,
 };
 use infiltrator_bevy_ui::pages::profiles_diff::{
     RefreshSnapshotDiffButton, RollbackSnapshotButton, SnapshotDiffModeButton,
@@ -93,7 +93,6 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationReport,
-    AggregationTemplate,
 };
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::mrs_acceleration::{
@@ -101,11 +100,9 @@ use infiltrator_contract::mrs_acceleration::{
 };
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
-use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
@@ -549,230 +546,6 @@ fn aggregation_preview_report() -> AggregationReport {
         yaml: "port: 7890\nproxies: []\nproxy-groups:\n  - name: 🚀 节点选择\n".to_owned(),
         generated_at: "2026-09-22T10:00:00+00:00".to_owned(),
     }
-}
-
-fn aggregation_page_projection() -> ProfilesProjection {
-    ProfilesProjection {
-        profiles: vec![],
-        auto_update_interval_hours: 0,
-        updating: false,
-        aggregation: Some(aggregation_preview_report()),
-        aggregation_templates: vec![AggregationTemplate {
-            name: "已保存模板".to_owned(),
-            draft: AggregationDraft {
-                source_profiles: vec!["Primary VIP".to_owned()],
-                target_name: "Template-Target".to_owned(),
-                deduplicate: false,
-                deduplicate_names: true,
-                geo_cluster: false,
-                generate_groups: true,
-                remove_emojis: false,
-                rename_rules: vec![AggregationRenameRule {
-                    pattern: "-广告$".to_owned(),
-                    replacement: String::new(),
-                }],
-                custom_groups: Vec::new(),
-                availability_precheck: false,
-                activate_after_create: true,
-            },
-            updated_at: "2026-09-22T11:00:00+00:00".to_owned(),
-        }],
-        aggregation_templates_available: true,
-        yaml_ast_diff: None,
-        snapshot_history: None,
-        apply_transaction: None,
-        editor_read: Default::default(),
-        profile_document: None,
-        profile_options: None,
-        script_sandbox: None,
-        script_export: None,
-    }
-}
-
-/// Flip the `Checked` state of one source row by profile name.
-fn set_source_checked(app: &mut App, name: &str, checked: bool) {
-    let child = {
-        let mut query = app
-            .world_mut()
-            .query::<(&AggregatorSourceToggle, &Children)>();
-        let mut found = None;
-        for (toggle, children) in query.iter(app.world()) {
-            if toggle.1 == name {
-                found = children.iter().next().copied();
-                break;
-            }
-        }
-        found.expect("source toggle row")
-    };
-    let mut entity = app.world_mut().entity_mut(child);
-    if checked {
-        entity.insert(Checked);
-    } else {
-        entity.remove::<Checked>();
-    }
-}
-
-/// Flip the `Checked` state of one named wizard switch.
-fn set_switch_checked(app: &mut App, kind: AggregatorSwitchKind, checked: bool) {
-    let child = {
-        let mut query = app.world_mut().query::<(&AggregatorSwitch, &Children)>();
-        let mut found = None;
-        for (switch, children) in query.iter(app.world()) {
-            if switch.0 == kind {
-                found = children.iter().next().copied();
-                break;
-            }
-        }
-        found.expect("switch row")
-    };
-    let mut entity = app.world_mut().entity_mut(child);
-    if checked {
-        entity.insert(Checked);
-    } else {
-        entity.remove::<Checked>();
-    }
-}
-
-// ---- DUAL-09-08/09/12: snapshot diff, rollback and protection chips --------
-
-fn snapshot_diff_fixture() -> YamlAstDiffSnapshot {
-    YamlAstDiffSnapshot::demo_fixture().with_source_path("/fake/configs/main-history/snap-001.yaml")
-}
-
-fn snapshot_diff_page_projection(diff: Option<YamlAstDiffSnapshot>) -> ProfilesProjection {
-    ProfilesProjection {
-        profiles: vec![ProfileItem {
-            id: "main".to_owned(),
-            name: "主力高速订阅 (Primary VIP)".to_owned(),
-            url: "https://subscribe.musicfrog.io/main".to_owned(),
-            updated_at: "2026-09-22 08:30".to_owned(),
-            upload_bytes: Some(0),
-            download_bytes: Some(0),
-            total_bytes: Some(0),
-            is_active: true,
-            user_agent: String::new(),
-            insecure_skip_verify: false,
-            etag: None,
-            last_modified: None,
-            has_backup: false,
-            cron_expression: None,
-            auto_update_enabled: false,
-            update_interval_hours: None,
-            next_update: None,
-            auto_reload_core: true,
-            filter: Default::default(),
-            filter_source: observation("main", FIXTURE_DOCUMENT, Default::default())
-                .map(|observation| observation.workspace_identity),
-            write_protection: ProfileWriteProtection::RemoteSubscription,
-        }],
-        auto_update_interval_hours: 0,
-        updating: false,
-        aggregation: None,
-        aggregation_templates: Vec::new(),
-        aggregation_templates_available: true,
-        yaml_ast_diff: diff,
-        snapshot_history: None,
-        apply_transaction: None,
-        editor_read: Default::default(),
-        profile_document: None,
-        profile_options: None,
-        script_sandbox: None,
-        script_export: None,
-    }
-}
-
-// ---- DUAL-09-03/05/06/07/11/14: history controls + the document editor -----
-
-fn snapshot_history_fixture() -> SnapshotHistorySnapshot {
-    use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
-    SnapshotHistorySnapshot {
-        profile: "main".to_owned(),
-        entries: vec![
-            SnapshotEntry {
-                id: "/fake/configs/main-history/snap-002.yaml".to_owned(),
-                file_name: "1750000100000-cafebabe.yaml".to_owned(),
-                timestamp_millis: 1_750_000_100_000,
-                sha256: "cafebabe00112233445566778899aabbccddeeff00112233445566778899aabb"
-                    .to_owned(),
-                is_newest: true,
-                is_duplicate: false,
-            },
-            SnapshotEntry {
-                id: "/fake/configs/main-history/snap-001.yaml".to_owned(),
-                file_name: "1750000000000-deadbeef.yaml".to_owned(),
-                timestamp_millis: 1_750_000_000_000,
-                sha256: "deadbeef00112233445566778899aabbccddeeff00112233445566778899aabb"
-                    .to_owned(),
-                is_newest: false,
-                is_duplicate: true,
-            },
-        ],
-        keep_limit: 20,
-        pending_prune: 1,
-        duplicate_entries: 1,
-        last_prune: None,
-    }
-}
-
-fn keyboard_press(logical_key: Key, text: Option<&str>) -> KeyboardInput {
-    KeyboardInput {
-        key_code: KeyCode::KeyA,
-        logical_key,
-        state: ButtonState::Pressed,
-        text: text.map(|value| value.into()),
-        repeat: false,
-        window: Entity::PLACEHOLDER,
-    }
-}
-
-// ---- DUAL-09-02/04/13: shared viewport, gutter, snippets -------------------
-
-/// Every `Text` entity in a subtree (the bounded-render evidence needs a
-/// count, not just a presence check).
-fn subtree_text_count(world: &World, root: Entity) -> usize {
-    let mut count = usize::from(world.get::<Text>(root).is_some());
-    if let Some(children) = world.get::<Children>(root) {
-        for child in children.iter() {
-            count += subtree_text_count(world, *child);
-        }
-    }
-    count
-}
-
-fn snippet_button_entity(app: &mut App, index: usize) -> Entity {
-    use infiltrator_bevy_ui::pages::profiles_editor::ProfileEditorSnippetButton;
-    let mut query = app
-        .world_mut()
-        .query::<(Entity, &ProfileEditorSnippetButton)>();
-    query
-        .iter(app.world())
-        .find(|(_, button)| button.index == index)
-        .map(|(entity, _)| entity)
-        .expect("snippet button")
-}
-
-// ---- DUAL-09-14: Mixin / Filter panes --------------------------------------
-
-fn pane_button_entity(app: &mut App, pane: ProfileEditorPane) -> Entity {
-    use infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPaneButton;
-    let mut query = app
-        .world_mut()
-        .query::<(Entity, &ProfileEditorPaneButton)>();
-    query
-        .iter(app.world())
-        .find(|(_, button)| button.pane == pane)
-        .map(|(entity, _)| entity)
-        .expect("pane switch button")
-}
-
-fn pane_area_display(app: &mut App, pane: ProfileEditorPane) -> Display {
-    use infiltrator_bevy_ui::pages::profiles_editor_panes::ProfileEditorPaneArea;
-    let mut query = app.world_mut().query::<(&ProfileEditorPaneArea, &Node)>();
-    query
-        .iter(app.world())
-        .find(|(area, _)| area.pane == pane)
-        .map(|(_, node)| node.display)
-        .expect("pane area node")
 }
 
 // ---- DUAL-10-08/10/11: shared Mixin studio (preflight + toggles + cascade) --

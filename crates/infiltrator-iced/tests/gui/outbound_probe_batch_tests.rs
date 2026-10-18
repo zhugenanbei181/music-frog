@@ -15,7 +15,7 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::{
@@ -36,6 +36,7 @@ use lurker_core_contract::outbound::{
         OutboundProbeBatchSnapshot, OutboundProbeConcurrency, ProbeOutboundBatchRequest,
     },
 };
+use lurker_core_contract::page::PageData;
 use std::sync::Arc;
 
 const INVENTORY_REVISION: u64 = 41;

@@ -2,7 +2,7 @@
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::core_capabilities::CoreCapabilitySnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::message;
 use lurker_core_contract::error::Failure;
@@ -25,6 +25,7 @@ use lurker_core_contract::outbound::{
         OutboundUiPreferencesValues,
     },
 };
+use lurker_core_contract::page::PageData;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]

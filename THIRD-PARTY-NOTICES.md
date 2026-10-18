@@ -272,7 +272,7 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
 - Source: crates.io, upstream [slint-ui/slint](https://github.com/slint-ui/slint),
   pinned to the latest stable `1.18.1` release in `Cargo.toml` and `Cargo.lock`.
   Product integration and platform build entry points are documented in the
-  [Slint crate guide](crates/infiltrator-slint/docs/README.md).
+  [Slint crate guide](crates/infiltrator-slint/README.md).
 - The upstream crate manifests declare
   `GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0`.
   The selected distribution terms and accompanying license texts must follow

@@ -17,13 +17,13 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource,
 };
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::page::PageData;
 use lurker_ui_presentation::proxy_group_order_editor::GroupMove;
 use std::sync::Arc;
 use std::thread::yield_now;

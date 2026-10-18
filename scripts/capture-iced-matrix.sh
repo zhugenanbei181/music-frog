@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Capture the Infiltrator iced-frontend demo screenshot matrix in one fully
 # backgrounded compositor stack (native iced render evidence — see
-# crates/infiltrator-iced/docs/SCREENSHOTS.md).
+# crates/infiltrator-iced/docs/README.md).
 #
 # Pipeline: build once -> start one private virtual KWin host -> start one
 # nested niri inside that host -> launch one demo scenario at a time -> wait

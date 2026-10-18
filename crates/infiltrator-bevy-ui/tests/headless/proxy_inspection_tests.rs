@@ -43,7 +43,7 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::surface::HostKind;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
@@ -68,6 +68,7 @@ use lurker_core_contract::outbound::{
     },
     probe::ProbeOutboundRequest,
 };
+use lurker_core_contract::page::PageData;
 use mem::take;
 use std::collections::VecDeque;
 use std::mem;

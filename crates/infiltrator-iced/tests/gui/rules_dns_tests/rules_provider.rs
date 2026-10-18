@@ -16,8 +16,9 @@ use infiltrator_shared::locales::Lang;
 fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
     use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
     use infiltrator_contract::surface::{HostKind, SurfaceKind};
-    use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot, SurfaceSnapshot};
+    use infiltrator_contract::surface_snapshot::{RulesPageSnapshot, SurfaceSnapshot};
     use lurker_core_contract::error::{ErrorCode, Failure};
+    use lurker_core_contract::page::PageData;
 
     let (mut state, _) = AppState::new();
     let mut snapshot = SurfaceSnapshot::unavailable(

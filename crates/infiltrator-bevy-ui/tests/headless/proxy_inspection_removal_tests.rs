@@ -1,5 +1,5 @@
 use super::*;
-use infiltrator_contract::surface_snapshot::PageStatus;
+use lurker_core_contract::page::PageStatus;
 
 #[test]
 fn failed_or_loading_typed_reads_keep_visible_last_details_until_successful_deletion() {

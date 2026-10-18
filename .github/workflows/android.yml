@@ -12,6 +12,22 @@ name: android
 # both ABIs; Bevy and Slint flavor tasks build their native UI libraries too.
 on:
   workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Android flavor to build and test'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - compose
+          - bevy
+          - slint
+      run_emulator:
+        description: 'Run Gradle Managed Device emulator suite'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -55,6 +71,11 @@ jobs:
           distribution: ${{ steps.android-toolchain.outputs.java_distribution }}
           java-version: ${{ steps.android-toolchain.outputs.java_major }}
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -80,15 +101,19 @@ jobs:
         run: |
           set -euo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          PACKAGES=(
+            "platform-tools"
+            "platforms;android-${{ steps.android-toolchain.outputs.android_sdk_platform }}"
+            "build-tools;${{ steps.android-toolchain.outputs.android_build_tools }}"
+          )
+          if [ "${{ inputs.run_emulator }}" != "false" ]; then
+            PACKAGES+=("emulator" "system-images;android-${{ steps.android-toolchain.outputs.android_emulator_api }};${{ steps.android-toolchain.outputs.android_emulator_image }}")
+          fi
           set +o pipefail
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
-            "platform-tools" "emulator" \
-            "platforms;android-${{ steps.android-toolchain.outputs.android_sdk_platform }}" \
-            "build-tools;${{ steps.android-toolchain.outputs.android_build_tools }}" \
-            "system-images;android-${{ steps.android-toolchain.outputs.android_emulator_api }};${{ steps.android-toolchain.outputs.android_emulator_image }}"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "${PACKAGES[@]}"
           rc=$?
           set -o pipefail
-          [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install platform 37 (rc=$rc)"; exit "$rc"; }
+          [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install packages (rc=$rc)"; exit "$rc"; }
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.99.0
@@ -132,6 +157,9 @@ jobs:
       # builds every registered flavor, runs JVM tests and executes device suites.
       - name: Build and test every Android flavor in an isolated emulator
         shell: bash
+        env:
+          ANDROID_FLAVORS: ${{ inputs.flavor || 'all' }}
+          ANDROID_RUN_EMULATOR: ${{ inputs.run_emulator != false }}
         run: bash scripts/android-emulator-tests.sh
 
       - name: Upload Android Emulator reports and provenance

@@ -1,0 +1,24 @@
+[template]
+cargo_generate_version = ">=0.18.0"
+
+[placeholders]
+project_name = { type = "string", prompt = "What is the name of your proxy client project?", default = "my-proxy-client" }
+ui_framework = { type = "choice", prompt = "Select your preferred UI framework:", choices = ["slint", "iced", "bevy", "android"], default = "slint" }
+engine_support = { type = "choice", prompt = "Default core engine support:", choices = ["mihomo", "singbox", "both"], default = "both" }
+author = { type = "string", prompt = "Author name/handle:", default = "Lurker Developer" }
+
+[conditional.'ui_framework == "slint"']
+include = ["slint/**"]
+exclude = ["iced/**", "bevy/**", "android/**"]
+
+[conditional.'ui_framework == "iced"']
+include = ["iced/**"]
+exclude = ["slint/**", "bevy/**", "android/**"]
+
+[conditional.'ui_framework == "bevy"']
+include = ["bevy/**"]
+exclude = ["slint/**", "iced/**", "android/**"]
+
+[conditional.'ui_framework == "android"']
+include = ["android/**"]
+exclude = ["slint/**", "iced/**", "bevy/**"]

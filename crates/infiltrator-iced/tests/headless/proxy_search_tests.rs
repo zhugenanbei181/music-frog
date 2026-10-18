@@ -1,7 +1,6 @@
 //! test-intent: behavior
 //! Typed demo SurfaceSnapshot search with Unicode display names and pinyin matching.
 use crate::test_support::demo_env;
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
@@ -9,6 +8,7 @@ use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState,
 };
+use lurker_core_contract::page::PageData;
 
 #[test]
 fn typed_demo_search_keeps_unicode_names_and_filters_observed_outbounds() {

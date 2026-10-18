@@ -21,7 +21,7 @@ use infiltrator_contract::service_mode::{
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::{PageId, SurfaceSnapshot};
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
@@ -36,6 +36,7 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use lurker_core_contract::lifecycle::CoreLifecycle;
+use lurker_core_contract::page::PageStatus;
 use lurker_core_contract::session::SessionToken;
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;

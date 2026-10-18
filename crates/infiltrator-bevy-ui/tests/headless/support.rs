@@ -29,8 +29,9 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::surface::HostKind;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::profile_store::ProfileStore;
+use lurker_core_contract::page::PageData;
 use lurker_core_ports::core_scope::CoreScopeObservation;
 use std::sync::{Arc, RwLock};
 

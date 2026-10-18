@@ -53,3 +53,11 @@ Git rev 升级由各产品决定，不迫使所有产品同步升级；CI 接入
 本产品执行 `bash scripts/test.sh --guards-only` 和受影响 nextest（`-j 4`）；
 具体原生捕获入口见 [Iced](../crates/infiltrator-iced/docs/README.md) 与
 [Bevy](../crates/infiltrator-bevy-ui/docs/README.md)。
+
+## 跨表面资源（本地化与视觉资产）
+
+所有 UI 表面共用 `infiltrator-shared` 的文本 lookup 与视觉资产身份；surface 只适配 renderer，不持有第二份翻译源或重复源文件。
+
+- 本地化：`infiltrator_shared::locales::Lang` 解析稳定应用文案 key 与产品 gettext message ID，来源为 `crates/infiltrator-shared/locales/product/`；Slint 编译器读取同一份共享 `.po`。运行期用户数据（profile 名、代理名、日志、controller 值）保持 opaque，不作为翻译 key。
+- 视觉资产：`infiltrator_shared::assets::AssetCatalog` 从 `crates/infiltrator-shared/assets/asset-catalog.json` 解析语义 ID、格式与变体；目录记录 SVG/PNG/ICO/字体及其来源与许可证。render adapter 嵌入或解码所选格式，不重定义资产身份。
+- 实现与更新流程见 [`infiltrator-shared` crate](../crates/infiltrator-shared/README.md) 与 [asset catalog guide](../crates/infiltrator-shared/assets/README.md)。

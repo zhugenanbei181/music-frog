@@ -18,7 +18,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等当前外部不可解依赖约束的条目保持原位与现有状态并注明依赖方；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261018-v221`：当前现在佛 12 pt（7 条）/ 过去佛 78 pt（31 条）/ 未来佛 68 pt（30 条），联合未办结分母 158 pt；已归档交付 643 pt（243 条）；累计 801 pt，严格归档完成率 80.3%。
+- Point 基线 `musicfrog-todo-20261018-v234`：当前现在佛 3 pt（3 条）/ 过去佛 69 pt（26 条）/ 未来佛 49 pt（21 条），联合未办结分母 121 pt；已归档交付 680 pt（261 条）；累计 801 pt，严格归档完成率 84.9%。
 <!-- POINT_LEDGER:END -->
 
 ## 阶段一：代码健康度与全仓质量门禁（前置基石，已解锁全仓验证批次）
@@ -31,20 +31,7 @@
 
 > 阶段门：CORE-UI-002 统一验证批次（结构门 + parity + 全量 nextest 5116 项 + Clippy 0 警告）已全绿收口并办结归档。
 
-## 阶段四：CI 自动化留痕与最终构建产物（交付与发布保障）
-
-- [ ] BANDROID-018.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] tag-only CI 实际全绿回执
-  - 产物：受控 `v*` tag release 与 Android workflow 的完整 run 链接和分项证据；普通 push/PR 不运行。
-  - 依赖：高成本 tag-only 工作流；CI-QUALITY-001～005；CORE-UI-002（全仓绿）。
-  - 验收：tag run 中 nextest、构建、Clippy、APK identity 与 Android tests 全绿并归档。
-- [ ] BANDROID-019.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] manifest/aapt 守卫 CI 回执
-  - 产物：`android-manifest-contract-guard.py` 与 aapt identity 检查在 CI 实际执行并留存回执。
-  - 依赖：BANDROID-018.2。
-  - 验收：回执绑定 run 与 APK 哈希。
-- [ ] BANDROID-038.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI + release workflow] [status: Blocked] 每个 APK 的 aapt identity CI 检查
-  - 产物：tag release 对每个最终 APK 的 aapt identity 检查实际接入并留存回执；普通 push/PR 不触发构建。
-  - 依赖：已交付的 identity registry 与 guard（BANDROID-038.1）。
-  - 验收：负例（drift APK）在 CI 被拒；回执绑定 APK SHA。
+## 阶段四：v0.42.5 发布管道与构建产物 CI 留痕（已迁入过去佛安排，受控环境阻塞待验）
 
 ## 阶段五：1.0 中性内核可发布（开源独立框架 · 潜伏者 / Lurker）
 
@@ -56,23 +43,8 @@
 
 ### 5.3 统一双引擎调度器与高层 Facade SDK（已全部迁入过去佛）
 
-### 5.4 收口八问缺口（GAP，3条 / 8pt）
+### 5.4 收口八问缺口（GAP，已全部办结归档）
 
-- [ ] GAP-1.1 [kind: evidence] [priority: P1] [points: 3] [owner: product cross-target] [status: InProgress] 产品层 x86_64/aarch64 交叉检查
-  - 产物：对 `infiltrator-core`/`infiltrator-composition`/`infiltrator-desktop` 及三个 UI crate 做 `aarch64-unknown-linux-gnu`、`aarch64-pc-windows-msvc` 的 `cargo check`，记录通过的组合与失败原因。
-  - 依赖：无（中性内核矩阵已 8/8）。
-  - 验收：脚本可复跑；通过/失败组合写入八问第 1 行；失败项若为平台专属代码，回流对应 owner。
-  - 当前证据：本机 aarch64 `cargo check` 已通过 core/composition/desktop 与 Iced/Bevy/Slint：`aarch64-unknown-linux-gnu`（zig 0.14.1 + cargo-zigbuild，`zstd-sys`/`ring` 目标 C 编译通过）、`aarch64-pc-windows-msvc`（cargo-xwin clang sysroot）、`aarch64-linux-android`（NDK 29.0.14206865）。复跑脚本与最终产物证据待补，状态保持 InProgress。
-- [ ] GAP-5.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-core-contract] [status: Planned] PUB-004.1 B3：`PageStatus`/`PageData`/`PageId`/`SurfaceOrigin` 下移中立契约
-  - 产物：四个视图状态类型迁入 `lurker-core-contract`，重接 77/70/34/20 处引用；无 `pub use` 中转。
-  - 依赖：PUB-004.1。
-  - 验收：中立 crate 只依赖 `Failure`；presentation 可迁入 `core_status_projection`/`settings_preference_projection`；全量门禁绿。
-- [ ] GAP-5.2.1 [kind: mechanism] [priority: P1] [points: 1] [owner: lurker-core-contract + infiltrator-domain] [status: Planned] `redact` 脱敏策略归属裁决
-  - 现状：为让 `core_status_projection` 进中立层，596 行 `redact`（脱敏规则）从 `infiltrator-domain` 搬到 `lurker-core-contract::redact`，14 个产品消费端改接。此前审计明确建议「脱敏是产品安全策略，中立层不应拥有」。
-  - 裁决要求（二选一）：把 `redact` 退回 `infiltrator-domain`，中立投影改为注入一个脱敏端口；或确认脱敏规则本身是引擎/产品无关的通用安全策略，保留在契约并写明理由。
-  - 依赖：GAP-5.2。
-  - 验收：契约层要么不含产品安全策略，要么有明确裁决记录；消费端无同义双轨；neutrality/import 门禁全绿。
-- [ ] GAP-8.1 [kind: infra] [priority: P1] [points: 2] [owner: CI] [status: Planned] Android CI 套件裁剪与缓存
-  - 产物：按输入选择 flavor/ABI/是否跑模拟器；复用 Rust 与 Gradle 缓存；避免每次全量重跑。
-  - 依赖：无。
-  - 验收：同一次 dispatch 的耗时与缓存命中率有记录；不降低已有 APK/模拟器证据门槛。
+## 阶段六：0.44 UI 管道标准化与开源合规基线（全部任务已办结归档）
+
+## 阶段七：0.5x 多 UI 模板化与工程脚手架（全部任务已办结归档）

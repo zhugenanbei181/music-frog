@@ -18,6 +18,16 @@ CI 对 macOS 和 iOS 目标暂时不编译、不打包；用户解除暂缓并�
 
 普通 push、PR 和版本分支不会自动启动编译、模拟器或全量测试。只有 `v*` tag 会进入 `release.yml`，并通过 `workflow_call` 执行 workspace `cargo nextest` gate 后再构建发行产物。Android、Bevy、parity 和真机证据的高成本专用 workflow 只能手动从 `v*` tag 派发；分支引用会在 job 启动 runner 前被跳过。Android release workflow 自身会构建三个 flavor 的 APK；专用 Android gate 额外执行两 ABI Rust compile/Clippy、各 flavor JVM 与 Android Emulator 插桩测试、APK 身份检查和静态 manifest contract guard。插桩入口是 `bash scripts/android-emulator-tests.sh`：它使用 Gradle Managed Device 建立一次性 API 36 x86_64 AOSP 模拟器、离线运行来宾系统并保存测试结果；不得用普通 `connected*` 命令把这些用例发到真机。脚本对比运行前后的宿主接口地址和 IPv4/IPv6 路由摘要，发现变化即失败，不尝试修改或恢复宿主网络。ARM64 真机证据仍由 Android 阶段验收补齐。
 
+## 交叉目标检查
+
+产品层 aarch64 交叉检查可在本机复跑（L 级证据；安装包/APK/设备证据仍由 CI 与设备矩阵负责）：
+
+- `aarch64-unknown-linux-gnu`：以 `zig 0.14.1` + `cargo-zigbuild` 作为目标 C 工具链编译 `zstd-sys`/`ring`。复跑示例：`cargo check -p infiltrator-iced -p infiltrator-bevy-desktop-host -p infiltrator-slint --target aarch64-unknown-linux-gnu`；check 阶段 `openssl-sys` 经 `PKG_CONFIG_ALLOW_CROSS=1` 解析宿主头文件，链接与产物仍按 Linux release 腿处理。
+- `aarch64-pc-windows-msvc`：以 `cargo-xwin`（`--cross-compiler clang`）提供 MSVC CRT/SDK。复跑示例：`CARGO_FEATURE_NO_NEON=1 cargo xwin check --cross-compiler clang -p infiltrator-iced -p infiltrator-bevy-desktop-host -p infiltrator-slint --target aarch64-pc-windows-msvc`；`CARGO_FEATURE_NO_NEON=1` 只规避交叉 sysroot 下 `blake3` NEON 头文件不兼容，原生 Windows 构建不关闭 NEON。
+- `aarch64-linux-android`：使用已安装 NDK，先运行 `python3 scripts/android-toolchain.py check`；`bash scripts/android-check.sh` 是 Android host 侧完整门。
+
+这些命令只证明目标代码可编译，不证明安装包、APK、ELF 或设备行为；八问第 1 问按此记录证据等级。
+
 ## 普通测试隔离
 
 workspace nextest 使用 mock、fixture 与 loopback；普通测试不得访问外网、启动真实 Mihomo、改宿主系统代理或启动宿主桌面。需要真实 Mihomo/sing-box 的 backend smoke 是有摘要锁定、显式运行的独立证据，不混进普通单元测试。UI parity 的 L1/L2/L3 行为证据由 [UI parity contract](crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md) 和 `scripts/parity/` 管理，不由截图单独判定。

@@ -3,7 +3,6 @@
 use futures_util::future::poll_fn;
 use std::fmt::{self, Display, Formatter};
 use std::mem;
-use std::pin::Pin;
 use std::sync::{Mutex, OnceLock};
 use std::{
     future::Future,
@@ -362,6 +361,7 @@ pub(super) fn stop_worker_and_wait(timeout: Duration) -> WorkerStopOutcome {
 mod tests {
     use super::*;
     use futures_util::future::poll_fn;
+    use std::pin::Pin;
     use std::task::Poll;
 
     #[test]

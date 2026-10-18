@@ -19,7 +19,7 @@ use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
-    PageData, RulesPageSnapshot, SettingsPageSnapshot, SurfaceSnapshot,
+    RulesPageSnapshot, SettingsPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
@@ -34,6 +34,7 @@ use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::details::OutboundLatencySample;
 use lurker_core_contract::outbound::details::OutboundObservation;
+use lurker_core_contract::page::PageData;
 
 fn rules_page_with_hit_audit(
     mut audit: RuleHitAuditSnapshot,

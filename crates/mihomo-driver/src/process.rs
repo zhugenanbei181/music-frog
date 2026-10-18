@@ -10,6 +10,7 @@ pub mod command;
 #[cfg(windows)]
 use std::ffi::c_void;
 use std::fs::{File, OpenOptions, canonicalize};
+#[cfg(any(target_os = "linux", windows))]
 use std::io;
 #[cfg(windows)]
 use std::mem::size_of;

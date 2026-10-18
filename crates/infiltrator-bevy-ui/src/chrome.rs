@@ -25,7 +25,9 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+#[cfg(not(target_os = "android"))]
 use bevy::feathers::theme::ThemeBackgroundColor;
+#[cfg(not(target_os = "android"))]
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::picking::events::{PointerClick, PointerPress};
 use bevy::scene::{Scene, bsn};
@@ -40,8 +42,10 @@ use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::button::pill_caption_scene;
+#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
+#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::palette::rem;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::text::{Role, TextRole};

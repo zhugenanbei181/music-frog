@@ -34,7 +34,6 @@ use infiltrator_contract::speedtest::{
     SpeedtestRunId, SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestTarget,
 };
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use lurker_core_contract::error::ErrorCode;
@@ -48,6 +47,7 @@ use lurker_core_contract::outbound::{
     },
     probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
 };
+use lurker_core_contract::page::PageData;
 use std::any::type_name;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

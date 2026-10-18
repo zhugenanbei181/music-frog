@@ -21,7 +21,6 @@ use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_contract::latency_display::LatencyBand;
-use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -42,6 +41,7 @@ use lurker_core_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::page::PageData;
 
 fn set_outbound_inventory(
     snapshot: &mut SurfaceSnapshot,

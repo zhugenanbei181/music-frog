@@ -20,7 +20,7 @@ use infiltrator_contract::profile_age_credential::{
 use infiltrator_contract::subscription_import::SubscriptionImportChannel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
-    PageData, ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
+    ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_slint::{SlintAction, SlintProductHost};
 use lurker_core_contract::active_profile_reference::{
@@ -30,6 +30,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use lurker_core_contract::page::PageData;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use serde_json::json;
 use std::sync::Mutex;

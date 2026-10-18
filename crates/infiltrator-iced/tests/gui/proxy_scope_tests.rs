@@ -20,7 +20,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_iced::state::proxy_preferences::ProxyPreferencePhase;
 use infiltrator_iced::state::proxy_search::ProxySearchPhase;
 use infiltrator_ports::surface::SurfaceReader;
@@ -46,6 +46,7 @@ use lurker_core_contract::outbound::{
     },
     probe::OutboundSelectionRequest,
 };
+use lurker_core_contract::page::{PageData, PageStatus};
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

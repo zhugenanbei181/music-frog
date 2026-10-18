@@ -23,6 +23,11 @@ python3 scripts/android-toolchain.py check
 python3 scripts/quality/android-product-identity-guard.py
 python3 scripts/quality/android-mihomo-assets-guard.py
 
+if [ -z "${JAVA_HOME:-}" ] && [ -d "$HOME/android-tools-bevy/jdk" ]; then
+    export JAVA_HOME="$HOME/android-tools-bevy/jdk"
+    export PATH="$JAVA_HOME/bin:$PATH"
+fi
+
 # Locate NDK toolchain if available
 find_ndk() {
     local expected_ndk; expected_ndk="$(python3 scripts/android-toolchain.py get android.ndk.version)"

@@ -58,7 +58,7 @@ def doc_level(rel: str) -> int:
     # living in a crate directory. Other crate documentation stays L3.
     if rel.startswith("crates/infiltrator-contract/") and rel.endswith(".md"):
         return 2
-    if rel.startswith(("crates/", "android/")) and rel.endswith(".md"):
+    if rel.startswith(("crates/", "android/", "templates/")) and rel.endswith(".md"):
         return 3
     if rel.startswith("scripts/") and rel.endswith(".md"):
         return 3

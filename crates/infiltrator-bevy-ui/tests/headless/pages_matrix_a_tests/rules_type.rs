@@ -4,9 +4,10 @@
 use super::*;
 use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSource};
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
-use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot};
+use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use infiltrator_domain::rules::matrix::RULE_TYPE_MATRIX;
 use infiltrator_domain::rules::view::{RULE_PUBLISH_LIMIT, RULE_ROW_HEIGHT_PX};
+use lurker_core_contract::page::PageData;
 
 /// DUAL-11-01: every catalogue spelling mounts with its shared label, and the
 /// chip fill follows the shared family rather than a per-surface spelling list.

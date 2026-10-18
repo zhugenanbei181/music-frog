@@ -69,7 +69,7 @@ use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
 use infiltrator_contract::stun_probe::StunProbeReport;
-use infiltrator_contract::surface_snapshot::{ConnectionSnapshot, PageStatus};
+use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
@@ -82,6 +82,7 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
+use lurker_core_contract::page::PageStatus;
 
 fn create_test_app() -> App {
     let mut app = App::new();

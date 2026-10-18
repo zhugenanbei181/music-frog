@@ -38,7 +38,7 @@ use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
@@ -51,6 +51,7 @@ use lurker_core_contract::outbound::{
     identity::SnapshotRevision,
     preferences::{OutboundUiPreferenceIntent, OutboundUiPreferenceRequest},
 };
+use lurker_core_contract::page::PageData;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};

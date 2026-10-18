@@ -30,7 +30,7 @@ use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use lurker_core_contract::outbound::{
     details::OutboundSnapshot,
@@ -44,6 +44,7 @@ use lurker_core_contract::outbound::{
         OutboundUiPreferenceRequest,
     },
 };
+use lurker_core_contract::page::PageData;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::yield_now;
