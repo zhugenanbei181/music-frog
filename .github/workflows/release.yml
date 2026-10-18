@@ -495,9 +495,10 @@ jobs:
           set -euo pipefail
           chmod +x android/gradlew
           # Gradle resolves the project from the CWD, so run inside android/.
-          ( cd android && ./gradlew --no-daemon --stacktrace \
-            :core-host-tests:test \
-            :app:assembleComposeRelease :app:assembleBevyRelease :app:assembleSlintRelease )
+          ( cd android && ./gradlew --no-daemon --stacktrace :core-host-tests:test )
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleComposeRelease )
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleBevyRelease )
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleSlintRelease )
 
       - name: Verify and collect registered Android APKs
         shell: bash

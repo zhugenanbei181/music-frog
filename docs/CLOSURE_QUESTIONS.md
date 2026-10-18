@@ -34,7 +34,7 @@
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1 完成；GAP-5.2 完成；GAP-5.2.1 完成；0.44 UI 管道（PUB-004.1～004.3、PUB-006.3）与 0.5x 四大 UI 脚手架模板（PUB-005.1～005.5）全部高质量办结归档；presentation 纯净化与开源合规审计全绿 |
 | 6 | 缺失 | L | Android running runtime operations `Unsupported`；Slint/Bevy 功能验收未完成（GAP-4.1 / GAP-3.1） |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓彻底清退全部遗留 mod.rs 至 0 处，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；跨 UI 页面状态机仍各自实现，无共享页面模型层（GAP-7.1） |
-| 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 导致 structure guards 失败的问题，并在 test_visual_receipts 补齐 skipUnless 容错；同步 android/bevy-host/driver/Cargo.lock 解决 release 工作流 Android 打包 101 报错；已交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用（GAP-8.1 办结） |
+| 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 导致 structure guards 失败的问题，并在 test_visual_receipts 补齐 skipUnless 容错；同步 android/bevy-host/driver/Cargo.lock 解决 release 工作流 Android 打包 101 报错；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建，彻底解决打包 OOM；已交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用（GAP-8.1 办结） |
 
 ## 最近一批问答（2026-10-18）
 
@@ -45,7 +45,7 @@
 5. 复用：ports/kernel/UI kits 已复用；Slint 无共享 kit；`interpolate` 已去重；PUB-001.3 part 3 租约切换下沉；GAP-5.1 与 GAP-5.1.1 办结；GAP-5.2 完成；GAP-5.2.1 办结；0.44 UI 管道（PUB-004.1～004.3、PUB-006.3）与 0.5x 脚手架模板（PUB-005.1～005.5）全部高质量办结归档；0.6x 交付治理体系 CONTRIBUTING/SECURITY/CODE_OF_CONDUCT 与中立迁移指南 MIGRATION_GUIDE（PUB-006.4 闭环）；presentation 纯净化与开源合规审计全绿 → 部分（L）。
 6. 功能接入：Android 运行态操作与版本安装入口未接；Slint/Bevy 验收未完成 → 缺失（L）。
 7. 模块化：文件级达标（<=800/600 行全绿，全仓彻底清退全部遗留 mod.rs 至 0 处，严格统一采用 foo.rs + foo/ 标准形态，并在 check-structure.sh 接入 mod-rs-guard 永久禁止），复用级不达标，Iced/Bevy 页面状态机重复 → 部分（L）。
-8. CI：已补 `--locked`（release 构建与 test.sh）与 main 分支守卫门禁（不编译，`ci-trigger-guard` 强制禁止编译命令）；main-gate.yml 补充 setup-python 与 Pillow 依赖并修复 test_visual_receipts 的 PIL 容错；同步 android/bevy-host/driver/Cargo.lock 解决 release 工作流 Android 打包 101 报错；已交付 Android CI 套件 flavor/模拟器按需裁剪与 Gradle 缓存复用（GAP-8.1 办结） → 部分（L）。
+8. CI：已补 `--locked`（release 构建与 test.sh）与 main 分支守卫门禁（不编译，`ci-trigger-guard` 强制禁止编译命令）；main-gate.yml 补充 setup-python 与 Pillow 依赖并修复 test_visual_receipts 的 PIL 容错；同步 android/bevy-host/driver/Cargo.lock 解决 release 工作流 Android 打包 101 报错；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建，彻底解决打包 OOM；已交付 Android CI 套件 flavor/模拟器按需裁剪与 Gradle 缓存复用（GAP-8.1 办结） → 部分（L）。
 
 ## 更新纪律
 
