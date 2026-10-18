@@ -3141,7 +3141,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-ui"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "accesskit",
  "bevy",
@@ -3153,6 +3153,8 @@ dependencies = [
  "infiltrator-presentation",
  "infiltrator-shared",
  "lurker-core-contract",
+ "lurker-core-ports",
+ "lurker-ui-presentation",
  "serde",
  "serde_json",
  "zhuge-ui-core",
@@ -3160,7 +3162,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-widgets"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "accesskit",
  "bevy",
@@ -3173,7 +3175,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-contract"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "anyhow",
  "lurker-core-contract",
@@ -3184,7 +3186,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-domain"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -3209,26 +3211,26 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-ports"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "async-trait",
  "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
  "lurker-core-contract",
- "serde_json",
- "url",
+ "lurker-core-ports",
 ]
 
 [[package]]
 name = "infiltrator-presentation"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "chrono",
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-shared",
  "lurker-core-contract",
+ "lurker-ui-presentation",
  "regex",
  "serde_json",
  "serde_yaml_ng",
@@ -3240,6 +3242,7 @@ name = "infiltrator-shared"
 version = "0.14.0"
 dependencies = [
  "anyhow",
+ "lurker-ui-presentation",
  "serde",
  "serde_json",
  "sys-locale",
@@ -3579,11 +3582,27 @@ dependencies = [
 
 [[package]]
 name = "lurker-core-contract"
-version = "0.42.6"
+version = "0.50.0"
 dependencies = [
  "anyhow",
  "serde",
  "url",
+]
+
+[[package]]
+name = "lurker-core-ports"
+version = "0.50.0"
+dependencies = [
+ "async-trait",
+ "lurker-core-contract",
+ "url",
+]
+
+[[package]]
+name = "lurker-ui-presentation"
+version = "0.50.0"
+dependencies = [
+ "lurker-core-contract",
 ]
 
 [[package]]

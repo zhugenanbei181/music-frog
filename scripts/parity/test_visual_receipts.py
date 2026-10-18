@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -198,9 +198,9 @@ class VisualReceiptTests(unittest.TestCase):
             self.verify()
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow is required for interaction pixel tests")
 class InteractionPixelTests(unittest.TestCase):
     def test_a_nonblank_page_with_a_blank_interaction_region_is_rejected(self):
-        from PIL import Image, ImageDraw
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'page.png'
             image = Image.new('RGB', (720,480), '#333333')

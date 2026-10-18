@@ -19,7 +19,15 @@ jobs:
     name: format + guards (no compilation)
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # 守卫脚本需要 Python 3.11+ 的 tomllib；显式钉版本，不赌 runner 镜像默认值。
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install Python dependencies for parity guards
+        shell: bash
+        run: python3 -m pip install Pillow
       - name: Rust toolchain (rustfmt only)
         uses: dtolnay/rust-toolchain@stable
         with:
