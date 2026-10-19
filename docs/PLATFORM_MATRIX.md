@@ -19,5 +19,6 @@
 
 ## 专项规则
 
+- 逐业务视觉与截图验收（桌面三 UI 的 standard/compact 双视口像素回执、Android 三 flavor 实际交互截图）与「五大平台 × 三大 UI × 59 条业务」的覆盖矩阵，其当前状态与收口条目登记在[现在佛](../todos/CODE_TODO.md) §二/§三；实测 parity 注册表只含 iced/bevy 两表面，Slint 尚无锚点与像素回执，Android 三 flavor 尚无交互截图回执。**未取得对应像素或交互回执前，不得据本表宣称任何表面已通过视觉验收。**
 - Android 产品与真机验收见 [Android 文档](../android/docs/README.md)。
 - Core 后端和 Mihomo 资产规则见 [CORE_BACKENDS.md](CORE_BACKENDS.md) 与 [UPSTREAM.md](UPSTREAM.md)。

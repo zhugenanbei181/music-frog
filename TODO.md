@@ -2,34 +2,36 @@
 
 > 层级：L4
 
-这是项目内部执行台账。公开文档只描述当前边界；这里记录任务、依赖、未决问题和验收顺序。**2026-10-11 起采用三佛体系（学习 ZhuGeTower 模式）：本页只导航与记账；任务正文、执行态与验收在 `todos/` 看板。**
+这是项目内部执行台账。公开文档只描述当前边界；这里记录任务、依赖、未决问题和验收顺序。**2026-10-11 起采用三佛体系（学习 ZhuGeTower 模式），2026-10-19 起收敛为三板：现在佛（全部可推工作）、过去佛（已交付待验证）、斗战胜佛（只等外部环境）；原未来佛全部并入现在佛并退役。本页只导航与记账；任务正文、执行态与验收在 `todos/` 看板。**
 
 ## 看板导航
 
 | 看板 | 文件 | 用途 |
 | --- | --- | --- |
-| 现在佛 | [todos/CODE_TODO.md](todos/CODE_TODO.md) | 当前窗口未办结实现与直接前置（待编码） |
+| 现在佛 | [todos/CODE_TODO.md](todos/CODE_TODO.md) | 全部可推未办结工作：待编码、待实现、待补证（0.60 → 1.0 收口路径） |
 | 过去佛 | [todos/CODE_TODO_PAST.md](todos/CODE_TODO_PAST.md) | 已交付实现，等待统一集成验证批次或实机取证收口（待验证） |
-| 未来佛 | [todos/CODE_TODO_FUTURE.md](todos/CODE_TODO_FUTURE.md) | 不阻塞产品交付的视觉、性能、发行便利与工具链增强（可延后） |
+| 斗战胜佛 | [todos/CODE_TODO_BLOCKED.md](todos/CODE_TODO_BLOCKED.md) | 剩余闭环动作只能靠外部环境（真机/tag CI/secrets/上架凭证/异构目标机）解锁的条目（环境阻塞） |
 
-## 三佛工作流程（2026-10-11 起生效，2026-10-15 纯粹化收敛）
+## 三佛工作流程（2026-10-11 起生效，2026-10-15 纯粹化收敛，2026-10-19 增设斗战胜佛并退役未来佛）
 
-三佛是同一工程队列的三种未办结形态，不是三套范围或三份完成台账；位置描述用途，状态描述执行态，二者不能相互推断。**全仓任务纯粹收敛于三佛，不设任何体外孤岛看板（模拟器与真机证据要求直接内聚在过去佛中）。**`Verified` 只是办结过渡态，不驻留任何看板；真正验收完成的工作退出看板并在本页登记 archived points。
+三佛是同一工程队列的三种未办结形态，不是三套范围或三份完成台账；位置描述用途，状态描述执行态，二者不能相互推断。**全仓任务纯粹收敛于三板，不设任何体外孤岛看板（模拟器与真机证据要求直接内聚在条目本体的“待验证”中）。**`Verified` 只是办结过渡态，不驻留任何看板；真正验收完成的工作退出看板并在本页登记 archived points。
+
+**可推性是看板的准入条件：**现在佛与过去佛只放「下一个可执行动作能在当前环境完成」的条目——统一 nextest/clippy/guard 批次、本地 Gradle 与模拟器 M1、本地真实引擎二进制 smoke、`cargo package`/dry-run、纯代码实现。剩余闭环动作全部依赖外部环境的条目整条迁入斗战胜佛，两块可推看板不得预占，也不得把斗战胜佛条目当作可推进任务选取。
 
 | 形态 | 准入与必需事实 | 下一出口 |
 | --- | --- | --- |
-| 现在佛 | 用户要求的必要产品能力与直接前置；明确产物、依赖、验收 | 实现包完成只剩验证时迁入过去佛；同片验证完成则直接办结退出 |
-| 过去佛 | 已交付实现包；列清待验证范围（含统一测试批次与实机/模拟器证据）、证据身份与未证明层 | 验证收口通过后退出并登记 archived points；发现实现缺口回流现在佛/未来佛 |
-| 未来佛 | 不阻塞必要产品能力的可选增强，且有具体 task/owner/范围/依赖/验收 | 用户调整优先级或前置成立时迁入现在佛 |
+| 现在佛 | 可推的必要产品能力与直接前置，以及可推的增强项；明确产物、依赖、验收、计划与证据要求 | 实现包完成只剩验证时迁入过去佛；同片验证完成则直接办结退出 |
+| 过去佛 | 已交付实现包；列清待验证范围（含统一测试批次与实机/模拟器证据）、证据身份与未证明层 | 验证收口通过后退出并登记 archived points；发现实现缺口回流现在佛 |
+| 斗战胜佛 | 条目的下一个可执行动作只能靠外部环境：ARM64 真机、受控 tag CI、用户 secrets/keystore、crates.io 上架凭证、异构目标机与被禁平台 target | 环境到位后同次迁回过去佛/现在佛；办结后登记 archived points |
 
 ### Agent 执行循环（每次开发会话按此执行：先做什么、再做什么）
 
-1. **定范围：**当前窗口覆盖用户指定的全部必要产品工作：engine-neutral Core 与 Mihomo/sing-box 双适配；Kotlin VPNService/权限与 Android APK 链路；Bevy/Slint/Compose 页面和最大化共享；桌面各页与服务管理；Windows/Linux/Android 目标构建。按 task 依赖推进，不得因为前置或阶段门没过就把必要功能降入未来佛。
-2. **选条目：**读 [现在佛](todos/CODE_TODO.md)，先做最高杠杆动作——过去佛攒有 `Integrated` 待验证批次时，**优先执行统一验证批次（一次组团解锁多条办结，成倍提高效率）**；否则在当前阶段内按 P0 → P1 → P2、状态 `InProgress`（续作）→ `Ready` → `Planned`（前置已满足）选一组关联切片推进；缺物理设备的条目保持 Integrated，不空等。
+1. **定范围：**当前窗口覆盖用户指定的全部必要产品工作：engine-neutral Core 与 Mihomo/sing-box 双适配；Kotlin VPNService/权限与 Android APK 链路；Bevy/Slint/Compose 页面和最大化共享；桌面各页与服务管理；Windows/Linux/Android 目标构建；五大平台 × 三大 UI 的 360° 覆盖与逐业务截图认证。按 task 依赖推进，不得因为前置或阶段门没过就把必要功能降级或搁置。
+2. **选条目：**读 [现在佛](todos/CODE_TODO.md)，先做最高杠杆动作——过去佛攒有 `Integrated` 待验证批次时，**优先执行统一验证批次（一次组团解锁多条办结，成倍提高效率）**；否则在当前阶段内按 P0 → P1 → P2、状态 `InProgress`（续作）→ `Ready` → `Planned`（前置已满足）选一组关联切片推进；**斗战胜佛条目一律跳过，不空等，只在外部环境到位时迁回可推看板。**
 3. **读依赖：**只读所选条目及其依赖链上的条目与证据，不全文加载看板。
-4. **实现：**改写原条、不追加过程叙事；范围变大先拆分再动工。必要功能、平台接线和基本构建缺口进现在佛；未来佛只收可延后的体验/性能/发行便利/工具增强。禁止把必要产品能力包装成“以后优化”。**遇到架构未决与契约未清之处，严格遵照自底向上铁律：底层先决、上层后跟，严禁在上层修修补补留下一堆隐患；若前置底层未裁决，必须先立项并彻底收口底层。改动必须一批一批做，严禁跨层随意东拼西凑散布修改。**
-5. **交接：**实现 + 定向单测写完 → 把该条**同次**移入过去佛，状态改 `Integrated`，写清待验证范围（含统一批次与模拟器/真机设备要求）与证据身份；纯证据/文档条（1pt）若验证同片完成则直接办结。
-6. **验证收口：**按该条验收选择最低充分证据层（统一 nextest 批次、Clippy `--all-targets -D warnings`、旧符号/文案搜索、结构门、guard、真实进程 smoke、模拟器/真机取证）。**验收一组一组做，通过统一批次集中跑全量门禁，一次性批量解锁过去佛中的关联条目。**前置未满足保持 `Integrated` 并注明依赖，不得宣称通过。
+4. **实现：**改写原条、不追加过程叙事；范围变大先拆分再动工。必要功能、平台接线和基本构建缺口先进现在佛；可推的体验/性能/发行便利/工具增强同样进现在佛（按里程碑与 priority 排序），只有「下一个动作只能等外部环境」的条目才进斗战胜佛。禁止把必要产品能力包装成“以后优化”。**遇到架构未决与契约未清之处，严格遵照自底向上铁律：底层先决、上层后跟，严禁在上层修修补补留下一堆隐患；若前置底层未裁决，必须先立项并彻底收口底层。改动必须一批一批做，严禁跨层随意东拼西凑散布修改。**
+5. **交接：**实现 + 定向单测写完 → 把该条**同次**移入过去佛，状态改 `Integrated`，写清待验证范围（含统一批次与模拟器/真机设备要求）与证据身份；纯证据/文档条（1pt）若验证同片完成则直接办结。**若该条剩余闭环动作只剩外部环境（真机/tag CI/secrets/上架凭证/异构目标机），同次整条移入斗战胜佛并写明阻塞方与解锁条件，不得留在可推看板空等。**
+6. **验证收口：**按该条验收选择最低充分证据层（统一 nextest 批次、Clippy `--all-targets -D warnings`、旧符号/文案搜索、结构门、guard、真实进程 smoke、模拟器/真机取证）。**验收一组一组做，通过统一批次集中跑全量门禁，一次性批量解锁过去佛中的关联条目。**前置未满足保持 `Integrated` 并注明依赖，不得宣称通过；仅剩外部环境门槛的条目按第 5 条移交斗战胜佛。
 7. **办结：**全部验收通过 → 从过去佛删除该条，在本页「已归档交付原子条目」登记（ID、pt、证据身份：run ID / guard 回执），同步更新现在佛 §0 point ledger 与本页交付率；文档状态跟随证据更新。
 8. **证据等级（强制）：**任何「通过 / 完成 / 就绪」必须标注证据等级：`L` = 本地（cargo/nextest/guard，需给命令或 run 标识）、`C` = CI（workflow run ID）、`D` = 真机或目标产物（设备/安装包回执）。没有 `C`/`D` 的条目只能写「本地通过，CI/真机未验证」，禁止简写成「已就绪」。平台能力以平台矩阵文档（由 L1 入口导航）为唯一事实源，本页与任何汇报不得高于它。
 
@@ -37,80 +39,86 @@
 
 | 从 | 触发 | 到 | 操作 |
 | --- | --- | --- | --- |
-| 未来佛 | 前置成立或进入当前窗口 | 现在佛 | 同次移出/移入；保持 ID/owner/points/验收；状态按实际设 `Planned`/`Ready` |
 | 现在佛 | 实现 + 行为测试写完 | 过去佛 | 同次迁移；状态 → `Integrated`；补写待验证范围（含设备证据）与证据身份 |
 | 现在佛 | 纯证据/文档条且验证同片完成 | （退出） | 从看板删除；本页登记 archived |
 | 过去佛 | 验证全部通过 | （退出） | 删除并登记 archived（附 run ID/guard 回执）；更新 ledger 与交付率 |
 | 过去佛 | 验证发现本条实现缺口 | 现在佛 | 同次迁回；状态 → `InProgress`；保留原证据身份，不复制任务 |
 | 过去佛 | 缺口属于另一 task | 停留 | 状态 → `Blocked`，注明依赖 task ID；由对应 owner 修复后复验 |
-| 过去佛 | 只差物理设备/真机证据 | 停留 | 保持 `Integrated`；待验证明确标注缺物理设备，不以源码推断替代 |
-| 现在佛 | 仅受外部不可解依赖（真机、tag CI、用户 secrets）阻塞 | 停留 | 保持 `Blocked` 并注明依赖方；跳过选取，不阻塞其它条目与统一验证批次 |
+| 现在佛/过去佛 | 剩余闭环动作只剩外部环境（真机/tag CI/secrets/上架凭证/异构目标机） | 斗战胜佛 | 同次整条迁入；写明阻塞方、解锁条件与本板停留期间的可执行动作；状态 → `Blocked` |
+| 斗战胜佛 | 外部环境到位 | 过去佛/现在佛 | 同次整条迁回；恢复原状态与证据身份；本板 §七 登记迁出记录 |
+| 斗战胜佛 | 迁出后验证通过 | （退出） | 删除并登记 archived；更新 ledger 与交付率 |
 | 任何看板 | 上游决定取消/被新语义取代 | （退出） | 删除；本页台账记一行注销原因与去向 |
 
 ### 恒定规则
 
 1. **原子硬门**：一条 task 只交付一个有界业务结果，必须能独立说明"做出什么、依赖什么、怎样关闭"；禁止"完善/闭环/全部能力"式抽象范围；header ≤240 字符、详情 ≤6 行、整块 ≤1200 字符；不能明确判定关闭条件的条目不得进入 Ready/InProgress。
-2. **points 合同**：`1` 局部证据/文档/配置；`2` 单 owner focused 包；`3` 跨 owner 纵切或普通机制包；`5` 产品采用/终局门；超过 5pt 先拆。联合分母 = 三佛全部未办结 task 的 points，只在现在佛 §0 声明一次。
+2. **points 合同**：`1` 局部证据/文档/配置；`2` 单 owner focused 包；`3` 跨 owner 纵切或普通机制包；`5` 产品采用/终局门；超过 5pt 先拆。联合分母 = 三板全部未办结 task 的 points，只在现在佛 §0 声明一次。
 3. **严格交付率**只计 archived points；执行态报告对 Planned/Blocked/Ready 计 0%、InProgress 计 50%、Integrated 计 75%，不以执行态进度代替验收办结。
 4. **迁移纪律**：看板间移动必须同次移出原文件、移入目标文件；保持稳定 task ID、owner、依赖、验收与 points；位置变化不重置执行态，也不构成办结。
-5. **证据规则**（沿用统一阶段门）：Rust 测试唯一执行器 `cargo nextest`；单测/模拟、静态 guard、Android 编译、APK 安装、模拟器行为、ARM64 真机流量是不同证据层，不能彼此外推；缺物理设备的任务在过去佛内聚注明并保持 Integrated，不用源码推断补齐。
+5. **证据规则**（沿用统一阶段门）：Rust 测试唯一执行器 `cargo nextest`；单测/模拟、静态 guard、Android 编译、APK 安装、模拟器行为、ARM64 真机流量是不同证据层，不能彼此外推；缺物理设备或缺外部环境的任务整条迁入[斗战胜佛](todos/CODE_TODO_BLOCKED.md)并写明阻塞方与解锁条件，不用源码推断补齐，也不占用可推看板的注意力。
 6. **等价映射**（避免重复条目）：`BANDROID-001.2 ≡ 040.5`；`BANDROID-004.2 ≡ 040.3`；`BANDROID-036.1` 的语义回归与 `042.3/042.4` 同批验证。
 7. **自底向上逐层裁决铁律**：遇到架构、模型、契约或 Owner 权责未决时，严禁在 UI 层（Iced/Bevy/Slint/Android）、呈现层或组装层就地修补（禁止添加临时标志位、禁止推导业务事实、禁止空实现占位）。必须严格按「Domain/Contract/Ports/Owner → Core Application/Adapters → Presentation/Composition → UI Surfaces」四阶顺序自底向上逐步解决，所有 Core 与所有 UI 遵照执行。
 8. **批次开发与组团集中验收铁律（高吞吐效率准则）**：改动必须一批一批做（同一层级、同一内聚切片），严禁跨层随意散布修改；验收必须一组一组做，开发期用定向轻量测试获得秒级反馈，收工期通过统一验证批次集中跑全量门禁并批量解锁办结，成倍提高工程吞吐效率。
+9. **可推性准入（2026-10-19 起强制）**：条目进入现在佛/过去佛前必须能指出下一个可在本机执行的动作；只有「等外部环境」剩余动作的条目一律留在[斗战胜佛](todos/CODE_TODO_BLOCKED.md)。斗战胜佛条目不得被选取为开发任务，也不得以「等待」名义延长其在可推看板的停留。
+10. **截图认证硬门（2026-10-19 起强制）**：每条业务能力在每个桌面 UI 必须同时具备 contract 锚点、scenario 锚点与 standard/compact 双视口真实像素回执，Android 三 flavor 另需实际交互截图回执；判定入口唯一是 `scripts/parity/resolve_surface_evidence.py` 与 `scripts/parity/visual_receipts.py`。缺任一项只能写「部分」，禁止用静态页面截图或旧 APK 回执冒充平权通过。
 
-## Points 与完成度台账（2026-10-18，基线 `musicfrog-todo-20261018-v236`）
+## Points 与完成度台账（2026-10-19，基线 `musicfrog-todo-20261019-v237`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 3 | 3 |
-| 过去佛 | 26 | 69 |
-| 未来佛 | 19 | 47 |
-| **未办结联合分母** | **48** | **119** |
+| 现在佛 | 22 | 53 |
+| 过去佛 | 10 | 23 |
+| 斗战胜佛 | 29 | 72 |
+| **未办结联合分母** | **61** | **148** |
 
-- **严格交付率：682 / 801 = 85.1%**（archived 682pt / archived + 未办结 119pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：682 / 830 = 82.2%**（archived 682pt / archived 682 + 未办结 148pt）。执行态参考仍以看板状态计算，不替代验收。
+- 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，并新立 6 条 / 17pt 截图认证与平台覆盖条目，未办结条目集合净增 12pt。
+- 归档口径：累计 263 条 / 682 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
 ## 版本迭代路线图（0.42.5 → 1.0）
 
 > 每档只收纳能独立关闭的原子条目；上一档出口标准未达成不进入下一档。`0.4x` 系列负责通用底层与既有三大桌面/移动 UI 的单向接入与模型去重；`0.5x` 系列负责对外独立模板与脚手架；`0.6x` 系列负责开源合规发布、自动化 CI 流水线、质量门禁与开发者生态；`0.7x` 系列负责质量红线守卫与桌面多端安装包；`0.8x` 系列负责正式发布签名与 ARM64 真实设备取证；`0.9x` 系列负责视觉体验打磨、性能基准与 1.0-RC 全平台终局收敛；设备与外部环境依赖项不阻塞代码版本节奏。
+>
+> **当前档位：0.60（`PUB-006.1` Crates.io 自动化发布 CI）尚未开工，是唯一可自主推进的最高杠杆条目。**0.43～0.54 与 0.61、0.62 已全部办结归档；下表「归属条目」列登记每档条目的**当前所在看板**（斗战胜佛 = 只等外部环境，代码侧已闭环）。
 
 | 里程碑 | 主题 | 归属条目 | 出口标准 |
 | --- | --- | --- | --- |
-| **v0.42.5** | 发布管道与构建产物 CI 留痕（环境阻塞） | 过去佛 `BANDROID-018.2` `019.2` `038.2` `020.1` `024.1` | 受控 tag release 工作流回执与各 APK SHA 检查回执留存；在过去佛保持环境阻塞待验，不阻塞代码主线 |
-| **0.43** | 潜伏者 Lurker 1.0-M1 中立内核与驱动解耦 | 过去佛 `PUB-001.1`～`001.3`、`PUB-002.1`～`002.5`、`PUB-003.1`～`003.4` | 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）各自 `cargo package` 通过，零产品私有依赖；统一验证批次全绿 |
-| **0.44** | 单向通信管道协议与通用呈现内核 | 现在佛 `PUB-004.2`、未来佛 `PUB-004.1` | 固化 `SurfaceReader`（只读快照流）与 `CommandSink`（强类型意图通道）；通用呈现内核 `lurker-ui-presentation` 闭环；杜绝 UI 直调底层副作用 |
-| **0.45** | Iced 桌面端纯化与统一管道全面接入 | 现在佛 `PUB-004.3` (Iced 切片) | Iced Elm 架构 (Update/View) 全量接入 `SurfaceReader`/`CommandSink`；剥离私有推导；GUI 与 headless 测试全绿 |
-| **0.46** | Bevy 桌面端纯化与 ECS 管道调度收口 | 现在佛 `PUB-004.3` (Bevy 切片) | Bevy ECS System 桥接单向管道；严格落实 Bevy 0.20 UI 规范（RemSize/两段式主题/官方 headless 控件）；无头测试 0 告警 |
-| **0.47** | Slint 桌面端纯化与三大 UI 功能对齐 | 现在佛 `PUB-004.3` (Slint 切片)、未来佛 `GAP-4.1` | Slint 回调层全量重构为 `CommandSink`；属性绑定直连 `SurfaceReader`；六大页面达成 100% 功能 Parity |
-| **0.48** | 三大 UI 呈现模型统一去重与联合总验收 | 未来佛 `GAP-7.1` | Iced/Bevy/Slint 共享 presentation 模型，彻底消灭三大前端各自重复维护的同义状态机；桌面三大表面统一 Parity 守卫通过 |
-| **0.49** | Android 移动端管道接入与 0.4x 全平台大圆满 | 现在佛 `PUB-004.3` (Android 切片)、`PUB-006.3` | Android Compose 接入单向管道；JNI/Binder typed 适配层闭环；根 License、per-crate 元数据与独立版本拓扑对齐；0.4x 全面封盘 |
+| **v0.42.5** | 发布管道与构建产物 CI 留痕（环境阻塞） | 斗战胜佛 `BANDROID-018.2` `019.2` `038.2` `020.1` `024.1` | 受控 tag release 工作流回执与各 APK SHA 检查回执留存；条目整体停在斗战胜佛等受控 tag，不阻塞代码主线 |
+| **0.43** | 潜伏者 Lurker 1.0-M1 中立内核与驱动解耦 | 过去佛 `PUB-002.1`～`002.5`；斗战胜佛 `PUB-001.3` `PUB-003.2` `PUB-003.3`；已归档 `PUB-001.1` `PUB-001.2` `PUB-003.1` `PUB-003.4` | 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）各自 `cargo package` 通过，零产品私有依赖；统一验证批次全绿 |
+| **0.44** | 单向通信管道协议与通用呈现内核 | **已全部办结归档**（`PUB-004.1` `PUB-004.2`） | 固化 `SurfaceReader`（只读快照流）与 `CommandSink`（强类型意图通道）；通用呈现内核 `lurker-ui-presentation` 闭环；杜绝 UI 直调底层副作用 |
+| **0.45** | Iced 桌面端纯化与统一管道全面接入 | **已全部办结归档**（`PUB-004.3` Iced 切片） | Iced Elm 架构 (Update/View) 全量接入 `SurfaceReader`/`CommandSink`；剥离私有推导；GUI 与 headless 测试全绿 |
+| **0.46** | Bevy 桌面端纯化与 ECS 管道调度收口 | **已全部办结归档**（`PUB-004.3` Bevy 切片） | Bevy ECS System 桥接单向管道；严格落实 Bevy 0.20 UI 规范（RemSize/两段式主题/官方 headless 控件）；无头测试 0 告警 |
+| **0.47** | Slint 桌面端纯化与三大 UI 功能对齐 | **已办结归档**（`PUB-004.3` Slint 切片）；现在佛 `GAP-4.1` | Slint 回调层全量重构为 `CommandSink`；属性绑定直连 `SurfaceReader`；六大页面达成 100% 功能 Parity |
+| **0.48** | 三大 UI 呈现模型统一去重与联合总验收 | 现在佛 `GAP-7.1` | Iced/Bevy/Slint 共享 presentation 模型，彻底消灭三大前端各自重复维护的同义状态机；桌面三大表面统一 Parity 守卫通过 |
+| **0.49** | Android 移动端管道接入与 0.4x 全平台大圆满 | **已全部办结归档**（`PUB-004.3` Android 切片、`PUB-006.3`） | Android Compose 接入单向管道；JNI/Binder typed 适配层闭环；根 License、per-crate 元数据与独立版本拓扑对齐；0.4x 全面封盘 |
 | **0.50** | Slint 桌面轻量独立模板工程 | **已全部办结归档**（`PUB-005.1`） | 独立的 Slint 模板工程 `templates/slint` 直接 `cargo run` 成功，内存占用超低，零产品私有依赖 |
 | **0.51** | Iced 桌面响应式独立模板工程 | **已全部办结归档**（`PUB-005.2`） | 独立的 Iced 模板工程 `templates/iced` 跨平台编译通过，支持 Elm 单向意图通道与明暗主题切换 |
 | **0.52** | Bevy 0.20 游戏级渲染/ECS 独立模板工程 | **已全部办结归档**（`PUB-005.3`） | 独立的 Bevy 模板工程 `templates/bevy` 在无头模式排帧稳定，ECS 调度与内核状态流无锁桥接 |
 | **0.53** | Android 双引擎 VPN 移动端独立模板工程 | **已全部办结归档**（`PUB-005.4`） | 独立的 Android 模板工程 `templates/android` 满足 Android 规范，Compose UI + VpnService 授权前台服务闭环 |
 | **0.54** | `cargo-generate` 统一工程脚手架配置 | **已全部办结归档**（`PUB-005.5`） | 交互式生成脚手架配置 `templates/cargo-generate.toml` 就绪，选型指南完整，生成项目立即可编译运行 |
-| **0.60** | Crates.io 自动化发布 CI 流水线与顺序拓扑校验 | 未来佛 `PUB-006.1` | GitHub Actions 发布流水线就绪；包含发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布；依赖图谱无环且版本严格对齐，本地与 CI 环境下执行 dry-run 顺序打包全部成功 |
-| **0.61** | 架构设计白皮书与跨 UI 框架开销选型指南 | 未来佛 `PUB-006.2` | 顶层架构说明书与开发者接入指南就绪；包含 Slint/Iced/Bevy/Android 四大 UI 在内存开销、包体尺寸、排帧性能 (FPS) 与冷启动开销的详实 benchmark 数据与选型矩阵 |
-| **0.62** | 开源社区治理规范与双语文档 | 未来佛 `PUB-006.4` | 根 README（快速上手/架构图/特性矩阵）、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT 与中立迁移指南齐备；全文档链接可解析，新开发者干净环境跑通编译与运行 |
-| **0.63** | Docs.rs 预览与公共 API 文档质量门 | 未来佛 `PUB-006.6` | 七个中性 crate `cargo doc --all-features --no-deps` 零警告，intra-doc links 全部正确校验；公开 API 文档覆盖率 100% 且包含可执行 doctest |
-| **0.64** | 无头沙盒集成测试与混沌容错验证 | 未来佛 `PUB-006.7` | 针对中性运行时建立无头 CI 集成沙盒与混沌测试套件；高频网络闪断、进程崩溃重启与锁竞争场景下状态机 100% fail-closed、无内存泄漏且能够自愈 |
-| **0.65** | 双引擎驱动真实二进制本地/CI Smoke 取证 | 未来佛 `PUB-006.8` | 激活 `mihomo-driver` 与 `singbox-driver` 真实二进制 smoke harness；在 Linux/Windows 真实进程环境下完成 API 握手、配置写入、节点测速与流量转发冒烟验证 |
-| **0.66** | 最小化用例展厅 (Examples Gallery) | 未来佛 `PUB-006.9` | 在 `examples/` 目录交付 4 套独立极简用例（minimal-cli、minimal-slint、minimal-iced、minimal-bevy）；代码量均 ≤200 行，无多余依赖，支持独立 `cargo run --example` 并接入 CI 编译 |
-| **0.67** | 多架构交叉构建自动化与 SemVer 兼容守卫 | 未来佛 `PUB-006.10` | 固化四大主流目标架构交叉编译流水线；集成 `cargo-semver-checks` 门禁，对七大中性 crate 的公共 API 变更进行自动化向后兼容性校验 |
-| **0.68** | 开发者全生命周期演练与干跑审计 | 未来佛 `PUB-006.11` | 在纯净容器中模拟外部开发者全旅程（克隆 -> 查看文档 -> 脚手架生成 -> 运行工程 -> 接入驱动 -> 调试配置）；全链路流畅用时 ≤5 分钟，体验毛刺清零并归档审计回执 |
-| **0.69** | 中性内核 1.0-RC 候选版本基线冻结与预发布 | 未来佛 `PUB-006.12` | 七个中性 crate API 签名完全冻结；版本号统一标定为 `1.0.0-rc.1`；生成首个 release candidate 校验和清单与签名草案；0.6x 开源发布生态体系圆满收官，正式交付 0.7x 质量与安装包构建阶段 |
-| **0.70** | Linux 最终 Deb 与 AppImage 打包 | 未来佛 `APPID-001.3` | 包名、图标与二进制严格匹配登记表；打包脚本输出标准 deb 与 AppImage 产物并通过安装冒烟 |
-| **0.71** | Windows NSIS 与 WiX 安装器打包 | 未来佛 `APPID-001.4` | 版本、名称、安装目录与图标严格匹配登记表；生成标准 NSIS 安装包并验证安装/卸载冒烟 |
-| **0.72** | Android 静态扫描与 Lint/ktlint/Detekt 门禁 | 未来佛 `BANDROID-044.1` `044.2` | Android Compose/Bevy debug 变体接入官方 Lint；ktlint 与 Detekt 静态扫描接入，违规项清零并生效 |
-| **0.73** | 跨端架构红线守卫与 CI 自动化流水线接通 | 未来佛 `BANDROID-044.4` `044.5`、`GAP-2.1` | 架构红线守卫阻断无界作用域与多状态 Boolean wire；质量门与桌面安装包检验接入 CI 运行与自测 |
-| **0.80** | 持久 Release Keystore 接入与安全流水线 | 未来佛 `BANDROID-039.1` | 用户持久 keystore 安全托管至 CI secrets，发布 job 强依赖配置，杜绝静默回退 debug key |
-| **0.81** | Release Universal APK 构建与签名一致性验证 | 未来佛 `BANDROID-015.2` `039.2`、`GAP-3.1` | Release universal APK 满足 aapt identity 规范；连续两候选版本签名指纹一致，支持覆盖升级 |
-| **0.82** | 真实设备网络流量与双引擎真机取证大闭环 | 过去佛全部 16 条 `[ARM64真机]` 项 | 实体 ARM64 设备流量代理、VPN 切换、路由规则与持久化连接完成实机取证，证据身份全部闭环 |
-| **0.90** | 3D/2.5D 可视化地球与流量动态弧线 | 未来佛 `BANDROID-016.2` | 支持手势拖拽、节点标记与弧线动画；具备 Eco 节能降级与低电量/减少动效回退模式 |
-| **0.91** | 桌面端渲染帧率与内存损耗性能基准报告 | 未来佛 `BANDROID-016.3` | 交付显示/关闭模式下的帧率与内存开销报告，静置休眠与资源释放完全符合基准 |
-| **0.92** | 1.0-RC 全平台候选版本冻结与全链路冒烟审计 | 全平台 RC 发布物与验收清单 | 冻结全平台候选构建产物；完成跨平台安装、网络接管与双引擎切换全链路冒烟测试，P0/P1 缺陷清零 |
-| **1.0.0** | 潜伏者 Lurker 首次公开发布 | 未来佛 `PUB-006.5` + 产品全平台发布 | crates.io 七个中性 crate + docs.rs 构建成功 + 产品全平台安装包/APK 全部发布，回执绑定 tag |
+| **0.60** | Crates.io 自动化发布 CI 流水线与顺序拓扑校验 | 现在佛 `PUB-006.1`（**当前档，待开工**） | GitHub Actions 发布流水线就绪；包含发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布；依赖图谱无环且版本严格对齐，本地与 CI 环境下执行 dry-run 顺序打包全部成功 |
+| **0.61** | 架构设计白皮书与跨 UI 框架开销选型指南 | **已全部办结归档**（`PUB-006.2`） | 顶层架构说明书与开发者接入指南就绪；包含 Slint/Iced/Bevy/Android 四大 UI 在内存开销、包体尺寸、排帧性能 (FPS) 与冷启动开销的详实 benchmark 数据与选型矩阵 |
+| **0.62** | 开源社区治理规范与双语文档 | **已全部办结归档**（`PUB-006.4`） | 根 README（快速上手/架构图/特性矩阵）、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT 与中立迁移指南齐备；全文档链接可解析，新开发者干净环境跑通编译与运行 |
+| **0.63** | Docs.rs 预览与公共 API 文档质量门 | 现在佛 `PUB-006.6` | 七个中性 crate `cargo doc --all-features --no-deps` 零警告，intra-doc links 全部正确校验；公开 API 文档覆盖率 100% 且包含可执行 doctest |
+| **0.64** | 无头沙盒集成测试与混沌容错验证 | 现在佛 `PUB-006.7` | 针对中性运行时建立无头 CI 集成沙盒与混沌测试套件；高频网络闪断、进程崩溃重启与锁竞争场景下状态机 100% fail-closed、无内存泄漏且能够自愈 |
+| **0.65** | 双引擎驱动真实二进制本地/CI Smoke 取证 | 现在佛 `PUB-006.8` | 激活 `mihomo-driver` 与 `singbox-driver` 真实二进制 smoke harness；在 Linux/Windows 真实进程环境下完成 API 握手、配置写入、节点测速与流量转发冒烟验证 |
+| **0.66** | 最小化用例展厅 (Examples Gallery) | 现在佛 `PUB-006.9` | 在 `examples/` 目录交付 4 套独立极简用例（minimal-cli、minimal-slint、minimal-iced、minimal-bevy）；代码量均 ≤200 行，无多余依赖，支持独立 `cargo run --example` 并接入 CI 编译 |
+| **0.67** | 多架构交叉构建自动化与 SemVer 兼容守卫 | 现在佛 `PUB-006.10` | 固化四大主流目标架构交叉编译流水线；集成 `cargo-semver-checks` 门禁，对七大中性 crate 的公共 API 变更进行自动化向后兼容性校验 |
+| **0.68** | 开发者全生命周期演练与干跑审计 | 现在佛 `PUB-006.11` | 在纯净容器中模拟外部开发者全旅程（克隆 -> 查看文档 -> 脚手架生成 -> 运行工程 -> 接入驱动 -> 调试配置）；全链路流畅用时 ≤5 分钟，体验毛刺清零并归档审计回执 |
+| **0.69** | 中性内核 1.0-RC 候选版本基线冻结与预发布 | 斗战胜佛 `PUB-006.12` | 七个中性 crate API 签名完全冻结；版本号统一标定为 `1.0.0-rc.1`；生成首个 release candidate 校验和清单与签名草案；0.6x 开源发布生态体系圆满收官，正式交付 0.7x 质量与安装包构建阶段 |
+| **0.70** | Linux 最终 Deb 与 AppImage 打包 | 现在佛 `APPID-001.3` | 包名、图标与二进制严格匹配登记表；打包脚本输出标准 deb 与 AppImage 产物并通过安装冒烟 |
+| **0.71** | Windows NSIS 与 WiX 安装器打包 | 斗战胜佛 `APPID-001.4` | 版本、名称、安装目录与图标严格匹配登记表；生成标准 NSIS 安装包并验证安装/卸载冒烟 |
+| **0.72** | Android 静态扫描与 Lint/ktlint/Detekt 门禁 | 现在佛 `BANDROID-044.1` `044.2` | Android Compose/Bevy debug 变体接入官方 Lint；ktlint 与 Detekt 静态扫描接入，违规项清零并生效 |
+| **0.73** | 跨端架构红线守卫与 CI 自动化流水线接通 | 现在佛 `BANDROID-044.4` `044.5`；斗战胜佛 `GAP-2.1` | 架构红线守卫阻断无界作用域与多状态 Boolean wire；质量门与桌面安装包检验接入 CI 运行与自测 |
+| **0.80** | 持久 Release Keystore 接入与安全流水线 | 斗战胜佛 `BANDROID-039.1` | 用户持久 keystore 安全托管至 CI secrets，发布 job 强依赖配置，杜绝静默回退 debug key |
+| **0.81** | Release Universal APK 构建与签名一致性验证 | 斗战胜佛 `BANDROID-015.2` `039.2`、`GAP-3.1` | Release universal APK 满足 aapt identity 规范；连续两候选版本签名指纹一致，支持覆盖升级 |
+| **0.82** | 真实设备网络流量与双引擎真机取证大闭环 | 斗战胜佛 §一 ARM64 真机组（11 条） | 实体 ARM64 设备流量代理、VPN 切换、路由规则与持久化连接完成实机取证，证据身份全部闭环 |
+| **0.90** | 3D/2.5D 可视化地球与流量动态弧线 | 现在佛 `BANDROID-016.2` | 支持手势拖拽、节点标记与弧线动画；具备 Eco 节能降级与低电量/减少动效回退模式 |
+| **0.91** | 桌面端渲染帧率与内存损耗性能基准报告 | 现在佛 `BANDROID-016.3` | 交付显示/关闭模式下的帧率与内存开销报告，静置休眠与资源释放完全符合基准 |
+| **0.92** | 1.0-RC 全平台候选版本冻结与全链路冒烟审计 | 现在佛 `PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2`、`GAP-4.1` | 冻结全平台候选构建产物；59 条业务在桌面三 UI 具备 contract+scenario 锚点与 standard/compact 双视口像素回执，Android 三 flavor 具备实际交互截图回执；完成跨平台安装、网络接管与双引擎切换全链路冒烟测试，P0/P1 缺陷清零 |
+| **1.0.0** | 潜伏者 Lurker 首次公开发布 | 斗战胜佛 `PUB-006.5` + 产品全平台发布 | crates.io 七个中性 crate + docs.rs 构建成功 + 产品全平台安装包/APK 全部发布，回执绑定 tag |
 
 - **设备依赖**：过去佛 16 条 `[ARM64真机]` 项不受版本节奏阻塞；设备到位即在当前里程碑插入验证批次，最迟 0.82 收口。
 - **外部依赖**：`BANDROID-039.1`（release keystore）、`015.2`、`039.2` 需用户提供 secrets；未提供时停留 0.8x 并跳过签名腿，不阻塞其余条目。
@@ -128,8 +136,9 @@
 | Android | L（源码） | Rust/JVM 定向测试；交叉 check | APK 在 v0.42.6 `C` 失败，修复无任何 `C`；真机 0 |
 | macOS | 无 | — | 无 CI、无产物、无签名 |
 | iOS | 无 | 626 行 host stub | 无 target、无包、无 NetworkExtension |
-| 0.43 收口 | L（部分） | PUB-001.1/.2、002.1/.3/.4/.5 本地通过 | PUB-002.2 在途；PUB-001.3 part 3 未做；`lurker-engine-runtime` 未开始 |
-| 0.44 UI 管道 | L（部分） | presentation 5/82 模块中立 | 77 个模块依赖 36k 行产品契约；PUB-004.2/.3 未开始 |
+| 0.43 收口 | L（代码侧已解决） | `PUB-001.1`～`PUB-001.3`、`PUB-002.1`～`PUB-002.5`、`PUB-003.1`～`PUB-003.4` 全部本地通过并归档；七个中性 crate 零产品私有依赖 | crates.io 顺序上架腿在斗战胜佛（`lurker-core-contract` 未实际上架前，其余 crate 的 dry-run 必然失败） |
+| 0.44 UI 管道 | L（代码侧已解决） | `PUB-004.1`～`PUB-004.3` 办结归档；`lurker-ui-presentation` 零私有依赖；四 UI 表面管道 conformance 测试落地 | 无 `C` 证据；四端设备回执在斗战胜佛 |
+| 环境阻塞层（斗战胜佛） | — | 29 条 / 72pt 已登记阻塞方与解锁条件 | ARM64 真机、受控 tag CI、用户 keystore、crates.io 上架凭证、Windows/macOS 目标机均缺失 |
 | 0.50 模板工程 | **已解决** | 四大 UI 独立模板工程（Slint/Iced/Bevy/Android）与 cargo-generate 交互脚手架全部交付；PUB-005.1～005.5 全部办结归档 | 零产品私有依赖，独立可编译运行 |
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
 | 引擎能力证据 | L | mihomo x86_64-linux adapter rev2；sing-box 手工 Linux smoke | 无跨平台、无 CI 复现 |
@@ -143,10 +152,15 @@
 
 
 ### 已归档交付原子条目（明细 262 条 / 681 pt；累计 263 条 / 682 pt）
-| 条目 | pt | 证据身份 |
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
+>
+> 明细口径说明：本表 262 行可逐行核对，合计 681 pt；与累计口径 263 条 / 682 pt 的 1 条 / 1 pt 差额是 v143 继承的历史差额（旧任务 ID 与证据无法还原，未猜填）。`docs/archive/TODO_ARCHIVED_ITEMS.md` 是本表的历史子集快照，不重复计数。
+| 条目 | pt | 证据身份 |
 | --- | ---: | --- |
+| `PUB-004.2` 标准单向 UI 通信管道协议规范化 | 2 | 固化 `SurfaceReader`（只读快照流，`crates/infiltrator-ports/src/surface.rs`）与 `CommandSink`（强类型意图通道，`crates/infiltrator-ports/src/command_sink.rs`）单向管道端口；typed 契约 `infiltrator_contract::{command, surface, surface_snapshot}` 与 `RecordingCommandSink` 确定性记录；管道 conformance nextest `ae3c3fa9-e02c-4fed-b5ad-9e1d1db95738` 2/2 全绿。 |
+| `PUB-004.3` 现有全 UI 表面接入统一管道回归验证 | 2 | Iced/Bevy/Slint/Android 四端统一经共享 `CommandIntent`/`SurfaceSnapshot` 消费；管道回归覆盖只读快照、typed 意图有序提交（RequestId 单调）与 typed `Rejected` 失败传播；conformance nextest `ae3c3fa9-e02c-4fed-b5ad-9e1d1db95738` 2/2 全绿。 |
+| `PUB-006.3` 开源合规与可发布基线 | 2 | 七个中性 crate 统一 `license = "MIT OR Apache-2.0"` 与 per-crate 元数据；`license-guard` 9 licenses 0 violations、`publish-order-guard` 顺序拓扑无环（contract → ports → engine-runtime → profile-store → ui-presentation → mihomo-driver → singbox-driver）、`lurker-neutrality-guard` OK。 |
 | `PUB-006.2` 架构设计说明书与 UI 框架选型指南 | 1 | 交付架构白皮书与跨 UI 选型指南，包含系统整体架构拓扑、四 UI 架构模型深度对比、性能实测 Benchmark 数据表与选型决策树；通过 `doc-governance-guard` 校验。 |
 | `PUB-006.4` 开源仓库治理体系与中立迁移指南 | 1 | 交付社区贡献指南、安全漏洞披露策略、行为准则与架构平滑迁移指南；规范社区治理流程与平滑迁移路径；链接全部可解析并通过文档门禁。 |
 | `PUB-005.1` Slint 桌面轻量独立模板工程规范化 | 2 | 交付独立模板工程 `templates/slint`，包含 appwindow.slint、build.rs、main.rs 与 README；单向接入 `SurfaceReader` + `CommandSink`；`cargo check -p lurker-template-slint` 0 警告通过。 |
@@ -445,7 +459,7 @@
 
 用户已明确：engine-neutral Core、Mihomo/sing-box 双适配、Kotlin VPNService 与 Android 权限、Bevy/Slint/Compose APK 链路、桌面所有必要页面和服务管理，全部属于现在佛。CORE-015 真实 sing-box 适配是必交付，不再只是“以后反证”；三套 UI 只消费共享命令/快照，必要差异留在平台 adapter。按 CORE-007～015 → `:vpn` 唯一 owner/IPC → Android flavors 与桌面页面/服务管理 → Windows/Linux/Android 构建和统一验证推进。**所有底层 Core TODO 和双后端 conformance 关闭前，禁止 UI 适配与 UI 包重编译。**
 
-当前实现状态、依赖、验收与证据只以 [现在佛](todos/CODE_TODO.md)、[过去佛](todos/CODE_TODO_PAST.md)、[未来佛](todos/CODE_TODO_FUTURE.md) 和 [实机看板](todos/CODE_TODO_PAST.md) 为准；本页不再重复描述 Core/Android 任务。三佛迁移前的历史回执只保留在 [迁制归档](.evidence/ARCHIVE-2026-10-11-old-board.md)。Core 与双后端任务全部收口前，不进入 UI 适配或 UI 包重编译。
+当前实现状态、依赖、验收与证据只以 [现在佛](todos/CODE_TODO.md)、[过去佛](todos/CODE_TODO_PAST.md) 和 [斗战胜佛](todos/CODE_TODO_BLOCKED.md) 为准；本页不再重复描述 Core/Android 任务。三佛迁移前的历史回执只保留在 [迁制归档](.evidence/ARCHIVE-2026-10-11-old-board.md)。Core 与双后端任务全部收口前，不进入 UI 适配或 UI 包重编译。
 
 ## 当前 Android 身份与 Gradle flavors（2026-10-10）
 
@@ -680,7 +694,7 @@ CI 工作项已拆入 [todos/CODE_TODO.md](todos/CODE_TODO.md) §五（018~024/0
 
 ### Engine-neutral Core workstreams（已迁至看板）
 
-CORE-007..016 的 workstream 状态、`CORE-011/012` 八个退役切片与 2A/3A 已拆入 [todos/CODE_TODO.md](todos/CODE_TODO.md)、[todos/CODE_TODO_PAST.md](todos/CODE_TODO_PAST.md) 与 [todos/CODE_TODO_FUTURE.md](todos/CODE_TODO_FUTURE.md)；原文（含逐条证据叙述与 run ID）见 [.evidence/ARCHIVE-2026-10-11-old-board.md](.evidence/ARCHIVE-2026-10-11-old-board.md)。切片顺序要点：1 → 2 → 3；4 依赖 CORE-009/010 配置边界；5 独立按 capability 收口；6 先做 typed ConnectionId/session stream 再让 slice 3 的 topology 消费；7 最后删除 `ManagedRuntime: RuntimeGateway` 继承根；8 作为 Admin 公共 API 切片单独完成。每一片只在新契约行为 nextest、旧生产符号/文案清零及真实后端证据达到该片要求后关闭。
+CORE-007..016 的 workstream 状态、`CORE-011/012` 八个退役切片与 2A/3A 已拆入 [todos/CODE_TODO.md](todos/CODE_TODO.md)、[todos/CODE_TODO_PAST.md](todos/CODE_TODO_PAST.md) 与 [todos/CODE_TODO_BLOCKED.md](todos/CODE_TODO_BLOCKED.md)；原文（含逐条证据叙述与 run ID）见 [.evidence/ARCHIVE-2026-10-11-old-board.md](.evidence/ARCHIVE-2026-10-11-old-board.md)。切片顺序要点：1 → 2 → 3；4 依赖 CORE-009/010 配置边界；5 独立按 capability 收口；6 先做 typed ConnectionId/session stream 再让 slice 3 的 topology 消费；7 最后删除 `ManagedRuntime: RuntimeGateway` 继承根；8 作为 Admin 公共 API 切片单独完成。每一片只在新契约行为 nextest、旧生产符号/文案清零及真实后端证据达到该片要求后关闭。
 
 **本轮版本源收敛：**`scripts/capture-bevy-live.sh` 不再硬编码 Mihomo v1.19.18；它按本机 Linux target 从 `packaging/mihomo-assets.json` 选择注册 asset，并校验压缩包与解压后二进制 SHA-256。语法检查通过；本机 `vendor/mihomo-linux-amd64 -v` 报告 v1.19.32，二进制 SHA-256 与 lock 的 `6de241191ca39f9ac1cd6e3194fc9303c19055d3549c8bdb4ff1349c89173819` 一致。这只证明本机资产与锁一致，不证明旧 v1.19.18 协议假设已对齐，也不替代真实操作能力矩阵。
 
