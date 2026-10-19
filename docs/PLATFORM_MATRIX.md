@@ -20,5 +20,6 @@
 ## 专项规则
 
 - 逐业务视觉与截图验收（桌面三 UI 的 standard/compact 双视口像素回执、Android 三 flavor 实际交互截图）与「五大平台 × 三大 UI × 59 条业务」的覆盖矩阵，其当前状态与收口条目登记在[现在佛](../todos/CODE_TODO.md) §二/§三；实测 parity 注册表只含 iced/bevy 两表面，Slint 尚无锚点与像素回执，Android 三 flavor 尚无交互截图回执。**未取得对应像素或交互回执前，不得据本表宣称任何表面已通过视觉验收。**
+- Slint 第三 UI 的实测缺口：页面词汇只有 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**缺 dns、editor、filter、mixin、sync、app_routing、doctor 七类页面**，对应 19 条业务在 Slint 无载体；49 个 Slint nextest 中仅 4 个文件真正驱动 `infiltrator_slint` 表面，其余只断言 typed 意图形状，**没有 headless 行为台因而没有 parity scenario 锚点**。补齐由[现在佛](../todos/CODE_TODO.md) `SLINT-001.1`～`001.7` 与 `PARITY-001.1`～`001.4` 承担；在其办结前，Slint 不得被计入任何平台的「已验收」范围。
 - Android 产品与真机验收见 [Android 文档](../android/docs/README.md)。
 - Core 后端和 Mihomo 资产规则见 [CORE_BACKENDS.md](CORE_BACKENDS.md) 与 [UPSTREAM.md](UPSTREAM.md)。

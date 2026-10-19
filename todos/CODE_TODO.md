@@ -19,8 +19,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261019-v237`：现在佛 53 pt（22 条）/ 过去佛 23 pt（10 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 148 pt；已归档交付 682 pt（263 条）；累计 830 pt，严格归档完成率 82.2%。
-- 本板 22 条 = 原未来佛 16 条全部并入 + 新立 6 条（`PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2`）用于补齐五大平台 × 三大 UI 的截图认证缺口；未来佛看板随本批次退役，任务正文统一收敛在本板。
+- Point 基线 `musicfrog-todo-20261019-v237`：现在佛 69 pt（29 条）/ 过去佛 23 pt（10 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 164 pt；已归档交付 682 pt（263 条）；累计 846 pt，严格归档完成率 80.6%。
+- 本板 29 条 = 原未来佛 16 条 + 截图认证与平台覆盖 6 条（`PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2`）+ Slint 第三 UI 补齐 7 条（`SLINT-001.1`～`001.7`）；未来佛看板随本批次退役，任务正文统一收敛在本板。
+- Slint 七条来自 2026-10-19 的表面审计实测：Slint 缺 7 类页面导致 19 条业务无载体、49 个 Slint 测试中仅 4 个文件真正驱动表面、无 headless 行为台导致无法产出 scenario 锚点。
 <!-- POINT_LEDGER:END -->
 
 ## 一、大计划主线与推进顺序
@@ -61,7 +62,7 @@
 | 应用与路由策略（app） | 1 | 缺 Slint | 缺 Slint | 缺 |
 | **合计** | **59** | 2/3 表面已锚点（4 个 pending 单元格） | 118 个待像素回执单元格 | 0 个 flavor 截图回执 |
 
-缺口来源：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。收口由 `PARITY-001.1`～`001.4` 与 `PLATFORM-001.2` 承担。
+缺口来源与实测结论（2026-10-19）：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。进一步审计 Slint 表面得到三条硬事实：① Slint 页面词汇为 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**dns、editor、filter、mixin、sync、app_routing、doctor 七类页面在 Slint 根本不存在**，按契约页面归属共 **19 条业务在第三 UI 无载体**（dns 4、editor 7、sync 2、doctor 2、app_routing 1、filter 1、aggregator/mixin 2）——这是产品缺口，不是测试缺口；② Slint 现有 49 个 nextest 测试中只有 4 个测试文件真正驱动 `infiltrator_slint` 表面，其余 4 个文件仅断言 typed 意图形状，**Slint 没有 Iced/Bevy 那样的 headless 行为台**，因而无法产出任何 parity scenario 锚点；③ 59 条业务里 Slint 仅有约 20 条存在形状级测试。收口由 `PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2` 与 `SLINT-001.1`～`SLINT-001.7` 共同承担。
 
 ## 四、A 主线：crates.io 发布流水线与开发者生态
 
@@ -110,11 +111,11 @@
 
 ## 五、B 主线：截图认证与平台证据（每个业务都真跑过）
 
-- [ ] PARITY-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: scripts/parity] [status: Ready] Slint 纳入 parity 注册表与视觉回执管线
-  - 产物：`feature_evidence.tsv` 与 `cross_surface_manifest.tsv` 增加 slint 表面 118 单元格；`visual_receipts.py` 接受 `--slint-run`；`resolve_surface_evidence.py` 与 `evidence_progress.py` 覆盖 slint。
-  - 依赖：GAP-4.1 的场景表；现有 iced/bevy 注册表结构。
-  - 验收：slint 表面 59 业务 × 2 层 = 118 单元格全部可解析且无 dangling；`--slint-run` 能产出像素回执。
-  - 计划：① 复制 iced 行结构生成 slint 行并绑定 Slint 真实测试 ID；② 扩 `visual_receipts.py` 与进度统计；③ 补正反例测试（缺 run 必失败）。
+- [ ] PARITY-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: scripts/parity + infiltrator-contract] [status: Ready] Slint 纳入 parity 目录、注册表与视觉回执管线
+  - 产物：契约目录 `FeatureSpec` 增 `slint_page`；`cross_surface_manifest.tsv` 与 `feature_evidence.tsv` 增 59×2 个 Slint 单元格（页面不存在者以 `pending` + 明确原因登记，禁止伪装已实现）；`resolve_surface_evidence.py` 的 `SURFACES` 增 `slint`；`visual_receipts.py` 接受 `--slint-run`。
+  - 依赖：SLINT-001.1（Slint 行为台与 scenario 锚点）、GAP-4.1 场景表。
+  - 验收：Slint 59 业务 × 2 层 = 118 单元格全部可解析且无 dangling；`--slint-run` 能产出像素回执；`--require-complete` 在 Slint 未补齐前必须仍失败。
+  - 计划：① 契约目录加 `slint_page` 并回填 59 条页面归属；② 逐条生成注册表单元格（可锚定则 anchored，页面缺失或行为缺失则 pending + 原因）；③ 扩展 resolver/receipts 与正反例测试。
   - 证据：`resolve_surface_evidence.py` 报告 + 新增单元测试 run ID。
 - [ ] PARITY-001.2 [kind: evidence] [priority: P0] [points: 5] [owner: scripts/parity + 三大 UI] [status: Planned] 三大桌面 UI 全业务双视口像素认证闭环
   - 产物：59 业务 × 3 表面 × standard/compact 双视口的真实像素回执全量归档，覆盖率 100%。
@@ -152,6 +153,51 @@
   - 验收：parity 锚点 + 屏幕回执；否则在八问表保持「部分」。
   - 计划：① 跑 Slint 场景矩阵并绑定像素回执；② 补六页回调功能验收；③ 与 PARITY-001.1 的 slint 注册表合并取证。
   - 证据：截图清单 + parity 报告。
+
+### 5.1 Slint 第三 UI 的 360° 补齐（7条 / 16pt）
+
+- [ ] SLINT-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-slint] [status: Ready] Slint 表面行为测试台与 scenario 锚点
+  - 产物：Slint headless 行为台（快照投影 + `SlintAction` 回调 + 真实 `CommandIntent` 派发），把 4 个仅断言意图形状的测试文件升级为表面行为测试，并为已实现页面产出 parity scenario 锚点。
+  - 依赖：现有 `SlintProductHost`/`SlintAction` 接线；Iced/Bevy headless 模式结构。
+  - 验收：每个 Slint 行为测试必须驱动 Slint 表面并断言派发意图与投影结果；纯意图形状断言不得计入 scenario 锚点。
+  - 计划：① 抽 headless 装配（不建窗口）② 升级 4 个形状级测试文件 ③ 按已实现页面补锚点并接注册表。
+  - 证据：Slint nextest run ID + 注册表锚点增量。
+- [ ] SLINT-001.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Slint DNS 页面（4 业务）
+  - 产物：Slint DNS 页承载泄漏告警、查询详情、Fake-IP 刷新确认与 Hosts 编辑四条业务，并接入共享 owner 快照。
+  - 依赖：SLINT-001.1 行为台；共享 DNS presentation 投影。
+  - 验收：四条业务在 Slint 有表面行为测试与双视口像素回执。
+  - 计划：① 复用共享投影实现页面 ② 接行为测试 ③ 接 parity 注册表与截图。
+  - 证据：截图 + 锚点 run ID。
+- [ ] SLINT-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Slint 编辑器族页面（4 业务：脚本沙箱/导出评审/差异视图/快照恢复）
+  - 产物：Slint 侧脚本沙箱、导出评审、配置差异与快照恢复四条业务的载体。
+  - 依赖：SLINT-001.1 行为台；共享脚本与差异投影。
+  - 验收：四条业务在 Slint 有表面行为测试与双视口像素回执。
+  - 计划：① 评估可复用组件 ② 实现页面与回调 ③ 接行为测试与截图。
+  - 证据：截图 + 锚点 run ID。
+- [ ] SLINT-001.4 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 配置过滤与聚合器（3 业务）
+  - 产物：Slint 侧配置过滤编辑器与聚合器向导/预览三条业务载体。
+  - 依赖：SLINT-001.1 行为台；共享聚合投影。
+  - 验收：三条业务在 Slint 有表面行为测试与双视口像素回执。
+  - 计划：① 实现过滤与聚合器 UI ② 接共享意图 ③ 接行为测试与截图。
+  - 证据：截图 + 锚点 run ID。
+- [ ] SLINT-001.5 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 诊断与生命周期恢复页（2 业务）
+  - 产物：Slint 侧 doctor 诊断与失败恢复、生命周期恢复面板两条业务载体。
+  - 依赖：SLINT-001.1 行为台；共享 doctor 投影。
+  - 验收：两条业务在 Slint 有表面行为测试与双视口像素回执。
+  - 计划：① 接入共享 doctor 观察 ② 实现页面与修复/重试动作 ③ 接行为测试与截图。
+  - 证据：截图 + 锚点 run ID。
+- [ ] SLINT-001.6 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 订阅同步冲突页（2 业务）
+  - 产物：Slint 侧同步冲突解决与恢复确认两条业务载体。
+  - 依赖：SLINT-001.1 行为台；共享同步投影。
+  - 验收：两条业务在 Slint 有表面行为测试与双视口像素回执。
+  - 计划：① 接入同步状态投影 ② 实现冲突处置动作 ③ 接行为测试与截图。
+  - 证据：截图 + 锚点 run ID。
+- [ ] SLINT-001.7 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 应用路由策略编辑页（1 业务）
+  - 产物：Slint 侧应用路由策略编辑器（含取消/失败/刷新/不支持路径）载体。
+  - 依赖：SLINT-001.1 行为台；共享路由策略投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 计划：① 接入共享策略投影 ② 实现编辑与提交动作 ③ 接行为测试与截图。
+  - 证据：截图 + 锚点 run ID。
 
 ## 六、C 主线：质量红线与安装包
 
