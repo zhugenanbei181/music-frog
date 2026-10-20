@@ -128,7 +128,7 @@ CHILDOF_MOUNT = re.compile(
 TEMPLATE_VALUE = re.compile(r"\btemplate_value\b|\bTemplateValue\b")
 # A repeated group is a scene list, not an inline child enumeration.
 LIST_ENUMERATION = re.compile(
-    r"\.(?:collect|map|filter_map|flat_map)\s*(?:::<[^>]*>)?\s*\(|into_iter\s*\("
+    r"\.(?:collect|map|filter_map|flat_map)\b|into_iter\s*\("
 )
 # Batch retirement by marker: `commands.despawn_all::<With<Marker>>()`.
 CHILD_DESPAWN_LOOP = re.compile(

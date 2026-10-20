@@ -15,12 +15,20 @@ note() { echo "test-policy: $*" >&2; failed=1; }
 require() { grep -Eq -- "$2" "$1" || note "$1 missing required pattern: $2"; }
 
 # A. No raw `cargo test` anywhere (the only supported runner is nextest).
-if git grep -n -I -i -E \
+#    The one documented exception is the doctest shape: doctests are
+#    documentation examples that nextest does not execute at all, and the
+#    published crates must prove their examples run. Both spellings of that
+#    shape are allowed — the shell form `cargo test --doc` and the argv form
+#    `"cargo", "test", "--doc"` — and every other bare `cargo test` stays
+#    forbidden.
+if git grep --untracked -n -I -i -E \
   '(^|[^[:alnum:]_-])cargo[[:space:]]+(\+[^[:space:]]+[[:space:]]+)?test([[:space:]]|$)' -- \
   . \
   ':(exclude)scripts/check-test-policy.sh' \
   ':(exclude)**/scripts/check-test-policy.sh' \
-  ':(exclude).claude/**'; then
+  ':(exclude).claude/**' \
+  | grep -v -i -E 'cargo[[:space:]]+test[[:space:]]+--doc' \
+  | grep -v -i -E '"cargo",[[:space:]]*"test",[[:space:]]*"--doc"'; then
   note "forbidden raw cargo test command found"
 fi
 

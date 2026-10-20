@@ -1,15 +1,4 @@
 {
   "version": 1,
-  "debt": {
-    "crates/infiltrator-bevy-ui/src/pages/connections_view.rs": {
-      "4.0": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs": {
-      "11.0": 1,
-      "18.0": 1,
-      "2.0": 1,
-      "4.0": 1,
-      "8.0": 1
-    }
-  }
+  "debt": {}
 }

@@ -63,17 +63,18 @@
 10. **截图认证硬门（2026-10-19 起强制）**：每条业务能力在每个桌面 UI 必须同时具备 contract 锚点、scenario 锚点与 standard/compact 双视口真实像素回执，Android 三 flavor 另需实际交互截图回执；判定入口唯一是 `scripts/parity/resolve_surface_evidence.py` 与 `scripts/parity/visual_receipts.py`。缺任一项只能写「部分」，禁止用静态页面截图或旧 APK 回执冒充平权通过。
 11. **并行工流隔离纪律（2026-10-20 起强制）**：并行开发按**文件所有权**切分，同一文件同一时刻只有一个 owner；**编译不通过的半成品不得放进会被 `cargo nextest --workspace`、结构门或 capture 构建扫到的路径**，WIP 先放草稿或 `.evidence/wip/`，收尾时一次性搬入；**开发期只跑受影响包**，全仓 `cargo nextest --workspace` 与全量结构门统一放到收尾批次**只跑一次**，禁止单个 crate 的 WIP 反复触发全仓重编重挂。
 12. **环境故障先归属再动手（2026-10-20 起强制）**：共享 `/tmp` 配额、cargo lane 争用、合成器起栈失败、真机缺席等外部故障，先判定归属（本切片缺陷 / 他工流 WIP / 纯环境）再决定动作，只修本切片能修的那一类；不得让环境噪声反复打断全仓验证，也不得把环境故障写成代码缺陷。已知缓解：capture 脚本把链接器临时文件放在构建输出旁（`CAPTURE_BUILD_TMP`），共享 `/tmp` 只留合成器 socket 短路径。
+13. **执行标准（2026-10-20 起强制，所有切片适用）：** ① 底层结构不够就扩 owner 结构，禁止再塞 `bool`/`Option` 表达阶段或所有权；② 组合优于继承，跨域行为用组合与显式依赖表达；③ 该分开的业务分开——field 归 field、表现归表现、事务归 owner；④ 每个事实只有一个真源，不留第二份缓存或影子副本；⑤ 非身份改动不碰 wire/快照/语料，身份改动集中一次做完。判据：切片结束时状态字段有唯一真源、阶段有 typed 表达、wire 与快照只随身份变更一次性变更。
 
 ## Points 与完成度台账（2026-10-20，基线 `musicfrog-todo-20261020-v239`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 32 | 76 |
-| 过去佛 | 13 | 29 |
+| 现在佛 | 27 | 65 |
+| 过去佛 | 20 | 46 |
 | 斗战胜佛 | 29 | 72 |
-| **未办结联合分母** | **74** | **177** |
+| **未办结联合分母** | **76** | **183** |
 
-- **严格交付率：682 / 859 = 79.4%**（archived 682pt / archived 682 + 未办结 177pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：682 / 865 = 78.8%**（archived 682pt / archived 682 + 未办结 183pt）。执行态参考仍以看板状态计算，不替代验收。
 - 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt；2026-10-20 再补立 `BEVYCAP-003.1` 2pt（Bevy 场景律法唯一 owner 收敛：仓库自有 `bevy_bsn_guard.py` 与共享包场景门禁当前双份执行同一条 BSN 律法），未办结条目集合净增 58pt。
 - 归档口径：累计 263 条 / 682 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
@@ -719,7 +720,8 @@ CORE-007..016 的 workstream 状态、`CORE-011/012` 八个退役切片与 2A/3A
 
 - BEVY: BEVY-004 BEVY-005 BEVY-006 BEVY-007 BEVY-008 BEVY-010 BEVY-012 BEVY-013 BEVY-014 BEVY-015 BEVY-016 BEVY-017 BEVY-018 BEVY-019 BEVY-020 BEVY-021 BEVY-022 BEVY-023
 - BEVY: BEVY-024 BEVY-025 BEVY-026 BEVY-027 BEVY-028 BEVY-029 BEVY-030 BEVY-031 BEVY-032 BEVY-033 BEVY-034 BEVY-035 BEVY-036 BEVY-037 BEVY-038 BEVY-039 BEVY-040 BEVY-041
-- BSN: BSN-001 BSN-002 BSN-003 BSN-004 BSN-005 BSN-006
+- BSN: BSN-001 BSN-002 BSN-003 BSN-004 BSN-005 BSN-006 BSN-007 BSN-008 BSN-009 BSN-010
+- REM: REM-001 REM-002 REM-003 REM-004 REM-005
 - CORE: CORE-001 CORE-005 CORE-006
 - ECS: ECS-007 ECS-008 ECS-009
 - FUNC: FUNC-001 FUNC-002 FUNC-003 FUNC-004 FUNC-005

@@ -30,6 +30,9 @@ Rules:
   named value, never from a magic number.
 * **BEVY-REM-004** — the legacy debt inventory is missing or references a file
   that no longer exists. The inventory is an exact inventory, not an allowlist.
+* **BEVY-REM-005** — a rem size written as a bare number (`rem(560.0)`). Every
+  size must be a *named* quantity: a shared token or a named constant, never a
+  magic number at the call site.
 
 The legacy debt inventory (`scripts/quality/bevy_rem_inventory.json`) records
 every named px site that predates this guard. It is seeded once, may only shrink
@@ -100,6 +103,10 @@ NON_REM_FONT_SIZE = re.compile(r"\bFontSize::(?:Px|Vw|Vh|VMin|VMax)\b")
 
 #: `em` is text-relative; a bare literal cannot be.
 EM_LITERAL = re.compile(r"\bVal::Em\s*\(\s*[-+]?\d+(?:\.\d+)?\s*[,)]")
+
+#: A rem size must be a *named* quantity: a shared token or a named constant.
+#: A bare number inside `rem(...)` is an unnamed size (总纲③).
+REM_LITERAL = re.compile(r"\brem\s*\(\s*(?P<value>[-+]?\d+(?:\.\d+)?)\s*[,)]")
 
 PX_SIZE = re.compile(r"\bVal::Px\s*\(")
 
@@ -201,6 +208,15 @@ def em_literal_sites(text: str) -> list[int]:
     return [match.start() for match in EM_LITERAL.finditer(masked)]
 
 
+def rem_literal_sites(text: str) -> list[tuple[int, str]]:
+    """`rem(<number>)` call sites: an unnamed size."""
+    masked = mask_noncode(text)
+    return [
+        (match.start(), match.group("value"))
+        for match in REM_LITERAL.finditer(masked)
+    ]
+
+
 def is_measurement_source(relative: str) -> bool:
     return any(
         relative == entry or relative.startswith(entry)
@@ -295,6 +311,16 @@ def scan(root: Path) -> tuple[list[Violation], list[Notice]]:
                     "BEVY-REM-003",
                     "Val::Em must derive from a measured or named value,"
                     " not from a bare literal",
+                )
+            )
+        for offset, value in rem_literal_sites(text):
+            violations.append(
+                Violation(
+                    relative,
+                    text.count("\n", 0, offset) + 1,
+                    "BEVY-REM-005",
+                    f"rem({value}) is an unnamed size; use a shared token"
+                    " (space::/radius::/metrics::) or a named constant",
                 )
             )
         for offset, argument in px_sites(text):
@@ -478,6 +504,16 @@ def self_test() -> int:
         "a literal em size is rejected",
         "fn inline_icon() { let size = Val::Em(1.5); }",
         ["BEVY-REM-003"],
+    )
+    expect(
+        "an unnamed rem size is rejected",
+        "fn panel() { let width = rem(560.0); }",
+        ["BEVY-REM-005"],
+    )
+    expect(
+        "a named rem size is allowed",
+        "fn panel() { let width = rem(space::S12); let other = rem(PANEL_WIDTH_PX); }",
+        [],
     )
     expect(
         "comments and string literals cannot hide or fake a px site",
