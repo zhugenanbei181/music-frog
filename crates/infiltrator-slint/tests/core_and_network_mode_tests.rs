@@ -1,9 +1,16 @@
-//! Tests for Core lifecycle, command sequences, and network mode switching in infiltrator-slint.
+//! SLINT-001.8: Core lifecycle and network mode behaviour of the real Slint surface.
+//!
+//! Every case drives the production Slint callbacks through the headless
+//! surface harness. The routing mapping and the network mode sequence are
+//! owned by `infiltrator_slint::surface::action`; these tests assert the exact
+//! typed owner command the surface emits and the typed failure it raises.
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_slint::SlintAction;
+use infiltrator_slint::surface::harness;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::PageData;
@@ -36,144 +43,211 @@ fn default_settings_snapshot() -> SettingsPageSnapshot {
     }
 }
 
-#[test]
-fn test_route_mode_mapping() {
-    let mode_rule = "Rule";
-    let intent_rule = match mode_rule {
-        "Rule" => Ok(RoutingIntent::FollowRules),
-        "Global" => Ok(RoutingIntent::RouteAllThroughProxy),
-        "Direct" => Ok(RoutingIntent::BypassProxy),
-        _ => Err(()),
-    };
-    assert_eq!(intent_rule, Ok(RoutingIntent::FollowRules));
-
-    let mode_global = "Global";
-    let intent_global = match mode_global {
-        "Rule" => Ok(RoutingIntent::FollowRules),
-        "Global" => Ok(RoutingIntent::RouteAllThroughProxy),
-        "Direct" => Ok(RoutingIntent::BypassProxy),
-        _ => Err(()),
-    };
-    assert_eq!(intent_global, Ok(RoutingIntent::RouteAllThroughProxy));
-
-    let mode_direct = "Direct";
-    let intent_direct = match mode_direct {
-        "Rule" => Ok(RoutingIntent::FollowRules),
-        "Global" => Ok(RoutingIntent::RouteAllThroughProxy),
-        "Direct" => Ok(RoutingIntent::BypassProxy),
-        _ => Err(()),
-    };
-    assert_eq!(intent_direct, Ok(RoutingIntent::BypassProxy));
-}
-
-#[test]
-fn test_network_mode_action_switching_from_proxy_to_tun_when_running() {
-    let mut snapshot = SurfaceSnapshot::unavailable(
+fn desktop_snapshot() -> SurfaceSnapshot {
+    SurfaceSnapshot::unavailable(
         SurfaceKind::SlintDesktop,
         HostKind::Desktop,
         Failure::new(ErrorCode::NotReady, "ready", false),
+    )
+}
+
+/// Asserts that the surface dispatched exactly one owner command.
+fn single_command(outcome: harness::SurfaceOutcome) -> CommandIntent {
+    match outcome {
+        harness::SurfaceOutcome::Dispatched(actions) => {
+            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            match &actions[0] {
+                SlintAction::Command(intent) => intent.clone(),
+                other => panic!("expected an owner command, got {other:?}"),
+            }
+        }
+        harness::SurfaceOutcome::Rejected { failure, .. } => {
+            panic!("expected an owner command, got the failure {failure:?}")
+        }
+    }
+}
+
+/// Asserts that the surface refused the gesture with the given typed failure.
+fn rejection(outcome: harness::SurfaceOutcome) -> Failure {
+    match outcome {
+        harness::SurfaceOutcome::Dispatched(actions) => {
+            panic!("expected a refusal, got the owner actions {actions:?}")
+        }
+        harness::SurfaceOutcome::Rejected { failure, actions } => {
+            assert!(
+                actions.is_empty(),
+                "a refused gesture must not dispatch owner actions, got {actions:?}"
+            );
+            failure
+        }
+    }
+}
+
+#[test]
+fn routing_mode_dispatches_the_shared_routing_intent() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
+
+    let command = single_command(surface.set_route_mode("Rule"));
+    assert_eq!(
+        command,
+        CommandIntent::SetRoutingIntent {
+            intent: RoutingIntent::FollowRules
+        }
     );
+
+    let command = single_command(surface.set_route_mode("Global"));
+    assert_eq!(
+        command,
+        CommandIntent::SetRoutingIntent {
+            intent: RoutingIntent::RouteAllThroughProxy
+        }
+    );
+
+    let command = single_command(surface.set_route_mode("Direct"));
+    assert_eq!(
+        command,
+        CommandIntent::SetRoutingIntent {
+            intent: RoutingIntent::BypassProxy
+        }
+    );
+}
+
+#[test]
+fn unknown_route_mode_is_refused_with_the_typed_failure() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
+
+    let failure = rejection(surface.set_route_mode("Neon"));
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(failure.message, "Unknown routing mode");
+    assert_eq!(surface.notice(), "Unknown routing mode");
+}
+
+#[test]
+fn routing_mode_without_an_owner_snapshot_is_refused_as_not_ready() {
+    let surface = harness::SurfaceHarness::new(None).unwrap();
+
+    let failure = rejection(surface.set_route_mode("Rule"));
+    assert_eq!(failure.code, ErrorCode::NotReady);
+    assert_eq!(
+        failure.message,
+        "The shared owner has not published its first snapshot"
+    );
+}
+
+#[test]
+fn network_mode_switches_from_proxy_to_tun_while_running() {
+    let mut snapshot = desktop_snapshot();
     snapshot.core.lifecycle = CoreLifecycle::Running;
     snapshot.system_proxy.status = SystemProxyStatus::Enabled;
-
     let mut settings = default_settings_snapshot();
     settings.tun_enabled = Some(false);
     snapshot.pages.settings = PageData::ready(settings);
 
-    let running = matches!(
-        &snapshot.core.lifecycle,
-        CoreLifecycle::Ready | CoreLifecycle::Running
-    );
-    assert!(running);
+    let surface = harness::SurfaceHarness::new(Some(snapshot)).unwrap();
 
-    let mut commands = Vec::new();
-    if running {
-        commands.push(CommandIntent::StopProxy);
+    match surface.set_network_mode("TUN") {
+        harness::SurfaceOutcome::Dispatched(actions) => {
+            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            match &actions[0] {
+                SlintAction::Sequence(commands) => assert_eq!(
+                    commands,
+                    &[
+                        CommandIntent::StopProxy,
+                        CommandIntent::SetSystemProxy { enabled: false },
+                        CommandIntent::ToggleTun { enabled: true },
+                        CommandIntent::StartProxy,
+                    ]
+                ),
+                other => panic!("expected an owner command sequence, got {other:?}"),
+            }
+        }
+        harness::SurfaceOutcome::Rejected { failure, .. } => {
+            panic!("expected an owner command sequence, got the failure {failure:?}")
+        }
     }
-    if matches!(&snapshot.system_proxy.status, SystemProxyStatus::Enabled) {
-        commands.push(CommandIntent::SetSystemProxy { enabled: false });
-    }
-    commands.push(CommandIntent::ToggleTun { enabled: true });
-    if running {
-        commands.push(CommandIntent::StartProxy);
-    }
-
-    assert_eq!(commands.len(), 4);
-    assert_eq!(commands[0], CommandIntent::StopProxy);
-    assert_eq!(
-        commands[1],
-        CommandIntent::SetSystemProxy { enabled: false }
-    );
-    assert_eq!(commands[2], CommandIntent::ToggleTun { enabled: true });
-    assert_eq!(commands[3], CommandIntent::StartProxy);
 }
 
 #[test]
-fn test_network_mode_action_switching_to_core_only_when_stopped() {
-    let mut snapshot = SurfaceSnapshot::unavailable(
-        SurfaceKind::SlintDesktop,
-        HostKind::Desktop,
-        Failure::new(ErrorCode::NotReady, "ready", false),
-    );
+fn network_mode_switches_to_core_only_while_stopped() {
+    let mut snapshot = desktop_snapshot();
     snapshot.core.lifecycle = CoreLifecycle::Stopped;
     snapshot.system_proxy.status = SystemProxyStatus::Enabled;
-
     let mut settings = default_settings_snapshot();
     settings.tun_enabled = Some(true);
-    let tun_enabled = settings.tun_enabled.unwrap_or(false);
     snapshot.pages.settings = PageData::ready(settings);
 
-    let running = matches!(
-        &snapshot.core.lifecycle,
-        CoreLifecycle::Ready | CoreLifecycle::Running
-    );
-    assert!(!running);
+    let surface = harness::SurfaceHarness::new(Some(snapshot)).unwrap();
 
-    let mut commands = Vec::new();
-    if matches!(&snapshot.system_proxy.status, SystemProxyStatus::Enabled) {
-        commands.push(CommandIntent::SetSystemProxy { enabled: false });
+    match surface.set_network_mode("Core only") {
+        harness::SurfaceOutcome::Dispatched(actions) => {
+            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            match &actions[0] {
+                SlintAction::Sequence(commands) => assert_eq!(
+                    commands,
+                    &[
+                        CommandIntent::SetSystemProxy { enabled: false },
+                        CommandIntent::ToggleTun { enabled: false },
+                    ]
+                ),
+                other => panic!("expected an owner command sequence, got {other:?}"),
+            }
+        }
+        harness::SurfaceOutcome::Rejected { failure, .. } => {
+            panic!("expected an owner command sequence, got the failure {failure:?}")
+        }
     }
-    if tun_enabled {
-        commands.push(CommandIntent::ToggleTun { enabled: false });
-    }
-
-    assert_eq!(commands.len(), 2);
-    assert_eq!(
-        commands[0],
-        CommandIntent::SetSystemProxy { enabled: false }
-    );
-    assert_eq!(commands[1], CommandIntent::ToggleTun { enabled: false });
 }
 
 #[test]
-fn test_core_lifecycle_projection_labels() {
-    let starting = CoreLifecycle::Starting;
-    let label = match &starting {
-        CoreLifecycle::Starting => "Starting",
-        CoreLifecycle::Ready | CoreLifecycle::Running => "Running",
-        CoreLifecycle::Stopping => "Stopping",
-        CoreLifecycle::Stopped => "Stopped",
-        CoreLifecycle::Failed => "Failed",
-    };
-    assert_eq!(label, "Starting");
+fn unknown_network_mode_is_refused_with_the_typed_failure() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
 
-    let running = CoreLifecycle::Running;
-    let label = match &running {
-        CoreLifecycle::Starting => "Starting",
-        CoreLifecycle::Ready | CoreLifecycle::Running => "Running",
-        CoreLifecycle::Stopping => "Stopping",
-        CoreLifecycle::Stopped => "Stopped",
-        CoreLifecycle::Failed => "Failed",
-    };
-    assert_eq!(label, "Running");
+    let failure = rejection(surface.set_network_mode("Bridge"));
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(failure.message, "Unknown network mode");
+    assert_eq!(surface.notice(), "Unknown network mode");
+}
 
-    let failed = CoreLifecycle::Failed;
-    let label = match &failed {
-        CoreLifecycle::Starting => "Starting",
-        CoreLifecycle::Ready | CoreLifecycle::Running => "Running",
-        CoreLifecycle::Stopping => "Stopping",
-        CoreLifecycle::Stopped => "Stopped",
-        CoreLifecycle::Failed => "Failed",
-    };
-    assert_eq!(label, "Failed");
+#[test]
+fn core_lifecycle_projection_labels_come_from_the_shared_snapshot() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
+
+    for (lifecycle, label) in [
+        (CoreLifecycle::Starting, "Starting"),
+        (CoreLifecycle::Ready, "Running"),
+        (CoreLifecycle::Running, "Running"),
+        (CoreLifecycle::Stopping, "Stopping"),
+        (CoreLifecycle::Stopped, "Stopped"),
+        (CoreLifecycle::Failed, "Failed"),
+    ] {
+        let mut snapshot = desktop_snapshot();
+        snapshot.core.lifecycle = lifecycle.clone();
+        surface.publish_snapshot(snapshot);
+        assert_eq!(surface.runtime_status(), label, "lifecycle {lifecycle:?}");
+    }
+}
+
+#[test]
+fn the_projection_labels_the_route_and_network_mode_from_the_shared_snapshot() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
+
+    let mut snapshot = desktop_snapshot();
+    snapshot.core.routing_intent.current = Some(RoutingIntent::FollowRules);
+    snapshot.system_proxy.status = SystemProxyStatus::Disabled;
+    let mut settings = default_settings_snapshot();
+    settings.tun_enabled = Some(false);
+    snapshot.pages.settings = PageData::ready(settings);
+    surface.publish_snapshot(snapshot);
+    assert_eq!(surface.route_mode(), "Rule");
+    assert_eq!(surface.network_mode(), "Core only");
+
+    let mut snapshot = desktop_snapshot();
+    snapshot.core.routing_intent.current = Some(RoutingIntent::RouteAllThroughProxy);
+    snapshot.system_proxy.status = SystemProxyStatus::Enabled;
+    let mut settings = default_settings_snapshot();
+    settings.tun_enabled = Some(true);
+    snapshot.pages.settings = PageData::ready(settings);
+    surface.publish_snapshot(snapshot);
+    assert_eq!(surface.route_mode(), "Global");
+    assert_eq!(surface.network_mode(), "TUN");
 }

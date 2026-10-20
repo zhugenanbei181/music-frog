@@ -2,7 +2,12 @@
 
 use super::AppWindow;
 
-pub(crate) fn parse_color(value: &str) -> Option<slint::Color> {
+/// Parses a six digit hexadecimal colour into a Slint colour.
+///
+/// The surface, the settings callback and the surface tests all use this one
+/// parser, so an invalid accent colour can never be accepted by one path and
+/// rejected by another.
+pub fn parse_color(value: &str) -> Option<slint::Color> {
     let value = value.trim().trim_start_matches('#');
     if value.len() != 6 {
         return None;
@@ -27,7 +32,8 @@ pub(crate) fn apply_theme_color(weak: &slint::Weak<AppWindow>, hex: &str) {
     });
 }
 
-pub(crate) fn contrast_is_light(hex: &str) -> bool {
+/// Reports whether an accent colour needs a light foreground on top of it.
+pub fn contrast_is_light(hex: &str) -> bool {
     let Some(color) = parse_color(hex) else {
         return true;
     };

@@ -20,11 +20,9 @@ mod callbacks;
 pub mod demo;
 mod flag_assets;
 mod lumen_projection;
+pub mod surface;
 pub mod theme_util;
 
-use infiltrator_contract::android_control::{
-    VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
-};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::named_override::NamedOverrideId;
@@ -37,20 +35,11 @@ use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::system_proxy::SystemProxyStatus;
-use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_shared::locales::{Lang, Localizer, resolve_language_code};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
-use lurker_core_contract::outbound::identity::OutboundContractError;
-use lurker_core_contract::outbound::inventory::OutboundInventoryState;
-use lurker_core_contract::outbound::preferences::{
-    OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
-};
-use lurker_core_contract::outbound::probe::OutboundSelectionRequest;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
-use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -447,6 +436,7 @@ fn show_unsupported(weak: &slint::Weak<AppWindow>, reason: &str) {
 }
 
 fn show_failure(weak: &slint::Weak<AppWindow>, failure: Failure) {
+    surface::report_failure(&failure);
     let _ = weak.clone().upgrade_in_event_loop(move |window| {
         clear_pending_ui(&window);
         window.set_notice(failure.message.into());
@@ -548,116 +538,6 @@ fn open_profile_settings(
     let _ = requests.send(WorkerRequest::ReadAgeCredential { profile_id: pid });
 }
 
-fn network_mode_action(
-    snapshot: &SurfaceSnapshot,
-    requested: &str,
-) -> Result<SlintAction, Failure> {
-    use lurker_core_contract::lifecycle::CoreLifecycle;
-    if cfg!(target_os = "android") {
-        return if requested != "VPN" {
-            Err(Failure::unsupported(
-                "Android Slint supports the owner-managed VPN mode only",
-            ))
-        } else {
-            match &snapshot.vpn {
-                VpnSurfaceObservation::AndroidOwner(owner) if owner.is_running() => {
-                    Ok(SlintAction::Command(CommandIntent::StopVpn))
-                }
-                VpnSurfaceObservation::AndroidOwner(owner)
-                    if owner.readiness == VpnOwnerReadiness::CleanupPending
-                        || owner.resources.iter().any(|resource| {
-                            matches!(
-                                &resource.state,
-                                VpnOwnerResourceState::CleanupPending { .. }
-                            )
-                        }) =>
-                {
-                    Ok(SlintAction::Command(CommandIntent::StopVpn))
-                }
-                VpnSurfaceObservation::AndroidOwner(owner) => match &owner.vpn_state {
-                    VpnOwnerLifecycle::PermissionRequired
-                    | VpnOwnerLifecycle::Stopped
-                    | VpnOwnerLifecycle::Revoked
-                    | VpnOwnerLifecycle::Failed { .. } => {
-                        Ok(SlintAction::Command(CommandIntent::StartVpn))
-                    }
-                    VpnOwnerLifecycle::Unavailable { failure_message } => {
-                        Err(Failure::unsupported(failure_message.clone()))
-                    }
-                    VpnOwnerLifecycle::StartRequested
-                    | VpnOwnerLifecycle::Starting
-                    | VpnOwnerLifecycle::Foreground
-                    | VpnOwnerLifecycle::TunnelEstablished
-                    | VpnOwnerLifecycle::Running
-                    | VpnOwnerLifecycle::Stopping => Err(Failure::new(
-                        ErrorCode::NotReady,
-                        "VPN owner is in a transition and cannot accept a duplicate mode change",
-                        true,
-                    )),
-                },
-                VpnSurfaceObservation::Unsupported { reason } => {
-                    Err(Failure::unsupported(reason.clone()))
-                }
-                VpnSurfaceObservation::NotApplicable => Err(Failure::unsupported(
-                    "VPN is not applicable to this surface",
-                )),
-                VpnSurfaceObservation::Unavailable { failure } => Err(failure.clone()),
-            }
-        };
-    }
-
-    let settings = snapshot.pages.settings.data.as_ref();
-    let tun_enabled = settings
-        .and_then(|settings| settings.tun_enabled)
-        .unwrap_or(false);
-    let proxy_enabled = matches!(&snapshot.system_proxy.status, SystemProxyStatus::Enabled);
-    let running = matches!(
-        &snapshot.core.lifecycle,
-        CoreLifecycle::Ready | CoreLifecycle::Running
-    );
-    let mut commands = Vec::new();
-    if running {
-        commands.push(CommandIntent::StopProxy);
-    }
-    match requested {
-        "System Proxy" => {
-            if tun_enabled {
-                commands.push(CommandIntent::ToggleTun { enabled: false });
-            }
-            commands.push(CommandIntent::SetSystemProxy { enabled: true });
-        }
-        "TUN" => {
-            if proxy_enabled {
-                commands.push(CommandIntent::SetSystemProxy { enabled: false });
-            }
-            commands.push(CommandIntent::ToggleTun { enabled: true });
-        }
-        "Core only" => {
-            if proxy_enabled {
-                commands.push(CommandIntent::SetSystemProxy { enabled: false });
-            }
-            if tun_enabled {
-                commands.push(CommandIntent::ToggleTun { enabled: false });
-            }
-        }
-        _ => {
-            return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                "Unknown network mode",
-                false,
-            ));
-        }
-    }
-    if running {
-        commands.push(CommandIntent::StartProxy);
-    }
-    Ok(if commands.len() == 1 {
-        SlintAction::Command(commands.remove(0))
-    } else {
-        SlintAction::Sequence(commands)
-    })
-}
-
 fn safe_profile_source_location(raw_url: &str, language: &str) -> String {
     let Some((scheme, authority_and_path)) = raw_url.split_once("://") else {
         return Lang(language).tr("已配置订阅来源").into_owned();
@@ -672,142 +552,6 @@ fn safe_profile_source_location(raw_url: &str, language: &str) -> String {
     } else {
         format!("{scheme}://{host}/…")
     }
-}
-
-fn selection_action(
-    latest: &Arc<Mutex<Option<SurfaceSnapshot>>>,
-    group: &str,
-    node: &str,
-) -> Result<SlintAction, Failure> {
-    let snapshot = require_snapshot(latest)?;
-    let inventory = snapshot.outbound_inventory.data.as_ref().ok_or_else(|| {
-        Failure::new(
-            ErrorCode::NotReady,
-            "Outbound inventory is unavailable",
-            true,
-        )
-    })?;
-    let OutboundInventoryState::Ready {
-        entries,
-        collections,
-    } = inventory.inventory()
-    else {
-        return Err(Failure::new(
-            ErrorCode::NotReady,
-            "Outbound inventory is not ready",
-            true,
-        ));
-    };
-    let collection = collections
-        .iter()
-        .find(|collection| collection.id.value() == group)
-        .ok_or_else(|| Failure::new(ErrorCode::InvalidInput, "Unknown proxy group", false))?;
-    let outbound = entries
-        .iter()
-        .find(|entry| entry.id.value() == node)
-        .map(|entry| entry.id.clone())
-        .ok_or_else(|| Failure::new(ErrorCode::InvalidInput, "Unknown proxy node", false))?;
-    let request =
-        OutboundSelectionRequest::new(collection.id.clone(), outbound, inventory.revision())
-            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
-    Ok(SlintAction::Command(CommandIntent::SelectOutbound {
-        request,
-    }))
-}
-
-fn outbound_preference_action(
-    latest: &Arc<Mutex<Option<SurfaceSnapshot>>>,
-    intent: OutboundUiPreferenceIntent,
-) -> Result<SlintAction, Failure> {
-    let snapshot = require_snapshot(latest)?;
-    let preferences = snapshot
-        .outbound_ui_preferences
-        .data
-        .as_ref()
-        .ok_or_else(|| {
-            Failure::new(
-                ErrorCode::NotReady,
-                "Outbound presentation preferences are not available",
-                true,
-            )
-        })?;
-    let request = OutboundUiPreferenceRequest::new(preferences.revision(), intent)
-        .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
-    Ok(SlintAction::Command(
-        CommandIntent::ApplyOutboundUiPreference { request },
-    ))
-}
-
-fn probe_action(
-    latest: &Arc<Mutex<Option<SurfaceSnapshot>>>,
-    group: &str,
-    node: &str,
-) -> Result<SlintAction, Failure> {
-    use infiltrator_contract::runtime_settings::RuntimeProbeSettingsState;
-    use lurker_core_contract::outbound::probe::{
-        OutboundProbeBatchScope, OutboundProbeConcurrency, ProbeOutboundBatchRequest,
-        ProbeOutboundRequest,
-    };
-
-    let snapshot = require_snapshot(latest)?;
-    let inventory = snapshot.outbound_inventory.data.as_ref().ok_or_else(|| {
-        Failure::new(
-            ErrorCode::NotReady,
-            "Outbound inventory is unavailable",
-            true,
-        )
-    })?;
-    let settings = match &snapshot.probe_settings {
-        RuntimeProbeSettingsState::Available { settings } => settings,
-        RuntimeProbeSettingsState::Unavailable { failure } => return Err(failure.clone()),
-    };
-    let OutboundInventoryState::Ready {
-        entries,
-        collections,
-    } = inventory.inventory()
-    else {
-        return Err(Failure::new(
-            ErrorCode::NotReady,
-            "Outbound inventory is not ready",
-            true,
-        ));
-    };
-    let map_error = |error: OutboundContractError| {
-        Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
-    };
-    if node.is_empty() {
-        let collection = collections
-            .iter()
-            .find(|collection| collection.id.value() == group)
-            .ok_or_else(|| Failure::new(ErrorCode::InvalidInput, "Unknown proxy group", false))?;
-        let concurrency = OutboundProbeConcurrency::new(8).map_err(map_error)?;
-        let request = ProbeOutboundBatchRequest::new(
-            OutboundProbeBatchScope::Collection(collection.id.clone()),
-            inventory.revision(),
-            settings.url(),
-            settings.timeout_ms() as u64,
-            concurrency,
-        )
-        .map_err(map_error)?;
-        return Ok(SlintAction::Command(CommandIntent::ProbeOutboundBatch {
-            request,
-        }));
-    }
-    let outbound = entries
-        .iter()
-        .find(|entry| entry.id.value() == node)
-        .map(|entry| entry.id.clone())
-        .ok_or_else(|| Failure::new(ErrorCode::InvalidInput, "Unknown proxy node", false))?;
-    let request = ProbeOutboundRequest::new(
-        outbound,
-        inventory.revision(),
-        settings.url(),
-        settings.timeout_ms() as u64,
-    )
-    .map_err(map_error)?;
-    Ok(SlintAction::Command(CommandIntent::ProbeOutbound {
-        request,
-    }))
 }
 
 #[cfg(feature = "desktop-host")]

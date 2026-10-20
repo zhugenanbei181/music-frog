@@ -1,6 +1,7 @@
 //! Slint settings callbacks routed to the shared product owner.
 
 use super::super::*;
+use crate::surface::action;
 use crate::theme_util::{apply_theme_color, hsv_hex, parse_color};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -69,24 +70,10 @@ pub(super) fn register(
     let tx = requests.clone();
     let weak_for_theme = weak.clone();
     window.on_set_theme_mode(move |mode| {
-        let mode = match mode.as_str() {
-            "system" | "light" | "dark" | "forest" | "amoled" => mode.to_string(),
-            _ => {
-                show_failure(
-                    &weak_for_theme,
-                    Failure::new(ErrorCode::InvalidInput, "Unknown theme mode", false),
-                );
-                return;
-            }
-        };
-        queue_intent(
-            &tx,
-            &weak_for_theme,
-            CommandIntent::UpdateSetting {
-                key: "theme".to_owned(),
-                value: mode,
-            },
-        );
+        match action::theme_mode_action(mode.as_str()) {
+            Ok(action) => queue_action(&tx, &weak_for_theme, Ok(action)),
+            Err(failure) => show_failure(&weak_for_theme, failure),
+        }
     });
 
     let weak_for_invert = weak.clone();
@@ -117,33 +104,19 @@ pub(super) fn register(
     let tx_for_color_apply = requests.clone();
     window.on_set_theme_color(move |hex| {
         let hex = hex.to_string();
-        let valid = parse_color(&hex).is_some();
-        if valid {
-            apply_theme_color(&weak_for_color_apply, &hex);
-            queue_intent(
-                &tx_for_color_apply,
-                &weak_for_color_apply,
-                CommandIntent::UpdateSetting {
-                    key: "custom_accent_color".to_owned(),
-                    value: hex,
-                },
-            );
-        } else {
-            let weak = weak_for_color_apply.clone();
-            let _ = weak.clone().upgrade_in_event_loop(move |window| {
-                window.set_theme_color_saving(false);
-                window.set_theme_color_error(
-                    "Enter a six-digit hexadecimal color such as #016888".into(),
-                );
-            });
-            show_failure(
-                &weak_for_color_apply,
-                Failure::new(
-                    ErrorCode::InvalidInput,
-                    "Enter a six-digit hexadecimal color such as #016888",
-                    false,
-                ),
-            );
+        match action::theme_color_action(&hex) {
+            Ok(action) => {
+                apply_theme_color(&weak_for_color_apply, &hex);
+                queue_action(&tx_for_color_apply, &weak_for_color_apply, Ok(action));
+            }
+            Err(failure) => {
+                let weak = weak_for_color_apply.clone();
+                let _ = weak.clone().upgrade_in_event_loop(move |window| {
+                    window.set_theme_color_saving(false);
+                    window.set_theme_color_error(action::INVALID_ACCENT_COLOR.into());
+                });
+                show_failure(&weak_for_color_apply, failure);
+            }
         }
     });
 

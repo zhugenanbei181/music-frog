@@ -2,6 +2,8 @@
 
 use super::super::*;
 use crate::lumen_projection::collections::project_connection_detail;
+use crate::surface::action;
+use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -22,7 +24,9 @@ pub(super) fn register(
     let latest_for_select = Arc::clone(&latest);
     let weak_for_select = weak.clone();
     window.on_select_proxy(move |group, node| {
-        let action = selection_action(&latest_for_select, group.as_str(), node.as_str());
+        let action = require_snapshot(&latest_for_select).and_then(|snapshot| {
+            action::selection_action(&snapshot, group.as_str(), node.as_str())
+        });
         queue_action(&tx, &weak_for_select, action);
     });
 
@@ -30,35 +34,25 @@ pub(super) fn register(
     let latest_for_search_proxy = Arc::clone(&latest);
     let weak_for_search_proxy = weak.clone();
     window.on_search_proxy_nodes(move |query| {
-        let action = outbound_preference_action(
-            &latest_for_search_proxy,
-            OutboundUiPreferenceIntent::SetSearchQuery(query.to_string()),
-        );
+        let action = require_snapshot(&latest_for_search_proxy).and_then(|snapshot| {
+            action::outbound_preference_action(
+                &snapshot,
+                OutboundUiPreferenceIntent::SetSearchQuery(query.to_string()),
+            )
+        });
         queue_action(&tx, &weak_for_search_proxy, action);
     });
     let tx = requests.clone();
     let latest_for_proxy_sort = Arc::clone(&latest);
     let weak_for_proxy_sort = weak.clone();
     window.on_set_proxy_sort(move |sort| {
-        let order = match sort.as_str() {
-            "latency_asc" => Some(OutboundSortOrder::LatencyAscending),
-            "latency_desc" => Some(OutboundSortOrder::LatencyDescending),
-            "name_asc" => Some(OutboundSortOrder::NameAscending),
-            "name_desc" => Some(OutboundSortOrder::NameDescending),
-            _ => None,
-        };
-        match order {
-            Some(order) => {
-                let action = outbound_preference_action(
-                    &latest_for_proxy_sort,
-                    OutboundUiPreferenceIntent::SetSortOrder(order),
-                );
+        match action::proxy_sort_action(sort.as_str()) {
+            Ok(intent) => {
+                let action = require_snapshot(&latest_for_proxy_sort)
+                    .and_then(|snapshot| action::outbound_preference_action(&snapshot, intent));
                 queue_action(&tx, &weak_for_proxy_sort, action);
             }
-            None => show_failure(
-                &weak_for_proxy_sort,
-                Failure::new(ErrorCode::InvalidInput, "Unknown proxy sort order", false),
-            ),
+            Err(failure) => show_failure(&weak_for_proxy_sort, failure),
         }
     });
 
@@ -75,7 +69,8 @@ pub(super) fn register(
             window.set_proxy_testing_group(group_for_ui.into());
             window.set_proxy_testing_node(node_for_ui.into());
         });
-        let action = probe_action(&latest_for_probe, &group_name, &node_id);
+        let action = require_snapshot(&latest_for_probe)
+            .and_then(|snapshot| action::probe_action(&snapshot, &group_name, &node_id));
         queue_action(&tx, &weak_for_probe, action);
     });
 
@@ -142,13 +137,10 @@ pub(super) fn register(
     let tx = requests.clone();
     let weak_for_log_level = weak.clone();
     window.on_set_log_level(move |level| {
-        let level = level.to_string();
         queue_intent(
             &tx,
             &weak_for_log_level,
-            CommandIntent::SetLogLevelFilter {
-                level: if level == "all" { None } else { Some(level) },
-            },
+            action::log_level_action(level.as_str()),
         );
     });
 
@@ -162,31 +154,16 @@ pub(super) fn register(
     let weak_for_rule = weak.clone();
     window.on_set_rule_enabled(move |index, enabled| {
         let action = require_snapshot(&latest_for_rule).and_then(|snapshot| {
-            let index = index.to_string().parse::<usize>().map_err(|_| {
-                Failure::new(ErrorCode::InvalidInput, "Invalid rule identity", false)
-            })?;
-            let rule = snapshot
-                .pages
-                .rules
-                .data
-                .as_ref()
-                .and_then(|page| page.rules.iter().find(|rule| rule.id == index))
-                .ok_or_else(|| Failure::new(ErrorCode::NotReady, "Rule was not observed", true))?;
-            if rule.is_enabled == enabled {
-                return Ok(None);
-            }
-            Ok(Some(SlintAction::Command(
-                CommandIntent::ToggleRuleEnabled { index },
-            )))
+            action::rule_enabled_action(&snapshot, index.as_str(), enabled)
         });
         match action {
-            Ok(Some(action)) => {
+            Ok(Some(intent)) => {
                 let weak = weak_for_rule.clone();
                 let pending_index = index.to_string();
                 let _ = weak.clone().upgrade_in_event_loop(move |window| {
                     window.set_rule_pending_index(pending_index.into());
                 });
-                queue_action(&tx, &weak_for_rule, Ok(action));
+                queue_action(&tx, &weak_for_rule, Ok(SlintAction::Command(intent)));
             }
             Ok(None) => {}
             Err(failure) => show_failure(&weak_for_rule, failure),

@@ -12,6 +12,8 @@ Slint 及编译器 crate 固定为当前最新稳定版 `1.18.1`，并使用 `=1
 
 速率、配置名和已接受观察使用 `infiltrator-presentation` 的共享投影；owner 快照中的语言偏好驱动 Slint 运行时切换和 Rust 文案 lookup。平台特有操作由对应平台 adapter 接入，未支持操作明确返回 typed unsupported，不模拟成功。
 
+`infiltrator_slint::surface` 是 surface 行为的唯一实现与唯一驱动入口：`surface::action` 提供 typed owner 命令构造器（surface 回调与行为测试共用同一实现），`surface::harness` 在无头软件渲染平台上注册生产回调、派发真实手势，并回报实际发出的 typed `CommandIntent`、typed `Failure` 与 owner 可见投影。行为测试不得在测试内复刻 surface 规则。
+
 组件树遵循模块化架构，拆分为 `theme.slint`、`models.slint`、`base_widgets.slint` 与 `cards.slint`，由 `slint-syntax-guard.py` 执行行预算与语义色彩质量门禁。无感后台截图矩阵由 `scripts/capture-slint-matrix.sh` 执行，通过 `--demo` 与 `CAPTURE_READY` 契约提供像素级离线回执。
 
 ## 文档

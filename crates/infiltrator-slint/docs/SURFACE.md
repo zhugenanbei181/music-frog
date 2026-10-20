@@ -31,11 +31,13 @@
    - 窗口挂载与稳定首帧绘制后向 `INFILTRATOR_CAPTURE_MARKER` 写入标准 `CAPTURE_READY page=<p> skin=<s>\n` 标记；
    - 配合 `scripts/capture-slint-matrix.sh` 与 `scripts/capture_slint_scenarios.tsv`，在私有虚拟 Wayland 合成器（KWin + Niri IPC）内实现无弹窗、不夺焦点、绑定二进制与源码指纹的自动化像素级取证。
 
-2. **行为测试矩阵覆盖（49 项全部通过）**：
-   - `core_and_network_mode_tests`：覆盖 Core 生命周期枚举、多命令作用域传递与错误拦截、路由模式与网络模式切换（系统代理/TUN/仅核心切换时的停机重启时序）；
-   - `outbound_and_probe_tests`：覆盖代理组节点选择的 revision 强校验、单节点测速与整组批量测速（concurrency=8）意图、排序与搜索偏好分发；
-   - `connections_and_logs_tests`：覆盖指定连接中断命令生成、四维连接排序、日志级别与别名过滤、发布窗口截断多语言告警；
-   - `rules_and_settings_tests`：覆盖规则开关幂等分发、Rule Provider 批量刷新、语言偏好解析、主题模式白名单与十六进制强调色合法性校验及反差度计算；
+2. **行为测试矩阵覆盖**：
+   - 所有行为用例都通过 `infiltrator_slint::surface::harness::SurfaceHarness` 驱动**真实 Slint 回调**：harness 在无头软件渲染平台上注册生产回调、派发真实手势，并回报 surface 实际发出的 typed `CommandIntent`、typed `Failure` 与 owner 可见投影（notice、列表行、待定状态）。测试不再本地复刻路由映射、网络模式时序、主题白名单、十六进制解析或连接排序；
+   - `infiltrator_slint::surface::action` 是这些行为的唯一实现：surface 回调与测试调用的是同一函数，测试无法与运行中的产品产生分叉；
+   - `core_and_network_mode_tests`：覆盖路由意图分发、网络模式切换序列（系统代理/TUN/仅核心切换时的停机重启时序）、未知模式与缺失快照的 typed failure，以及 Core 生命周期投影标签；
+   - `outbound_and_probe_tests`：覆盖代理组节点选择的 revision 强校验、单节点测速与整组批量测速（concurrency=8）意图、排序与搜索偏好分发，以及未知组/节点与探测设置缺失的 typed failure；
+   - `connections_and_logs_tests`：覆盖指定连接中断命令分发、活动与已关闭连接的四维排序投影、日志级别过滤投影，以及发布窗口截断告警；
+   - `rules_and_settings_tests`：覆盖规则开关幂等分发与待定行投影、Rule Provider 批量刷新、语言偏好解析、主题模式白名单、强调色合法性与反差度判定；
    - `platform_adapter_tests` / `profile_catalog_action_tests` / `age_credential_tests` / `traffic_history_tests`：覆盖平台权限、窗口生命周期、配置管理与敏感凭据。
 
 3. **Lumen 组件树模块化与质量规范**：
