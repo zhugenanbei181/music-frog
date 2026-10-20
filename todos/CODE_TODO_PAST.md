@@ -417,6 +417,15 @@
   - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
   - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
   - 本机可执行动作：跑统一验证批次与统一截图批次。
+- [ ] TOKEN-001.2 [kind: mechanism] [priority: P2] [points: 2] [owner: infiltrator-contract::design_tokens + 三大 UI owner] [status: Integrated] 圆角阶梯「居中对话框」角色重叠需契约裁决
+  - 产物：契约圆角阶梯里 `MODAL`(24) 与 `DIALOG`(28) 的角色重叠由 owner 裁决为互斥可判定，每档只占一个角色。
+  - 依赖：TOKEN-001.1 的阶梯裁决（既有档位足够，角色重叠需澄清）。
+  - 验收：契约 `design_tokens::radius` 的每档角色注释互斥且可判定；三个表面按契约改齐；清零搜索确认无「居中对话框用 CARD」的残留。
+  - 当前证据（L）：契约裁决三个互斥角色并写进阶梯文档的表格——**居中模态与居中命令面板 = `MODAL`(24)、面板式对话框卡片 = `CARD`(16)、移动端底部抽屉上沿 = `BOTTOM_SHEET`(28)**；与 `BOTTOM_SHEET` 同值且角色重叠的 `DIALOG`(28) 档退役，契约测试新增「每个角色只占一档」断言；widgets 的镜像阶梯同步退役 `DIALOG` 与与契约冲突的表面私有 `SHEET_TOP`(16)，镜像测试改为**逐档对照两套阶梯**（原来含 `assert_eq!(radius::DIALOG, radius::DIALOG)` 这类同侧自证）。
+  - 当前证据：调色板新增 `modal_radius_px`（绑定 `radius::MODAL`）供居中对话框取用，面板式表面保留 `card_radius_px`；共享 modal 卡片改取 `radius::MODAL`（它是居中模态），Iced 侧共享弹窗 chrome、聚合器弹窗与快照差异弹窗改用 `R_MODAL`，`adaptive_modal` 的居中形态取 `MODAL`、抽屉形态取 `BOTTOM_SHEET`；清零搜索确认 Iced 居中弹窗已无 `R_CARD` 残留。
+  - 待验证：Bevy 产品页的居中弹窗卡片（`proxy_inspection`／`proxy_probe_settings`／`proxy_group_order`／`rules_tracer_confirm`／`snapshot_restore_scene`／`connections_confirm`／`dns_*`／`logs_export_scene`／`profiles_script_scene`／`rules_statistics_scene`／`overview_speedtest` 等）仍在用 `palette.card_radius_px`(16)，需改为 `palette.modal_radius_px`——这些文件由 Bevy 模态迁移流在改，改齐后由该流补断言。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
 ## 十六、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
