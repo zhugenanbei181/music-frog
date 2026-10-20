@@ -79,9 +79,13 @@ def declared_doc_level(rel: str, text: str) -> int:
 
 def markdown_files(root: pathlib.Path) -> list[pathlib.Path]:
     result = []
+    # Build output is not documentation: the Rust target directory, the Gradle
+    # build directories, the Kotlin/Native out directory and the vendored trees
+    # are generated or third-party content.
+    generated = {"target", "build", "out", "node_modules", "vendor", "dist", ".gradle"}
     for p in root.rglob("*.md"):
         parts = rel_parts(p, root)
-        if any(part in ("target", "node_modules", "vendor", "dist") for part in parts):
+        if any(part in generated for part in parts):
             continue
         if parts[:2] == ("docs", "archive"):
             continue

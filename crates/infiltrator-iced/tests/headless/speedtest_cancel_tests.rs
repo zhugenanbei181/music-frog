@@ -9,6 +9,7 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_contract::speedtest::{
@@ -42,7 +43,7 @@ fn terminal(task: Task<Message>) -> Message {
         })
 }
 
-fn owner() -> (infiltrator_application::core_application::CoreApplication, OutboundFixture, CoreScope) {
+fn owner() -> (CoreApplication, OutboundFixture, CoreScope) {
     let (application, _handler) = recording_application();
     application
         .install_speedtest_application(SpeedtestApplication::new(SettingsApplication::new(Arc::new(
