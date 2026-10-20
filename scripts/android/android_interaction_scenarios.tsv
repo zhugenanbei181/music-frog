@@ -1,0 +1,19 @@
+step_id	business_id	flavor	actions	assert_text	assert_region	logcat_pattern	evidence	state_readback	requires
+startup	runtime-telemetry-observation	compose	launch			MihomoApp.*Initializing application|am_on_resume_called	pixel-delta,logcat-marker	none	
+startup	runtime-telemetry-observation	bevy	launch			MihomoApp.*Initializing application|am_on_resume_called	pixel-delta,logcat-marker	none	
+startup	runtime-telemetry-observation	slint	launch			MihomoApp.*Initializing application|am_on_resume_called	pixel-delta,logcat-marker	none	
+navigation	shell-routing-intent-control	compose	tap_text:Profiles	Profiles	top		pixel-delta,ui-assertion	none	
+navigation	shell-routing-intent-control	bevy	tap_nav:nav-2				pixel-delta	none	
+navigation	shell-routing-intent-control	slint	tap_nav:nav-1				pixel-delta	none	
+list-scroll	logs-scroll-lock	compose	tap_text:Overview;swipe_up				pixel-delta	none	navigation
+list-scroll	logs-scroll-lock	bevy	tap_nav:nav-0;swipe_up				pixel-delta	none	navigation
+list-scroll	logs-scroll-lock	slint	tap_nav:nav-0;swipe_up				pixel-delta	none	navigation
+vpn-consent	settings-tun-permission	compose	tap_text:Start;wait_text:OK|Allow;tap_dialog:OK|Allow			vpndialogs|ConfirmDialog	pixel-delta,logcat-marker	none	list-scroll
+vpn-consent	settings-tun-permission	bevy	tap_anchor:vpn-start			vpndialogs|ConfirmDialog	pixel-delta,logcat-marker	none	list-scroll
+vpn-consent	settings-tun-permission	slint	tap_anchor:vpn-start			vpndialogs|ConfirmDialog	pixel-delta,logcat-marker	none	list-scroll
+permission-prompt	settings-permission-panel	compose	wait_text:Allow;tap_dialog:Allow			PermissionController|GrantPermissionsActivity	pixel-delta,logcat-marker	notification-permission	vpn-consent
+permission-prompt	settings-permission-panel	bevy	wait_text:Allow;tap_dialog:Allow			PermissionController|GrantPermissionsActivity	pixel-delta,logcat-marker	notification-permission	vpn-consent
+permission-prompt	settings-permission-panel	slint	wait_text:Allow;tap_dialog:Allow			PermissionController|GrantPermissionsActivity	pixel-delta,logcat-marker	notification-permission	vpn-consent
+vpn-terminal-state	settings-tun-permission	compose				Mihomo|MihomoControlService|MihomoVpnService	state-readback,logcat-marker	vpn-session	permission-prompt
+vpn-terminal-state	settings-tun-permission	bevy				Mihomo|MihomoControlService|MihomoVpnService	state-readback,logcat-marker	vpn-session	permission-prompt
+vpn-terminal-state	settings-tun-permission	slint				Mihomo|MihomoControlService|MihomoVpnService	state-readback,logcat-marker	vpn-session	permission-prompt
