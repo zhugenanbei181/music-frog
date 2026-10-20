@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "note": "Every implicit-state candidate needs a human verdict. 'legitimate' means the fields are independent facts; 'fixed' means the type now carries one typed stage; 'open' means a confirmed violation that still has to be rewritten.",
+  "candidates": [
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-admin/src/scheduler/job_scheduler.rs::JobState::option-as-stage",
+      "file": "crates/infiltrator-admin/src/scheduler/job_scheduler.rs",
+      "type": "JobState",
+      "kind": "option-as-stage",
+      "fields": [
+        "last_error"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/cadence.rs::WindowCadenceState::multi-bool",
+      "file": "crates/infiltrator-bevy-ui/src/cadence.rs",
+      "type": "WindowCadenceState",
+      "kind": "multi-bool",
+      "fields": [
+        "focused",
+        "visible"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/ime.rs::NativeImeSession::multi-bool",
+      "file": "crates/infiltrator-bevy-ui/src/ime.rs",
+      "type": "NativeImeSession",
+      "kind": "multi-bool",
+      "fields": [
+        "committed_after_composition",
+        "ime_closed_by_back"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/pages/connections_view.rs::ConnectionsCloseAllState::multi-bool",
+      "file": "crates/infiltrator-bevy-ui/src/pages/connections_view.rs",
+      "type": "ConnectionsCloseAllState",
+      "kind": "multi-bool",
+      "fields": [
+        "armed",
+        "requested"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/pages/dns_edit.rs::DnsFormState::multi-bool",
+      "file": "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs",
+      "type": "DnsFormState",
+      "kind": "multi-bool",
+      "fields": [
+        "dirty",
+        "submitted",
+        "host_missing"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes.rs::ProfileEditorOptionsState::option-as-stage",
+      "file": "crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes.rs",
+      "type": "ProfileEditorOptionsState",
+      "kind": "option-as-stage",
+      "fields": [
+        "requested_for"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/pages/profiles_editor_state.rs::ProfileEditorState::multi-bool",
+      "file": "crates/infiltrator-bevy-ui/src/pages/profiles_editor_state.rs",
+      "type": "ProfileEditorState",
+      "kind": "multi-bool",
+      "fields": [
+        "focused",
+        "dirty"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/src/pages/rules_draft.rs::RulesDraftState::multi-bool",
+      "file": "crates/infiltrator-bevy-ui/src/pages/rules_draft.rs",
+      "type": "RulesDraftState",
+      "kind": "multi-bool",
+      "fields": [
+        "repaint",
+        "input_composing"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-ui/tests/common/command_harness.rs::TypedPreferenceSinkState::option-as-stage",
+      "file": "crates/infiltrator-bevy-ui/tests/common/command_harness.rs",
+      "type": "TypedPreferenceSinkState",
+      "kind": "option-as-stage",
+      "fields": [
+        "failure"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/accordion.rs::AccordionItemState::multi-bool",
+      "file": "crates/infiltrator-bevy-widgets/src/accordion.rs",
+      "type": "AccordionItemState",
+      "kind": "multi-bool",
+      "fields": [
+        "is_expanded",
+        "disabled"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/datagrid.rs::ColumnResizeState::option-as-stage",
+      "file": "crates/infiltrator-bevy-widgets/src/datagrid.rs",
+      "type": "ColumnResizeState",
+      "kind": "option-as-stage",
+      "fields": [
+        "active_column_idx"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/modal.rs::ModalState::multi-bool",
+      "file": "crates/infiltrator-bevy-widgets/src/modal.rs",
+      "type": "ModalState",
+      "kind": "multi-bool",
+      "fields": [
+        "is_open",
+        "dismiss_on_scrim"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/radio.rs::RadioGroupState::option-as-stage",
+      "file": "crates/infiltrator-bevy-widgets/src/radio.rs",
+      "type": "RadioGroupState",
+      "kind": "option-as-stage",
+      "fields": [
+        "active_index"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/reorderable.rs::ReorderableListState::option-as-stage",
+      "file": "crates/infiltrator-bevy-widgets/src/reorderable.rs",
+      "type": "ReorderableListState",
+      "kind": "option-as-stage",
+      "fields": [
+        "active_drag_index"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/text_input/state.rs::TextFieldState::multi-bool",
+      "file": "crates/infiltrator-bevy-widgets/src/text_input/state.rs",
+      "type": "TextFieldState",
+      "kind": "multi-bool",
+      "fields": [
+        "is_masked",
+        "is_readonly",
+        "is_disabled"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-bevy-widgets/src/windowing.rs::PipOverlayState::multi-bool",
+      "file": "crates/infiltrator-bevy-widgets/src/windowing.rs",
+      "type": "PipOverlayState",
+      "kind": "multi-bool",
+      "fields": [
+        "is_active",
+        "is_pinned_top",
+        "is_click_through"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-core/src/remote_profile_namespace_tests.rs::FakeState::option-as-stage",
+      "file": "crates/infiltrator-core/src/remote_profile_namespace_tests.rs",
+      "type": "FakeState",
+      "kind": "option-as-stage",
+      "fields": [
+        "failure"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/diagnostics.rs::DiagnosticsState::multi-bool",
+      "file": "crates/infiltrator-iced/src/state/diagnostics.rs",
+      "type": "DiagnosticsState",
+      "kind": "multi-bool",
+      "fields": [
+        "perf_panel_visible",
+        "speedtest_detail_open"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/diagnostics.rs::DiagnosticsState::option-as-stage",
+      "file": "crates/infiltrator-iced/src/state/diagnostics.rs",
+      "type": "DiagnosticsState",
+      "kind": "option-as-stage",
+      "fields": [
+        "public_ip_error",
+        "perf_nav_started_at",
+        "log_command_failure"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/editor.rs::ConfigEditorState::multi-bool",
+      "file": "crates/infiltrator-iced/src/state/editor.rs",
+      "type": "ConfigEditorState",
+      "kind": "multi-bool",
+      "fields": [
+        "tun_auto_route",
+        "tun_strict_route",
+        "sniffer_enabled",
+        "rules_loaded_once",
+        "rules_tracer_can_reverse_apply",
+        "rules_providers_expanded",
+        "rules_heavy_ready",
+        "rule_providers_json_dirty",
+        "proxy_providers_json_dirty",
+        "sniffer_json_dirty",
+        "dns_heavy_ready",
+        "advanced_configs_loaded_once",
+        "dns_json_dirty",
+        "fake_ip_json_dirty",
+        "tun_json_dirty",
+        "dns_form_dirty",
+        "fake_ip_form_dirty",
+        "tun_form_dirty",
+        "snapshot_diff_modal_open"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/editor.rs::ConfigEditorState::option-as-stage",
+      "file": "crates/infiltrator-iced/src/state/editor.rs",
+      "type": "ConfigEditorState",
+      "kind": "option-as-stage",
+      "fields": [
+        "snapshot_diff_error",
+        "syntax_error",
+        "syntax_error_line"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/profiles.rs::ProfileState::multi-bool",
+      "file": "crates/infiltrator-iced/src/state/profiles.rs",
+      "type": "ProfileState",
+      "kind": "multi-bool",
+      "fields": [
+        "import_activate",
+        "local_import_activate",
+        "subscription_auto_update_enabled",
+        "subscription_insecure_skip_verify",
+        "subscription_auto_reload_core",
+        "webdav_enabled",
+        "webdav_sync_on_startup",
+        "sync_from_tick",
+        "restart_after_profile_reset",
+        "aggregator_modal_open",
+        "aggregator_deduplicate",
+        "aggregator_geo_cluster",
+        "aggregator_generate_groups",
+        "aggregator_remove_emojis",
+        "aggregator_availability_precheck",
+        "aggregator_activate_after_create"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/runtime.rs::RuntimeState::multi-bool",
+      "file": "crates/infiltrator-iced/src/state/runtime.rs",
+      "type": "RuntimeState",
+      "kind": "multi-bool",
+      "fields": [
+        "runtime_auto_refresh",
+        "system_proxy_enabled",
+        "system_proxy_pending",
+        "autostart_enabled",
+        "filter_alive_only",
+        "proxy_compact_view",
+        "is_adding_custom_node",
+        "new_node_tls",
+        "custom_node_modal_open",
+        "lan_sharing_dirty",
+        "lan_security_dirty"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/runtime.rs::RuntimeState::option-as-stage",
+      "file": "crates/infiltrator-iced/src/state/runtime.rs",
+      "type": "RuntimeState",
+      "kind": "option-as-stage",
+      "fields": [
+        "host_composition_failure",
+        "lifecycle_pending",
+        "lifecycle_failure",
+        "outbound_probe_pending",
+        "outbound_probe_failure",
+        "pending_runtime_patch"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/shell.rs::ShellState::multi-bool",
+      "file": "crates/infiltrator-iced/src/state/shell.rs",
+      "type": "ShellState",
+      "kind": "multi-bool",
+      "fields": [
+        "language_user_selected",
+        "admin_enabled",
+        "is_admin",
+        "notifications_enabled",
+        "close_to_tray",
+        "is_factory_resetting",
+        "demo",
+        "command_palette_open",
+        "mini_hud_mode",
+        "always_on_top",
+        "window_focused",
+        "system_prefers_dark"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/infiltrator-iced/src/state/shell.rs::ShellState::option-as-stage",
+      "file": "crates/infiltrator-iced/src/state/shell.rs",
+      "type": "ShellState",
+      "kind": "option-as-stage",
+      "fields": [
+        "error_msg"
+      ],
+      "verdict": ""
+    },
+    {
+      "key": "/run/media/zhugenanbei/TiPro9000/rustdev/music-frog/crates/lurker-engine-runtime/src/switch/memory_journal.rs::MemorySwitchState::option-as-stage",
+      "file": "crates/lurker-engine-runtime/src/switch/memory_journal.rs",
+      "type": "MemorySwitchState",
+      "kind": "option-as-stage",
+      "fields": [
+        "pending_target"
+      ],
+      "verdict": ""
+    }
+  ]
+}

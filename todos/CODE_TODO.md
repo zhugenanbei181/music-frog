@@ -65,7 +65,17 @@
 
 缺口来源与实测结论（2026-10-19 全量审计）：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 原先只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。现已补齐第三表面：**177 单元格（59 业务 × 3 表面）全部登记并可解析**，Slint 侧 57 格为 `pending` + 逐条原因，2 格为 `implemented`（业务已实现、缺表面测试）。Slint 表面审计得到五条硬事实：① 页面词汇只有 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**dns、editor、filter、mixin、sync、app_routing、doctor 七类页面不存在**，按契约页面归属共 **19 条业务在第三 UI 无载体**（产品缺口）；② Slint 只派发 42 种 `CommandIntent`，DNS、编辑器、脚本沙箱、测速、快照、聚合器、命令面板等 30 余种意图从未派发；③ 59 条业务里 **2 条完整实现、18 条部分实现、39 条未实现**，**今天没有任何一条可以合法标记为 Slint scenario 锚点**；④ 四个测试文件在用例里**重实现 Slint 逻辑**（路由模式映射、网络模式序列、主题白名单、十六进制解析、连接排序），构成仓库禁止的「第二业务真源」，且永远无法当表面锚点；⑤ 两个已声明回调 `refresh-profile(string)`、`refresh-home-egress()` 在任何 `.slint` 文件里都没有调用点。收口由 `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2` 与 `SLINT-001.1`～`SLINT-001.9` 共同承担。
 
-## 四、A 主线：crates.io 发布流水线与开发者生态
+## 四、质量红线：隐式状态机全量审计与逐条改写
+
+- [ ] STATE-001.1 [kind: mechanism] [priority: P0] [points: 3] [owner: 全体 crate owner] [status: InProgress] 隐式状态机全量审计与逐条改写
+  - 产物：语义审计器 `scripts/quality/implicit-state-audit.py`（识别 phase carrier 上的多 bool 与 Option-as-stage）+ 判决台账 `scripts/quality/implicit-state-verdicts.json`；每条候选必须有人工判决（`legitimate` 独立事实 / `fixed` 已改写 / `open` 仍待改），未判决或 `open` 即门禁失败。
+  - 依赖：无；与并行工流按文件所有权切分（Bevy UI / Bevy widgets / Iced runtime 三簇）。
+  - 验收：候选全部判决完毕；`--mode enforce` 通过；真实违规全部改写为 typed enum + typed transition，并有行为测试证明非法组合不再可表示。
+  - 计划：① 审计器与台账入仓并接进结构门（report 模式，已做）；② 三簇并行逐条改写，发现一处改一处；③ 逐条判决并把 enforce 打开。
+  - 进度：27 条候选已入台账（15 条 multi-bool、12 条 option-as-stage）；首条已改写（`ProviderUnpackState` 的两个 flag → `ProviderMaintenanceStage` typed enum + 拒绝非法并发）；其余三簇并行处理中。
+  - 证据：审计器 self-test PASS；首条改写后 Iced 538/538 全绿 + 新增互斥用例通过（nextest `d73f34dc-1650-4a56-a615-82dcaf7e0435`）。
+
+## 五、A 主线：crates.io 发布流水线与开发者生态
 
 - [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] [status: Planned] Docs.rs 预览与公共 API 文档质量门
   - 产物：docs.rs 渲染模拟配置与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]` 并提供标准 Rustdoc 与 doctest。
@@ -104,7 +114,7 @@
   - 计划：① 纯净克隆跑 `cargo-generate` 生成四类工程；② 逐类构建并运行；③ 记录每步耗时与毛刺。
   - 证据：审计报告 + 各步耗时回执。
 
-## 五、B 主线：截图认证与平台证据（每个业务都真跑过）
+## 六、B 主线：截图认证与平台证据（每个业务都真跑过）
 
 - [ ] PARITY-001.2 [kind: evidence] [priority: P0] [points: 5] [owner: scripts/parity + 三大 UI] [status: Planned] 三大桌面 UI 全业务双视口像素认证闭环
   - 产物：59 业务 × 3 表面 × standard/compact 双视口的真实像素回执全量归档，覆盖率 100%。
@@ -197,7 +207,7 @@
   - 计划：① 逐个判定接线或退役 ② 退役则同步删除声明 ③ 接线则补行为测试。
   - 证据：调用点清单 + nextest run ID。
 
-## 六、C 主线：质量红线与安装包
+## 七、C 主线：质量红线与安装包
 
 - [ ] BANDROID-044.1 [kind: infra] [priority: P1] [points: 2] [owner: android gradle] [status: Planned] Android Lint 接入
   - 产物：Compose/Bevy Debug 变体 lint task 注册并接入 PR/push workflow；不把 assemble 当 lint 结果。
@@ -230,7 +240,7 @@
   - 计划：① 跑打包脚本出双产物；② 校验 identity 与登记表一致；③ 安装-启动-卸载冒烟。
   - 证据：产物 SHA-256 + 冒烟日志。
 
-## 七、D 主线：视觉与页面模型统一
+## 八、D 主线：视觉与页面模型统一
 
 - [ ] GAP-7.1 [kind: mechanism] [priority: P1] [points: 5] [owner: presentation] [status: Planned] 跨 UI 页面模型去重
   - 产物：Iced/Bevy/Slint 共享的页面模型层，消灭各自实现的同义状态机。
@@ -251,7 +261,7 @@
   - 计划：① 固定测量口径；② 采两组数据；③ 与基线对比出报告。
   - 证据：报告文件 + 采样日志。
 
-## 八、办结与登记
+## 九、办结与登记
 
 - 本板条目全部验收通过后，按 [TODO.md](../TODO.md) 流转规则同次移入[过去佛](CODE_TODO_PAST.md)（实现已交付、只剩统一批次）或直接办结退出并登记 archived points。
 - 需要实机、tag CI、用户 secrets、上架凭证或异构目标机才能收口的条目，在迁移前先完成本板所有可推动作，再整条迁入[斗战胜佛](CODE_TODO_BLOCKED.md)。
