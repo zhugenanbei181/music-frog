@@ -353,7 +353,71 @@
   - 待验证：真实回执需要一次三 flavor 候选 APK 构建 + 一次性模拟器 + 三个 flavor 的取证运行（收口批次执行）；**Bevy 与 Slint flavor 在 Android 上不发布无障碍树**，所以 Overview 电源控件没有标签，这两条 flavor 的 VPN consent / 通知授权 / 终态步骤如实报 unproven（锚点表补标后即可自动化，Compose 已原生证明这三步）；模拟器上没有可用内核时 VPN 终态回读为 `not-established`，回执如实记录而不谎称 running；真机腿在斗战胜佛 §一。
   - 本机可执行动作：跑统一验证批次：构建三 flavor Debug APK → identity 守卫 → 起一次性模拟器 → 三个 flavor 取证 → 合并与守卫校验。
 
-## 十五、登记说明
+## 十五、Slint 第三表面补齐（已交付，7条 / 15pt）
+
+- [ ] SLINT-001.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] Slint DNS 页（4 业务）
+  - 产物：Slint DNS 页（4 业务）的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：四个 DNS 业务在 `dns` 页有载体：泄漏告警派发共享探测命令并投影共享结论、查询面板派发共享查询命令并拒绝非法名称、Fake-IP 缓存刷新派发共享刷新命令并可取消、Hosts 编辑器提交共享受保护的写入并拒绝非法行；表面不实现任何自己的状态机（查询面板、缓存刷新、Hosts 编辑器都是共享 presentation reducer）。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
+- [ ] SLINT-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] Slint 编辑器族页面（4 业务：脚本沙箱/导出评审/差异视图/快照恢复）
+  - 产物：Slint 编辑器族页面（4 业务：脚本沙箱/导出评审/差异视图/快照恢复）的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：四个编辑器业务在 `editor` 页有载体：脚本沙箱派发共享运行命令并可清空、导出评审准备共享产物并拒绝二次准备、配置差异加载共享 diff、快照恢复准备共享评审。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
+- [ ] SLINT-001.4 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Integrated] Slint 配置过滤与聚合器（3 业务）
+  - 产物：Slint 配置过滤与聚合器（3 业务）的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：过滤编辑器提交共享过滤流水线、聚合器向导预览共享报告并创建共享配置且拒绝空目标、聚合预览投影共享 `AggregationReport`，三个业务在 `filters` 页有载体。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
+- [ ] SLINT-001.5 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Integrated] Slint 诊断与生命周期恢复页（2 业务）
+  - 产物：Slint 诊断与生命周期恢复页（2 业务）的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：诊断页派发共享诊断/修复单条/修复全部命令并投影共享报告，生命周期恢复面板派发共享引导命令，两条业务在 `doctor` 页有载体。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
+- [ ] SLINT-001.6 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Integrated] Slint 订阅同步冲突页（2 业务）
+  - 产物：Slint 订阅同步冲突页（2 业务）的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：同步冲突页派发共享同步命令、保留本地副本、接受远端副本并投影共享冲突，恢复确认派发共享备份命令，两条业务在 `sync` 页有载体。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
+- [ ] SLINT-001.7 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Integrated] Slint 应用路由策略编辑页（1 业务）
+  - 产物：Slint 应用路由策略编辑页（1 业务）的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：应用路由策略编辑器派发共享模式变更与共享规则变更命令、拒绝未知规则并投影共享策略，该业务在 `app_routing` 页有载体。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+
+- [ ] SLINT-001.9 [kind: mechanism] [priority: P1] [points: 1] [owner: infiltrator-slint] [status: Integrated] 两个未接线的 Slint 回调接线
+  - 产物：两个未接线的 Slint 回调接线的载体在 Slint 表面落地，并接入共享 owner 快照与共享 typed 命令。
+  - 依赖：SLINT-001.1 行为台；共享 presentation 投影。
+  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
+  - 当前证据（L）：`refresh-profile(string)` 与 `refresh-home-egress()` 都有了真实控件：订阅动作面板的「刷新」按钮派发共享 `UpdateProfile` 命令，Home 出口 IP 旁的「刷新」按钮（紧凑与桌面两种形态）派发共享 `RefreshPublicIpProbe` 命令——两个回调不再是「声明了但无调用点」。
+  - 当前证据：Slint 包 nextest 117/117 全绿（其中 33 条 workbench 表面行为用例 + 2 条回调用例）；契约已登记该业务的 `slint_page` 载体页，parity 注册表逐条记录**已证明的交互路径**与**仍缺的路径**（缺路径的业务不计入已认证 scenario）。
+  - 待验证：标准/紧凑双视口真实像素回执随统一截图批次产出；缺交互路径的业务在补齐前保持 `pending`。
+  - 本机可执行动作：跑统一验证批次与统一截图批次。
+## 十六、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。

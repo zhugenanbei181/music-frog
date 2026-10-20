@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v245`：现在佛 32 pt（12 条）/ 过去佛 92 pt（40 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 196 pt；已归档交付 682 pt（263 条）；累计 878 pt，严格归档完成率 77.7%。
-- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）与地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261020-v253`：现在佛 17 pt（5 条）/ 过去佛 107 pt（47 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 196 pt；已归档交付 682 pt（263 条）；累计 878 pt，严格归档完成率 77.7%。
+- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -100,49 +100,7 @@
 ### 5.1 Slint 第三 UI 的 360° 补齐（7条 / 16pt）
 
 
-- [ ] SLINT-001.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Slint DNS 页面（4 业务）
-  - 产物：Slint DNS 页承载泄漏告警、查询详情、Fake-IP 刷新确认与 Hosts 编辑四条业务，并接入共享 owner 快照。
-  - 依赖：SLINT-001.1 行为台；共享 DNS presentation 投影。
-  - 验收：四条业务在 Slint 有表面行为测试与双视口像素回执。
-  - 计划：① 复用共享投影实现页面 ② 接行为测试 ③ 接 parity 注册表与截图。
-  - 证据：截图 + 锚点 run ID。
-- [ ] SLINT-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Slint 编辑器族页面（4 业务：脚本沙箱/导出评审/差异视图/快照恢复）
-  - 产物：Slint 侧脚本沙箱、导出评审、配置差异与快照恢复四条业务的载体。
-  - 依赖：SLINT-001.1 行为台；共享脚本与差异投影。
-  - 验收：四条业务在 Slint 有表面行为测试与双视口像素回执。
-  - 计划：① 评估可复用组件 ② 实现页面与回调 ③ 接行为测试与截图。
-  - 证据：截图 + 锚点 run ID。
-- [ ] SLINT-001.4 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 配置过滤与聚合器（3 业务）
-  - 产物：Slint 侧配置过滤编辑器与聚合器向导/预览三条业务载体。
-  - 依赖：SLINT-001.1 行为台；共享聚合投影。
-  - 验收：三条业务在 Slint 有表面行为测试与双视口像素回执。
-  - 计划：① 实现过滤与聚合器 UI ② 接共享意图 ③ 接行为测试与截图。
-  - 证据：截图 + 锚点 run ID。
-- [ ] SLINT-001.5 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 诊断与生命周期恢复页（2 业务）
-  - 产物：Slint 侧 doctor 诊断与失败恢复、生命周期恢复面板两条业务载体。
-  - 依赖：SLINT-001.1 行为台；共享 doctor 投影。
-  - 验收：两条业务在 Slint 有表面行为测试与双视口像素回执。
-  - 计划：① 接入共享 doctor 观察 ② 实现页面与修复/重试动作 ③ 接行为测试与截图。
-  - 证据：截图 + 锚点 run ID。
-- [ ] SLINT-001.6 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 订阅同步冲突页（2 业务）
-  - 产物：Slint 侧同步冲突解决与恢复确认两条业务载体。
-  - 依赖：SLINT-001.1 行为台；共享同步投影。
-  - 验收：两条业务在 Slint 有表面行为测试与双视口像素回执。
-  - 计划：① 接入同步状态投影 ② 实现冲突处置动作 ③ 接行为测试与截图。
-  - 证据：截图 + 锚点 run ID。
-- [ ] SLINT-001.7 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] Slint 应用路由策略编辑页（1 业务）
-  - 产物：Slint 侧应用路由策略编辑器（含取消/失败/刷新/不支持路径）载体。
-  - 依赖：SLINT-001.1 行为台；共享路由策略投影。
-  - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
-  - 计划：① 接入共享策略投影 ② 实现编辑与提交动作 ③ 接行为测试与截图。
-  - 证据：截图 + 锚点 run ID。
 
-- [ ] SLINT-001.9 [kind: mechanism] [priority: P1] [points: 1] [owner: infiltrator-slint] [status: Planned] 两个未接线的 Slint 回调接线
-  - 产物：`refresh-profile(string)`（订阅刷新）与 `refresh-home-egress()`（公网 IP 复探）在 Slint 界面有真实调用点，或从声明中退役。
-  - 依赖：SLINT-001.1 行为台。
-  - 验收：不存在"声明了但无调用点"的回调；订阅错误与复探失败有 typed 呈现。
-  - 计划：① 逐个判定接线或退役 ② 退役则同步删除声明 ③ 接线则补行为测试。
-  - 证据：调用点清单 + nextest run ID。
 
 ## 七、C 主线：质量红线与安装包
 
