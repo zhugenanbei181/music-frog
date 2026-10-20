@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v241`：现在佛 65 pt（27 条）/ 过去佛 46 pt（20 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 183 pt；已归档交付 682 pt（263 条）；累计 865 pt，严格归档完成率 78.8%。
+- Point 基线 `musicfrog-todo-20261020-v244`：现在佛 68 pt（28 条）/ 过去佛 46 pt（20 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 186 pt；已归档交付 682 pt（263 条）；累计 868 pt，严格归档完成率 78.6%。
 - 本板 28 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -259,3 +259,13 @@
 
 - 本板条目全部验收通过后，按 [TODO.md](../TODO.md) 流转规则同次移入[过去佛](CODE_TODO_PAST.md)（实现已交付、只剩统一批次）或直接办结退出并登记 archived points。
 - 需要实机、tag CI、用户 secrets、上架凭证或异构目标机才能收口的条目，在迁移前先完成本板所有可推动作，再整条迁入[斗战胜佛](CODE_TODO_BLOCKED.md)。
+
+### 7.2 共享控件真源补齐（rem 迁移暴露的重复事实）
+
+- [ ] WIDGET-001.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 开关（switch）轨道与旋钮几何收敛为共享控件
+  - 产物：rem 迁移实测发现**同一开关几何在四个页面各写一份常量**（轨道 38×22、旋钮 on 偏移 18）：`pages/settings_preferences.rs`（`PREFERENCE_TRACK_*`）、`pages/dns_form.rs`（`DNS_SWITCH_*`）、`pages/profiles_import.rs`（`IMPORT_ACTIVATE_*`）、`pages/dns_edit.rs`（`GEOIP_SWITCH_*`）——同一事实四个真源，违反「每个事实只有一个真源」；`infiltrator-bevy-widgets` 今天没有 switch 控件（`checkbox.rs` 画方块，`motion.rs` 只拥有旋钮弹簧），须新建共享 `switch` 场景（轨道 + 旋钮 + 胶囊圆角 `BorderRadius::MAX`），四个调用点改为消费它并删除各自的重复常量。
+  - 依赖：无（纯 widgets owner 内的补结构，不是上层补丁）。
+  - 验收：四个页面不再声明开关几何常量（清零搜索）；共享开关场景有 headless 行为测试（开/关两态的轨道、旋钮位置与胶囊圆角）；页面行为与视觉不变。
+  - 计划：① 在 widgets 建 `switch` 场景与常量 ② 四个调用点改消费共享场景并删本地常量 ③ 补 headless 行为测试 ④ 清零搜索回执。
+  - 证据：共享场景单测 run ID + 清零搜索回执 + 页面回归 run ID。
+
