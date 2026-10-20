@@ -1,10 +1,18 @@
-//! Modal / Dialog: token-styled floating dialog cards over a dark viewport scrim.
+//! Modal / Dialog: the shared modal layer, built on Bevy's official dialog
+//! widgets.
 //!
-//! **Pure Core**: [`ModalState`], [`ModalKind`], and [`ModalOutcome`] define the
-//! modal dialog contracts, supporting Informational, Confirm, Warning, and Danger workflows.
+//! **Pure Core**: [`ModalStage`] is the typed stage of a dialog, [`ModalState`]
+//! carries the product's business facts (which dialog is open, its kind and its
+//! title) and [`ModalOutcome`] names the dialog resolutions. The stage is the
+//! single source of truth for "is a dialog presented"; there is no pair of
+//! booleans that hides a stage table.
 //!
-//! **Scene Adapters**: [`modal_scene`] and [`confirm_dialog_scene`] build declarative
-//! centered overlay panels on token surface and border layers.
+//! **Official behaviour layer**: the mounted scene carries Bevy's own
+//! `ModalDialogBarrier` / `ModalDialog` / `RequestClose` components, so the
+//! barrier click-outside, the Escape interception, the focus containment and
+//! the dialog stacking come from `bevy_ui_widgets`. The product keeps the
+//! business state and its typed transitions — it never re-implements the
+//! official behaviour.
 
 use crate::button::{ButtonVariant, button_scene};
 use crate::icon::IconId;
@@ -13,22 +21,32 @@ use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::Message;
+use bevy::ecs::message::MessageReader;
+use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
-use bevy::scene::{Scene, bsn};
+use bevy::input_focus::InputFocusPlugin;
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::scene::{Scene, bsn, on};
 use bevy::ui::BorderColor;
 use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent,
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
+    PositionType, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{
+    Activate, Button, DialogPlugin, ModalDialog, ModalDialogBarrier, ModalDialogPlugin,
+    RequestClose, TabPlugin,
+};
 
 /// One-off layout value (not a ladder rung): the width of the shared modal
 /// dialog card. The shared ladder carries no dialog width.
@@ -44,6 +62,30 @@ pub enum ModalKind {
     Danger,
 }
 
+/// Typed stage of a shared modal dialog.
+///
+/// The official widget layer models the *behaviour* of a dialog (barrier,
+/// Escape, focus containment) but never the business stage, so the product
+/// owns this enum and moves it through typed transitions only.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ModalStage {
+    /// No dialog is presented.
+    #[default]
+    Hidden,
+    /// A dialog is presented and owns the interaction.
+    Open,
+    /// A dialog was presented and the user dismissed it — the official layer
+    /// asked for the close (barrier click-outside or Escape).
+    Dismissed,
+}
+
+impl ModalStage {
+    /// Whether a dialog is presented at this stage.
+    pub fn is_open(self) -> bool {
+        matches!(self, ModalStage::Open)
+    }
+}
+
 /// Dialog outcome / resolution event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalOutcome {
@@ -52,21 +94,33 @@ pub enum ModalOutcome {
     Dismissed,
 }
 
-/// Pure state of a modal dialog.
-#[derive(Clone, Debug, Default, PartialEq)]
+/// Business state of a modal dialog, mounted on the dialog's barrier node.
+///
+/// The stage is typed; the title and the kind are the product's own facts —
+/// the official widget layer models neither.
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct ModalState {
-    pub is_open: bool,
+    pub stage: ModalStage,
     pub title: String,
-    pub dismiss_on_scrim: bool,
     pub kind: ModalKind,
 }
 
+impl Default for ModalState {
+    fn default() -> Self {
+        Self {
+            stage: ModalStage::default(),
+            title: String::new(),
+            kind: ModalKind::default(),
+        }
+    }
+}
+
 impl ModalState {
+    /// A dialog that is presented right away.
     pub fn new(title: impl Into<String>) -> Self {
         Self {
-            is_open: true,
+            stage: ModalStage::Open,
             title: title.into(),
-            dismiss_on_scrim: true,
             kind: ModalKind::Info,
         }
     }
@@ -75,13 +129,45 @@ impl ModalState {
         self.kind = kind;
         self
     }
+
+    /// Whether a dialog is presented.
+    pub fn is_open(&self) -> bool {
+        self.stage.is_open()
+    }
+
+    /// Present the dialog (from any stage).
+    pub fn open(&mut self) {
+        self.stage = ModalStage::Open;
+    }
+
+    /// The user dismissed the dialog: the official layer asked for the close.
+    pub fn dismiss(&mut self) {
+        self.stage = match self.stage {
+            ModalStage::Open => ModalStage::Dismissed,
+            stage => stage,
+        };
+    }
+
+    /// The owner closed the dialog for good.
+    pub fn hide(&mut self) {
+        self.stage = match self.stage {
+            ModalStage::Open | ModalStage::Dismissed => ModalStage::Hidden,
+            ModalStage::Hidden => ModalStage::Hidden,
+        };
+    }
 }
 
 /// Marker component on full-screen scrim.
+///
+/// The scrim is the official barrier node: the marker only names the
+/// product's scrim surface, the behaviour comes from `ModalDialogBarrier`.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModalScrim;
 
 /// Marker component on modal dialog panel card.
+///
+/// The card is the official dialog node: the marker only names the product's
+/// card surface, the behaviour comes from `ModalDialog`.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModalDialogCard;
 
@@ -128,20 +214,90 @@ pub struct ModalDialogCardFilter {
     without_modal_scrim: Without<ModalScrim>,
 }
 
-/// Construct a general modal dialog scene.
+/// Query filter for the shared modal roots: they carry the typed stage.
+#[derive(QueryFilter)]
+pub struct ModalStagedFilter {
+    with_modal_state: With<ModalState>,
+    without_modal_dialog_card: Without<ModalDialogCard>,
+}
+
+/// The official dialog behaviour layer.
 ///
-/// The scrim is the modal layer's root: it declares the floating surface level
-/// (`ThemeContext(SurfaceLevel::Floating)`) and mounts `FixedNode`, so the
-/// overlay is positioned against the camera viewport instead of inheriting a
-/// host container's layout, clipping or transform.
+/// Registers Bevy's own `Dialog` / `ModalDialog` observers — the barrier
+/// click-outside, the Escape interception, the focus containment and the
+/// `DialogStack` that orders the floating dialogs — plus the typed open and
+/// close transitions the product sends as messages.
+pub struct ModalWidgetsPlugin;
+
+impl Plugin for ModalWidgetsPlugin {
+    fn build(&self, app: &mut App) {
+        // The official dialog layer needs the tab navigation (the focus
+        // containment inside the dialog) and the input focus resources (the
+        // focus hand-off when the dialog opens).
+        if !app.is_plugin_added::<TabPlugin>() {
+            app.add_plugins(TabPlugin);
+        }
+        if !app.is_plugin_added::<InputFocusPlugin>() {
+            app.add_plugins(InputFocusPlugin);
+        }
+        if !app.is_plugin_added::<DialogPlugin>() {
+            app.add_plugins(DialogPlugin);
+        }
+        if !app.is_plugin_added::<ModalDialogPlugin>() {
+            app.add_plugins(ModalDialogPlugin);
+        }
+        app.add_systems(Update, (apply_modal_open, apply_modal_close).chain());
+    }
+}
+
+/// Open the addressed modal through its typed transition.
+pub fn apply_modal_open(
+    mut opens: MessageReader<ModalOpenEvent>,
+    mut states: Query<&mut ModalState>,
+) {
+    for open in opens.read() {
+        if let Ok(mut state) = states.get_mut(open.0) {
+            state.open();
+        }
+    }
+}
+
+/// Close the addressed modal through its typed transition.
+pub fn apply_modal_close(
+    mut closes: MessageReader<ModalCloseEvent>,
+    mut states: Query<&mut ModalState>,
+) {
+    for close in closes.read() {
+        if let Ok(mut state) = states.get_mut(close.0) {
+            state.hide();
+        }
+    }
+}
+
+/// Construct a general modal dialog scene on the official dialog widgets.
+///
+/// The barrier node carries `ModalDialogBarrier` (click-outside and Escape)
+/// and the card carries `ModalDialog` (focus containment and dialog role);
+/// the product's business state rides on the barrier as a [`ModalState`].
+///
+/// The barrier is the modal layer's root: it declares the floating surface
+/// level (`ThemeContext(SurfaceLevel::Floating)`) and mounts `FixedNode`, so
+/// the overlay is positioned against the camera viewport instead of
+/// inheriting a host container's layout, clipping or transform.
 pub fn modal_scene(
     title: String,
+    kind: ModalKind,
     content: Box<dyn Scene>,
     actions: Option<Vec<Box<dyn Scene>>>,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let edge = palette.border;
     let action_scenes: Vec<Box<dyn Scene>> = actions.unwrap_or_default();
+    let state = ModalState {
+        stage: ModalStage::Open,
+        title: title.clone(),
+        kind,
+    };
 
     bsn! {
             Node {
@@ -153,8 +309,20 @@ pub fn modal_scene(
             }
             BackgroundColor({ palette.scrim })
             ModalScrim
+            ModalDialogBarrier
+            state
             ThemeContext(SurfaceLevel::Floating)
             FixedNode
+            on(|close: On<RequestClose>, mut states: Query<&mut ModalState>, mut outcomes: Commands| {
+                let target = close.event_target();
+                if let Ok(mut state) = states.get_mut(target) {
+                    state.dismiss();
+                    outcomes.write_message(ModalEvent {
+                        modal: target,
+                        outcome: ModalOutcome::Dismissed,
+                    });
+                }
+            })
             Children [
                 Node {
                     width: rem(MODAL_DIALOG_WIDTH_PX),
@@ -168,6 +336,7 @@ pub fn modal_scene(
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 ModalDialogCard
+                ModalDialog
                 Children [
                     Node {
                         width: percent(100),
@@ -183,6 +352,10 @@ pub fn modal_scene(
                         }
                         Button
                         ModalCloseButton
+                        TabIndex(0)
+                        on(|activate: On<Activate>, mut commands: Commands| {
+                            commands.trigger(RequestClose { source: activate.entity });
+                        })
                         Children [
                             @{ icon_tile_scene(IconId::Trash, 20.0, palette) }
                         ]
@@ -218,6 +391,11 @@ pub fn confirm_dialog_scene(
     } else {
         ButtonVariant::Primary
     };
+    let kind = if is_danger {
+        ModalKind::Danger
+    } else {
+        ModalKind::Confirm
+    };
 
     let actions = vec![
         Box::new(button_scene(cancel_text, ButtonVariant::Default, palette)) as Box<dyn Scene>,
@@ -234,14 +412,16 @@ pub fn confirm_dialog_scene(
             ]
     });
 
-    modal_scene(title, content, Some(actions), palette)
+    modal_scene(title, kind, content, Some(actions), palette)
 }
 
-/// System to repaint modal card and scrim from live palette.
+/// System to repaint the modal card and scrim from the live palette and to
+/// apply the typed stage to the mounted modal.
 pub fn sync_modal_visuals(
     palette: Res<UiPalette>,
     mut scrims: Query<&mut BackgroundColor, ModalScrimFilter>,
     mut cards: Query<(&mut BackgroundColor, &mut BorderColor), ModalDialogCardFilter>,
+    mut staged: Query<(&ModalState, &mut Node), ModalStagedFilter>,
 ) {
     let scrim_bg = palette.scrim;
     for mut fill in &mut scrims {
@@ -258,5 +438,223 @@ pub fn sync_modal_visuals(
         if border.top != edge {
             border.set_all(edge);
         }
+    }
+
+    // The typed stage is the only truth about the modal's presentation: the
+    // mounted dialog is shown while it is open and hidden otherwise.
+    for (state, mut node) in &mut staged {
+        let display = if state.is_open() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::WidgetsPlugin;
+    use crate::theme::Theme;
+    use bevy::MinimalPlugins;
+    use bevy::app::Startup;
+    use bevy::asset::AssetPlugin;
+    use bevy::ecs::resource::Resource;
+    use bevy::ecs::system::ResMut;
+    use bevy::input_focus::tab_navigation::TabGroup;
+    use bevy::scene::{CommandsSceneExt, ScenePlugin};
+
+    /// The outcome the shared modal reported to the product.
+    #[derive(Resource, Default)]
+    struct RecordedOutcome(Option<ModalOutcome>);
+
+    fn headless_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins((AssetPlugin::default(), ScenePlugin));
+        app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
+        // The official dialog behaviour layer: barrier click-outside, Escape
+        // interception, focus containment and the dialog stack.
+        app.add_plugins(ModalWidgetsPlugin);
+        app.init_resource::<RecordedOutcome>();
+        app.add_systems(
+            Update,
+            |mut reader: MessageReader<ModalEvent>, mut recorded: ResMut<RecordedOutcome>| {
+                for event in reader.read() {
+                    recorded.0 = Some(event.outcome);
+                }
+            },
+        );
+        app
+    }
+
+    fn mount_confirm_dialog(app: &mut App) {
+        app.add_systems(
+            Startup,
+            |mut commands: Commands, palette: Res<UiPalette>| {
+                commands.spawn_scene(confirm_dialog_scene(
+                    "Delete Profile".to_owned(),
+                    "Are you sure?".to_owned(),
+                    "Delete".to_owned(),
+                    "Cancel".to_owned(),
+                    true,
+                    &palette,
+                ));
+            },
+        );
+        app.update();
+    }
+
+    fn barrier_of(app: &mut App) -> Entity {
+        let world = app.world_mut();
+        let mut barriers = world.query_filtered::<Entity, With<ModalDialogBarrier>>();
+        barriers
+            .iter(world)
+            .next()
+            .expect("the official barrier is mounted")
+    }
+
+    fn close_button_of(app: &mut App) -> Entity {
+        let world = app.world_mut();
+        let mut buttons = world.query_filtered::<Entity, With<ModalCloseButton>>();
+        buttons
+            .iter(world)
+            .next()
+            .expect("the modal close button is mounted")
+    }
+
+    #[test]
+    fn the_shared_modal_mounts_the_official_dialog_components() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+
+        let barrier = barrier_of(&mut app);
+        let world = app.world_mut();
+        assert!(
+            world.get::<ModalScrim>(barrier).is_some(),
+            "the barrier is the product's scrim surface"
+        );
+        let state = world
+            .get::<ModalState>(barrier)
+            .expect("the business state rides on the barrier");
+        assert_eq!(state.stage, ModalStage::Open);
+        assert_eq!(state.kind, ModalKind::Danger);
+        assert_eq!(state.title, "Delete Profile");
+
+        let mut dialogs = world.query_filtered::<Entity, With<ModalDialog>>();
+        let dialog = dialogs.iter(world).next().expect("the official dialog");
+        assert!(
+            world.get::<ModalDialogCard>(dialog).is_some(),
+            "the dialog is the product's card surface"
+        );
+        // The official focus containment: the dialog's tab group is modal.
+        let group = world
+            .get::<TabGroup>(dialog)
+            .expect("the official tab group");
+        assert!(group.modal, "the official layer traps the focus");
+    }
+
+    #[test]
+    fn the_official_request_close_dismisses_the_typed_stage() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+        let barrier = barrier_of(&mut app);
+
+        app.world_mut()
+            .commands()
+            .trigger(RequestClose { source: barrier });
+        app.update();
+        app.update();
+
+        let world = app.world_mut();
+        let state = world.get::<ModalState>(barrier).expect("the typed stage");
+        assert_eq!(state.stage, ModalStage::Dismissed);
+        assert_eq!(
+            app.world().resource::<RecordedOutcome>().0,
+            Some(ModalOutcome::Dismissed),
+            "the product is told the user dismissed the dialog"
+        );
+        assert_eq!(
+            app.world()
+                .get::<Node>(barrier)
+                .expect("the barrier")
+                .display,
+            Display::None,
+            "a dismissed dialog is hidden"
+        );
+    }
+
+    #[test]
+    fn the_close_button_asks_the_official_layer_to_close() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+        let barrier = barrier_of(&mut app);
+        let close = close_button_of(&mut app);
+
+        app.world_mut()
+            .commands()
+            .trigger(Activate { entity: close });
+        app.update();
+
+        let state = app
+            .world()
+            .get::<ModalState>(barrier)
+            .expect("the typed stage");
+        assert_eq!(state.stage, ModalStage::Dismissed);
+    }
+
+    #[test]
+    fn the_typed_stage_moves_only_through_its_transitions() {
+        let mut state = ModalState::new("Delete Profile");
+        assert!(state.is_open());
+        assert_eq!(state.stage, ModalStage::Open);
+
+        state.dismiss();
+        assert_eq!(state.stage, ModalStage::Dismissed);
+        assert!(!state.is_open());
+
+        state.open();
+        assert_eq!(state.stage, ModalStage::Open);
+
+        state.hide();
+        assert_eq!(state.stage, ModalStage::Hidden);
+
+        // A dismissal outside the open stage is not a transition.
+        state.dismiss();
+        assert_eq!(state.stage, ModalStage::Hidden);
+    }
+
+    #[test]
+    fn the_shared_modal_opens_and_closes_through_its_messages() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+        let barrier = barrier_of(&mut app);
+
+        app.world_mut()
+            .commands()
+            .write_message(ModalCloseEvent(barrier));
+        app.update();
+        assert_eq!(
+            app.world()
+                .get::<ModalState>(barrier)
+                .expect("the typed stage")
+                .stage,
+            ModalStage::Hidden
+        );
+
+        app.world_mut()
+            .commands()
+            .write_message(ModalOpenEvent(barrier));
+        app.update();
+        assert_eq!(
+            app.world()
+                .get::<ModalState>(barrier)
+                .expect("the typed stage")
+                .stage,
+            ModalStage::Open
+        );
     }
 }

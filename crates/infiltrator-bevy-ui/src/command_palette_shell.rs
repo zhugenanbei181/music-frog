@@ -10,9 +10,9 @@ use crate::app::SidebarToggleProjection;
 use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette::{
-    CloseCommandPalette, CommandPaletteDismissButton, CommandPaletteOverlayRoot, CommandPaletteRow,
-    CommandPaletteState, ExecutePaletteEntry, ExecuteSelectedPaletteAction, OpenCommandPalette,
-    ToggleCommandPalette, command_palette_modal_scene,
+    CloseCommandPalette, CommandPaletteOverlayRoot, CommandPaletteRow, CommandPaletteState,
+    ExecutePaletteEntry, ExecuteSelectedPaletteAction, OpenCommandPalette, ToggleCommandPalette,
+    command_palette_modal_scene,
 };
 use crate::mini_hud::ToggleMiniHud;
 use crate::pages::connections_confirm::RequestCloseAllConfirmation;
@@ -37,6 +37,7 @@ use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::CommandsSceneExt;
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_bevy_widgets::modal::ModalWidgetsPlugin;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandTarget, ProfileChoice};
@@ -172,17 +173,14 @@ pub fn sync_palette_overlay(
 }
 
 /// Observer: clicking a row executes that row.
+///
+/// The palette's dismiss button is not handled here: it asks the official
+/// dialog layer to close, and the official `RequestClose` closes the palette.
 pub fn on_palette_row_activated(
     activate: On<Activate>,
     rows: Query<&CommandPaletteRow>,
-    dismiss: Query<(), With<CommandPaletteDismissButton>>,
     mut commands: Commands,
 ) {
-    if dismiss.contains(activate.entity) {
-        commands.trigger(CloseCommandPalette);
-        return;
-    }
-
     let Ok(row) = rows.get(activate.entity) else {
         return;
     };
@@ -371,6 +369,12 @@ impl Plugin for CommandPalettePlugin {
         // InputPlugin, so register the message type here; with a windowed
         // composition the same resource is reused.
         app.add_message::<KeyboardInput>();
+        // The official dialog behaviour layer (barrier click-outside, Escape
+        // interception, focus containment, dialog stack) is owned by the
+        // shared widgets crate; the shell's modal surfaces mount it here.
+        if !app.is_plugin_added::<ModalWidgetsPlugin>() {
+            app.add_plugins(ModalWidgetsPlugin);
+        }
         app.add_observer(on_open_command_palette);
         app.add_observer(on_close_command_palette);
         app.add_observer(on_toggle_command_palette);

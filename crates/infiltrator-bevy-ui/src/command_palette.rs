@@ -14,16 +14,21 @@ use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::system::Commands;
 use bevy::feathers::theme::{SurfaceLevel, ThemeBackgroundColor, ThemeContext};
-use bevy::scene::{Scene, bsn};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::scene::{Scene, bsn, on};
 use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
     Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Button, ScrollArea};
+use bevy::ui_widgets::{
+    Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
+};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -279,6 +284,7 @@ pub fn command_palette_item_scene(
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             Button
             CommandPaletteRow(display_index)
+            TabIndex({ display_index as i32 })
             Children [
                 Node {
                     align_items: AlignItems::Center,
@@ -371,6 +377,14 @@ pub fn command_palette_modal_scene(
             CommandPaletteOverlayRoot
             FixedNode
             semantic
+            // The palette is a modal dialog on Bevy's official behaviour layer:
+            // the barrier owns the click-outside close and the Escape
+            // interception, the card owns the focus containment, and every
+            // close request travels as the official `RequestClose`.
+            ModalDialogBarrier
+            on(|_close: On<RequestClose>, mut commands: Commands| {
+                commands.trigger(CloseCommandPalette);
+            })
             Children [
                 Node {
                     width: rem(PALETTE_PANEL_WIDTH_PX),
@@ -387,6 +401,7 @@ pub fn command_palette_modal_scene(
                 CommandPaletteCard
                 ThemeBackgroundColor({ Token::Surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+                ModalDialog
                 Children [
                     // Search bar row
                     Node {
@@ -410,6 +425,11 @@ pub fn command_palette_modal_scene(
                         --
                         Node { margin: { UiRect { left: Val::Auto, ..UiRect::default() } }, padding: UiRect::all(rem(space::S4)) }
                         Button CommandPaletteDismissButton
+                        // The dismiss button asks the official layer to close;
+                        // the product never closes the palette on its own.
+                        on(|activate: On<Activate>, mut commands: Commands| {
+                            commands.trigger(RequestClose { source: activate.entity });
+                        })
                         Children [ Text(close_label) TextRole(Role::Caption) ]
                     ]
                     --

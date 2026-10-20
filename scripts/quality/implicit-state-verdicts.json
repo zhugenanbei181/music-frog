@@ -107,18 +107,6 @@
       "reason": "A single option: the column being dragged. The record already drives typed transitions (`start_drag`/`end_drag`/`apply_drag`) and no second field encodes the same fact."
     },
     {
-      "key": "crates/infiltrator-bevy-widgets/src/modal.rs::ModalState::multi-bool",
-      "file": "crates/infiltrator-bevy-widgets/src/modal.rs",
-      "type": "ModalState",
-      "kind": "multi-bool",
-      "fields": [
-        "is_open",
-        "dismiss_on_scrim"
-      ],
-      "verdict": "legitimate",
-      "reason": "`is_open` (shown) and `dismiss_on_scrim` (policy preference) are independent facts."
-    },
-    {
       "key": "crates/infiltrator-bevy-widgets/src/radio.rs::RadioGroupState::option-as-stage",
       "file": "crates/infiltrator-bevy-widgets/src/radio.rs",
       "type": "RadioGroupState",
