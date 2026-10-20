@@ -187,7 +187,7 @@
   - 产物：rem 迁移实测发现的重复事实（同一开关几何在四个页面各写一份常量）收敛为**唯一 owner**：`infiltrator_bevy_widgets::switch` 拥有 `SWITCH_TRACK_WIDTH_PX`/`SWITCH_TRACK_HEIGHT_PX`/`SWITCH_KNOB_SIZE_PX`/`SWITCH_KNOB_ON_OFFSET_PX`/`SWITCH_KNOB_OFF_OFFSET_PX`、typed `SwitchPosition{Off,On}`（由二值事实 `from_enabled` 派生）与两个场景构造器（轨道带发丝线边框 + `BorderRadius::MAX` 胶囊，旋钮按 typed 偏移绝对定位）；四个页面（`settings_preferences`／`dns_form`／`profiles_import`／`dns_edit`）改为消费共享场景并删除本地常量。
   - 依赖：无（纯 widgets owner 内的补结构）。
   - 验收：四个页面不再声明开关几何常量（清零搜索）；共享开关有 headless 行为测试（开/关两态的轨道、旋钮位置与胶囊圆角）；页面行为与视觉不变。
-  - 当前证据（L）：清零搜索 `TRACK_WIDTH_PX|TRACK_HEIGHT_PX|KNOB_OFFSET_PX` 在 `infiltrator-bevy-ui/src` 无匹配；`switch_tests.rs` 4 条新用例（轨道胶囊几何、typed 开/关偏移、typed 决策、父子组合）；`bevy-widgets` nextest 419/419、`bevy-ui` 716/716 全绿；rem/bsn/line 守卫 0 违例。
+  - 当前证据（L）：清零搜索 `TRACK_WIDTH_PX|TRACK_HEIGHT_PX|KNOB_SIZE_PX|KNOB_ON_OFFSET|KNOB_OFF_OFFSET` 在 `infiltrator-bevy-ui/src` 无匹配；`knob_offset_px` 只剩控件自身与断言——**页面已不再推导任何偏移**：`settings_preferences` 改为翻转 `SwitchKnob` 的 typed 位并由控件重投影；控件现在是一个整体（`SwitchColors` + `SwitchTrack` + `SwitchKnob(SwitchPosition)` + `switch_control_scene` + `sync_switch_knobs`），而不是让页面自行拼装轨道与旋钮；`switch_tests.rs` 6 条用例（轨道胶囊几何、typed 开/关偏移、typed 决策、父子组合、两个消费者渲染同一几何、旋钮只随 typed 位移动）；`bevy-widgets` nextest 431/431 全绿；rem/bsn/line 守卫 0 违例。
   - 待验证：真实像素回执（开关两态的轨道与旋钮）随本批截图批次。
   - 本机可执行动作：跑统一截图批次。
 - [ ] BEVYCAP-004.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets::modal + infiltrator-bevy-ui] [status: Integrated] modal 层迁到官方 `Dialog`/`ModalDialog`/`RequestClose` 并把 bool 对改 typed stage
@@ -302,7 +302,25 @@
   - 待验证：`dpkg` 系统安装分支（需 Debian 系主机与 root，本机为 CachyOS/Arch 且非 root，该分支明确标为未测）与真实 release 二进制映射窗口的桌面会话证据（斗战胜佛 §六）。
   - 本机可执行动作：跑统一验证批次 `bash packaging/linux/build-linux.sh --all` + 安装冒烟。
 
-## 十二、登记说明
+## 十二、地球增强与其帧/内存报告（已交付，2条 / 4pt）
+
+- [ ] BANDROID-016.2 [kind: mechanism] [priority: P1] [points: 3] [owner: bevy-widgets::chart] [status: Integrated] 按需 3D/2.5D 地球与流量弧线
+  - 产物：拖拽、节点地理标记、流量弧线；保留二维与 Eco 回退、低电量/热状态/减少动效降级。
+  - 依赖：BANDROID-016.1；013 图形基础。
+  - 验收：操作沿用真实节点身份；离页释放资源、静置休眠。
+  - 当前证据（L）：`infiltrator_bevy_widgets::globe` 拆成 `degradation`（`GlobeBattery`／`GlobeThermal`／`GlobeMotion` 三个独立事实组成的 `GlobeDevicePressure`、只降不升的 `effective_mode`）、`stage`（typed 阶段 `GlobeStage{Live{idle_seconds}, Sleeping, Closed}` 与 `tick`/`interact`/`close`/`open` 迁移、`GlobeIdleBudget` 静置预算）、`interaction`（`globe_pointer_target` 按真实节点 id 命中、无地理坐标的节点与被剔除的背面半球永不可命中、二维回退无损可达、`drag_globe` 夹紧俯仰并环绕偏航）、`raster`（自 `globe.rs` 拆出的 RGBA8 栅格器，`globe.rs` 回到体量预算内）。资源释放是同一个路径：闲置休眠、离页关闭与退役纹理共用 `release_texture`，纹理与 `ImageNode` 一起释放而底板保留；六条 headless 用例覆盖降级封顶（低电量→Eco、热→二维、减少动效→二维，且绝不抬高请求模式）、指针按真实身份命中、拖拽夹紧、休眠释放纹理、手势唤醒后纹理回来、关闭后释放而底板仍在。
+  - 待验证：宿主接线尚缺——`crates/infiltrator-bevy-ui` 的地球页仍需把指针事件路由进控件的接缝并唤醒阶段，且电池/热/减少动效的事实需要宿主喂入（控件层不生产平台事实）；真实录屏与性能抽样随本批截图批次。
+  - 本机可执行动作：跑统一验证批次。
+
+- [ ] BANDROID-016.3 [kind: evidence] [priority: P1] [points: 1] [owner: bevy-widgets::chart] [status: Integrated] 地球桌面帧/内存报告
+  - 产物：显示/关闭模式的帧/内存报告；增强关闭后资源释放核查。
+  - 依赖：BANDROID-016.2。
+  - 验收：报告绑定同一源码身份；等价操作面通过。
+  - 当前证据（L）：`globe::report` 的 `GlobeSourceIdentity` 是**源**（节点与其真实地理观测与来源、连线、模式、栅格尺寸）的内容指纹而不是视图或阶段，所以旋转与推进不改变它、换节点就改变它；`GlobeFrameReport` 带帧数、耗时与独占字节并给出 `fps()`；`GlobeBaseline` 是实测基线，比较结果是 typed 判决 `GlobeBudgetVerdict{WithinBudget, FrameRateBelow, MemoryAbove, OtherSource}`——**别源的基线判 `OtherSource`，绝不静默通过**；`GlobeMeasurement` 是 typed 的 `Idle`／`Open(window)` 而不是 bool/Option 对，显示期计入栅格字节、关闭期独占字节为 0，所以「显示」与「关闭」两段可直接比较；三条 headless 用例覆盖身份绑定、基线比较与计量。
+  - 待验证：报告**文件**与截图/录屏回执属于取证层（`scripts/parity` 与 `.evidence/`），不在控件层产出；基线数值需在真实宿主上实测一次。
+  - 本机可执行动作：跑统一验证批次。
+
+## 十三、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。
