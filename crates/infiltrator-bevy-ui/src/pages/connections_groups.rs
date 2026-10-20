@@ -7,7 +7,6 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use infiltrator_bevy_widgets::theme::radius;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexWrap, Node, UiRect, percent, px,
@@ -18,6 +17,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::radius;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::connection_grouping::ConnectionGroupRow;
 

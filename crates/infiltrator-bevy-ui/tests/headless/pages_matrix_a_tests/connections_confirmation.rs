@@ -81,13 +81,21 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
         .commands()
         .trigger(Activate { entity: opener });
     app.update();
-    assert!(app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     let cancel = confirmation_action(&mut app, CloseAllConfirmationAction::Cancel);
     app.world_mut()
         .commands()
         .trigger(Activate { entity: cancel });
     app.update();
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        !app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
     app.world_mut()
         .commands()
@@ -97,7 +105,11 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
     keys.press(KeyCode::Escape);
     app.world_mut().insert_resource(keys);
     app.update();
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        !app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
     app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
@@ -106,9 +118,17 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
         .commands()
         .trigger(Activate { entity: opener });
     app.update();
-    assert!(app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     navigate_to(&mut app, Route::Logs);
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        !app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
 }
 
@@ -153,13 +173,21 @@ fn command_palette_close_all_opens_confirmation_on_its_real_route() {
         Some(Route::Connections)
     );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
-    assert!(app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     let cancel = confirmation_action(&mut app, CloseAllConfirmationAction::Cancel);
     app.world_mut()
         .commands()
         .trigger(Activate { entity: cancel });
     app.update();
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
+    assert!(
+        !app.world()
+            .resource::<ConnectionsCloseAllState>()
+            .is_armed()
+    );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
 }
 

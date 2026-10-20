@@ -115,10 +115,7 @@ fn connection_drawer_state_is_one_typed_stage_and_refuses_a_second_close() {
     let mut state = ConnectionsDrawerState::default();
     assert!(!state.is_open());
     assert_eq!(state.inspected_id(), None);
-    assert_eq!(
-        state.inspected_index(&ConnectionsProjection::demo()),
-        None
-    );
+    assert_eq!(state.inspected_index(&ConnectionsProjection::demo()), None);
 
     // Closing a closed drawer is refused: the stage that is already running
     // is closed, and there is no inspection to dismiss.

@@ -11,8 +11,6 @@ use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, InteractionDisabled, Node, Val};
 use bevy::ui_widgets::{Activate, ButtonPlugin};
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::theme::space;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::pages::settings::settings_core::SettingsProjection;
 use infiltrator_bevy_ui::pages::settings::settings_preferences::{
@@ -25,7 +23,9 @@ use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_bevy_widgets::theme::{ThemeSkin, TokenColor, contrast};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::page::PageStatus;

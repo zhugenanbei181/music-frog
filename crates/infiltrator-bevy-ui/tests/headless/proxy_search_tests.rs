@@ -389,10 +389,7 @@ fn idle_highlights_do_not_relayout_text_and_short_spacing_keeps_input_entity() {
         app.world_mut()
             .insert_resource(ResponsiveContext::new(720.0, height));
         app.update();
-        assert_eq!(
-            app.world().get::<Node>(scroll).unwrap().row_gap,
-            rem(gap)
-        );
+        assert_eq!(app.world().get::<Node>(scroll).unwrap().row_gap, rem(gap));
         assert_eq!(field(&mut app), input);
     }
 }
