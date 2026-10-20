@@ -12,6 +12,7 @@ use lurker_core_contract::identity::{
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
+use std::future::pending;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -127,7 +128,7 @@ impl SingBoxClashHttpPort for ScriptedHttpPort {
                 "scripted HTTP request failed".to_owned(),
             )),
             ScriptedAnswer::Hang => {
-                std::future::pending::<()>().await;
+                pending::<()>().await;
                 unreachable!("a hanging scripted answer never completes")
             }
         }

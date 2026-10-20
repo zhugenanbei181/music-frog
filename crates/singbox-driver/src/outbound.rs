@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 
 /// The details revision the sing-box driver publishes.
 ///
@@ -119,7 +120,7 @@ impl SingBoxOutboundAdapter {
     ) -> Result<DelayAnswer, PortError> {
         let deadline = Duration::from_millis(u64::from(timeout_ms)) + DELAY_DEADLINE_GRACE;
         let transport_timeout = deadline + DELAY_TRANSPORT_SLACK;
-        match tokio::time::timeout(
+        match timeout(
             deadline,
             self.api
                 .get_delay(outbound_id.value(), target, timeout_ms, transport_timeout),
