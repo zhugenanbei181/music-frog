@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v242`：现在佛 68 pt（28 条）/ 过去佛 46 pt（20 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 186 pt；已归档交付 682 pt（263 条）；累计 868 pt，严格归档完成率 78.6%。
+- Point 基线 `musicfrog-todo-20261020-v245`：现在佛 67 pt（28 条）/ 过去佛 55 pt（23 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
 - 本板 28 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -262,26 +262,10 @@
 
 ### 7.2 共享控件真源补齐（rem 迁移暴露的重复事实）
 
-- [ ] WIDGET-001.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 开关（switch）轨道与旋钮几何收敛为共享控件
-  - 产物：rem 迁移实测发现**同一开关几何在四个页面各写一份常量**（轨道 38×22、旋钮 on 偏移 18）：`pages/settings_preferences.rs`（`PREFERENCE_TRACK_*`）、`pages/dns_form.rs`（`DNS_SWITCH_*`）、`pages/profiles_import.rs`（`IMPORT_ACTIVATE_*`）、`pages/dns_edit.rs`（`GEOIP_SWITCH_*`）——同一事实四个真源，违反「每个事实只有一个真源」；`infiltrator-bevy-widgets` 今天没有 switch 控件（`checkbox.rs` 画方块，`motion.rs` 只拥有旋钮弹簧），须新建共享 `switch` 场景（轨道 + 旋钮 + 胶囊圆角 `BorderRadius::MAX`），四个调用点改为消费它并删除各自的重复常量。
-  - 依赖：无（纯 widgets owner 内的补结构，不是上层补丁）。
-  - 验收：四个页面不再声明开关几何常量（清零搜索）；共享开关场景有 headless 行为测试（开/关两态的轨道、旋钮位置与胶囊圆角）；页面行为与视觉不变。
-  - 计划：① 在 widgets 建 `switch` 场景与常量 ② 四个调用点改消费共享场景并删本地常量 ③ 补 headless 行为测试 ④ 清零搜索回执。
-  - 证据：共享场景单测 run ID + 清零搜索回执 + 页面回归 run ID。
-
-### 7.3 浮层主题层级补齐（能力规范②的存量缺口）
-
-- [ ] BEVYCAP-004.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: Planned] 浮层根补 `ThemeContext(SurfaceLevel::Floating)` 并机器化
-  - 产物：能力规范②要求「悬浮/浮层容器（modal、菜单、popover、下拉、toast、命令面板）根必须声明 `ThemeContext(SurfaceLevel::Floating)`」，实测**只有 toast 栈与命令面板声明**，modal / 菜单 / popover / combobox / 上下文菜单 / mini HUD 的浮层根**尚未声明**（官方 `bevy::feathers::theme::ThemeContext` 机制已在项目里可用）；须给这些浮层根补声明，并加一条守卫规则（声明浮层标记的文件必须同时声明 `ThemeContext(SurfaceLevel::Floating)`），把 ② 从评审口径变机器红线。
-  - 依赖：无（官方机制已在依赖里，widgets 与 bevy-ui 各自补声明）。
-  - 验收：六个浮层根全部声明 `ThemeContext(SurfaceLevel::Floating)`（清零搜索）；守卫规则生效且生产树零违例；浮层换肤行为回归（headless 断言浮层拿到 Floating 层级的语义色）。
-  - 计划：① 盘点浮层根与各自标记 ② 逐个补声明 ③ 加守卫规则 ④ 补 headless 行为断言。
-  - 证据：守卫 run ID + 清零搜索回执 + 行为断言 run ID。
-
-- [ ] BEVYCAP-004.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets::modal + infiltrator-bevy-ui] [status: InProgress] modal 层迁到官方 `Dialog`/`ModalDialog`/`RequestClose`
-  - 产物：能力规范⑥要求对话框用 `bevy_ui_widgets::Dialog`/`ModalDialog` + `RequestClose` + 官方 barrier/焦点圈闭/`DialogStack`，禁止手写 barrier 点击外关闭、Esc 拦截与焦点圈闭；实测共享层仍是**自建** modal（`ModalState{is_open,dismiss_on_scrim,...}` + `ModalScrim`/`ModalDialogCard` + 本地 `modal_scene`），须迁到官方行为层，并把 `is_open`/`dismiss_on_scrim` 这对 bool 换成**一个 typed stage**（多阶段必须是 typed enum，禁止 bool 组合）。
-  - 依赖：Bevy 0.20 `bevy::ui_widgets` 官方 `Dialog`/`ModalDialog`/`RequestClose`/`DialogStack` 已在依赖里；`menu` 层是已评审的本地例外（键盘优先 + headless 可组合），不在本条范围。
-  - 验收：共享 modal 挂载官方组件，barrier/Esc/焦点圈闭由官方提供；`ModalState` 只剩 typed stage（无 bool 组合）；弹窗行为 headless 回归（开/关/取消/确认/焦点圈闭）全绿；`implicit-state-audit` 判决台账同步（`ModalState` 候选改写后必须重新判决或撤销）。
-  - 计划：① 读官方 API 并盘点本地自建行为 ② 挂官方组件并移除本地手写行为 ③ bool 对改 typed stage ④ 判决台账与 headless 回归同步。
-  - 证据：headless run ID + 判决台账 diff + 守卫 run ID。
+- [ ] TOKEN-001.2 [kind: mechanism] [priority: P2] [points: 2] [owner: infiltrator-contract::design_tokens + 三大 UI owner] [status: Planned] 圆角阶梯「居中对话框」角色重叠需契约裁决
+  - 产物：契约圆角阶梯里 `MODAL`(24) 的角色注释是「Centered modal dialog, command palette (24px)」，而 `DIALOG`(28) 是「Dialog corner radius (28px)」——**「居中对话框」到底用哪一档没有唯一答案**；实测其它居中对话框仍用 `R_CARD`/`radius::CARD`(16)：Iced 共享 modal chrome（`view_root/modals/card.rs`）、`aggregator_modal.rs`、`snapshot_diff_modal.rs`，Bevy `adaptive_modal.rs`。须由契约 owner 写清「居中模态 / 面板式对话框 / 居中命令面板」三者的档位归属，再由各表面按契约改齐（命令面板已按 `MODAL` 对齐）。
+  - 依赖：TOKEN-001.1 的阶梯裁决（既有档位足够，但角色重叠需澄清）。
+  - 验收：契约 `design_tokens::radius` 的每档角色注释互斥且可判定；三个表面按契约改齐；清零搜索确认无「居中对话框用 CARD」的残留。
+  - 计划：① 列出各表面居中对话框的当前档位 ② 契约写清互斥角色 ③ 三表面按契约改齐并补断言。
+  - 证据：契约 diff + 三表面断言 run ID + 清零搜索回执。
 

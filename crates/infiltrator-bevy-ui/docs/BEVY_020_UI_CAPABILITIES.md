@@ -24,7 +24,7 @@
 | ③ headless 标签页 | 人工评审 | 已迁到官方 `TabList`/`Tab`/`SelectedTab`；无守卫（判定需语义规则，机械不可靠） | 保持评审口径 |
 | ④ `FixedNode` 视口定位 | 机器：视口级浮层根必须挂官方 `FixedNode`（与 ② 同批补齐，8 个浮层 owner 全部挂载） | 官方 `FixedNode` 已挂在 toast 栈、命令面板与另外六个浮层 owner | 无 |
 | ⑤ 行内内容 | 人工评审 | 已迁到 `InlineBox`/`InlineImage`；无守卫（判定需语义规则） | 保持评审口径 |
-| ⑥ 官方行为层优先 | 机器（部分）＋评审口径 | 官方 `bevy::ui_widgets` 的 Button／Checkbox／ScrollArea／TextInput／TabList 已在用；**modal 层自建实现正在迁到官方 `Dialog`／`ModalDialog`／`RequestClose`／`DialogStack`**（`BEVYCAP-004.2`）；**menu 层是已评审的本地例外**（见文末「已评审的本地交互例外：菜单层」）；无守卫（判定需语义规则） | `BEVYCAP-004.2` 收口 modal 迁移 |
+| ⑥ 官方行为层优先 | 机器（部分）＋评审口径 | 官方 `bevy::ui_widgets` 的 Button／Checkbox／ScrollArea／TextInput／TabList 已在用；**modal 层已迁到官方 `Dialog`／`ModalDialog`／`ModalDialogBarrier`／`RequestClose`／`DialogStack`**（barrier、Esc、焦点圈闭由官方提供，阶段为 typed `ModalStage`）；**menu 层是已评审的本地例外**（见文末「已评审的本地交互例外：菜单层」）；无守卫（判定需语义规则） | `BEVYCAP-004.2` 收口 modal 迁移 |
 | ⑦ 小件收敛 | 机器：`scripts/quality/bevy_bsn_guard.py`（`BEVY-BSN-008` 列表场景必须 `bsn_list!`、`BEVY-BSN-009` 批量退役必须 `despawn_all`、`BEVY-BSN-010` 胶囊必须 `BorderRadius::MAX`、`BEVY-BSN-007` `template_value` 硬零）+ 评审口径（`Ready` 事件语义无法词法判定） | 6 处真实列表场景改 `bsn_list!` + `SceneList`；1 处挂载后初始化改订阅 `bevy_scene::Ready`；1 处批量退役改 `despawn_all`；胶囊圆角 29 处全量 `BorderRadius::MAX`；固定 2–3 个手写子项的静态 `Children [ ... ]` 明确保留（非列表场景） | 真实交互与像素验收随本批截图批次 |
 
 ### 产品侧 rem 守卫（`BEVYCAP-001.1` 交付物）
