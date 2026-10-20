@@ -284,7 +284,25 @@
   - 待验证：纯净克隆的真实演练（需要 `cargo-generate` 与一次真实编译），随统一批次执行。
   - 本机可执行动作：跑统一验证批次 `python3 scripts/developer-journey-rehearsal.py --profile fast`。
 
-## 十一、登记说明
+## 十一、平台证据与安装包（已交付，2条 / 5pt）
+
+- [ ] PLATFORM-001.1 [kind: evidence] [priority: P0] [points: 3] [owner: release + scripts] [status: Integrated] 五大平台构建-安装-运行证据矩阵落地
+  - 产物：按平台矩阵口径（由 L1 入口导航）逐平台登记构建腿、安装包、运行与设备证据，缺项显式 `Unsupported` 并指向斗战胜佛。
+  - 依赖：GAP-1.1 交叉检查脚本、APPID-001.3、PARITY-001.4。
+  - 验收：Linux/Windows/Android 有本机或 CI 回执；macOS/iOS 显式 `Unsupported` 且阻塞方登记；矩阵无「以旧 commit 回执冒充当前源码」。
+  - 当前证据（L）：`scripts/platform/` 的证据台账 + `build-evidence-matrix.py` 生成矩阵，`platform-evidence-guard.py` 逐格校验：每个平台的 build/install/run/target 四腿要么带证据身份（命令、run id 或产物摘要），要么显式写 `Unsupported` 并给出原因；**交叉编译检查不算已证明**，守卫拒绝这种冒充；生成的矩阵段与台账必须同步（`--check` 报 in sync）；本机 Linux 腿的构建、安装、启动与卸载冒烟已跑通（`staged` 安装策略，私有合成器栈下应用真实起窗）；Windows / macOS / iOS / Android 目标与安装腿写明阻塞方并指向斗战胜佛。
+  - 待验证：受控 tag 的各平台构建腿回执与 Android 真机腿（在[斗战胜佛](CODE_TODO_BLOCKED.md) §二/§六）；本机 `dpkg` 系统安装分支需要 Debian 系主机与 root，本机为 CachyOS/Arch，该分支明确标为未测。
+  - 本机可执行动作：跑统一验证批次（含 `scripts/cross-check.sh` 与本机 Linux 打包腿）。
+
+- [ ] APPID-001.3 [kind: evidence] [priority: P0] [points: 2] [owner: packaging/linux] [status: Integrated] Linux 最终 Deb/AppImage 产物
+  - 产物：Linux 最终 Deb/AppImage 构建与验收。
+  - 依赖：APPID-001.2。
+  - 验收：包名/图标/二进制来自登记表；安装冒烟通过。
+  - 当前证据（L）：deb 与 AppImage 两个构建器都从 `product-identity.properties` 登记表取包名、图标与二进制，`build-linux.sh --all` 一次产出双产物并写出列出每个产物绝对路径的构建清单；deb 写出的是合法 `ar` 归档（`ar t`/`ar tv` 与 dpkg 成员布局交叉核对通过），AppImage 走真实 `appimagetool` 路径；`verify-linux-artifacts.py` 对每个产品跑 26 项登记表一致性检查；`smoke-install.sh` 从构建清单解析产物，完成安装 → 启动 → 确认起窗 → 卸载的全链路冒烟并留下证据文件；打包单测 12/12 通过。
+  - 待验证：`dpkg` 系统安装分支（需 Debian 系主机与 root，本机为 CachyOS/Arch 且非 root，该分支明确标为未测）与真实 release 二进制映射窗口的桌面会话证据（斗战胜佛 §六）。
+  - 本机可执行动作：跑统一验证批次 `bash packaging/linux/build-linux.sh --all` + 安装冒烟。
+
+## 十二、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。

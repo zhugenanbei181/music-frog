@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v248`：现在佛 46 pt（18 条）/ 过去佛 76 pt（33 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
+- Point 基线 `musicfrog-todo-20261020-v249`：现在佛 41 pt（16 条）/ 过去佛 81 pt（35 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
 - 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -102,12 +102,6 @@
   - 验收：三 flavor 各绑定同一候选源码 APK 的 SHA-256 与截图清单；安全区、键盘与滚动命中区取证完整。
   - 计划：① 构建三 flavor 候选 APK 并过 identity/aapt；② 用 Gradle Managed Device 跑交互脚本取截图；③ 把回执绑定到 parity 业务域。
   - 证据：APK SHA-256 + 截图清单 + logcat 摘要；真机腿在斗战胜佛 §一。
-- [ ] PLATFORM-001.1 [kind: evidence] [priority: P0] [points: 3] [owner: release + scripts] [status: Planned] 五大平台构建-安装-运行证据矩阵落地
-  - 产物：按平台矩阵口径（由 L1 入口导航）逐平台登记构建腿、安装包、运行与设备证据，缺项显式 `Unsupported` 并指向斗战胜佛。
-  - 依赖：GAP-1.1 交叉检查脚本、APPID-001.3、PARITY-001.4。
-  - 验收：Linux/Windows/Android 有本机或 CI 回执；macOS/iOS 显式 `Unsupported` 且阻塞方登记；矩阵无「以旧 commit 回执冒充当前源码」。
-  - 计划：① 固化矩阵文件与生成脚本；② 本机跑 Linux 腿与交叉检查；③ 逐平台绑定证据身份。
-  - 证据：矩阵文件 + 逐平台 run ID。
 - [ ] GAP-4.1 [kind: evidence] [priority: P1] [points: 3] [owner: slint] [status: Planned] Slint 功能验收与 parity
   - 产物：Slint 六个页面回调对应的功能验收与 parity cell 证据（含 `capture-slint-matrix.sh` 24 场景结果）。
   - 依赖：目标产物与交互证据。
@@ -164,12 +158,6 @@
 
 ## 七、C 主线：质量红线与安装包
 
-- [ ] APPID-001.3 [kind: evidence] [priority: P0] [points: 2] [owner: packaging/linux] [status: Planned] Linux 最终 Deb/AppImage 产物
-  - 产物：Linux 最终 Deb/AppImage 构建与验收。
-  - 依赖：APPID-001.2。
-  - 验收：包名/图标/二进制来自登记表；安装冒烟通过。
-  - 计划：① 跑打包脚本出双产物；② 校验 identity 与登记表一致；③ 安装-启动-卸载冒烟。
-  - 证据：产物 SHA-256 + 冒烟日志。
 
 ### 7.1 Bevy UI 能力规范强制化（2026-10-20 实测立项：bsn! 已是机器红线，rem 部分机器强制）
 
