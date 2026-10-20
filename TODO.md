@@ -64,17 +64,17 @@
 11. **并行工流隔离纪律（2026-10-20 起强制）**：并行开发按**文件所有权**切分，同一文件同一时刻只有一个 owner；**编译不通过的半成品不得放进会被 `cargo nextest --workspace`、结构门或 capture 构建扫到的路径**，WIP 先放草稿或 `.evidence/wip/`，收尾时一次性搬入；**开发期只跑受影响包**，全仓 `cargo nextest --workspace` 与全量结构门统一放到收尾批次**只跑一次**，禁止单个 crate 的 WIP 反复触发全仓重编重挂。
 12. **环境故障先归属再动手（2026-10-20 起强制）**：共享 `/tmp` 配额、cargo lane 争用、合成器起栈失败、真机缺席等外部故障，先判定归属（本切片缺陷 / 他工流 WIP / 纯环境）再决定动作，只修本切片能修的那一类；不得让环境噪声反复打断全仓验证，也不得把环境故障写成代码缺陷。已知缓解：capture 脚本把链接器临时文件放在构建输出旁（`CAPTURE_BUILD_TMP`），共享 `/tmp` 只留合成器 socket 短路径。
 
-## Points 与完成度台账（2026-10-19，基线 `musicfrog-todo-20261019-v237`）
+## Points 与完成度台账（2026-10-20，基线 `musicfrog-todo-20261020-v239`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 28 | 66 |
+| 现在佛 | 31 | 74 |
 | 过去佛 | 13 | 29 |
 | 斗战胜佛 | 29 | 72 |
-| **未办结联合分母** | **70** | **167** |
+| **未办结联合分母** | **73** | **175** |
 
-- **严格交付率：682 / 849 = 80.3%**（archived 682pt / archived 682 + 未办结 167pt）。执行态参考仍以看板状态计算，不替代验收。
-- 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt），未办结条目集合净增 48pt。
+- **严格交付率：682 / 857 = 79.6%**（archived 682pt / archived 682 + 未办结 175pt）。执行态参考仍以看板状态计算，不替代验收。
+- 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt。
 - 归档口径：累计 263 条 / 682 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
@@ -140,6 +140,7 @@
 | iOS | 无 | 626 行 host stub | 无 target、无包、无 NetworkExtension |
 | 0.43 收口 | L（代码侧已解决） | `PUB-001.1`～`PUB-001.3`、`PUB-002.1`～`PUB-002.5`、`PUB-003.1`～`PUB-003.4` 全部本地通过并归档；七个中性 crate 零产品私有依赖 | crates.io 顺序上架腿在斗战胜佛（`lurker-core-contract` 未实际上架前，其余 crate 的 dry-run 必然失败） |
 | 0.44 UI 管道 | L（代码侧已解决） | `PUB-004.1`～`PUB-004.3` 办结归档；`lurker-ui-presentation` 零私有依赖；四 UI 表面管道 conformance 测试落地 | 无 `C` 证据；四端设备回执在斗战胜佛 |
+| Bevy UI 编写口径 | L（结构层已强制，尺寸层未强制） | 场景结构已是机器红线：`scripts/quality/bevy_bsn_guard.py` 覆盖 `infiltrator-bevy-ui` 与 `infiltrator-bevy-widgets` 生产树 349 文件零违例（bsn! 唯一入口、禁直接 spawn / 手动挂子 / 裸 `ChildOf` 重挂 / `World` 访问），并接入 `scripts/quality/check-structure.sh` 与 CI | rem/em 尺寸通道与能力规范 ⑦ 小件收敛**仅人工评审、无守卫**：生产树 263 处 `Val::Px` 写入中初筛 183 处非白名单（字号通道已全量 `FontSize::Rem`），`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处；收口见现在佛 `BEVYCAP-001.1`、`001.2`、`002.1`，执行状态台账见 Bevy UI 能力规范的「强制化台账」一节 |
 | 环境阻塞层（斗战胜佛） | — | 29 条 / 72pt 已登记阻塞方与解锁条件 | ARM64 真机、受控 tag CI、用户 keystore、crates.io 上架凭证、Windows/macOS 目标机均缺失 |
 | 0.50 模板工程 | **已解决** | 四大 UI 独立模板工程（Slint/Iced/Bevy/Android）与 cargo-generate 交互脚手架全部交付；PUB-005.1～005.5 全部办结归档 | 零产品私有依赖，独立可编译运行 |
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |
@@ -718,7 +719,7 @@ CORE-007..016 的 workstream 状态、`CORE-011/012` 八个退役切片与 2A/3A
 
 - BEVY: BEVY-004 BEVY-005 BEVY-006 BEVY-007 BEVY-008 BEVY-010 BEVY-012 BEVY-013 BEVY-014 BEVY-015 BEVY-016 BEVY-017 BEVY-018 BEVY-019 BEVY-020 BEVY-021 BEVY-022 BEVY-023
 - BEVY: BEVY-024 BEVY-025 BEVY-026 BEVY-027 BEVY-028 BEVY-029 BEVY-030 BEVY-031 BEVY-032 BEVY-033 BEVY-034 BEVY-035 BEVY-036 BEVY-037 BEVY-038 BEVY-039 BEVY-040 BEVY-041
-- BSN: BSN-002 BSN-005 BSN-006
+- BSN: BSN-001 BSN-002 BSN-003 BSN-004 BSN-005 BSN-006
 - CORE: CORE-001 CORE-005 CORE-006
 - ECS: ECS-007 ECS-008 ECS-009
 - FUNC: FUNC-001 FUNC-002 FUNC-003 FUNC-004 FUNC-005
