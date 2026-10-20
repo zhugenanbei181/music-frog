@@ -26,10 +26,10 @@ use bevy::ui::{
     AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow,
     PositionType, UiRect, percent, px,
 };
-use bevy::window::PrimaryWindow;
 use bevy::ui_widgets::{
     Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
 };
+use bevy::window::PrimaryWindow;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
 use infiltrator_bevy_widgets::chart::{ChartPlate, chart_scene_with_smooth};

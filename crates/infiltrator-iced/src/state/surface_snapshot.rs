@@ -241,7 +241,8 @@ impl AppState {
             &snapshot.system_proxy.status,
             SystemProxyStatus::Enabled | SystemProxyStatus::Disabled
         ) {
-            self.runtime.observe_system_proxy(snapshot.system_proxy.is_enabled());
+            self.runtime
+                .observe_system_proxy(snapshot.system_proxy.is_enabled());
         }
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;

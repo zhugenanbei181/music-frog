@@ -8,10 +8,10 @@ use infiltrator_bevy_widgets::text_input::TextField;
 
 #[test]
 fn operation_panels_preserve_editable_controls_and_cancel_without_commands() {
-    use infiltrator_bevy_widgets::modal::ModalScrim;
-use infiltrator_bevy_ui::pages::business_panel::{
+    use infiltrator_bevy_ui::pages::business_panel::{
         BusinessPanelRoot, BusinessPanelState, CloseBusinessPanel, OpenBusinessPanel, PanelKind,
     };
+    use infiltrator_bevy_widgets::modal::ModalScrim;
     for (route, kind) in [
         (Route::Proxies, PanelKind::CustomNode),
         (Route::Profiles, PanelKind::Aggregator),

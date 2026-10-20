@@ -249,7 +249,11 @@ pub enum SystemProxyStage {
 impl SystemProxyStage {
     /// The stage of a settled system proxy.
     pub const fn from_enabled(enabled: bool) -> Self {
-        if enabled { Self::Enabled } else { Self::Disabled }
+        if enabled {
+            Self::Enabled
+        } else {
+            Self::Disabled
+        }
     }
 
     /// Whether the system proxy is on, including while the change that turns
@@ -410,7 +414,10 @@ impl RuntimeState {
     /// A second command is refused while one is still in flight: the running
     /// stage is handed back instead of being overwritten, so "a command is in
     /// flight" and "the last command failed" can never both hold.
-    pub fn begin_lifecycle(&mut self, action: CoreControlAction) -> Result<(), CoreLifecycleRefusal> {
+    pub fn begin_lifecycle(
+        &mut self,
+        action: CoreControlAction,
+    ) -> Result<(), CoreLifecycleRefusal> {
         if let CoreLifecycleStage::Running { action: running } = self.lifecycle {
             return Err(CoreLifecycleRefusal::AlreadyRunning { action: running });
         }

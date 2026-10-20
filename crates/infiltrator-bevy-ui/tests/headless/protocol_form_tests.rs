@@ -19,7 +19,6 @@ use infiltrator_bevy_ui::command::{
 };
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::command_execution::ApplicationCommandSink;
-use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_ui::pages::business_panel::{
     BusinessPanelRoot, BusinessPanelState, CloseBusinessPanel, OpenBusinessPanel, PanelKind,
 };
@@ -31,6 +30,7 @@ use infiltrator_bevy_ui::pages::proxies_form::{
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
