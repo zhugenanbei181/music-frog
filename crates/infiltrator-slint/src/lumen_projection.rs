@@ -13,17 +13,16 @@ use super::slint_model;
 use super::{AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
 use crate::surface::workbenches::Workbenches;
 use crate::theme_util::apply_theme_color;
-use infiltrator_contract::android_control::{
-    VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
-};
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
-use infiltrator_contract::vpn::VpnSurfaceObservation;
+use infiltrator_presentation::overview_page_model::{
+    OverviewHost, OverviewNetworkMode, OverviewNetworkStatus, OverviewPageModel,
+    OverviewRoutingMode,
+};
 use infiltrator_presentation::profile_preview::redact_profile_preview;
 use infiltrator_presentation::shell_readout::profile_name;
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
@@ -31,7 +30,6 @@ use infiltrator_shared::locales::{Lang, Localizer, get_system_language, resolve_
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
-use lurker_core_contract::routing_intent::RoutingIntent;
 use slint::ComponentHandle;
 use std::env;
 
@@ -112,10 +110,9 @@ pub(super) fn project_snapshot(
     let lang = Lang(&language);
     let page = window.get_page().to_string();
     window.set_snapshot_window_warning(snapshot_window_warning(snapshot, &page).into());
-    let running = matches!(
-        &snapshot.core.lifecycle,
-        CoreLifecycle::Ready | CoreLifecycle::Running
-    );
+    let mut overview = OverviewPageModel::default();
+    overview.observe(overview_host(), snapshot);
+    let running = overview.is_running();
     let lifecycle = match &snapshot.core.lifecycle {
         CoreLifecycle::Starting => "Starting",
         CoreLifecycle::Ready | CoreLifecycle::Running => "Running",
@@ -156,10 +153,10 @@ pub(super) fn project_snapshot(
     window.set_runtime_detail(runtime_detail.into());
     window.set_active_profile(profile.into());
     window.set_has_current_profile(current_profile);
-    window.set_route_mode(route_mode(snapshot).into());
-    window.set_network_mode(network_mode(snapshot).into());
-    window.set_network_mode_status(network_mode_status(snapshot, &language).into());
-    window.set_network_mode_status_warning(network_mode_warning(snapshot));
+    window.set_route_mode(routing_mode_label(overview.routing_mode()).into());
+    window.set_network_mode(network_mode_label(overview.network_mode()).into());
+    window.set_network_mode_status(network_status_copy(overview.network_status(), &lang).into());
+    window.set_network_mode_status_warning(overview.network_warning().is_warned());
     let tun_availability = snapshot.capabilities.availability(Capability::Tun);
     window.set_tun_capable(snapshot.capabilities.supports(Capability::Tun));
     let tun_detail = match tun_availability {
@@ -368,159 +365,69 @@ pub(super) fn snapshot_window_warning(snapshot: &SurfaceSnapshot, page: &str) ->
     copy
 }
 
-fn route_mode(snapshot: &SurfaceSnapshot) -> &'static str {
-    match snapshot.core.routing_intent.current.as_ref() {
-        Some(RoutingIntent::FollowRules) => "Rule",
-        Some(RoutingIntent::RouteAllThroughProxy) => "Global",
-        Some(RoutingIntent::BypassProxy) => "Direct",
-        Some(RoutingIntent::EngineDefined(_)) | None => "Unknown",
-    }
-}
-
-fn network_mode(snapshot: &SurfaceSnapshot) -> &'static str {
+/// The host the overview page renders for.
+///
+/// The traffic mode depends on the host, and the host is a build fact of the
+/// surface, so the shared model is told which one it renders for.
+fn overview_host() -> OverviewHost {
     if cfg!(target_os = "android") {
-        return "VPN";
-    }
-    if snapshot
-        .pages
-        .settings
-        .data
-        .as_ref()
-        .and_then(|settings| settings.tun_enabled)
-        .unwrap_or(false)
-    {
-        "TUN"
+        OverviewHost::Android
     } else {
-        match &snapshot.system_proxy.status {
-            SystemProxyStatus::Enabled => "System Proxy",
-            SystemProxyStatus::Disabled => "Core only",
-            SystemProxyStatus::Unknown
-            | SystemProxyStatus::Unsupported { .. }
-            | SystemProxyStatus::Failed { .. } => "Unknown",
-        }
+        OverviewHost::Desktop
     }
 }
 
-fn network_mode_status(snapshot: &SurfaceSnapshot, language: &str) -> String {
-    let lang = Lang(language);
-    if cfg!(target_os = "android") {
-        return match &snapshot.vpn {
-            VpnSurfaceObservation::AndroidOwner(owner) => {
-                if let Some(message) =
-                    owner
-                        .resources
-                        .iter()
-                        .find_map(|resource| match &resource.state {
-                            VpnOwnerResourceState::CleanupPending {
-                                failure_message, ..
-                            } => Some(failure_message.clone()),
-                            VpnOwnerResourceState::Absent | VpnOwnerResourceState::Held { .. } => {
-                                None
-                            }
-                        })
-                {
-                    message
-                } else {
-                    match (&owner.vpn_state, owner.readiness) {
-                        (VpnOwnerLifecycle::Unavailable { failure_message }, _) => {
-                            failure_message.clone()
-                        }
-                        (_, VpnOwnerReadiness::Unavailable) => lang.tr("状态未知").into_owned(),
-                        (VpnOwnerLifecycle::Failed { failure_message }, _) => {
-                            failure_message.clone()
-                        }
-                        (_, VpnOwnerReadiness::Failed) => lang.tr("VPN 未运行").into_owned(),
-                        (_, VpnOwnerReadiness::CleanupPending) => {
-                            lang.tr("VPN 正在停止").into_owned()
-                        }
-                        (VpnOwnerLifecycle::PermissionRequired, _)
-                        | (_, VpnOwnerReadiness::PermissionRequired) => {
-                            lang.tr("等待 VPN 授权").into_owned()
-                        }
-                        (
-                            VpnOwnerLifecycle::StartRequested
-                            | VpnOwnerLifecycle::Starting
-                            | VpnOwnerLifecycle::Foreground
-                            | VpnOwnerLifecycle::TunnelEstablished,
-                            _,
-                        )
-                        | (
-                            _,
-                            VpnOwnerReadiness::AwaitingForeground
-                            | VpnOwnerReadiness::AwaitingTunnel
-                            | VpnOwnerReadiness::AwaitingDataPlane,
-                        ) => lang.tr("VPN 正在启动").into_owned(),
-                        (VpnOwnerLifecycle::Stopping, _) | (_, VpnOwnerReadiness::Stopping) => {
-                            lang.tr("VPN 正在停止").into_owned()
-                        }
-                        (VpnOwnerLifecycle::Running, VpnOwnerReadiness::Ready)
-                            if owner.is_running() =>
-                        {
-                            lang.tr("VPN 已连接").into_owned()
-                        }
-                        (VpnOwnerLifecycle::Stopped, VpnOwnerReadiness::Stopped)
-                            if owner.is_stopped() =>
-                        {
-                            lang.tr("VPN 未运行").into_owned()
-                        }
-                        (VpnOwnerLifecycle::Revoked, VpnOwnerReadiness::Revoked)
-                            if owner.is_stopped() =>
-                        {
-                            lang.tr("VPN 授权已撤销").into_owned()
-                        }
-                        _ => lang.tr("VPN 未运行").into_owned(),
-                    }
-                }
-            }
-            VpnSurfaceObservation::Unsupported { reason } => reason.clone(),
-            VpnSurfaceObservation::NotApplicable => lang.tr("VPN 未运行").into_owned(),
-            VpnSurfaceObservation::Unavailable { failure } => failure.message.clone(),
-        };
-    }
-    if snapshot
-        .pages
-        .settings
-        .data
-        .as_ref()
-        .and_then(|settings| settings.tun_enabled)
-        .unwrap_or(false)
-    {
-        return lang.tr("TUN 已启用").into_owned();
-    }
-    match &snapshot.system_proxy.status {
-        SystemProxyStatus::Enabled => lang.tr("系统代理已启用").into_owned(),
-        SystemProxyStatus::Disabled => lang.tr("系统代理未启用").into_owned(),
-        SystemProxyStatus::Unknown => lang.tr("系统代理状态未观测").into_owned(),
-        SystemProxyStatus::Unsupported { failure } | SystemProxyStatus::Failed { failure } => {
-            failure.message.clone()
-        }
+/// The routing mode label the widget names.
+///
+/// The routing mode itself is the shared model's; only the vocabulary the
+/// imported segmented button speaks belongs to the surface.
+fn routing_mode_label(mode: OverviewRoutingMode) -> &'static str {
+    match mode {
+        OverviewRoutingMode::Rule => "Rule",
+        OverviewRoutingMode::Global => "Global",
+        OverviewRoutingMode::Direct => "Direct",
+        OverviewRoutingMode::Unknown => "Unknown",
     }
 }
 
-fn network_mode_warning(snapshot: &SurfaceSnapshot) -> bool {
-    if cfg!(target_os = "android") {
-        return match &snapshot.vpn {
-            VpnSurfaceObservation::AndroidOwner(owner) => matches!(
-                (&owner.vpn_state, owner.readiness),
-                (VpnOwnerLifecycle::PermissionRequired, _)
-                    | (VpnOwnerLifecycle::Revoked, _)
-                    | (VpnOwnerLifecycle::Failed { .. }, _)
-                    | (VpnOwnerLifecycle::Unavailable { .. }, _)
-                    | (_, VpnOwnerReadiness::Failed)
-                    | (_, VpnOwnerReadiness::Unavailable)
-                    | (_, VpnOwnerReadiness::CleanupPending)
-            ),
-            VpnSurfaceObservation::Unsupported { .. }
-            | VpnSurfaceObservation::Unavailable { .. }
-            | VpnSurfaceObservation::NotApplicable => true,
-        };
+/// The traffic mode label the widget names.
+///
+/// The traffic mode itself is the shared model's; only the vocabulary the
+/// imported buttons speak belongs to the surface.
+fn network_mode_label(mode: OverviewNetworkMode) -> &'static str {
+    match mode {
+        OverviewNetworkMode::Vpn => "VPN",
+        OverviewNetworkMode::Tun => "TUN",
+        OverviewNetworkMode::SystemProxy => "System Proxy",
+        OverviewNetworkMode::CoreOnly => "Core only",
+        OverviewNetworkMode::Unknown => "Unknown",
     }
-    matches!(
-        &snapshot.system_proxy.status,
-        SystemProxyStatus::Unknown
-            | SystemProxyStatus::Failed { .. }
-            | SystemProxyStatus::Unsupported { .. }
-    )
+}
+
+/// The localized copy of the typed traffic mode status.
+///
+/// The status is the shared model's; only the wording belongs to the surface.
+/// A status that carries a reason shows that reason, because the owner said
+/// why the mode is not confirmed.
+fn network_status_copy(status: &OverviewNetworkStatus, lang: &Lang<'_>) -> String {
+    match status {
+        OverviewNetworkStatus::VpnConnected => lang.tr("VPN 已连接").into_owned(),
+        OverviewNetworkStatus::VpnStarting => lang.tr("VPN 正在启动").into_owned(),
+        OverviewNetworkStatus::VpnStopping => lang.tr("VPN 正在停止").into_owned(),
+        OverviewNetworkStatus::VpnStopped => lang.tr("VPN 未运行").into_owned(),
+        OverviewNetworkStatus::VpnPermissionRequired => lang.tr("等待 VPN 授权").into_owned(),
+        OverviewNetworkStatus::VpnRevoked => lang.tr("VPN 授权已撤销").into_owned(),
+        OverviewNetworkStatus::VpnFailed { reason }
+        | OverviewNetworkStatus::VpnUnavailable { reason }
+        | OverviewNetworkStatus::VpnUnsupported { reason }
+        | OverviewNetworkStatus::SystemProxyUnavailable { reason } => reason.clone(),
+        OverviewNetworkStatus::VpnNotApplicable => lang.tr("VPN 未运行").into_owned(),
+        OverviewNetworkStatus::TunEnabled => lang.tr("TUN 已启用").into_owned(),
+        OverviewNetworkStatus::SystemProxyEnabled => lang.tr("系统代理已启用").into_owned(),
+        OverviewNetworkStatus::SystemProxyDisabled => lang.tr("系统代理未启用").into_owned(),
+        OverviewNetworkStatus::SystemProxyUnobserved => lang.tr("系统代理状态未观测").into_owned(),
+        OverviewNetworkStatus::Unknown => lang.tr("状态未知").into_owned(),
+    }
 }
 
 fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: Option<bool>) {

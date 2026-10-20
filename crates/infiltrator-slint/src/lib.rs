@@ -27,6 +27,7 @@ pub mod widget_vocabulary;
 
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::named_override::NamedOverrideId;
 use infiltrator_contract::profile_age_credential::{
@@ -144,6 +145,21 @@ pub trait SlintProductHost: Send + Sync + 'static {
         action: SlintAction,
     ) -> Result<(), Failure>;
 
+    /// Executes one owner action and reports its typed readback.
+    ///
+    /// The default runs [`SlintProductHost::execute`] and reports that the
+    /// host published no typed readback, so a host that cannot carry one
+    /// keeps working unchanged. A host that does carry one lets the surface
+    /// correlate the readbacks that carry an owner identity, for example a
+    /// reviewed export or a restoration review.
+    fn execute_typed(
+        &self,
+        snapshot: Option<&SurfaceSnapshot>,
+        action: SlintAction,
+    ) -> Result<CommandOutput, Failure> {
+        self.execute(snapshot, action).map(|_| CommandOutput::Unit)
+    }
+
     /// Host-owned preference, deliberately absent on hosts without an
     /// autostart adapter. The shared application snapshot remains the source
     /// of every application setting.
@@ -215,7 +231,7 @@ pub(crate) enum WorkerRequest {
 
 pub(crate) enum WorkerEvent {
     Snapshot(Result<SurfaceSnapshot, Failure>, Option<bool>),
-    ActionFinished(Result<(), Failure>),
+    ActionFinished(Result<CommandOutput, Failure>),
     AgeCredentialRead {
         profile_id: String,
         result: Result<ProfileAgeCredentialObservation, Failure>,
@@ -258,6 +274,9 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
     // The event loop closure owns a handle to the shared workbench state, so
     // the surface's reducers stay reachable from every projection.
     let workbenches = Arc::clone(&workbenches);
+    // The owner's terminal is projected with the owner's last snapshot, so
+    // the panel that waits for the terminal shows the answer at once.
+    let latest_for_terminal = Arc::clone(&latest_snapshot);
     let timer = slint::Timer::default();
     timer.start(
         slint::TimerMode::Repeated,
@@ -275,6 +294,7 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
                 // Each event closure takes its own handle to the shared
                 // workbench state; the outer loop keeps its own.
                 let workbenches = Arc::clone(&workbenches);
+                let latest_for_terminal = Arc::clone(&latest_for_terminal);
                 let _ = weak.upgrade_in_event_loop(move |window| match event {
                     WorkerEvent::Snapshot(Ok(snapshot), autostart) => {
                         let language = lumen_projection::snapshot_language(&snapshot);
@@ -285,23 +305,42 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
                     WorkerEvent::Snapshot(Err(failure), _) => {
                         window.set_notice(failure.message.into());
                     }
-                    WorkerEvent::ActionFinished(Ok(())) => {
-                        // The next owner snapshot is the only source of readback.
-                        let close_profile_settings = window.get_profile_settings_saving();
-                        let close_user_agent = window.get_user_agent_saving();
-                        clear_pending_ui(&window);
-                        window.set_user_agent_error("".into());
-                        window.set_profile_settings_age_key("".into());
-                        if close_profile_settings {
-                            window.set_profile_settings_id("".into());
+                    WorkerEvent::ActionFinished(result) => {
+                        // The reducer that started the command correlates the
+                        // owner's terminal, so the business that is waiting
+                        // for it learns the outcome.
+                        workbenches.settle(result.clone());
+                        // The terminal moved the reducer's phase, so the
+                        // panel that waits for it is projected again: the
+                        // business shows the owner's answer instead of the
+                        // state it had before the command.
+                        let terminal_snapshot = latest_for_terminal
+                            .lock()
+                            .ok()
+                            .and_then(|guard| guard.clone());
+                        if let Some(snapshot) = terminal_snapshot {
+                            lumen_projection::project_workbench(&window, &snapshot, &workbenches);
                         }
-                        if close_user_agent {
-                            window.set_user_agent_dialog_open(false);
+                        match result {
+                            Ok(_) => {
+                                // The next owner snapshot is the only source of readback.
+                                let close_profile_settings = window.get_profile_settings_saving();
+                                let close_user_agent = window.get_user_agent_saving();
+                                clear_pending_ui(&window);
+                                window.set_user_agent_error("".into());
+                                window.set_profile_settings_age_key("".into());
+                                if close_profile_settings {
+                                    window.set_profile_settings_id("".into());
+                                }
+                                if close_user_agent {
+                                    window.set_user_agent_dialog_open(false);
+                                }
+                                window.set_notice("".into());
+                            }
+                            Err(failure) => {
+                                project_action_failure(&window, &failure);
+                            }
                         }
-                        window.set_notice("".into());
-                    }
-                    WorkerEvent::ActionFinished(Err(failure)) => {
-                        project_action_failure(&window, &failure);
                     }
                     WorkerEvent::AgeCredentialRead { profile_id, result } => {
                         if window.get_profile_settings_id().as_str() == profile_id {
@@ -376,7 +415,7 @@ fn spawn_host_worker(
                         }
                     },
                     WorkerRequest::Action(action) => {
-                        WorkerEvent::ActionFinished(host.execute(latest.as_ref(), action))
+                        WorkerEvent::ActionFinished(host.execute_typed(latest.as_ref(), action))
                     }
                     WorkerRequest::ReadAgeCredential { profile_id } => {
                         let snapshot = latest_snapshot.lock().ok().and_then(|guard| guard.clone());

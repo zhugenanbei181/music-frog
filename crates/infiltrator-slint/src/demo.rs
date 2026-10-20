@@ -4,6 +4,8 @@
 //! Provides realistic snapshots without connecting to real cores or external network,
 //! and writes the `CAPTURE_READY` marker for background virtual compositor screenshots.
 
+mod fixtures;
+
 use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
@@ -396,8 +398,8 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 update_interval_hours: Some(24),
                 next_update: None,
                 auto_reload_core: true,
-                filter: Default::default(),
-                filter_source: Err(Failure::unsupported("demo")),
+                filter: fixtures::subscription_filter(),
+                filter_source: Ok(fixtures::profile_workspace_identity()),
                 write_protection: ProfileWriteProtection::RemoteSubscription,
             },
             ProfileSnapshot {
@@ -420,19 +422,33 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 next_update: None,
                 auto_reload_core: false,
                 filter: Default::default(),
-                filter_source: Err(Failure::unsupported("demo")),
+                filter_source: Ok(fixtures::profile_workspace_identity()),
                 write_protection: ProfileWriteProtection::Editable,
             },
         ],
         auto_update_interval_hours: 24,
         updating: false,
-        aggregation: None,
+        aggregation: Some(fixtures::aggregation_report()),
         aggregation_templates: Vec::new(),
         aggregation_templates_available: false,
-        snapshot_history: None,
+        snapshot_history: Some(fixtures::snapshot_history()),
         apply_transaction: None,
         named_overrides: Default::default(),
     });
+
+    // The workbench panels of the capture read the shared read models of the
+    // businesses they carry, so a receipt shows the interaction and never an
+    // empty panel.
+    snapshot.dns_leak = fixtures::dns_leak_report();
+    snapshot.dns_cache = fixtures::dns_cache_snapshot();
+    snapshot.dns_query = fixtures::dns_query_snapshot();
+    snapshot.dns_hosts = PageData::ready(fixtures::dns_hosts_profile());
+    snapshot.pages.doctor = PageData::ready(fixtures::doctor_page());
+    snapshot.pages.sync = PageData::ready(fixtures::sync_page());
+    snapshot.pages.app_routing = PageData::ready(fixtures::app_routing_page());
+    snapshot.script_sandbox = Some(fixtures::script_sandbox());
+    snapshot.script_export = Some(fixtures::script_export());
+    snapshot.yaml_ast_diff = Some(fixtures::yaml_ast_diff());
 
     snapshot.pages.connections = PageData::ready(ConnectionsPageSnapshot {
         total_connections: 4,

@@ -15,6 +15,7 @@ use crate::surface::workbenches::Workbenches;
 use crate::{
     AppWindow, ObservationRow, SlintAction, SurfaceSnapshot, WorkbenchItem, WorkerRequest,
 };
+use infiltrator_contract::command_output::CommandOutput;
 use lurker_core_contract::error::Failure;
 use slint::Model;
 use slint::platform;
@@ -64,6 +65,7 @@ pub struct SurfaceHarness {
     workbenches: Arc<Workbenches>,
     failures: Rc<RefCell<Vec<Failure>>>,
     previous_observer: Option<FailureObserver>,
+    reads: Cell<u32>,
 }
 
 impl SurfaceHarness {
@@ -96,6 +98,7 @@ impl SurfaceHarness {
             workbenches,
             failures,
             previous_observer,
+            reads: Cell::new(0),
         })
     }
 
@@ -317,9 +320,44 @@ impl SurfaceHarness {
     ///
     /// The owner worker reports a refused command to the surface with this
     /// projection, so a driven surface test observes the same notice the
-    /// product shows.
+    /// product shows. The refusal also reaches the reducer that started the
+    /// command, so the business learns its own failure.
     pub fn publish_owner_failure(&self, failure: &Failure) {
+        self.workbenches.settle(Err(failure.clone()));
         crate::project_action_failure(&self.window, failure);
+        self.project_workbench();
+    }
+
+    /// Publishes the typed readback of an owner action the owner completed.
+    ///
+    /// The owner worker hands the typed readback to the surface, so a driven
+    /// surface test observes the same correlation the product performs.
+    pub fn publish_owner_output(&self, output: CommandOutput) {
+        self.workbenches.settle(Ok(output));
+        self.project_workbench();
+    }
+
+    /// Publishes the completion of an owner action that carries no readback.
+    pub fn publish_owner_success(&self) {
+        self.workbenches.settle(Ok(CommandOutput::Unit));
+        self.project_workbench();
+    }
+
+    /// Projects the workbench pages again after the owner's terminal.
+    ///
+    /// The owner's terminal moved the reducer's phase, so the panel that
+    /// waits for it shows the owner's answer at once instead of the state it
+    /// had before the command. The product projects the same way.
+    fn project_workbench(&self) {
+        let snapshot = self.latest.lock().ok().and_then(|guard| guard.clone());
+        if let Some(snapshot) = snapshot {
+            lumen_projection::project_workbench(&self.window, &snapshot, &self.workbenches);
+        }
+    }
+
+    /// How many times the surface asked the owner for a fresh snapshot.
+    pub fn read_requests(&self) -> u32 {
+        self.reads.get()
     }
 
     /// Whether the add-profile sheet is open.
@@ -433,13 +471,57 @@ impl SurfaceHarness {
     }
 
     /// Sets the draft the panel input holds, exactly as typing does.
+    ///
+    /// Typing reaches the surface through the real draft callback, so the
+    /// shared reducer that owns the draft receives the value exactly as the
+    /// product receives it.
     pub fn set_workbench_draft(&self, value: &str) {
-        self.window.set_workbench_draft(value.into());
+        let window = &self.window;
+        window.set_workbench_draft(value.into());
+        let id = self.primary_draft_id();
+        if !id.is_empty() {
+            window.invoke_workbench_draft_edited(id.into(), value.into());
+        }
     }
 
-    /// Sets the secondary draft the panel input holds.
+    /// Sets the secondary draft the panel input holds, exactly as typing does.
     pub fn set_workbench_draft_2(&self, value: &str) {
-        self.window.set_workbench_draft_2(value.into());
+        let window = &self.window;
+        window.set_workbench_draft_2(value.into());
+        let id = self.secondary_draft_id();
+        if !id.is_empty() {
+            window.invoke_workbench_draft_edited(id.into(), value.into());
+        }
+    }
+
+    /// The draft the primary input of the open page holds.
+    pub fn workbench_draft(&self) -> String {
+        self.window.get_workbench_draft().to_string()
+    }
+
+    /// The draft the secondary input of the open page holds.
+    pub fn workbench_draft_2(&self) -> String {
+        self.window.get_workbench_draft_2().to_string()
+    }
+
+    /// The draft field the open page binds to its primary input.
+    fn primary_draft_id(&self) -> &'static str {
+        match self.window.get_page().as_str() {
+            "Dns" => "dns-query-name",
+            "Editor" => "script-code",
+            "Filters" => "filter-include",
+            _ => "",
+        }
+    }
+
+    /// The draft field the open page binds to its secondary input.
+    fn secondary_draft_id(&self) -> &'static str {
+        match self.window.get_page().as_str() {
+            "Dns" => "dns-hosts-row",
+            "Filters" => "aggregator-target",
+            "AppRouting" => "app-routing-rule",
+            _ => "",
+        }
     }
 
     /// Drives the subscription refresh callback of the profile action sheet.
@@ -522,8 +604,10 @@ impl SurfaceHarness {
     fn take_actions(&self) -> Vec<SlintAction> {
         let mut actions = Vec::new();
         while let Ok(request) = self.requests.try_recv() {
-            if let WorkerRequest::Action(action) = request {
-                actions.push(action);
+            match request {
+                WorkerRequest::Action(action) => actions.push(action),
+                WorkerRequest::Read => self.reads.set(self.reads.get() + 1),
+                WorkerRequest::ReadAgeCredential { .. } => {}
             }
         }
         actions

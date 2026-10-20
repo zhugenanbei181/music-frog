@@ -25,10 +25,19 @@ impl SlintProductHost for DesktopProductHost {
         snapshot: Option<&SurfaceSnapshot>,
         action: SlintAction,
     ) -> Result<(), Failure> {
+        self.execute_typed(snapshot, action).map(|_| ())
+    }
+
+    fn execute_typed(
+        &self,
+        snapshot: Option<&SurfaceSnapshot>,
+        action: SlintAction,
+    ) -> Result<CommandOutput, Failure> {
         match action {
             SlintAction::SetAutostart(enabled) => {
                 set_autostart_enabled("MusicFrogInfiltrator", enabled)
-                    .map_err(|error| Failure::new(ErrorCode::Internal, error.to_string(), true))
+                    .map_err(|error| Failure::new(ErrorCode::Internal, error.to_string(), true))?;
+                Ok(CommandOutput::Unit)
             }
             SlintAction::Command(intent) => {
                 let snapshot = snapshot.ok_or_else(no_snapshot)?;
@@ -38,7 +47,10 @@ impl SlintProductHost for DesktopProductHost {
                 let snapshot = snapshot.ok_or_else(no_snapshot)?;
                 self.execute_commands(snapshot.core.scope(), intents)
             }
-            action => execute_slint_age_action(self, snapshot, action),
+            action => {
+                execute_slint_age_action(self, snapshot, action)?;
+                Ok(CommandOutput::Unit)
+            }
         }
     }
 
@@ -48,12 +60,14 @@ impl SlintProductHost for DesktopProductHost {
 }
 
 impl DesktopProductHost {
+    /// Runs the shared commands and reports the typed readback of the last one.
     fn execute_commands(
         &self,
         scope: Option<CoreScope>,
         intents: impl IntoIterator<Item = CommandIntent>,
-    ) -> Result<(), Failure> {
+    ) -> Result<CommandOutput, Failure> {
         let mut scope = scope.ok_or_else(no_snapshot)?;
+        let mut output = CommandOutput::Unit;
         for intent in intents {
             let (request_id, receiver) =
                 self.application
@@ -72,13 +86,14 @@ impl DesktopProductHost {
                 scope = next_scope;
             }
             match outcome.result {
-                CommandResult::Completed { .. }
-                | CommandResult::Produced { .. }
-                | CommandResult::Accepted { .. } => {}
+                CommandResult::Completed { .. } | CommandResult::Accepted { .. } => {}
+                CommandResult::Produced {
+                    output: produced, ..
+                } => output = *produced,
                 CommandResult::Rejected { failure, .. } => return Err(failure),
             }
         }
-        Ok(())
+        Ok(output)
     }
 }
 

@@ -9,18 +9,19 @@
 pub mod workbench;
 
 use crate::theme_util;
+use crate::widget_vocabulary;
 use crate::{CommandIntent, SlintAction, SurfaceSnapshot};
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
 };
-use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use infiltrator_presentation::system_toggle_projection;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::identity::OutboundContractError;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::outbound::preferences::{
-    OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
+    OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
 };
 use lurker_core_contract::outbound::probe::{
     OutboundProbeBatchScope, OutboundProbeConcurrency, OutboundSelectionRequest,
@@ -110,11 +111,12 @@ pub fn network_mode_action(
         };
     }
 
-    let settings = snapshot.pages.settings.data.as_ref();
-    let tun_enabled = settings
-        .and_then(|settings| settings.tun_enabled)
-        .unwrap_or(false);
-    let proxy_enabled = matches!(&snapshot.system_proxy.status, SystemProxyStatus::Enabled);
+    // The capture mode the host actually applies is the runtime control's
+    // readback, never the configured value: a configuration that was never
+    // confirmed must not be reported as the mode the host runs.
+    let toggles = system_toggle_projection::from_surface(snapshot);
+    let tun_enabled = toggles.tun.is_enabled();
+    let proxy_enabled = toggles.system_proxy.is_enabled();
     let running = matches!(
         &snapshot.core.lifecycle,
         CoreLifecycle::Ready | CoreLifecycle::Running
@@ -227,19 +229,17 @@ pub fn outbound_preference_action(
 }
 
 /// Maps a proxy sort label to the shared outbound presentation preference.
+///
+/// The widget's sort vocabulary is spoken in exactly one place, the
+/// [`crate::widget_vocabulary`] adapter, so a dimension the widget does not
+/// offer is refused instead of being guessed here.
 pub fn proxy_sort_action(sort: &str) -> Result<OutboundUiPreferenceIntent, Failure> {
-    let order = match sort {
-        "latency_asc" => OutboundSortOrder::LatencyAscending,
-        "latency_desc" => OutboundSortOrder::LatencyDescending,
-        "name_asc" => OutboundSortOrder::NameAscending,
-        "name_desc" => OutboundSortOrder::NameDescending,
-        _ => {
-            return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                "Unknown proxy sort order",
-                false,
-            ));
-        }
+    let Some(order) = widget_vocabulary::proxy_sort_order(sort) else {
+        return Err(Failure::new(
+            ErrorCode::InvalidInput,
+            "Unknown proxy sort order",
+            false,
+        ));
     };
     Ok(OutboundUiPreferenceIntent::SetSortOrder(order))
 }

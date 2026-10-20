@@ -1,267 +1,26 @@
 //! Projections for proxy, observation, traffic, and license data.
 //!
-//! The logs page and the connections page are rendered from the shared page
-//! models and live in their own modules beside this one.
+//! The proxies page, the logs page and the connections page are rendered
+//! from the shared page models and live in their own modules beside this one.
 
 mod connections;
 mod logs;
+mod proxies;
 
-use super::{THIRD_PARTY_NOTICES, flag_assets, snapshot_language};
-use crate::{
-    AppWindow, HomeTrafficPoint, LicenseRow, ObservationRow, ProxyGroup, TrafficBar, slint_model,
-};
-use infiltrator_contract::active_exit::ActiveExitStatus;
+use super::{THIRD_PARTY_NOTICES, snapshot_language};
+use crate::{AppWindow, HomeTrafficPoint, LicenseRow, ObservationRow, TrafficBar, slint_model};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
-use lurker_core_contract::outbound::details::{
-    OutboundCollectionKind, OutboundDetailsState, OutboundObservation,
-};
-use lurker_core_contract::outbound::identity::OutboundId;
-use lurker_core_contract::outbound::inventory::{
-    OutboundInventoryState, OutboundSelectionSet, OutboundSelectionState,
-};
-use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 use lurker_core_contract::page::PageStatus;
-use std::collections::HashMap;
 
+/// Projects the proxies page from the shared page model.
+///
+/// The query fold, the match rule, the member order, the health filter and
+/// the group order are the shared reduction; the surface only renders what
+/// the model reports.
 pub(super) fn project_proxies(window: &AppWindow, snapshot: &SurfaceSnapshot) {
-    let language = snapshot_language(snapshot);
-    let lang = Lang(&language);
-    if let Some(preferences) = snapshot.outbound_ui_preferences.data.as_ref() {
-        window.set_proxy_search(preferences.search_query.clone().into());
-        window.set_proxy_sort_mode(
-            match preferences.sort_order {
-                OutboundSortOrder::LatencyAscending => "latency_asc",
-                OutboundSortOrder::LatencyDescending => "latency_desc",
-                OutboundSortOrder::NameAscending => "name_asc",
-                OutboundSortOrder::NameDescending => "name_desc",
-            }
-            .into(),
-        );
-    }
-    let Some(inventory) = snapshot.outbound_inventory.data.as_ref() else {
-        window.set_proxy_groups(slint_model(Vec::<ProxyGroup>::new()));
-        window.set_proxy_nodes(slint_model(Vec::<ObservationRow>::new()));
-        window.set_proxy_current_node_available(false);
-        window.set_selected_group("".into());
-        return;
-    };
-    let OutboundInventoryState::Ready {
-        entries,
-        collections,
-    } = inventory.inventory()
-    else {
-        window.set_proxy_groups(slint_model(Vec::<ProxyGroup>::new()));
-        window.set_proxy_nodes(slint_model(Vec::<ObservationRow>::new()));
-        window.set_proxy_current_node_available(false);
-        window.set_selected_group("".into());
-        return;
-    };
-    let names = entries
-        .iter()
-        .map(|entry| {
-            (
-                entry.id.value().to_owned(),
-                entry
-                    .display_name
-                    .clone()
-                    .unwrap_or_else(|| entry.id.value().to_owned()),
-            )
-        })
-        .collect::<HashMap<_, _>>();
-    let details = snapshot
-        .outbound_details
-        .data
-        .as_ref()
-        .and_then(|details| match details.state() {
-            OutboundDetailsState::Ready { details } => Some(details.as_slice()),
-            OutboundDetailsState::Unknown
-            | OutboundDetailsState::Empty
-            | OutboundDetailsState::Unsupported
-            | OutboundDetailsState::Failed { .. } => None,
-        })
-        .unwrap_or_default();
-    let groups = collections
-        .iter()
-        .map(|collection| {
-            let selected_id = match &collection.selection {
-                OutboundSelectionState::Ready { selected } => Some(selected.value()),
-                OutboundSelectionState::Unknown
-                | OutboundSelectionState::Empty
-                | OutboundSelectionState::Unsupported
-                | OutboundSelectionState::Failed { .. } => None,
-            };
-            let current = selected_id
-                .and_then(|id| names.get(id))
-                .map(|name| name.clone())
-                .unwrap_or_else(|| "".to_owned());
-            let kind = details
-                .iter()
-                .find(|detail| detail.id == collection.id)
-                .and_then(|detail| match &detail.collection_kind {
-                    OutboundObservation::Observed(kind) => {
-                        Some(collection_kind_label(*kind, &language))
-                    }
-                    OutboundObservation::Unknown | OutboundObservation::Unsupported => None,
-                })
-                .unwrap_or_else(|| lang.tr("策略组").into_owned());
-            let member_names = collection
-                .member_ids
-                .iter()
-                .filter_map(|id| names.get(id.value()))
-                .cloned()
-                .collect::<Vec<_>>();
-            let active_country = if active_exit_matches(snapshot, &collection.id, selected_id) {
-                snapshot
-                    .active_exit
-                    .country_code
-                    .as_deref()
-                    .unwrap_or_default()
-            } else {
-                ""
-            };
-            ProxyGroup {
-                name: collection.id.value().to_owned().into(),
-                icon_emoji: "".into(),
-                kind: kind.into(),
-                current: current.clone().into(),
-                current_flag_code: active_country.to_ascii_lowercase().into(),
-                current_flag_index: flag_assets::index_for_code(active_country).unwrap_or(-1),
-                current_accessible: current.clone().into(),
-                nodes: member_names.join("\n").into(),
-            }
-        })
-        .collect::<Vec<_>>();
-    let requested_group = window.get_selected_group().to_string();
-    let visible_group = if !requested_group.is_empty()
-        && collections
-            .iter()
-            .any(|group| group.id.value() == requested_group)
-    {
-        Some(requested_group.as_str())
-    } else {
-        if !requested_group.is_empty() {
-            window.set_selected_group("".into());
-        }
-        selected_group_from_snapshot(snapshot, collections)
-    };
-    let query = window.get_proxy_search().to_string().trim().to_lowercase();
-    let sort_mode = window.get_proxy_sort_mode().to_string();
-    let nodes = visible_group
-        .and_then(|group_name| {
-            collections
-                .iter()
-                .find(|group| group.id.value() == group_name)
-        })
-        .map(|group| {
-            let selected_id = match &group.selection {
-                OutboundSelectionState::Ready { selected } => Some(selected.value()),
-                _ => None,
-            };
-            let mut rows = group
-                .member_ids
-                .iter()
-                .map(|id| {
-                    let detail = details.iter().find(|detail| detail.id == *id);
-                    let name = names
-                        .get(id.value())
-                        .cloned()
-                        .unwrap_or_else(|| id.value().to_owned());
-                    let delay = detail.and_then(|detail| match &detail.current_latency_ms {
-                        OutboundObservation::Observed(delay) => Some(*delay),
-                        OutboundObservation::Unknown | OutboundObservation::Unsupported => None,
-                    });
-                    let country = if active_exit_matches(snapshot, &group.id, Some(id.value())) {
-                        snapshot
-                            .active_exit
-                            .country_code
-                            .as_deref()
-                            .unwrap_or_default()
-                    } else {
-                        ""
-                    };
-                    ObservationRow {
-                        id: id.value().to_owned().into(),
-                        title: name.clone().into(),
-                        accessible_title: name.clone().into(),
-                        flag_code: country.to_ascii_lowercase().into(),
-                        flag_index: flag_assets::index_for_code(country).unwrap_or(-1),
-                        delay_ms: delay
-                            .map(|value| value.min(i32::MAX as u32) as i32)
-                            .unwrap_or(-1),
-                        subtitle: detail
-                            .and_then(|detail| detail.protocol_display_name.clone())
-                            .unwrap_or_else(|| "".to_owned())
-                            .into(),
-                        trailing: delay
-                            .map(|value| format!("{value} ms"))
-                            .unwrap_or_else(|| "—".to_owned())
-                            .into(),
-                        active: selected_id == Some(id.value()),
-                    }
-                })
-                .filter(|row| {
-                    query.is_empty()
-                        || row.title.to_string().to_lowercase().contains(&query)
-                        || row.id.to_string().to_lowercase().contains(&query)
-                        || row.subtitle.to_string().to_lowercase().contains(&query)
-                })
-                .collect::<Vec<_>>();
-            match sort_mode.as_str() {
-                "latency_asc" => rows.sort_by_key(|row| {
-                    if row.delay_ms < 0 {
-                        i32::MAX
-                    } else {
-                        row.delay_ms
-                    }
-                }),
-                "latency_desc" => rows.sort_by_key(|row| {
-                    if row.delay_ms < 0 {
-                        i32::MAX
-                    } else {
-                        -row.delay_ms
-                    }
-                }),
-                "name_asc" => rows.sort_by(|left, right| {
-                    left.title
-                        .to_string()
-                        .to_lowercase()
-                        .cmp(&right.title.to_string().to_lowercase())
-                }),
-                "name_desc" => rows.sort_by(|left, right| {
-                    right
-                        .title
-                        .to_string()
-                        .to_lowercase()
-                        .cmp(&left.title.to_string().to_lowercase())
-                }),
-                _ => {}
-            }
-            rows
-        })
-        .unwrap_or_default();
-    let has_nodes = !nodes.is_empty();
-    window.set_proxy_groups(slint_model(groups));
-    window.set_proxy_nodes(slint_model(nodes));
-    window.set_proxy_current_node_available(has_nodes);
-}
-
-fn active_exit_matches(
-    snapshot: &SurfaceSnapshot,
-    group: &OutboundId,
-    member_id: Option<&str>,
-) -> bool {
-    let Some(member_id) = member_id else {
-        return false;
-    };
-    matches!(
-        &snapshot.active_exit.status,
-        ActiveExitStatus::Ready {
-            group_id,
-            outbound_id,
-        } if group_id == group && outbound_id.value() == member_id
-    )
+    proxies::project_proxies(window, snapshot);
 }
 
 /// Projects the connections page from the shared page model.
@@ -607,26 +366,4 @@ pub(super) fn split_rate(rate: &str) -> (String, String) {
     let value = parts.next().unwrap_or("0").to_owned();
     let unit = parts.next().unwrap_or("B").to_owned();
     (value, unit)
-}
-
-fn collection_kind_label(kind: OutboundCollectionKind, language: &str) -> String {
-    let lang = Lang(language);
-    match kind {
-        OutboundCollectionKind::ManualSelection => lang.tr("手动选择").into_owned(),
-        OutboundCollectionKind::AutomaticSelection => lang.tr("自动选择").into_owned(),
-        OutboundCollectionKind::Failover => lang.tr("故障转移").into_owned(),
-        OutboundCollectionKind::LoadBalancing => lang.tr("负载均衡").into_owned(),
-        OutboundCollectionKind::Relay => lang.tr("链式中继").into_owned(),
-    }
-}
-
-fn selected_group_from_snapshot<'a>(
-    snapshot: &'a SurfaceSnapshot,
-    collections: &'a [OutboundSelectionSet],
-) -> Option<&'a str> {
-    snapshot
-        .active_exit
-        .group
-        .as_deref()
-        .or_else(|| collections.first().map(|group| group.id.value()))
 }

@@ -9,6 +9,7 @@
 
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_domain::connection_view::ConnectionSortKey;
+use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 
 /// The shared sort key the widget's sort vocabulary names.
 ///
@@ -41,5 +42,64 @@ pub fn log_level_value(level: Option<LogLevel>) -> &'static str {
         Some(LogLevel::Warn) => "warning",
         Some(LogLevel::Error) => "error",
         Some(LogLevel::Unknown) => "unknown",
+    }
+}
+
+/// The shared sort order the widget's proxy sort vocabulary names.
+///
+/// The imported sort menu offers four dimensions and each of them names one
+/// shared sort order, so the proxy rows are ordered by the shared reduction
+/// and not by a second surface-local order. The widget's menu positions are
+/// its own vocabulary — they are not the shared model's control positions —
+/// so the adapter maps a dimension by its name.
+///
+/// A value the widget does not offer names no order at all, so the caller
+/// can refuse the gesture instead of silently applying an order the user
+/// never picked.
+pub fn proxy_sort_order(value: &str) -> Option<OutboundSortOrder> {
+    match value {
+        "latency_asc" => Some(OutboundSortOrder::LatencyAscending),
+        "latency_desc" => Some(OutboundSortOrder::LatencyDescending),
+        "name_asc" => Some(OutboundSortOrder::NameAscending),
+        "name_desc" => Some(OutboundSortOrder::NameDescending),
+        _ => None,
+    }
+}
+
+/// The widget's proxy sort vocabulary value for one shared sort order.
+///
+/// Every shared sort order the proxies page offers has exactly one widget
+/// value, so the widget and the shared model can never disagree about which
+/// dimension the user picked.
+pub fn proxy_sort_value(order: OutboundSortOrder) -> &'static str {
+    match order {
+        OutboundSortOrder::LatencyAscending => "latency_asc",
+        OutboundSortOrder::LatencyDescending => "latency_desc",
+        OutboundSortOrder::NameAscending => "name_asc",
+        OutboundSortOrder::NameDescending => "name_desc",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{proxy_sort_order, proxy_sort_value};
+    use infiltrator_presentation::proxies_page_model::PROXY_SORT_OPTIONS;
+
+    #[test]
+    fn the_widget_vocabulary_names_every_shared_proxy_sort_order() {
+        for order in PROXY_SORT_OPTIONS {
+            let value = proxy_sort_value(order);
+            assert_eq!(
+                proxy_sort_order(value),
+                Some(order),
+                "the widget value {value:?} must name the shared order {order:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_widget_value_the_menu_does_not_offer_names_no_order() {
+        assert_eq!(proxy_sort_order("random"), None);
+        assert_eq!(proxy_sort_order(""), None);
     }
 }

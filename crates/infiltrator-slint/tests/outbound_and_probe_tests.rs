@@ -266,10 +266,13 @@ fn the_projection_lists_the_nodes_of_the_selected_group() {
     let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
     surface.publish_snapshot(snapshot);
 
+    // The shared order breaks the tie of two equally unmeasured nodes by the
+    // name, so the rows are the shared reduction's order and not the
+    // inventory's order.
     let rows = surface.proxy_node_rows();
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0].id, "SGP-01");
-    assert_eq!(rows[1].id, "HKG-01");
+    assert_eq!(rows[0].id, "HKG-01");
+    assert_eq!(rows[1].id, "SGP-01");
 }
 
 #[test]

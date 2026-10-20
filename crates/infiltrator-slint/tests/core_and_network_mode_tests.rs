@@ -6,6 +6,7 @@
 //! typed owner command the surface emits and the typed failure it raises.
 
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
@@ -67,6 +68,28 @@ fn single_command(outcome: harness::SurfaceOutcome) -> CommandIntent {
         }
         harness::SurfaceOutcome::Rejected { failure, .. } => {
             panic!("expected an owner command, got the failure {failure:?}")
+        }
+    }
+}
+
+/// The owner commands the surface dispatched.
+///
+/// A single command is dispatched on its own and several commands are
+/// dispatched as one sequence, so the assertion reads the commands of an
+/// outcome either way: the gesture is judged by the commands it asks the
+/// owner for, not by the carrier the surface used.
+fn dispatched_commands(outcome: harness::SurfaceOutcome) -> Vec<CommandIntent> {
+    match outcome {
+        harness::SurfaceOutcome::Dispatched(actions) => actions
+            .iter()
+            .flat_map(|action| match action {
+                SlintAction::Command(intent) => vec![intent.clone()],
+                SlintAction::Sequence(commands) => commands.clone(),
+                other => panic!("expected owner commands, got {other:?}"),
+            })
+            .collect(),
+        harness::SurfaceOutcome::Rejected { failure, .. } => {
+            panic!("expected owner commands, got the failure {failure:?}")
         }
     }
 }
@@ -183,6 +206,13 @@ fn network_mode_switches_to_core_only_while_stopped() {
     let mut settings = default_settings_snapshot();
     settings.tun_enabled = Some(true);
     snapshot.pages.settings = PageData::ready(settings);
+    // The TUN device is only turned off when the runtime confirmed that it
+    // runs, so the owner publishes the readback.
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Ready,
+        tun_enabled: Some(true),
+        ..RuntimeControlSnapshot::default()
+    };
 
     let surface = harness::SurfaceHarness::new(Some(snapshot)).unwrap();
 
@@ -208,6 +238,28 @@ fn network_mode_switches_to_core_only_while_stopped() {
             panic!("expected an owner command sequence, got the failure {failure:?}")
         }
     }
+}
+
+#[test]
+fn network_mode_leaves_an_unconfirmed_tun_device_alone() {
+    let mut snapshot = desktop_snapshot();
+    snapshot.core.lifecycle = CoreLifecycle::Stopped;
+    snapshot.system_proxy.status = SystemProxyStatus::Enabled;
+    let mut settings = default_settings_snapshot();
+    settings.tun_enabled = Some(true);
+    snapshot.pages.settings = PageData::ready(settings);
+
+    let surface = harness::SurfaceHarness::new(Some(snapshot)).unwrap();
+
+    // The runtime never confirmed the TUN device, so the surface does not
+    // claim that it runs and does not ask the owner to turn it off. The
+    // system proxy readback is the fact the traffic mode follows, so only
+    // the system proxy is switched off.
+    assert_eq!(
+        dispatched_commands(surface.set_network_mode("Core only")),
+        vec![CommandIntent::SetSystemProxy { enabled: false }],
+        "the unconfirmed TUN device must not be switched off"
+    );
 }
 
 #[test]
@@ -259,7 +311,30 @@ fn the_projection_labels_the_route_and_network_mode_from_the_shared_snapshot() {
     let mut settings = default_settings_snapshot();
     settings.tun_enabled = Some(true);
     snapshot.pages.settings = PageData::ready(settings);
+    // The traffic mode is the runtime control's readback, so the TUN device
+    // is only reported once the runtime confirmed it.
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Ready,
+        tun_enabled: Some(true),
+        ..RuntimeControlSnapshot::default()
+    };
     surface.publish_snapshot(snapshot);
     assert_eq!(surface.route_mode(), "Global");
     assert_eq!(surface.network_mode(), "TUN");
+}
+
+#[test]
+fn a_configured_tun_device_the_runtime_never_confirmed_is_not_a_traffic_mode() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
+
+    let mut snapshot = desktop_snapshot();
+    let mut settings = default_settings_snapshot();
+    settings.tun_enabled = Some(true);
+    snapshot.pages.settings = PageData::ready(settings);
+    surface.publish_snapshot(snapshot);
+
+    // The configuration asks for the TUN device, but the runtime published no
+    // readback, so the surface reports no confirmed mode at all.
+    assert_eq!(surface.network_mode(), "Unknown");
+    assert!(surface.window().get_network_mode_status_warning());
 }

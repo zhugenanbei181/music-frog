@@ -7,18 +7,15 @@ use super::routing;
 use super::{Tone, button, header, lock, row, row_action, text};
 use crate::WorkbenchItem;
 use crate::surface::action::workbench::{
-    AGGREGATE_CREATE, AGGREGATE_PREVIEW, APP_ROUTING_MODE_ALL, APP_ROUTING_MODE_BYPASS,
-    APP_ROUTING_MODE_PROXY, APP_ROUTING_RULE, DIFF_CLOSE, DIFF_LOAD, DNS_CACHE_CANCEL,
-    DNS_CACHE_CONFIRM, DNS_CACHE_RETRY, DNS_HOSTS_ADD, DNS_HOSTS_CANCEL, DNS_HOSTS_IMPORT,
-    DNS_HOSTS_REMOVE, DNS_HOSTS_SAVE, DNS_LEAK_PROBE, DNS_QUERY_CANCEL, DNS_QUERY_RETRY,
-    DNS_QUERY_RUN, DOCTOR_BOOTSTRAP, DOCTOR_DIAGNOSE, DOCTOR_REPAIR, DOCTOR_REPAIR_ALL,
-    FILTER_CANCEL, FILTER_SAVE, RESTORE_CANCEL, RESTORE_PREPARE, SCRIPT_CLEAR,
-    SCRIPT_EXPORT_CANCEL, SCRIPT_EXPORT_PREPARE, SCRIPT_EXPORT_SAVE, SCRIPT_RETRY, SCRIPT_RUN,
-    SYNC_BACKUP, SYNC_KEEP_LOCAL, SYNC_NOW, SYNC_TAKE_REMOTE,
+    AGGREGATE_CANCEL, AGGREGATE_CREATE, AGGREGATE_PREVIEW, APP_ROUTING_CANCEL,
+    APP_ROUTING_MODE_ALL, APP_ROUTING_MODE_BYPASS, APP_ROUTING_MODE_PROXY, APP_ROUTING_REFRESH,
+    APP_ROUTING_RULE, DNS_CACHE_CANCEL, DNS_CACHE_CONFIRM, DNS_CACHE_RETRY, DNS_HOSTS_ADD,
+    DNS_HOSTS_CANCEL, DNS_HOSTS_IMPORT, DNS_HOSTS_REMOVE, DNS_HOSTS_SAVE, DNS_LEAK_PROBE,
+    DNS_QUERY_CANCEL, DNS_QUERY_RETRY, DNS_QUERY_RUN, DOCTOR_BOOTSTRAP, DOCTOR_DIAGNOSE,
+    DOCTOR_REPAIR, DOCTOR_REPAIR_ALL, DOCTOR_RETRY, FILTER_CANCEL, FILTER_SAVE,
 };
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::sync::SyncStatus;
 use infiltrator_presentation::aggregation_preview_projection;
 use infiltrator_presentation::dns_cache_projection;
 use infiltrator_presentation::dns_hosts_projection;
@@ -27,11 +24,9 @@ use infiltrator_presentation::dns_query_projection;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::doctor_projection;
 use infiltrator_presentation::routing_projection;
-use infiltrator_presentation::script_console_projection;
-use infiltrator_presentation::script_export_projection;
-use infiltrator_presentation::sync_projection;
 use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::copy::TextCatalog;
 
 /// The DNS page: the leak alert, the query panel, the cache flush and the
@@ -216,192 +211,16 @@ pub(super) fn dns_page(
         DNS_HOSTS_CANCEL,
         hosts.is_open(),
     ));
+    let hosts_draft = {
+        let drafts = lock(&workbenches.drafts);
+        drafts.hosts_row().to_owned()
+    };
     (
         items,
         Some(query_draft),
-        None,
+        Some(hosts_draft),
         "dns-query-name".to_owned(),
         "dns-hosts-row".to_owned(),
-    )
-}
-
-/// The editor family page: the script sandbox, the export review, the
-/// configuration difference and the snapshot restoration.
-pub(super) fn editor_page(
-    snapshot: &SurfaceSnapshot,
-    catalog: &Lang<'_>,
-    workbenches: &Workbenches,
-) -> (
-    Vec<WorkbenchItem>,
-    Option<String>,
-    Option<String>,
-    String,
-    String,
-) {
-    let mut items = Vec::new();
-    let script = lock(&workbenches.script);
-    let sandbox = script.snapshot();
-    items.push(header(
-        "script-sandbox",
-        &catalog.text("script_sandbox_title"),
-        &catalog.text(if script.busy() {
-            "script_workbench_running"
-        } else {
-            "script_workbench_unobserved"
-        }),
-        Tone::Neutral,
-    ));
-    if let Some(report) = sandbox {
-        let presentation = script_console_projection::project_report(report, catalog);
-        items.push(text(
-            "script-sandbox-report",
-            &format!(
-                "{} · {} · {}",
-                presentation.engine, presentation.capabilities, presentation.breaker
-            ),
-        ));
-        items.push(text("script-sandbox-output", &presentation.output));
-        for directive in presentation.directives.iter().take(32) {
-            items.push(row(
-                &format!("script-sandbox/{}", directive),
-                directive,
-                "",
-                "",
-            ));
-        }
-    }
-    if let Some(failure) = script.error_detail() {
-        items.push(text("script-sandbox-error", failure));
-    }
-    items.push(button(
-        "script-run",
-        &catalog.text("script_sandbox_run"),
-        SCRIPT_RUN,
-        !script.busy(),
-    ));
-    items.push(button(
-        "script-clear",
-        &catalog.text("common_clear"),
-        SCRIPT_CLEAR,
-        !script.busy(),
-    ));
-    items.push(button(
-        "script-retry",
-        &catalog.text("script_workbench_retry"),
-        SCRIPT_RETRY,
-        script.can_retry(),
-    ));
-    let script_draft = script.script_code().to_owned();
-
-    let export = script_export_projection::project_script_export(&script, catalog);
-    items.push(header(
-        "script-export",
-        &catalog.text("script_export_title"),
-        &export.status,
-        Tone::Neutral,
-    ));
-    items.push(text("script-export-detail", &export.details));
-    if !export.content.is_empty() {
-        items.push(text("script-export-content", &export.content));
-    }
-    items.push(button(
-        "script-export-prepare",
-        &catalog.text("script_export_review_instructions"),
-        SCRIPT_EXPORT_PREPARE,
-        !script.is_export_visible(),
-    ));
-    items.push(button(
-        "script-export-save",
-        &catalog.text("common_save_apply"),
-        SCRIPT_EXPORT_SAVE,
-        export.confirm,
-    ));
-    items.push(button(
-        "script-export-cancel",
-        &catalog.text("dns_cache_cancel"),
-        SCRIPT_EXPORT_CANCEL,
-        export.close,
-    ));
-
-    items.push(header(
-        "config-diff",
-        &catalog.text("snapshot_diff_title"),
-        &match &snapshot.yaml_ast_diff {
-            Some(diff) => diff.source_id.clone(),
-            None => catalog.text("snapshot_diff_unobserved").into_owned(),
-        },
-        Tone::Neutral,
-    ));
-    if let Some(diff) = &snapshot.yaml_ast_diff {
-        items.push(text(
-            "config-diff-summary",
-            &catalog.text("snapshot_diff_summary"),
-        ));
-        for line in diff.unified_lines.iter().take(64) {
-            items.push(row(
-                &format!("config-diff/{}", line.content),
-                &line.content,
-                "",
-                "",
-            ));
-        }
-    }
-    items.push(button(
-        "config-diff-load",
-        &catalog.text("snapshot_diff_refresh"),
-        DIFF_LOAD,
-        true,
-    ));
-    items.push(button(
-        "config-diff-close",
-        &catalog.text("dns_cache_cancel"),
-        DIFF_CLOSE,
-        snapshot.yaml_ast_diff.is_some(),
-    ));
-
-    let history = snapshot
-        .pages
-        .profiles
-        .data
-        .as_ref()
-        .and_then(|page| page.snapshot_history.as_ref());
-    items.push(header(
-        "snapshot-restore",
-        &catalog.text("snapshot_restore_title"),
-        &history
-            .map(|history| history.profile.clone())
-            .unwrap_or_else(|| catalog.text("snapshot_history_unobserved").into_owned()),
-        Tone::Neutral,
-    ));
-    if let Some(history) = history {
-        for entry in history.entries.iter().take(32) {
-            items.push(row(
-                &format!("snapshot-restore/{}", entry.id),
-                &entry.file_name,
-                &entry.id,
-                &entry.sha256,
-            ));
-        }
-    }
-    items.push(button(
-        "snapshot-restore-prepare",
-        &catalog.text("snapshot_restore_ready"),
-        RESTORE_PREPARE,
-        history.is_some_and(|history| !history.entries.is_empty()),
-    ));
-    items.push(button(
-        "snapshot-restore-cancel",
-        &catalog.text("snapshot_restore_cancel"),
-        RESTORE_CANCEL,
-        history.is_some(),
-    ));
-
-    (
-        items,
-        Some(script_draft),
-        None,
-        "script-code".to_owned(),
-        String::new(),
     )
 }
 
@@ -493,11 +312,21 @@ pub(super) fn filters_page(
         AGGREGATE_CREATE,
         true,
     ));
+    items.push(button(
+        "profile-aggregator-cancel",
+        &catalog.text("common_confirm"),
+        AGGREGATE_CANCEL,
+        true,
+    ));
+    let aggregation_target = {
+        let drafts = lock(&workbenches.drafts);
+        drafts.aggregation_target().to_owned()
+    };
 
     (
         items,
         Some(filter_draft),
-        None,
+        Some(aggregation_target),
         "filter-include".to_owned(),
         "aggregator-target".to_owned(),
     )
@@ -576,6 +405,12 @@ pub(super) fn doctor_page(
         DOCTOR_BOOTSTRAP,
         true,
     ));
+    items.push(button(
+        "doctor-retry",
+        &catalog.text("script_workbench_retry"),
+        DOCTOR_RETRY,
+        doctor.can_retry(),
+    ));
 
     let watchdog = doctor_projection::watchdog_status_text(&snapshot.core.watchdog, catalog);
     items.push(header(
@@ -587,104 +422,11 @@ pub(super) fn doctor_page(
     (items, None, None, String::new(), String::new())
 }
 
-/// The synchronisation conflict and the backup page.
-pub(super) fn sync_page(
-    snapshot: &SurfaceSnapshot,
-    catalog: &Lang<'_>,
-) -> (
-    Vec<WorkbenchItem>,
-    Option<String>,
-    Option<String>,
-    String,
-    String,
-) {
-    let mut items = Vec::new();
-    let page = snapshot.pages.sync.data.as_ref();
-    items.push(header(
-        "sync-conflict",
-        &catalog.text("sync_conflict_resolver_title"),
-        &sync_projection::summary(
-            page.map_or(SyncStatus::Unknown, |page| page.status),
-            catalog,
-        ),
-        Tone::Neutral,
-    ));
-    if let Some(page) = page {
-        items.push(text(
-            "sync-server",
-            &format!(
-                "{} · {}",
-                sync_projection::server(&page.server_url, catalog),
-                sync_projection::username(&page.username, catalog)
-            ),
-        ));
-        items.push(text(
-            "sync-last",
-            &sync_projection::last_sync(page.last_sync.as_deref(), catalog),
-        ));
-        if let Some(conflict) = &page.conflict {
-            items.push(text(
-                "sync-conflict-detail",
-                &sync_projection::conflict(
-                    &conflict.remote_device,
-                    &conflict.conflict_time,
-                    conflict.conflicting_keys.len(),
-                    catalog,
-                ),
-            ));
-            for (key, local, remote) in &conflict.conflicting_keys {
-                items.push(row(
-                    &format!("sync-conflict/{}", key),
-                    key,
-                    &sync_projection::conflict_field(key, local, remote, catalog),
-                    "",
-                ));
-            }
-        }
-        for item in &page.snapshots {
-            items.push(row(
-                &format!("sync-snapshot/{}", item.id),
-                &item.profile,
-                &item.id,
-                &item.timestamp,
-            ));
-        }
-        items.push(text(
-            "sync-history",
-            &sync_projection::history_notice(&page.history_status, catalog),
-        ));
-    }
-    items.push(button(
-        "sync-now",
-        &catalog.text("sync_now"),
-        SYNC_NOW,
-        true,
-    ));
-    items.push(button(
-        "sync-keep-local",
-        &catalog.text("sync_conflict_keep_local"),
-        SYNC_KEEP_LOCAL,
-        page.is_some_and(|page| page.conflict.is_some()),
-    ));
-    items.push(button(
-        "sync-take-remote",
-        &catalog.text("sync_conflict_take_remote"),
-        SYNC_TAKE_REMOTE,
-        page.is_some_and(|page| page.conflict.is_some()),
-    ));
-    items.push(button(
-        "sync-backup",
-        &catalog.text("common_create_backup"),
-        SYNC_BACKUP,
-        true,
-    ));
-    (items, None, None, String::new(), String::new())
-}
-
 /// The application routing policy page.
 pub(super) fn app_routing_page(
     snapshot: &SurfaceSnapshot,
     catalog: &Lang<'_>,
+    workbenches: &Workbenches,
 ) -> (
     Vec<WorkbenchItem>,
     Option<String>,
@@ -722,30 +464,55 @@ pub(super) fn app_routing_page(
             ));
         }
     }
+    let observed = routing_policy_observed(snapshot);
     items.push(button(
         "app-routing-mode-all",
         &catalog.text("app_routing_mode_global"),
         APP_ROUTING_MODE_ALL,
-        true,
+        observed,
     ));
     items.push(button(
         "app-routing-mode-proxy",
         &catalog.text("app_routing_mode_selected_proxy"),
         APP_ROUTING_MODE_PROXY,
-        true,
+        observed,
     ));
     items.push(button(
         "app-routing-mode-bypass",
         &catalog.text("app_routing_mode_selected_direct"),
         APP_ROUTING_MODE_BYPASS,
+        observed,
+    ));
+    items.push(button(
+        "app-routing-cancel",
+        &catalog.text("common_confirm"),
+        APP_ROUTING_CANCEL,
         true,
     ));
+    items.push(button(
+        "app-routing-refresh",
+        &catalog.text("snapshot_diff_refresh"),
+        APP_ROUTING_REFRESH,
+        true,
+    ));
+    let routing_rule = {
+        let drafts = lock(&workbenches.drafts);
+        drafts.routing_rule().to_owned()
+    };
     (
         items,
         None,
-        None,
+        Some(routing_rule),
         String::new(),
         "app-routing-rule".to_owned(),
+    )
+}
+
+/// Whether the owner published a routing policy the surface may change.
+fn routing_policy_observed(snapshot: &SurfaceSnapshot) -> bool {
+    matches!(
+        snapshot.pages.app_routing.status,
+        PageStatus::Ready | PageStatus::Empty
     )
 }
 

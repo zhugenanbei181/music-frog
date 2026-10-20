@@ -43,6 +43,7 @@
    - 所有行为用例都通过 `infiltrator_slint::surface::harness::SurfaceHarness` 驱动**真实 Slint 回调**：harness 在无头软件渲染平台上注册生产回调、派发真实手势，并回报 surface 实际发出的 typed `CommandIntent`、typed `Failure` 与 owner 可见投影（notice、列表行、待定状态）。测试不再本地复刻路由映射、网络模式时序、主题白名单、十六进制解析或连接排序；
    - `infiltrator_slint::surface::action` 是这些行为的唯一实现：surface 回调与测试调用的是同一函数，测试无法与运行中的产品产生分叉；
    - `core_and_network_mode_tests`：覆盖路由意图分发、网络模式切换序列（系统代理/TUN/仅核心切换时的停机重启时序）、未知模式与缺失快照的 typed failure，以及 Core 生命周期投影标签；
+   - `workbench_path_tests` / `workbench_service_path_tests`：覆盖 workbench 面板的**每一条交互路径**——取消（不发命令、丢弃草稿）、owner 拒绝（typed failure 落到共享 reducer 的相位机）、重试（共享 reducer 用同一身份重发）、pending（命令在途时拒绝第二个命令）、stale（外来读回不覆盖当前事实）、empty/unsupported（共享快照的诚实空态与 typed 不支持）、migration（Hosts 旧格式迁移）、presets（内置脚本预设）、locale（语言切换后业务事实不变）、refresh（界面请求 owner 重新读取）；
    - `outbound_and_probe_tests`：覆盖代理组节点选择的 revision 强校验、单节点测速与整组批量测速（concurrency=8）意图、排序与搜索偏好分发，以及未知组/节点与探测设置缺失的 typed failure；
    - `connections_and_logs_tests`：覆盖指定连接中断命令分发、活动与已关闭连接的四维排序投影、日志级别过滤投影、发布窗口截断告警，以及**共享页面模型**的两条差分断言——日志查询按共享正则折叠（`api\.example|timeout` 命中「交替」与「转义点」，非法模式 `(` 命中零行，plain `contains` 实现无法通过），连接行序等于同一共享键的共享归约结果，控件词表 `"time"`→`LatestDesc`、`"host"`→`HostAsc`；
    - `rules_and_settings_tests`：覆盖规则开关幂等分发与待定行投影、Rule Provider 批量刷新、语言偏好解析、主题模式白名单、强调色合法性与反差度判定；
@@ -55,7 +56,16 @@
    - 一个业务只有在该 surface 上真实实现了 `required_paths` 里的每一条交互路径时，才能登记 scenario 锚点；partial 实现不构成锚点；
    - 锚点测试必须驱动真实 surface 回调并断言 typed owner 命令与 owner 可见投影，且 nextest id 必须可在 `cargo nextest list` 中发现；
    - 像素回执必须由上面的平价场景取证链路产生，标准与紧凑两个视口都要有真实像素；
-   - 当前 Slint surface 已实现并可锚点的业务为 `profiles-import-modal`（`success`,`cancel`,`error`）与 `profiles-delete-confirm`（`success`,`cancel`,`error`）；其余业务在该 surface 上仍缺具体能力，其逐条缺口由平价登记表 `scripts/parity/feature_evidence.tsv` 记录，本文档不复制第二份。
+   - **owner 终态回灌**：workbench 面板派发的每条共享命令都由 `infiltrator_slint::surface::workbenches::Workbenches::record` 记账，owner 的 typed 终态（`Result<CommandOutput, Failure>`）由 `Workbenches::settle` 交给**发起该命令的那一个共享 reducer**，因此 `error`/`retry` 路径由共享 reducer 的真实相位机判定，而不是由界面猜测；
+   - **owner 协议携带 typed 读回**：`SlintProductHost::execute_typed` 返回共享 `CommandOutput`，使带 owner 身份的读回（导出评审 `ScriptExportReview`、快照恢复评审 `SnapshotRestoreReview`、订阅过滤回执 `SubscriptionFilterApplied`）可以落到共享 reducer；不携带 typed 读回的宿主（例如 Android 宿主）继续使用默认实现，界面据此知道该业务只能到达命令派发这一步；
+   - 当前 Slint surface 已实现并可锚点的业务与路径：
+     - `dns-leak-alert`（`success`,`error`,`unsupported`）、`dns-query-details`（`success`,`cancel`,`error`,`retry`,`unsupported`,`stale`,`empty`）、`dns-fake-ip-flush-confirm`（`success`,`cancel`,`error`,`retry`,`unsupported`,`stale`）、`dns-hosts-editor`（`success`,`cancel`,`error`,`retry`,`migration`,`stale`,`empty`,`unsupported`）；
+     - `profiles-script-sandbox`（`unknown`,`success`,`error`,`retry`,`pending`,`clear`,`presets`,`locale`）、`profiles-script-export-review`（`success`,`cancel`,`error`,`retry`,`pending`,`unsupported`,`locale`）、`profiles-diff-viewer`（`success`,`close`）、`profiles-snapshot-restore-confirm`（`success`,`cancel`,`error`）；
+     - `profiles-filter-editor`（`success`,`cancel`,`error`）、`profiles-aggregator-wizard`（`success`,`cancel`,`error`）、`profiles-aggregator-preview`（`success`,`cancel`,`error`）；
+     - `doctor-failure-recovery`（`success`,`error`,`retry`）、`lifecycle-recovery-panel`（`success`,`error`,`retry`）；
+     - `sync-conflict-resolver`（`success`,`cancel`,`error`）、`sync-restore-confirm`（`success`,`cancel`,`error`）、`app-routing-policy-editor`（`success`,`cancel`,`error`,`refresh`,`unsupported`）；
+     - `profiles-import-modal`（`success`,`cancel`,`error`）与 `profiles-delete-confirm`（`success`,`cancel`,`error`）。
+   - 行为测试位于 `tests/workbench_page_tests.rs`（首批行为）、`tests/workbench_path_tests.rs`（DNS/编辑器/过滤业务的交互路径）与 `tests/workbench_service_path_tests.rs`（诊断/同步/路由业务的交互路径）；共享夹具位于 `tests/workbench_paths/fixture.rs`。
 
 5. **Slint surface 承载的业务（scenario 名称）**：
    - 承载集合由 `infiltrator_slint::capture_scenario::CarriedScenario` 唯一声明，`docs/capture/parity_scenarios.tsv` 按 `<feature>-standard` / `<feature>-compact` 两视口逐条列出；

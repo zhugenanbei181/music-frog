@@ -4,8 +4,10 @@
 //! presentation projections, or from the shared presentation reducer the
 //! surface owns. The surface never re-implements a business rule.
 
+mod editor;
 mod pages;
 mod routing;
+mod sync;
 
 use super::super::slint_model;
 use super::super::{AppWindow, WorkbenchItem};
@@ -15,7 +17,6 @@ use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
 use lurker_ui_presentation::copy::TextCatalog;
-use pages::{app_routing_page, dns_page, doctor_page, editor_page, filters_page, sync_page};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 /// The tone an item status carries into the surface.
@@ -30,10 +31,10 @@ pub(super) enum Tone {
 impl Tone {
     fn as_str(self) -> &'static str {
         match self {
-            Tone::Neutral => "neutral",
-            Tone::Success => "success",
-            Tone::Warning => "warning",
-            Tone::Danger => "danger",
+            Self::Neutral => "neutral",
+            Self::Success => "success",
+            Self::Warning => "warning",
+            Self::Danger => "danger",
         }
     }
 }
@@ -49,12 +50,12 @@ pub(super) fn project(
     observe(snapshot, workbenches);
     let page = window.get_page().to_string();
     let (items, draft, draft2, draft_id, draft2_id) = match page.as_str() {
-        "Dns" => dns_page(snapshot, &catalog, workbenches),
-        "Editor" => editor_page(snapshot, &catalog, workbenches),
-        "Filters" => filters_page(snapshot, &catalog, workbenches),
-        "Doctor" => doctor_page(snapshot, &catalog, workbenches),
-        "Sync" => sync_page(snapshot, &catalog),
-        "AppRouting" => app_routing_page(snapshot, &catalog),
+        "Dns" => pages::dns_page(snapshot, &catalog, workbenches),
+        "Editor" => editor::page(snapshot, &catalog, workbenches),
+        "Filters" => pages::filters_page(snapshot, &catalog, workbenches),
+        "Doctor" => pages::doctor_page(snapshot, &catalog, workbenches),
+        "Sync" => sync::page(snapshot, &catalog, workbenches),
+        "AppRouting" => pages::app_routing_page(snapshot, &catalog, workbenches),
         _ => (Vec::new(), None, None, String::new(), String::new()),
     };
     window.set_workbench_items(slint_model(items));

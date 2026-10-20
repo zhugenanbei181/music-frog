@@ -5,7 +5,7 @@
 //! test observe exactly the same shared command and the same typed refusal.
 
 use super::super::*;
-use crate::surface::action::workbench::{self, WorkbenchGesture};
+use crate::surface::action::workbench::{self, WorkbenchGesture, WorkbenchOutcome};
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use std::sync::mpsc::Sender;
@@ -43,10 +43,22 @@ pub(super) fn register(
             row: &row,
         };
         match workbench::dispatch(&workbenches_for_action, snapshot.as_ref(), &gesture) {
-            Ok(Some(owner_action)) => {
+            Ok(WorkbenchOutcome::Command(owner_action)) => {
+                // The reducer that owns the command correlates the owner's
+                // terminal, so the surface records which one waits for it.
+                if let SlintAction::Command(intent) = &owner_action
+                    && let Some(business) = workbench::owner_business(intent)
+                {
+                    workbenches_for_action.record(business);
+                }
                 queue_action(&tx_for_action, &weak_for_action, Ok(owner_action));
             }
-            Ok(None) => {
+            Ok(WorkbenchOutcome::Refresh) => {
+                // The owner publishes its read models on its own cadence; a
+                // refresh gesture asks for the next read immediately.
+                let _ = tx_for_action.send(WorkerRequest::Read);
+            }
+            Ok(WorkbenchOutcome::Local) => {
                 if let Some(snapshot) = snapshot.as_ref() {
                     lumen_projection::project_snapshot(&window, snapshot, None);
                     lumen_projection::project_workbench(&window, snapshot, &workbenches_for_action);
@@ -90,6 +102,21 @@ fn edit_draft(workbenches: &Workbenches, id: &str, value: String) {
         "filter-include" => {
             if let Ok(mut filter) = workbenches.filter.lock() {
                 filter.edit(FilterField::Include, value);
+            }
+        }
+        "dns-hosts-row" => {
+            if let Ok(mut drafts) = workbenches.drafts.lock() {
+                drafts.set_hosts_row(value);
+            }
+        }
+        "aggregator-target" => {
+            if let Ok(mut drafts) = workbenches.drafts.lock() {
+                drafts.set_aggregation_target(value);
+            }
+        }
+        "app-routing-rule" => {
+            if let Ok(mut drafts) = workbenches.drafts.lock() {
+                drafts.set_routing_rule(value);
             }
         }
         _ => {}
