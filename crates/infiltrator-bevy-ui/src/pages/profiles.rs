@@ -22,7 +22,9 @@ use crate::pages::profiles_snapshot_copy;
 use crate::pages::profiles_subscription_copy::sync_status_copy;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_presentation::profile_metadata_projection;
+use infiltrator_presentation::profiles_page_model::{ProfileFilterTarget, ProfilesOperation};
 
+use crate::pages::page_models::ProfilesPageModelState;
 use crate::pages::profiles::cards::{header_card_scene, profile_card_scene};
 use crate::pages::profiles_aggregator::sync_aggregation_preview;
 use crate::pages::profiles_aggregator_wizard::{
@@ -192,6 +194,18 @@ pub struct ProfileItem {
     /// DUAL-09-12: the same write classification the Iced editor and the
     /// application guard use.
     pub write_protection: ProfileWriteProtection,
+}
+
+impl ProfileFilterTarget for ProfileItem {
+    fn profile_name(&self) -> &str {
+        &self.name
+    }
+
+    fn profile_kind(&self) -> &str {
+        // The owner's profile snapshot publishes no profile kind, so the
+        // shared filter's kind clause has no source on this surface.
+        ""
+    }
 }
 
 /// Snapshot of the Profiles domain.
@@ -512,11 +526,18 @@ pub(crate) fn on_update_all_subscriptions_activated(
     activate: On<Activate>,
     buttons: Query<(), With<UpdateAllSubscriptionsButton>>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut model: Option<ResMut<ProfilesPageModelState>>,
 ) {
     let Some(handle) = handle else {
         return;
     };
     if buttons.get(activate.entity).is_ok() {
+        if let Some(model) = model.as_deref_mut() {
+            model
+                .0
+                .operation_mut(ProfilesOperation::UpdateSubscription)
+                .begin();
+        }
         handle.submit(UiCommand::UpdateAllSubscriptions);
     }
 }
@@ -543,6 +564,7 @@ pub(crate) fn on_update_profile_activated(
     buttons: Query<&UpdateProfileButton>,
     last: Option<Res<LastProfilesProjection>>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut model: Option<ResMut<ProfilesPageModelState>>,
 ) {
     let Some(handle) = handle else {
         return;
@@ -557,6 +579,12 @@ pub(crate) fn on_update_profile_activated(
     else {
         return;
     };
+    if let Some(model) = model.as_deref_mut() {
+        model
+            .0
+            .operation_mut(ProfilesOperation::UpdateSubscription)
+            .begin();
+    }
     handle.submit(UiCommand::UpdateProfile {
         id: profile.id.clone(),
     });

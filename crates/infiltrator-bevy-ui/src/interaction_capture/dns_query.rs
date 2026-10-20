@@ -1,4 +1,5 @@
 //! Drive a visible native launcher, actual keyboard and menu, then the real query command.
+use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -16,14 +17,16 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::LocalizedLabel;
+use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 use infiltrator_test_support::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use std::sync::Arc;
 
 #[derive(Resource)]
@@ -36,8 +39,17 @@ pub fn install(app: &mut App) {
     let port = Arc::new(IsolatedQueries::default());
     port.set_mode(QueryFixtureMode::ShortAnswer);
     let application = DnsQueryApplication::new(Some(port.clone()));
-    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_dns_query(application.clone()),
+    // The DNS query is a Core backend command: the shared bus admits it only
+    // with a validated Core scope, so the capture drives the Core owner's
+    // scoped route instead of the unscoped one.
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(LanguageCaptureProcess),
+        Arc::new(LanguageCaptureProcess),
+        tokio_application_runtime().expect("isolated DNS query runtime"),
+    ));
+    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::scoped(
+        core,
+        capture_command_application().with_dns_query(application.clone()),
         CaptureCapability::DnsQuery,
     ))));
     app.insert_resource(QueryCapture {

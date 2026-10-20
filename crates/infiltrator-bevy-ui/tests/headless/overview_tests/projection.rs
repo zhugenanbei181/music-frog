@@ -24,15 +24,15 @@ fn projection_updates_restamp_in_place() {
     let ids_before = overview_entity_ids(app.world_mut());
 
     let stopped = OverviewProjection {
+        failure: None,
         readout: Default::default(),
-        state: OverviewState::Stopped,
+        run_state: OverviewRunState::Stopped,
         lifecycle: CoreLifecycle::Stopped,
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
         memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(9),
-        failure: None,
         origin: OverviewOrigin::Demo,
         core_version: None,
         traffic_waveform: Default::default(),
@@ -109,15 +109,17 @@ fn projection_updates_restamp_in_place() {
     assert_eq!(memory, "—");
 
     let unavailable = OverviewProjection {
+        failure: Some("refused".to_owned()),
         readout: Default::default(),
-        state: OverviewState::Unavailable,
+        run_state: OverviewRunState::Unavailable {
+            reason: "the core failed".to_owned(),
+        },
         lifecycle: CoreLifecycle::Failed,
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
         memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(10),
-        failure: Some("refused".to_owned()),
         origin: OverviewOrigin::LiveCore,
         core_version: Some("v1.19.18".to_owned()),
         traffic_waveform: Default::default(),

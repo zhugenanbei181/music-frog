@@ -1,17 +1,18 @@
 use super::surface_projection_defaults::{
-    empty_app_routing, empty_connections, empty_dns, empty_doctor, empty_logs, empty_profiles,
-    empty_rules, empty_sync,
+    empty_connections, empty_dns, empty_doctor, empty_logs, empty_profiles, empty_rules,
 };
 use super::surface_settings::empty_settings;
 use super::*;
 use crate::pages::app_routing::AppItem;
+use crate::pages::page_models::{
+    observe_app_routing_model, observe_dns_model, observe_overview_model, observe_proxies_model,
+    observed_outbound_preferences,
+};
 use lurker_core_contract::outbound::details::OutboundDetail;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
 #[cfg(any(feature = "capture-tools", test))]
 use lurker_core_contract::page::SurfaceOrigin;
-use std::cmp::Ordering;
-use std::collections::HashMap;
 
 use crate::pages::doctor::{DoctorCheckItem, DoctorProjection};
 use crate::pages::logs::LogEntry;
@@ -20,21 +21,25 @@ use crate::pages::profiles::ProfileItem;
 use crate::pages::proxies::{ProxyGroup, ProxyNode};
 use crate::pages::rules::{RuleItem, RuleProviderItem};
 use crate::pages::sync::{ConflictingKey, SnapshotItem, SyncConflictInfo};
-use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
+use crate::projection::{OverviewOrigin, OverviewProjection};
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
-use infiltrator_presentation::routing_intent_projection;
-use infiltrator_presentation::system_toggle_projection;
-use lurker_core_contract::lifecycle::CoreLifecycle;
+use infiltrator_contract::uwp::UwpLoopbackSnapshot;
+use infiltrator_domain::app_routing::AppRoutingMode;
+use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
+use infiltrator_presentation::dns_page_model::DnsPageModel;
+use infiltrator_presentation::overview_page_model::OverviewPageModel;
+use infiltrator_presentation::profiles_page_model::ProfilesPageModel;
+use infiltrator_presentation::proxies_page_model::{ProxiesPageModel, proxy_name_runs};
+use infiltrator_presentation::sync_page_model::SyncPageModel;
 use lurker_core_contract::outbound::{
     details::{
         OutboundCollectionKind, OutboundDetailsState, OutboundFeature, OutboundHealthObservation,
         OutboundObservation, OutboundProtocolObservation, OutboundSnapshot,
     },
     inventory::{OutboundInventoryState, OutboundSelectionState, SelectionAvailability},
-    preferences::{OutboundHealthFilter, OutboundSortOrder},
 };
 use std::time;
 
@@ -43,17 +48,16 @@ pub(super) fn overview_projection(
 ) -> OverviewProjection {
     let page = snapshot.pages.overview.data.as_ref();
     let core = &snapshot.core;
-    let state = match core.lifecycle {
-        CoreLifecycle::Running | CoreLifecycle::Ready => OverviewState::Running,
-        CoreLifecycle::Stopped => OverviewState::Stopped,
-        CoreLifecycle::Starting | CoreLifecycle::Stopping | CoreLifecycle::Failed => {
-            OverviewState::Unavailable
-        }
-    };
+    // The shared overview model owns the run tri-state, the routing mode and
+    // the traffic mode with its status and warning: the surface reads them
+    // instead of re-deriving them from the raw snapshot.
+    let mut model = OverviewPageModel::default();
+    observe_overview_model(&mut model, snapshot);
     OverviewProjection {
         lifecycle: core.lifecycle.clone(),
+        failure: core.failure.as_ref().map(|failure| failure.message.clone()),
         readout: snapshot.shell_readout.clone(),
-        state,
+        run_state: model.run_state().clone(),
         upload_bps: page
             .map(|value| value.upload_bps)
             .unwrap_or(core.upload_bps),
@@ -72,11 +76,6 @@ pub(super) fn overview_projection(
             .and_then(|value| u64::try_from(value).ok())
             .map(time::Duration::from_millis)
             .unwrap_or_default(),
-        failure: snapshot
-            .failure
-            .as_ref()
-            .or(core.failure.as_ref())
-            .map(|failure| failure.message.clone()),
         origin: {
             #[cfg(any(feature = "capture-tools", test))]
             {
@@ -104,8 +103,8 @@ pub(super) fn overview_projection(
         reconnect_mask: snapshot.reconnect_mask.clone(),
         viewport: snapshot.viewport.clone(),
         subscription_quota: snapshot.subscription_quota.clone(),
-        system_toggles: system_toggle_projection::from_surface(snapshot),
-        routing_intent: routing_intent_projection::from_surface(snapshot),
+        system_toggles: model.toggles().clone(),
+        routing_intent: model.routing_intent().clone(),
         speedtest: snapshot.speedtest.clone(),
         cpu_percent: match &snapshot.resources {
             CoreResourceSnapshot::NotObserved => ResourceAvailability::NotObserved,
@@ -123,8 +122,13 @@ pub(super) fn overview_projection(
 pub(super) fn proxies_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ProxiesProjection {
-    use crate::pages::proxies_filter::{matches_proxy_filter, name_runs};
     use lurker_core_contract::page::PageStatus;
+
+    // The shared page model owns the match rule, the member order, the group
+    // fold and the health filter. The surface only folds the owner's
+    // preferences into it and renders what it answers.
+    let mut model = ProxiesPageModel::default();
+    observe_proxies_model(&mut model, snapshot);
 
     let scope = snapshot.core.scope();
     let inventory = matches!(
@@ -141,13 +145,7 @@ pub(super) fn proxies_projection(
     .then_some(snapshot.outbound_details.data.as_ref())
     .flatten()
     .filter(|details| scope.as_ref() == Some(details.scope()));
-    let preferences = matches!(
-        snapshot.outbound_ui_preferences.status,
-        PageStatus::Ready | PageStatus::Empty
-    )
-    .then_some(snapshot.outbound_ui_preferences.data.as_ref())
-    .flatten()
-    .filter(|preferences| scope.as_ref() == Some(preferences.scope()));
+    let preferences = observed_outbound_preferences(snapshot);
 
     let mut groups = Vec::new();
     if let Some(inventory) = inventory
@@ -187,8 +185,7 @@ pub(super) fn proxies_projection(
                     let delay_ms = detail.and_then(latency_ms);
                     let health =
                         detail.map_or(OutboundHealthObservation::Unknown, |detail| detail.health);
-                    let favorite = preferences
-                        .is_some_and(|preferences| preferences.favorite_outbound_ids.contains(id));
+                    let favorite = model.is_favorite(id);
                     let features = detail.map_or_else(Vec::new, feature_names);
                     let node = ProxyNode {
                         outbound_id: Some(id.clone()),
@@ -203,33 +200,29 @@ pub(super) fn proxies_projection(
                         favorite,
                         features,
                     };
-                    if preferences.is_some_and(|preferences| {
-                        preferences.health_filter == OutboundHealthFilter::HealthyOnly
-                            && node.health != OutboundHealthObservation::Healthy
-                    }) {
+                    if !model.keeps_health(node.health) {
                         return None;
                     }
                     Some(node)
                 })
                 .collect();
 
-            if let Some(preferences) = preferences {
-                let group_matches = collection
-                    .id
-                    .value()
-                    .to_ascii_lowercase()
-                    .contains(&preferences.search_query.trim().to_ascii_lowercase());
-                if !preferences.search_query.trim().is_empty() && !group_matches {
-                    proxies.retain(|node| matches_proxy_filter(node, &preferences.search_query));
-                }
-                sort_outbound_nodes(&mut proxies, preferences.sort_order);
-            }
-            let expanded = preferences.is_none_or(|preferences| {
-                !preferences.collapsed_group_ids.contains(&collection.id)
-            });
+            // The group fold and the member order are the shared model's
+            // answer, not a local rule: a group the query matches keeps all
+            // of its members, a group it does not match keeps only the
+            // members it matches.
+            let group_name = collection.id.value().to_owned();
+            let mut visible: Vec<ProxyNode> = model
+                .visible_members(&group_name, &proxies)
+                .into_iter()
+                .cloned()
+                .collect();
+            model.sort_members(&mut visible);
+            proxies = visible;
+            let expanded = model.group_expanded(&collection.id);
             groups.push(ProxyGroup {
                 collection_id: Some(collection.id.clone()),
-                name: collection.id.value().to_owned(),
+                name: group_name,
                 group_type,
                 classification,
                 current: selected
@@ -243,37 +236,37 @@ pub(super) fn proxies_projection(
         }
     }
 
-    if let Some(preferences) = preferences {
-        let positions: HashMap<_, _> = preferences
-            .group_order
-            .iter()
-            .enumerate()
-            .map(|(index, id)| (id, index))
-            .collect();
-        groups.sort_by_key(|group| {
-            group
-                .collection_id
-                .as_ref()
-                .and_then(|id| positions.get(id).copied())
-                .unwrap_or(usize::MAX)
-        });
-    }
+    // The group order is the owner's order; a group the owner did not order
+    // ranks last.
+    groups.sort_by_key(|group| {
+        group
+            .collection_id
+            .as_ref()
+            .map(|id| model.group_rank(id))
+            .unwrap_or(usize::MAX)
+    });
 
     let search_query =
         preferences.map_or_else(String::new, |preferences| preferences.search_query.clone());
     let name_runs = groups
         .iter()
         .flat_map(|group| group.proxies.iter())
-        .map(|node| (node.name.clone(), name_runs(node, &search_query)))
+        .map(|node| {
+            (
+                node.name.clone(),
+                proxy_name_runs(&node.name, model.query()),
+            )
+        })
         .collect();
     ProxiesProjection {
         name_runs,
         search_query,
         groups,
         testing: false,
-        filter_alive: preferences.is_some_and(|preferences| {
-            preferences.health_filter == OutboundHealthFilter::HealthyOnly
-        }),
+        filter_alive: model.healthy_only(),
+        // The layout is an owner-published preference, not a derivation: an
+        // unread preference read keeps the grid instead of claiming a layout
+        // the owner never published.
         compact_view: preferences
             .is_some_and(|preferences| preferences.layout == OutboundLayout::CompactList),
         active_exit: snapshot.active_exit.name.clone().unwrap_or_default(),
@@ -286,6 +279,48 @@ pub(super) fn proxies_projection(
         .cloned()
         .unwrap_or_default(),
     }
+}
+
+/// The profiles the shared page model shows.
+///
+/// The list filter is the shared model's: the surface only renders what the
+/// model keeps.
+fn shared_visible_profiles(
+    model: &mut ProfilesPageModel,
+    value: &surface_snapshot::ProfilesPageSnapshot,
+) -> Vec<ProfileItem> {
+    let items: Vec<ProfileItem> = value
+        .profiles
+        .iter()
+        .map(|profile| ProfileItem {
+            id: profile.id.clone(),
+            name: profile.name.clone(),
+            url: profile.url.clone(),
+            updated_at: profile.updated_at.clone(),
+            upload_bytes: profile.upload_bytes,
+            download_bytes: profile.download_bytes,
+            total_bytes: profile.total_bytes,
+            is_active: profile.is_active,
+            user_agent: profile.user_agent.clone(),
+            insecure_skip_verify: profile.insecure_skip_verify,
+            etag: profile.etag.clone(),
+            last_modified: profile.last_modified.clone(),
+            has_backup: profile.has_backup,
+            cron_expression: profile.cron_expression.clone(),
+            auto_update_enabled: profile.auto_update_enabled,
+            update_interval_hours: profile.update_interval_hours,
+            next_update: profile.next_update.clone(),
+            auto_reload_core: profile.auto_reload_core,
+            filter: profile.filter.clone(),
+            filter_source: profile.filter_source.clone(),
+            write_protection: profile.write_protection,
+        })
+        .collect();
+    model
+        .visible_profiles(&items)
+        .into_iter()
+        .cloned()
+        .collect()
 }
 
 fn collection_kind(
@@ -345,42 +380,6 @@ fn feature_names(detail: &OutboundDetail) -> Vec<String> {
     }
 }
 
-fn sort_outbound_nodes(nodes: &mut [ProxyNode], order: OutboundSortOrder) {
-    nodes.sort_by(|left, right| {
-        let favorite_order = || right.favorite.cmp(&left.favorite);
-        match order {
-            OutboundSortOrder::LatencyAscending => favorite_order()
-                .then_with(|| delay_ascending(left.delay_ms, right.delay_ms))
-                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase())),
-            OutboundSortOrder::LatencyDescending => favorite_order()
-                .then_with(|| delay_descending(left.delay_ms, right.delay_ms))
-                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase())),
-            OutboundSortOrder::NameAscending => {
-                left.name.to_lowercase().cmp(&right.name.to_lowercase())
-            }
-            OutboundSortOrder::NameDescending => {
-                right.name.to_lowercase().cmp(&left.name.to_lowercase())
-            }
-        }
-    });
-}
-
-fn delay_ascending(left: Option<u32>, right: Option<u32>) -> Ordering {
-    match (
-        left.filter(|delay| *delay > 0),
-        right.filter(|delay| *delay > 0),
-    ) {
-        (Some(left), Some(right)) => left.cmp(&right),
-        (Some(_), None) => Ordering::Less,
-        (None, Some(_)) => Ordering::Greater,
-        (None, None) => Ordering::Equal,
-    }
-}
-
-fn delay_descending(left: Option<u32>, right: Option<u32>) -> Ordering {
-    delay_ascending(right, left)
-}
-
 fn outbound_display_name(id: &OutboundId, entries: &[OutboundSnapshot]) -> String {
     entries
         .iter()
@@ -393,39 +392,16 @@ fn outbound_display_name(id: &OutboundId, entries: &[OutboundSnapshot]) -> Strin
 pub(super) fn profiles_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ProfilesProjection {
+    // The shared page model owns the list filter: the surface renders the
+    // profiles the model keeps.
+    let mut model = ProfilesPageModel::default();
     let mut projection = snapshot
         .pages
         .profiles
         .data
         .as_ref()
         .map(|value| ProfilesProjection {
-            profiles: value
-                .profiles
-                .iter()
-                .map(|profile| ProfileItem {
-                    id: profile.id.clone(),
-                    name: profile.name.clone(),
-                    url: profile.url.clone(),
-                    updated_at: profile.updated_at.clone(),
-                    upload_bytes: profile.upload_bytes,
-                    download_bytes: profile.download_bytes,
-                    total_bytes: profile.total_bytes,
-                    is_active: profile.is_active,
-                    user_agent: profile.user_agent.clone(),
-                    insecure_skip_verify: profile.insecure_skip_verify,
-                    etag: profile.etag.clone(),
-                    last_modified: profile.last_modified.clone(),
-                    has_backup: profile.has_backup,
-                    cron_expression: profile.cron_expression.clone(),
-                    auto_update_enabled: profile.auto_update_enabled,
-                    update_interval_hours: profile.update_interval_hours,
-                    next_update: profile.next_update.clone(),
-                    auto_reload_core: profile.auto_reload_core,
-                    filter: profile.filter.clone(),
-                    filter_source: profile.filter_source.clone(),
-                    write_protection: profile.write_protection,
-                })
-                .collect(),
+            profiles: shared_visible_profiles(&mut model, value),
             auto_update_interval_hours: value.auto_update_interval_hours,
             updating: value.updating,
             aggregation: value.aggregation.clone(),
@@ -568,6 +544,10 @@ pub(super) fn logs_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> L
 }
 
 pub(super) fn dns_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> DnsProjection {
+    // The shared page model owns the DNS modes; the surface reads them from
+    // there instead of re-deriving them from the raw snapshot.
+    let mut model = DnsPageModel::default();
+    observe_dns_model(&mut model, snapshot);
     snapshot
         .pages
         .dns
@@ -580,12 +560,13 @@ pub(super) fn dns_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> Dn
                 snapshot.dns_hosts.data.as_ref(),
                 &snapshot.dns_cache.report,
             )
+            .with_shared_modes(&model)
         })
         .unwrap_or_else(|| {
             let mut projection = empty_dns();
             projection.leak = snapshot.dns_leak.clone();
             projection.cache_flush = snapshot.dns_cache.report.clone();
-            projection
+            projection.with_shared_modes(&model)
         })
 }
 
@@ -627,73 +608,74 @@ pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) ->
 pub(super) fn app_routing_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> AppRoutingProjection {
-    snapshot
-        .pages
-        .app_routing
-        .data
-        .as_ref()
-        .map(|value| AppRoutingProjection {
-            mode: value.mode.into(),
-            include_system: value.include_system,
-            uwp_loopback: value.uwp_loopback.clone(),
-            apps: value
-                .apps
-                .iter()
-                .map(|app| AppItem {
-                    id: app.id.clone(),
-                    name: app.name.clone(),
-                    process_name: app.process_name.clone(),
-                    rule: app.rule.into(),
-                    is_system: app.is_system,
-                })
-                .collect(),
-        })
-        .unwrap_or_else(empty_app_routing)
+    // The shared page model owns the routing mode, the application list, the
+    // loopback packages and the scan phase.
+    let mut model = AppRoutingPageModel::default();
+    observe_app_routing_model(&mut model, snapshot);
+    let mut uwp_loopback = UwpLoopbackSnapshot::default();
+    uwp_loopback.availability = model.uwp_availability().clone();
+    uwp_loopback.packages = model.uwp_packages().to_vec();
+    uwp_loopback.revision = model.uwp_revision();
+    AppRoutingProjection {
+        mode: model
+            .mode()
+            .map(Into::into)
+            .unwrap_or(AppRoutingMode::ProxyAll),
+        include_system: model.include_system().unwrap_or(false),
+        uwp_loopback,
+        apps: model
+            .apps()
+            .iter()
+            .map(|app| AppItem {
+                id: app.id.clone(),
+                name: app.name.clone(),
+                process_name: app.process_name.clone(),
+                rule: app.rule.into(),
+                is_system: app.is_system,
+            })
+            .collect(),
+    }
 }
 
 pub(super) fn sync_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> SyncProjection {
-    snapshot
-        .pages
-        .sync
-        .data
-        .as_ref()
-        .map(|value| SyncProjection {
-            status: value.status,
-            history_status: value.history_status.clone(),
-            server_url: value.server_url.clone(),
-            username: value.username.clone(),
-            last_sync: value.last_sync.clone(),
-            auto_sync: value.auto_sync,
-            conflict: value.conflict.as_ref().map(|conflict| SyncConflictInfo {
-                remote_device: conflict.remote_device.clone(),
-                conflict_time: conflict.conflict_time.clone(),
-                conflicting_keys: conflict
-                    .conflicting_keys
-                    .iter()
-                    .map(|(key, local, remote)| ConflictingKey {
-                        key: key.clone(),
-                        local_value: local.clone(),
-                        remote_value: remote.clone(),
-                    })
-                    .collect(),
-            }),
-            snapshots: value
-                .snapshots
+    // The shared page model owns the observation fold, the conflict-field
+    // projection and the two operation phases.
+    let mut model = SyncPageModel::default();
+    if let Some(page) = snapshot.pages.sync.data.as_ref() {
+        model.observe_page(page.clone());
+    }
+    SyncProjection {
+        status: model.status(),
+        history_status: model.history_status(),
+        server_url: model.server_url().to_owned(),
+        username: model.username().to_owned(),
+        last_sync: model.last_sync().map(str::to_owned),
+        auto_sync: model.auto_sync().unwrap_or(false),
+        conflict: model.conflict().map(|conflict| SyncConflictInfo {
+            remote_device: conflict.remote_device.clone(),
+            conflict_time: conflict.conflict_time.clone(),
+            conflicting_keys: conflict
+                .conflicting_keys
                 .iter()
-                .map(|item| SnapshotItem {
-                    profile: item.profile.clone(),
-                    id: item.id.clone(),
-                    timestamp: item.timestamp.clone(),
-                    device: item.device.clone(),
-                    size_bytes: item.size_bytes,
+                .map(|(key, local, remote)| ConflictingKey {
+                    key: key.clone(),
+                    local_value: local.clone(),
+                    remote_value: remote.clone(),
                 })
                 .collect(),
-        })
-        .unwrap_or_else(|| {
-            let mut projection = empty_sync();
-            projection.history_status = snapshot.pages.sync.status.clone();
-            projection
-        })
+        }),
+        snapshots: model
+            .snapshots()
+            .iter()
+            .map(|item| SnapshotItem {
+                profile: item.profile.clone(),
+                id: item.id.clone(),
+                timestamp: item.timestamp.clone(),
+                device: item.device.clone(),
+                size_bytes: item.size_bytes,
+            })
+            .collect(),
+    }
 }
 
 pub(super) fn settings_projection(
@@ -770,4 +752,107 @@ pub(super) fn settings_projection(
     projection.tun_strict_route = observed.tun_strict_route;
     projection.log_level = observed.log_level.clone();
     projection
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lurker_core_contract::outbound::preferences::OutboundSortOrder;
+
+    use super::super::surface_demo::demo_snapshot;
+
+    /// The engine identity of one demo outbound node.
+    fn demo_outbound_id(snapshot: &surface_snapshot::SurfaceSnapshot, value: &str) -> OutboundId {
+        let inventory = snapshot
+            .outbound_inventory
+            .data
+            .as_ref()
+            .expect("the demo snapshot publishes the outbound inventory");
+        let OutboundInventoryState::Ready { entries, .. } = inventory.inventory() else {
+            panic!("the demo outbound inventory is ready");
+        };
+        entries
+            .iter()
+            .find(|entry| entry.id.value() == value)
+            .unwrap_or_else(|| panic!("the demo snapshot publishes {value}"))
+            .id
+            .clone()
+    }
+
+    #[test]
+    fn the_proxies_projection_keeps_the_favourite_first_on_every_order() {
+        let mut snapshot = demo_snapshot();
+        let slowest = demo_outbound_id(&snapshot, "US-04");
+        let preferences = snapshot
+            .outbound_ui_preferences
+            .data
+            .as_mut()
+            .expect("the demo snapshot publishes the outbound preferences");
+        preferences.favorite_outbound_ids = vec![slowest];
+        preferences.sort_order = OutboundSortOrder::NameAscending;
+
+        let projection = proxies_projection(&snapshot);
+        let group = projection
+            .groups
+            .iter()
+            .find(|group| group.name == "PROXIES")
+            .expect("the demo snapshot publishes the PROXIES group");
+        let names: Vec<&str> = group
+            .proxies
+            .iter()
+            .map(|node| node.name.as_str())
+            .collect();
+
+        // The shared member order puts a favourite first on every order —
+        // the name order included, which the former local rule did not.
+        assert_eq!(names, vec!["US-04", "HK-01", "JP-02", "SG-03"]);
+    }
+
+    #[test]
+    fn the_proxies_projection_filters_the_members_with_the_shared_rule() {
+        let mut snapshot = demo_snapshot();
+        let preferences = snapshot
+            .outbound_ui_preferences
+            .data
+            .as_mut()
+            .expect("the demo snapshot publishes the outbound preferences");
+        preferences.search_query = "trojan".to_owned();
+
+        let projection = proxies_projection(&snapshot);
+        let group = projection
+            .groups
+            .iter()
+            .find(|group| group.name == "PROXIES")
+            .expect("the demo snapshot publishes the PROXIES group");
+        let names: Vec<&str> = group
+            .proxies
+            .iter()
+            .map(|node| node.name.as_str())
+            .collect();
+
+        // The shared rule matches the protocol, so the group that does not
+        // match the query keeps only the member the query matches.
+        assert_eq!(names, vec!["SG-03"]);
+    }
+
+    #[test]
+    fn the_proxies_projection_highlights_with_the_shared_name_runs() {
+        let mut snapshot = demo_snapshot();
+        let preferences = snapshot
+            .outbound_ui_preferences
+            .data
+            .as_mut()
+            .expect("the demo snapshot publishes the outbound preferences");
+        preferences.search_query = "jp".to_owned();
+
+        let projection = proxies_projection(&snapshot);
+        let runs = projection
+            .name_runs
+            .get("JP-02")
+            .expect("the matching node carries its highlight runs");
+        assert!(
+            runs.iter().any(|run| run.highlighted),
+            "the shared name runs highlight the matched node"
+        );
+    }
 }

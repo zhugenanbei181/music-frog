@@ -4,8 +4,8 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::ime::ShellImeComposition;
 use crate::localized_widgets::{localized_button_scene, localized_field_scene};
+use crate::pages::page_models::RulesPageModelState;
 use crate::pages::rules::{LastRulesProjection, RulesProjectionUpdated};
-use crate::pages::rules_tabs::RulesTabState;
 use crate::pages::rules_tracer_sandbox;
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
@@ -147,7 +147,7 @@ pub struct TraceInput<'w, 's> {
     text_fields: Query<'w, 's, &'static mut TextField, With<TracerNativeField>>,
     composition: Option<Res<'w, ShellImeComposition>>,
     route: Res<'w, ActiveRoute>,
-    tab: Option<Res<'w, RulesTabState>>,
+    tab: Option<Res<'w, RulesPageModelState>>,
 }
 impl TraceInput<'_, '_> {
     fn active(&self) -> bool {
@@ -155,7 +155,7 @@ impl TraceInput<'_, '_> {
             && self
                 .tab
                 .as_ref()
-                .is_some_and(|tab| tab.tab == RulesTab::Tracer)
+                .is_some_and(|tab| tab.0.tab() == RulesTab::Tracer)
     }
 }
 
@@ -262,7 +262,7 @@ pub struct TraceObservation<'w> {
     last: Option<Res<'w, LastRulesProjection>>,
     locale: Res<'w, UiLocale>,
     route: Res<'w, ActiveRoute>,
-    tab: Option<Res<'w, RulesTabState>>,
+    tab: Option<Res<'w, RulesPageModelState>>,
     composition: Option<Res<'w, ShellImeComposition>>,
 }
 impl TraceObservation<'_> {
@@ -271,7 +271,7 @@ impl TraceObservation<'_> {
             && self
                 .tab
                 .as_ref()
-                .is_some_and(|tab| tab.tab == RulesTab::Tracer)
+                .is_some_and(|tab| tab.0.tab() == RulesTab::Tracer)
     }
 }
 

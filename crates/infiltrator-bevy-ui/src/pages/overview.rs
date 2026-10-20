@@ -594,11 +594,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
     let state = banner_state_text(projection, "en-US");
     let state_node = status_semantic_node(&state);
     let chip = routing_intent_status_copy(&projection.routing_intent, &Lang("en-US"));
-    let failure = failure_copy(
-        &projection.lifecycle,
-        projection.failure.as_deref(),
-        &Lang("en-US"),
-    );
+    let failure = failure_copy(&projection.lifecycle, projection.failure(), &Lang("en-US"));
     let note = banner_note(projection, "en-US");
     bsn! {
             Node {

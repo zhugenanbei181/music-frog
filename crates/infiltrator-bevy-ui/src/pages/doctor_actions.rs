@@ -4,6 +4,7 @@ use crate::command_events::CommandExecutedEvent;
 use crate::pages::doctor::{
     RepairAllDoctorButton, RepairDoctorRowButton, RunDoctorDiagnosticsButton,
 };
+use crate::pages::page_models::DoctorPageModelState;
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
@@ -16,15 +17,16 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::doctor::DoctorAction;
-use infiltrator_presentation::doctor_actions::{
-    DoctorActionFinish, DoctorActionPhase, DoctorActionState,
-};
+use infiltrator_presentation::doctor_actions::{DoctorActionFinish, DoctorActionPhase};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::page::PageStatus;
 
+/// The command correlation of the doctor page.
+///
+/// The phase itself is the shared page model's: this resource only remembers
+/// which submitted request the owner still owes an answer for.
 #[derive(Resource, Default)]
 pub struct DoctorActions {
-    pub state: DoctorActionState,
     request: Option<RequestId>,
 }
 #[derive(Component, Clone, Default)]
@@ -52,6 +54,7 @@ pub fn on_action(
     latest: Res<LatestSurfaceSnapshot>,
     sink: Option<Res<CommandSinkHandle>>,
     mut actions: ResMut<DoctorActions>,
+    mut model: ResMut<DoctorPageModelState>,
 ) {
     let Ok(button) = buttons.get(event.entity) else {
         return;
@@ -67,7 +70,7 @@ pub fn on_action(
     } else if button.bootstrap.is_some() {
         Some(DoctorActionAdmission::Start(DoctorAction::Bootstrap))
     } else if button.retry.is_some() {
-        match &actions.state.phase {
+        match &model.0.action().phase {
             DoctorActionPhase::Failed { retry_action, .. } => {
                 Some(DoctorActionAdmission::Retry(retry_action.clone()))
             }
@@ -110,8 +113,8 @@ pub fn on_action(
         }
     }
     let pending = match match admission {
-        DoctorActionAdmission::Start(action) => actions.state.begin(action),
-        DoctorActionAdmission::Retry(_) => actions.state.begin_retry(),
+        DoctorActionAdmission::Start(action) => model.0.begin(action),
+        DoctorActionAdmission::Retry(_) => model.0.begin_retry(),
     } {
         Ok(pending) => pending,
         Err(_) => return,
@@ -125,7 +128,7 @@ pub fn on_action(
     if let Some(request) = sink.and_then(|sink| sink.submit_tracked(command)) {
         actions.request = Some(request);
     } else {
-        actions.state.finish(
+        model.0.finish(
             pending.token,
             Err(Failure::new(
                 ErrorCode::NotReady,
@@ -135,8 +138,12 @@ pub fn on_action(
         );
     }
 }
-pub fn on_result(event: On<CommandExecutedEvent>, mut actions: ResMut<DoctorActions>) {
-    let pending = match &actions.state.phase {
+pub fn on_result(
+    event: On<CommandExecutedEvent>,
+    mut actions: ResMut<DoctorActions>,
+    mut model: ResMut<DoctorPageModelState>,
+) {
+    let pending = match &model.0.action().phase {
         DoctorActionPhase::Pending(pending) => pending.clone(),
         DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => return,
     };
@@ -146,7 +153,7 @@ pub fn on_result(event: On<CommandExecutedEvent>, mut actions: ResMut<DoctorActi
         return;
     }
     let token = pending.token;
-    match actions.state.finish(token, event.unit_result()) {
+    match model.0.finish(token, event.unit_result()) {
         DoctorActionFinish::Stale => {}
         DoctorActionFinish::Applied => actions.request = None,
     }
@@ -170,13 +177,13 @@ pub struct DoctorControls {
     retry: Option<&'static RetryDoctorButton>,
 }
 pub fn sync_controls(
-    actions: Res<DoctorActions>,
+    model: Res<DoctorPageModelState>,
     latest: Res<LatestSurfaceSnapshot>,
     locale: Res<UiLocale>,
     mut controls: Query<DoctorControls>,
     mut feedback: Query<&mut Text, With<DoctorFeedbackText>>,
 ) {
-    let busy = matches!(&actions.state.phase, DoctorActionPhase::Pending(_));
+    let busy = model.0.is_busy();
     let page = &latest.0.pages.doctor;
     for mut control in &mut controls {
         if control.run.is_none()
@@ -189,7 +196,7 @@ pub fn sync_controls(
         }
         let disabled = busy
             || if control.retry.is_some() {
-                !actions.state.can_retry()
+                !model.0.can_retry()
             } else if control.repair_all.is_some() || control.repair_one.is_some() {
                 !matches!(page.status, PageStatus::Ready)
                     || page.data.as_ref().is_none_or(|data| {
@@ -207,7 +214,7 @@ pub fn sync_controls(
             control.disabled.0 = disabled
         }
     }
-    let value = match &actions.state.phase {
+    let value = match &model.0.action().phase {
         DoctorActionPhase::Idle => String::new(),
         DoctorActionPhase::Pending(_) => {
             LocalizedText::plain("doctor_operation_pending").render(&locale)

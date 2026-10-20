@@ -1,11 +1,9 @@
-use crate::pages::app_routing::AppRoutingProjection;
 use crate::pages::connections::ConnectionsProjection;
 use crate::pages::dns::DnsProjection;
 use crate::pages::doctor::DoctorProjection;
 use crate::pages::logs::LogsProjection;
 use crate::pages::profiles::ProfilesProjection;
 use crate::pages::rules::RulesProjection;
-use crate::pages::sync::SyncProjection;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, FakeIpMappingPool,
@@ -16,8 +14,6 @@ use infiltrator_contract::dns_latency::DnsLatencyReport;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
-use infiltrator_contract::sync::SyncStatus;
-use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 use lurker_core_contract::page::PageStatus;
 
@@ -54,15 +50,6 @@ pub(super) fn empty_rules() -> RulesProjection {
         provider_cache: Default::default(),
         etag_support: Default::default(),
         json_documents: Vec::new(),
-    }
-}
-
-pub(super) fn empty_app_routing() -> AppRoutingProjection {
-    AppRoutingProjection {
-        mode: AppRoutingMode::ProxyAll,
-        include_system: false,
-        apps: Vec::new(),
-        uwp_loopback: Default::default(),
     }
 }
 
@@ -113,18 +100,5 @@ pub(super) fn empty_doctor() -> DoctorProjection {
         last_run: "—".to_owned(),
         checks: Vec::new(),
         watchdog: Default::default(),
-    }
-}
-
-pub(super) fn empty_sync() -> SyncProjection {
-    SyncProjection {
-        status: SyncStatus::Unknown,
-        history_status: PageStatus::Loading,
-        server_url: String::new(),
-        username: String::new(),
-        last_sync: None,
-        auto_sync: false,
-        conflict: None,
-        snapshots: Vec::new(),
     }
 }

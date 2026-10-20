@@ -31,9 +31,7 @@ use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::snapshot::CoreSnapshot;
-use infiltrator_contract::sync_snapshot::{
-    SnapshotItemSnapshot, SyncConflictSnapshot, SyncPageSnapshot,
-};
+use infiltrator_contract::sync_snapshot::SyncPageSnapshot;
 use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxySnapshot,
 };
@@ -105,9 +103,8 @@ fn snapshot_from_overview_fixture(
         core_version: overview.core_version.clone(),
         sampled_at_epoch_ms: i64::try_from(overview.sampled_at.as_millis()).ok(),
         failure: overview
-            .failure
-            .as_ref()
-            .map(|message| Failure::new(ErrorCode::NotReady, message.clone(), true)),
+            .failure()
+            .map(|message| Failure::new(ErrorCode::NotReady, message.to_owned(), true)),
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
@@ -180,9 +177,8 @@ fn snapshot_from_overview_fixture(
             "demo Core capabilities are unavailable",
         )),
         failure: overview
-            .failure
-            .as_ref()
-            .map(|message| Failure::new(ErrorCode::NotReady, message.clone(), true)),
+            .failure()
+            .map(|message| Failure::new(ErrorCode::NotReady, message.to_owned(), true)),
         pages,
         versions: CoreVersionSnapshot::for_engine(
             EngineId::new("mihomo").expect("demo Mihomo engine ID is valid"),
@@ -258,7 +254,7 @@ fn snapshot_from_overview_fixture(
     snapshot
 }
 
-pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
+pub(crate) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
     let overview = DemoOverviewSource::running().current();
     let core = demo_snapshot_from_overview(&overview).core;
     let pages = demo_pages_with_overview(surface_snapshot::OverviewPageSnapshot {

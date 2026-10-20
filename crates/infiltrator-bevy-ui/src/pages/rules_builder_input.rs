@@ -1,9 +1,9 @@
 //! Single native keyboard/IME owner with route-persistent wizard drafts.
+use crate::pages::page_models::RulesPageModelState;
 use crate::pages::rules_builder::{
     RuleBuilderSelection, RuleFormStatus, RuleTypeChip, RulesBuilderState, restamp_type_chips,
 };
 use crate::pages::rules_draft::RulesDraftState;
-use crate::pages::rules_tabs::RulesTabState;
 use crate::route::{ActiveRoute, Route};
 use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
@@ -61,7 +61,7 @@ pub struct RuleBuilderField {
 
 pub fn sync(
     route: Res<ActiveRoute>,
-    tab: Option<Res<RulesTabState>>,
+    tab: Option<Res<RulesPageModelState>>,
     mut editor: ResMut<RulesDraftState>,
     mut builder: Option<ResMut<RulesBuilderState>>,
     mut fields: Query<(&mut TextField, &mut TextFieldFocused, &mut RuleBuilderField)>,
@@ -69,7 +69,8 @@ pub fn sync(
     let Some(builder) = builder.as_deref_mut() else {
         return;
     };
-    let active = route.0 == Some(Route::Rules) && tab.is_some_and(|tab| tab.tab == RulesTab::List);
+    let active =
+        route.0 == Some(Route::Rules) && tab.is_some_and(|tab| tab.0.tab() == RulesTab::List);
     if builder.binding.observe(&editor.model) {
         builder.target = default_form_target(&editor.model);
         builder.initialized = false;

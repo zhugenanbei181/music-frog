@@ -1,14 +1,15 @@
 //! Actual application facts, native regex input and visible highlight observation.
+use super::capability::{capture_command_application, install_core_capabilities};
 use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::command_execution::ApplicationCommandSink;
-use crate::pages::logs::{LogMessageText, LogsPageRoot, PauseLogsButton};
+use crate::pages::logs::{LogMessageText, LogsPageRoot, LogsProjectionUpdated, PauseLogsButton};
 use crate::pages::logs_rows::LogRowIdentity;
 use crate::pages::logs_search::LogsViewState;
 use crate::route::{ActiveRoute, Route};
-use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use crate::surface::{LatestSurfaceSnapshot, logs_projection};
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
@@ -24,7 +25,6 @@ use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::log_export_capture::ReadOnlyLogExportCapture;
@@ -36,6 +36,7 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::log_capture_fixtures::{LOG_QUERY, LogCaptureProcess};
@@ -60,8 +61,13 @@ pub fn install(app: &mut App) {
         process,
         runtime.clone(),
     ));
+    // The isolated log owner really starts its Core, so it publishes the
+    // capture's own lifecycle capability matrix. Without it the shared
+    // lifecycle gate denies `StartCore` and the capture can never observe a
+    // running log session.
+    install_core_capabilities(&core);
     core.install_command_handler(Arc::new(
-        CommandApplication::new()
+        capture_command_application()
             .with_logs(core.log_application())
             .with_log_export(LogExportApplication::new(
                 core.log_application(),
@@ -86,12 +92,27 @@ pub fn install(app: &mut App) {
         stage: 0,
     });
 }
+/// Publish the capture's own observation.
+///
+/// The capture runs its own core, so its scope differs from the demo's and the
+/// whole-snapshot event is fenced out by the scope rule. The capture writes
+/// the observation it owns into the latest snapshot and triggers the page's own
+/// projection, exactly as the other captures do.
+fn publish_capture_snapshot(
+    latest: &mut LatestSurfaceSnapshot,
+    snapshot: &SurfaceSnapshot,
+    mut commands: &mut Commands,
+) {
+    latest.0 = snapshot.clone();
+    commands.trigger(LogsProjectionUpdated(logs_projection(snapshot)));
+}
+
 #[derive(SystemParam)]
 pub struct LogsControls<'w, 's> {
     capture: ResMut<'w, LogsCapture>,
     route: Res<'w, ActiveRoute>,
     view: Res<'w, LogsViewState>,
-    latest: Res<'w, LatestSurfaceSnapshot>,
+    latest: ResMut<'w, LatestSurfaceSnapshot>,
     fields: Query<'w, 's, (Entity, &'static NativeTextField, &'static TextField)>,
     rows: Query<'w, 's, (Entity, &'static LogRowIdentity)>,
     pause: Query<'w, 's, Entity, With<PauseLogsButton>>,
@@ -154,7 +175,7 @@ pub fn activate(
                 .scope()
                 .map(CoreScopeObservation::Observed)
                 .unwrap_or(CoreScopeObservation::Unavailable);
-            commands.trigger(SurfaceSnapshotUpdated(snapshot));
+            publish_capture_snapshot(&mut controls.latest, &snapshot, &mut commands);
             controls.capture.stage = 1;
         }
         1 => {
@@ -343,7 +364,7 @@ fn activate_follow(
                 .expect("continued log snapshot");
             snapshot.origin = SurfaceOrigin::Demo;
             snapshot.revision = controls.latest.0.revision + 1;
-            commands.trigger(SurfaceSnapshotUpdated(snapshot));
+            publish_capture_snapshot(&mut controls.latest, &snapshot, commands);
             controls.capture.stage = 3;
         }
         _ => {

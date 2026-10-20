@@ -68,6 +68,7 @@ use infiltrator_presentation::dns_cache_projection::flush_summary;
 use infiltrator_presentation::dns_health_projection::project_dns_health;
 use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_presentation::dns_leak_projection::project_leak;
+use infiltrator_presentation::dns_page_model::DnsPageModel;
 use infiltrator_presentation::dns_settings_projection::{filter_key, heading, mode_key};
 use infiltrator_presentation::latency_projection::project_measured_latency;
 use infiltrator_presentation::stun_projection::project_stun;
@@ -215,6 +216,16 @@ pub struct DnsProjection {
 
 impl DnsProjection {
     /// Project the shared DNS page read model into the Bevy render values.
+    /// The DNS modes the shared page model reports.
+    ///
+    /// The modes are the shared model's answer: the surface reads them from
+    /// there instead of re-deriving them from the raw snapshot.
+    pub fn with_shared_modes(mut self, model: &DnsPageModel) -> Self {
+        self.mode = model.enhanced_mode();
+        self.filter_mode = model.filter_mode();
+        self
+    }
+
     pub fn from_snapshot(
         snapshot: &DnsPageSnapshot,
         leak: &DnsLeakReport,

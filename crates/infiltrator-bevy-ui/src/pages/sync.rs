@@ -14,10 +14,16 @@ use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
+use crate::pages::page_models::SyncPageModelState;
 use crate::pages::snapshot_restore::OpenSnapshotRestore;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_contract::sync::SyncStatus;
+use infiltrator_contract::sync_snapshot::{
+    SnapshotItemSnapshot, SyncConflictSnapshot, SyncPageSnapshot,
+};
+use infiltrator_presentation::sync_page_model::{ConflictResolution, SyncPageModel};
 use infiltrator_presentation::sync_projection;
 use infiltrator_shared::byte_units::format_bytes;
 use lurker_core_contract::page::PageStatus;
@@ -154,6 +160,48 @@ pub struct SyncProjection {
 }
 
 impl SyncProjection {
+    /// The owner's page snapshot this projection renders.
+    ///
+    /// The page resolves the conflict it shows, so the projection carries the
+    /// owner's own snapshot back to the shared model: the rendered conflict
+    /// and the submitted intent can never disagree.
+    pub fn owner_page(&self) -> SyncPageSnapshot {
+        SyncPageSnapshot {
+            status: self.status,
+            history_status: self.history_status.clone(),
+            server_url: self.server_url.clone(),
+            username: self.username.clone(),
+            last_sync: self.last_sync.clone(),
+            auto_sync: self.auto_sync,
+            conflict: self.conflict.as_ref().map(|conflict| SyncConflictSnapshot {
+                remote_device: conflict.remote_device.clone(),
+                conflict_time: conflict.conflict_time.clone(),
+                conflicting_keys: conflict
+                    .conflicting_keys
+                    .iter()
+                    .map(|key| {
+                        (
+                            key.key.clone(),
+                            key.local_value.clone(),
+                            key.remote_value.clone(),
+                        )
+                    })
+                    .collect(),
+            }),
+            snapshots: self
+                .snapshots
+                .iter()
+                .map(|item| SnapshotItemSnapshot {
+                    profile: item.profile.clone(),
+                    id: item.id.clone(),
+                    timestamp: item.timestamp.clone(),
+                    device: item.device.clone(),
+                    size_bytes: item.size_bytes,
+                })
+                .collect(),
+        }
+    }
+
     /// Believable demo fixture for the Sync page.
     #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
@@ -553,26 +601,78 @@ pub(crate) fn on_sync_action_activated(
     keep_local_buttons: Query<(), With<KeepLocalConflictButton>>,
     take_remote_buttons: Query<(), With<TakeRemoteConflictButton>>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut model: Option<ResMut<SyncPageModelState>>,
 ) {
     let Some(handle) = handle else {
         return;
     };
+    let Some(model) = model.as_deref_mut() else {
+        return;
+    };
     if sync_now_buttons.contains(activate.entity) {
+        model.0.sync_now_phase_mut().begin();
         handle.submit(UiCommand::SyncNow);
     } else if create_backup_buttons.contains(activate.entity) {
         handle.submit(UiCommand::CreateBackupSnapshot);
     } else if keep_local_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::ResolveConflictKeepLocal);
+        model.0.select_resolution(ConflictResolution::KeepLocal);
+        submit_conflict_resolution(&handle, &mut model.0);
     } else if take_remote_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::ResolveConflictTakeRemote);
+        model.0.select_resolution(ConflictResolution::TakeRemote);
+        submit_conflict_resolution(&handle, &mut model.0);
+    }
+}
+
+/// Submit the typed conflict-resolution intent the shared model owns.
+///
+/// The resolution is a typed value in the shared model; the surface only
+/// carries it to the command bus.
+fn submit_conflict_resolution(handle: &CommandSinkHandle, model: &mut SyncPageModel) {
+    match model.resolve_conflict_intent() {
+        Some(CommandIntent::ResolveConflictKeepLocal) => {
+            model.resolve_phase_mut().begin();
+            handle.submit(UiCommand::ResolveConflictKeepLocal);
+        }
+        Some(CommandIntent::ResolveConflictTakeRemote) => {
+            model.resolve_phase_mut().begin();
+            handle.submit(UiCommand::ResolveConflictTakeRemote);
+        }
+        Some(_) | None => {}
     }
 }
 
 pub(crate) fn apply_sync_projection(
     update: On<SyncProjectionUpdated>,
     mut last: ResMut<LastSyncProjection>,
+    mut model: Option<ResMut<SyncPageModelState>>,
 ) {
     last.0 = Some(update.0.clone());
+    let Some(model) = model.as_deref_mut() else {
+        return;
+    };
+    // The page acts on the conflict it renders: the shared model observes the
+    // same projection the page shows, so the rendered conflict and the
+    // submitted intent can never disagree.
+    model.0.observe_page(update.0.owner_page());
+    settle_submitted_phases(&mut model.0);
+}
+
+/// End a submitted phase the owner's next publication answered.
+///
+/// The Bevy command bus is fire-and-forget: the owner's next publication is
+/// the only answer this surface can observe, so it ends the submitted phase
+/// instead of leaving it running forever.
+fn settle_submitted_phases(model: &mut SyncPageModel) {
+    if model.sync_now_phase().is_running()
+        && let Some(token) = model.sync_now_phase().token()
+    {
+        model.sync_now_phase_mut().succeed(token);
+    }
+    if model.resolve_phase().is_running()
+        && let Some(token) = model.resolve_phase().token()
+    {
+        model.resolve_phase_mut().succeed(token);
+    }
 }
 
 pub(crate) fn replay_sync(
@@ -671,6 +771,51 @@ fn on_restore_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_sync_page_resolves_the_conflict_it_renders() {
+        let mut model = SyncPageModel::default();
+        let page = SyncPageSnapshot {
+            status: SyncStatus::Conflict,
+            server_url: "https://dav.example/".to_owned(),
+            username: "user@example.com".to_owned(),
+            last_sync: None,
+            auto_sync: true,
+            conflict: Some(SyncConflictSnapshot {
+                remote_device: "Android (Pixel 9 Pro)".to_owned(),
+                conflict_time: "2026-09-02 10:14".to_owned(),
+                conflicting_keys: vec![("mode".to_owned(), "Rule".to_owned(), "Global".to_owned())],
+            }),
+            snapshots: Vec::new(),
+            history_status: PageStatus::Ready,
+        };
+        model.observe_page(page);
+
+        // The typed resolution and the typed intent come from the shared
+        // model, so the page can never submit a resolution it does not show.
+        model.select_resolution(ConflictResolution::KeepLocal);
+        assert_eq!(
+            model.resolve_conflict_intent(),
+            Some(CommandIntent::ResolveConflictKeepLocal)
+        );
+        model.select_resolution(ConflictResolution::TakeRemote);
+        assert_eq!(
+            model.resolve_conflict_intent(),
+            Some(CommandIntent::ResolveConflictTakeRemote)
+        );
+    }
+
+    #[test]
+    fn the_owner_publication_ends_a_submitted_phase() {
+        let mut model = SyncPageModel::default();
+        model.sync_now_phase_mut().begin();
+        assert!(model.sync_now_phase().is_running());
+        settle_submitted_phases(&mut model);
+        assert!(
+            !model.sync_now_phase().is_running(),
+            "the owner's next publication ends the submitted phase"
+        );
+    }
 
     #[test]
     fn demo_sync_fixture() {

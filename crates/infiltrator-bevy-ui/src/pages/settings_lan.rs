@@ -10,6 +10,7 @@ use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
 use super::settings_runtime::{RuntimeField, RuntimePolicy};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
+use crate::pages::page_models::SettingsPageModelState;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -34,7 +35,8 @@ use infiltrator_bevy_widgets::text_input::{
     TextField, TextFieldFocused, password_field_scene, text_field_with_placeholder_scene,
 };
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::lan::LanCredentials;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_presentation::settings_page_model::SettingsPageModel;
 use infiltrator_presentation::settings_status_projection::format_lan_auth;
 use std::collections::HashMap;
 
@@ -374,6 +376,7 @@ pub(super) fn on_toggle_changed(
     handle: Option<Res<CommandSinkHandle>>,
     policy: RuntimePolicy,
     inputs: LanListenerInputs,
+    mut model: Option<ResMut<SettingsPageModelState>>,
 ) {
     let LanListenerInputs {
         mixed_fields,
@@ -386,12 +389,16 @@ pub(super) fn on_toggle_changed(
     let Some(handle) = handle else {
         return;
     };
+    let Some(model) = model.as_deref_mut() else {
+        return;
+    };
     let Ok(parent) = parents.get(change.source) else {
         return;
     };
     if toggles.get(parent.0).is_ok() {
         submit_lan_command(
             &handle,
+            &mut model.0,
             change.value,
             &mixed_fields,
             &bind_fields,
@@ -408,6 +415,7 @@ pub(super) fn on_apply_activated(
     handle: Option<Res<CommandSinkHandle>>,
     policy: RuntimePolicy,
     inputs: LanListenerInputs,
+    mut model: Option<ResMut<SettingsPageModelState>>,
 ) {
     let LanListenerInputs {
         mixed_fields,
@@ -420,6 +428,9 @@ pub(super) fn on_apply_activated(
     let Some(handle) = handle else {
         return;
     };
+    let Some(model) = model.as_deref_mut() else {
+        return;
+    };
     if apply_buttons.get(activate.entity).is_err() {
         return;
     }
@@ -427,7 +438,14 @@ pub(super) fn on_apply_activated(
         .iter()
         .flat_map(|children| children.iter())
         .any(|child| checkboxes.get(*child).is_ok());
-    submit_lan_command(&handle, enabled, &mixed_fields, &bind_fields, &text_fields);
+    submit_lan_command(
+        &handle,
+        &mut model.0,
+        enabled,
+        &mixed_fields,
+        &bind_fields,
+        &text_fields,
+    );
 }
 
 pub(super) fn on_security_apply_activated(
@@ -436,6 +454,7 @@ pub(super) fn on_security_apply_activated(
     mut commands: Commands,
     policy: RuntimePolicy,
     targets: LanSecurityControls,
+    mut model: Option<ResMut<SettingsPageModelState>>,
 ) {
     let LanSecurityControls {
         apply_buttons,
@@ -462,17 +481,43 @@ pub(super) fn on_security_apply_activated(
         .iter()
         .flat_map(|children| children.iter())
         .any(|child| checkboxes.get(*child).is_ok());
-    let credentials = authentication_enabled.then(|| LanCredentials {
-        username: field_value(&username_fields, &text_fields).unwrap_or_default(),
-        password: field_value(&password_fields, &text_fields).unwrap_or_default(),
+    let Some(model) = model.as_deref_mut() else {
+        return;
+    };
+    let allowed_ips = field_value(&allowed_fields, &text_fields)
+        .map_or_else(Vec::new, |value| split_values(&value));
+    let disallowed_ips = field_value(&disallowed_fields, &text_fields)
+        .map_or_else(Vec::new, |value| split_values(&value));
+    let skip_auth_prefixes =
+        field_value(&skip_fields, &text_fields).map_or_else(Vec::new, |value| split_values(&value));
+    let username = field_value(&username_fields, &text_fields).unwrap_or_default();
+    let password = field_value(&password_fields, &text_fields).unwrap_or_default();
+    model.0.edit_lan_security(|draft| {
+        draft.allowed_ips = allowed_ips.clone();
+        draft.disallowed_ips = disallowed_ips.clone();
+        draft.skip_auth_prefixes = skip_auth_prefixes.clone();
+        draft.authentication_enabled = authentication_enabled;
+        draft.auth_username = username.clone();
+        draft.auth_password = password.clone();
     });
+    let Some(CommandIntent::SetLanSecurity {
+        allowed_ips,
+        disallowed_ips,
+        skip_auth_prefixes,
+        authentication_enabled,
+        credentials,
+    }) = model.0.lan_security_intent()
+    else {
+        return;
+    };
+    model.0.lan_security_write_phase_mut().begin();
+    // The owner already holds the password: the committed baseline must never
+    // keep a secret the owner cannot publish.
+    model.0.accept_lan_security();
     handle.submit(UiCommand::SetLanSecurity {
-        allowed_ips: field_value(&allowed_fields, &text_fields)
-            .map_or_else(Vec::new, |value| split_values(&value)),
-        disallowed_ips: field_value(&disallowed_fields, &text_fields)
-            .map_or_else(Vec::new, |value| split_values(&value)),
-        skip_auth_prefixes: field_value(&skip_fields, &text_fields)
-            .map_or_else(Vec::new, |value| split_values(&value)),
+        allowed_ips,
+        disallowed_ips,
+        skip_auth_prefixes,
         authentication_enabled,
         credentials,
     });
@@ -668,6 +713,7 @@ where
 
 fn submit_lan_command(
     handle: &CommandSinkHandle,
+    model: &mut SettingsPageModel,
     enabled: bool,
     mixed_fields: &Query<&Children, With<LanMixedPortField>>,
     bind_fields: &Query<&Children, With<LanBindAddressField>>,
@@ -681,6 +727,22 @@ fn submit_lan_command(
     let Some(bind_address) = field_value(bind_fields, text_fields) else {
         return;
     };
+    // The shared model owns the draft and the intent: the surface only hands
+    // it the values the user typed.
+    model.edit_lan_sharing(|draft| {
+        draft.enabled = enabled;
+        draft.mixed_port = mixed_port;
+        draft.bind_address = bind_address.clone();
+    });
+    let Some(CommandIntent::SetLanSharing {
+        enabled,
+        mixed_port,
+        bind_address,
+    }) = model.lan_sharing_intent()
+    else {
+        return;
+    };
+    model.lan_sharing_write_phase_mut().begin();
     handle.submit(UiCommand::SetLanSharing {
         enabled,
         mixed_port,

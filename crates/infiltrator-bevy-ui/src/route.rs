@@ -65,6 +65,11 @@ use crate::pages::overview_speedtest::{
 use crate::pages::overview_topology::{
     TopologyDrilldownFilter, sync_overview_responsive, sync_topology_hover_highlight,
 };
+use crate::pages::page_models::{
+    AppRoutingPageModelState, DnsPageModelState, DoctorPageModelState, OverviewPageModelState,
+    ProfilesPageModelState, ProxiesPageModelState, RulesPageModelState, SettingsPageModelState,
+    SyncPageModelState, sync_shared_page_models,
+};
 use crate::pages::plugin::PageBindingsPlugin;
 use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
 use crate::pages::profiles_aggregator::replay_aggregation_copy;
@@ -443,6 +448,18 @@ impl Plugin for PagesPlugin {
         app.init_resource::<RouteHistory>();
         app.init_resource::<BackLayerStack>();
         app.init_resource::<LastOverviewProjection>();
+        // The nine shared page models: one handle per page, so a page reads
+        // the shared owner instead of re-deriving the same fact.
+        app.init_resource::<OverviewPageModelState>();
+        app.init_resource::<ProxiesPageModelState>();
+        app.init_resource::<SettingsPageModelState>();
+        app.init_resource::<RulesPageModelState>();
+        app.init_resource::<ProfilesPageModelState>();
+        app.init_resource::<DoctorPageModelState>();
+        app.init_resource::<DnsPageModelState>();
+        app.init_resource::<AppRoutingPageModelState>();
+        app.init_resource::<SyncPageModelState>();
+        app.add_systems(Update, sync_shared_page_models.after(drain_command_results));
         app.init_resource::<TopologyDrilldownFilter>();
         app.init_resource::<LastDnsProjection>();
         app.init_resource::<LeakActions>();
@@ -706,13 +723,17 @@ impl Plugin for PagesPlugin {
                 // DUAL-11-08: the filter reduction runs first, then the window
                 // rebuild mounts exactly the rows the window covers.
                 (sync_rules_view, sync_rules_window).chain(),
-                // DUAL-11-14: the partition bar restyles from the shared tab
-                // state, the JSON body rebuilds from its buffer generation and
-                // the editor keys are routed only while it owns focus.
-                sync_rules_tabs,
-                refresh_rules_json_body,
-                restamp_rules_json,
-                rules_json_keyboard_input,
+                // The shared page models are folded from the accepted snapshot
+                // first; the rules editor then edits the folded draft, so the
+                // two never write the same model in the same frame.
+                (
+                    sync_rules_tabs,
+                    refresh_rules_json_body,
+                    restamp_rules_json,
+                    rules_json_keyboard_input,
+                )
+                    .chain()
+                    .after(sync_shared_page_models),
                 sync_connections_drawer,
                 sync_connections_virtual_window,
                 sync_logs_virtual_window,

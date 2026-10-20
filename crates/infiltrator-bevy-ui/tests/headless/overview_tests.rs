@@ -43,8 +43,7 @@ use infiltrator_bevy_ui::pages::overview_topology::{
     TopologyChainCard, TopologyDrilldownFilter, TopologyStageButton, TopologyText, TopologyTextKind,
 };
 use infiltrator_bevy_ui::projection::{
-    DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
-    SourceKind,
+    DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, SourceKind,
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
@@ -62,6 +61,7 @@ use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_presentation::overview_page_model::OverviewRunState;
 use infiltrator_presentation::shell_readout::observed_rate;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -78,7 +78,8 @@ struct StubSource;
 impl OverviewSource for StubSource {
     fn current(&self) -> OverviewProjection {
         OverviewProjection {
-            state: OverviewState::Running,
+            failure: None,
+            run_state: OverviewRunState::Running,
             lifecycle: CoreLifecycle::Running,
             upload_bps: 250_000.0,
             download_bps: 4_047.0,
@@ -86,7 +87,6 @@ impl OverviewSource for StubSource {
             active_connections: 3,
             memory_bytes: ResourceAvailability::Available(70 * 1024 * 1024),
             sampled_at: Duration::from_secs(7),
-            failure: None,
             origin: OverviewOrigin::Demo,
             core_version: None,
             traffic_waveform: Default::default(),
@@ -287,7 +287,8 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
 /// A live-origin projection with concrete rates (the chart-seam input).
 fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
     OverviewProjection {
-        state: OverviewState::Running,
+        failure: None,
+        run_state: OverviewRunState::Running,
         lifecycle: CoreLifecycle::Running,
         upload_bps,
         download_bps,
@@ -295,7 +296,6 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         active_connections: 1,
         memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(3),
-        failure: None,
         origin: OverviewOrigin::LiveCore,
         core_version: Some("v1.19.18".to_owned()),
         traffic_waveform: Default::default(),
@@ -361,7 +361,8 @@ struct LiveFootStub {
 impl OverviewSource for LiveFootStub {
     fn current(&self) -> OverviewProjection {
         OverviewProjection {
-            state: OverviewState::Running,
+            failure: None,
+            run_state: OverviewRunState::Running,
             lifecycle: CoreLifecycle::Running,
             upload_bps: 0.0,
             download_bps: 0.0,
@@ -369,7 +370,6 @@ impl OverviewSource for LiveFootStub {
             active_connections: 0,
             memory_bytes: ResourceAvailability::NotObserved,
             sampled_at: Duration::from_secs(1),
-            failure: None,
             origin: OverviewOrigin::LiveCore,
             core_version: self.version.map(str::to_owned),
             traffic_waveform: Default::default(),

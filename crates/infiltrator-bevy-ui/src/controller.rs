@@ -9,9 +9,7 @@
 use crate::history::TrafficHistory;
 use crate::pages::overview::OverviewProjectionUpdated;
 use crate::pipeline::FailureDwell;
-use crate::projection::{
-    OverviewOrigin, OverviewProjection, OverviewSource, OverviewState, SourceKind,
-};
+use crate::projection::{OverviewOrigin, OverviewProjection, OverviewSource, SourceKind};
 use crate::surface::surface_demo::snapshot_from_overview;
 use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use bevy::app;
@@ -30,6 +28,7 @@ use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
+use infiltrator_presentation::overview_page_model::{OverviewRunState, core_run_state};
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use std::env::var;
@@ -204,7 +203,7 @@ fn drain_overview_pump(
     };
 
     let now = Instant::now();
-    let is_failure = projection.state == OverviewState::Unavailable;
+    let is_failure = matches!(projection.run_state, OverviewRunState::Unavailable { .. });
     if !is_failure && !dwell.success_may_pass(now) {
         return;
     }
@@ -241,13 +240,8 @@ fn projection_from_snapshot(
 ) -> OverviewProjection {
     let waveform = history.record(&snapshot);
     let scale = TrafficScaleApplication.compute(&waveform);
-    let state = match snapshot.lifecycle {
-        CoreLifecycle::Running | CoreLifecycle::Ready => OverviewState::Running,
-        CoreLifecycle::Stopped => OverviewState::Stopped,
-        CoreLifecycle::Starting | CoreLifecycle::Stopping | CoreLifecycle::Failed => {
-            OverviewState::Unavailable
-        }
-    };
+    // The run state is the shared model's rule, not a second derivation.
+    let run_state = core_run_state(&snapshot, None);
     let sampled_at = snapshot
         .sampled_at_epoch_ms
         .and_then(|value| u64::try_from(value).ok())
@@ -256,14 +250,17 @@ fn projection_from_snapshot(
     let routing_intent = snapshot.routing_intent.clone();
     OverviewProjection {
         lifecycle: snapshot.lifecycle.clone(),
+        failure: snapshot
+            .failure
+            .as_ref()
+            .map(|failure| failure.message.clone()),
         readout: readout.project_core_rates(&snapshot, None),
-        state,
+        run_state,
         upload_bps: snapshot.upload_bps,
         download_bps: snapshot.download_bps,
         active_connections: snapshot.active_connections,
         memory_bytes: ResourceAvailability::NotObserved,
         sampled_at,
-        failure: snapshot.failure.map(|failure| failure.message),
         origin: OverviewOrigin::LiveCore,
         core_version: snapshot.core_version,
         traffic_waveform: waveform,

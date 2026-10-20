@@ -16,11 +16,11 @@
 //! controls stay out of product builds).
 //!
 //! The typed **success / failure / unavailable tri-state** required by
-//! crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md lives in [`OverviewState`]: `Running` and `Stopped`
-//! are successful reads of a reachable core, `Unavailable` carries a
-//! human-readable [`OverviewProjection::failure`] reason. A projection
-//! never fabricates zeros for a core it could not reach — rates and
-//! connection counts are only meaningful in a successful state.
+//! crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md lives in the shared
+//! [`OverviewRunState`]: `Running` and `Stopped` are successful reads of a
+//! reachable core, and `Unavailable` carries the human-readable reason in the
+//! variant — so a page can no longer show an unavailable core without saying
+//! why, and the reason has exactly one home.
 
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::overview_layout::OverviewLayoutSnapshot;
@@ -35,6 +35,7 @@ use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_presentation::overview_page_model::OverviewRunState;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_presentation::shell_readout::observed_rate;
 use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -44,20 +45,6 @@ use std::sync::Arc;
 #[cfg(any(feature = "capture-tools", test))]
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
-
-/// The typed tri-state of an Overview read (FRONTENDS matrix: success /
-/// failure / unavailable must all be visible projections).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum OverviewState {
-    /// The core is reachable and proxying traffic.
-    #[default]
-    Running,
-    /// The core is reachable but not proxying (stopped / not started).
-    Stopped,
-    /// The core could not be read at all (unreachable, refused, auth…).
-    /// The reason rides [`OverviewProjection::failure`].
-    Unavailable,
-}
 
 /// Where a projection came from. Typed, not inferred: a page can only stay
 /// honest about "演示数据" vs a live core when the source declares itself.
@@ -90,7 +77,11 @@ pub struct OverviewProjection {
     pub lifecycle: CoreLifecycle,
     pub readout: ShellReadoutSnapshot,
     /// The typed run-state this snapshot encodes.
-    pub state: OverviewState,
+    pub run_state: OverviewRunState,
+    /// The core's own failure message, when it reported one. A core that is
+    /// merely starting is unavailable but has not failed, so the failure line
+    /// stays empty for it.
+    pub failure: Option<String>,
     /// Uplink throughput in bytes per second (0.0 when not running).
     pub upload_bps: f64,
     /// Downlink throughput in bytes per second (0.0 when not running).
@@ -101,9 +92,6 @@ pub struct OverviewProjection {
     pub memory_bytes: ResourceAvailability<u64>,
     /// When the source took this sample (its own monotonic clock origin).
     pub sampled_at: Duration,
-    /// Why the core is unavailable — `Some` exactly when
-    /// [`OverviewState::Unavailable`], `None` otherwise.
-    pub failure: Option<String>,
     /// Which source produced this snapshot (capture fixture vs owner-backed
     /// product surface).
     pub origin: OverviewOrigin,
@@ -138,12 +126,15 @@ pub struct OverviewProjection {
 }
 
 impl OverviewProjection {
-    /// The typed unavailable projection: zeroed metrics, the reason riding
-    /// [`OverviewProjection::failure`]. A convenience for sources — the
-    /// page renders it through the same tri-state as any other snapshot.
+    /// The typed unavailable projection: zeroed metrics, the reason riding the
+    /// [`OverviewRunState::Unavailable`] variant. A convenience for sources —
+    /// the page renders it through the same tri-state as any other snapshot.
     pub fn unavailable(origin: OverviewOrigin, reason: impl Into<String>) -> Self {
         Self {
-            state: OverviewState::Unavailable,
+            run_state: OverviewRunState::Unavailable {
+                reason: reason.into(),
+            },
+            failure: None,
             lifecycle: CoreLifecycle::Failed,
             readout: Default::default(),
             upload_bps: 0.0,
@@ -151,7 +142,6 @@ impl OverviewProjection {
             active_connections: 0,
             memory_bytes: ResourceAvailability::NotObserved,
             sampled_at: Duration::ZERO,
-            failure: Some(reason.into()),
             origin,
             core_version: None,
             traffic_waveform: Default::default(),
@@ -169,6 +159,20 @@ impl OverviewProjection {
             cpu_percent: ResourceAvailability::NotObserved,
             total_traffic_bytes: None,
         }
+    }
+
+    /// Why the core failed, when it did.
+    ///
+    /// The failure is the core's own report, not the run state's reason: a
+    /// core that is still starting is unavailable without having failed, and
+    /// the page must not turn that into an error.
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    /// Whether the core is reachable and proxying traffic.
+    pub fn is_running(&self) -> bool {
+        matches!(self.run_state, OverviewRunState::Running)
     }
 }
 
@@ -214,40 +218,57 @@ const DEMO_SAMPLE: Duration = Duration::from_secs(42);
 #[cfg(any(feature = "capture-tools", test))]
 const DEMO_UNAVAILABLE_REASON: &str = "demo: external controller unreachable (connection refused)";
 
+/// The demo fixture's discriminant for a reachable, proxying core.
+#[cfg(any(feature = "capture-tools", test))]
+const DEMO_STATE_RUNNING: u8 = 0;
+/// The demo fixture's discriminant for a reachable, stopped core.
+#[cfg(any(feature = "capture-tools", test))]
+const DEMO_STATE_STOPPED: u8 = 1;
+/// The demo fixture's discriminant for an unreachable core.
+#[cfg(any(feature = "capture-tools", test))]
+const DEMO_STATE_UNAVAILABLE: u8 = 2;
+
 #[cfg(any(feature = "capture-tools", test))]
 impl DemoOverviewSource {
     /// The default fixture: a running core with live-looking traffic.
     pub fn running() -> Self {
         Self {
-            state: Arc::new(AtomicU8::new(OverviewState::Running as u8)),
+            state: Arc::new(AtomicU8::new(DEMO_STATE_RUNNING)),
         }
     }
 
     /// The stopped fixture: reachable core, no traffic.
     pub fn stopped() -> Self {
         Self {
-            state: Arc::new(AtomicU8::new(OverviewState::Stopped as u8)),
+            state: Arc::new(AtomicU8::new(DEMO_STATE_STOPPED)),
         }
     }
 
     /// The unavailable fixture: the failure projection.
     pub fn unavailable() -> Self {
         Self {
-            state: Arc::new(AtomicU8::new(OverviewState::Unavailable as u8)),
+            state: Arc::new(AtomicU8::new(DEMO_STATE_UNAVAILABLE)),
         }
     }
 
     /// Switch the fixture's state (the test seam for the tri-state).
-    pub fn set_state(&mut self, state: OverviewState) {
-        self.state.store(state as u8, Ordering::Relaxed);
+    pub fn set_state(&mut self, state: OverviewRunState) {
+        let discriminant = match state {
+            OverviewRunState::Running => DEMO_STATE_RUNNING,
+            OverviewRunState::Stopped => DEMO_STATE_STOPPED,
+            OverviewRunState::Unavailable { .. } => DEMO_STATE_UNAVAILABLE,
+        };
+        self.state.store(discriminant, Ordering::Relaxed);
     }
 
-    /// The fixture's current state, decoded from its atomic.
-    fn state_value(&self) -> OverviewState {
+    /// The fixture's current run state, decoded from its atomic.
+    fn run_state(&self) -> OverviewRunState {
         match self.state.load(Ordering::Relaxed) {
-            1 => OverviewState::Stopped,
-            2 => OverviewState::Unavailable,
-            _ => OverviewState::Running,
+            DEMO_STATE_STOPPED => OverviewRunState::Stopped,
+            DEMO_STATE_UNAVAILABLE => OverviewRunState::Unavailable {
+                reason: DEMO_UNAVAILABLE_REASON.to_owned(),
+            },
+            _ => OverviewRunState::Running,
         }
     }
 }
@@ -255,7 +276,7 @@ impl DemoOverviewSource {
 #[cfg(any(feature = "capture-tools", test))]
 impl OverviewSource for DemoOverviewSource {
     fn current(&self) -> OverviewProjection {
-        let state = self.state_value();
+        let run_state = self.run_state();
         let (
             upload_bps,
             download_bps,
@@ -263,8 +284,8 @@ impl OverviewSource for DemoOverviewSource {
             memory_bytes,
             cpu_percent,
             total_traffic_bytes,
-        ) = match state {
-            OverviewState::Running => (
+        ) = match run_state {
+            OverviewRunState::Running => (
                 DEMO_UPLOAD_BPS,
                 DEMO_DOWNLOAD_BPS,
                 DEMO_CONNECTIONS,
@@ -272,7 +293,7 @@ impl OverviewSource for DemoOverviewSource {
                 ResourceAvailability::Available(2.4),
                 Some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
             ),
-            OverviewState::Stopped | OverviewState::Unavailable => (
+            OverviewRunState::Stopped | OverviewRunState::Unavailable { .. } => (
                 0.0,
                 0.0,
                 0,
@@ -281,36 +302,39 @@ impl OverviewSource for DemoOverviewSource {
                 None,
             ),
         };
-        let (upload_observation, download_observation) = match state {
-            OverviewState::Running => (
+        let (upload_observation, download_observation) = match run_state {
+            OverviewRunState::Running => (
                 observed_rate(Some(upload_bps)),
                 observed_rate(Some(download_bps)),
             ),
-            OverviewState::Stopped | OverviewState::Unavailable => {
+            OverviewRunState::Stopped | OverviewRunState::Unavailable { .. } => {
                 (observed_rate(None), observed_rate(None))
             }
         };
         OverviewProjection {
-            lifecycle: match state {
-                OverviewState::Running => CoreLifecycle::Running,
-                OverviewState::Stopped => CoreLifecycle::Stopped,
-                OverviewState::Unavailable => CoreLifecycle::Failed,
+            lifecycle: match run_state {
+                OverviewRunState::Running => CoreLifecycle::Running,
+                OverviewRunState::Stopped => CoreLifecycle::Stopped,
+                OverviewRunState::Unavailable { .. } => CoreLifecycle::Failed,
+            },
+            // The demo's unreachable core reported this failure itself, so
+            // the failure line shows it — a core that merely stopped has
+            // failed nothing.
+            failure: match &run_state {
+                OverviewRunState::Unavailable { reason } => Some(reason.clone()),
+                OverviewRunState::Running | OverviewRunState::Stopped => None,
             },
             readout: ShellReadoutSnapshot {
                 upload_bps: upload_observation,
                 download_bps: download_observation,
                 ..Default::default()
             },
-            state,
+            run_state,
             upload_bps,
             download_bps,
             active_connections,
             memory_bytes,
             sampled_at: DEMO_SAMPLE,
-            failure: match state {
-                OverviewState::Unavailable => Some(DEMO_UNAVAILABLE_REASON.to_string()),
-                _ => None,
-            },
             origin: OverviewOrigin::Demo,
             core_version: None,
             traffic_waveform: Default::default(),

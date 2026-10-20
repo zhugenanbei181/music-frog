@@ -1,4 +1,5 @@
 //! Scoped native editor activation and actual denied-save evidence; no business World access.
+use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -17,12 +18,13 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
+use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::page::PageData;
 use std::sync::atomic::Ordering;
@@ -38,8 +40,17 @@ pub fn install(app: &mut App) {
     let store = Arc::new(HostsCaptureStore::default());
     store.deny_save.store(true, Ordering::SeqCst);
     let configuration = for_mihomo_store(store.clone());
-    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_configuration(configuration.clone()),
+    // The Hosts write is a Core backend command: the shared bus admits it only
+    // with a validated Core scope, so the capture drives the Core owner's
+    // scoped route instead of the unscoped one.
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(LanguageCaptureProcess),
+        Arc::new(LanguageCaptureProcess),
+        tokio_application_runtime().expect("isolated hosts runtime"),
+    ));
+    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::scoped(
+        core,
+        capture_command_application().with_configuration(configuration.clone()),
         CaptureCapability::Hosts,
     ))));
     app.insert_resource(HostsCapture {

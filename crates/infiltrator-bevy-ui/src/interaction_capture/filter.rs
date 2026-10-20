@@ -1,6 +1,6 @@
 //! Native filter activation uses actual typed commands and narrowly scoped ECS parameters.
 use super::geometry::CaptureGeometry;
-use super::scroll::request_scroll;
+use super::scroll::{owning_scroll_area, request_scroll};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::command_execution::ApplicationCommandSink;
@@ -18,6 +18,7 @@ use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
@@ -28,7 +29,7 @@ use bevy::picking::backend::HitData;
 use bevy::picking::events::{Pointer, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::{Activate, ScrollArea};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
@@ -101,6 +102,8 @@ pub struct FilterActivation<'w, 's> {
     save: Query<'w, 's, Entity, With<EditorFilterSaveButton>>,
     cards: Query<'w, 's, Entity, With<EditorFilterTransaction>>,
     pages: Query<'w, 's, Entity, With<ProfilesPageRoot>>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    areas: Query<'w, 's, Entity, With<ScrollArea>>,
     windows: Query<'w, 's, (Entity, &'static Window), With<PrimaryWindow>>,
 }
 fn key(
@@ -229,11 +232,16 @@ pub fn activate(
         let Ok(page) = probe.pages.single() else {
             return;
         };
-        if let (Some(bounds), Some(viewport)) = (geometry.rect(entity), geometry.rect(page)) {
-            if !request_scroll(&mut commands, entity, bounds, viewport) {
-                return;
-            }
-        } else {
+        // The official scroll behaviour answers the wheel event on the
+        // entity that owns the scroll area, so the capture reveals the
+        // control through that owner and never through the control itself.
+        let Some(scroll) = owning_scroll_area(entity, &probe.parents, &probe.areas) else {
+            return;
+        };
+        let (Some(bounds), Some(viewport)) = (geometry.rect(entity), geometry.rect(page)) else {
+            return;
+        };
+        if !request_scroll(&mut commands, scroll, bounds, viewport) {
             return;
         }
         if geometry.bounds(entity, "filter-native-control").is_none() {
@@ -323,9 +331,10 @@ pub fn activate(
     }
     if probe.capture.stage == 6
         && let (Ok(card), Ok(page)) = (probe.cards.single(), probe.pages.single())
+        && let Some(scroll) = owning_scroll_area(card, &probe.parents, &probe.areas)
         && let (Some(bounds), Some(viewport)) = (geometry.rect(card), geometry.rect(page))
     {
-        request_scroll(&mut commands, card, bounds, viewport);
+        request_scroll(&mut commands, scroll, bounds, viewport);
     }
 }
 #[derive(SystemParam)]

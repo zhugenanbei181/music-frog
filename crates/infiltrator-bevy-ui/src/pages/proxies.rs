@@ -20,7 +20,6 @@ use infiltrator_contract::fixture_identities::{AUTO, HK_PRIMARY, JP, PROXIES, SG
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::pages::proxies_custom::{on_custom_node_action_activated, sync_custom_node_studio};
-use crate::pages::proxies_filter;
 use crate::pages::proxies_refresh::apply_proxies_projection;
 use crate::pages::proxies_virtual::ProxiesVirtualState;
 use crate::route::Route;
@@ -44,6 +43,7 @@ use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::proxies::ProxyGroupClassification;
+use infiltrator_presentation::proxies_page_model::ProxyFilterTarget;
 use lurker_core_contract::outbound::{
     details::OutboundHealthObservation,
     identity::OutboundId,
@@ -237,11 +237,6 @@ pub struct LatencySkeletonPulse {
     pub node_idx: usize,
 }
 
-/// Canonical display name for proxy protocols (Shadowsocks, Vless, VMess, Trojan, Hysteria2).
-pub fn format_protocol_chip(raw_type: &str) -> String {
-    proxies_filter::format_protocol_chip(raw_type)
-}
-
 /// Resolve latency text color from tier and palette tokens.
 pub fn latency_color(tier: LatencyBand, palette: &UiPalette) -> Color {
     match tier {
@@ -264,6 +259,38 @@ pub struct ProxyNode {
     pub selected: bool,
     pub favorite: bool,
     pub features: Vec<String>,
+}
+
+impl ProxyFilterTarget for ProxyNode {
+    fn proxy_name(&self) -> &str {
+        &self.name
+    }
+
+    fn proxy_identity(&self) -> Option<&str> {
+        self.outbound_id.as_ref().map(OutboundId::value)
+    }
+
+    fn proxy_protocol(&self) -> &str {
+        &self.node_type
+    }
+
+    fn proxy_features(&self) -> &[String] {
+        &self.features
+    }
+
+    fn proxy_latency_ms(&self) -> Option<u32> {
+        self.delay_ms
+    }
+
+    fn proxy_supports_udp(&self) -> bool {
+        self.features
+            .iter()
+            .any(|feature| feature.eq_ignore_ascii_case("udp"))
+    }
+
+    fn proxy_favorite(&self) -> bool {
+        self.favorite
+    }
 }
 
 /// A proxy group snapshot.
@@ -802,8 +829,9 @@ mod tests {
     }
 
     #[test]
-    fn test_matches_proxy_filter() {
-        use crate::pages::proxies_filter::matches_proxy_filter;
+    fn the_proxy_node_answers_the_shared_filter_rule() {
+        use infiltrator_presentation::proxies_page_model::{ProxyFilterQuery, proxy_protocol_chip};
+
         let node = ProxyNode {
             outbound_id: None,
             name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
@@ -815,17 +843,26 @@ mod tests {
             features: vec!["UDP".to_owned(), "TFO".to_owned()],
         };
 
-        assert!(matches_proxy_filter(&node, ""));
-        assert!(matches_proxy_filter(&node, "香港"));
-        assert!(matches_proxy_filter(&node, "hk"));
-        assert!(matches_proxy_filter(&node, "xg"));
-        assert!(matches_proxy_filter(&node, "Shadowsocks"));
-        assert!(matches_proxy_filter(&node, "ss"));
-        assert!(matches_proxy_filter(&node, "<100"));
-        assert!(!matches_proxy_filter(&node, "<30"));
-        assert!(matches_proxy_filter(&node, ">20"));
-        assert!(!matches_proxy_filter(&node, ">50"));
-        assert!(!matches_proxy_filter(&node, "日本"));
-        assert!(!matches_proxy_filter(&node, "jp"));
+        // The shared rule answers for the Bevy node: name, protocol (raw and
+        // alias), feature tag, UDP capability, latency bound and pinyin.
+        assert!(ProxyFilterQuery::parse("").matches(&node));
+        assert!(ProxyFilterQuery::parse("香港").matches(&node));
+        assert!(ProxyFilterQuery::parse("xg").matches(&node));
+        assert!(ProxyFilterQuery::parse("Shadowsocks").matches(&node));
+        assert!(ProxyFilterQuery::parse("ss").matches(&node));
+        assert!(ProxyFilterQuery::parse("udp").matches(&node));
+        assert!(ProxyFilterQuery::parse("tfo").matches(&node));
+        assert!(ProxyFilterQuery::parse("<100").matches(&node));
+        assert!(!ProxyFilterQuery::parse("<30").matches(&node));
+        assert!(ProxyFilterQuery::parse(">20").matches(&node));
+        assert!(!ProxyFilterQuery::parse(">50").matches(&node));
+        assert!(!ProxyFilterQuery::parse("日本").matches(&node));
+        assert!(!ProxyFilterQuery::parse("jp").matches(&node));
+
+        // The shared protocol chip is the one label every surface renders.
+        assert_eq!(proxy_protocol_chip("Shadowsocks"), "Shadowsocks");
+        assert_eq!(proxy_protocol_chip("vless"), "Vless");
+        assert_eq!(proxy_protocol_chip("hy2"), "Hysteria2");
+        assert_eq!(proxy_protocol_chip(""), "Proxy");
     }
 }

@@ -1,9 +1,12 @@
 //! Capture fixtures execute the shared command handler and reject unrelated side effects.
+use super::capability::capture_scoped_sink;
 use super::outbound_preferences::OutboundPreferenceCaptureOwner;
 use crate::command::{UiCommand, UiCommandSink};
 use crate::command_events::CommandExecutedEvent;
+use crate::command_execution::ApplicationCommandSink;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::command_application::handler::CommandHandler;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
@@ -28,8 +31,16 @@ pub(super) enum CaptureCapability {
     SnapshotRestore,
 }
 
+/// The route one capture command travels.
+enum CaptureRoute {
+    /// The unscoped shared command bus: a local-only or host-only command.
+    Unscoped(CommandApplication),
+    /// The Core owner's scoped route: a command that needs a validated scope.
+    Scoped(ApplicationCommandSink),
+}
+
 pub(super) struct CaptureCommandSink {
-    application: CommandApplication,
+    route: CaptureRoute,
     capability: CaptureCapability,
     next_request: AtomicU64,
     completed: Arc<Mutex<Vec<CommandExecutedEvent>>>,
@@ -38,7 +49,25 @@ pub(super) struct CaptureCommandSink {
 impl CaptureCommandSink {
     pub fn new(application: CommandApplication, capability: CaptureCapability) -> Self {
         Self {
-            application,
+            route: CaptureRoute::Unscoped(application),
+            capability,
+            next_request: AtomicU64::new(0),
+            completed: Arc::new(Mutex::new(Vec::new())),
+            outbound_preferences: None,
+        }
+    }
+
+    /// The scoped capture route: the surface's shared typed commands travel the
+    /// Core owner's validated-scope route, exactly like the product host's
+    /// commands do. A command the shared bus only admits with a scope (a Core
+    /// backend command) needs this route; the unscoped route is denied.
+    pub fn scoped(
+        core: Arc<CoreApplication>,
+        handler: CommandApplication,
+        capability: CaptureCapability,
+    ) -> Self {
+        Self {
+            route: CaptureRoute::Scoped(capture_scoped_sink(core, handler)),
             capability,
             next_request: AtomicU64::new(0),
             completed: Arc::new(Mutex::new(Vec::new())),
@@ -52,7 +81,7 @@ impl CaptureCommandSink {
         outbound_preferences: OutboundPreferenceCaptureOwner,
     ) -> Self {
         Self {
-            application,
+            route: CaptureRoute::Unscoped(application),
             capability,
             next_request: AtomicU64::new(0),
             completed: Arc::new(Mutex::new(Vec::new())),
@@ -127,25 +156,34 @@ impl UiCommandSink for CaptureCommandSink {
                 });
             return Some(request_id);
         }
-        let intent = command.to_intent().expect("typed capture intent");
-        let application = self.application.clone();
-        let completed = self.completed.clone();
-        tokio_application_runtime()
-            .expect("capture runtime")
-            .block_on(Box::pin(async move {
-                let result = application.handle_output(intent).await;
-                completed
-                    .lock()
-                    .expect("capture feedback")
-                    .push(CommandExecutedEvent {
-                        command,
-                        request_id,
-                        result,
-                    });
-            }));
-        Some(request_id)
+        match &self.route {
+            CaptureRoute::Unscoped(application) => {
+                let intent = command.to_intent().expect("typed capture intent");
+                let application = application.clone();
+                let completed = self.completed.clone();
+                tokio_application_runtime()
+                    .expect("capture runtime")
+                    .block_on(Box::pin(async move {
+                        let result = application.handle_output(intent).await;
+                        completed
+                            .lock()
+                            .expect("capture feedback")
+                            .push(CommandExecutedEvent {
+                                command,
+                                request_id,
+                                result,
+                            });
+                    }));
+                Some(request_id)
+            }
+            CaptureRoute::Scoped(sink) => sink.submit_tracked(command),
+        }
     }
     fn drain_results(&self) -> Vec<CommandExecutedEvent> {
-        take(&mut *self.completed.lock().expect("capture feedback"))
+        let mut results = take(&mut *self.completed.lock().expect("capture feedback"));
+        if let CaptureRoute::Scoped(sink) = &self.route {
+            results.extend(sink.drain_results());
+        }
+        results
     }
 }

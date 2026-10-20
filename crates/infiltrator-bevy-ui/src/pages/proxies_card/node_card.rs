@@ -9,7 +9,6 @@ use crate::pages::proxies::{
     NodeNameText, NodePinButton, NodeProtoText, NodeUdpTag, ProxyNode, ProxyNodeButton,
     TestProxyGroupButton, latency_color,
 };
-use crate::pages::proxies_filter::format_protocol_chip;
 use crate::pages::proxies_preferences::ProxyFavoriteStar;
 use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
@@ -32,6 +31,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_presentation::latency_projection::project_proxy_latency;
+use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::outbound::identity::OutboundId;
 
@@ -104,7 +104,7 @@ pub fn proxy_node_scene_sized(
     let protocol_chip: Vec<Box<dyn Scene>> = if node.node_type.is_empty() {
         Vec::new()
     } else {
-        let proto_tag = format_protocol_chip(&node.node_type);
+        let proto_tag = proxy_protocol_chip(&node.node_type);
         vec![Box::new(bsn! {
             Node {
                 padding: UiRect::axes(rem(space::S6), rem(space::S2)),

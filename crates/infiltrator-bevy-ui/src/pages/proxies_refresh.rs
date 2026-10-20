@@ -4,7 +4,6 @@ use crate::pages::proxies::{
     NodeFlagText, NodeNameText, NodeProtoText, ProxiesLine, ProxiesLineKind,
     ProxiesProjectionUpdated, ProxyNodeButton, latency_color,
 };
-use crate::pages::proxies_filter::format_protocol_chip;
 use crate::pages::proxies_identity::{
     ProxyGroupIdentity, ProxyGroupOutboundIdentity, group_for_entity, node_for_entity,
 };
@@ -20,6 +19,7 @@ use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
+use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use infiltrator_shared::country_flags::node_flag_emoji;
 
 #[derive(QueryData)]
@@ -119,7 +119,7 @@ pub fn apply_proxies_projection(
             } else if label.flag.is_some() {
                 label.text.0 = node_flag_emoji(&node.name).into();
             } else if label.protocol.is_some() {
-                label.text.0 = format_protocol_chip(&node.node_type);
+                label.text.0 = proxy_protocol_chip(&node.node_type);
             } else if label.latency.is_some() {
                 let latency = project_proxy_latency(node.delay_ms);
                 let copy = LocalizedText::new(latency.key, latency.params);

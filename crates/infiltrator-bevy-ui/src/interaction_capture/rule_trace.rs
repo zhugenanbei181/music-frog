@@ -1,4 +1,5 @@
 //! Drive the actual tracer Tab, native input and shared command owner before observing pixels.
+use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::request_scroll;
@@ -31,7 +32,6 @@ use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -63,20 +63,25 @@ pub fn install(app: &mut App) {
     let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let handler = CommandApplication::new().with_rule_tracer(owner.clone());
     let core = Arc::new(CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated capture runtime"),
     ));
     let reader = Arc::new(
-        ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_rule_tracer(owner.clone())
             .with_profiles(profiles_for_mihomo(store.clone()))
             .with_configuration(for_mihomo_store(store.clone())),
     );
-    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        handler,
+    // The tracer simulation and the rule override are Core backend commands:
+    // the shared bus admits them only with a validated Core scope, so the
+    // capture drives the Core owner's scoped route instead of the unscoped one.
+    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::scoped(
+        core,
+        capture_command_application()
+            .with_rule_tracer(owner.clone())
+            .with_profile(profiles_for_mihomo(store.clone())),
         CaptureCapability::RuleTrace,
     ))));
     app.insert_resource(TraceCapture {

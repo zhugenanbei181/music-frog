@@ -25,6 +25,7 @@ use bevy::window::{PrimaryWindow, Window};
 use infiltrator_contract::parity::FeatureId;
 use std::env;
 
+mod capability;
 mod connections;
 mod dns_cache;
 mod dns_hosts;
@@ -41,6 +42,7 @@ mod logs_export;
 pub mod observation;
 mod outbound_fixture;
 mod outbound_preferences;
+mod panel;
 mod probe_settings;
 mod protocol;
 mod proxies;
@@ -49,6 +51,7 @@ mod routing_intent;
 mod rule_list;
 mod rule_statistics;
 mod rule_trace;
+mod rules_search;
 mod scroll;
 mod search;
 mod snapshot_restore;
@@ -162,6 +165,15 @@ impl InteractionCapture {
             rule_list::install(app);
             app.add_systems(Update, rule_list::activate.before(rules_draft::observe));
             app.add_systems(PostUpdate, rule_list::observe.in_set(CaptureObservationSet));
+        }
+        if matches!(
+            feature,
+            FeatureId::ProfilesAggregatorWizard | FeatureId::ProfilesDiffViewer
+        ) {
+            panel::install(app);
+        }
+        if feature == FeatureId::RulesSearchHighlight {
+            rules_search::install(app);
         }
         app.configure_sets(
             PostUpdate,
@@ -350,6 +362,9 @@ fn has_specialized_activator(feature: FeatureId) -> bool {
             | FeatureId::RulesListEditor
             | FeatureId::ProfilesFilterEditor
             | FeatureId::ProfilesSnapshotRestoreConfirm
+            | FeatureId::ProfilesAggregatorWizard
+            | FeatureId::ProfilesDiffViewer
+            | FeatureId::RulesSearchHighlight
     )
 }
 

@@ -4,12 +4,13 @@ use super::SettingsProjectionUpdated;
 use super::settings_core::SettingsProjection;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
+use crate::pages::page_models::SettingsPageModelState;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
-use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
@@ -27,8 +28,10 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_presentation::host_network_projection::pac;
+use infiltrator_presentation::settings_page_model::SettingsPageModel;
 use infiltrator_shared::locales::Lang;
 
 /// One-off layout value (not a ladder rung): the width of the PAC bypass list
@@ -124,15 +127,19 @@ pub(super) fn on_changed(
     fields: Query<&Children, With<PacBypassField>>,
     text_fields: Query<&TextField>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut model: Option<ResMut<SettingsPageModelState>>,
 ) {
     let Some(handle) = handle else {
+        return;
+    };
+    let Some(model) = model.as_deref_mut() else {
         return;
     };
     let Ok(parent) = parents.get(change.source) else {
         return;
     };
     if toggles.get(parent.0).is_ok() {
-        submit(&handle, change.value, &fields, &text_fields);
+        submit(&handle, &mut model.0, change.value, &fields, &text_fields);
     }
 }
 
@@ -144,8 +151,12 @@ pub(super) fn on_apply_activated(
     fields: Query<&Children, With<PacBypassField>>,
     text_fields: Query<&TextField>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut model: Option<ResMut<SettingsPageModelState>>,
 ) {
     let Some(handle) = handle else {
+        return;
+    };
+    let Some(model) = model.as_deref_mut() else {
         return;
     };
     if apply_buttons.get(activate.entity).is_err() {
@@ -155,7 +166,7 @@ pub(super) fn on_apply_activated(
         .iter()
         .flat_map(|children| children.iter())
         .any(|child| checkboxes.get(*child).is_ok());
-    submit(&handle, enabled, &fields, &text_fields);
+    submit(&handle, &mut model.0, enabled, &fields, &text_fields);
 }
 
 #[derive(SystemParam)]
@@ -210,6 +221,7 @@ pub(super) fn apply_projection(update: On<SettingsProjectionUpdated>, surface: P
 
 fn submit(
     handle: &CommandSinkHandle,
+    model: &mut SettingsPageModel,
     enabled: bool,
     fields: &Query<&Children, With<PacBypassField>>,
     text_fields: &Query<&TextField>,
@@ -220,11 +232,29 @@ fn submit(
         .find_map(|child| text_fields.get(*child).ok())
         .map(|field| split_values(field.0.text()))
         .unwrap_or_default();
+    // The shared model owns the PAC draft and the typed intent: the surface
+    // only hands it the values the user typed.
+    model.edit_pac(|draft| {
+        draft.enabled = enabled;
+        draft.bypass_domains = bypass_domains.clone();
+        draft.bypass_lan = true;
+        draft.minify = false;
+    });
+    let Some(CommandIntent::ApplyPac {
+        enabled,
+        bypass_domains,
+        bypass_lan,
+        minify,
+    }) = model.pac_intent()
+    else {
+        return;
+    };
+    model.pac_write_phase_mut().begin();
     handle.submit(UiCommand::ApplyPac {
         enabled,
         bypass_domains,
-        bypass_lan: true,
-        minify: false,
+        bypass_lan,
+        minify,
     });
 }
 

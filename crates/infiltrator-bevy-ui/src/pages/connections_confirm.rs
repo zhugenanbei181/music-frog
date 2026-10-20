@@ -99,7 +99,6 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
             }
             ThemeBackgroundColor({ Token::Scrim })
             ModalScrim
-            CloseAllConfirmationAction::Cancel
             --
             Node {
                 width: rem(CONFIRM_DIALOG_WIDTH_PX), max_width: percent(90),

@@ -37,15 +37,15 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
 
     // A refresh restamps the semantics alongside the visible texts.
     let stopped = OverviewProjection {
+        failure: None,
         readout: Default::default(),
-        state: OverviewState::Stopped,
+        run_state: OverviewRunState::Stopped,
         lifecycle: CoreLifecycle::Stopped,
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
         memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(9),
-        failure: None,
         origin: OverviewOrigin::Demo,
         core_version: None,
         traffic_waveform: Default::default(),

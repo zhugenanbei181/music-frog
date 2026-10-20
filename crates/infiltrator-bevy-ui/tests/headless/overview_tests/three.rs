@@ -15,7 +15,7 @@ fn three_state_projections_are_visible() {
         DemoOverviewSource::unavailable(),
     ] {
         let projection = source.current();
-        let state = projection.state;
+        let state = projection.run_state.clone();
         let mut app = mounted_app_with(source);
         let world = app.world_mut();
 
@@ -23,28 +23,28 @@ fn three_state_projections_are_visible() {
         assert_eq!(
             state_text,
             match state {
-                OverviewState::Running => "演示模式",
-                OverviewState::Stopped => "已停止",
-                OverviewState::Unavailable => "运行出错",
+                OverviewRunState::Running => "演示模式",
+                OverviewRunState::Stopped => "已停止",
+                OverviewRunState::Unavailable { .. } => "运行出错",
             }
         );
         let expected_ink = match state {
-            OverviewState::Running => palette.ink,
-            OverviewState::Stopped => palette.ink_dim,
-            OverviewState::Unavailable => palette.on_accent,
+            OverviewRunState::Running => palette.ink,
+            OverviewRunState::Stopped => palette.ink_dim,
+            OverviewRunState::Unavailable { .. } => palette.on_accent,
         };
         assert_eq!(ink.0, expected_ink, "{state:?} ink is the token one");
 
         let (_, failure_text, _) = line(world, OverviewLineKind::Failure);
         match state {
-            OverviewState::Unavailable => {
+            OverviewRunState::Unavailable { .. } => {
                 assert_eq!(failure_text, DEMO_REASON, "the reason is visible");
             }
             _ => assert_eq!(failure_text, "", "no fabricated status"),
         }
 
         let (_, fill, stored) = card(world);
-        let expected_fill = if state == OverviewState::Unavailable {
+        let expected_fill = if matches!(state, OverviewRunState::Unavailable { .. }) {
             palette.danger
         } else {
             palette.accent_container
@@ -61,7 +61,7 @@ fn three_state_projections_are_visible() {
         let (_, upload, _) = line(world, OverviewLineKind::Upload);
         let (_, connections) = chip_value(world, OverviewChipKind::Connections);
         let (_, memory) = chip_value(world, OverviewChipKind::Memory);
-        if state == OverviewState::Running {
+        if matches!(state, OverviewRunState::Running) {
             assert_eq!(upload, "↑ 1.40 MB/s");
             assert_eq!(connections, "12");
             assert_eq!(memory, "96.00 MB");

@@ -201,3 +201,6 @@ mod four_pages_semantic_tests;
 
 #[path = "headless/acceptance_list_tests.rs"]
 mod acceptance_list_tests;
+
+#[path = "headless/interaction_capture_tests.rs"]
+mod interaction_capture_tests;

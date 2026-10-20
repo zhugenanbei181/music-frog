@@ -1,4 +1,5 @@
 //! Diagnostic captures activate the native button and retain the real failed command observation.
+use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -6,7 +7,8 @@ use crate::command::CommandSinkHandle;
 use crate::pages::doctor::{
     DoctorPageRoot, DoctorProjectionUpdated, RepairDoctorRowButton, RunDoctorDiagnosticsButton,
 };
-use crate::pages::doctor_actions::{DoctorActions, DoctorFeedbackText, RetryDoctorButton};
+use crate::pages::doctor_actions::{DoctorFeedbackText, RetryDoctorButton};
+use crate::pages::page_models::DoctorPageModelState;
 use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, doctor_projection};
 use bevy::a11y::AccessibilityNode;
@@ -19,7 +21,6 @@ use bevy::ecs::{entity::Entity, resource::Resource};
 use bevy::ui::InteractionDisabled;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_composition::tokio_application_runtime;
@@ -41,7 +42,7 @@ pub fn install(app: &mut App) {
     let port = Arc::new(DoctorCapturePort::default());
     let doctor = DoctorApplication::new(port.clone());
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_doctor(doctor.clone()),
+        capture_command_application().with_doctor(doctor.clone()),
         CaptureCapability::Doctor,
     ))));
     app.insert_resource(CaptureDoctor {
@@ -78,7 +79,7 @@ pub struct DiagnosticActivation<'w, 's> {
     feature: Res<'w, InteractionCapture>,
     route: Res<'w, ActiveRoute>,
     capture: ResMut<'w, CaptureDoctor>,
-    actions: Res<'w, DoctorActions>,
+    actions: Res<'w, DoctorPageModelState>,
     latest: ResMut<'w, LatestSurfaceSnapshot>,
     run: Query<'w, 's, Entity, With<RunDoctorDiagnosticsButton>>,
 }
@@ -103,7 +104,7 @@ pub fn activate(mut diagnosis: DiagnosticActivation, mut commands: Commands) {
     }
     if diagnosis.capture.started
         || matches!(
-            &diagnosis.actions.state.phase,
+            &diagnosis.actions.0.action().phase,
             DoctorActionPhase::Pending(_)
         )
     {
@@ -118,7 +119,7 @@ pub fn activate(mut diagnosis: DiagnosticActivation, mut commands: Commands) {
 #[derive(SystemParam)]
 pub struct DiagnosticObservation<'w, 's> {
     capture: Res<'w, CaptureDoctor>,
-    actions: Res<'w, DoctorActions>,
+    actions: Res<'w, DoctorPageModelState>,
     latest: Res<'w, LatestSurfaceSnapshot>,
     retry: Query<'w, 's, (Entity, &'static ButtonDisabled), With<RetryDoctorButton>>,
     repairs: Query<
@@ -137,7 +138,7 @@ pub struct DiagnosticObservation<'w, 's> {
 }
 impl DiagnosticObservation<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
-        let actions = &self.actions.state;
+        let actions = &self.actions.0.action();
         if !self.capture.started
             || !matches!(
                 &actions.phase,

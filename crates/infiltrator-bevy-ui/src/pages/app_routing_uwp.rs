@@ -8,10 +8,11 @@ use self::query_access::{
 
 use super::app_routing::{AppRoutingProjection, AppRoutingProjectionUpdated};
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::page_models::AppRoutingPageModelState;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
@@ -244,21 +245,38 @@ pub(super) fn on_action_activated(
     action_buttons: Query<&UwpActionButton>,
     toggle_buttons: Query<&ToggleUwpButton>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut model: Option<ResMut<AppRoutingPageModelState>>,
 ) {
     let Some(handle) = handle else {
         return;
     };
     if let Ok(action) = action_buttons.get(activate.entity) {
         match action.0 {
-            UwpAction::Scan => handle.submit(UiCommand::ScanUwpApps),
+            UwpAction::Scan => {
+                // The scan is one typed phase of the shared app-routing page
+                // model, never a local boolean.
+                if let Some(model) = model.as_deref_mut() {
+                    model.0.scan_phase_mut().begin();
+                }
+                handle.submit(UiCommand::ScanUwpApps);
+            }
             UwpAction::ExemptAll => {
+                if let Some(model) = model.as_deref_mut() {
+                    model.0.exemption_write_phase_mut().begin();
+                }
                 handle.submit(UiCommand::SetAllUwpExemptions { exempt: true });
             }
             UwpAction::ClearAll => {
+                if let Some(model) = model.as_deref_mut() {
+                    model.0.exemption_write_phase_mut().begin();
+                }
                 handle.submit(UiCommand::SetAllUwpExemptions { exempt: false });
             }
         }
     } else if let Ok(button) = toggle_buttons.get(activate.entity) {
+        if let Some(model) = model.as_deref_mut() {
+            model.0.exemption_write_phase_mut().begin();
+        }
         handle.submit(UiCommand::SetUwpAppExemption {
             sid: button.sid.clone(),
             exempt: !button.exempt,

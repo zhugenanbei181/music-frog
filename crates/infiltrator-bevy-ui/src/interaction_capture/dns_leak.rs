@@ -1,4 +1,5 @@
 //! Native probe activation and report geometry are backed by an isolated echo port.
+use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::request_scroll;
@@ -18,7 +19,6 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
@@ -37,7 +37,7 @@ pub fn install(app: &mut App) {
     let echo = Arc::new(IsolatedEcho::default());
     let application = DnsLeakApplication::new(Some(echo.clone()), default_echo_sources());
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_dns_leak(application.clone()),
+        capture_command_application().with_dns_leak(application.clone()),
         CaptureCapability::DnsLeak,
     ))));
     app.insert_resource(LeakCapture {

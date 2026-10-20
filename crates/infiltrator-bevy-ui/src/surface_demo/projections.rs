@@ -207,33 +207,6 @@ impl From<AppRoutingProjection> for surface_snapshot::AppRoutingPageSnapshot {
 
 impl From<SyncProjection> for SyncPageSnapshot {
     fn from(value: SyncProjection) -> Self {
-        Self {
-            status: value.status,
-            history_status: value.history_status,
-            server_url: value.server_url,
-            username: value.username,
-            last_sync: value.last_sync,
-            auto_sync: value.auto_sync,
-            conflict: value.conflict.map(|conflict| SyncConflictSnapshot {
-                remote_device: conflict.remote_device,
-                conflict_time: conflict.conflict_time,
-                conflicting_keys: conflict
-                    .conflicting_keys
-                    .into_iter()
-                    .map(|key| (key.key, key.local_value, key.remote_value))
-                    .collect(),
-            }),
-            snapshots: value
-                .snapshots
-                .into_iter()
-                .map(|item| SnapshotItemSnapshot {
-                    profile: item.profile.clone(),
-                    id: item.id,
-                    timestamp: item.timestamp,
-                    device: item.device,
-                    size_bytes: item.size_bytes,
-                })
-                .collect(),
-        }
+        value.owner_page()
     }
 }

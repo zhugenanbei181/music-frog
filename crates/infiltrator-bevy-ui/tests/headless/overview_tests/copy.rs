@@ -87,12 +87,15 @@ impl OverviewSource for LifecycleSource {
     fn current(&self) -> OverviewProjection {
         let mut projection = DemoOverviewSource::running().current();
         projection.lifecycle = self.0.clone();
-        projection.state = match self.0 {
-            CoreLifecycle::Running | CoreLifecycle::Ready => OverviewState::Running,
-            CoreLifecycle::Stopped => OverviewState::Stopped,
-            _ => OverviewState::Unavailable,
+        projection.run_state = match self.0 {
+            CoreLifecycle::Running | CoreLifecycle::Ready => OverviewRunState::Running,
+            CoreLifecycle::Stopped => OverviewRunState::Stopped,
+            _ => OverviewRunState::Unavailable {
+                reason: "the core is not available".to_owned(),
+            },
         };
         projection.origin = OverviewOrigin::LiveCore;
+        // A pending core has not failed: the failure line stays empty.
         projection.failure = None;
         projection.core_version = None;
         projection

@@ -15,8 +15,8 @@
 
 use crate::a11y::button_semantic_node;
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::page_models::RulesPageModelState;
 use crate::pages::rules::RulesProjectionUpdated;
-use crate::pages::rules_tabs::RulesTabState;
 use crate::shortcuts::modifiers_from_keyboard;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -54,18 +54,25 @@ use infiltrator_contract::rules_workspace::{
     RulesJsonDocumentSnapshot, RulesJsonSection, RulesTab,
 };
 use infiltrator_presentation::rule_json_projection::json_editor_status;
+use infiltrator_presentation::rules_page_model::{RulesOperation, RulesPageModel};
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 
 /// Which JSON document the partition shows, plus its edit buffer.
+///
+/// The *owner* of the JSON text is the shared rules page model: it holds the
+/// three document buffers as typed drafts with their committed baseline, so
+/// "the buffer holds an unaccepted edit" is a derived fact of the draft and
+/// its baseline — never a boolean beside the text.
 #[derive(Resource)]
 pub struct RulesJsonState {
     /// Active section of the partition.
     pub section: RulesJsonSection,
     /// One editor buffer per shared section, indexed by `section.index()`.
+    ///
+    /// The buffer is the editor widget's own state (cursor, selection); the
+    /// text it shows is the shared model's draft.
     pub buffers: Vec<CodeEditorState>,
-    /// Whether the buffer holds text the read model does not (yet) reflect.
-    pub dirty: Vec<bool>,
     /// Keyboard ownership: only a focused buffer consumes keys.
     pub focused: bool,
     /// Bumped on every buffer replacement so the body scene is rebuilt.
@@ -74,8 +81,9 @@ pub struct RulesJsonState {
     pub last_rendered: u64,
     /// Last published documents (the shared read model).
     pub published: Vec<RulesJsonDocumentSnapshot>,
-    /// Source identity paired with each local buffer. Dirty buffers retain the
-    /// revision from which editing began when a newer read arrives.
+    /// Source identity paired with each local buffer. A buffer with an
+    /// unaccepted edit retains the revision from which editing began when a
+    /// newer read arrives.
     pub buffer_identities: Vec<Option<ProfileDocumentIdentity>>,
     /// Honest status line (submitted / adopted / refused).
     pub status: Option<RuleJsonFeedback>,
@@ -89,7 +97,6 @@ impl Default for RulesJsonState {
                 .iter()
                 .map(|_| CodeEditorState::new(""))
                 .collect(),
-            dirty: vec![false; RulesJsonSection::ALL.len()],
             focused: false,
             generation: 0,
             last_rendered: 0,
@@ -129,20 +136,23 @@ impl RulesJsonState {
             .iter()
             .map(|_| CodeEditorState::new(""))
             .collect();
-        self.dirty = vec![false; RulesJsonSection::ALL.len()];
         self.buffer_identities = vec![None; RulesJsonSection::ALL.len()];
         self.generation = self.generation.wrapping_add(1);
     }
 
-    /// Adopt the published documents. A buffer the user edited is never
-    /// clobbered: it stays dirty until it is saved or the user switches away.
-    pub fn adopt(&mut self, documents: &[RulesJsonDocumentSnapshot]) {
+    /// Adopt the published documents into the shared model.
+    ///
+    /// A buffer the user edited is never clobbered: the published text
+    /// becomes the model's new baseline and the edit stays visible.
+    pub fn adopt(&mut self, documents: &[RulesJsonDocumentSnapshot], model: &mut RulesPageModel) {
         self.published = documents.to_vec();
         self.ensure_buffers();
+        model.observe_json_documents(documents);
         for document in documents {
             let index = document.section.index();
             let current = self.buffers[index].full_text();
-            let same_value = self.dirty.get(index).copied().unwrap_or(false)
+            let modified = model.json_modified(document.section);
+            let same_value = modified
                 && match (
                     typed_rules_update(document.section, &current),
                     typed_rules_update(document.section, &document.json),
@@ -150,11 +160,14 @@ impl RulesJsonState {
                     (Ok(left), Ok(right)) => left == right,
                     _ => false,
                 };
-            if current == document.json || same_value {
-                // The read model confirms the typed value; its pretty-printer
-                // may normalize whitespace from the local buffer.
-                if let Some(dirty) = self.dirty.get_mut(index) {
-                    *dirty = false;
+            if !modified || same_value {
+                if same_value {
+                    // The read model confirms the typed value; its
+                    // pretty-printer may normalize whitespace from the local
+                    // buffer, so the published text becomes the draft.
+                    model
+                        .json_buffer_mut(document.section)
+                        .edit(document.json.clone());
                 }
                 if current != document.json {
                     self.buffers[index] = CodeEditorState::new(&document.json);
@@ -165,18 +178,17 @@ impl RulesJsonState {
                 }
                 continue;
             }
-            if self.dirty.get(index).copied().unwrap_or(false) {
-                continue;
-            }
-            self.buffers[index] = CodeEditorState::new(&document.json);
-            self.buffer_identities[index] = Some(document.identity.clone());
-            self.generation = self.generation.wrapping_add(1);
+            // The user still holds an unaccepted edit: their bytes and the
+            // revision they were read from stay.
         }
     }
 
     /// DUAL-11-14: apply one keystroke to the focused buffer. An unfocused
     /// buffer never consumes a key, so a hidden editor cannot be edited.
-    pub fn apply_key(&mut self, key: &Key) -> bool {
+    ///
+    /// The keystroke lands in the editor widget; the shared model owns the
+    /// resulting draft and its baseline.
+    pub fn apply_key(&mut self, key: &Key, model: &mut RulesPageModel) -> bool {
         if !self.focused {
             return false;
         }
@@ -214,10 +226,8 @@ impl RulesJsonState {
             }
             _ => return false,
         }
-        let index = self.section.index();
-        if let Some(dirty) = self.dirty.get_mut(index) {
-            *dirty = true;
-        }
+        let text = self.buffers[self.section.index()].full_text().to_owned();
+        model.json_buffer_mut(self.section).edit(text);
         self.status = None;
         true
     }
@@ -242,13 +252,13 @@ impl RulesJsonState {
     }
 
     /// Status text for the active section.
-    pub fn status_label(&self, language: &str) -> String {
+    ///
+    /// The "modified" fact is the shared model's: it is derived from the
+    /// draft against its committed baseline, never a flag beside the text.
+    pub fn status_label(&self, language: &str, modified: bool) -> String {
         json_editor_status(
             self.focused,
-            self.dirty
-                .get(self.section.index())
-                .copied()
-                .unwrap_or(false),
+            modified,
             self.published_document().is_some(),
             self.status,
             &Lang(language),
@@ -386,7 +396,7 @@ fn section_chip_scenes(palette: &UiPalette) -> impl SceneList + use<> {
 
 /// Scene constructor for the JSON partition of the rules workspace.
 pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Scene + use<> {
-    let status = state.status_label("en-US");
+    let status = state.status_label("en-US", false);
     let body: Box<dyn Scene> = code_editor_scene(state.buffer(), palette);
     let edit_button = edit_button_scene(palette);
     let save_button = save_button_scene(state.section, palette);
@@ -487,6 +497,7 @@ pub struct JsonSaveCopy {
 pub struct JsonChrome<'w, 's> {
     locale: Res<'w, UiLocale>,
     state: Option<Res<'w, RulesJsonState>>,
+    model: Option<Res<'w, RulesPageModelState>>,
     palette: Res<'w, UiPalette>,
     statuses:
         Query<'w, 's, &'static mut Text, (With<RulesJsonStatusText>, Without<RulesJsonSaveLabel>)>,
@@ -500,6 +511,7 @@ pub fn restamp_rules_json(chrome: JsonChrome) {
     let JsonChrome {
         locale,
         state,
+        model,
         palette,
         mut statuses,
         mut save_labels,
@@ -510,7 +522,8 @@ pub fn restamp_rules_json(chrome: JsonChrome) {
     let Some(state) = state else {
         return;
     };
-    let status = state.status_label(locale.code());
+    let modified = model.is_some_and(|model| model.0.json_modified(state.section));
+    let status = state.status_label(locale.code(), modified);
     for mut text in &mut statuses {
         if text.0 != status {
             text.0 = status.clone();
@@ -558,10 +571,15 @@ pub fn restamp_rules_json(chrome: JsonChrome) {
 pub fn sync_rules_json(
     update: On<RulesProjectionUpdated>,
     mut state: Option<ResMut<RulesJsonState>>,
+    mut model: Option<ResMut<RulesPageModelState>>,
 ) {
-    if let Some(state) = state.as_deref_mut() {
-        state.adopt(&update.0.json_documents);
-    }
+    let Some(state) = state.as_deref_mut() else {
+        return;
+    };
+    let Some(model) = model.as_deref_mut() else {
+        return;
+    };
+    state.adopt(&update.0.json_documents, &mut model.0);
 }
 
 /// Rebuild the editor body whenever the active buffer was replaced.
@@ -593,6 +611,7 @@ pub fn on_rules_json_action_activated(
     edit_buttons: Query<(), With<RulesJsonEditButton>>,
     save_buttons: Query<(), With<RulesJsonSaveButton>>,
     mut state: Option<ResMut<RulesJsonState>>,
+    mut model: Option<ResMut<RulesPageModelState>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(state) = state.as_deref_mut() else {
@@ -603,6 +622,9 @@ pub fn on_rules_json_action_activated(
         let section = RulesJsonSection::from_index(chip.0);
         if state.section != section {
             state.section = section;
+            if let Some(model) = model.as_deref_mut() {
+                model.0.select_json_section(section);
+            }
             state.status = None;
             state.generation = state.generation.wrapping_add(1);
         }
@@ -616,7 +638,6 @@ pub fn on_rules_json_action_activated(
     if !save_buttons.contains(activate.entity) {
         return;
     }
-    let index = state.section.index();
     let Some(handle) = handle else {
         state.status = Some(RuleJsonFeedback::HostUnavailable);
         return;
@@ -635,10 +656,18 @@ pub fn on_rules_json_action_activated(
         }
     };
     handle.submit(command);
-    if let Some(dirty) = state.dirty.get_mut(index) {
-        *dirty = true;
+    if let Some(model) = model.as_deref_mut() {
+        model.0.operation_mut(save_operation(state.section)).begin();
     }
     state.status = Some(RuleJsonFeedback::AwaitingReadback);
+}
+
+/// The shared rules operation that saves one JSON section.
+fn save_operation(section: RulesJsonSection) -> RulesOperation {
+    RulesOperation::ALL
+        .into_iter()
+        .find(|operation| operation.json_section() == Some(section))
+        .unwrap_or(RulesOperation::Save)
 }
 
 /// The editor keyboard seam: only the focused buffer consumes keys, and only
@@ -647,8 +676,8 @@ pub fn rules_json_keyboard_input(
     mut keys: MessageReader<KeyboardInput>,
     keys_state: Option<Res<ButtonInput<KeyCode>>>,
     bodies: Query<(), With<RulesJsonEditorBody>>,
-    tabs: Option<Res<RulesTabState>>,
     mut state: Option<ResMut<RulesJsonState>>,
+    mut model: Option<ResMut<RulesPageModelState>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let pressed: Vec<Key> = keys
@@ -663,9 +692,10 @@ pub fn rules_json_keyboard_input(
         return;
     }
     // A hidden partition never owns the keyboard, even if focus was left on.
-    if tabs
+    // The tab is the shared model's fact.
+    if model
         .as_ref()
-        .is_some_and(|tabs| tabs.tab != RulesTab::JsonEditors)
+        .is_some_and(|model| model.0.tab() != RulesTab::JsonEditors)
     {
         return;
     }
@@ -691,9 +721,8 @@ pub fn rules_json_keyboard_input(
                 }
                 (Some(handle), Ok(command)) => {
                     handle.submit(command);
-                    let index = state.section.index();
-                    if let Some(dirty) = state.dirty.get_mut(index) {
-                        *dirty = true;
+                    if let Some(model) = model.as_deref_mut() {
+                        model.0.operation_mut(save_operation(state.section)).begin();
                     }
                     state.status = Some(RuleJsonFeedback::AwaitingReadback);
                 }
@@ -703,173 +732,14 @@ pub fn rules_json_keyboard_input(
         if modifiers.ctrl || modifiers.alt || modifiers.meta {
             continue;
         }
-        if state.apply_key(&key) {
+        let Some(model) = model.as_deref_mut() else {
+            return;
+        };
+        if state.apply_key(&key, &mut model.0) {
             state.generation = state.generation.wrapping_add(1);
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use lurker_core_contract::identity::EngineId;
-    use lurker_core_contract::profile_document_identity::{
-        ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
-        ProfileId, ProfileSourceId,
-    };
-    use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
-
-    fn identity(revision: &str) -> ProfileDocumentIdentity {
-        ProfileDocumentIdentity::new(
-            ProfileId::new("profile-main").unwrap(),
-            EngineId::new("mihomo").unwrap(),
-            ProfileDocumentSourceIdentity::new(
-                ProfileDocumentSourceKind::Local,
-                ProfileSourceId::new("local-main").unwrap(),
-            ),
-            ProfileDocumentRevision::new(revision).unwrap(),
-            ProfileFormatId::new("mihomo-yaml").unwrap(),
-            ProfileSchemaVersion::new(1).unwrap(),
-        )
-    }
-
-    fn documents() -> Vec<RulesJsonDocumentSnapshot> {
-        vec![
-            RulesJsonDocumentSnapshot {
-                section: RulesJsonSection::RuleProviders,
-                identity: identity("revision-1"),
-                json: "{\n  \"a\": 1\n}".to_owned(),
-            },
-            RulesJsonDocumentSnapshot {
-                section: RulesJsonSection::Sniffer,
-                identity: identity("revision-1"),
-                json: "{}".to_owned(),
-            },
-        ]
-    }
-
-    #[test]
-    fn every_shared_section_has_a_label_and_a_save_label() {
-        for section in RulesJsonSection::ALL {
-            assert!(!Lang("zh-CN").tr(section.i18n_key()).is_empty());
-            assert!(!Lang("zh-CN").tr(section.save_i18n_key()).is_empty());
-        }
-        assert_eq!(
-            Lang("zh-CN").tr(RulesJsonSection::Sniffer.i18n_key()),
-            "嗅探器 JSON"
-        );
-        assert_eq!(
-            Lang("zh-CN").tr(RulesJsonSection::RuleProviders.save_i18n_key()),
-            "保存规则提供者"
-        );
-    }
-
-    #[test]
-    fn adoption_fills_empty_buffers_and_never_clobbers_a_dirty_one() {
-        let mut state = RulesJsonState::default();
-        state.adopt(&documents());
-        assert_eq!(state.buffers.len(), RulesJsonSection::ALL.len());
-        assert_eq!(
-            state.buffers[RulesJsonSection::RuleProviders.index()].full_text(),
-            "{\n  \"a\": 1\n}"
-        );
-        assert_eq!(
-            state.buffers[RulesJsonSection::ProxyProviders.index()].full_text(),
-            ""
-        );
-
-        // A dirty buffer keeps the user's bytes when the read model moves.
-        state.section = RulesJsonSection::RuleProviders;
-        state.dirty[RulesJsonSection::RuleProviders.index()] = true;
-        state.buffer_mut().set_text("{\n  \"edited\": true\n}");
-        state.adopt(&[RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::RuleProviders,
-            identity: identity("revision-2"),
-            json: "{\n  \"server\": 1\n}".to_owned(),
-        }]);
-        assert_eq!(
-            state.buffers[RulesJsonSection::RuleProviders.index()].full_text(),
-            "{\n  \"edited\": true\n}"
-        );
-        assert_eq!(
-            state.buffer_identities[RulesJsonSection::RuleProviders.index()],
-            Some(identity("revision-1")),
-            "dirty text keeps the revision it was read from"
-        );
-        assert!(state.status_label("zh-CN").contains("有未提交改动"));
-
-        // A read-back that matches the buffer clears the pending flag.
-        state.adopt(&[RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::RuleProviders,
-            identity: identity("revision-2"),
-            json: "{\n  \"edited\": true\n}".to_owned(),
-        }]);
-        assert!(!state.dirty[RulesJsonSection::RuleProviders.index()]);
-        assert_eq!(
-            state.buffer_identities[RulesJsonSection::RuleProviders.index()],
-            Some(identity("revision-2"))
-        );
-        assert!(!state.status_label("zh-CN").contains("有未提交改动"));
-
-        // A clean buffer follows the read model.
-        state.dirty[RulesJsonSection::RuleProviders.index()] = false;
-        state.adopt(&[RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::RuleProviders,
-            identity: identity("revision-3"),
-            json: "{\n  \"server\": 2\n}".to_owned(),
-        }]);
-        assert_eq!(
-            state.buffers[RulesJsonSection::RuleProviders.index()].full_text(),
-            "{\n  \"server\": 2\n}"
-        );
-        assert!(state.status_label("zh-CN").contains("已与读模型一致"));
-    }
-
-    #[test]
-    fn editing_marks_the_buffer_dirty_and_escape_releases_focus() {
-        let mut state = RulesJsonState::default();
-        state.adopt(&documents());
-        state.section = RulesJsonSection::RuleProviders;
-        state.focused = true;
-        assert!(state.apply_key(&Key::End));
-        assert!(state.apply_key(&Key::Character("!".into())));
-        assert!(state.buffer().full_text().contains("!"));
-        assert!(state.dirty[RulesJsonSection::RuleProviders.index()]);
-        assert!(state.status_label("zh-CN").contains("编辑中"));
-        assert!(state.apply_key(&Key::Escape));
-        assert!(!state.focused);
-        assert!(!state.apply_key(&Key::Character("x".into())));
-    }
-
-    #[test]
-    fn submit_builds_a_revision_bound_typed_update_and_refuses_invalid_buffers() {
-        let mut state = RulesJsonState::default();
-        state.adopt(&documents());
-        state.section = RulesJsonSection::Sniffer;
-        match state.submit_command() {
-            Ok(UiCommand::ApplyProfileConfiguration(request)) => {
-                assert_eq!(request.identity, identity("revision-1"));
-                assert_eq!(
-                    request.update,
-                    ProfileConfigurationUpdate::Sniffer(Default::default())
-                );
-            }
-            other => panic!("expected a typed profile update, got {other:?}"),
-        }
-
-        state.section = RulesJsonSection::ProxyProviders;
-        assert_eq!(
-            state.submit_command(),
-            Err(RulesJsonSubmissionFailure::Empty),
-            "empty buffer is refused"
-        );
-        assert!(state.status_label("zh-CN").contains("读模型未发布该文档"));
-
-        state.section = RulesJsonSection::RuleProviders;
-        state.buffer_mut().set_text("[]");
-        assert_eq!(
-            state.submit_command(),
-            Err(RulesJsonSubmissionFailure::InvalidDocument)
-        );
-    }
-}
+mod rules_json_tests;

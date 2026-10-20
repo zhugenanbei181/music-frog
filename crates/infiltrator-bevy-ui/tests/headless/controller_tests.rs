@@ -21,8 +21,7 @@ use infiltrator_bevy_ui::pages::overview::{
 };
 use infiltrator_bevy_ui::pages::overview_lifecycle::CoreControlButton;
 use infiltrator_bevy_ui::projection::{
-    DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
-    SourceKind,
+    DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, SourceKind,
 };
 use infiltrator_bevy_ui::route::{OverviewSourceHandle, PagesPlugin};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
@@ -30,6 +29,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_domain::traffic_waveform::display_series;
+use infiltrator_presentation::overview_page_model::OverviewRunState;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
@@ -125,17 +125,28 @@ fn pump_projects_live_controller_fields() {
     // Before the first sample: the honest "waiting" projection.
     let first = source.current();
     assert_eq!(first.origin, OverviewOrigin::LiveCore);
-    assert_eq!(first.state, OverviewState::Unavailable);
+    assert_eq!(
+        first.run_state,
+        OverviewRunState::Unavailable {
+            reason: "waiting for the first controller sample".to_owned()
+        },
+        "before the first sample the core is not available, and says why"
+    );
+    assert_eq!(
+        first.failure(),
+        Some("waiting for the first controller sample"),
+        "the failure line carries the core's own reason"
+    );
 
     let projection = wait_until(|| {
         let current = source.current();
-        (current.state == OverviewState::Running).then_some(current)
+        (current.run_state == OverviewRunState::Running).then_some(current)
     });
     assert_eq!(projection.core_version.as_deref(), Some("v1.19.18"));
     assert_eq!(projection.active_connections, 3);
     assert_eq!(projection.memory_bytes, ResourceAvailability::NotObserved);
     assert_eq!(projection.routing_intent, RoutingIntentSnapshot::default());
-    assert_eq!(projection.failure, None);
+    assert_eq!(projection.failure(), None);
 
     // The totals grow per request, so a later sample must carry a
     // positive uplink rate (the rate window has a delta).
@@ -158,8 +169,8 @@ fn unreachable_controller_projects_unavailable() {
 
     let projection = wait_until(|| {
         let current = source.current();
-        (current.state == OverviewState::Unavailable
-            && current.failure.as_deref().is_some_and(|f| !f.is_empty()))
+        (matches!(current.run_state, OverviewRunState::Unavailable { .. })
+            && current.failure().is_some_and(|reason| !reason.is_empty()))
         .then_some(current)
     });
     assert_eq!(projection.origin, OverviewOrigin::LiveCore);
@@ -207,7 +218,7 @@ fn idle_null_tracker_falls_back_and_stays_running() {
 
     let projection = wait_until(|| {
         let current = source.current();
-        (current.state == OverviewState::Running).then_some(current)
+        (current.run_state == OverviewRunState::Running).then_some(current)
     });
     assert_eq!(
         projection.core_version.as_deref(),
@@ -314,7 +325,7 @@ fn pump_snapshots_flow_through_the_bridge_into_refresh_events() {
         app.update();
         let snapshot = captured.lock().expect("capture lock").clone();
         if let Some(snapshot) = snapshot
-            && snapshot.state == OverviewState::Running
+            && snapshot.run_state == OverviewRunState::Running
             && snapshot.core_version.as_deref() == Some("v1.19.18")
         {
             assert_eq!(snapshot.active_connections, 3);
@@ -398,7 +409,8 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
     impl OverviewSource for LiveStub {
         fn current(&self) -> OverviewProjection {
             OverviewProjection {
-                state: OverviewState::Running,
+                failure: None,
+                run_state: OverviewRunState::Running,
                 lifecycle: CoreLifecycle::Running,
                 upload_bps: 0.0,
                 download_bps: 0.0,
@@ -406,7 +418,6 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 active_connections: 0,
                 memory_bytes: ResourceAvailability::NotObserved,
                 sampled_at: Duration::from_secs(1),
-                failure: None,
                 origin: OverviewOrigin::LiveCore,
                 core_version: Some("v1.19.18".to_owned()),
                 traffic_waveform: Default::default(),

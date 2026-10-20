@@ -1,4 +1,5 @@
 //! Capture uses native choices, the real settings writer and its correlated terminal event.
+use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -14,7 +15,6 @@ use bevy::ecs::prelude::*;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::SystemParam;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, UiLocale};
@@ -30,26 +30,50 @@ use std::sync::Arc;
 struct CaptureLanguageStore {
     store: Arc<LanguageCaptureStore>,
     initialized: bool,
+    published: Option<String>,
 }
 pub fn install(app: &mut App) {
     let store = Arc::new(LanguageCaptureStore::default());
     app.insert_resource(UiLocale::new("zh-CN"));
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_settings(SettingsApplication::new(store.clone())),
+        capture_command_application().with_settings(SettingsApplication::new(store.clone())),
         CaptureCapability::Language,
     ))));
     app.insert_resource(CaptureLanguageStore {
         store,
         initialized: false,
+        published: None,
     });
     app.add_systems(Update, initialize.before(activate));
+    app.add_systems(Update, publish_saved.after(activate));
 }
 fn initialize(mut store: ResMut<CaptureLanguageStore>, mut latest: ResMut<LatestSurfaceSnapshot>) {
     if store.initialized {
         return;
     }
-    latest.0.language_settings = project_language(Some(&Ok(store.store.saved())));
+    let saved = store.store.saved();
+    latest.0.language_settings = project_language(Some(&Ok(saved.clone())));
+    store.published = Some(saved.language);
     store.initialized = true;
+}
+
+/// Publish the persisted language the shared settings owner really stored.
+///
+/// The language choice owner only leaves its `AwaitingObservation` phase when
+/// the surface reads the persisted preference back. The capture therefore
+/// republishes the stored settings once the real save landed; without it the
+/// choice never settles and the capture can never observe the change.
+fn publish_saved(
+    mut store: ResMut<CaptureLanguageStore>,
+    mut latest: ResMut<LatestSurfaceSnapshot>,
+) {
+    let saved = store.store.saved();
+    if store.published.as_deref() == Some(saved.language.as_str()) {
+        return;
+    }
+    latest.0.language_settings = project_language(Some(&Ok(saved.clone())));
+    latest.0.revision += 1;
+    store.published = Some(saved.language);
 }
 #[derive(SystemParam)]
 pub struct LanguageControls<'w, 's> {

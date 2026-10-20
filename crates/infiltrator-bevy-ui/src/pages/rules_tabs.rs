@@ -8,6 +8,7 @@
 //! [`infiltrator_contract::rules_workspace::RulesTab`], so a tab added to the
 //! contract cannot silently exist on one surface only.
 
+use crate::pages::page_models::RulesPageModelState;
 use crate::pages::rules_json::RulesJsonState;
 use crate::pages::rules_statistics::RulesStatisticsState;
 use bevy::ecs::component::Component;
@@ -33,9 +34,14 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rules_workspace::RulesTab;
 
-/// Active partition of the rules workspace.
+/// The active partition of the rules workspace, as the capture layer reads it.
+///
+/// The tab itself is the shared rules page model's; this resource is the
+/// read-only view the capture seam observes, refreshed from the model by
+/// [`sync_rules_tabs`].
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesTabState {
+    /// The active partition.
     pub tab: RulesTab,
 }
 
@@ -126,7 +132,8 @@ pub fn tab_body_scene(tab: RulesTab, content: Box<dyn Scene>) -> Box<dyn Scene> 
 /// DUAL-11-14: show only the active partition and swap chip fill/label ink
 /// tokens in place (official `Theme*` repaint on insert — norm ②/③).
 pub fn sync_rules_tabs(
-    state: Option<Res<RulesTabState>>,
+    state: Option<Res<RulesPageModelState>>,
+    mut view: Option<ResMut<RulesTabState>>,
     statistics: Option<Res<RulesStatisticsState>>,
     mut commands: Commands,
     mut bodies: Query<(&mut Node, &RulesTabBody)>,
@@ -141,9 +148,14 @@ pub fn sync_rules_tabs(
     let Some(state) = state else {
         return;
     };
+    if let Some(view) = view.as_deref_mut()
+        && view.tab != state.0.tab()
+    {
+        view.tab = state.0.tab();
+    }
     let tabs_disabled = statistics.is_some_and(|state| state.model.confirmation().is_some());
     for (mut node, body) in &mut bodies {
-        let want = if body.0 == state.tab {
+        let want = if body.0 == state.0.tab() {
             Display::Flex
         } else {
             Display::None
@@ -158,7 +170,7 @@ pub fn sync_rules_tabs(
         } else if !tabs_disabled && disabled.is_some() {
             commands.entity(entity).remove::<InteractionDisabled>();
         }
-        let selected = RulesTab::from_index(chip.0) == state.tab;
+        let selected = RulesTab::from_index(chip.0) == state.0.tab();
         commands
             .entity(entity)
             .insert(ThemeBackgroundColor(if selected {
@@ -188,7 +200,8 @@ pub fn on_rules_tab_activated(
     statistics: Option<Res<RulesStatisticsState>>,
     strips: Query<(), With<RulesTabStrip>>,
     chips: Query<&RulesTabChip>,
-    mut state: Option<ResMut<RulesTabState>>,
+    mut state: Option<ResMut<RulesPageModelState>>,
+    mut view: Option<ResMut<RulesTabState>>,
     mut json: Option<ResMut<RulesJsonState>>,
 ) {
     if statistics.is_some_and(|state| state.model.confirmation().is_some()) {
@@ -207,10 +220,13 @@ pub fn on_rules_tab_activated(
         return;
     };
     let tab = RulesTab::from_index(chip.0);
-    if state.tab == tab {
+    if state.0.tab() == tab {
         return;
     }
-    state.tab = tab;
+    state.0.select_tab(tab);
+    if let Some(view) = view.as_deref_mut() {
+        view.tab = tab;
+    }
     if let Some(json) = json.as_deref_mut() {
         json.focused = false;
     }
@@ -241,8 +257,9 @@ mod tests {
 
     #[test]
     fn default_partition_is_the_shared_default() {
-        assert_eq!(RulesTabState::default().tab, RulesTab::default());
-        assert_eq!(RulesTabState::default().tab, RulesTab::List);
+        let model = RulesPageModelState::default();
+        assert_eq!(model.0.tab(), RulesTab::default());
+        assert_eq!(model.0.tab(), RulesTab::List);
         assert_eq!(Lang("zh-CN").tr(RulesTab::List.i18n_key()), "规则列表");
         assert_eq!(
             Lang("zh-CN").tr(RulesTab::JsonEditors.i18n_key()),

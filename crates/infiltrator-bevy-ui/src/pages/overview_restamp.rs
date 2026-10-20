@@ -325,11 +325,7 @@ pub(crate) fn apply_overview_projection(
                 text.0 = rate_status(&projection.readout, &Lang(language))
             }
             OverviewLineKind::Failure => {
-                text.0 = failure_copy(
-                    &projection.lifecycle,
-                    projection.failure.as_deref(),
-                    &Lang(language),
-                )
+                text.0 = failure_copy(&projection.lifecycle, projection.failure(), &Lang(language))
             }
             OverviewLineKind::RoutingIntentChip => {
                 text.0 = routing_intent_status_copy(&projection.routing_intent, &Lang(language))

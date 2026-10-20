@@ -3,12 +3,24 @@
 
 use super::*;
 use bevy::ecs::query::With;
+use infiltrator_bevy_ui::pages::page_models::RulesPageModelState;
+use infiltrator_bevy_ui::pages::rules_json::RulesJsonState;
 use infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot;
+
+/// Whether the shared rules page model holds an unaccepted edit for the
+/// active JSON section.
+fn json_modified(app: &App) -> bool {
+    let state = app.world().resource::<RulesJsonState>();
+    app.world()
+        .resource::<RulesPageModelState>()
+        .0
+        .json_modified(state.section)
+}
 
 #[test]
 fn test_rules_json_partition_edits_and_submits_shared_intent() {
     use infiltrator_bevy_ui::pages::rules_json::{
-        RulesJsonEditButton, RulesJsonSaveButton, RulesJsonState, RulesJsonStatusText,
+        RulesJsonEditButton, RulesJsonSaveButton, RulesJsonStatusText,
     };
     use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabState};
     use infiltrator_contract::command::CommandIntent;
@@ -29,7 +41,11 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
             Some(state.buffer().full_text()),
             "the partition adopts the published document verbatim"
         );
-        assert!(state.status_label("zh-CN").contains("已与读模型一致"));
+        assert!(
+            state
+                .status_label("zh-CN", json_modified(&app))
+                .contains("已与读模型一致")
+        );
     }
 
     // Switch to the JSON partition and focus the buffer through the explicit
@@ -57,7 +73,11 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     {
         let state = app.world().resource::<RulesJsonState>();
         assert!(state.focused, "the explicit seam armed the buffer");
-        assert!(state.status_label("zh-CN").contains("编辑中"));
+        assert!(
+            state
+                .status_label("zh-CN", json_modified(&app))
+                .contains("编辑中")
+        );
     }
 
     // Typed keystrokes reach the buffer and mark it dirty.
@@ -81,7 +101,11 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     {
         let state = app.world().resource::<RulesJsonState>();
         assert!(state.buffer().full_text().ends_with(' '));
-        assert!(state.status_label("zh-CN").contains("有未提交改动"));
+        assert!(
+            state
+                .status_label("zh-CN", json_modified(&app))
+                .contains("有未提交改动")
+        );
     }
 
     // Save submits the decoded typed value with the exact observed source
@@ -112,7 +136,11 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     };
     {
         let state = app.world().resource::<RulesJsonState>();
-        assert!(state.status_label("zh-CN").contains("已提交共享应用保存"));
+        assert!(
+            state
+                .status_label("zh-CN", json_modified(&app))
+                .contains("已提交共享应用保存")
+        );
     }
     assert_eq!(
         UiCommand::ApplyProfileConfiguration(request.clone()).to_intent(),
@@ -135,8 +163,16 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     app.update();
     {
         let state = app.world().resource::<RulesJsonState>();
-        assert!(!state.status_label("zh-CN").contains("有未提交改动"));
-        assert!(state.status_label("zh-CN").contains("已与读模型一致"));
+        assert!(
+            !state
+                .status_label("zh-CN", json_modified(&app))
+                .contains("有未提交改动")
+        );
+        assert!(
+            state
+                .status_label("zh-CN", json_modified(&app))
+                .contains("已与读模型一致")
+        );
     }
 
     // The status line is rendered from the partition state.

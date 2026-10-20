@@ -8,6 +8,7 @@
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::dns::{DnsProjection, DnsProjectionUpdated};
+use crate::pages::page_models::DnsPageModelState;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
@@ -38,6 +39,7 @@ use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholde
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::dns::{append_server, parse_server_list};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
+use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_presentation::dns_settings_projection::{field_label_key, form_status};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -588,6 +590,7 @@ pub struct DnsEditInteraction<'w, 's> {
     state: ResMut<'w, DnsFormState>,
     handle: Option<Res<'w, CommandSinkHandle>>,
     locale: Res<'w, UiLocale>,
+    model: Option<ResMut<'w, DnsPageModelState>>,
 }
 pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInteraction) {
     let DnsEditInteraction {
@@ -601,6 +604,7 @@ pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInte
         mut state,
         handle,
         locale,
+        mut model,
     } = surface;
     let state = &mut *state;
     if let Ok(template) = templates.get(activate.entity) {
@@ -648,6 +652,12 @@ pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInte
                 patch: state.form.patch(),
             });
             state.record_apply(DnsCommandService::Composed);
+            // The submitted write is one typed phase of the shared DNS page
+            // model, so the page can no longer show "saving" next to
+            // "failed".
+            if let Some(model) = model.as_deref_mut() {
+                model.0.operation_mut(DnsOperation::SaveDns).begin();
+            }
         } else {
             state.record_apply(DnsCommandService::Absent);
         }

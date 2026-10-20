@@ -79,11 +79,9 @@ pub fn refresh(mut copy: OverviewCopy) {
                 routing_intent_status_copy(&projection.routing_intent, &Lang(language))
             }
             OverviewLineKind::BannerNote => banner_note(projection, language),
-            OverviewLineKind::Failure => failure_copy(
-                &projection.lifecycle,
-                projection.failure.as_deref(),
-                &Lang(language),
-            ),
+            OverviewLineKind::Failure => {
+                failure_copy(&projection.lifecycle, projection.failure(), &Lang(language))
+            }
             OverviewLineKind::Scale => format_scale(&projection.traffic_scale),
         };
         if let Some(mut semantic) = line.semantic {

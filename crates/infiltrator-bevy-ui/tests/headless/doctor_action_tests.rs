@@ -16,10 +16,9 @@ use infiltrator_bevy_ui::pages::doctor::self_heal::ApplyBestNodeButton;
 use infiltrator_bevy_ui::pages::doctor::{
     DoctorPageRoot, DoctorProjectionUpdated, RepairDoctorRowButton, RunDoctorDiagnosticsButton,
 };
-use infiltrator_bevy_ui::pages::doctor_actions::{
-    BootstrapDoctorButton, DoctorActions, RetryDoctorButton,
-};
+use infiltrator_bevy_ui::pages::doctor_actions::{BootstrapDoctorButton, RetryDoctorButton};
 use infiltrator_bevy_ui::pages::doctor_rows::{DoctorRow, DoctorRows};
+use infiltrator_bevy_ui::pages::page_models::DoctorPageModelState;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{
     LatestSurfaceSnapshot, SurfaceSnapshotUpdated, doctor_projection,
@@ -69,7 +68,11 @@ fn click(app: &mut App, entity: Entity) {
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while matches!(
-        &app.world().resource::<DoctorActions>().state.phase,
+        &app.world()
+            .resource::<DoctorPageModelState>()
+            .0
+            .action()
+            .phase,
         DoctorActionPhase::Pending(_)
     ) {
         assert!(Instant::now() < deadline, "actual command terminal result");
@@ -79,7 +82,13 @@ fn settle(app: &mut App) {
     app.update();
 }
 fn pending_token(app: &App) -> u64 {
-    match &app.world().resource::<DoctorActions>().state.phase {
+    match &app
+        .world()
+        .resource::<DoctorPageModelState>()
+        .0
+        .action()
+        .phase
+    {
         DoctorActionPhase::Pending(pending) => pending.token,
         DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => {
             panic!("doctor action must have a correlated pending token")
@@ -155,7 +164,7 @@ fn native_doctor_controls_execute_real_failure_retry_repair_bootstrap_and_reject
     settle(&mut app);
     publish(&mut app, &reader);
     assert!(matches!(
-        &app.world().resource::<DoctorActions>().state.phase,
+        &app.world().resource::<DoctorPageModelState>().0.action().phase,
         DoctorActionPhase::Failed { failure, .. }
             if failure.code == ErrorCode::Permission
     ));

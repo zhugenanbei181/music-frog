@@ -1,12 +1,14 @@
 //! Read real telemetry through its injected port, then observe native stale-zero texts and geometry.
+use super::capability::install_core_capabilities;
 use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::pages::overview::{
-    OverviewLine, OverviewLineKind, OverviewPageRoot, OverviewTrafficCard,
+    OverviewLine, OverviewLineKind, OverviewPageRoot, OverviewProjectionUpdated,
+    OverviewTrafficCard,
 };
 use crate::route::{ActiveRoute, Route};
-use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use crate::surface::{LatestSurfaceSnapshot, overview_projection};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
@@ -43,6 +45,11 @@ pub fn install(app: &mut App) {
         telemetry.clone(),
         runtime.clone(),
     ));
+    // The isolated telemetry owner really starts its Core, so it publishes
+    // the capture's own lifecycle capability matrix. Without it the shared
+    // lifecycle gate denies `StartCore` and the capture never observes a
+    // measured telemetry transition.
+    install_core_capabilities(&core);
     let reader = Arc::new(ProductSurfaceReader::new(
         core.clone(),
         SurfaceKind::BevyDesktop,
@@ -60,7 +67,7 @@ pub fn install(app: &mut App) {
 pub struct TelemetryControls<'w, 's> {
     capture: ResMut<'w, TelemetryCapture>,
     route: Res<'w, ActiveRoute>,
-    latest: Res<'w, LatestSurfaceSnapshot>,
+    latest: ResMut<'w, LatestSurfaceSnapshot>,
     lines: Query<'w, 's, (Entity, &'static OverviewLine, &'static Text)>,
     cards: Query<'w, 's, Entity, With<OverviewTrafficCard>>,
     scroll: Query<'w, 's, Entity, With<OverviewPageRoot>>,
@@ -98,7 +105,11 @@ pub fn activate(
             .take()
             .expect("actual telemetry facts");
         snapshot.revision = controls.latest.0.revision + 1;
-        commands.trigger(SurfaceSnapshotUpdated(snapshot));
+        // The capture runs its own core, so the whole-snapshot event is
+        // fenced out by the scope rule: the capture publishes the observation
+        // it owns and triggers the page's own projection.
+        controls.latest.0 = snapshot.clone();
+        commands.trigger(OverviewProjectionUpdated(overview_projection(&snapshot)));
         controls.capture.initialized = true;
     }
     if let (Ok(card), Ok(scroll)) = (controls.cards.single(), controls.scroll.single())

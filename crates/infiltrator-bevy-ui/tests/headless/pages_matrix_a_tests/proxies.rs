@@ -10,7 +10,6 @@ use infiltrator_bevy_ui::pages::proxies::{
     LatencySkeletonPulse, NodeDetailButton, ProxyGroupMoveUpButton, ProxyNode,
     ResetProxyGroupOrderButton, ToggleViewModeButton,
 };
-use infiltrator_bevy_ui::pages::proxies_filter::{format_protocol_chip, matches_proxy_filter};
 use infiltrator_bevy_ui::pages::proxies_virtual::ProxiesVirtualNodes;
 use infiltrator_bevy_ui::pages::proxy_group_order::{GroupOrderAction, GroupOrderState};
 use infiltrator_bevy_ui::pages::proxy_probe_settings::{
@@ -23,6 +22,7 @@ use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
+use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
@@ -760,9 +760,9 @@ fn test_proxies_favorite_pin_submits_command() {
 
 #[test]
 fn test_proxies_advanced_chips_and_color_ladder() {
-    assert_eq!(format_protocol_chip("Shadowsocks"), "Shadowsocks");
-    assert_eq!(format_protocol_chip("vless"), "Vless");
-    assert_eq!(format_protocol_chip("hy2"), "Hysteria2");
+    assert_eq!(proxy_protocol_chip("Shadowsocks"), "Shadowsocks");
+    assert_eq!(proxy_protocol_chip("vless"), "Vless");
+    assert_eq!(proxy_protocol_chip("hy2"), "Hysteria2");
 
     let caption = project_proxy_latency(Some(45));
     let tier = caption.band;
