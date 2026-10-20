@@ -71,7 +71,12 @@ class Candidate:
 
     @property
     def key(self) -> str:
-        return f"{self.file}::{self.type}::{self.kind}"
+        # The key is repository relative so the ledger travels with the checkout.
+        try:
+            file_name = Path(self.file).relative_to(ROOT).as_posix()
+        except ValueError:
+            file_name = self.file
+        return f"{file_name}::{self.type}::{self.kind}"
 
 
 def strip_code(text: str) -> str:
@@ -100,6 +105,10 @@ def production_sources(base: Path) -> list[Path]:
     for path in sorted(base.rglob("*.rs")):
         relative = path.relative_to(base).as_posix()
         if relative.startswith("tests/") or relative.endswith("/tests.rs"):
+            continue
+        if relative.endswith("_tests.rs") or relative.endswith("_test.rs"):
+            # Test modules that live next to production sources are not product
+            # surface and are not part of the implicit-state red line.
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         marker = text.find("#[cfg(test)]")
