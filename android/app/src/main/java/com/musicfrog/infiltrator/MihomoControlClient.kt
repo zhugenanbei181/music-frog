@@ -26,21 +26,19 @@ internal class MihomoControlClient(context: Context) {
     private val ipcConnection = (applicationContext as? MihomoApplication)?.ownerIpcConnection
         ?: throw IllegalStateException("MihomoApplication must own the Android Binder connection")
 
-    fun startVpnService(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): VpnStartOutcomeWire {
+    fun startVpnService(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): VpnStartOutcomeWire {
         val response = transact(OwnerIpcPayload.StartVpnService, deadline)
         return when (response.terminal) {
             OwnerClientTerminal.ReplyTimedOut -> VpnStartOutcomeWire.TimedOut
+
             OwnerClientTerminal.Interrupted -> VpnStartOutcomeWire.Failed
+
             else -> (response.payload as? OwnerResponsePayload.VpnStart)?.outcome
                 ?: response.reply.toVpnStartOutcomeWire()
         }
     }
 
-    fun stopVpnService(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): String? {
+    fun stopVpnService(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): String? {
         val response = transact(OwnerIpcPayload.StopVpnService(VpnStopTarget.Current), deadline)
         if (response.terminal in setOf(
                 OwnerClientTerminal.OwnerUnavailable,
@@ -87,10 +85,7 @@ internal class MihomoControlClient(context: Context) {
         }
     }
 
-    fun executeProductCommandJson(
-        commandJson: String,
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): String? {
+    fun executeProductCommandJson(commandJson: String, deadline: VpnOwnerRequestDeadline = newRequestDeadline()): String? {
         val response = transact(OwnerIpcPayload.ExecuteProductCommand(commandJson), deadline)
         val payload = response.payload as? OwnerResponsePayload.ProductCommand
         return payload?.resultJson?.takeIf {
@@ -99,10 +94,7 @@ internal class MihomoControlClient(context: Context) {
         }
     }
 
-    fun executeOwnerOperationJson(
-        operationJson: String,
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): String? {
+    fun executeOwnerOperationJson(operationJson: String, deadline: VpnOwnerRequestDeadline = newRequestDeadline()): String? {
         val stamp = ensureOwnerDataFence(deadline) ?: return null
         val response = transact(
             OwnerIpcPayload.ExecuteOwnerOperation(
@@ -165,9 +157,7 @@ internal class MihomoControlClient(context: Context) {
         return ownerDataFence.current()?.takeIf { it.ownerSessionId == ownerSessionFence.current() }
     }
 
-    fun readSurfaceSnapshotJson(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): String? {
+    fun readSurfaceSnapshotJson(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): String? {
         val response = transact(OwnerIpcPayload.SurfaceSnapshotReadback, deadline)
         val payload = response.payload as? OwnerResponsePayload.SurfaceSnapshot
         return payload?.json?.takeIf {
@@ -176,9 +166,7 @@ internal class MihomoControlClient(context: Context) {
         }
     }
 
-    fun readCoreLifecycleSnapshotJson(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): String? {
+    fun readCoreLifecycleSnapshotJson(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): String? {
         val response = transact(OwnerIpcPayload.VpnOwnerSnapshotReadback, deadline)
         if (response.statusCode != FfiErrorCode.OK.value.toInt()) return null
         return (response.payload as? OwnerResponsePayload.VpnOwnerSnapshot)
@@ -187,13 +175,10 @@ internal class MihomoControlClient(context: Context) {
             ?.coreLifecycleJson()
     }
 
-    fun readVpnOwnerSnapshotJson(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): String? = readVpnOwnerSnapshot(deadline)?.canonicalJson
+    fun readVpnOwnerSnapshotJson(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): String? =
+        readVpnOwnerSnapshot(deadline)?.canonicalJson
 
-    fun readVpnOwnerSnapshot(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): VpnOwnerSnapshotWire? {
+    fun readVpnOwnerSnapshot(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): VpnOwnerSnapshotWire? {
         val response = transact(OwnerIpcPayload.VpnOwnerSnapshotReadback, deadline)
         val snapshot = (response.payload as? OwnerResponsePayload.VpnOwnerSnapshot)
             ?.canonicalJson
@@ -204,18 +189,13 @@ internal class MihomoControlClient(context: Context) {
         }
     }
 
-    fun readVpnAuthorization(
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): AndroidHostReply =
+    fun readVpnAuthorization(deadline: VpnOwnerRequestDeadline = newRequestDeadline()): AndroidHostReply =
         when (val payload = transact(OwnerIpcPayload.VpnAuthorizationReadback, deadline).payload) {
             is OwnerResponsePayload.Authorization -> payload.state.toAndroidHostReply()
             else -> AndroidHostReply.SERVICE_UNAVAILABLE
         }
 
-    private fun transact(
-        payload: OwnerIpcPayload,
-        deadline: VpnOwnerRequestDeadline = newRequestDeadline(),
-    ): OwnerResponse {
+    private fun transact(payload: OwnerIpcPayload, deadline: VpnOwnerRequestDeadline = newRequestDeadline()): OwnerResponse {
         if (payload !is OwnerIpcPayload.VpnOwnerSnapshotReadback &&
             payload !is OwnerIpcPayload.StopVpnService &&
             ownerSessionFence.readiness() == OwnerSessionReadiness.ReadbackRequired
@@ -233,10 +213,7 @@ internal class MihomoControlClient(context: Context) {
         return transactBound(payload, deadline)
     }
 
-    private fun transactBound(
-        payload: OwnerIpcPayload,
-        deadline: VpnOwnerRequestDeadline,
-    ): OwnerResponse {
+    private fun transactBound(payload: OwnerIpcPayload, deadline: VpnOwnerRequestDeadline): OwnerResponse {
         if (payload.role == OwnerIpcRequestRole.VpnStop && payload !is OwnerIpcPayload.StopVpnService) {
             return OwnerResponse.unavailable(OwnerClientTerminal.InvalidReply)
         }
@@ -266,12 +243,15 @@ internal class MihomoControlClient(context: Context) {
                     OwnerIpcPayload.SurfaceSnapshotReadback,
                     OwnerIpcPayload.OwnerDataRevisionReadback,
                     OwnerIpcPayload.VpnAuthorizationReadback,
-                    OwnerIpcPayload.StartVpnService -> Unit
+                    OwnerIpcPayload.StartVpnService,
+                    -> Unit
+
                     is OwnerIpcPayload.StopVpnService -> when (val target = payload.target) {
                         VpnStopTarget.Current -> {
                             putInt(MihomoControlService.VPN_STOP_TARGET_CODE, 0)
                             putLong(MihomoControlService.VPN_STOP_GENERATION, 0L)
                         }
+
                         is VpnStopTarget.Generation -> {
                             putInt(MihomoControlService.VPN_STOP_TARGET_CODE, 1)
                             putLong(
@@ -280,10 +260,13 @@ internal class MihomoControlClient(context: Context) {
                             )
                         }
                     }
+
                     is OwnerIpcPayload.ApplyVpnConfiguration ->
                         putString(MihomoControlService.VPN_CONFIGURATION, payload.configurationJson)
+
                     is OwnerIpcPayload.ExecuteProductCommand ->
                         putString(MihomoControlService.PRODUCT_COMMAND_JSON, payload.commandJson)
+
                     is OwnerIpcPayload.ExecuteOwnerOperation -> {
                         putString(MihomoControlService.OWNER_OPERATION_JSON, payload.operationJson)
                         putLong(MihomoControlService.CORE_GENERATION, payload.expectedCoreGeneration)
@@ -292,6 +275,7 @@ internal class MihomoControlClient(context: Context) {
                             payload.expectedOwnerDataRevision,
                         )
                     }
+
                     is OwnerIpcPayload.ExecuteProfileAgeCredentialOwnerOperation -> {
                         putString(MihomoControlService.PROFILE_AGE_CREDENTIAL_METADATA_JSON, payload.metadataJson)
                         putByteArray(
@@ -310,6 +294,7 @@ internal class MihomoControlClient(context: Context) {
         fun unavailable(terminal: OwnerClientTerminal): OwnerResponse =
             when (ownerSessionFence.requireReadback(requestId, expectedOwnerSession, terminal)) {
                 OwnerSessionInvalidation.ReadbackRequired -> OwnerResponse.unavailable(terminal)
+
                 OwnerSessionInvalidation.RetiredBinding -> {
                     val currentSession = ownerSessionFence.current()
                     if (currentSession == null) {
@@ -363,8 +348,10 @@ internal class MihomoControlClient(context: Context) {
         )
         return when (exchange) {
             is OwnerIpcTransportResult.Completed -> exchange.response
+
             OwnerIpcTransportResult.PendingCapacityExceeded ->
                 unavailable(OwnerClientTerminal.PendingCapacityExceeded)
+
             OwnerIpcTransportResult.RequestIdAlreadyPending ->
                 unavailable(OwnerClientTerminal.InvalidReply)
         }
@@ -401,10 +388,12 @@ internal class MihomoControlClient(context: Context) {
         }
         val ownerSnapshot = ownerSnapshotJson?.let(VpnOwnerSnapshotWire::parse)
         if (requestRole == OwnerIpcRequestRole.VpnOwnerSnapshotReadback &&
-            (payload !is OwnerResponsePayload.VpnOwnerSnapshot ||
-                reply != AndroidHostReply.VPN_OWNER_SNAPSHOT_AVAILABLE ||
-                statusCode != FfiErrorCode.OK.value.toInt() || ownerSnapshot == null ||
-                ownerSnapshot.ownerSessionId != ownerSession)
+            (
+                payload !is OwnerResponsePayload.VpnOwnerSnapshot ||
+                    reply != AndroidHostReply.VPN_OWNER_SNAPSHOT_AVAILABLE ||
+                    statusCode != FfiErrorCode.OK.value.toInt() || ownerSnapshot == null ||
+                    ownerSnapshot.ownerSessionId != ownerSession
+                )
         ) {
             return OwnerResponse.unavailable(OwnerClientTerminal.InvalidReply)
         }
@@ -429,7 +418,9 @@ internal class MihomoControlClient(context: Context) {
                 AndroidHostReply.VPN_STOP_TIMED_OUT,
                 AndroidHostReply.VPN_STOP_SUPERSEDED,
                 AndroidHostReply.VPN_STOP_CANCELED,
-                AndroidHostReply.FAILED -> true
+                AndroidHostReply.FAILED,
+                -> true
+
                 else -> false
             }
             if (stopReplyRequiresReadback &&
@@ -438,8 +429,10 @@ internal class MihomoControlClient(context: Context) {
                 return OwnerResponse.unavailable(OwnerClientTerminal.InvalidReply)
             }
             if (reply == AndroidHostReply.VPN_STOPPED &&
-                (statusCode != FfiErrorCode.OK.value.toInt() ||
-                    ownerSnapshot?.isTerminalStopped() != true)
+                (
+                    statusCode != FfiErrorCode.OK.value.toInt() ||
+                        ownerSnapshot?.isTerminalStopped() != true
+                    )
             ) {
                 return OwnerResponse.unavailable(OwnerClientTerminal.InvalidReply)
             }
@@ -448,7 +441,9 @@ internal class MihomoControlClient(context: Context) {
         val replyCarriesReadback = when (reply) {
             AndroidHostReply.CORE_LIFECYCLE_AVAILABLE ->
                 requestRole == OwnerIpcRequestRole.SessionReadback
+
             AndroidHostReply.OWNER_SESSION_CHANGED -> true
+
             else -> false
         }
         val hasLifecycleReadback = coreSnapshot != null &&
@@ -456,16 +451,22 @@ internal class MihomoControlClient(context: Context) {
             replyCarriesReadback
         when (requestRole) {
             OwnerIpcRequestRole.VpnStop,
-            OwnerIpcRequestRole.VpnOwnerSnapshotReadback -> Unit
+            OwnerIpcRequestRole.VpnOwnerSnapshotReadback,
+            -> Unit
+
             OwnerIpcRequestRole.Operation,
-            OwnerIpcRequestRole.SessionReadback -> Unit
+            OwnerIpcRequestRole.SessionReadback,
+            -> Unit
         }
         val evidence = when {
             ownerSnapshot?.core is VpnOwnerCoreReadbackWire.Available ->
                 OwnerSessionEvidence.VpnOwnerSnapshotReadback
+
             ownerSnapshot != null && requestRole == OwnerIpcRequestRole.VpnStop ->
                 OwnerSessionEvidence.VpnStopReadback
+
             hasLifecycleReadback -> OwnerSessionEvidence.CoreLifecycleReadback
+
             else -> OwnerSessionEvidence.OperationReply
         }
         val sessionAcceptance = ownerSessionFence.accept(
@@ -477,15 +478,18 @@ internal class MihomoControlClient(context: Context) {
         when (sessionAcceptance) {
             OwnerSessionAcceptance.StaleResponse ->
                 return OwnerResponse.staleOwnerSession(ownerSessionFence.current() ?: ownerSession)
+
             OwnerSessionAcceptance.ReadbackRequired -> return OwnerResponse.unavailable(
                 when (reply) {
                     AndroidHostReply.SERVICE_UNAVAILABLE -> OwnerClientTerminal.OwnerUnavailable
                     else -> OwnerClientTerminal.OwnerSessionReadbackRequired
                 },
             )
+
             OwnerSessionAcceptance.FirstObserved,
             OwnerSessionAcceptance.Current,
-            OwnerSessionAcceptance.Changed -> Unit
+            OwnerSessionAcceptance.Changed,
+            -> Unit
         }
         if (sessionAcceptance == OwnerSessionAcceptance.Changed) {
             coreSnapshotFence.reset()
@@ -518,6 +522,7 @@ internal class MihomoControlClient(context: Context) {
             )
             when (coreSnapshotFence.admit(snapshotVersion)) {
                 CoreSnapshotAcceptance.Accepted -> Unit
+
                 CoreSnapshotAcceptance.Stale -> {
                     ownerSessionFence.requireReadback(
                         requestId,
@@ -530,6 +535,7 @@ internal class MihomoControlClient(context: Context) {
         }
         when (val ownerData = payload.ownerDataReadback()) {
             OwnerDataReadback.Unavailable -> Unit
+
             is OwnerDataReadback.Available -> {
                 val (dataDomain, snapshotJson) = when (val facts = ownerData.facts) {
                     OwnerOperationDataFacts.RevisionOnly -> null to null
@@ -592,103 +598,121 @@ internal class MihomoControlClient(context: Context) {
 
     private fun readOwnerResponsePayload(bundle: Bundle): OwnerResponsePayload? {
         return when (readEnum<OwnerResponsePayloadKind>(bundle, MihomoControlService.RESPONSE_PAYLOAD_KIND)) {
-        OwnerResponsePayloadKind.Failure -> OwnerResponsePayload.Failure
-        OwnerResponsePayloadKind.CoreLifecycleSnapshot ->
-            readCoreSnapshot(bundle)?.let { OwnerResponsePayload.CoreLifecycleSnapshot(it) }
-        OwnerResponsePayloadKind.VpnOwnerSnapshot -> bundle.getString(
-            MihomoControlService.VPN_OWNER_SNAPSHOT_JSON,
-        )?.let { OwnerResponsePayload.VpnOwnerSnapshot(it) }
-        OwnerResponsePayloadKind.SurfaceSnapshot -> {
-            val json = bundle.getString(MihomoControlService.SURFACE_SNAPSHOT_JSON) ?: return null
-            val core = readCoreReadback(bundle) ?: return null
-            OwnerResponsePayload.SurfaceSnapshot(json, core)
-        }
-        OwnerResponsePayloadKind.OwnerDataRevision -> {
-            if (!bundle.containsKey(MihomoControlService.OWNER_DATA_REVISION) ||
-                !bundle.containsKey(MihomoControlService.OWNER_DATA_GENERATION)
-            ) return null
-            val core = readCoreReadback(bundle) ?: return null
-            val revision = bundle.getLong(MihomoControlService.OWNER_DATA_REVISION)
-            val generation = bundle.getLong(MihomoControlService.OWNER_DATA_GENERATION)
-            if (revision < 0L || generation < 0L) return null
-            OwnerResponsePayload.OwnerDataRevision(
-                revision = revision,
-                generation = generation,
-                coreReadback = core,
-            )
-        }
-        OwnerResponsePayloadKind.Authorization -> readEnum<OwnerVpnAuthorization>(
-            bundle,
-            MihomoControlService.VPN_AUTHORIZATION_STATE,
-        )?.let { OwnerResponsePayload.Authorization(it) }
-        OwnerResponsePayloadKind.ProductCommand -> {
-            val json = bundle.getString(MihomoControlService.PRODUCT_COMMAND_RESULT_JSON) ?: return null
-            val core = readCoreReadback(bundle) ?: return null
-            OwnerResponsePayload.ProductCommand(json, core)
-        }
-        OwnerResponsePayloadKind.OwnerOperation -> {
-            val json = bundle.getString(MihomoControlService.OWNER_OPERATION_RESULT_JSON) ?: return null
-            if (!bundle.containsKey(MihomoControlService.OWNER_DATA_REVISION) ||
-                !bundle.containsKey(MihomoControlService.OWNER_DATA_GENERATION)
-            ) return null
-            val factsKind = readEnum<OwnerOperationDataFactsKind>(
-                bundle,
-                MihomoControlService.OWNER_OPERATION_DATA_FACTS_KIND,
-            ) ?: return null
-            val facts = when (factsKind) {
-                OwnerOperationDataFactsKind.RevisionOnly -> OwnerOperationDataFacts.RevisionOnly
-                OwnerOperationDataFactsKind.Domain -> {
-                    val domain = readEnum<AndroidOwnerDataDomain>(
-                        bundle,
-                        MihomoControlService.OWNER_OPERATION_DATA_DOMAIN,
-                    ) ?: return null
-                    OwnerOperationDataFacts.Domain(domain)
-                }
-                OwnerOperationDataFactsKind.Snapshot -> {
-                    val domain = readEnum<AndroidOwnerDataDomain>(
-                        bundle,
-                        MihomoControlService.OWNER_OPERATION_DATA_DOMAIN,
-                    ) ?: return null
-                    val snapshot = bundle.getString(
-                        MihomoControlService.OWNER_OPERATION_DATA_SNAPSHOT_JSON,
-                    ) ?: return null
-                    OwnerOperationDataFacts.Snapshot(domain, snapshot)
-                }
+            OwnerResponsePayloadKind.Failure -> OwnerResponsePayload.Failure
+
+            OwnerResponsePayloadKind.CoreLifecycleSnapshot ->
+                readCoreSnapshot(bundle)?.let { OwnerResponsePayload.CoreLifecycleSnapshot(it) }
+
+            OwnerResponsePayloadKind.VpnOwnerSnapshot -> bundle.getString(
+                MihomoControlService.VPN_OWNER_SNAPSHOT_JSON,
+            )?.let { OwnerResponsePayload.VpnOwnerSnapshot(it) }
+
+            OwnerResponsePayloadKind.SurfaceSnapshot -> {
+                val json = bundle.getString(MihomoControlService.SURFACE_SNAPSHOT_JSON) ?: return null
+                val core = readCoreReadback(bundle) ?: return null
+                OwnerResponsePayload.SurfaceSnapshot(json, core)
             }
-            val core = readCoreReadback(bundle) ?: return null
-            val revision = bundle.getLong(MihomoControlService.OWNER_DATA_REVISION)
-            val generation = bundle.getLong(MihomoControlService.OWNER_DATA_GENERATION)
-            if (revision < 0L || generation < 0L) return null
-            OwnerResponsePayload.OwnerOperation(
-                outcomeJson = json,
-                revision = revision,
-                generation = generation,
-                dataFacts = facts,
-                coreReadback = core,
-            )
-        }
-        OwnerResponsePayloadKind.StopVpn -> bundle.getString(
-            MihomoControlService.VPN_STOP_SNAPSHOT_JSON,
-        )?.let { OwnerResponsePayload.StopVpn(it) }
-        OwnerResponsePayloadKind.VpnStart -> readEnum<VpnStartOutcomeWire>(
-            bundle,
-            MihomoControlService.VPN_START_OUTCOME,
-        )?.let { OwnerResponsePayload.VpnStart(it) }
-        OwnerResponsePayloadKind.VpnConfiguration -> readEnum<VpnConfigurationApplyOutcomeWire>(
-            bundle,
-            MihomoControlService.VPN_CONFIGURATION_OUTCOME,
-        )?.let { OwnerResponsePayload.VpnConfiguration(it) }
-        OwnerResponsePayloadKind.OwnerSessionReadback -> {
-            if (!bundle.containsKey(MihomoControlService.OWNER_DATA_REVISION)) return null
-            val core = readCoreReadback(bundle) ?: return null
-            val revision = bundle.getLong(MihomoControlService.OWNER_DATA_REVISION)
-            if (revision < 0L) return null
-            OwnerResponsePayload.OwnerSessionReadback(
-                ownerDataRevision = revision,
-                coreReadback = core,
-            )
-        }
-        null -> null
+
+            OwnerResponsePayloadKind.OwnerDataRevision -> {
+                if (!bundle.containsKey(MihomoControlService.OWNER_DATA_REVISION) ||
+                    !bundle.containsKey(MihomoControlService.OWNER_DATA_GENERATION)
+                ) {
+                    return null
+                }
+                val core = readCoreReadback(bundle) ?: return null
+                val revision = bundle.getLong(MihomoControlService.OWNER_DATA_REVISION)
+                val generation = bundle.getLong(MihomoControlService.OWNER_DATA_GENERATION)
+                if (revision < 0L || generation < 0L) return null
+                OwnerResponsePayload.OwnerDataRevision(
+                    revision = revision,
+                    generation = generation,
+                    coreReadback = core,
+                )
+            }
+
+            OwnerResponsePayloadKind.Authorization -> readEnum<OwnerVpnAuthorization>(
+                bundle,
+                MihomoControlService.VPN_AUTHORIZATION_STATE,
+            )?.let { OwnerResponsePayload.Authorization(it) }
+
+            OwnerResponsePayloadKind.ProductCommand -> {
+                val json = bundle.getString(MihomoControlService.PRODUCT_COMMAND_RESULT_JSON) ?: return null
+                val core = readCoreReadback(bundle) ?: return null
+                OwnerResponsePayload.ProductCommand(json, core)
+            }
+
+            OwnerResponsePayloadKind.OwnerOperation -> {
+                val json = bundle.getString(MihomoControlService.OWNER_OPERATION_RESULT_JSON) ?: return null
+                if (!bundle.containsKey(MihomoControlService.OWNER_DATA_REVISION) ||
+                    !bundle.containsKey(MihomoControlService.OWNER_DATA_GENERATION)
+                ) {
+                    return null
+                }
+                val factsKind = readEnum<OwnerOperationDataFactsKind>(
+                    bundle,
+                    MihomoControlService.OWNER_OPERATION_DATA_FACTS_KIND,
+                ) ?: return null
+                val facts = when (factsKind) {
+                    OwnerOperationDataFactsKind.RevisionOnly -> OwnerOperationDataFacts.RevisionOnly
+
+                    OwnerOperationDataFactsKind.Domain -> {
+                        val domain = readEnum<AndroidOwnerDataDomain>(
+                            bundle,
+                            MihomoControlService.OWNER_OPERATION_DATA_DOMAIN,
+                        ) ?: return null
+                        OwnerOperationDataFacts.Domain(domain)
+                    }
+
+                    OwnerOperationDataFactsKind.Snapshot -> {
+                        val domain = readEnum<AndroidOwnerDataDomain>(
+                            bundle,
+                            MihomoControlService.OWNER_OPERATION_DATA_DOMAIN,
+                        ) ?: return null
+                        val snapshot = bundle.getString(
+                            MihomoControlService.OWNER_OPERATION_DATA_SNAPSHOT_JSON,
+                        ) ?: return null
+                        OwnerOperationDataFacts.Snapshot(domain, snapshot)
+                    }
+                }
+                val core = readCoreReadback(bundle) ?: return null
+                val revision = bundle.getLong(MihomoControlService.OWNER_DATA_REVISION)
+                val generation = bundle.getLong(MihomoControlService.OWNER_DATA_GENERATION)
+                if (revision < 0L || generation < 0L) return null
+                OwnerResponsePayload.OwnerOperation(
+                    outcomeJson = json,
+                    revision = revision,
+                    generation = generation,
+                    dataFacts = facts,
+                    coreReadback = core,
+                )
+            }
+
+            OwnerResponsePayloadKind.StopVpn -> bundle.getString(
+                MihomoControlService.VPN_STOP_SNAPSHOT_JSON,
+            )?.let { OwnerResponsePayload.StopVpn(it) }
+
+            OwnerResponsePayloadKind.VpnStart -> readEnum<VpnStartOutcomeWire>(
+                bundle,
+                MihomoControlService.VPN_START_OUTCOME,
+            )?.let { OwnerResponsePayload.VpnStart(it) }
+
+            OwnerResponsePayloadKind.VpnConfiguration -> readEnum<VpnConfigurationApplyOutcomeWire>(
+                bundle,
+                MihomoControlService.VPN_CONFIGURATION_OUTCOME,
+            )?.let { OwnerResponsePayload.VpnConfiguration(it) }
+
+            OwnerResponsePayloadKind.OwnerSessionReadback -> {
+                if (!bundle.containsKey(MihomoControlService.OWNER_DATA_REVISION)) return null
+                val core = readCoreReadback(bundle) ?: return null
+                val revision = bundle.getLong(MihomoControlService.OWNER_DATA_REVISION)
+                if (revision < 0L) return null
+                OwnerResponsePayload.OwnerSessionReadback(
+                    ownerDataRevision = revision,
+                    coreReadback = core,
+                )
+            }
+
+            null -> null
         }
     }
 
@@ -743,11 +767,7 @@ internal class MihomoControlClient(context: Context) {
         }
     }
 
-    private fun sendCancellation(
-        request: infiltrator_android.AndroidHostRequest,
-        requestId: Long,
-        messenger: Messenger,
-    ) {
+    private fun sendCancellation(request: infiltrator_android.AndroidHostRequest, requestId: Long, messenger: Messenger) {
         val cancelCode = if (request == infiltrator_android.AndroidHostRequest.START_VPN_SERVICE) {
             MihomoControlService.CANCEL_START_REQUEST
         } else {

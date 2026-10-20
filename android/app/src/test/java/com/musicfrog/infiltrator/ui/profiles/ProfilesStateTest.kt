@@ -158,16 +158,10 @@ class ProfilesStateTest {
         requestSequence: ULong = 1uL,
     ) = ProfilesObservationPoint(snapshot(profiles, revision), requestSequence)
 
-    private fun snapshot(
-        profiles: List<ProfileSummary>,
-        revision: ProfilesRevision = revision(),
-    ) = ProfilesSnapshot(profiles, revision)
+    private fun snapshot(profiles: List<ProfileSummary>, revision: ProfilesRevision = revision()) = ProfilesSnapshot(profiles, revision)
 
-    private fun revision(
-        ownerSessionId: String = "owner-session-1",
-        generation: ULong = 2uL,
-        dataRevision: ULong = 1uL,
-    ) = ProfilesRevision(ownerSessionId, generation, dataRevision)
+    private fun revision(ownerSessionId: String = "owner-session-1", generation: ULong = 2uL, dataRevision: ULong = 1uL) =
+        ProfilesRevision(ownerSessionId, generation, dataRevision)
 
     private fun profile(
         name: String,

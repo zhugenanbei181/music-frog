@@ -25,10 +25,7 @@ internal interface VpnWakeLockHandle {
 internal sealed interface VpnWakeLockState {
     data object Released : VpnWakeLockState
 
-    data class Held(
-        val generation: Long,
-        val deadlineElapsedRealtime: Long,
-    ) : VpnWakeLockState
+    data class Held(val generation: Long, val deadlineElapsedRealtime: Long) : VpnWakeLockState
 }
 
 internal sealed interface VpnWakeLockAcquire {
@@ -65,10 +62,7 @@ private enum class VpnWakeLockReleaseReason {
  * The Android timeout is the process-death safety net; normal terminal paths
  * release the lease early.
  */
-internal class VpnLifecycleWakeLock(
-    private val handle: VpnWakeLockHandle,
-    private val timeoutMillis: Long,
-) {
+internal class VpnLifecycleWakeLock(private val handle: VpnWakeLockHandle, private val timeoutMillis: Long) {
     companion object {
         const val MAX_LEASE_DURATION_MILLIS = 45_000L
     }
@@ -89,21 +83,28 @@ internal class VpnLifecycleWakeLock(
 
         when (val current = state) {
             VpnWakeLockState.Released -> Unit
+
             is VpnWakeLockState.Held -> when {
                 nowElapsedRealtime >= current.deadlineElapsedRealtime -> {
                     when (val release = releaseHeld(VpnWakeLockReleaseReason.DeadlineReached)) {
                         VpnWakeLockRelease.Released,
-                        VpnWakeLockRelease.Expired -> Unit
+                        VpnWakeLockRelease.Expired,
+                        -> Unit
+
                         VpnWakeLockRelease.AlreadyReleased,
-                        VpnWakeLockRelease.StaleGeneration -> Unit
+                        VpnWakeLockRelease.StaleGeneration,
+                        -> Unit
+
                         is VpnWakeLockRelease.CleanupPending -> {
                             return VpnWakeLockAcquire.CleanupPending(release.reason)
                         }
                     }
                 }
+
                 current.generation == generation -> {
                     return VpnWakeLockAcquire.Joined(current.deadlineElapsedRealtime)
                 }
+
                 else -> return VpnWakeLockAcquire.Busy(current.generation)
             }
         }
@@ -114,6 +115,7 @@ internal class VpnLifecycleWakeLock(
                 state = VpnWakeLockState.Held(generation, deadline)
                 VpnWakeLockAcquire.Acquired(deadline)
             }
+
             is VpnWakeLockPlatformAcquire.Unavailable ->
                 VpnWakeLockAcquire.Unavailable(platform.reason)
         }
@@ -125,10 +127,13 @@ internal class VpnLifecycleWakeLock(
         require(nowElapsedRealtime >= 0L)
         return when (val current = state) {
             VpnWakeLockState.Released -> VpnWakeLockRelease.AlreadyReleased
+
             is VpnWakeLockState.Held -> when {
                 generation != current.generation -> VpnWakeLockRelease.StaleGeneration
+
                 nowElapsedRealtime >= current.deadlineElapsedRealtime ->
                     releaseHeld(VpnWakeLockReleaseReason.DeadlineReached)
+
                 else -> releaseHeld(VpnWakeLockReleaseReason.CompletedBeforeDeadline)
             }
         }
@@ -162,10 +167,12 @@ internal class VpnLifecycleWakeLock(
                     VpnWakeLockReleaseReason.DeadlineReached -> VpnWakeLockRelease.Expired
                 }
             }
+
             VpnWakeLockPlatformRelease.Expired -> {
                 state = VpnWakeLockState.Released
                 VpnWakeLockRelease.Expired
             }
+
             is VpnWakeLockPlatformRelease.Failed ->
                 VpnWakeLockRelease.CleanupPending(platform.reason)
         }

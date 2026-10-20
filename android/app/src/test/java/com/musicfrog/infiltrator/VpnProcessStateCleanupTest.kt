@@ -16,10 +16,12 @@ class VpnProcessStateCleanupTest {
             VpnOwnerResourceMutation.Recorded,
             resources.recordPreparedConfiguration(start.generation, "prepared-transaction"),
         )
-        val request = (lifecycle.requestCleanup(
-            VpnCleanupIntent.Stop,
-            resources = resources.snapshot().presence(),
-        ) as VpnCleanupPlan.Dispatch).request
+        val request = (
+            lifecycle.requestCleanup(
+                VpnCleanupIntent.Stop,
+                resources = resources.snapshot().presence(),
+            ) as VpnCleanupPlan.Dispatch
+            ).request
 
         val failures = listOf(
             Triple(
@@ -70,10 +72,12 @@ class VpnProcessStateCleanupTest {
     fun oldCleanupCannotClearOrPublishOverANewerGeneration() {
         val lifecycle = VpnLifecycleCoordinator()
         val oldStart = lifecycle.requestStart() as VpnStartPlan.Dispatch
-        val oldRequest = (lifecycle.requestCleanup(
-            VpnCleanupIntent.Stop,
-            resources = VpnOwnedResourcesPresence.Retained,
-        ) as VpnCleanupPlan.Dispatch).request
+        val oldRequest = (
+            lifecycle.requestCleanup(
+                VpnCleanupIntent.Stop,
+                resources = VpnOwnedResourcesPresence.Retained,
+            ) as VpnCleanupPlan.Dispatch
+            ).request
         assertEquals(
             VpnCleanupPublication.Published(VpnProcessState.Stopped),
             completeCleanup(lifecycle, oldRequest),

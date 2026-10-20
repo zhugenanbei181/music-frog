@@ -5,27 +5,14 @@ import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import infiltrator_android.FakeIpSettings
 import infiltrator_android.FakeIpSettingsPatch
 
-internal data class FakeIpSettingsRevision(
-    val ownerSessionId: String,
-    val coreGeneration: ULong,
-    val dataRevision: ULong,
-)
+internal data class FakeIpSettingsRevision(val ownerSessionId: String, val coreGeneration: ULong, val dataRevision: ULong)
 
-internal data class FakeIpSettingsObservationPoint(
-    val value: FakeIpSettings,
-    val revision: FakeIpSettingsRevision,
-)
+internal data class FakeIpSettingsObservationPoint(val value: FakeIpSettings, val revision: FakeIpSettingsRevision)
 
 internal sealed interface FakeIpSettingsReadState {
     data class Loading(val lastAccepted: FakeIpSettingsObservationPoint? = null) : FakeIpSettingsReadState
-    data class Observed(
-        val value: FakeIpSettings,
-        val revision: FakeIpSettingsRevision,
-    ) : FakeIpSettingsReadState
-    data class Unavailable(
-        val lastAccepted: FakeIpSettingsObservationPoint?,
-        val failure: AppFailure,
-    ) : FakeIpSettingsReadState
+    data class Observed(val value: FakeIpSettings, val revision: FakeIpSettingsRevision) : FakeIpSettingsReadState
+    data class Unavailable(val lastAccepted: FakeIpSettingsObservationPoint?, val failure: AppFailure) : FakeIpSettingsReadState
 }
 
 internal sealed interface FakeIpSettingsOperationState {
@@ -96,17 +83,12 @@ internal fun lastAcceptedFakeIp(state: FakeIpSettingsReadState): FakeIpSettingsO
     is FakeIpSettingsReadState.Unavailable -> state.lastAccepted
 }
 
-internal fun unavailableFakeIp(
-    previous: FakeIpSettingsReadState,
-    failure: AppFailure,
-): FakeIpSettingsReadState = lastAcceptedFakeIp(previous).let { accepted ->
-    FakeIpSettingsReadState.Unavailable(accepted, failure)
-}
+internal fun unavailableFakeIp(previous: FakeIpSettingsReadState, failure: AppFailure): FakeIpSettingsReadState =
+    lastAcceptedFakeIp(previous).let { accepted ->
+        FakeIpSettingsReadState.Unavailable(accepted, failure)
+    }
 
-internal fun acceptsFakeIpRevision(
-    current: FakeIpSettingsReadState,
-    incoming: FakeIpSettingsRevision,
-): FakeIpSnapshotAdmission {
+internal fun acceptsFakeIpRevision(current: FakeIpSettingsReadState, incoming: FakeIpSettingsRevision): FakeIpSnapshotAdmission {
     val accepted = lastAcceptedFakeIp(current)?.revision ?: return FakeIpSnapshotAdmission.Accepted
     if (accepted.ownerSessionId != incoming.ownerSessionId) return FakeIpSnapshotAdmission.Accepted
     return when {
@@ -117,18 +99,13 @@ internal fun acceptsFakeIpRevision(
     }
 }
 
-internal fun admitsFakeIpRequest(
-    latest: ObservationRevision.Request,
-    incoming: ObservationRevision.Request,
-): FakeIpRequestAdmission = when (incoming) {
-    latest -> FakeIpRequestAdmission.Current
-    else -> FakeIpRequestAdmission.Superseded
-}
+internal fun admitsFakeIpRequest(latest: ObservationRevision.Request, incoming: ObservationRevision.Request): FakeIpRequestAdmission =
+    when (incoming) {
+        latest -> FakeIpRequestAdmission.Current
+        else -> FakeIpRequestAdmission.Superseded
+    }
 
-internal fun FakeIpSettings.matches(
-    patch: FakeIpSettingsPatch,
-    expectedRange: String?,
-): FakeIpSettingsReadbackResult {
+internal fun FakeIpSettings.matches(patch: FakeIpSettingsPatch, expectedRange: String?): FakeIpSettingsReadbackResult {
     val matches =
         fakeIpRange == expectedRange &&
             (patch.fakeIpFilter == null || fakeIpFilter == patch.fakeIpFilter) &&

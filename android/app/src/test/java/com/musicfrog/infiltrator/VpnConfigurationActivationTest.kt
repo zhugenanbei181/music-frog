@@ -2,10 +2,10 @@ package com.musicfrog.infiltrator
 
 import infiltrator_android.AndroidVpnConfigurationActivationLease
 import infiltrator_android.AndroidVpnConfigurationActivationReleaseResult
-import java.util.concurrent.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.util.concurrent.CancellationException
 
 class VpnConfigurationActivationTest {
     private val prepared = requireNotNull(NativePreparedVpnConfiguration.parse(PREPARED_CONFIGURATION))

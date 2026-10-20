@@ -93,10 +93,7 @@ class DnsRepositoryTest {
         assertEquals(AppFailureCode.NotReady, failure.code)
     }
 
-    private fun reply(
-        settings: DnsSettings,
-        revision: ULong,
-    ): AndroidOwnerOperationExchange = AndroidOwnerOperationExchange.Completed(
+    private fun reply(settings: DnsSettings, revision: ULong): AndroidOwnerOperationExchange = AndroidOwnerOperationExchange.Completed(
         AndroidOwnerOperationReply(
             protocol = AndroidOwnerOperationProtocolVersion.V6,
             context = AndroidOwnerOperationContext(
@@ -135,10 +132,7 @@ class DnsRepositoryTest {
     private class ReplyGateway(private val exchange: AndroidOwnerOperationExchange) : AndroidOwnerOperationGateway {
         var lastOperation: AndroidOwnerOperation? = null
 
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): AndroidOwnerOperationExchange {
+        override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange {
             lastOperation = operation
             return exchange
         }

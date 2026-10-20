@@ -22,15 +22,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.ConnectionRecord
@@ -38,6 +39,7 @@ import com.musicfrog.infiltrator.ui.common.ErrorDialog
 import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
+import java.util.Locale
 
 @Composable
 fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
@@ -54,11 +56,12 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
         )
     }
 
-    if (selectedConnection != null) {
+    val connection = selectedConnection
+    if (connection != null) {
         ConnectionDetailsDialog(
-            connection = selectedConnection!!,
+            connection = connection,
             onDismiss = { selectedConnection = null },
-            onClose = { viewModel.closeConnection(selectedConnection!!.id) },
+            onClose = { viewModel.closeConnection(connection.id) },
         )
     }
 
@@ -77,11 +80,15 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                 Text(
                     text = when (state.listStatus) {
                         ConnectionsListStatus.Loading -> stringResource(R.string.text_loading)
+
                         ConnectionsListStatus.Unavailable -> stringResource(R.string.status_unknown)
+
                         ConnectionsListStatus.Empty,
                         ConnectionsListStatus.NoMatches,
-                        ConnectionsListStatus.Content -> stringResource(
-                            R.string.text_connections_total,
+                        ConnectionsListStatus.Content,
+                        -> pluralStringResource(
+                            R.plurals.text_connections_total,
+                            state.totalConnectionCount,
                             state.totalConnectionCount,
                         )
                     },
@@ -129,6 +136,7 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                 ) {
                     CircularProgressIndicator()
                 }
+
                 ConnectionsListStatus.Unavailable -> Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 ) {
@@ -167,6 +175,7 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                         }
                     }
                 }
+
                 ConnectionsListStatus.Empty -> Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
@@ -177,7 +186,9 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+
                 ConnectionsListStatus.NoMatches -> Spacer(Modifier.weight(1f))
+
                 ConnectionsListStatus.Content -> LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp),
@@ -198,12 +209,7 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
 }
 
 @Composable
-private fun ConnectionRow(
-    connection: ConnectionRecord,
-    onClick: () -> Unit,
-    onClose: () -> Unit,
-    actionEnabled: Boolean,
-) {
+private fun ConnectionRow(connection: ConnectionRecord, onClick: () -> Unit, onClose: () -> Unit, actionEnabled: Boolean) {
     val headline = connection.host.ifBlank { connection.id }
     val supporting = buildSupportingText(connection)
 
@@ -220,11 +226,7 @@ private fun ConnectionRow(
 }
 
 @Composable
-private fun ConnectionDetailsDialog(
-    connection: ConnectionRecord,
-    onDismiss: () -> Unit,
-    onClose: () -> Unit,
-) {
+private fun ConnectionDetailsDialog(connection: ConnectionRecord, onDismiss: () -> Unit, onClose: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = connection.host.ifBlank { connection.id }) },
@@ -242,8 +244,9 @@ private fun ConnectionDetailsDialog(
                 if (connection.destinationIpAsn.isNotBlank()) {
                     DetailItem(label = "Kernel ASN", value = connection.destinationIpAsn)
                 }
-                if (!connection.destinationGeoIp.isNullOrEmpty()) {
-                    DetailItem(label = "Kernel GeoIP", value = connection.destinationGeoIp!!.joinToString(", "))
+                val geoIp = connection.destinationGeoIp
+                if (!geoIp.isNullOrEmpty()) {
+                    DetailItem(label = "Kernel GeoIP", value = geoIp.joinToString(", "))
                 }
                 DetailItem(
                     label = "Traffic",
@@ -296,8 +299,9 @@ private fun buildSupportingText(connection: ConnectionRecord): String {
     if (connection.destinationIpAsn.isNotBlank()) {
         lines.add("ASN: ${connection.destinationIpAsn}")
     }
-    if (!connection.destinationGeoIp.isNullOrEmpty()) {
-        lines.add("GeoIP: ${connection.destinationGeoIp!!.joinToString(", ")}")
+    val geoIp = connection.destinationGeoIp
+    if (!geoIp.isNullOrEmpty()) {
+        lines.add("GeoIP: ${geoIp.joinToString(", ")}")
     }
     return lines.joinToString("\n")
 }
@@ -312,5 +316,5 @@ private fun formatBytes(bytes: Long): String {
         unitIndex++
     }
 
-    return String.format("%.1f %s", value, units[unitIndex])
+    return String.format(Locale.getDefault(), "%.1f %s", value, units[unitIndex])
 }

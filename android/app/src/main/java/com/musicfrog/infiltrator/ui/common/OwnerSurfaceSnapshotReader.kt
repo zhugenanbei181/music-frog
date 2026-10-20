@@ -1,11 +1,11 @@
 package com.musicfrog.infiltrator.ui.common
 
-import infiltrator_android.FfiErrorCode
-import infiltrator_android.androidSurfaceSnapshotJson
 import com.musicfrog.infiltrator.CoreOwnerFailureWire
 import com.musicfrog.infiltrator.CoreOwnerIdentityWire
 import com.musicfrog.infiltrator.CoreOwnerLifecycleWire
 import com.musicfrog.infiltrator.VpnOwnerSnapshotWire
+import infiltrator_android.FfiErrorCode
+import infiltrator_android.androidSurfaceSnapshotJson
 import org.json.JSONObject
 
 internal suspend fun readOwnerSurfaceSnapshot(): OwnerSurfaceRead {
@@ -96,6 +96,7 @@ internal fun parseOwnerSurfaceSnapshot(json: String): OwnerSurfaceRead = try {
 
 private fun parseVpnObservation(value: Any): OwnerVpnObservation = when (value) {
     "NotApplicable" -> OwnerVpnObservation.NotApplicable
+
     is JSONObject -> when (val variant = value.singleVariant()) {
         "AndroidOwner" -> {
             val snapshotJson = value.getJSONObject(variant).toString()
@@ -103,27 +104,29 @@ private fun parseVpnObservation(value: Any): OwnerVpnObservation = when (value) 
                 ?: throw IllegalArgumentException("Android VPN owner snapshot is malformed")
             OwnerVpnObservation.AndroidOwner(snapshot)
         }
+
         "Unsupported" -> OwnerVpnObservation.Unsupported(
             value.getJSONObject(variant).getString("reason"),
         )
+
         "Unavailable" -> OwnerVpnObservation.Unavailable(
             parseOwnerFailure(value.getJSONObject(variant).getJSONObject("failure")),
         )
+
         else -> throw IllegalArgumentException("Unknown VPN surface observation: $variant")
     }
+
     else -> throw IllegalArgumentException("VPN surface observation is malformed")
 }
 
-private fun validateVpnCoreBinding(
-    vpn: OwnerVpnObservation,
-    surfaceCore: JSONObject?,
-    rawSurfaceCore: String?,
-) {
+private fun validateVpnCoreBinding(vpn: OwnerVpnObservation, surfaceCore: JSONObject?, rawSurfaceCore: String?) {
     val ownerCore = when (vpn) {
         is OwnerVpnObservation.AndroidOwner -> vpn.snapshot.core
+
         is OwnerVpnObservation.Unsupported,
         OwnerVpnObservation.NotApplicable,
-        is OwnerVpnObservation.Unavailable -> return
+        is OwnerVpnObservation.Unavailable,
+        -> return
     }
     when (ownerCore) {
         is com.musicfrog.infiltrator.VpnOwnerCoreReadbackWire.Unavailable -> {
@@ -131,6 +134,7 @@ private fun validateVpnCoreBinding(
                 "VPN owner Core readback is unavailable while Surface Core identity is present"
             }
         }
+
         is com.musicfrog.infiltrator.VpnOwnerCoreReadbackWire.Available -> {
             val owner = ownerCore.snapshot
             val core = surfaceCore ?: throw IllegalArgumentException("Surface Core snapshot is missing")
@@ -160,10 +164,10 @@ private fun validateVpnCoreBinding(
                 owner.identity == surfaceIdentity &&
                     owner.lifecycle == surfaceLifecycle &&
                     owner.generation.toULong().toString() ==
-                        parseUnsignedDecimal(rawGeneration, "Core generation") &&
+                    parseUnsignedDecimal(rawGeneration, "Core generation") &&
                     ownerSession == surfaceSession &&
                     owner.revision.toULong().toString() ==
-                        parseUnsignedDecimal(rawRevision, "Core revision") &&
+                    parseUnsignedDecimal(rawRevision, "Core revision") &&
                     owner.failure == surfaceFailure,
             ) {
                 "Surface Core facts and :vpn owner Core lifecycle snapshot do not match"
@@ -180,7 +184,9 @@ private fun validateCoreCapabilityBinding(
     val capability = when (capabilityPage) {
         CoreCapabilitySnapshotPageState.Loading,
         is CoreCapabilitySnapshotPageState.Unavailable,
-        is CoreCapabilitySnapshotPageState.Failed -> return
+        is CoreCapabilitySnapshotPageState.Failed,
+        -> return
+
         is CoreCapabilitySnapshotPageState.Observed -> capabilityPage.snapshot
     }
     val core = coreScope ?: throw IllegalArgumentException(
@@ -203,13 +209,12 @@ private fun String.toCoreHostKind(): CoreHostKindObservation = when (this) {
     else -> throw IllegalArgumentException("Unknown surface host kind: $this")
 }
 
-private fun OutboundObservationPageState<OutboundDetailsSnapshot>.asOutboundDetailsPageState(): OutboundDetailsPageState =
-    when (this) {
-        OutboundObservationPageState.Loading -> OutboundDetailsPageState.Loading
-        is OutboundObservationPageState.Observed -> OutboundDetailsPageState.Observed(snapshot)
-        is OutboundObservationPageState.Unavailable -> OutboundDetailsPageState.Unavailable(failure)
-        is OutboundObservationPageState.Failed -> OutboundDetailsPageState.Failed(failure)
-    }
+private fun OutboundObservationPageState<OutboundDetailsSnapshot>.asOutboundDetailsPageState(): OutboundDetailsPageState = when (this) {
+    OutboundObservationPageState.Loading -> OutboundDetailsPageState.Loading
+    is OutboundObservationPageState.Observed -> OutboundDetailsPageState.Observed(snapshot)
+    is OutboundObservationPageState.Unavailable -> OutboundDetailsPageState.Unavailable(failure)
+    is OutboundObservationPageState.Failed -> OutboundDetailsPageState.Failed(failure)
+}
 
 private fun OutboundObservationPageState<OutboundUiPreferencesSnapshot>.asOutboundPreferencesPageState(): OutboundUiPreferencesPageState =
     when (this) {
@@ -219,7 +224,8 @@ private fun OutboundObservationPageState<OutboundUiPreferencesSnapshot>.asOutbou
         is OutboundObservationPageState.Failed -> OutboundUiPreferencesPageState.Failed(failure)
     }
 
-private fun OutboundObservationPageState<CoreCapabilitySnapshotObservation>.asCoreCapabilitySnapshotPageState(): CoreCapabilitySnapshotPageState =
+private fun OutboundObservationPageState<CoreCapabilitySnapshotObservation>.asCoreCapabilitySnapshotPageState():
+    CoreCapabilitySnapshotPageState =
     when (this) {
         OutboundObservationPageState.Loading -> CoreCapabilitySnapshotPageState.Loading
         is OutboundObservationPageState.Observed -> CoreCapabilitySnapshotPageState.Observed(snapshot)
@@ -227,13 +233,12 @@ private fun OutboundObservationPageState<CoreCapabilitySnapshotObservation>.asCo
         is OutboundObservationPageState.Failed -> CoreCapabilitySnapshotPageState.Failed(failure)
     }
 
-private fun OutboundObservationPageState<OwnerProtocolStudioSnapshot>.asProtocolStudioPageState(): ProtocolStudioPageState =
-    when (this) {
-        OutboundObservationPageState.Loading -> ProtocolStudioPageState.Loading
-        is OutboundObservationPageState.Observed -> ProtocolStudioPageState.Observed(snapshot)
-        is OutboundObservationPageState.Unavailable -> ProtocolStudioPageState.Unavailable(failure)
-        is OutboundObservationPageState.Failed -> ProtocolStudioPageState.Failed(failure)
-    }
+private fun OutboundObservationPageState<OwnerProtocolStudioSnapshot>.asProtocolStudioPageState(): ProtocolStudioPageState = when (this) {
+    OutboundObservationPageState.Loading -> ProtocolStudioPageState.Loading
+    is OutboundObservationPageState.Observed -> ProtocolStudioPageState.Observed(snapshot)
+    is OutboundObservationPageState.Unavailable -> ProtocolStudioPageState.Unavailable(failure)
+    is OutboundObservationPageState.Failed -> ProtocolStudioPageState.Failed(failure)
+}
 
 internal fun OwnerSurfaceSnapshot.trafficSnapshot(): TrafficSnapshot? {
     val overviewData = overview.currentData() ?: return null
@@ -247,10 +252,7 @@ internal fun OwnerSurfaceSnapshot.trafficSnapshot(): TrafficSnapshot? {
     )
 }
 
-private fun <T> parsePage(
-    source: JSONObject,
-    decode: (JSONObject) -> T,
-): OwnerPage<T> {
+private fun <T> parsePage(source: JSONObject, decode: (JSONObject) -> T): OwnerPage<T> {
     val stateValue = source.get("status")
     val (state, failure) = parsePageState(stateValue)
     val dataObject = source.optJSONObject("data")
@@ -268,6 +270,7 @@ private fun parsePageState(value: Any): Pair<OwnerPageState, OwnerFailure?> = wh
         "Empty" -> OwnerPageState.Empty to null
         else -> throw IllegalArgumentException("Unknown owner page state: $value")
     }
+
     is JSONObject -> {
         val variant = value.keys().asSequence().singleOrNull()
             ?: throw IllegalArgumentException("Owner page state must have one variant")
@@ -278,6 +281,7 @@ private fun parsePageState(value: Any): Pair<OwnerPageState, OwnerFailure?> = wh
             else -> throw IllegalArgumentException("Unknown owner page state: $variant")
         }
     }
+
     else -> throw IllegalArgumentException("Owner page state is malformed")
 }
 
@@ -333,11 +337,13 @@ private fun parseLogStreamState(value: Any): OwnerLogStreamState = when (value) 
         "Live" -> OwnerLogStreamState.LIVE
         else -> OwnerLogStreamState.UNKNOWN
     }
+
     is JSONObject -> when (value.keys().asSequence().singleOrNull()) {
         "Reconnecting" -> OwnerLogStreamState.RECONNECTING
         "Failed" -> OwnerLogStreamState.FAILED
         else -> OwnerLogStreamState.UNKNOWN
     }
+
     else -> OwnerLogStreamState.UNKNOWN
 }
 

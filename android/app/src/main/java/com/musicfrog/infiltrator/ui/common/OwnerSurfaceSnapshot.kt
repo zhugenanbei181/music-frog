@@ -10,16 +10,14 @@ internal enum class OwnerPageState {
     Failed,
 }
 
-internal data class OwnerPage<T>(
-    val state: OwnerPageState,
-    val data: T?,
-    val failure: OwnerFailure?,
-) {
+internal data class OwnerPage<T>(val state: OwnerPageState, val data: T?, val failure: OwnerFailure?) {
     fun currentData(): T? = when (state) {
         OwnerPageState.Ready, OwnerPageState.Empty -> data
+
         OwnerPageState.Loading,
         OwnerPageState.Unavailable,
-        OwnerPageState.Failed -> null
+        OwnerPageState.Failed,
+        -> null
     }
 }
 
@@ -53,18 +51,9 @@ internal sealed interface OwnerFailureReason {
     data object DownloadCanceled : OwnerFailureReason
 }
 
-internal data class OwnerFailure(
-    val code: OwnerErrorCode,
-    val message: String,
-    val retryable: Boolean,
-    val reason: OwnerFailureReason?,
-)
+internal data class OwnerFailure(val code: OwnerErrorCode, val message: String, val retryable: Boolean, val reason: OwnerFailureReason?)
 
-internal data class CoreIdentityObservation(
-    val engineId: String,
-    val instanceId: String,
-    val version: String?,
-)
+internal data class CoreIdentityObservation(val engineId: String, val instanceId: String, val version: String?)
 
 /** The scope attached to the exact outbound observation shown to the user. */
 internal data class CoreScopeObservation(
@@ -74,15 +63,9 @@ internal data class CoreScopeObservation(
     internal val json: String,
 )
 
-internal data class OutboundIdObservation(
-    val engineId: String,
-    val value: String,
-)
+internal data class OutboundIdObservation(val engineId: String, val value: String)
 
-internal data class OutboundEntryObservation(
-    val id: OutboundIdObservation,
-    val displayName: String?,
-)
+internal data class OutboundEntryObservation(val id: OutboundIdObservation, val displayName: String?)
 
 internal enum class OutboundSelectionAvailability {
     Selectable,
@@ -109,20 +92,14 @@ internal data class OutboundSelectionCollection(
 
 internal sealed interface OutboundInventoryState {
     data object Unknown : OutboundInventoryState
-    data class Ready(
-        val entries: List<OutboundEntryObservation>,
-        val collections: List<OutboundSelectionCollection>,
-    ) : OutboundInventoryState
+    data class Ready(val entries: List<OutboundEntryObservation>, val collections: List<OutboundSelectionCollection>) :
+        OutboundInventoryState
     data object Empty : OutboundInventoryState
     data object Unsupported : OutboundInventoryState
     data class Failed(val failure: OwnerFailure) : OutboundInventoryState
 }
 
-internal data class OutboundInventorySnapshot(
-    val scope: CoreScopeObservation,
-    val revision: String,
-    val inventory: OutboundInventoryState,
-)
+internal data class OutboundInventorySnapshot(val scope: CoreScopeObservation, val revision: String, val inventory: OutboundInventoryState)
 
 internal sealed interface OutboundObservation<out T> {
     data object Unknown : OutboundObservation<Nothing>
@@ -177,20 +154,20 @@ internal enum class CoreHostKindObservation {
 }
 
 internal enum class CoreBinaryTargetObservation(val host: CoreHostKindObservation?) {
-    X86_64UnknownLinuxGnu(CoreHostKindObservation.Desktop),
+    X64UnknownLinuxGnu(CoreHostKindObservation.Desktop),
     Aarch64UnknownLinuxGnu(CoreHostKindObservation.Desktop),
-    X86_64UnknownLinuxMusl(CoreHostKindObservation.Desktop),
+    X64UnknownLinuxMusl(CoreHostKindObservation.Desktop),
     Aarch64UnknownLinuxMusl(CoreHostKindObservation.Desktop),
-    X86_64PcWindowsMsvc(CoreHostKindObservation.Desktop),
+    X64PcWindowsMsvc(CoreHostKindObservation.Desktop),
     Aarch64PcWindowsMsvc(CoreHostKindObservation.Desktop),
-    X86_64PcWindowsGnu(CoreHostKindObservation.Desktop),
-    X86_64PcWindowsGnullvm(CoreHostKindObservation.Desktop),
+    X64PcWindowsGnu(CoreHostKindObservation.Desktop),
+    X64PcWindowsGnullvm(CoreHostKindObservation.Desktop),
     Aarch64PcWindowsGnullvm(CoreHostKindObservation.Desktop),
-    X86_64AppleDarwin(CoreHostKindObservation.Desktop),
+    X64AppleDarwin(CoreHostKindObservation.Desktop),
     Aarch64AppleDarwin(CoreHostKindObservation.Desktop),
-    X86_64LinuxAndroid(CoreHostKindObservation.Android),
+    X64LinuxAndroid(CoreHostKindObservation.Android),
     Aarch64LinuxAndroid(CoreHostKindObservation.Android),
-    X86_64AppleIos(CoreHostKindObservation.Ios),
+    X64AppleIos(CoreHostKindObservation.Ios),
     Aarch64AppleIos(CoreHostKindObservation.Ios),
     Aarch64AppleIosSim(CoreHostKindObservation.Ios),
     Aarch64AppleIosMacabi(CoreHostKindObservation.Ios),
@@ -225,28 +202,13 @@ internal sealed interface CoreCapabilitySnapshotPageState {
     data class Failed(val failure: OwnerFailure) : CoreCapabilitySnapshotPageState
 }
 
-internal data class OutboundEndpointObservation(
-    val host: String,
-    val port: OutboundObservation<Int>,
-)
+internal data class OutboundEndpointObservation(val host: String, val port: OutboundObservation<Int>)
 
-internal data class OutboundLatencySample(
-    val observedAt: String,
-    val delayMs: Long,
-)
+internal data class OutboundLatencySample(val observedAt: String, val delayMs: Long)
 
-internal data class OutboundEgressSample(
-    val ip: String,
-    val country: String?,
-    val observedAtEpochMs: String?,
-)
+internal data class OutboundEgressSample(val ip: String, val country: String?, val observedAtEpochMs: String?)
 
-internal data class OutboundRttStatistics(
-    val minMs: Long?,
-    val maxMs: Long?,
-    val avgMs: Long?,
-    val validCount: String,
-)
+internal data class OutboundRttStatistics(val minMs: Long?, val maxMs: Long?, val avgMs: Long?, val validCount: String)
 
 internal data class OutboundDetailObservation(
     val id: OutboundIdObservation,
@@ -274,11 +236,7 @@ internal sealed interface OutboundDetailsState {
     data class Failed(val failure: OwnerFailure) : OutboundDetailsState
 }
 
-internal data class OutboundDetailsSnapshot(
-    val scope: CoreScopeObservation,
-    val detailRevision: String,
-    val state: OutboundDetailsState,
-)
+internal data class OutboundDetailsSnapshot(val scope: CoreScopeObservation, val detailRevision: String, val state: OutboundDetailsState)
 
 internal sealed interface OutboundDetailsPageState {
     data object Loading : OutboundDetailsPageState
@@ -332,10 +290,7 @@ internal data class ProtocolStudioDraftObservation(
     val flow: String,
 )
 
-internal data class ProtocolStudioIssueObservation(
-    val field: String,
-    val message: String,
-)
+internal data class ProtocolStudioIssueObservation(val field: String, val message: String)
 
 internal data class ProtocolStudioReportObservation(
     val family: String,
@@ -398,10 +353,7 @@ internal sealed interface OutboundObservationPageState<out T> {
 internal sealed interface OutboundInventoryPageState {
     data object Loading : OutboundInventoryPageState
     data class Observed(val snapshot: OutboundInventorySnapshot) : OutboundInventoryPageState
-    data class Unavailable(
-        val failure: OwnerFailure,
-        val lastValue: OutboundInventorySnapshot? = null,
-    ) : OutboundInventoryPageState
+    data class Unavailable(val failure: OwnerFailure, val lastValue: OutboundInventorySnapshot? = null) : OutboundInventoryPageState
     data class Failed(val failure: OwnerFailure) : OutboundInventoryPageState
 }
 
@@ -444,25 +396,11 @@ internal enum class OwnerLogStreamState {
     UNKNOWN,
 }
 
-data class LogEntry(
-    val level: LogLevel,
-    val message: String,
-    val timestamp: String,
-)
+data class LogEntry(val level: LogLevel, val message: String, val timestamp: String)
 
-internal data class OwnerLogsPage(
-    val stream: OwnerLogStreamState,
-    val totalEntries: Int,
-    val entries: List<LogEntry>,
-)
+internal data class OwnerLogsPage(val stream: OwnerLogStreamState, val totalEntries: Int, val entries: List<LogEntry>)
 
-data class TrafficSnapshot(
-    val upRate: ULong,
-    val downRate: ULong,
-    val upTotal: ULong?,
-    val downTotal: ULong?,
-    val connections: UInt,
-)
+data class TrafficSnapshot(val upRate: ULong, val downRate: ULong, val upTotal: ULong?, val downTotal: ULong?, val connections: UInt)
 
 internal data class OwnerSurfaceSnapshot(
     val generation: ULong,

@@ -8,7 +8,16 @@ Rust Android owner 与 UniFFI 接口见 [infiltrator-android](../crates/infiltra
 
 Android 构建共享版本登记于 [toolchain.properties](toolchain.properties)：Gradle app/Bevy host/JVM harness、tag-only CI、模拟器脚本和 Bevy 诊断构建从同一组 SDK/NDK/JDK pins 读取。Gradle wrapper 与 Rust 版本分别以 `gradle/wrapper/gradle-wrapper.properties` 和根 `rust-toolchain.toml` 为唯一来源。本机运行 Android 构建前执行 `python3 scripts/android-toolchain.py check`；它会核对 JDK、Gradle wrapper、SDK/command-line tools、NDK revision 与 Rust toolchain。
 
-当前兼容组合为 AGP 9.3.1、Kotlin Gradle Plugin 2.4.21、Gradle 9.7.0 和 JDK 17。Kotlin 官方 fully-supported 矩阵将 KGP 2.4.21 的上限列为 Gradle 9.7.0 / AGP 9.3.1；AGP 9.3 至少要求 Gradle 9.5，并支持 API 37，因此现有 compile SDK 37 与该组合匹配。[Kotlin Gradle compatibility](https://kotlinlang.org/docs/gradle-configure-project.html)、[AGP 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)、[Gradle 9.7.0 release notes](https://docs.gradle.org/9.7.0/release-notes.html)。AGP 9.3.2 才修复 9.3 系列的 JDK 17 Lint crash；KGP 官方兼容表目前只列到 AGP 9.3.1，所以 Android Lint 暂不启用，待兼容矩阵更新或有独立行为证据后再推进。
+当前兼容组合为 AGP 9.3.1、Kotlin Gradle Plugin 2.4.21、Gradle 9.7.0 和 JDK 17。Kotlin 官方 fully-supported 矩阵将 KGP 2.4.21 的上限列为 Gradle 9.7.0 / AGP 9.3.1；AGP 9.3 至少要求 Gradle 9.5，并支持 API 37，因此现有 compile SDK 37 与该组合匹配。[Kotlin Gradle compatibility](https://kotlinlang.org/docs/gradle-configure-project.html)、[AGP 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)、[Gradle 9.7.0 release notes](https://docs.gradle.org/9.7.0/release-notes.html)。AGP 9.3.2 才修复 9.3 系列的 JDK 17 Lint crash；KGP 官方兼容表目前只列到 AGP 9.3.1。
+
+### Android Lint 已启用（BANDROID-044.1）
+
+上述 tuple 在本机（Temurin JDK 17.0.20.1+1、Gradle 9.7.0、AGP 9.3.1、KGP 2.4.21）**不再复现** 9.3 系列的 JDK 17 Lint crash：`./gradlew :app:lintComposeDebug` 正常完成并产出分项报告，`:app:lintSlintDebug` 同样通过。因此 Android Lint 已按 README 原定的「有独立行为证据后再推进」条件启用：
+
+- `:app:lint` 关闭 `abortOnError`、开启 `warningsAsErrors`、`checkDependencies = true`，`baseline = null`（模块内不得存在 `lint-baseline.xml`）；
+- Compose / Bevy / Slint 三个 Debug 变体的 Lint task 由 `:app:androidLintGate` 统一注册；
+- 仅有的静默项登记在 `android/app/lint.xml`，每条都写明理由，并由 `scripts/quality/android-architecture-redline-guard.py` 固定该清单（新增未登记的静默项即失败）；
+- ktlint（IntelliJ official style，140 列）与 Detekt（`android/config/detekt/detekt.yml`）同批接入，三者均无 baseline、无文件级 suppression、无抬高阈值；本机入口为 `scripts/quality/android-quality-gates.sh`，已并入 `scripts/android-check.sh`。
 
 ## :app flavors
 

@@ -59,11 +59,8 @@ internal sealed interface OwnerIpcPayload {
         override val role = OwnerIpcRequestRole.Operation
     }
 
-    data class ExecuteOwnerOperation(
-        val operationJson: String,
-        val expectedCoreGeneration: Long,
-        val expectedOwnerDataRevision: Long,
-    ) : OwnerIpcPayload {
+    data class ExecuteOwnerOperation(val operationJson: String, val expectedCoreGeneration: Long, val expectedOwnerDataRevision: Long) :
+        OwnerIpcPayload {
         override val request = AndroidHostRequest.EXECUTE_OWNER_OPERATION
         override val role = OwnerIpcRequestRole.Operation
     }

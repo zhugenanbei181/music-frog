@@ -23,19 +23,19 @@ import infiltrator_android.androidCloseCoreOwner
 import infiltrator_android.androidCoreLifecycleStatus
 import infiltrator_android.androidDispatchOwnerOperationWireJson
 import infiltrator_android.androidDispatchProfileAgeCredentialOwnerOperationWireJson
-import infiltrator_android.androidOwnerDataRevision
 import infiltrator_android.androidExecuteProductCommandJson
+import infiltrator_android.androidOwnerDataRevision
 import infiltrator_android.androidSurfaceSnapshotJson
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.FutureTask
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import java.util.UUID
 
 /**
  * Process owner for the Mihomo child process and the VPN service.
@@ -54,6 +54,7 @@ class MihomoControlService : Service() {
     private lateinit var endpoint: Messenger
     internal lateinit var commandHandler: Handler
     internal lateinit var ownerSessionId: String
+
     @Volatile
     private var ownerServicePhase: OwnerServicePhase = OwnerServicePhase.Initializing
     private var ownerSessionStartJob: Job? = null
@@ -69,11 +70,10 @@ class MihomoControlService : Service() {
     private val ownerRequestJobs = mutableMapOf<OwnerIpcRequestKey, Job>()
     internal val ownerRequestSensitivePayloads = OwnerIpcSensitivePayloadStore()
 
-    internal suspend fun canonicalSurfaceSnapshotRouteCheck(): Any =
-        when (AndroidHostRequest.READ_SURFACE_SNAPSHOT) {
-            AndroidHostRequest.READ_SURFACE_SNAPSHOT -> androidSurfaceSnapshotJson()
-            else -> Unit
-        }
+    internal suspend fun canonicalSurfaceSnapshotRouteCheck(): Any = when (AndroidHostRequest.READ_SURFACE_SNAPSHOT) {
+        AndroidHostRequest.READ_SURFACE_SNAPSHOT -> androidSurfaceSnapshotJson()
+        else -> Unit
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -94,8 +94,10 @@ class MihomoControlService : Service() {
                 }
                 when (app.activateVpnOwnerSession(ownerSessionId)) {
                     VpnOwnerSessionActivationOutcome.Activated,
-                    VpnOwnerSessionActivationOutcome.AlreadyActive ->
+                    VpnOwnerSessionActivationOutcome.AlreadyActive,
+                    ->
                         ownerServicePhase = OwnerServicePhase.Accepting
+
                     VpnOwnerSessionActivationOutcome.StaleSession -> {
                         ownerServicePhase = OwnerServicePhase.Unavailable
                         val reason = "VPN owner snapshot session changed during initialization"
@@ -135,8 +137,11 @@ class MihomoControlService : Service() {
                     cacheCanceledVpnStart(key)
                     MihomoVpnService.cancelUndispatchedStart(cancellation.generation)
                 }
+
                 VpnOwnerStartCancellation.ExecutionAlreadyStarted,
-                VpnOwnerStartCancellation.TerminalReadback -> Unit
+                VpnOwnerStartCancellation.TerminalReadback,
+                -> Unit
+
                 VpnOwnerStartCancellation.CanceledBeforeGeneration -> {
                     clearVpnStartReplies(key)
                     cacheCanceledVpnStart(key)
@@ -146,8 +151,10 @@ class MihomoControlService : Service() {
                         vpnStartAdmission.complete(key)
                     }
                 }
+
                 VpnOwnerStartCancellation.AlreadyCanceled,
-                VpnOwnerStartCancellation.Unknown -> Unit
+                VpnOwnerStartCancellation.Unknown,
+                -> Unit
             }
         }
         for (key in ownerRequestAdmission.activeKeys()) {
@@ -171,10 +178,12 @@ class MihomoControlService : Service() {
                         )
                     }
                 }
+
                 OwnerIpcCancellation.AlreadyCanceled,
                 OwnerIpcCancellation.ExecutionAlreadyStarted,
                 is OwnerIpcCancellation.TerminalReadback,
-                OwnerIpcCancellation.Unknown -> Unit
+                OwnerIpcCancellation.Unknown,
+                -> Unit
             }
         }
         vpnStartExecutor.shutdownNow()
@@ -246,10 +255,12 @@ class MihomoControlService : Service() {
                 wipeSensitiveRequest(message, arguments)
                 ControlServiceResponse(AndroidHostReply.SERVICE_UNAVAILABLE, FfiErrorCode.NOT_READY)
             }
+
             request == null -> {
                 wipeSensitiveRequest(message, arguments)
                 ControlServiceResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
             }
+
             request == AndroidHostRequest.START_VPN_SERVICE -> {
                 val deadline = runCatching { readRequestDeadline(arguments) }.getOrNull()
                 if (deadline == null) {
@@ -265,6 +276,7 @@ class MihomoControlService : Service() {
                     return true
                 }
             }
+
             else -> {
                 enqueueOwnerRequest(
                     message = message,
@@ -281,12 +293,7 @@ class MihomoControlService : Service() {
         return true
     }
 
-    private fun enqueueVpnStart(
-        message: Message,
-        clientSessionId: String,
-        requestId: Long,
-        deadline: VpnOwnerRequestDeadline,
-    ) {
+    private fun enqueueVpnStart(message: Message, clientSessionId: String, requestId: Long, deadline: VpnOwnerRequestDeadline) {
         val key = VpnOwnerRequestKey(clientSessionId, requestId)
         val now = SystemClock.elapsedRealtime()
         when (val replay = vpnStartTerminalCache.read(key, now)) {
@@ -294,6 +301,7 @@ class MihomoControlService : Service() {
                 sendResponse(message, requestId, clientSessionId, replay.response)
                 return
             }
+
             VpnOwnerStartReplayLookup.Miss -> Unit
         }
         fun sendTerminal(response: ControlServiceResponse) {
@@ -310,8 +318,10 @@ class MihomoControlService : Service() {
                     OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.TimedOut),
                 ),
             )
+
             VpnOwnerStartAdmission.Duplicate -> when (attachVpnStartReply(key, message)) {
                 VpnStartReplyAdmission.Attached -> Unit
+
                 VpnStartReplyAdmission.CapacityExceeded -> sendResponse(
                     message,
                     requestId,
@@ -322,11 +332,13 @@ class MihomoControlService : Service() {
                         "duplicate VPN start waiter limit reached",
                     ),
                 )
+
                 VpnStartReplyAdmission.NoActiveRequest -> when (
                     val replay = vpnStartTerminalCache.read(key, SystemClock.elapsedRealtime())
                 ) {
                     is VpnOwnerStartReplayLookup.Hit ->
                         sendResponse(message, requestId, clientSessionId, replay.response)
+
                     VpnOwnerStartReplayLookup.Miss -> sendTerminal(
                         ControlServiceResponse(
                             AndroidHostReply.FAILED,
@@ -336,6 +348,7 @@ class MihomoControlService : Service() {
                     )
                 }
             }
+
             VpnOwnerStartAdmission.QueueFull -> sendTerminal(
                 ControlServiceResponse(
                     AndroidHostReply.SERVICE_UNAVAILABLE,
@@ -343,6 +356,7 @@ class MihomoControlService : Service() {
                     "VPN start owner queue is full",
                 ),
             )
+
             VpnOwnerStartAdmission.Admitted -> {
                 synchronized(vpnStartRepliesLock) {
                     vpnStartReplies[key] = mutableListOf(message)
@@ -357,11 +371,11 @@ class MihomoControlService : Service() {
                 } catch (_: RejectedExecutionException) {
                     vpnStartTasks.remove(key)
                     val rejected = ControlServiceResponse(
-                            AndroidHostReply.SERVICE_UNAVAILABLE,
-                            FfiErrorCode.NOT_READY,
-                            "VPN start owner queue rejected the request",
-                            OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.OwnerUnavailable),
-                        )
+                        AndroidHostReply.SERVICE_UNAVAILABLE,
+                        FfiErrorCode.NOT_READY,
+                        "VPN start owner queue rejected the request",
+                        OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.OwnerUnavailable),
+                    )
                     vpnStartTerminalCache.store(key, rejected, SystemClock.elapsedRealtime())
                     vpnStartAdmission.complete(key)
                     scheduleStartExpiry(key, deadline)
@@ -433,22 +447,27 @@ class MihomoControlService : Service() {
                             arguments,
                             expectedOwnerSession,
                         )
+
                         OwnerIpcExecutionStart.Canceled -> ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.NOT_READY,
                             "owner request was canceled before execution",
                         )
+
                         OwnerIpcExecutionStart.Expired -> ControlServiceResponse(
                             AndroidHostReply.SERVICE_UNAVAILABLE,
                             FfiErrorCode.NOT_READY,
                             "owner request expired before execution",
                         )
+
                         OwnerIpcExecutionStart.InFlight -> ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.INVALID_STATE,
                             "owner request is already executing",
                         )
+
                         is OwnerIpcExecutionStart.TerminalReadback -> execution.response
+
                         OwnerIpcExecutionStart.Unknown -> ControlServiceResponse(
                             AndroidHostReply.FAILED,
                             FfiErrorCode.INVALID_STATE,
@@ -463,8 +482,10 @@ class MihomoControlService : Service() {
                         )
                     ) {
                         OwnerIpcCompletion.TerminalCached -> publishOwnerRequest(key, response)
+
                         OwnerIpcCompletion.SuppressCanceledCompletion,
-                        OwnerIpcCompletion.Unknown -> Log.i(
+                        OwnerIpcCompletion.Unknown,
+                        -> Log.i(
                             TAG,
                             "suppressed late owner IPC receipt request=${key.requestId}",
                         )
@@ -479,8 +500,10 @@ class MihomoControlService : Service() {
                 }
                 job.start()
             }
+
             OwnerIpcAdmission.InFlight -> when (attachOwnerRequestWaiter(key, message)) {
                 OwnerIpcWaiterAdmission.Attached -> Unit
+
                 OwnerIpcWaiterAdmission.CapacityExceeded -> sendResponse(
                     message,
                     requestId,
@@ -491,6 +514,7 @@ class MihomoControlService : Service() {
                         "duplicate owner IPC waiter limit reached",
                     ),
                 )
+
                 OwnerIpcWaiterAdmission.NoActiveRequest -> sendResponse(
                     message,
                     requestId,
@@ -502,6 +526,7 @@ class MihomoControlService : Service() {
                     ),
                 )
             }
+
             OwnerIpcAdmission.CanceledBeforeExecution -> sendResponse(
                 message,
                 requestId,
@@ -512,12 +537,14 @@ class MihomoControlService : Service() {
                     "owner request was canceled before execution",
                 ),
             )
+
             is OwnerIpcAdmission.TerminalReadback -> sendResponse(
                 message,
                 requestId,
                 clientSessionId,
                 admission.response,
             )
+
             OwnerIpcAdmission.QueueFull -> sendResponse(
                 message,
                 requestId,
@@ -528,6 +555,7 @@ class MihomoControlService : Service() {
                     "owner IPC request queue is full",
                 ),
             )
+
             OwnerIpcAdmission.Expired -> sendResponse(
                 message,
                 requestId,
@@ -538,6 +566,7 @@ class MihomoControlService : Service() {
                     "owner request expired before admission",
                 ),
             )
+
             OwnerIpcAdmission.RequestIdConflict -> sendResponse(
                 message,
                 requestId,
@@ -566,18 +595,16 @@ class MihomoControlService : Service() {
         }
     }
 
-    private fun attachOwnerRequestWaiter(
-        key: OwnerIpcRequestKey,
-        message: Message,
-    ): OwnerIpcWaiterAdmission = synchronized(ownerRequestLock) {
-        val waiters = ownerRequestReplies[key] ?: return@synchronized OwnerIpcWaiterAdmission.NoActiveRequest
-        if (waiters.size >= MAX_OWNER_REQUEST_WAITERS) {
-            OwnerIpcWaiterAdmission.CapacityExceeded
-        } else {
-            waiters += message
-            OwnerIpcWaiterAdmission.Attached
+    private fun attachOwnerRequestWaiter(key: OwnerIpcRequestKey, message: Message): OwnerIpcWaiterAdmission =
+        synchronized(ownerRequestLock) {
+            val waiters = ownerRequestReplies[key] ?: return@synchronized OwnerIpcWaiterAdmission.NoActiveRequest
+            if (waiters.size >= MAX_OWNER_REQUEST_WAITERS) {
+                OwnerIpcWaiterAdmission.CapacityExceeded
+            } else {
+                waiters += message
+                OwnerIpcWaiterAdmission.Attached
+            }
         }
-    }
 
     private fun requestFingerprint(request: AndroidHostRequest, arguments: Bundle): String {
         val values = arguments.keySet()
@@ -622,7 +649,8 @@ class MihomoControlService : Service() {
     internal fun wipeOwnerRequestSensitivePayload(key: OwnerIpcRequestKey) {
         when (ownerRequestSensitivePayloads.removeAndWipe(key)) {
             OwnerIpcSensitivePayloadRemoval.Wiped,
-            OwnerIpcSensitivePayloadRemoval.Missing -> Unit
+            OwnerIpcSensitivePayloadRemoval.Missing,
+            -> Unit
         }
     }
 
@@ -659,19 +687,16 @@ class MihomoControlService : Service() {
                     )
                 }
             }
+
             OwnerIpcCancellation.AlreadyCanceled,
             OwnerIpcCancellation.ExecutionAlreadyStarted,
             is OwnerIpcCancellation.TerminalReadback,
-            OwnerIpcCancellation.Unknown -> Unit
+            OwnerIpcCancellation.Unknown,
+            -> Unit
         }
     }
 
-    internal fun sendResponse(
-        requestMessage: Message,
-        requestId: Long,
-        clientSessionId: String?,
-        result: ControlServiceResponse,
-    ) {
+    internal fun sendResponse(requestMessage: Message, requestId: Long, clientSessionId: String?, result: ControlServiceResponse) {
         val response = Message.obtain(null, RESPONSE).apply {
             data = Bundle().apply {
                 putSerializable(PROTOCOL_VERSION, AndroidHostProtocolVersion.V10)

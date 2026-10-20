@@ -23,10 +23,7 @@ internal sealed interface SyncRepositoryOutcome {
 }
 
 internal sealed interface SyncRepositoryResult {
-    data class Completed(
-        val snapshot: SyncSettingsSnapshot,
-        val outcome: SyncRepositoryOutcome,
-    ) : SyncRepositoryResult
+    data class Completed(val snapshot: SyncSettingsSnapshot, val outcome: SyncRepositoryOutcome) : SyncRepositoryResult
 
     data class Failed(val failure: AppFailure, val latest: SyncSettingsSnapshot?) : SyncRepositoryResult
     data class Cancelled(val failure: AppFailure, val latest: SyncSettingsSnapshot?) : SyncRepositoryResult
@@ -38,23 +35,18 @@ internal interface SyncRepository {
     suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): SyncRepositoryResult
 }
 
-internal class UniFfiSyncRepository(
-    private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway,
-) : SyncRepository {
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): SyncRepositoryResult = when (val exchange = gateway.execute(operation, timeoutMs)) {
-        is AndroidOwnerOperationExchange.Completed -> exchange.reply.toSyncRepositoryResult(operation)
-        is AndroidOwnerOperationExchange.Failed -> SyncRepositoryResult.Failed(exchange.failure, null)
-        is AndroidOwnerOperationExchange.Cancelled -> SyncRepositoryResult.Cancelled(exchange.failure, null)
-        is AndroidOwnerOperationExchange.TimedOut -> SyncRepositoryResult.TimedOut(exchange.failure)
-    }
+internal class UniFfiSyncRepository(private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway) :
+    SyncRepository {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): SyncRepositoryResult =
+        when (val exchange = gateway.execute(operation, timeoutMs)) {
+            is AndroidOwnerOperationExchange.Completed -> exchange.reply.toSyncRepositoryResult(operation)
+            is AndroidOwnerOperationExchange.Failed -> SyncRepositoryResult.Failed(exchange.failure, null)
+            is AndroidOwnerOperationExchange.Cancelled -> SyncRepositoryResult.Cancelled(exchange.failure, null)
+            is AndroidOwnerOperationExchange.TimedOut -> SyncRepositoryResult.TimedOut(exchange.failure)
+        }
 }
 
-private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
-    operation: AndroidOwnerOperation,
-): SyncRepositoryResult {
+private fun AndroidOwnerOperationReply.toSyncRepositoryResult(operation: AndroidOwnerOperation): SyncRepositoryResult {
     val purpose = when (operation) {
         AndroidOwnerOperation.WebDavSettings -> SyncOperationPurpose.Read
         is AndroidOwnerOperation.WebDavSettingsSave -> SyncOperationPurpose.Save
@@ -74,11 +66,15 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
     val expectedRevision = when (purpose) {
         SyncOperationPurpose.Read,
         SyncOperationPurpose.Test,
-        SyncOperationPurpose.Sync -> context.expectedDataRevision
-        SyncOperationPurpose.Save -> context.expectedDataRevision
-            .takeIf { it < ULong.MAX_VALUE }
-            ?.plus(1u)
-            ?: return unconfirmedSync(latest)
+        SyncOperationPurpose.Sync,
+        -> context.expectedDataRevision
+
+        SyncOperationPurpose.Save ->
+            context.expectedDataRevision
+                .takeIf { it < ULong.MAX_VALUE }
+                ?.plus(1u)
+                ?: return unconfirmedSync(latest)
+
         SyncOperationPurpose.Unsupported -> return unconfirmedSync(latest)
     }
     if (dataRevision != expectedRevision) return unconfirmedSync(null)
@@ -99,6 +95,7 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
             if (readback.v1 != snapshotData) return unconfirmedSync(snapshot)
             SyncRepositoryOutcome.SettingsObserved
         }
+
         SyncOperationPurpose.Save -> {
             val save = operation as? AndroidOwnerOperation.WebDavSettingsSave
                 ?: return unconfirmedSync(snapshot)
@@ -111,10 +108,12 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
             }
             SyncRepositoryOutcome.SettingsSaved
         }
+
         SyncOperationPurpose.Test -> {
             if (readback !is AndroidOwnerOperationReadback.WebDavTest) return unconfirmedSync(snapshot)
             SyncRepositoryOutcome.ConnectionTested
         }
+
         SyncOperationPurpose.Sync -> {
             val result = (readback as? AndroidOwnerOperationReadback.WebDavSyncNow)?.v1
                 ?: return unconfirmedSync(snapshot)
@@ -126,23 +125,22 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
                 ),
             )
         }
+
         SyncOperationPurpose.Unsupported -> return unconfirmedSync(snapshot)
     }
     return SyncRepositoryResult.Completed(snapshot, outcome)
 }
 
-private fun AndroidOwnerOperationReply.hasSyncOwnerFence(): Boolean =
-    protocol == AndroidOwnerOperationProtocolVersion.V6 &&
-        context.clientSessionId.isNotBlank() &&
-        context.ownerSessionId.isNotBlank() &&
-        context.expectedOwnerSessionId == context.ownerSessionId &&
-        context.expectedCoreGeneration == observedCoreGeneration &&
-        dataDomain == AndroidOwnerDataDomain.WEB_DAV &&
-        snapshot?.domain == AndroidOwnerDataDomain.WEB_DAV &&
-        snapshot?.data is AndroidOwnerDataSnapshotData.WebDavSettings
+private fun AndroidOwnerOperationReply.hasSyncOwnerFence(): Boolean = protocol == AndroidOwnerOperationProtocolVersion.V6 &&
+    context.clientSessionId.isNotBlank() &&
+    context.ownerSessionId.isNotBlank() &&
+    context.expectedOwnerSessionId == context.ownerSessionId &&
+    context.expectedCoreGeneration == observedCoreGeneration &&
+    dataDomain == AndroidOwnerDataDomain.WEB_DAV &&
+    snapshot?.domain == AndroidOwnerDataDomain.WEB_DAV &&
+    snapshot?.data is AndroidOwnerDataSnapshotData.WebDavSettings
 
-private fun AndroidOwnerOperationReply.snapshotData() =
-    (snapshot?.data as? AndroidOwnerDataSnapshotData.WebDavSettings)?.v1
+private fun AndroidOwnerOperationReply.snapshotData() = (snapshot?.data as? AndroidOwnerDataSnapshotData.WebDavSettings)?.v1
 
 private fun AndroidOwnerOperationReply.latestSyncSnapshot(): SyncSettingsSnapshot? {
     if (dataDomain != AndroidOwnerDataDomain.WEB_DAV || snapshot?.domain != AndroidOwnerDataDomain.WEB_DAV) {

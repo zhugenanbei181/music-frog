@@ -1,8 +1,8 @@
 package com.musicfrog.infiltrator.ui.settings.rules
 
-import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
+import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.UniFfiAndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.localizedFailure
@@ -24,45 +24,28 @@ internal sealed interface RulesRepositoryObservation {
 
 internal sealed interface RulesRepositoryResult {
     data class Completed(val observation: RulesRepositoryObservation) : RulesRepositoryResult
-    data class Failed(
-        val failure: AppFailure,
-        val latest: RulesRepositoryObservation?,
-    ) : RulesRepositoryResult
-    data class Cancelled(
-        val failure: AppFailure,
-        val latest: RulesRepositoryObservation?,
-    ) : RulesRepositoryResult
+    data class Failed(val failure: AppFailure, val latest: RulesRepositoryObservation?) : RulesRepositoryResult
+    data class Cancelled(val failure: AppFailure, val latest: RulesRepositoryObservation?) : RulesRepositoryResult
     data class TimedOut(val failure: AppFailure) : RulesRepositoryResult
-    data class Unconfirmed(
-        val failure: AppFailure,
-        val latest: RulesRepositoryObservation?,
-    ) : RulesRepositoryResult
+    data class Unconfirmed(val failure: AppFailure, val latest: RulesRepositoryObservation?) : RulesRepositoryResult
 }
 
 internal interface RulesRepository {
-    suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): RulesRepositoryResult
+    suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): RulesRepositoryResult
 }
 
-internal class UniFfiRulesRepository(
-    private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway,
-) : RulesRepository {
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): RulesRepositoryResult = when (val result = gateway.execute(operation, timeoutMs)) {
-        is AndroidOwnerOperationExchange.Completed -> result.reply.toRulesRepositoryResult(operation)
-        is AndroidOwnerOperationExchange.Failed -> RulesRepositoryResult.Failed(result.failure, null)
-        is AndroidOwnerOperationExchange.Cancelled -> RulesRepositoryResult.Cancelled(result.failure, null)
-        is AndroidOwnerOperationExchange.TimedOut -> RulesRepositoryResult.TimedOut(result.failure)
-    }
+internal class UniFfiRulesRepository(private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway) :
+    RulesRepository {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): RulesRepositoryResult =
+        when (val result = gateway.execute(operation, timeoutMs)) {
+            is AndroidOwnerOperationExchange.Completed -> result.reply.toRulesRepositoryResult(operation)
+            is AndroidOwnerOperationExchange.Failed -> RulesRepositoryResult.Failed(result.failure, null)
+            is AndroidOwnerOperationExchange.Cancelled -> RulesRepositoryResult.Cancelled(result.failure, null)
+            is AndroidOwnerOperationExchange.TimedOut -> RulesRepositoryResult.TimedOut(result.failure)
+        }
 }
 
-private fun AndroidOwnerOperationReply.toRulesRepositoryResult(
-    operation: AndroidOwnerOperation,
-): RulesRepositoryResult {
+private fun AndroidOwnerOperationReply.toRulesRepositoryResult(operation: AndroidOwnerOperation): RulesRepositoryResult {
     val purpose = operation.rulesRequestKind()
     val domain = purpose.domain
     val latest = latestObservation(domain)
@@ -85,10 +68,12 @@ private fun AndroidOwnerOperationReply.toRulesRepositoryResult(
     }
     val expectedRevision = when (purpose.revisionAdvance(status.code.toOwnerResultStatus())) {
         RulesRevisionAdvance.None -> context.expectedDataRevision
-        RulesRevisionAdvance.One -> context.expectedDataRevision
-            .takeIf { it < ULong.MAX_VALUE }
-            ?.plus(1u)
-            ?: return unconfirmedRules(latest)
+
+        RulesRevisionAdvance.One ->
+            context.expectedDataRevision
+                .takeIf { it < ULong.MAX_VALUE }
+                ?.plus(1u)
+                ?: return unconfirmedRules(latest)
     }
     if (dataRevision != expectedRevision) return unconfirmedRules(latest)
 
@@ -101,11 +86,15 @@ private fun AndroidOwnerOperationReply.toRulesRepositoryResult(
             }
             when (requestedWriteConfirmation(purpose, operation, observation)) {
                 RequestedWriteConfirmation.Confirmed,
-                RequestedWriteConfirmation.NotRequired -> RulesRepositoryResult.Completed(observation)
+                RequestedWriteConfirmation.NotRequired,
+                -> RulesRepositoryResult.Completed(observation)
+
                 RequestedWriteConfirmation.Mismatch -> unconfirmedRules(observation)
             }
         }
+
         OwnerResultStatus.Cancelled -> RulesRepositoryResult.Cancelled(status.toAppFailure(), latest)
+
         OwnerResultStatus.Failed -> RulesRepositoryResult.Failed(status.toAppFailure(), latest)
     }
 }
@@ -118,40 +107,42 @@ private fun AndroidOwnerOperation.rulesRequestKind(): RulesRequestKind = when (t
     else -> RulesRequestKind.Unsupported
 }
 
-private fun RulesRequestKind.revisionAdvance(
-    status: OwnerResultStatus,
-): RulesRevisionAdvance = when (this) {
+private fun RulesRequestKind.revisionAdvance(status: OwnerResultStatus): RulesRevisionAdvance = when (this) {
     RulesRequestKind.ReadRules,
     RulesRequestKind.ReadProviders,
-    RulesRequestKind.Unsupported -> RulesRevisionAdvance.None
+    RulesRequestKind.Unsupported,
+    -> RulesRevisionAdvance.None
+
     RulesRequestKind.WriteRules,
-    RulesRequestKind.WriteProviders -> when (status) {
+    RulesRequestKind.WriteProviders,
+    -> when (status) {
         OwnerResultStatus.Succeeded -> RulesRevisionAdvance.One
+
         OwnerResultStatus.Cancelled,
-        OwnerResultStatus.Failed -> RulesRevisionAdvance.None
+        OwnerResultStatus.Failed,
+        -> RulesRevisionAdvance.None
     }
 }
 
-private fun readbackStatus(
-    readback: AndroidOwnerOperationReadback,
-    purpose: RulesRequestKind,
-): RulesReadbackStatus = when (purpose) {
+private fun readbackStatus(readback: AndroidOwnerOperationReadback, purpose: RulesRequestKind): RulesReadbackStatus = when (purpose) {
     RulesRequestKind.ReadRules,
-    RulesRequestKind.WriteRules -> when (readback) {
+    RulesRequestKind.WriteRules,
+    -> when (readback) {
         is AndroidOwnerOperationReadback.Rules -> RulesReadbackStatus.Observed(readback.v1.status)
         else -> RulesReadbackStatus.Mismatch
     }
+
     RulesRequestKind.ReadProviders,
-    RulesRequestKind.WriteProviders -> when (readback) {
+    RulesRequestKind.WriteProviders,
+    -> when (readback) {
         is AndroidOwnerOperationReadback.RuleProviders -> RulesReadbackStatus.Observed(readback.v1.status)
         else -> RulesReadbackStatus.Mismatch
     }
+
     RulesRequestKind.Unsupported -> RulesReadbackStatus.Mismatch
 }
 
-private fun AndroidOwnerOperationReply.latestObservation(
-    domain: RulesDomain,
-): RulesRepositoryObservation? {
+private fun AndroidOwnerOperationReply.latestObservation(domain: RulesDomain): RulesRepositoryObservation? {
     val ownerDataDomain = domain.toOwnerDataDomain() ?: return null
     if (snapshot?.domain != ownerDataDomain || dataDomain != ownerDataDomain) return null
     val revision = RulesRevision(
@@ -165,12 +156,17 @@ private fun AndroidOwnerOperationReply.latestObservation(
                 OwnerResultStatus.Succeeded -> RulesRepositoryObservation.Rules(
                     RulesSnapshot(value.v1.rules, revision),
                 )
+
                 OwnerResultStatus.Cancelled,
-                OwnerResultStatus.Failed -> null
+                OwnerResultStatus.Failed,
+                -> null
             }
+
             RulesDomain.Providers,
-            RulesDomain.Unsupported -> null
+            RulesDomain.Unsupported,
+            -> null
         }
+
         is AndroidOwnerDataSnapshotData.RuleProviders -> when (domain) {
             RulesDomain.Providers -> when (value.v1.status.code.toOwnerResultStatus()) {
                 OwnerResultStatus.Succeeded -> {
@@ -180,12 +176,17 @@ private fun AndroidOwnerOperationReply.latestObservation(
                         RuleProvidersSnapshot(value.v1.providers, json, revision),
                     )
                 }
+
                 OwnerResultStatus.Cancelled,
-                OwnerResultStatus.Failed -> null
+                OwnerResultStatus.Failed,
+                -> null
             }
+
             RulesDomain.Rules,
-            RulesDomain.Unsupported -> null
+            RulesDomain.Unsupported,
+            -> null
         }
+
         else -> null
     }
 }
@@ -199,15 +200,19 @@ private fun readbackSnapshotConsistency(
             true -> ReadbackSnapshotConsistency.Matches
             false -> ReadbackSnapshotConsistency.Mismatch
         }
+
         else -> ReadbackSnapshotConsistency.Mismatch
     }
+
     is AndroidOwnerOperationReadback.RuleProviders -> when (snapshot) {
         is AndroidOwnerDataSnapshotData.RuleProviders -> when (readback.v1 == snapshot.v1) {
             true -> ReadbackSnapshotConsistency.Matches
             false -> ReadbackSnapshotConsistency.Mismatch
         }
+
         else -> ReadbackSnapshotConsistency.Mismatch
     }
+
     else -> ReadbackSnapshotConsistency.Mismatch
 }
 
@@ -217,19 +222,23 @@ private fun requestedWriteConfirmation(
     observation: RulesRepositoryObservation,
 ): RequestedWriteConfirmation = when (purpose) {
     RulesRequestKind.ReadRules,
-    RulesRequestKind.ReadProviders -> RequestedWriteConfirmation.NotRequired
+    RulesRequestKind.ReadProviders,
+    -> RequestedWriteConfirmation.NotRequired
+
     RulesRequestKind.WriteRules -> when {
         operation !is AndroidOwnerOperation.RulesSave -> RequestedWriteConfirmation.Mismatch
         observation !is RulesRepositoryObservation.Rules -> RequestedWriteConfirmation.Mismatch
         operation.rules == observation.snapshot.entries -> RequestedWriteConfirmation.Confirmed
         else -> RequestedWriteConfirmation.Mismatch
     }
+
     RulesRequestKind.WriteProviders -> when {
         operation !is AndroidOwnerOperation.RuleProvidersSave -> RequestedWriteConfirmation.Mismatch
         observation !is RulesRepositoryObservation.Providers -> RequestedWriteConfirmation.Mismatch
         operation.providers == observation.snapshot.entries -> RequestedWriteConfirmation.Confirmed
         else -> RequestedWriteConfirmation.Mismatch
     }
+
     RulesRequestKind.Unsupported -> RequestedWriteConfirmation.Mismatch
 }
 
@@ -274,6 +283,4 @@ private enum class RequestedWriteConfirmation {
 
 private fun notReadyFailure() = localizedFailure(FailureTextKey.NotReady).toAppFailure()
 
-private fun unconfirmedRules(
-    latest: RulesRepositoryObservation?,
-) = RulesRepositoryResult.Unconfirmed(notReadyFailure(), latest)
+private fun unconfirmedRules(latest: RulesRepositoryObservation?) = RulesRepositoryResult.Unconfirmed(notReadyFailure(), latest)

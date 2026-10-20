@@ -5,8 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 
+private const val TAG = "BootReceiver"
+
 class BootReceiver : BroadcastReceiver() {
-    private val TAG = "BootReceiver"
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {

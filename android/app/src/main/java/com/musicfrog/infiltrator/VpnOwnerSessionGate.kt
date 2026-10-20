@@ -1,28 +1,15 @@
 package com.musicfrog.infiltrator
 
-internal data class VpnOwnerSession<T>(
-    val id: String,
-    val value: T,
-)
+internal data class VpnOwnerSession<T>(val id: String, val value: T)
 
 internal sealed interface VpnOwnerSessionState<out T> {
     data object Unavailable : VpnOwnerSessionState<Nothing>
 
-    data class Preparing<T>(
-        val id: String,
-        val value: T,
-    ) : VpnOwnerSessionState<T>
+    data class Preparing<T>(val id: String, val value: T) : VpnOwnerSessionState<T>
 
-    data class Active<T>(
-        val id: String,
-        val value: T,
-    ) : VpnOwnerSessionState<T>
+    data class Active<T>(val id: String, val value: T) : VpnOwnerSessionState<T>
 
-    data class Failed<T>(
-        val id: String,
-        val value: T,
-        val reason: String,
-    ) : VpnOwnerSessionState<T>
+    data class Failed<T>(val id: String, val value: T, val reason: String) : VpnOwnerSessionState<T>
 
     data class Ended(val id: String) : VpnOwnerSessionState<Nothing>
 }
@@ -58,15 +45,19 @@ internal class VpnOwnerSessionGate<T> {
                 state = VpnOwnerSessionState.Active(current.id, current.value)
                 VpnOwnerSessionActivationOutcome.Activated
             }
+
             false -> VpnOwnerSessionActivationOutcome.StaleSession
         }
+
         is VpnOwnerSessionState.Active -> when (current.id == id) {
             true -> VpnOwnerSessionActivationOutcome.AlreadyActive
             false -> VpnOwnerSessionActivationOutcome.StaleSession
         }
+
         is VpnOwnerSessionState.Failed,
         is VpnOwnerSessionState.Ended,
-        VpnOwnerSessionState.Unavailable -> VpnOwnerSessionActivationOutcome.StaleSession
+        VpnOwnerSessionState.Unavailable,
+        -> VpnOwnerSessionActivationOutcome.StaleSession
     }
 
     @Synchronized
@@ -76,10 +67,12 @@ internal class VpnOwnerSessionGate<T> {
                 true -> state = VpnOwnerSessionState.Failed(current.id, current.value, reason)
                 false -> Unit
             }
+
             is VpnOwnerSessionState.Active,
             is VpnOwnerSessionState.Failed,
             is VpnOwnerSessionState.Ended,
-            VpnOwnerSessionState.Unavailable -> Unit
+            VpnOwnerSessionState.Unavailable,
+            -> Unit
         }
     }
 
@@ -90,16 +83,20 @@ internal class VpnOwnerSessionGate<T> {
                 true -> state = VpnOwnerSessionState.Ended(id)
                 false -> Unit
             }
+
             is VpnOwnerSessionState.Active -> when (current.id == id) {
                 true -> state = VpnOwnerSessionState.Ended(id)
                 false -> Unit
             }
+
             is VpnOwnerSessionState.Failed -> when (current.id == id) {
                 true -> state = VpnOwnerSessionState.Ended(id)
                 false -> Unit
             }
+
             is VpnOwnerSessionState.Ended,
-            VpnOwnerSessionState.Unavailable -> Unit
+            VpnOwnerSessionState.Unavailable,
+            -> Unit
         }
     }
 
@@ -114,17 +111,23 @@ internal class VpnOwnerSessionGate<T> {
 
     fun snapshotSession(): VpnOwnerSession<T>? = when (val current = state) {
         is VpnOwnerSessionState.Preparing -> VpnOwnerSession(current.id, current.value)
+
         is VpnOwnerSessionState.Active -> VpnOwnerSession(current.id, current.value)
+
         is VpnOwnerSessionState.Failed -> VpnOwnerSession(current.id, current.value)
+
         is VpnOwnerSessionState.Ended,
-        VpnOwnerSessionState.Unavailable -> null
+        VpnOwnerSessionState.Unavailable,
+        -> null
     }
 
     fun activeSession(): VpnOwnerSession<T>? = when (val current = state) {
         is VpnOwnerSessionState.Active -> VpnOwnerSession(current.id, current.value)
+
         is VpnOwnerSessionState.Preparing,
         is VpnOwnerSessionState.Failed,
         is VpnOwnerSessionState.Ended,
-        VpnOwnerSessionState.Unavailable -> null
+        VpnOwnerSessionState.Unavailable,
+        -> null
     }
 }

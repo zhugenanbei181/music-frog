@@ -112,30 +112,28 @@ class SyncRepositoryTest {
         }
     }
 
-    private fun repository(
-        handle: suspend (AndroidOwnerOperation) -> AndroidOwnerOperationExchange,
-    ) = UniFfiSyncRepository(object : AndroidOwnerOperationGateway {
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): AndroidOwnerOperationExchange = handle(operation)
-    })
+    private fun repository(handle: suspend (AndroidOwnerOperation) -> AndroidOwnerOperationExchange) =
+        UniFfiSyncRepository(object : AndroidOwnerOperationGateway {
+            override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange =
+                handle(operation)
+        })
 
     private fun completed(reply: AndroidOwnerOperationReply) = AndroidOwnerOperationExchange.Completed(reply)
 
-    private fun reply(
-        operation: AndroidOwnerOperation,
-        snapshotSettings: WebDavSettings,
-    ): AndroidOwnerOperationReply {
+    private fun reply(operation: AndroidOwnerOperation, snapshotSettings: WebDavSettings): AndroidOwnerOperationReply {
         val successful = testFfiStatus(FfiErrorCode.OK)
         val settingsResult = WebDavSettingsResult(successful, snapshotSettings)
         val readback = when (operation) {
             AndroidOwnerOperation.WebDavSettings,
-            is AndroidOwnerOperation.WebDavSettingsSave -> AndroidOwnerOperationReadback.WebDavSettings(settingsResult)
+            is AndroidOwnerOperation.WebDavSettingsSave,
+            -> AndroidOwnerOperationReadback.WebDavSettings(settingsResult)
+
             is AndroidOwnerOperation.WebDavTest -> AndroidOwnerOperationReadback.WebDavTest(successful)
+
             AndroidOwnerOperation.WebDavSyncNow -> AndroidOwnerOperationReadback.WebDavSyncNow(
                 WebDavSyncResult(successful, 3u, 1u, 4u),
             )
+
             else -> throw IllegalArgumentException("Not a WebDAV operation: $operation")
         }
         val revision = when (operation) {
@@ -143,7 +141,7 @@ class SyncRepositoryTest {
             else -> 10uL
         }
         return AndroidOwnerOperationReply(
-        protocol = AndroidOwnerOperationProtocolVersion.V6,
+            protocol = AndroidOwnerOperationProtocolVersion.V6,
             context = context(),
             observedCoreGeneration = 7uL,
             dataRevision = revision,

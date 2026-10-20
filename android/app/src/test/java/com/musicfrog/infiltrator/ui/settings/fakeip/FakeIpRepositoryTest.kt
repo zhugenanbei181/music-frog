@@ -131,10 +131,13 @@ class FakeIpRepositoryTest {
         val coreResult = UniFfiFakeIpRepository(ReplyGateway(exchange(staleCore)))
             .execute(AndroidOwnerOperation.FakeIpSettings, 1_000L)
 
-        assertEquals(FakeIpRepositoryResult.Unconfirmed(
-            localizedFailure(FailureTextKey.NotReady).toAppFailure(),
-            null,
-        ), ownerResult)
+        assertEquals(
+            FakeIpRepositoryResult.Unconfirmed(
+                localizedFailure(FailureTextKey.NotReady).toAppFailure(),
+                null,
+            ),
+            ownerResult,
+        )
         assertTrue(coreResult is FakeIpRepositoryResult.Unconfirmed)
     }
 
@@ -189,10 +192,7 @@ class FakeIpRepositoryTest {
         ),
     )
 
-    private fun cacheClearReply(
-        removedFile: Boolean,
-        dataRevision: ULong,
-    ) = AndroidOwnerOperationReply(
+    private fun cacheClearReply(removedFile: Boolean, dataRevision: ULong) = AndroidOwnerOperationReply(
         protocol = AndroidOwnerOperationProtocolVersion.V6,
         context = AndroidOwnerOperationContext(
             clientSessionId = "client-a",
@@ -216,15 +216,10 @@ class FakeIpRepositoryTest {
         storeFakeIp = null,
     )
 
-    private class ReplyGateway(
-        private val exchange: AndroidOwnerOperationExchange,
-    ) : AndroidOwnerOperationGateway {
+    private class ReplyGateway(private val exchange: AndroidOwnerOperationExchange) : AndroidOwnerOperationGateway {
         var lastOperation: AndroidOwnerOperation? = null
 
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): AndroidOwnerOperationExchange {
+        override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange {
             lastOperation = operation
             return exchange
         }

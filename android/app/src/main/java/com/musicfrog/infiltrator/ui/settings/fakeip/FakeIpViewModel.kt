@@ -31,20 +31,20 @@ internal data class FakeIpUiState(
     val settingsActivity: FakeIpSettingsActivity
         get() = when (settingsOperation) {
             FakeIpSettingsOperationState.Reading,
-            FakeIpSettingsOperationState.Saving -> FakeIpSettingsActivity.Busy
+            FakeIpSettingsOperationState.Saving,
+            -> FakeIpSettingsActivity.Busy
+
             FakeIpSettingsOperationState.Idle,
             is FakeIpSettingsOperationState.Saved,
             is FakeIpSettingsOperationState.Failed,
             is FakeIpSettingsOperationState.Cancelled,
             is FakeIpSettingsOperationState.TimedOut,
-            is FakeIpSettingsOperationState.Unconfirmed -> FakeIpSettingsActivity.Interactive
+            is FakeIpSettingsOperationState.Unconfirmed,
+            -> FakeIpSettingsActivity.Interactive
         }
 }
 
-internal data class FakeIpSaveIntent(
-    val patch: FakeIpSettingsPatch,
-    val expectedRange: String?,
-)
+internal data class FakeIpSaveIntent(val patch: FakeIpSettingsPatch, val expectedRange: String?)
 
 internal sealed interface FakeIpRequestOutcome {
     data object Accepted : FakeIpRequestOutcome
@@ -52,17 +52,15 @@ internal sealed interface FakeIpRequestOutcome {
     data object Superseded : FakeIpRequestOutcome
 }
 
-internal class FakeIpViewModel internal constructor(
-    private val repository: FakeIpRepository,
-    private val coroutineScope: CoroutineScope,
-) : ViewModel() {
+internal class FakeIpViewModel internal constructor(private val repository: FakeIpRepository, private val coroutineScope: CoroutineScope) :
+    ViewModel() {
     constructor() : this(
         repository = UniFfiFakeIpRepository(),
         coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     )
 
     private val _state = MutableStateFlow(FakeIpUiState())
-    internal val state: StateFlow<FakeIpUiState> = _state.asStateFlow()
+    val state: StateFlow<FakeIpUiState> = _state.asStateFlow()
 
     private var requestSequence = 0uL
     private var latestRequest = ObservationRevision.Request(0uL)
@@ -125,21 +123,25 @@ internal class FakeIpViewModel internal constructor(
                         hostCacheOperation = hostFakeIpFileCacheReceipt(result.removedFile),
                     )
                 }
+
                 is FakeIpCacheClearResult.Failed -> {
                     _state.value = _state.value.copy(
                         hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
                     )
                 }
+
                 is FakeIpCacheClearResult.Cancelled -> {
                     _state.value = _state.value.copy(
                         hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
                     )
                 }
+
                 is FakeIpCacheClearResult.TimedOut -> {
                     _state.value = _state.value.copy(
                         hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
                     )
                 }
+
                 is FakeIpCacheClearResult.Unconfirmed -> {
                     _state.value = _state.value.copy(
                         hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
@@ -155,18 +157,23 @@ internal class FakeIpViewModel internal constructor(
             is FakeIpSettingsOperationState.Failed,
             is FakeIpSettingsOperationState.Cancelled,
             is FakeIpSettingsOperationState.TimedOut,
-            is FakeIpSettingsOperationState.Unconfirmed -> FakeIpSettingsOperationState.Idle
+            is FakeIpSettingsOperationState.Unconfirmed,
+            -> FakeIpSettingsOperationState.Idle
+
             FakeIpSettingsOperationState.Idle,
             FakeIpSettingsOperationState.Reading,
             FakeIpSettingsOperationState.Saving,
-            is FakeIpSettingsOperationState.Saved -> current.settingsOperation
+            is FakeIpSettingsOperationState.Saved,
+            -> current.settingsOperation
         }
         val hostCacheOperation = when (current.hostCacheOperation) {
             is HostFakeIpFileCacheState.Failed -> HostFakeIpFileCacheState.Idle
+
             HostFakeIpFileCacheState.Idle,
             HostFakeIpFileCacheState.Clearing,
             HostFakeIpFileCacheState.Cleared,
-            HostFakeIpFileCacheState.AlreadyEmpty -> current.hostCacheOperation
+            HostFakeIpFileCacheState.AlreadyEmpty,
+            -> current.hostCacheOperation
         }
         _state.value = current.copy(
             settingsOperation = settingsOperation,
@@ -186,10 +193,7 @@ internal class FakeIpViewModel internal constructor(
         }
     }
 
-    private fun handleReadResult(
-        result: FakeIpRepositoryResult,
-        request: ObservationRevision.Request,
-    ): FakeIpRequestOutcome {
+    private fun handleReadResult(result: FakeIpRepositoryResult, request: ObservationRevision.Request): FakeIpRequestOutcome {
         when (requestAdmission(request)) {
             FakeIpRequestAdmission.Superseded -> return FakeIpRequestOutcome.Superseded
             FakeIpRequestAdmission.Current -> Unit
@@ -199,26 +203,31 @@ internal class FakeIpViewModel internal constructor(
                 accept(result.point, FakeIpSettingsOperationState.Idle)
             ) {
                 FakeIpSnapshotAdmission.Accepted -> FakeIpRequestOutcome.Accepted
+
                 FakeIpSnapshotAdmission.Stale -> {
                     val failure = notReadyFailure()
                     markUnavailable(failure, FakeIpSettingsOperationState.Unconfirmed(failure))
                     FakeIpRequestOutcome.Rejected
                 }
             }
+
             is FakeIpRepositoryResult.Failed -> {
                 acceptLatest(result.latest)
                 markUnavailable(result.failure, FakeIpSettingsOperationState.Failed(result.failure))
                 FakeIpRequestOutcome.Rejected
             }
+
             is FakeIpRepositoryResult.Cancelled -> {
                 acceptLatest(result.latest)
                 markUnavailable(result.failure, FakeIpSettingsOperationState.Cancelled(result.failure))
                 FakeIpRequestOutcome.Rejected
             }
+
             is FakeIpRepositoryResult.TimedOut -> {
                 markUnavailable(result.failure, FakeIpSettingsOperationState.TimedOut(result.failure))
                 FakeIpRequestOutcome.Rejected
             }
+
             is FakeIpRepositoryResult.Unconfirmed -> {
                 acceptLatest(result.latest)
                 markUnavailable(result.failure, FakeIpSettingsOperationState.Unconfirmed(result.failure))
@@ -243,28 +252,34 @@ internal class FakeIpViewModel internal constructor(
                     setUnconfirmed(notReadyFailure())
                     FakeIpRequestOutcome.Rejected
                 }
+
                 else -> when (accept(result.point, FakeIpSettingsOperationState.Saved(result.point.revision))) {
                     FakeIpSnapshotAdmission.Accepted -> FakeIpRequestOutcome.Accepted
+
                     FakeIpSnapshotAdmission.Stale -> {
                         setUnconfirmed(notReadyFailure())
                         FakeIpRequestOutcome.Rejected
                     }
                 }
             }
+
             is FakeIpRepositoryResult.Failed -> {
                 acceptLatest(result.latest)
                 _state.value = _state.value.copy(settingsOperation = FakeIpSettingsOperationState.Failed(result.failure))
                 FakeIpRequestOutcome.Rejected
             }
+
             is FakeIpRepositoryResult.Cancelled -> {
                 acceptLatest(result.latest)
                 _state.value = _state.value.copy(settingsOperation = FakeIpSettingsOperationState.Cancelled(result.failure))
                 FakeIpRequestOutcome.Rejected
             }
+
             is FakeIpRepositoryResult.TimedOut -> {
                 _state.value = _state.value.copy(settingsOperation = FakeIpSettingsOperationState.TimedOut(result.failure))
                 FakeIpRequestOutcome.Rejected
             }
+
             is FakeIpRepositoryResult.Unconfirmed -> {
                 acceptLatest(result.latest)
                 setUnconfirmed(result.failure)
@@ -273,12 +288,12 @@ internal class FakeIpViewModel internal constructor(
         }
     }
 
-    private fun requestAdmission(request: ObservationRevision.Request): FakeIpRequestAdmission =
-        admitsFakeIpRequest(latestRequest, request)
+    private fun requestAdmission(request: ObservationRevision.Request): FakeIpRequestAdmission = admitsFakeIpRequest(latestRequest, request)
 
     private fun acceptLatest(point: FakeIpSettingsObservationPoint?) {
         when (point) {
             null -> Unit
+
             else -> when (acceptsFakeIpRevision(_state.value.observation, point.revision)) {
                 FakeIpSnapshotAdmission.Accepted -> acceptSettings(point, _state.value.settingsOperation)
                 FakeIpSnapshotAdmission.Stale -> Unit
@@ -286,21 +301,17 @@ internal class FakeIpViewModel internal constructor(
         }
     }
 
-    private fun accept(
-        point: FakeIpSettingsObservationPoint,
-        operation: FakeIpSettingsOperationState,
-    ): FakeIpSnapshotAdmission = when (acceptsFakeIpRevision(_state.value.observation, point.revision)) {
-        FakeIpSnapshotAdmission.Accepted -> {
-            acceptSettings(point, operation)
-            FakeIpSnapshotAdmission.Accepted
-        }
-        FakeIpSnapshotAdmission.Stale -> FakeIpSnapshotAdmission.Stale
-    }
+    private fun accept(point: FakeIpSettingsObservationPoint, operation: FakeIpSettingsOperationState): FakeIpSnapshotAdmission =
+        when (acceptsFakeIpRevision(_state.value.observation, point.revision)) {
+            FakeIpSnapshotAdmission.Accepted -> {
+                acceptSettings(point, operation)
+                FakeIpSnapshotAdmission.Accepted
+            }
 
-    private fun acceptSettings(
-        point: FakeIpSettingsObservationPoint,
-        operation: FakeIpSettingsOperationState,
-    ) {
+            FakeIpSnapshotAdmission.Stale -> FakeIpSnapshotAdmission.Stale
+        }
+
+    private fun acceptSettings(point: FakeIpSettingsObservationPoint, operation: FakeIpSettingsOperationState) {
         val settings = point.value
         _state.value = FakeIpUiState(
             fakeIpRange = settings.fakeIpRange.orEmpty(),
@@ -312,10 +323,7 @@ internal class FakeIpViewModel internal constructor(
         )
     }
 
-    private fun markUnavailable(
-        failure: AppFailure,
-        operation: FakeIpSettingsOperationState,
-    ) {
+    private fun markUnavailable(failure: AppFailure, operation: FakeIpSettingsOperationState) {
         val current = _state.value
         _state.value = current.copy(
             observation = unavailableFakeIp(current.observation, failure),
@@ -352,6 +360,5 @@ internal class FakeIpViewModel internal constructor(
 
     override fun onCleared() {
         coroutineScope.cancel()
-        super.onCleared()
     }
 }

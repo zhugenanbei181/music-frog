@@ -1,9 +1,9 @@
 package com.musicfrog.infiltrator.ui.overview
 
-import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.AndroidProductCommandOutcome
-import com.musicfrog.infiltrator.ui.common.OwnerFailure
+import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.OwnerErrorCode
+import com.musicfrog.infiltrator.ui.common.OwnerFailure
 import com.musicfrog.infiltrator.ui.common.ProductCommandResult
 import com.musicfrog.infiltrator.ui.common.RoutingIntentObservation
 import com.musicfrog.infiltrator.ui.common.RoutingIntentSnapshotObservation
@@ -15,15 +15,9 @@ import org.json.JSONObject
 
 internal sealed interface RoutingIntentUiState {
     data object Loading : RoutingIntentUiState
-    data class Ready(
-        val current: RoutingIntentObservation,
-        val scope: CoreScopeObservation,
-    ) : RoutingIntentUiState
-    data class Updating(
-        val current: RoutingIntentObservation,
-        val target: RoutingIntentOption,
-        val scope: CoreScopeObservation,
-    ) : RoutingIntentUiState
+    data class Ready(val current: RoutingIntentObservation, val scope: CoreScopeObservation) : RoutingIntentUiState
+    data class Updating(val current: RoutingIntentObservation, val target: RoutingIntentOption, val scope: CoreScopeObservation) :
+        RoutingIntentUiState
     data class Pending(val snapshot: RoutingIntentSnapshotObservation) : RoutingIntentUiState
     data object Unobserved : RoutingIntentUiState
     data class Unsupported(val snapshot: RoutingIntentSnapshotObservation) : RoutingIntentUiState
@@ -37,10 +31,7 @@ internal sealed interface RoutingIntentCommandResult {
 }
 
 /** Builds the Android owner command from the exact surface scope the user observed. */
-internal fun buildRoutingIntentCommandJson(
-    scope: CoreScopeObservation,
-    intent: RoutingIntentOption,
-): String {
+internal fun buildRoutingIntentCommandJson(scope: CoreScopeObservation, intent: RoutingIntentOption): String {
     val command = """
         {"Application":{"SetRoutingIntent":{"intent":${intent.serializedIntent()}}}}
     """.trimIndent()
@@ -60,6 +51,7 @@ internal fun parseRoutingIntentCommandResult(
         } else {
             RoutingIntentCommandResult.Failed(outcome.failure)
         }
+
         is AndroidProductCommandOutcome.Terminal -> {
             if (outcome.scope == null || !sameCoreScope(expectedScope, outcome.scope)) {
                 staleRoutingIntentScopeFailure()
@@ -67,6 +59,7 @@ internal fun parseRoutingIntentCommandResult(
                 when (val commandResult = outcome.result) {
                     is ProductCommandResult.Rejected ->
                         RoutingIntentCommandResult.Failed(commandResult.failure)
+
                     is ProductCommandResult.Produced -> {
                         require(commandResult.outputVariant == "RoutingIntentApplied") {
                             "Owner returned a different output for routing intent"
@@ -81,8 +74,10 @@ internal fun parseRoutingIntentCommandResult(
                         }
                         RoutingIntentCommandResult.Applied(observed)
                     }
+
                     is ProductCommandResult.Accepted,
-                    is ProductCommandResult.Completed -> throw IllegalArgumentException(
+                    is ProductCommandResult.Completed,
+                    -> throw IllegalArgumentException(
                         "Owner returned a non-terminal routing result",
                     )
                 }

@@ -47,16 +47,16 @@ class MihomoApplication : Application() {
         vpnSnapshotOwnerSession.prepare(sessionId, VpnOwnerSnapshotPublisher())
     }
 
-    internal fun activateVpnOwnerSession(
-        sessionId: String,
-    ): VpnOwnerSessionActivationOutcome {
+    internal fun activateVpnOwnerSession(sessionId: String): VpnOwnerSessionActivationOutcome {
         val outcome = vpnSnapshotOwnerSession.activate(sessionId)
         when (outcome) {
             VpnOwnerSessionActivationOutcome.Activated -> ownerIpcScope.launch {
                 refreshCoreReadback()
             }
+
             VpnOwnerSessionActivationOutcome.AlreadyActive,
-            VpnOwnerSessionActivationOutcome.StaleSession -> Unit
+            VpnOwnerSessionActivationOutcome.StaleSession,
+            -> Unit
         }
         return outcome
     }
@@ -65,8 +65,7 @@ class MihomoApplication : Application() {
         vpnSnapshotOwnerSession.fail(sessionId, reason)
     }
 
-    internal fun vpnOwnerSessionReadiness(): VpnOwnerSessionReadiness =
-        vpnSnapshotOwnerSession.readiness()
+    internal fun vpnOwnerSessionReadiness(): VpnOwnerSessionReadiness = vpnSnapshotOwnerSession.readiness()
 
     internal fun endVpnOwnerSession(sessionId: String) {
         vpnSnapshotOwnerSession.end(sessionId)
@@ -138,7 +137,9 @@ class MihomoApplication : Application() {
                     Log.w("MihomoApp", "control service start deferred until a command: ${error.message}")
                 }
             }
+
             AndroidProcessRole.VpnOwner -> Unit
+
             is AndroidProcessRole.Unsupported ->
                 Log.e("MihomoApp", "unsupported application process: ${processRole.processName}")
         }
@@ -190,6 +191,7 @@ private fun AndroidCoreLifecycleResult.toOwnerCoreReadback(): VpnOwnerCoreReadba
         ?: return VpnOwnerCoreReadbackWire.Unavailable("Core identity readback is incomplete")
     val failure = when (val rawFailure = failureJson) {
         null -> null
+
         else -> CoreOwnerFailureWire.parse(rawFailure)
             ?: return VpnOwnerCoreReadbackWire.Unavailable("Core failure facts are malformed")
     }
@@ -207,6 +209,7 @@ private fun AndroidCoreLifecycleResult.toOwnerCoreReadback(): VpnOwnerCoreReadba
 
 private fun VpnProcessState.toOwnerLifecycle(permissionRequired: Boolean): VpnOwnerLifecycleWire = when {
     permissionRequired -> VpnOwnerLifecycleWire.PermissionRequired
+
     else -> when (this) {
         VpnProcessState.StartRequested -> VpnOwnerLifecycleWire.StartRequested
         VpnProcessState.Starting -> VpnOwnerLifecycleWire.Starting
@@ -220,23 +223,31 @@ private fun VpnProcessState.toOwnerLifecycle(permissionRequired: Boolean): VpnOw
     }
 }
 
-private fun VpnOwnerLifecycleWire.toOwnerReadiness(
-    resources: List<VpnOwnerResourceFactWire>,
-): VpnOwnerReadinessWire {
+private fun VpnOwnerLifecycleWire.toOwnerReadiness(resources: List<VpnOwnerResourceFactWire>): VpnOwnerReadinessWire {
     if (resources.any { it.state is VpnOwnerResourceStateWire.CleanupPending }) {
         return VpnOwnerReadinessWire.CleanupPending
     }
     return when (this) {
         VpnOwnerLifecycleWire.PermissionRequired -> VpnOwnerReadinessWire.PermissionRequired
+
         VpnOwnerLifecycleWire.StartRequested,
-        VpnOwnerLifecycleWire.Starting -> VpnOwnerReadinessWire.AwaitingForeground
+        VpnOwnerLifecycleWire.Starting,
+        -> VpnOwnerReadinessWire.AwaitingForeground
+
         VpnOwnerLifecycleWire.Foreground -> VpnOwnerReadinessWire.AwaitingTunnel
+
         VpnOwnerLifecycleWire.TunnelEstablished -> VpnOwnerReadinessWire.AwaitingDataPlane
+
         VpnOwnerLifecycleWire.Running -> VpnOwnerReadinessWire.Ready
+
         VpnOwnerLifecycleWire.Stopping -> VpnOwnerReadinessWire.Stopping
+
         VpnOwnerLifecycleWire.Stopped -> VpnOwnerReadinessWire.Stopped
+
         VpnOwnerLifecycleWire.Revoked -> VpnOwnerReadinessWire.Revoked
+
         is VpnOwnerLifecycleWire.Failed -> VpnOwnerReadinessWire.Failed
+
         is VpnOwnerLifecycleWire.Unavailable -> VpnOwnerReadinessWire.Unavailable
     }
 }

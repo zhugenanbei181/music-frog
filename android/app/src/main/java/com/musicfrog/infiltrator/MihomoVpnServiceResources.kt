@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.net.VpnService
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
@@ -16,13 +16,13 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import infiltrator_android.AndroidControlIntent
-import infiltrator_android.FfiErrorCode
 import infiltrator_android.AndroidVpnConfigurationActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationReleaseResult
 import infiltrator_android.AndroidVpnRoutingActivationResult
-import infiltrator_android.androidBeginVpnRoutingActivation
+import infiltrator_android.FfiErrorCode
 import infiltrator_android.androidBeginVpnConfigurationActivation
+import infiltrator_android.androidBeginVpnRoutingActivation
 import infiltrator_android.androidControl
 import infiltrator_android.androidFinishVpnConfigurationActivation
 import infiltrator_android.androidFinishVpnRoutingActivation
@@ -30,14 +30,13 @@ import infiltrator_android.cancelVpnPreparation
 import infiltrator_android.prepareVpn
 import infiltrator_android.startVpn
 import infiltrator_android.stopVpnWorker
+import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
-
 
 internal fun MihomoVpnService.createLifecycleWakeLock(): VpnLifecycleWakeLock {
     val handle = try {
@@ -56,15 +55,19 @@ internal fun MihomoVpnService.createLifecycleWakeLock(): VpnLifecycleWakeLock {
 internal fun MihomoVpnService.logLifecycleWakeLockAcquire(generation: Long, outcome: VpnWakeLockAcquire) {
     when (outcome) {
         is VpnWakeLockAcquire.Acquired,
-        is VpnWakeLockAcquire.Joined -> Unit
+        is VpnWakeLockAcquire.Joined,
+        -> Unit
+
         is VpnWakeLockAcquire.Busy -> Log.w(
             MihomoVpnService.TAG,
             "VPN generation $generation shares a bounded WakeLock held by generation ${outcome.heldGeneration}",
         )
+
         is VpnWakeLockAcquire.Unavailable -> Log.w(
             MihomoVpnService.TAG,
             "VPN MihomoVpnService.lifecycle continues without a WakeLock: ${outcome.reason}",
         )
+
         is VpnWakeLockAcquire.CleanupPending -> Log.e(
             MihomoVpnService.TAG,
             "VPN WakeLock release remains pending; the platform timeout is the fallback: ${outcome.reason}",
@@ -76,11 +79,14 @@ internal fun MihomoVpnService.logLifecycleWakeLockRelease(generation: Long, outc
     when (outcome) {
         VpnWakeLockRelease.Released,
         VpnWakeLockRelease.AlreadyReleased,
-        VpnWakeLockRelease.Expired -> Unit
+        VpnWakeLockRelease.Expired,
+        -> Unit
+
         VpnWakeLockRelease.StaleGeneration -> Log.w(
             MihomoVpnService.TAG,
             "Ignoring stale WakeLock release for VPN generation $generation",
         )
+
         is VpnWakeLockRelease.CleanupPending -> Log.e(
             MihomoVpnService.TAG,
             "VPN WakeLock release remains pending until its bounded timeout: ${outcome.reason}",
@@ -95,6 +101,7 @@ internal fun MihomoVpnService.cleanupStaleStart(generation: Long) {
             snapshot.generation == generation -> VpnCleanupIntent.StartFailure(state.message)
             else -> VpnCleanupIntent.Stop
         }
+
         else -> VpnCleanupIntent.Stop
     }
     val plan = MihomoVpnService.lifecycle.requestCleanup(
@@ -118,8 +125,10 @@ internal fun MihomoVpnService.cleanupFailedStart(generation: Long, startId: Int,
                 ),
                 stopId = startId,
             )
+
         VpnTransitionOutcome.StaleGeneration,
-        VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> Unit
+        VpnTransitionOutcome.RunningRequiresDataPlaneReceipt,
+        -> Unit
     }
 }
 
@@ -134,13 +143,17 @@ internal fun MihomoVpnService.stopRustWorker(generation: Long): VpnCleanupFailur
     return when (failure) {
         null -> when (ownerResources.clearWorker(generation)) {
             VpnOwnerResourceMutation.Cleared,
-            VpnOwnerResourceMutation.AlreadyAbsent -> null
+            VpnOwnerResourceMutation.AlreadyAbsent,
+            -> null
+
             VpnOwnerResourceMutation.Recorded,
-            VpnOwnerResourceMutation.StaleGeneration -> VpnCleanupFailure(
+            VpnOwnerResourceMutation.StaleGeneration,
+            -> VpnCleanupFailure(
                 VpnCleanupResourceKind.Worker,
                 "Rust VPN worker ownership changed during cleanup",
             )
         }
+
         else -> {
             val cleanupFailure = VpnCleanupFailure(VpnCleanupResourceKind.Worker, failure)
             ownerResources.markWorkerPending(generation, cleanupFailure)
@@ -166,6 +179,7 @@ internal fun MihomoVpnService.clearPreparedVpnConfiguration(generation: Long): V
     }
     when (cleanupFailure) {
         null -> ownerResources.clearPreparedConfiguration(generation)
+
         else -> {
             if (ownerResources.snapshot().preparedConfiguration is VpnOwnedResource.Absent) {
                 ownerResources.recordPreparedConfiguration(
@@ -179,10 +193,7 @@ internal fun MihomoVpnService.clearPreparedVpnConfiguration(generation: Long): V
     return cleanupFailure
 }
 
-internal fun MihomoVpnService.releaseRoutingLease(
-    generation: Long,
-    lease: AndroidVpnRoutingActivationLease,
-): String? {
+internal fun MihomoVpnService.releaseRoutingLease(generation: Long, lease: AndroidVpnRoutingActivationLease): String? {
     val current = ownerResources.routingLeaseState(generation)
         ?: return "VPN routing lease generation changed during release"
     return try {
@@ -191,9 +202,11 @@ internal fun MihomoVpnService.releaseRoutingLease(
         val mutation = recordRoutingLeaseState(generation, updated)
         when (mutation) {
             VpnOwnerResourceMutation.StaleGeneration -> "VPN routing lease generation changed during release"
+
             VpnOwnerResourceMutation.Recorded,
             VpnOwnerResourceMutation.Cleared,
-            VpnOwnerResourceMutation.AlreadyAbsent -> updated.releaseFailureMessage()
+            VpnOwnerResourceMutation.AlreadyAbsent,
+            -> updated.releaseFailureMessage()
         }
     } catch (error: Exception) {
         val message = error.message ?: "VPN routing activation release failed"
@@ -201,9 +214,11 @@ internal fun MihomoVpnService.releaseRoutingLease(
         val mutation = recordRoutingLeaseState(generation, updated)
         when (mutation) {
             VpnOwnerResourceMutation.StaleGeneration -> "VPN routing lease generation changed during release"
+
             VpnOwnerResourceMutation.Recorded,
             VpnOwnerResourceMutation.Cleared,
-            VpnOwnerResourceMutation.AlreadyAbsent -> message
+            VpnOwnerResourceMutation.AlreadyAbsent,
+            -> message
         }
     }
 }
@@ -226,12 +241,15 @@ internal fun MihomoVpnService.releaseConfigurationActivation(
     }
     return when (afterFinish) {
         VpnConfigurationActivationLeaseState.Released -> afterFinish
+
         is VpnConfigurationActivationLeaseState.Held -> afterFinish
+
         is VpnConfigurationActivationLeaseState.ReleasePending -> {
             val cleanup = try {
                 val status = cancelVpnPreparation(generation.toULong())
                 when (status.code) {
                     FfiErrorCode.OK -> VpnConfigurationActivationCleanupResult.Cleared
+
                     else -> VpnConfigurationActivationCleanupResult.Failed(
                         status.message ?: "VPN activation cleanup did not clear owner lease",
                     )
@@ -246,34 +264,36 @@ internal fun MihomoVpnService.releaseConfigurationActivation(
     }
 }
 
-internal fun MihomoVpnService.recordRoutingLeaseState(
-    generation: Long,
-    state: VpnRoutingLeaseState,
-): VpnOwnerResourceMutation = when (state) {
-    VpnRoutingLeaseState.Released -> ownerResources.clearRoutingLease(generation)
-    is VpnRoutingLeaseState.Held -> ownerResources.updateRoutingLease(generation, state)
-    is VpnRoutingLeaseState.ReleasePending -> ownerResources.updateRoutingLease(
-        generation,
-        state,
-        VpnCleanupFailure(
-            VpnCleanupResourceKind.RoutingLease,
-            state.releaseFailureMessage() ?: "VPN routing activation release is pending",
-        ),
-    )
-}
+internal fun MihomoVpnService.recordRoutingLeaseState(generation: Long, state: VpnRoutingLeaseState): VpnOwnerResourceMutation =
+    when (state) {
+        VpnRoutingLeaseState.Released -> ownerResources.clearRoutingLease(generation)
 
-internal fun MihomoVpnService.retryRoutingLeaseRelease(generation: Long): VpnCleanupFailure? {
-    return when (val current = ownerResources.routingLeaseState(generation)) {
+        is VpnRoutingLeaseState.Held -> ownerResources.updateRoutingLease(generation, state)
+
+        is VpnRoutingLeaseState.ReleasePending -> ownerResources.updateRoutingLease(
+            generation,
+            state,
+            VpnCleanupFailure(
+                VpnCleanupResourceKind.RoutingLease,
+                state.releaseFailureMessage() ?: "VPN routing activation release is pending",
+            ),
+        )
+    }
+
+internal fun MihomoVpnService.retryRoutingLeaseRelease(generation: Long): VpnCleanupFailure? =
+    when (val current = ownerResources.routingLeaseState(generation)) {
         null,
-        VpnRoutingLeaseState.Released -> null
+        VpnRoutingLeaseState.Released,
+        -> null
+
         is VpnRoutingLeaseState.Held -> releaseRoutingLease(generation, current.lease)?.let {
             VpnCleanupFailure(VpnCleanupResourceKind.RoutingLease, it)
         }
+
         is VpnRoutingLeaseState.ReleasePending -> releaseRoutingLease(generation, current.lease)?.let {
             VpnCleanupFailure(VpnCleanupResourceKind.RoutingLease, it)
         }
     }
-}
 
 internal fun MihomoVpnService.closeOwnedInterface(generation: Long): VpnCleanupFailure? {
     val descriptor = ownerResources.tunnelDescriptor(generation) ?: return null
@@ -281,13 +301,17 @@ internal fun MihomoVpnService.closeOwnedInterface(generation: Long): VpnCleanupF
     return when (failure) {
         null -> when (ownerResources.clearTunnelDescriptor(generation)) {
             VpnOwnerResourceMutation.Cleared,
-            VpnOwnerResourceMutation.AlreadyAbsent -> null
+            VpnOwnerResourceMutation.AlreadyAbsent,
+            -> null
+
             VpnOwnerResourceMutation.Recorded,
-            VpnOwnerResourceMutation.StaleGeneration -> VpnCleanupFailure(
+            VpnOwnerResourceMutation.StaleGeneration,
+            -> VpnCleanupFailure(
                 VpnCleanupResourceKind.TunnelDescriptor,
                 "VPN tunnel descriptor ownership changed during cleanup",
             )
         }
+
         else -> {
             val cleanupFailure = VpnCleanupFailure(VpnCleanupResourceKind.TunnelDescriptor, failure)
             ownerResources.markTunnelDescriptorPending(generation, cleanupFailure)
@@ -312,10 +336,7 @@ internal fun MihomoVpnService.removeForegroundAndStop(startId: Int?, generation:
     }
 }
 
-internal fun MihomoVpnService.failClosedUnrequestedRestart(
-    startId: Int,
-    reason: VpnServiceStartupRejection,
-): Int {
+internal fun MihomoVpnService.failClosedUnrequestedRestart(startId: Int, reason: VpnServiceStartupRejection): Int {
     val before = MihomoVpnService.lifecycle.snapshot()
     when (before.state) {
         VpnProcessState.StartRequested,
@@ -323,17 +344,21 @@ internal fun MihomoVpnService.failClosedUnrequestedRestart(
         VpnProcessState.Foreground,
         VpnProcessState.TunnelEstablished,
         VpnProcessState.Running,
-        VpnProcessState.Stopping -> {
+        VpnProcessState.Stopping,
+        -> {
             Log.w(MihomoVpnService.TAG, "Ignoring duplicate service start without a typed command")
             return android.app.Service.START_NOT_STICKY
         }
+
         VpnProcessState.Stopped,
         VpnProcessState.Revoked,
-        is VpnProcessState.Failed -> Unit
+        is VpnProcessState.Failed,
+        -> Unit
     }
     val message = when (reason) {
         VpnServiceStartupRejection.MalformedCommand ->
             "VPN service start contained a malformed command"
+
         VpnServiceStartupRejection.AlwaysOnNotEnabled ->
             "VPN service started without an explicit command while always-on is disabled"
     }
@@ -344,4 +369,3 @@ internal fun MihomoVpnService.failClosedUnrequestedRestart(
     stopSelfResult(startId)
     return android.app.Service.START_NOT_STICKY
 }
-

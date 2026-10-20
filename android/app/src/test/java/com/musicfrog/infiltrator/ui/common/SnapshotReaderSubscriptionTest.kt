@@ -54,7 +54,7 @@ class SnapshotReaderSubscriptionTest {
         assertEquals(
             "Surface reader must not continue polling after subscription cancellation",
             countBeforeCancel,
-            countAfterCancel
+            countAfterCancel,
         )
     }
 

@@ -14,10 +14,8 @@ import org.junit.Test
 class ProfileDraftRetentionTest {
 
     private class NoOpProfilesRepository : ProfilesRepository {
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): ProfilesRepositoryResult = error("Not invoked in draft test")
+        override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): ProfilesRepositoryResult =
+            error("Not invoked in draft test")
     }
 
     private fun createViewModel(): ProfilesViewModel {

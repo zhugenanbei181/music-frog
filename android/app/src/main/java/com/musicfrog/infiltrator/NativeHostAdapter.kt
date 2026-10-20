@@ -72,11 +72,10 @@ internal fun attemptNativeClipboardWrite(write: () -> Unit): NativeClipboardWrit
     NativeClipboardWriteReceipt.Failed(error.message ?: error::class.java.simpleName)
 }
 
-internal fun performNativeClipboardWrite(writer: NativeClipboardWriter): NativeClipboardWriteReceipt =
-    when (writer) {
-        NativeClipboardWriter.Unavailable -> NativeClipboardWriteReceipt.Unavailable
-        is NativeClipboardWriter.Available -> attemptNativeClipboardWrite(writer.write)
-    }
+internal fun performNativeClipboardWrite(writer: NativeClipboardWriter): NativeClipboardWriteReceipt = when (writer) {
+    NativeClipboardWriter.Unavailable -> NativeClipboardWriteReceipt.Unavailable
+    is NativeClipboardWriter.Available -> attemptNativeClipboardWrite(writer.write)
+}
 
 /** Activity instance callback into the Bevy NativeActivity's own Rust driver. */
 fun interface BevyWindowInsetsPublisher {
@@ -114,11 +113,9 @@ sealed interface NativeInsetsDelivery {
  * `infiltrator_android::native_host::ime::android_ime_support()`; no fake IME
  * events are produced here.
  */
-class NativeHostAdapter(
-    private val activity: Activity,
-    private val insetsDelivery: NativeInsetsDelivery,
-) : NativeHostBridge {
+class NativeHostAdapter(private val activity: Activity, private val insetsDelivery: NativeInsetsDelivery) : NativeHostBridge {
     private val generation = GENERATION.getAndIncrement()
+
     @Volatile
     private var latestWindowInsetsJson: String? = null
 
@@ -180,20 +177,17 @@ class NativeHostAdapter(
             }
         }
 
-        override fun registerRustBridge(): NativeHostOperationResult =
-            NATIVE_HOST_BRIDGE_OWNERS.register(generation) {
-                nativeStatus(
-                    "nativeRegisterNativeHost",
-                    RustBridge.registerNativeHost(this@NativeHostAdapter),
-                )
-            }
-
-        override fun publishInitialLifecycle(): NativeHostOperationResult {
-            return nativeStatus(
-                "nativeOnLifecycle",
-                RustBridge.onLifecycle(lifecycleObservation),
+        override fun registerRustBridge(): NativeHostOperationResult = NATIVE_HOST_BRIDGE_OWNERS.register(generation) {
+            nativeStatus(
+                "nativeRegisterNativeHost",
+                RustBridge.registerNativeHost(this@NativeHostAdapter),
             )
         }
+
+        override fun publishInitialLifecycle(): NativeHostOperationResult = nativeStatus(
+            "nativeOnLifecycle",
+            RustBridge.onLifecycle(lifecycleObservation),
+        )
 
         override fun requestInitialInsets(): NativeHostOperationResult {
             ViewCompat.requestApplyInsets(decorView)
@@ -215,11 +209,10 @@ class NativeHostAdapter(
             return result
         }
 
-        override fun clearRustBridge(): NativeHostOperationResult =
-            NATIVE_HOST_BRIDGE_OWNERS.clearIfOwned(generation) {
-                nativeStatus("nativeClearNativeHost", RustBridge.clearNativeHost())
-            }
+        override fun clearRustBridge(): NativeHostOperationResult = NATIVE_HOST_BRIDGE_OWNERS.clearIfOwned(generation) {
+            nativeStatus("nativeClearNativeHost", RustBridge.clearNativeHost())
         }
+    }
 
     private val attachment = NativeHostAttachment(generation, attachmentEffects)
 
@@ -229,10 +222,13 @@ class NativeHostAdapter(
         when (outcome) {
             is NativeHostAttachOutcome.Failed ->
                 Log.e(TAG, "attach failed: ${outcome.failure}; cleanup=${outcome.cleanupFailures}")
+
             is NativeHostAttachOutcome.Rejected ->
                 Log.e(TAG, "attach rejected in state ${outcome.state}")
+
             is NativeHostAttachOutcome.Attached,
-            is NativeHostAttachOutcome.AlreadyAttached -> Unit
+            is NativeHostAttachOutcome.AlreadyAttached,
+            -> Unit
         }
         return outcome
     }
@@ -271,10 +267,12 @@ class NativeHostAdapter(
     private fun updatePhase(next: NativeActivityPhase) {
         when (lifecycleObservation.phase.transitionTo(next)) {
             NativeActivityPhaseTransition.Unchanged -> return
+
             NativeActivityPhaseTransition.Rejected -> {
                 Log.w(TAG, "rejected lifecycle transition: ${lifecycleObservation.phase} -> $next")
                 return
             }
+
             NativeActivityPhaseTransition.Advanced -> Unit
         }
         lifecycleObservation = lifecycleObservation.copy(phase = next)
@@ -341,6 +339,7 @@ class NativeHostAdapter(
                     Log.e(TAG, "Compose Insets publish failed: ${result.detail}")
                 }
             }
+
             is NativeInsetsDelivery.BevyActivityFeed -> {
                 val displayMetrics = activity.resources.displayMetrics
                 val widthDp = (displayMetrics.widthPixels / density).toDouble()
@@ -370,8 +369,7 @@ class NativeHostAdapter(
     }
 
     /** Latest complete typed inset observation for the Bevy NativeActivity. */
-    fun currentWindowInsetsJson(): String? =
-        if (attachment.acceptsCallbacks()) latestWindowInsetsJson else null
+    fun currentWindowInsetsJson(): String? = if (attachment.acceptsCallbacks()) latestWindowInsetsJson else null
 
     private fun edgesJson(insets: Insets): JSONObject = JSONObject()
         .put("top", insets.top)
@@ -397,6 +395,7 @@ class NativeHostAdapter(
         val receipt = try {
             val writer = when (val manager = clipboard) {
                 null -> NativeClipboardWriter.Unavailable
+
                 else -> NativeClipboardWriter.Available {
                     manager.setPrimaryClip(ClipData.newPlainText(CLIP_LABEL, text))
                 }
@@ -406,14 +405,18 @@ class NativeHostAdapter(
             when (error) {
                 is SecurityException ->
                     NativeClipboardWriteReceipt.PermissionDenied(error.message ?: error::class.java.simpleName)
+
                 else -> NativeClipboardWriteReceipt.Failed(error.message ?: error::class.java.simpleName)
             }
         }
         when (receipt) {
             NativeClipboardWriteReceipt.Written,
-            NativeClipboardWriteReceipt.Unavailable -> Unit
+            NativeClipboardWriteReceipt.Unavailable,
+            -> Unit
+
             is NativeClipboardWriteReceipt.PermissionDenied ->
                 Log.w(TAG, "clipboard write permission denied: ${receipt.detail}")
+
             is NativeClipboardWriteReceipt.Failed ->
                 Log.w(TAG, "clipboard write failed: ${receipt.detail}")
         }
@@ -429,40 +432,32 @@ class NativeHostAdapter(
         private val INSETS_OWNER_LOCK = Any()
         private val INSETS_LISTENER_OWNERS = WeakHashMap<View, Long>()
 
-        private fun nativeStatus(operation: String, code: Int): NativeHostOperationResult =
-            if (code == 0) {
-                NativeHostOperationResult.Applied
-            } else {
-                NativeHostOperationResult.Failed("$operation returned status code $code")
-            }
-
-        private fun installOwnedInsetsListener(
-            view: View,
-            generation: Long,
-            install: () -> Unit,
-        ): NativeHostOperationResult = synchronized(INSETS_OWNER_LOCK) {
-            val owner = INSETS_LISTENER_OWNERS[view]
-            if (owner != null && owner != generation) {
-                return@synchronized NativeHostOperationResult.Failed(
-                    "WindowInsets listener is still owned by Activity generation $owner",
-                )
-            }
-            // Claim before the platform call so rollback can remove a listener
-            // even if the API throws after partially installing it.
-            INSETS_LISTENER_OWNERS[view] = generation
-            install()
+        private fun nativeStatus(operation: String, code: Int): NativeHostOperationResult = if (code == 0) {
             NativeHostOperationResult.Applied
+        } else {
+            NativeHostOperationResult.Failed("$operation returned status code $code")
         }
 
-        private fun ownsInsetsListener(view: View, generation: Long): Boolean =
+        private fun installOwnedInsetsListener(view: View, generation: Long, install: () -> Unit): NativeHostOperationResult =
             synchronized(INSETS_OWNER_LOCK) {
-                INSETS_LISTENER_OWNERS[view] == generation
+                val owner = INSETS_LISTENER_OWNERS[view]
+                if (owner != null && owner != generation) {
+                    return@synchronized NativeHostOperationResult.Failed(
+                        "WindowInsets listener is still owned by Activity generation $owner",
+                    )
+                }
+                // Claim before the platform call so rollback can remove a listener
+                // even if the API throws after partially installing it.
+                INSETS_LISTENER_OWNERS[view] = generation
+                install()
+                NativeHostOperationResult.Applied
             }
 
-        private fun removeOwnedInsetsListener(
-            view: View,
-            generation: Long,
-        ): NativeHostOperationResult = synchronized(INSETS_OWNER_LOCK) {
+        private fun ownsInsetsListener(view: View, generation: Long): Boolean = synchronized(INSETS_OWNER_LOCK) {
+            INSETS_LISTENER_OWNERS[view] == generation
+        }
+
+        private fun removeOwnedInsetsListener(view: View, generation: Long): NativeHostOperationResult = synchronized(INSETS_OWNER_LOCK) {
             if (INSETS_LISTENER_OWNERS[view] != generation) {
                 return@synchronized NativeHostOperationResult.Superseded
             }

@@ -13,23 +13,14 @@ internal data class LogsObservationPoint(
 )
 
 internal sealed interface LogsObservationState {
-    data class Loading(
-        val lastAccepted: LogsObservationPoint?,
-        val revision: ObservationRevision.Owner?,
-    ) : LogsObservationState
+    data class Loading(val lastAccepted: LogsObservationPoint?, val revision: ObservationRevision.Owner?) : LogsObservationState
 
     data class Content(val point: LogsObservationPoint) : LogsObservationState
 
-    data class Unavailable(
-        val lastAccepted: LogsObservationPoint?,
-        val revision: ObservationRevision.Owner?,
-        val failure: AppFailure,
-    ) : LogsObservationState
+    data class Unavailable(val lastAccepted: LogsObservationPoint?, val revision: ObservationRevision.Owner?, val failure: AppFailure) :
+        LogsObservationState
 
-    data class Cancelled(
-        val lastAccepted: LogsObservationPoint?,
-        val revision: ObservationRevision.Owner?,
-    ) : LogsObservationState
+    data class Cancelled(val lastAccepted: LogsObservationPoint?, val revision: ObservationRevision.Owner?) : LogsObservationState
 }
 
 internal sealed interface LogsOperationState {
@@ -101,10 +92,7 @@ internal fun LogsObservationState.lastAccepted(): LogsObservationPoint? = when (
     is LogsObservationState.Cancelled -> lastAccepted
 }
 
-internal fun acceptsLogsRevision(
-    current: ObservationRevision.Owner?,
-    incoming: ObservationRevision.Owner,
-): Boolean {
+internal fun acceptsLogsRevision(current: ObservationRevision.Owner?, incoming: ObservationRevision.Owner): Boolean {
     if (current == null) return true
     return incoming.generation > current.generation ||
         (incoming.generation == current.generation && incoming.revision >= current.revision)

@@ -12,9 +12,7 @@ internal data class ClientOwnerResponse(
     val terminal: OwnerClientTerminal = OwnerClientTerminal.ReplyReceived,
 ) {
     companion object {
-        fun unavailable(
-            terminal: OwnerClientTerminal = OwnerClientTerminal.OwnerUnavailable,
-        ) = ClientOwnerResponse(
+        fun unavailable(terminal: OwnerClientTerminal = OwnerClientTerminal.OwnerUnavailable) = ClientOwnerResponse(
             reply = AndroidHostReply.SERVICE_UNAVAILABLE,
             ownerSessionId = null,
             statusCode = FfiErrorCode.NOT_READY.value.toInt(),

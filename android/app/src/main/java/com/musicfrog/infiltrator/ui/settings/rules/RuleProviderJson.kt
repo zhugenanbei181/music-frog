@@ -9,8 +9,7 @@ import org.json.JSONObject
 private const val MAX_PROVIDER_JSON_DEPTH = 128
 private val JSON_NUMBER = Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
-internal fun ruleProvidersJsonToEntries(json: String): List<AndroidRuleProviderEntry> =
-    ProviderDocumentParser(json).parse()
+internal fun ruleProvidersJsonToEntries(json: String): List<AndroidRuleProviderEntry> = ProviderDocumentParser(json).parse()
 
 internal fun ruleProviderEntriesToJson(entries: List<AndroidRuleProviderEntry>): String {
     val seenNames = HashSet<String>()
@@ -28,13 +27,18 @@ private fun ownerValueToJsonValue(value: AndroidJsonValue, depth: Int): Any {
     }
     return when (value) {
         AndroidJsonValue.Null -> JSONObject.NULL
+
         is AndroidJsonValue.BoolValue -> value.value
+
         is AndroidJsonValue.NumberValue -> value.value.toBigDecimalOrNull()
             ?: throw IllegalArgumentException("Invalid provider number: ${value.value}")
+
         is AndroidJsonValue.StringValue -> value.value
+
         is AndroidJsonValue.ArrayValue -> JSONArray().also { array ->
             value.value.forEach { array.put(ownerValueToJsonValue(it, depth + 1)) }
         }
+
         is AndroidJsonValue.ObjectValue -> JSONObject().also { objectValue ->
             val seenKeys = HashSet<String>()
             value.value.forEach { entry ->
@@ -67,18 +71,25 @@ private class ProviderDocumentParser(private val source: String) {
                 consumeLiteral("null")
                 AndroidJsonValue.Null
             }
+
             't' -> {
                 consumeLiteral("true")
                 AndroidJsonValue.BoolValue(true)
             }
+
             'f' -> {
                 consumeLiteral("false")
                 AndroidJsonValue.BoolValue(false)
             }
+
             '"' -> AndroidJsonValue.StringValue(readString())
+
             '{' -> AndroidJsonValue.ObjectValue(parseObjectEntries(valueDepth = depth + 1))
+
             '[' -> AndroidJsonValue.ArrayValue(parseArrayValues(valueDepth = depth + 1))
+
             '-', in '0'..'9' -> parseNumber()
+
             else -> fail("Invalid rule provider JSON value")
         }
     }
@@ -147,11 +158,17 @@ private class ProviderDocumentParser(private val source: String) {
         require(offset < source.length) { "Incomplete escape in rule providers document" }
         when (val escape = source[offset++]) {
             '"', '\\', '/' -> value.append(escape)
+
             'b' -> value.append('\b')
+
             'f' -> value.append('\u000c')
+
             'n' -> value.append('\n')
+
             'r' -> value.append('\r')
+
             't' -> value.append('\t')
+
             'u' -> {
                 require(offset + 4 <= source.length) { "Incomplete Unicode escape in rule providers document" }
                 val codeUnit = source.substring(offset, offset + 4).toIntOrNull(16)
@@ -159,6 +176,7 @@ private class ProviderDocumentParser(private val source: String) {
                 value.append(codeUnit.toChar())
                 offset += 4
             }
+
             else -> fail("Invalid escape in rule providers document")
         }
     }

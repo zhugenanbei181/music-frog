@@ -3,11 +3,7 @@ package com.musicfrog.infiltrator
 import org.json.JSONObject
 import java.math.BigInteger
 
-internal data class CoreLaunchConfigurationIdentityWire(
-    val engineId: String,
-    val profileId: String,
-    val documentRevision: String,
-)
+internal data class CoreLaunchConfigurationIdentityWire(val engineId: String, val profileId: String, val documentRevision: String)
 
 internal data class CoreLaunchSpecWire(
     val configurationIdentity: CoreLaunchConfigurationIdentityWire,
@@ -18,13 +14,22 @@ internal data class CoreLaunchSpecWire(
     companion object {
         internal fun decodeLaunchSpec(raw: String): CoreLaunchSpecDecode = runCatching {
             val json = JSONObject(raw)
-            require(json.keys().asSequence().toSet() == setOf(
-                "configuration_identity", "binary", "working_directory", "launch_arguments",
-            ))
+            require(
+                json.keys().asSequence().toSet() == setOf(
+                    "configuration_identity",
+                    "binary",
+                    "working_directory",
+                    "launch_arguments",
+                ),
+            )
             val identity = json.getJSONObject("configuration_identity")
-            require(identity.keys().asSequence().toSet() == setOf(
-                "engine_id", "profile_id", "document_revision",
-            ))
+            require(
+                identity.keys().asSequence().toSet() == setOf(
+                    "engine_id",
+                    "profile_id",
+                    "document_revision",
+                ),
+            )
             val configurationIdentity = CoreLaunchConfigurationIdentityWire(
                 engineId = identity.requiredString("engine_id").also { CoreEngineIdWire.decode(it) },
                 profileId = identity.requiredString("profile_id").also { require(it.isNotBlank()) },
@@ -84,7 +89,8 @@ internal sealed interface CoreLaunchArgumentsWire {
 
 internal enum class CoreEngineIdWire(val wireValue: String) {
     Mihomo("mihomo"),
-    SingBox("sing-box");
+    SingBox("sing-box"),
+    ;
 
     companion object {
         fun decode(value: String): CoreEngineIdWire = entries.firstOrNull { it.wireValue == value }
@@ -94,7 +100,8 @@ internal enum class CoreEngineIdWire(val wireValue: String) {
 
 internal enum class AndroidCoreBinaryTargetWire(val wireValue: String, val targetTriple: String) {
     Arm64V8a("arm64_v8a", "aarch64-linux-android"),
-    X86_64("x86_64", "x86_64-linux-android");
+    X86_64("x86_64", "x86_64-linux-android"),
+    ;
 
     companion object {
         fun decode(value: String): AndroidCoreBinaryTargetWire = entries.firstOrNull {
@@ -110,10 +117,7 @@ internal sealed interface CoreLaunchBinaryWire {
         override val engineId: CoreEngineIdWire = CoreEngineIdWire.Mihomo
     }
 
-    data class SingBoxManaged(
-        val version: String,
-        val target: AndroidCoreBinaryTargetWire,
-    ) : CoreLaunchBinaryWire {
+    data class SingBoxManaged(val version: String, val target: AndroidCoreBinaryTargetWire) : CoreLaunchBinaryWire {
         override val engineId: CoreEngineIdWire = CoreEngineIdWire.SingBox
     }
 
@@ -123,6 +127,7 @@ internal sealed interface CoreLaunchBinaryWire {
                 "MihomoBundled" -> MihomoBundled
                 else -> error("unsupported Core launch binary")
             }
+
             is JSONObject -> {
                 require(value.keys().asSequence().toSet() == setOf("SingBoxManaged"))
                 val managed = value.getJSONObject("SingBoxManaged")
@@ -132,16 +137,13 @@ internal sealed interface CoreLaunchBinaryWire {
                     target = AndroidCoreBinaryTargetWire.decode(managed.requiredString("target")),
                 )
             }
+
             else -> error("Core launch binary has an invalid wire representation")
         }
     }
 }
 
-internal data class CoreProcessStartContextWire(
-    val identity: CoreIdentityWire,
-    val generation: BigInteger,
-    val sessionToken: BigInteger,
-) {
+internal data class CoreProcessStartContextWire(val identity: CoreIdentityWire, val generation: BigInteger, val sessionToken: BigInteger) {
     fun toManagedJson(): JSONObject {
         val identityJson = JSONObject()
             .put("engine", identity.engine)
@@ -184,16 +186,9 @@ internal data class CoreProcessStartContextWire(
     }
 }
 
-internal data class CoreIdentityWire(
-    val engine: String,
-    val instance: String,
-    val version: String?,
-)
+internal data class CoreIdentityWire(val engine: String, val instance: String, val version: String?)
 
-internal data class CoreStartRequestWire(
-    val launchSpec: CoreLaunchSpecWire,
-    val context: CoreProcessStartContextWire,
-) {
+internal data class CoreStartRequestWire(val launchSpec: CoreLaunchSpecWire, val context: CoreProcessStartContextWire) {
     companion object {
         fun decode(raw: String): CoreStartRequestDecode = runCatching {
             val request = JSONObject(raw)
@@ -227,8 +222,7 @@ internal data class CoreStartRequestWire(
     }
 }
 
-private fun JSONObject.requiredString(key: String): String =
-    get(key) as? String ?: error("$key must be a string")
+private fun JSONObject.requiredString(key: String): String = get(key) as? String ?: error("$key must be a string")
 
 internal sealed interface CoreLaunchSpecDecode {
     data class Accepted(val spec: CoreLaunchSpecWire) : CoreLaunchSpecDecode

@@ -72,11 +72,7 @@ internal enum class OwnerUiStatusTextKey(@StringRes val resource: Int) {
     SelectionCapabilityUnknown(R.string.owner_selection_capability_unknown),
 }
 
-internal data class LocalizedFailure(
-    val key: FailureTextKey,
-    val arguments: List<String> = emptyList(),
-    val diagnostic: String? = null,
-)
+internal data class LocalizedFailure(val key: FailureTextKey, val arguments: List<String> = emptyList(), val diagnostic: String? = null)
 
 /** Application-level failure identity plus the shared localization projection. */
 internal enum class AppFailureCode {
@@ -118,6 +114,7 @@ internal fun FfiStatus.toAppFailure(): AppFailure {
             requireNotNull(projection.line).toString(),
             requireNotNull(projection.column).toString(),
         )
+
         else -> emptyList()
     }
     return AppFailure(
@@ -173,18 +170,31 @@ internal fun LocalizedFailure.toAppFailure(): AppFailure = AppFailure(
 
 private fun FailureTextKey.toAppFailureCode(): AppFailureCode = when (this) {
     FailureTextKey.InvalidInput -> AppFailureCode.InvalidInput
+
     FailureTextKey.InvalidState -> AppFailureCode.InvalidState
+
     FailureTextKey.NotReady -> AppFailureCode.NotReady
+
     FailureTextKey.Unsupported -> AppFailureCode.Unsupported
+
     FailureTextKey.Network -> AppFailureCode.Network
+
     FailureTextKey.Authentication -> AppFailureCode.Authentication
+
     FailureTextKey.Sync -> AppFailureCode.Sync
+
     FailureTextKey.Configuration -> AppFailureCode.Configuration
+
     FailureTextKey.Storage -> AppFailureCode.Storage
+
     FailureTextKey.Permission -> AppFailureCode.Permission
+
     FailureTextKey.Canceled,
-    FailureTextKey.DownloadCanceled -> AppFailureCode.Canceled
+    FailureTextKey.DownloadCanceled,
+    -> AppFailureCode.Canceled
+
     FailureTextKey.Internal -> AppFailureCode.Internal
+
     FailureTextKey.YamlSyntax,
     FailureTextKey.MixinYaml,
     FailureTextKey.ActiveProfileInconsistent,
@@ -193,17 +203,14 @@ private fun FailureTextKey.toAppFailureCode(): AppFailureCode = when (this) {
     FailureTextKey.SyncIntervalInvalid,
     FailureTextKey.TunMtuInvalid,
     FailureTextKey.TunMtuZero,
-    FailureTextKey.EmptyRule -> AppFailureCode.InvalidState
+    FailureTextKey.EmptyRule,
+    -> AppFailureCode.InvalidState
 }
 
-internal fun FfiStatus.toLocalizedFailure(): LocalizedFailure {
-    return toAppFailure().toLocalizedFailure()
-}
+internal fun FfiStatus.toLocalizedFailure(): LocalizedFailure = toAppFailure().toLocalizedFailure()
 
-internal fun localizedFailure(
-    key: FailureTextKey,
-    diagnostic: String? = null,
-): LocalizedFailure = LocalizedFailure(key, diagnostic = diagnostic?.takeIf(String::isNotBlank))
+internal fun localizedFailure(key: FailureTextKey, diagnostic: String? = null): LocalizedFailure =
+    LocalizedFailure(key, diagnostic = diagnostic?.takeIf(String::isNotBlank))
 
 internal fun OwnerFailure.toLocalizedFailure(): LocalizedFailure {
     val typedReason = when (val reason = this.reason) {
@@ -211,11 +218,17 @@ internal fun OwnerFailure.toLocalizedFailure(): LocalizedFailure {
             reason.line.toString(),
             reason.column.toString(),
         )
+
         OwnerFailureReason.MixinYaml -> FailureTextKey.MixinYaml to emptyList()
+
         OwnerFailureReason.ActiveProfileInconsistent -> FailureTextKey.ActiveProfileInconsistent to emptyList()
+
         OwnerFailureReason.QuotaSourceChanged -> FailureTextKey.QuotaSourceChanged to emptyList()
+
         OwnerFailureReason.CurrentTimeUnavailable -> FailureTextKey.CurrentTimeUnavailable to emptyList()
+
         OwnerFailureReason.DownloadCanceled -> FailureTextKey.DownloadCanceled to emptyList()
+
         null -> null
     }
     val (key, arguments) = typedReason ?: when (code) {
@@ -251,10 +264,7 @@ internal fun OwnerFailure.toAppFailure(): AppFailure = toLocalizedFailure().toAp
 )
 
 @Composable
-internal fun LocalizedFailureText(
-    failure: LocalizedFailure,
-    modifier: Modifier = Modifier,
-) {
+internal fun LocalizedFailureText(failure: LocalizedFailure, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
             text = stringResource(failure.key.resource, *failure.arguments.toTypedArray()),
@@ -279,10 +289,7 @@ internal fun LocalizedFailure.asDisplayString(): String {
 }
 
 @Composable
-internal fun EmptyStateText(
-    key: EmptyStateTextKey,
-    modifier: Modifier = Modifier,
-) {
+internal fun EmptyStateText(key: EmptyStateTextKey, modifier: Modifier = Modifier) {
     Text(
         text = stringResource(key.resource),
         modifier = modifier,
@@ -292,10 +299,7 @@ internal fun EmptyStateText(
 }
 
 @Composable
-internal fun OwnerUiStatusText(
-    key: OwnerUiStatusTextKey,
-    modifier: Modifier = Modifier,
-) {
+internal fun OwnerUiStatusText(key: OwnerUiStatusTextKey, modifier: Modifier = Modifier) {
     Text(
         text = stringResource(key.resource),
         modifier = modifier,

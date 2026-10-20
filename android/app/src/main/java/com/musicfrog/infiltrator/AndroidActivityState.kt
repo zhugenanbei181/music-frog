@@ -22,13 +22,10 @@ internal object AndroidActivityState {
     private val _error = MutableStateFlow<LocalizedFailure?>(null)
     val error: StateFlow<LocalizedFailure?> = _error.asStateFlow()
 
-    fun refreshVpnAuthorization(context: Context): AndroidVpnAuthorizationUiState {
-        return applyVpnAuthorizationAvailability(readVpnAuthorizationAvailability(context))
-    }
+    fun refreshVpnAuthorization(context: Context): AndroidVpnAuthorizationUiState =
+        applyVpnAuthorizationAvailability(readVpnAuthorizationAvailability(context))
 
-    fun applyVpnAuthorizationAvailability(
-        availability: VpnAuthorizationAvailability,
-    ): AndroidVpnAuthorizationUiState {
+    fun applyVpnAuthorizationAvailability(availability: VpnAuthorizationAvailability): AndroidVpnAuthorizationUiState {
         val state = when (availability) {
             VpnAuthorizationAvailability.Granted -> AndroidVpnAuthorizationUiState.Granted
             VpnAuthorizationAvailability.Required -> AndroidVpnAuthorizationUiState.Required
@@ -41,8 +38,10 @@ internal object AndroidActivityState {
     fun applyVpnAuthorizationResult(result: VpnAuthorizationResult) {
         _vpnAuthorization.value = when (result) {
             VpnAuthorizationResult.GRANTED -> AndroidVpnAuthorizationUiState.Granted
+
             VpnAuthorizationResult.DENIED,
-            VpnAuthorizationResult.REVOKED -> AndroidVpnAuthorizationUiState.Required
+            VpnAuthorizationResult.REVOKED,
+            -> AndroidVpnAuthorizationUiState.Required
         }
     }
 

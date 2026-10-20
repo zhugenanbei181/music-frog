@@ -1,13 +1,13 @@
 package com.musicfrog.infiltrator.ui.common
 
+import com.musicfrog.infiltrator.VpnOwnerDataPlaneState
 import com.musicfrog.infiltrator.ui.overview.RoutingIntentOption
 import com.musicfrog.infiltrator.ui.overview.buildRoutingIntentCommandJson
-import com.musicfrog.infiltrator.VpnOwnerDataPlaneState
-import org.junit.Assert.assertFalse
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.json.JSONObject
 import org.junit.Test
 
 class OwnerSurfaceSnapshotTest {
@@ -65,7 +65,8 @@ class OwnerSurfaceSnapshotTest {
 
     @Test
     fun failedCoreOwnerReadbackMustMatchTheCompleteTypedFailure() {
-        val failure = """{"code":"Configuration","message":"profile YAML could not be parsed","retryable":true,"reason":{"YamlSyntax":{"line":23,"column":6}}}"""
+        val failure =
+            """{"code":"Configuration","message":"profile YAML could not be parsed","retryable":true,"reason":{"YamlSyntax":{"line":23,"column":6}}}"""
         val base = liveSnapshotWithAndroidVpnOwner()
             .replace("\"lifecycle\":\"Running\"", "\"lifecycle\":\"Failed\"")
             .replace("\"failure\":null,\"upload_bps\"", "\"failure\":$failure,\"upload_bps\"")
@@ -207,8 +208,10 @@ class OwnerSurfaceSnapshotTest {
         assertEquals("42", readyPage.snapshot.revision)
 
         val unsupportedRead = parseOwnerSurfaceSnapshot(snapshotWithInventory("\"unsupported\""))
-        val unsupported = ((unsupportedRead as OwnerSurfaceRead.Available).snapshot
-            .outboundInventory as OutboundInventoryPageState.Observed).snapshot.inventory
+        val unsupported = (
+            (unsupportedRead as OwnerSurfaceRead.Available).snapshot
+                .outboundInventory as OutboundInventoryPageState.Observed
+            ).snapshot.inventory
         assertEquals(OutboundInventoryState.Unsupported, unsupported)
 
         val unsupportedSelectionInventory = readyInventory.replace(
@@ -218,19 +221,29 @@ class OwnerSurfaceSnapshotTest {
         val unsupportedSelectionRead = parseOwnerSurfaceSnapshot(
             snapshotWithInventory(unsupportedSelectionInventory),
         ) as OwnerSurfaceRead.Available
-        val unsupportedSelection = (((unsupportedSelectionRead.snapshot.outboundInventory
-            as OutboundInventoryPageState.Observed).snapshot.inventory
-            as OutboundInventoryState.Ready).collections.single().selection)
+        val unsupportedSelection = (
+            (
+                (
+                    unsupportedSelectionRead.snapshot.outboundInventory
+                        as OutboundInventoryPageState.Observed
+                    ).snapshot.inventory
+                    as OutboundInventoryState.Ready
+                ).collections.single().selection
+            )
         assertEquals(OutboundSelectionState.Unsupported, unsupportedSelection)
 
         val unknownRead = parseOwnerSurfaceSnapshot(snapshotWithInventory("\"unknown\""))
-        val unknown = ((unknownRead as OwnerSurfaceRead.Available).snapshot
-            .outboundInventory as OutboundInventoryPageState.Observed).snapshot.inventory
+        val unknown = (
+            (unknownRead as OwnerSurfaceRead.Available).snapshot
+                .outboundInventory as OutboundInventoryPageState.Observed
+            ).snapshot.inventory
         assertEquals(OutboundInventoryState.Unknown, unknown)
 
         val failedRead = parseOwnerSurfaceSnapshot(snapshotWithInventory(failedInventory))
-        val failed = ((failedRead as OwnerSurfaceRead.Available).snapshot
-            .outboundInventory as OutboundInventoryPageState.Observed).snapshot.inventory
+        val failed = (
+            (failedRead as OwnerSurfaceRead.Available).snapshot
+                .outboundInventory as OutboundInventoryPageState.Observed
+            ).snapshot.inventory
         assertTrue(failed is OutboundInventoryState.Failed)
 
         val failedPageJson = """
@@ -297,19 +310,25 @@ class OwnerSurfaceSnapshotTest {
 
     @Test
     fun outboundDetailsKeepUnknownUnsupportedAndFailedDistinct() {
-        val unknown = (parseOwnerSurfaceSnapshot(snapshotWithTypedPages(readyInventory, "\"unknown\""))
-            as OwnerSurfaceRead.Available).snapshot.outboundDetails as OutboundDetailsPageState.Observed
+        val unknown = (
+            parseOwnerSurfaceSnapshot(snapshotWithTypedPages(readyInventory, "\"unknown\""))
+                as OwnerSurfaceRead.Available
+            ).snapshot.outboundDetails as OutboundDetailsPageState.Observed
         assertEquals(OutboundDetailsState.Unknown, unknown.snapshot.state)
 
-        val unsupported = (parseOwnerSurfaceSnapshot(snapshotWithTypedPages(readyInventory, "\"unsupported\""))
-            as OwnerSurfaceRead.Available).snapshot.outboundDetails as OutboundDetailsPageState.Observed
+        val unsupported = (
+            parseOwnerSurfaceSnapshot(snapshotWithTypedPages(readyInventory, "\"unsupported\""))
+                as OwnerSurfaceRead.Available
+            ).snapshot.outboundDetails as OutboundDetailsPageState.Observed
         assertEquals(OutboundDetailsState.Unsupported, unsupported.snapshot.state)
 
         val failedState = """
             {"failed":{"failure":{"code":"Network","message":"details timed out","retryable":true}}}
         """.trimIndent()
-        val failed = (parseOwnerSurfaceSnapshot(snapshotWithTypedPages(readyInventory, failedState))
-            as OwnerSurfaceRead.Available).snapshot.outboundDetails as OutboundDetailsPageState.Observed
+        val failed = (
+            parseOwnerSurfaceSnapshot(snapshotWithTypedPages(readyInventory, failedState))
+                as OwnerSurfaceRead.Available
+            ).snapshot.outboundDetails as OutboundDetailsPageState.Observed
         val failure = (failed.snapshot.state as OutboundDetailsState.Failed).failure
         assertEquals(OwnerErrorCode.Network, failure.code)
         assertEquals("details timed out", failure.message)
@@ -323,7 +342,7 @@ class OwnerSurfaceSnapshotTest {
             as CoreCapabilitySnapshotPageState.Observed
         assertEquals(CoreHostKindObservation.Desktop, observedCapabilities.snapshot.scope.host)
         assertEquals(
-            CoreBinaryTargetObservation.X86_64UnknownLinuxGnu,
+            CoreBinaryTargetObservation.X64UnknownLinuxGnu,
             observedCapabilities.snapshot.scope.binaryTarget,
         )
 
@@ -403,8 +422,7 @@ class OwnerSurfaceSnapshotTest {
         assertEquals(CoreBinaryTargetObservation.Aarch64LinuxAndroid, snapshot.scope.binaryTarget)
     }
 
-    private fun liveSnapshotWithAndroidVpnOwner(): String =
-        liveSnapshot.replace("\"vpn\":\"NotApplicable\"", "\"vpn\":$ownerVpnSnapshot")
+    private fun liveSnapshotWithAndroidVpnOwner(): String = liveSnapshot.replace("\"vpn\":\"NotApplicable\"", "\"vpn\":$ownerVpnSnapshot")
 
     private companion object {
         val liveSnapshot = """
@@ -487,8 +505,13 @@ class OwnerSurfaceSnapshotTest {
             )
             return withInventory.replace(
                 "\"outbound_inventory\":{",
-                "\"outbound_details\":{\"status\":\"Ready\",\"data\":{\"scope\":$outboundScope,\"detail_revision\":18446744073709551613,\"state\":$detailsState}}," +
-                    "\"outbound_ui_preferences\":{\"status\":\"Ready\",\"data\":{\"scope\":$outboundScope,\"revision\":18446744073709551614,\"search_query\":\"\",\"favorite_outbound_ids\":[{\"engine_id\":\"mihomo\",\"value\":\"node-1:opaque\"}],\"group_order\":[],\"collapsed_group_ids\":[],\"sort_order\":\"latency_ascending\",\"health_filter\":\"healthy_only\",\"layout\":\"compact_list\"}}," +
+                "\"outbound_details\":{\"status\":\"Ready\",\"data\":{\"scope\":$outboundScope," +
+                    "\"detail_revision\":18446744073709551613,\"state\":$detailsState}}," +
+                    "\"outbound_ui_preferences\":{\"status\":\"Ready\",\"data\":{\"scope\":$outboundScope," +
+                    "\"revision\":18446744073709551614,\"search_query\":\"\"," +
+                    "\"favorite_outbound_ids\":[{\"engine_id\":\"mihomo\",\"value\":\"node-1:opaque\"}]," +
+                    "\"group_order\":[],\"collapsed_group_ids\":[],\"sort_order\":\"latency_ascending\"," +
+                    "\"health_filter\":\"healthy_only\",\"layout\":\"compact_list\"}}," +
                     "\"core_capability_snapshot\":{\"status\":\"Ready\",\"data\":$coreCapabilitySnapshot}," +
                     "\"protocol_studio\":{\"status\":\"Ready\",\"data\":$protocolStudio},\"outbound_inventory\":{",
             )

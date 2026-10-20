@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  BANDROID-044.1: the only Android Lint issues this project silences.
+
+  Every entry names the reason the finding is not a defect of this codebase.
+  scripts/quality/android-architecture-redline-guard.py fails when this file
+  silences an issue that is not listed there, and when the
+  ForegroundServicePermission entry loses its VPN service precondition.
+-->
+<lint>
+    <!--
+      MihomoVpnService is a VpnService: it declares the android.net.VpnService
+      action, the android.permission.BIND_VPN_SERVICE permission and the
+      SUPPORTS_ALWAYS_ON metadata. The platform grants the `systemExempted`
+      foreground service exemption to VPN apps that are configured in
+      Settings > Network & Internet > VPN, and the Android documentation
+      lists that case next to the exact alarm permissions. The Lint detector
+      only models the exact alarm path, so it reports a false positive for a
+      VPN product.
+    -->
+    <issue id="ForegroundServicePermission" severity="ignore" />
+
+    <!--
+      The Gradle distribution is part of the reviewed
+      AGP/Gradle/Kotlin/JDK tuple that scripts/android-toolchain.py checks;
+      a newer Gradle release is not a code defect.
+    -->
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+
+    <!--
+      The detector queries Maven Central on every run, so the finding is not
+      reproducible and the gate would depend on the network.
+    -->
+    <issue id="NewerVersionAvailable" severity="ignore" />
+
+    <!--
+      The Android manifest contract guard
+      (scripts/quality/android-manifest-contract-guard.py) pins the launcher
+      activity label to the registered product label, so the activity repeats
+      the application label on purpose.
+    -->
+    <issue id="RedundantLabel" severity="ignore" />
+</lint>

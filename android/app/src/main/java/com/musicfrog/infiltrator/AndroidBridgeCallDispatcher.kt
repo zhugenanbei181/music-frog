@@ -27,10 +27,8 @@ internal enum class AndroidBridgeCallCancellation(val wireCode: Int) {
 }
 
 /** Application-owned bounded executor for Rust-to-Kotlin host calls. */
-internal class AndroidBridgeCallDispatcher(
-    workerCount: Int = DEFAULT_WORKER_COUNT,
-    queueCapacity: Int = DEFAULT_QUEUE_CAPACITY,
-) : AutoCloseable {
+internal class AndroidBridgeCallDispatcher(workerCount: Int = DEFAULT_WORKER_COUNT, queueCapacity: Int = DEFAULT_QUEUE_CAPACITY) :
+    AutoCloseable {
     private val lock = Any()
     private val requestStates = linkedMapOf<Long, RequestState>()
     private val requestCalls = linkedMapOf<Long, AndroidBridgeCall>()
@@ -69,6 +67,7 @@ internal class AndroidBridgeCallDispatcher(
                     wipeSensitivePayload(call)
                     return AndroidBridgeDispatchState.HostUnavailable
                 }
+
                 DispatcherState.Open -> Unit
             }
             if (requestStates.containsKey(requestId)) {
@@ -117,12 +116,14 @@ internal class AndroidBridgeCallDispatcher(
         val task = synchronized(lock) {
             when (val state = requestStates.remove(requestId)) {
                 null -> return AndroidBridgeCallCancellation.UnknownRequest
+
                 is RequestState.Queued -> {
                     executor.remove(state.task)
                     queuedCall = requestCalls.remove(requestId)
                     state.task.cancel(false)
                     null
                 }
+
                 is RequestState.Running -> state.task
             }
         }
@@ -153,8 +154,10 @@ internal class AndroidBridgeCallDispatcher(
                 requestStates[requestId] = RequestState.Running(state.task)
                 true
             }
+
             is RequestState.Running,
-            null -> false
+            null,
+            -> false
         }
     }
 
@@ -164,8 +167,10 @@ internal class AndroidBridgeCallDispatcher(
                 requestStates.remove(requestId)
                 true
             }
+
             is RequestState.Queued,
-            null -> false
+            null,
+            -> false
         }
     }
 
@@ -181,11 +186,7 @@ internal class AndroidBridgeCallDispatcher(
         }
     }
 
-    private fun finishWithFailure(
-        requestId: Long,
-        message: String,
-        fail: (Long, String) -> Unit,
-    ) {
+    private fun finishWithFailure(requestId: Long, message: String, fail: (Long, String) -> Unit) {
         if (finish(requestId)) fail(requestId, message)
     }
 

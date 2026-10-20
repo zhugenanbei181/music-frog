@@ -29,14 +29,14 @@ internal class OwnerIpcSensitivePayloadStore {
         }
     }
 
-    fun removeAndWipe(key: OwnerIpcRequestKey): OwnerIpcSensitivePayloadRemoval =
-        synchronized(lock) {
-            when (val bytes = payloads.remove(key)) {
-                null -> OwnerIpcSensitivePayloadRemoval.Missing
-                else -> {
-                    bytes.fill(0)
-                    OwnerIpcSensitivePayloadRemoval.Wiped
-                }
+    fun removeAndWipe(key: OwnerIpcRequestKey): OwnerIpcSensitivePayloadRemoval = synchronized(lock) {
+        when (val bytes = payloads.remove(key)) {
+            null -> OwnerIpcSensitivePayloadRemoval.Missing
+
+            else -> {
+                bytes.fill(0)
+                OwnerIpcSensitivePayloadRemoval.Wiped
             }
         }
+    }
 }

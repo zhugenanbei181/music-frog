@@ -17,22 +17,18 @@ internal sealed interface AndroidOwnerOperationExchange {
 }
 
 internal interface AndroidOwnerOperationGateway {
-    suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): AndroidOwnerOperationExchange
+    suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange
 }
 
 internal object UniFfiAndroidOwnerOperationGateway : AndroidOwnerOperationGateway {
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): AndroidOwnerOperationExchange = try {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange = try {
         when (val result = withTimeoutOrNull(timeoutMs) { androidExecuteOwnerOperation(operation) }) {
             null -> AndroidOwnerOperationExchange.TimedOut(
                 localizedFailure(FailureTextKey.NotReady).toAppFailure(),
             )
+
             is AndroidOwnerOperationClientResult.Completed -> AndroidOwnerOperationExchange.Completed(result.reply)
+
             is AndroidOwnerOperationClientResult.Failed -> result.status.toOwnerOperationExchange()
         }
     } catch (error: CancellationException) {
@@ -42,11 +38,12 @@ internal object UniFfiAndroidOwnerOperationGateway : AndroidOwnerOperationGatewa
     }
 }
 
-private fun FfiStatus.toOwnerOperationExchange(): AndroidOwnerOperationExchange =
-    when (code) {
-        FfiErrorCode.CANCELED -> AndroidOwnerOperationExchange.Cancelled(toAppFailure())
-        FfiErrorCode.OK -> AndroidOwnerOperationExchange.Failed(
-            localizedFailure(FailureTextKey.Internal).toAppFailure(),
-        )
-        else -> AndroidOwnerOperationExchange.Failed(toAppFailure())
-    }
+private fun FfiStatus.toOwnerOperationExchange(): AndroidOwnerOperationExchange = when (code) {
+    FfiErrorCode.CANCELED -> AndroidOwnerOperationExchange.Cancelled(toAppFailure())
+
+    FfiErrorCode.OK -> AndroidOwnerOperationExchange.Failed(
+        localizedFailure(FailureTextKey.Internal).toAppFailure(),
+    )
+
+    else -> AndroidOwnerOperationExchange.Failed(toAppFailure())
+}

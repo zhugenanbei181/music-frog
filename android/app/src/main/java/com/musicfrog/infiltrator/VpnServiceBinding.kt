@@ -19,10 +19,7 @@ import android.util.Log
  * sequencing and snapshots remain in the shared Rust application. This type
  * owns only the connection lifecycle and exposes typed connection state.
  */
-class VpnServiceBinding(
-    private val context: Context,
-    private val listener: Listener,
-) {
+class VpnServiceBinding(private val context: Context, private val listener: Listener) {
     enum class State {
         /** No bind attempt is active. */
         UNBOUND,
@@ -56,10 +53,7 @@ class VpnServiceBinding(
         fun onBindingStateChanged(state: State)
     }
 
-    private data class ActiveRegistration(
-        val registrationId: VpnServiceBindingRegistrationId,
-        val connection: ServiceConnection,
-    )
+    private data class ActiveRegistration(val registrationId: VpnServiceBindingRegistrationId, val connection: ServiceConnection)
 
     private data class ScheduledCleanup(val runnable: Runnable)
 
@@ -126,49 +120,47 @@ class VpnServiceBinding(
         }
     }
 
-    private fun serviceConnection(registrationId: VpnServiceBindingRegistrationId): ServiceConnection =
-        object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                val binder = when (service) {
-                    null -> VpnServiceBinderAvailability.Missing
-                    else -> VpnServiceBinderAvailability.Present
-                }
-                val transition = lifecycle.serviceConnected(registrationId, binder)
-                notifyIfApplied(transition)
-                if (binder == VpnServiceBinderAvailability.Missing && transition is VpnServiceBindingTransition.Applied) {
-                    scheduleCleanup(registrationId, VpnServiceBindingCleanupIntent.FinishMissingBinder)
-                }
+    private fun serviceConnection(registrationId: VpnServiceBindingRegistrationId): ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = when (service) {
+                null -> VpnServiceBinderAvailability.Missing
+                else -> VpnServiceBinderAvailability.Present
             }
-
-            override fun onServiceDisconnected(name: ComponentName?) {
-                notifyIfApplied(lifecycle.serviceDisconnected(registrationId))
-            }
-
-            override fun onBindingDied(name: ComponentName?) {
-                when (val transition = lifecycle.bindingDied(registrationId)) {
-                    is VpnServiceBindingTransition.Applied -> {
-                        listener.onBindingStateChanged(transition.state)
-                        scheduleCleanup(registrationId, VpnServiceBindingCleanupIntent.RebindAfterDeath)
-                    }
-                    is VpnServiceBindingTransition.Ignored -> Unit
-                }
-            }
-
-            override fun onNullBinding(name: ComponentName?) {
-                when (val transition = lifecycle.nullBinding(registrationId)) {
-                    is VpnServiceBindingTransition.Applied -> {
-                        listener.onBindingStateChanged(transition.state)
-                        scheduleCleanup(registrationId, VpnServiceBindingCleanupIntent.FinishMissingBinder)
-                    }
-                    is VpnServiceBindingTransition.Ignored -> Unit
-                }
+            val transition = lifecycle.serviceConnected(registrationId, binder)
+            notifyIfApplied(transition)
+            if (binder == VpnServiceBinderAvailability.Missing && transition is VpnServiceBindingTransition.Applied) {
+                scheduleCleanup(registrationId, VpnServiceBindingCleanupIntent.FinishMissingBinder)
             }
         }
 
-    private fun scheduleCleanup(
-        registrationId: VpnServiceBindingRegistrationId,
-        intent: VpnServiceBindingCleanupIntent,
-    ) {
+        override fun onServiceDisconnected(name: ComponentName?) {
+            notifyIfApplied(lifecycle.serviceDisconnected(registrationId))
+        }
+
+        override fun onBindingDied(name: ComponentName?) {
+            when (val transition = lifecycle.bindingDied(registrationId)) {
+                is VpnServiceBindingTransition.Applied -> {
+                    listener.onBindingStateChanged(transition.state)
+                    scheduleCleanup(registrationId, VpnServiceBindingCleanupIntent.RebindAfterDeath)
+                }
+
+                is VpnServiceBindingTransition.Ignored -> Unit
+            }
+        }
+
+        override fun onNullBinding(name: ComponentName?) {
+            when (val transition = lifecycle.nullBinding(registrationId)) {
+                is VpnServiceBindingTransition.Applied -> {
+                    listener.onBindingStateChanged(transition.state)
+                    scheduleCleanup(registrationId, VpnServiceBindingCleanupIntent.FinishMissingBinder)
+                }
+
+                is VpnServiceBindingTransition.Ignored -> Unit
+            }
+        }
+    }
+
+    private fun scheduleCleanup(registrationId: VpnServiceBindingRegistrationId, intent: VpnServiceBindingCleanupIntent) {
         removeScheduledCleanup()
         val runnable = object : Runnable {
             override fun run() {
@@ -210,9 +202,7 @@ class VpnServiceBinding(
         return lifecycle.state()
     }
 
-    private fun releaseRegistration(
-        registrationId: VpnServiceBindingRegistrationId,
-    ): VpnServiceReleaseOutcome {
+    private fun releaseRegistration(registrationId: VpnServiceBindingRegistrationId): VpnServiceReleaseOutcome {
         val registration = activeRegistration
         if (registration?.registrationId != registrationId) {
             Log.w(TAG, "unbindService has no matching registration for generation=${registrationId.generation}")

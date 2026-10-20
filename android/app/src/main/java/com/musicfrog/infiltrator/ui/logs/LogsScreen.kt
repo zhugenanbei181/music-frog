@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -61,9 +62,13 @@ fun LogsScreen() {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START,
-                Lifecycle.Event.ON_RESUME -> viewModel.dispatch(LogsIntent.PageVisible)
+                Lifecycle.Event.ON_RESUME,
+                -> viewModel.dispatch(LogsIntent.PageVisible)
+
                 Lifecycle.Event.ON_STOP,
-                Lifecycle.Event.ON_DESTROY -> viewModel.dispatch(LogsIntent.PageHidden)
+                Lifecycle.Event.ON_DESTROY,
+                -> viewModel.dispatch(LogsIntent.PageHidden)
+
                 else -> Unit
             }
         }
@@ -82,19 +87,28 @@ fun LogsScreen() {
     val logs = point?.logs?.entries.orEmpty()
     val streamState = when (observation) {
         is LogsObservationState.Content -> observation.point.logs.stream.toLogsStreamState()
-        is LogsObservationState.Loading -> observation.lastAccepted?.logs?.stream
-            ?.toLogsStreamState() ?: LogsStreamState.Starting
+
+        is LogsObservationState.Loading ->
+            observation.lastAccepted?.logs?.stream
+                ?.toLogsStreamState() ?: LogsStreamState.Starting
+
         is LogsObservationState.Unavailable -> LogsStreamState.Unavailable
-        is LogsObservationState.Cancelled -> observation.lastAccepted?.logs?.stream
-            ?.toLogsStreamState() ?: LogsStreamState.Unavailable
+
+        is LogsObservationState.Cancelled ->
+            observation.lastAccepted?.logs?.stream
+                ?.toLogsStreamState() ?: LogsStreamState.Unavailable
     }
     val streamSummary = when (streamState) {
         LogsStreamState.Starting -> stringResource(R.string.text_loading)
-        LogsStreamState.Streaming -> stringResource(R.string.logs_streaming, logs.size)
-        LogsStreamState.Paused -> stringResource(R.string.logs_paused, logs.size)
+
+        LogsStreamState.Streaming -> pluralStringResource(R.plurals.logs_streaming, logs.size, logs.size)
+
+        LogsStreamState.Paused -> pluralStringResource(R.plurals.logs_paused, logs.size, logs.size)
+
         LogsStreamState.Reconnecting,
         LogsStreamState.Failed,
-        LogsStreamState.Unavailable -> stringResource(R.string.status_unknown)
+        LogsStreamState.Unavailable,
+        -> stringResource(R.string.status_unknown)
     }
 
     Scaffold { padding ->
@@ -130,12 +144,13 @@ fun LogsScreen() {
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val copiedMessage = stringResource(R.string.toast_logs_copied)
                             IconButton(onClick = {
                                 val text = logs.joinToString("\n") { entry ->
                                     "[${formatLogLevel(entry.level)}] ${entry.message}"
                                 }
                                 clipboardManager.setText(AnnotatedString(text))
-                                showToast(context, context.getString(R.string.toast_logs_copied))
+                                showToast(context, copiedMessage)
                             }) {
                                 Icon(
                                     Icons.Outlined.ContentCopy,
@@ -171,6 +186,7 @@ fun LogsScreen() {
                         text = stringResource(R.string.text_loading),
                     )
                 }
+
                 point == null && observation is LogsObservationState.Unavailable -> {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -179,18 +195,21 @@ fun LogsScreen() {
                         LocalizedFailureText(observation.failure.toLocalizedFailure())
                     }
                 }
+
                 point == null -> {
                     StatusPanel(
                         modifier = Modifier.weight(1f),
                         text = stringResource(R.string.status_unknown),
                     )
                 }
+
                 logs.isEmpty() -> {
                     StatusPanel(
                         modifier = Modifier.weight(1f),
                         text = stringResource(R.string.text_no_logs),
                     )
                 }
+
                 else -> {
                     LazyColumn(
                         state = listState,
@@ -237,11 +256,16 @@ private fun OwnerLogStreamState.toLogsStreamState(): LogsStreamState = when (thi
 private fun LogEntryItem(entry: LogEntry) {
     val levelColor = when (entry.level) {
         LogLevel.ERROR -> MaterialTheme.colorScheme.error
+
         LogLevel.WARNING -> Color(0xFFFF9800)
+
         LogLevel.INFO -> MaterialTheme.colorScheme.primary
+
         LogLevel.DEBUG -> MaterialTheme.colorScheme.tertiary
+
         LogLevel.SILENT,
-        LogLevel.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant
+        LogLevel.UNKNOWN,
+        -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Row(

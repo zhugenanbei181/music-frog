@@ -2,9 +2,7 @@ package com.musicfrog.infiltrator
 
 import android.os.PowerManager
 
-internal class AndroidVpnWakeLockHandle(
-    private val wakeLock: PowerManager.WakeLock,
-) : VpnWakeLockHandle {
+internal class AndroidVpnWakeLockHandle(private val wakeLock: PowerManager.WakeLock) : VpnWakeLockHandle {
     override fun acquire(timeoutMillis: Long): VpnWakeLockPlatformAcquire = try {
         wakeLock.acquire(timeoutMillis)
         VpnWakeLockPlatformAcquire.Acquired

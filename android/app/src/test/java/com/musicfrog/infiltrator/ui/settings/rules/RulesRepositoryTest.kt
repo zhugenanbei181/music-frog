@@ -50,29 +50,24 @@ class RulesRepositoryTest {
         assertTrue(confirmed is RulesRepositoryResult.Completed)
         assertEquals(
             11uL,
-            (((confirmed as RulesRepositoryResult.Completed).observation as RulesRepositoryObservation.Rules)
-                .snapshot.revision.dataRevision),
+            (
+                ((confirmed as RulesRepositoryResult.Completed).observation as RulesRepositoryObservation.Rules)
+                    .snapshot.revision.dataRevision
+                ),
         )
         assertTrue(stale is RulesRepositoryResult.Unconfirmed)
         assertTrue(mismatched is RulesRepositoryResult.Unconfirmed)
     }
 
-    private fun repository(
-        handle: suspend (AndroidOwnerOperation) -> AndroidOwnerOperationExchange,
-    ) = UniFfiRulesRepository(object : AndroidOwnerOperationGateway {
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): AndroidOwnerOperationExchange = handle(operation)
-    })
+    private fun repository(handle: suspend (AndroidOwnerOperation) -> AndroidOwnerOperationExchange) =
+        UniFfiRulesRepository(object : AndroidOwnerOperationGateway {
+            override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange =
+                handle(operation)
+        })
 
     private fun completed(reply: AndroidOwnerOperationReply) = AndroidOwnerOperationExchange.Completed(reply)
 
-    private fun reply(
-        operation: AndroidOwnerOperation,
-        rules: List<AndroidRuleEntry>,
-        revision: ULong,
-    ): AndroidOwnerOperationReply {
+    private fun reply(operation: AndroidOwnerOperation, rules: List<AndroidRuleEntry>, revision: ULong): AndroidOwnerOperationReply {
         val snapshotResult = AndroidRulesResult(testFfiStatus(FfiErrorCode.OK), rules)
         return AndroidOwnerOperationReply(
             protocol = AndroidOwnerOperationProtocolVersion.V6,

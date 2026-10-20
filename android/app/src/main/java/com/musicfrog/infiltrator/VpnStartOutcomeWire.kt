@@ -21,9 +21,13 @@ internal fun VpnStartResult.toWireOutcome(): VpnStartOutcomeWire = when (this) {
 /** Exhaustively convert the Messenger reply used by the UI process to the same start outcome. */
 internal fun AndroidHostReply.toVpnStartOutcomeWire(): VpnStartOutcomeWire = when (this) {
     AndroidHostReply.VPN_RUNNING -> VpnStartOutcomeWire.Running
+
     AndroidHostReply.VPN_PERMISSION_REQUIRED -> VpnStartOutcomeWire.PermissionRequired
+
     AndroidHostReply.SERVICE_UNAVAILABLE -> VpnStartOutcomeWire.OwnerUnavailable
+
     AndroidHostReply.VPN_START_TIMED_OUT -> VpnStartOutcomeWire.TimedOut
+
     AndroidHostReply.CORE_LIFECYCLE_AVAILABLE,
     AndroidHostReply.PRODUCT_COMMAND_COMPLETED,
     AndroidHostReply.SURFACE_SNAPSHOT_AVAILABLE,
@@ -40,5 +44,6 @@ internal fun AndroidHostReply.toVpnStartOutcomeWire(): VpnStartOutcomeWire = whe
     AndroidHostReply.VPN_CONFIGURATION_ACCEPTED,
     AndroidHostReply.VPN_AUTHORIZED,
     AndroidHostReply.VPN_STOPPED,
-    AndroidHostReply.FAILED -> VpnStartOutcomeWire.Failed
+    AndroidHostReply.FAILED,
+    -> VpnStartOutcomeWire.Failed
 }

@@ -12,14 +12,13 @@
     <string name="status_tun_service">TUN 服務</string>
     <string name="status_core_runtime">核心運行時</string>
     <string name="status_permission_required">需要權限</string>
-    <string name="status_starting">正在啟動...</string>
-    <string name="status_stopping">正在停止...</string>
+    <string name="status_starting">正在啟動…</string>
+    <string name="status_stopping">正在停止…</string>
     <string name="status_running">運行中</string>
     <string name="status_stopped">已停止</string>
     <string name="status_active">已啟用</string>
     <string name="status_idle">未運行</string>
     <string name="status_unknown">未知</string>
-    <string name="action_grant_permission">授權</string>
     <string name="action_start">啟動</string>
     <string name="action_stop">停止</string>
     <string name="action_restart">重啟</string>
@@ -29,16 +28,17 @@
     <string name="card_network_diagnostics">網路診斷</string>
     <string name="label_upload">上傳</string>
     <string name="label_download">下載</string>
-    <string name="label_total">總量: %1$s ↑ / %2$s ↓</string>
     <string name="label_connections">%1$s 連線</string>
     <string name="label_exit_ip">出口 IP: %1$s</string>
     <string name="label_ip_location">地區: %1$s</string>
 
     <string name="card_recent_logs">最近日誌</string>
     <string name="text_no_logs">暫無日誌</string>
-    <string name="text_loading">載入中...</string>
+    <string name="text_loading">載入中…</string>
     <string name="text_no_connections">暫無活動連線</string>
-    <string name="text_connections_total">%1$d 個活動連線</string>
+    <plurals name="text_connections_total">
+        <item quantity="other">%1$d 個活動連線</item>
+    </plurals>
     <string name="text_ip_unavailable">暫無 IP 資訊</string>
 
     <!-- Profiles -->
@@ -63,7 +63,6 @@
     <string name="action_clear_subscription">清除訂閱</string>
     <string name="text_updated_at">更新於: %1$s</string>
     <string name="text_delete_profile_confirm">確認刪除配置「%1$s」？此操作不可復原。</string>
-    <string name="error_load_profiles">載入配置失敗</string>
 
     <!-- Proxies -->
 
@@ -104,7 +103,6 @@
     <string name="text_no_apps">未找到應用程式</string>
 
     <!-- TUN Settings -->
-    <string name="tun_settings_title">TUN 設定</string>
     <string name="label_mtu">MTU</string>
     <string name="label_stack">協議棧</string>
     <string name="option_stack_auto">自動</string>
@@ -118,8 +116,6 @@
     <string name="tun_auto_detect_interface_desc">自動偵測出口網路介面</string>
     <string name="label_ipv6">IPv6</string>
     <string name="tun_ipv6_desc">啟用 IPv6 支援</string>
-    <string name="label_dns_servers">DNS 伺服器</string>
-    <string name="desc_one_per_line">每行一個伺服器位址</string>
     <string name="action_select_all">全選</string>
     <string name="action_clear_all">清空</string>
     <string name="action_save">保存</string>
@@ -139,11 +135,9 @@
     <string name="text_connection_chains">鏈路: %1$s</string>
 
     <!-- DNS Settings -->
-    <string name="dns_settings_title">DNS 設定</string>
     <string name="dns_enable">啟用 DNS</string>
     <string name="dns_enable_desc">啟用內部 DNS 伺服器</string>
     <string name="label_enhanced_mode">增強模式</string>
-    <string name="desc_enhanced_mode">fake-ip / redir-host</string>
     <string name="enhanced_mode_disabled">停用</string>
     <string name="enhanced_mode_fake_ip">Fake-IP</string>
     <string name="enhanced_mode_redir_host">Redir-Host</string>
@@ -160,20 +154,16 @@
     <string name="label_fallback_filter_domain_suffix">Fallback 過濾網域後綴</string>
 
     <!-- Fake-IP Settings -->
-    <string name="fakeip_settings_title">Fake-IP 設定</string>
     <string name="fakeip_store">持久化 Fake-IP</string>
     <string name="fakeip_store_desc">將映射表保存到磁碟</string>
     <string name="label_fakeip_range">Fake-IP 網段</string>
     <string name="fakeip_default_range">Mihomo 預設值 (198.18.0.1/16)</string>
-    <string name="desc_cidr">CIDR 格式 (如 198.18.0.1/16)</string>
     <string name="label_fakeip_filter">Fake-IP 過濾</string>
-    <string name="desc_fakeip_filter">排除的域名 (每行一個)</string>
     <string name="action_clear_host_fakeip_file_cache">清除主機 Fake-IP 檔案快取</string>
     <string name="fakeip_host_cache_cleared">主機 Fake-IP 檔案快取已清除</string>
     <string name="fakeip_host_cache_already_empty">主機 Fake-IP 檔案快取已經為空</string>
 
     <!-- Rules Settings -->
-    <string name="rules_settings_title">規則管理</string>
     <string name="section_add_rule">新增規則</string>
     <string name="label_new_rule">規則 (如 DOMAIN-SUFFIX,google.com,Proxy)</string>
     <string name="section_active_rules">當前規則</string>
@@ -191,8 +181,12 @@
 
     <!-- Logs -->
     <string name="logs_title">日誌</string>
-    <string name="logs_streaming">實時 • %1$d 條</string>
-    <string name="logs_paused">暫停 • %1$d 條</string>
+    <plurals name="logs_streaming">
+        <item quantity="other">實時 • %1$d 條</item>
+    </plurals>
+    <plurals name="logs_paused">
+        <item quantity="other">暫停 • %1$d 條</item>
+    </plurals>
     <string name="action_copy">複製</string>
     <string name="action_clear">清空</string>
     <string name="toast_logs_copied">日誌已複製到剪貼簿</string>
@@ -201,7 +195,7 @@
     <!-- Service -->
     <string name="notification_channel_name">VPN 服務</string>
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
-    <string name="notification_starting">正在啟動...</string>
+    <string name="notification_starting">正在啟動…</string>
     <string name="notification_active">保護已開啟</string>
     <string name="notification_permission_denied">通知未開啟。代理仍可執行，但狀態通知可能不會顯示在通知欄。</string>
     <string name="notification_permission_prompt_failed">無法要求通知權限。代理仍會啟動，但狀態通知可能不會顯示在通知欄。</string>

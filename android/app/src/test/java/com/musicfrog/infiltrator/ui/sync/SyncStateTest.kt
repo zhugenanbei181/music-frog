@@ -78,20 +78,13 @@ class SyncStateTest {
         )
     }
 
-    private fun form(
-        settings: WebDavSettings,
-        revision: SyncSettingsRevision,
-        sequence: ULong,
-    ) = SyncForm(
+    private fun form(settings: WebDavSettings, revision: SyncSettingsRevision, sequence: ULong) = SyncForm(
         snapshot(settings, revision),
         snapshot(settings, revision).toDraft(),
         sequence,
     )
 
-    private fun snapshot(
-        settings: WebDavSettings,
-        revision: SyncSettingsRevision,
-    ) = SyncSettingsSnapshot(settings, revision)
+    private fun snapshot(settings: WebDavSettings, revision: SyncSettingsRevision) = SyncSettingsSnapshot(settings, revision)
 
     private fun settings(url: String = "https://dav.example.invalid") = WebDavSettings(
         enabled = true,

@@ -17,9 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-internal class TunViewModel(
-    private val repository: TunRepository,
-) : ViewModel() {
+internal class TunViewModel(private val repository: TunRepository) : ViewModel() {
     constructor() : this(UniFfiTunRepository)
 
     private val _state = MutableStateFlow(TunUiState())
@@ -40,26 +38,32 @@ internal class TunViewModel(
             operation = TunOperationState.Loading,
         )
         viewModelScope.launch {
-            when (val result = repository.execute(
-                AndroidOwnerOperation.TunSettings,
-                DEFAULT_FFI_TIMEOUT_MS,
-            )) {
+            when (
+                val result = repository.execute(
+                    AndroidOwnerOperation.TunSettings,
+                    DEFAULT_FFI_TIMEOUT_MS,
+                )
+            ) {
                 is TunRepositoryResult.Completed -> if (isLatest(sequence)) {
                     acceptOrFail(result.point, TunOperationState.Idle)
                 }
+
                 is TunRepositoryResult.Failed -> if (isLatest(sequence)) {
                     updateLatest(result.latestSnapshot)
                     fail(result.failure)
                 }
+
                 is TunRepositoryResult.Cancelled -> if (isLatest(sequence)) {
                     updateLatest(result.latestSnapshot)
                     _state.value = _state.value.copy(
                         operation = TunOperationState.Cancelled(result.failure),
                     )
                 }
+
                 is TunRepositoryResult.TimedOut -> if (isLatest(sequence)) {
                     fail(result.failure)
                 }
+
                 is TunRepositoryResult.Unconfirmed -> if (isLatest(sequence)) {
                     updateLatest(result.latestSnapshot)
                     _state.value = _state.value.copy(
@@ -108,26 +112,32 @@ internal class TunViewModel(
         val sequence = nextRequestSequence()
         _state.value = _state.value.copy(operation = TunOperationState.Saving)
         viewModelScope.launch {
-            when (val result = repository.execute(
-                AndroidOwnerOperation.TunSettingsSave(patch),
-                LONG_FFI_TIMEOUT_MS,
-            )) {
+            when (
+                val result = repository.execute(
+                    AndroidOwnerOperation.TunSettingsSave(patch),
+                    LONG_FFI_TIMEOUT_MS,
+                )
+            ) {
                 is TunRepositoryResult.Completed -> if (isLatest(sequence)) {
                     acceptOrFail(result.point, TunOperationState.Saved(result.point.revision))
                 }
+
                 is TunRepositoryResult.Failed -> if (isLatest(sequence)) {
                     updateLatest(result.latestSnapshot)
                     fail(result.failure)
                 }
+
                 is TunRepositoryResult.Cancelled -> if (isLatest(sequence)) {
                     updateLatest(result.latestSnapshot)
                     _state.value = _state.value.copy(
                         operation = TunOperationState.Cancelled(result.failure),
                     )
                 }
+
                 is TunRepositoryResult.TimedOut -> if (isLatest(sequence)) {
                     fail(result.failure)
                 }
+
                 is TunRepositoryResult.Unconfirmed -> if (isLatest(sequence)) {
                     updateLatest(result.latestSnapshot)
                     _state.value = _state.value.copy(

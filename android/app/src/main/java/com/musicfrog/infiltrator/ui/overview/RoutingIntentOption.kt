@@ -7,7 +7,8 @@ import infiltrator_android.AndroidRoutingIntentCopyKey
 internal enum class RoutingIntentOption(val copyKey: AndroidRoutingIntentCopyKey) {
     FollowRules(AndroidRoutingIntentCopyKey.FOLLOW_RULES),
     RouteAllThroughProxy(AndroidRoutingIntentCopyKey.ROUTE_ALL_THROUGH_PROXY),
-    BypassProxy(AndroidRoutingIntentCopyKey.BYPASS_PROXY);
+    BypassProxy(AndroidRoutingIntentCopyKey.BYPASS_PROXY),
+    ;
 
     internal fun observation(): RoutingIntentObservation = when (this) {
         FollowRules -> RoutingIntentObservation.FollowRules

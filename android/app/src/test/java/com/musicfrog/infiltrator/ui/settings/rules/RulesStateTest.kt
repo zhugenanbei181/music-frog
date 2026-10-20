@@ -1,9 +1,9 @@
 package com.musicfrog.infiltrator.ui.settings.rules
 
-import infiltrator_android.AndroidRuleEntry
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
+import infiltrator_android.AndroidRuleEntry
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -66,11 +66,8 @@ class RulesStateTest {
         assertEquals(RulesReloadAvailability.UnsavedChanges, providersChanged.reloadAvailability)
     }
 
-    private fun revision(
-        dataRevision: ULong,
-        generation: ULong = 2u,
-        session: String = "owner-a",
-    ) = RulesRevision(session, generation, dataRevision)
+    private fun revision(dataRevision: ULong, generation: ULong = 2u, session: String = "owner-a") =
+        RulesRevision(session, generation, dataRevision)
 
     private fun failure() = localizedFailure(FailureTextKey.NotReady).toAppFailure()
 }

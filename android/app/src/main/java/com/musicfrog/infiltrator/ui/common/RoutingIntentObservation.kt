@@ -25,25 +25,28 @@ internal data class RoutingIntentSnapshotObservation(
 )
 
 /** Parses the tagged Rust `RoutingIntent` enum; unknown variants fail closed. */
-internal fun parseRoutingIntentObservation(value: JSONObject): RoutingIntentObservation =
-    when (value.getString("kind")) {
-        "follow_rules" -> RoutingIntentObservation.FollowRules
-        "route_all_through_proxy" -> RoutingIntentObservation.RouteAllThroughProxy
-        "bypass_proxy" -> RoutingIntentObservation.BypassProxy
-        "engine_defined" -> {
-            val extension = value.getJSONObject("extension")
-            val engineId = extension.getString("engine")
-            val extensionId = extension.getString("extension_id")
-            require(engineId.isNotBlank() && extensionId.isNotBlank()) {
-                "Owner engine-defined routing intent has an empty identifier"
-            }
-            RoutingIntentObservation.EngineDefined(
-                engineId = engineId,
-                extensionId = extensionId,
-            )
+internal fun parseRoutingIntentObservation(value: JSONObject): RoutingIntentObservation = when (value.getString("kind")) {
+    "follow_rules" -> RoutingIntentObservation.FollowRules
+
+    "route_all_through_proxy" -> RoutingIntentObservation.RouteAllThroughProxy
+
+    "bypass_proxy" -> RoutingIntentObservation.BypassProxy
+
+    "engine_defined" -> {
+        val extension = value.getJSONObject("extension")
+        val engineId = extension.getString("engine")
+        val extensionId = extension.getString("extension_id")
+        require(engineId.isNotBlank() && extensionId.isNotBlank()) {
+            "Owner engine-defined routing intent has an empty identifier"
         }
-        else -> throw IllegalArgumentException("Unknown owner routing intent")
+        RoutingIntentObservation.EngineDefined(
+            engineId = engineId,
+            extensionId = extensionId,
+        )
     }
+
+    else -> throw IllegalArgumentException("Unknown owner routing intent")
+}
 
 /** Parses the application-owned state projection without guessing from absence. */
 internal fun parseRoutingIntentSnapshotObservation(value: JSONObject): RoutingIntentSnapshotObservation {

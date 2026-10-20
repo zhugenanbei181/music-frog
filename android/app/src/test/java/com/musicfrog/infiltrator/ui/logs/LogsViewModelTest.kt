@@ -12,9 +12,8 @@ import com.musicfrog.infiltrator.ui.common.OwnerLogStreamState
 import com.musicfrog.infiltrator.ui.common.OwnerLogsPage
 import com.musicfrog.infiltrator.ui.common.OwnerPage
 import com.musicfrog.infiltrator.ui.common.OwnerPageState
-import java.util.ArrayDeque
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.ArrayDeque
 
 class LogsViewModelTest {
     @Test
@@ -238,11 +238,7 @@ private class FakeLogsRepository : LogsRepository {
 
 private fun testScope() = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
-private fun testViewModel(
-    repository: LogsRepository,
-    scope: CoroutineScope,
-    pollingIntervalMs: Long = 10_000L,
-) = LogsViewModel(
+private fun testViewModel(repository: LogsRepository, scope: CoroutineScope, pollingIntervalMs: Long = 10_000L) = LogsViewModel(
     repository = repository,
     pollingIntervalMs = pollingIntervalMs,
     coroutineScope = scope,

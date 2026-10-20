@@ -10,14 +10,13 @@
     <string name="status_tun_service">TUN 服务</string>
     <string name="status_core_runtime">核心运行时</string>
     <string name="status_permission_required">需要权限</string>
-    <string name="status_starting">正在启动...</string>
-    <string name="status_stopping">正在停止...</string>
+    <string name="status_starting">正在启动…</string>
+    <string name="status_stopping">正在停止…</string>
     <string name="status_running">运行中</string>
     <string name="status_stopped">已停止</string>
     <string name="status_active">已激活</string>
     <string name="status_idle">未运行</string>
     <string name="status_unknown">未知</string>
-    <string name="action_grant_permission">授予权限</string>
     <string name="action_start">启动</string>
     <string name="action_stop">停止</string>
     <string name="action_restart">重启</string>
@@ -27,16 +26,17 @@
     <string name="card_network_diagnostics">网络诊断</string>
     <string name="label_upload">上传</string>
     <string name="label_download">下载</string>
-    <string name="label_total">总量: %1$s ↑ / %2$s ↓</string>
     <string name="label_connections">%1$s 连接</string>
     <string name="label_exit_ip">出口 IP: %1$s</string>
     <string name="label_ip_location">地区: %1$s</string>
 
     <string name="card_recent_logs">最近日志</string>
     <string name="text_no_logs">暂无日志</string>
-    <string name="text_loading">加载中...</string>
+    <string name="text_loading">加载中…</string>
     <string name="text_no_connections">暂无活动连接</string>
-    <string name="text_connections_total">%1$d 个活动连接</string>
+    <plurals name="text_connections_total">
+        <item quantity="other">%1$d 个活动连接</item>
+    </plurals>
     <string name="text_ip_unavailable">暂无 IP 信息</string>
 
     <!-- Profiles -->
@@ -61,7 +61,6 @@
     <string name="action_clear_subscription">清除订阅</string>
     <string name="text_updated_at">更新于: %1$s</string>
     <string name="text_delete_profile_confirm">确认删除配置“%1$s”？此操作不可撤销。</string>
-    <string name="error_load_profiles">加载配置失败</string>
 
     <!-- Proxies -->
 
@@ -102,7 +101,6 @@
     <string name="text_no_apps">未找到应用</string>
 
     <!-- TUN Settings -->
-    <string name="tun_settings_title">TUN 设置</string>
     <string name="label_mtu">MTU</string>
     <string name="label_stack">协议栈</string>
     <string name="option_stack_auto">自动</string>
@@ -116,8 +114,6 @@
     <string name="tun_auto_detect_interface_desc">自动检测出口网络接口</string>
     <string name="label_ipv6">IPv6</string>
     <string name="tun_ipv6_desc">启用 IPv6 支持</string>
-    <string name="label_dns_servers">DNS 服务器</string>
-    <string name="desc_one_per_line">每行一个服务器地址</string>
     <string name="action_select_all">全选</string>
     <string name="action_clear_all">清空</string>
     <string name="action_save">保存</string>
@@ -137,11 +133,9 @@
     <string name="text_connection_chains">链路: %1$s</string>
 
     <!-- DNS Settings -->
-    <string name="dns_settings_title">DNS 设置</string>
     <string name="dns_enable">启用 DNS</string>
     <string name="dns_enable_desc">启用内部 DNS 服务器</string>
     <string name="label_enhanced_mode">增强模式</string>
-    <string name="desc_enhanced_mode">fake-ip / redir-host</string>
     <string name="enhanced_mode_disabled">禁用</string>
     <string name="enhanced_mode_fake_ip">Fake-IP</string>
     <string name="enhanced_mode_redir_host">Redir-Host</string>
@@ -158,20 +152,16 @@
     <string name="label_fallback_filter_domain_suffix">Fallback 过滤域名后缀</string>
 
     <!-- Fake-IP Settings -->
-    <string name="fakeip_settings_title">Fake-IP 设置</string>
     <string name="fakeip_store">持久化 Fake-IP</string>
     <string name="fakeip_store_desc">将映射表保存到磁盘</string>
     <string name="label_fakeip_range">Fake-IP 网段</string>
     <string name="fakeip_default_range">Mihomo 默认值 (198.18.0.1/16)</string>
-    <string name="desc_cidr">CIDR 格式 (如 198.18.0.1/16)</string>
     <string name="label_fakeip_filter">Fake-IP 过滤</string>
-    <string name="desc_fakeip_filter">排除的域名 (每行一个)</string>
     <string name="action_clear_host_fakeip_file_cache">清除宿主 Fake-IP 文件缓存</string>
     <string name="fakeip_host_cache_cleared">宿主 Fake-IP 文件缓存已清除</string>
     <string name="fakeip_host_cache_already_empty">宿主 Fake-IP 文件缓存已经为空</string>
 
     <!-- Rules Settings -->
-    <string name="rules_settings_title">规则管理</string>
     <string name="section_add_rule">添加规则</string>
     <string name="label_new_rule">规则 (如 DOMAIN-SUFFIX,google.com,Proxy)</string>
     <string name="section_active_rules">当前规则</string>
@@ -189,8 +179,12 @@
 
     <!-- Logs -->
     <string name="logs_title">日志</string>
-    <string name="logs_streaming">实时 • %1$d 条</string>
-    <string name="logs_paused">暂停 • %1$d 条</string>
+    <plurals name="logs_streaming">
+        <item quantity="other">实时 • %1$d 条</item>
+    </plurals>
+    <plurals name="logs_paused">
+        <item quantity="other">暂停 • %1$d 条</item>
+    </plurals>
     <string name="action_copy">复制</string>
     <string name="action_clear">清空</string>
     <string name="toast_logs_copied">日志已复制到剪贴板</string>
@@ -199,7 +193,7 @@
     <!-- Service -->
     <string name="notification_channel_name">VPN 服务</string>
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
-    <string name="notification_starting">正在启动...</string>
+    <string name="notification_starting">正在启动…</string>
     <string name="notification_active">保护已开启</string>
     <string name="notification_start_failed">VPN 启动失败</string>
     <string name="notification_permission_denied">通知未开启。代理仍可运行，但状态通知可能不会显示在通知栏。</string>
@@ -216,7 +210,7 @@
     <string name="action_test">测试连接</string>
     <string name="action_sync_now">立即同步</string>
     <string name="text_sync_saved">已保存</string>
-    <string name="text_sync_loading">加载中...</string>
+    <string name="text_sync_loading">加载中…</string>
     <string name="text_sync_connection_tested">连接测试成功。</string>
     <string name="text_sync_summary">同步操作：%2$s 项中成功 %1$s 项，失败 %3$s 项。</string>
     <string name="failure_invalid_input">输入无效。</string>

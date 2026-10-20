@@ -103,14 +103,10 @@ class FakeIpSettingsStateTest {
         assertEquals(HostFakeIpFileCacheState.AlreadyEmpty, hostFakeIpFileCacheReceipt(removedFile = false))
     }
 
-    private fun observed(revision: FakeIpSettingsRevision) =
-        FakeIpSettingsReadState.Observed(settings(), revision)
+    private fun observed(revision: FakeIpSettingsRevision) = FakeIpSettingsReadState.Observed(settings(), revision)
 
-    private fun revision(
-        ownerSessionId: String = "owner-a",
-        coreGeneration: ULong = 7uL,
-        dataRevision: ULong,
-    ) = FakeIpSettingsRevision(ownerSessionId, coreGeneration, dataRevision)
+    private fun revision(ownerSessionId: String = "owner-a", coreGeneration: ULong = 7uL, dataRevision: ULong) =
+        FakeIpSettingsRevision(ownerSessionId, coreGeneration, dataRevision)
 
     private fun settings() = FakeIpSettings(
         fakeIpRange = null,

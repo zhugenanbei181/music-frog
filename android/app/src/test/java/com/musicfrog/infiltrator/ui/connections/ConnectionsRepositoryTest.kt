@@ -47,9 +47,7 @@ class ConnectionsRepositoryTest {
     }
 }
 
-private class FakeAndroidComposeRepository(
-    private val response: String,
-) : AndroidComposeRepository {
+private class FakeAndroidComposeRepository(private val response: String) : AndroidComposeRepository {
     var lastCommand: String? = null
 
     override suspend fun readOwnerSurface(): OwnerSurfaceRead = error("unused")

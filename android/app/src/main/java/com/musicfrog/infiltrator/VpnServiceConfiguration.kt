@@ -9,11 +9,7 @@ import infiltrator_android.androidVpnRoutingSnapshot
 import org.json.JSONObject
 import java.net.InetAddress
 
-internal data class NativeVpnRoute(
-    val address: String,
-    val prefix: Int,
-    val exclude: Boolean,
-)
+internal data class NativeVpnRoute(val address: String, val prefix: Int, val exclude: Boolean)
 
 internal data class NativeVpnConfiguration(
     val proxyEndpoint: String,
@@ -38,8 +34,7 @@ internal value class VpnOwnerDataRevision(val value: ULong) {
     }
 
     companion object {
-        fun fromWire(value: ULong): VpnOwnerDataRevision? =
-            if (value == 0uL) null else VpnOwnerDataRevision(value)
+        fun fromWire(value: ULong): VpnOwnerDataRevision? = if (value == 0uL) null else VpnOwnerDataRevision(value)
     }
 }
 
@@ -168,11 +163,9 @@ private fun parseNumericAddress(value: String): InetAddress? {
     }
 }
 
-private fun JSONObject.hasOnly(vararg expected: String): Boolean =
-    keys().asSequence().toSet() == expected.toSet()
+private fun JSONObject.hasOnly(vararg expected: String): Boolean = keys().asSequence().toSet() == expected.toSet()
 
-private fun JSONObject.unsigned(name: String): ULong? =
-    opt(name)?.toString()?.toULongOrNull()
+private fun JSONObject.unsigned(name: String): ULong? = opt(name)?.toString()?.toULongOrNull()
 
 private fun isValidSessionToken(value: String): Boolean {
     if (!value.matches(Regex("[1-9][0-9]{0,38}"))) return false
@@ -225,81 +218,84 @@ internal class VpnPreparedConfigurationStore {
     private var state: State = State.Empty
 
     @Synchronized
-    fun install(configuration: NativePreparedVpnConfiguration): VpnPreparedConfigurationInstallOutcome =
-        when (val current = state) {
-            State.Empty -> {
-                state = State.Ready(configuration)
-                VpnPreparedConfigurationInstallOutcome.Installed
-            }
-            is State.Ready -> if (current.configuration.vpnGeneration < configuration.vpnGeneration) {
-                state = State.Ready(configuration)
-                VpnPreparedConfigurationInstallOutcome.ReplacedOlder
-            } else {
-                VpnPreparedConfigurationInstallOutcome.RejectedCurrent
-            }
-            is State.Consumed -> if (current.vpnGeneration < configuration.vpnGeneration) {
-                state = State.Ready(configuration)
-                VpnPreparedConfigurationInstallOutcome.ReplacedOlder
-            } else {
-                VpnPreparedConfigurationInstallOutcome.RejectedCurrent
-            }
+    fun install(configuration: NativePreparedVpnConfiguration): VpnPreparedConfigurationInstallOutcome = when (val current = state) {
+        State.Empty -> {
+            state = State.Ready(configuration)
+            VpnPreparedConfigurationInstallOutcome.Installed
         }
 
+        is State.Ready -> if (current.configuration.vpnGeneration < configuration.vpnGeneration) {
+            state = State.Ready(configuration)
+            VpnPreparedConfigurationInstallOutcome.ReplacedOlder
+        } else {
+            VpnPreparedConfigurationInstallOutcome.RejectedCurrent
+        }
+
+        is State.Consumed -> if (current.vpnGeneration < configuration.vpnGeneration) {
+            state = State.Ready(configuration)
+            VpnPreparedConfigurationInstallOutcome.ReplacedOlder
+        } else {
+            VpnPreparedConfigurationInstallOutcome.RejectedCurrent
+        }
+    }
+
     @Synchronized
-    fun take(vpnGeneration: ULong, preparationId: ULong): VpnPreparedConfigurationTakeOutcome =
-        when (val current = state) {
-            State.Empty -> VpnPreparedConfigurationTakeOutcome.Missing
-            is State.Ready -> {
-                val prepared = current.configuration
-                when {
-                    vpnGeneration != prepared.vpnGeneration -> {
-                        if (vpnGeneration > prepared.vpnGeneration) state = State.Empty
-                        VpnPreparedConfigurationTakeOutcome.StaleGeneration
-                    }
-                    preparationId != prepared.preparationId ->
-                        VpnPreparedConfigurationTakeOutcome.TransactionMismatch
-                    else -> {
-                        state = State.Consumed(preparationId, vpnGeneration)
-                        VpnPreparedConfigurationTakeOutcome.Taken(prepared)
-                    }
-                }
-            }
-            is State.Consumed -> when {
-                current.vpnGeneration == vpnGeneration && current.preparationId == preparationId ->
-                    VpnPreparedConfigurationTakeOutcome.AlreadyConsumed
-                current.vpnGeneration < vpnGeneration -> {
-                    state = State.Empty
+    fun take(vpnGeneration: ULong, preparationId: ULong): VpnPreparedConfigurationTakeOutcome = when (val current = state) {
+        State.Empty -> VpnPreparedConfigurationTakeOutcome.Missing
+
+        is State.Ready -> {
+            val prepared = current.configuration
+            when {
+                vpnGeneration != prepared.vpnGeneration -> {
+                    if (vpnGeneration > prepared.vpnGeneration) state = State.Empty
                     VpnPreparedConfigurationTakeOutcome.StaleGeneration
                 }
-                else -> VpnPreparedConfigurationTakeOutcome.Missing
+
+                preparationId != prepared.preparationId ->
+                    VpnPreparedConfigurationTakeOutcome.TransactionMismatch
+
+                else -> {
+                    state = State.Consumed(preparationId, vpnGeneration)
+                    VpnPreparedConfigurationTakeOutcome.Taken(prepared)
+                }
             }
         }
 
-    @Synchronized
-    fun clearThrough(vpnGeneration: ULong): VpnPreparedConfigurationClearOutcome =
-        when (val current = state) {
-            State.Empty -> VpnPreparedConfigurationClearOutcome.NotRequired
-            is State.Ready -> if (current.configuration.vpnGeneration <= vpnGeneration) {
+        is State.Consumed -> when {
+            current.vpnGeneration == vpnGeneration && current.preparationId == preparationId ->
+                VpnPreparedConfigurationTakeOutcome.AlreadyConsumed
+
+            current.vpnGeneration < vpnGeneration -> {
                 state = State.Empty
-                VpnPreparedConfigurationClearOutcome.Cleared
-            } else {
-                VpnPreparedConfigurationClearOutcome.PreservedNewer
+                VpnPreparedConfigurationTakeOutcome.StaleGeneration
             }
-            is State.Consumed -> if (current.vpnGeneration <= vpnGeneration) {
-                state = State.Empty
-                VpnPreparedConfigurationClearOutcome.Cleared
-            } else {
-                VpnPreparedConfigurationClearOutcome.PreservedNewer
-            }
+
+            else -> VpnPreparedConfigurationTakeOutcome.Missing
         }
+    }
+
+    @Synchronized
+    fun clearThrough(vpnGeneration: ULong): VpnPreparedConfigurationClearOutcome = when (val current = state) {
+        State.Empty -> VpnPreparedConfigurationClearOutcome.NotRequired
+
+        is State.Ready -> if (current.configuration.vpnGeneration <= vpnGeneration) {
+            state = State.Empty
+            VpnPreparedConfigurationClearOutcome.Cleared
+        } else {
+            VpnPreparedConfigurationClearOutcome.PreservedNewer
+        }
+
+        is State.Consumed -> if (current.vpnGeneration <= vpnGeneration) {
+            state = State.Empty
+            VpnPreparedConfigurationClearOutcome.Cleared
+        } else {
+            VpnPreparedConfigurationClearOutcome.PreservedNewer
+        }
+    }
 }
 
 internal sealed interface VpnRoutingConfiguration {
-    data class Ready(
-        val mode: AndroidAppRoutingMode,
-        val packages: Set<String>,
-        val routingRevision: ULong,
-    ) : VpnRoutingConfiguration
+    data class Ready(val mode: AndroidAppRoutingMode, val packages: Set<String>, val routingRevision: ULong) : VpnRoutingConfiguration
 
     data class Failed(val message: String) : VpnRoutingConfiguration
 }
@@ -335,39 +331,40 @@ internal fun loadVpnRoutingConfiguration(): VpnRoutingConfiguration = try {
     VpnRoutingConfiguration.Failed(error.message ?: "VPN app-routing configuration could not be loaded")
 }
 
-internal fun buildVpnPackageRoutingPlan(
-    configuration: VpnRoutingConfiguration,
-    ownPackageName: String,
-): VpnPackageRoutingPlan = when (configuration) {
-    is VpnRoutingConfiguration.Failed -> VpnPackageRoutingPlan.Failed(configuration.message)
-    is VpnRoutingConfiguration.Ready -> {
-        if (configuration.packages.any(String::isBlank)) {
-            return VpnPackageRoutingPlan.Failed("VPN app-routing configuration contains an empty package name")
-        }
-        val selected = configuration.packages
-            .toSortedSet()
-        when (configuration.mode) {
-            AndroidAppRoutingMode.PROXY_ALL -> VpnPackageRoutingPlan.Ready(
-                listOf(VpnPackageRule.Disallow(ownPackageName)),
-            )
-            AndroidAppRoutingMode.PROXY_SELECTED -> {
-                val packages = selected.filterNot { it == ownPackageName }
-                if (packages.isEmpty()) {
-                    VpnPackageRoutingPlan.Failed("Select at least one app to use selected-app routing")
-                } else {
-                    VpnPackageRoutingPlan.Ready(packages.map(VpnPackageRule::Allow))
-                }
+internal fun buildVpnPackageRoutingPlan(configuration: VpnRoutingConfiguration, ownPackageName: String): VpnPackageRoutingPlan =
+    when (configuration) {
+        is VpnRoutingConfiguration.Failed -> VpnPackageRoutingPlan.Failed(configuration.message)
+
+        is VpnRoutingConfiguration.Ready -> {
+            if (configuration.packages.any(String::isBlank)) {
+                return VpnPackageRoutingPlan.Failed("VPN app-routing configuration contains an empty package name")
             }
-            AndroidAppRoutingMode.BYPASS_SELECTED -> VpnPackageRoutingPlan.Ready(
-                buildList {
-                    add(VpnPackageRule.Disallow(ownPackageName))
-                    selected.filterNot { it == ownPackageName }
-                        .forEach { add(VpnPackageRule.Disallow(it)) }
-                },
-            )
+            val selected = configuration.packages
+                .toSortedSet()
+            when (configuration.mode) {
+                AndroidAppRoutingMode.PROXY_ALL -> VpnPackageRoutingPlan.Ready(
+                    listOf(VpnPackageRule.Disallow(ownPackageName)),
+                )
+
+                AndroidAppRoutingMode.PROXY_SELECTED -> {
+                    val packages = selected.filterNot { it == ownPackageName }
+                    if (packages.isEmpty()) {
+                        VpnPackageRoutingPlan.Failed("Select at least one app to use selected-app routing")
+                    } else {
+                        VpnPackageRoutingPlan.Ready(packages.map(VpnPackageRule::Allow))
+                    }
+                }
+
+                AndroidAppRoutingMode.BYPASS_SELECTED -> VpnPackageRoutingPlan.Ready(
+                    buildList {
+                        add(VpnPackageRule.Disallow(ownPackageName))
+                        selected.filterNot { it == ownPackageName }
+                            .forEach { add(VpnPackageRule.Disallow(it)) }
+                    },
+                )
+            }
         }
     }
-}
 
 @Suppress("NewApi")
 internal fun applyVpnRoute(builder: VpnService.Builder, route: NativeVpnRoute) {
@@ -386,6 +383,7 @@ internal fun applyVpnRoute(builder: VpnService.Builder, route: NativeVpnRoute) {
 internal fun applyVpnPackageRouting(builder: VpnService.Builder, plan: VpnPackageRoutingPlan) {
     when (plan) {
         is VpnPackageRoutingPlan.Failed -> throw IllegalArgumentException(plan.message)
+
         is VpnPackageRoutingPlan.Ready -> for (rule in plan.rules) {
             when (rule) {
                 is VpnPackageRule.Allow -> builder.addAllowedApplication(rule.packageName)

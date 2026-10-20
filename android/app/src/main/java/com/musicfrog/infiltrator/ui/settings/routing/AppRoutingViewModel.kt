@@ -25,14 +25,14 @@ internal class AppRoutingViewModel internal constructor(
     )
 
     private val session = AppRoutingSession(repository, installedAppsProvider)
-    private val _searchQuery = MutableStateFlow("")
+    private val searchQuery = MutableStateFlow("")
 
     val operation: StateFlow<AppRoutingOperationState> = session.operation
     val snapshot: StateFlow<AppRoutingSnapshotState> = session.snapshot
     val routingMode: StateFlow<AppRoutingModeState> = snapshot
         .map(::appRoutingModeState)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppRoutingModeState.Unavailable)
-    val uiState: StateFlow<List<AppItem>> = combine(session.installedApps, _searchQuery, snapshot) {
+    val uiState: StateFlow<List<AppItem>> = combine(session.installedApps, searchQuery, snapshot) {
             installedApps,
             query,
             ownerSnapshot,
@@ -65,6 +65,6 @@ internal class AppRoutingViewModel internal constructor(
     }
 
     fun search(query: String) {
-        _searchQuery.value = query
+        searchQuery.value = query
     }
 }

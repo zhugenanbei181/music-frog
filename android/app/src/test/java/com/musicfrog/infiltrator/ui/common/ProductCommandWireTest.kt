@@ -47,8 +47,7 @@ class ProductCommandWireTest {
         )
     }
 
-    private fun terminal(scopeJson: String) =
-        """{"Terminal":{"scope":$scopeJson,"result":{"Completed":{"request_id":9}}}}"""
+    private fun terminal(scopeJson: String) = """{"Terminal":{"scope":$scopeJson,"result":{"Completed":{"request_id":9}}}}"""
 }
 
 private fun testScope() = CoreScopeObservation(

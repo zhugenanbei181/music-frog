@@ -45,9 +45,12 @@ class AndroidVpnSnapshotFenceTest {
         val runningResources = VpnOwnerResourceKindWire.entries.map { kind ->
             val state = when (kind) {
                 VpnOwnerResourceKindWire.Worker,
-                VpnOwnerResourceKindWire.TunnelDescriptor -> VpnOwnerResourceStateWire.Held(3L)
+                VpnOwnerResourceKindWire.TunnelDescriptor,
+                -> VpnOwnerResourceStateWire.Held(3L)
+
                 VpnOwnerResourceKindWire.PreparedConfiguration,
-                VpnOwnerResourceKindWire.RoutingLease -> VpnOwnerResourceStateWire.Absent
+                VpnOwnerResourceKindWire.RoutingLease,
+                -> VpnOwnerResourceStateWire.Absent
             }
             VpnOwnerResourceFactWire(kind, state)
         }
@@ -180,10 +183,12 @@ class AndroidVpnSnapshotFenceTest {
         val first = VpnOwnerSnapshotWire.parse(publisher.publish(facts)) ?: error("first snapshot must parse")
         val duplicate = VpnOwnerSnapshotWire.parse(publisher.publish(facts)) ?: error("duplicate must parse")
         val changed = VpnOwnerSnapshotWire.parse(
-            publisher.publish(facts.copy(
-                vpnState = VpnOwnerLifecycleWire.Stopping,
-                readiness = VpnOwnerReadinessWire.Stopping,
-            )),
+            publisher.publish(
+                facts.copy(
+                    vpnState = VpnOwnerLifecycleWire.Stopping,
+                    readiness = VpnOwnerReadinessWire.Stopping,
+                ),
+            ),
         ) ?: error("changed snapshot must parse")
 
         assertEquals(1L, first.revision)

@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.net.VpnService
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
@@ -16,13 +16,13 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import infiltrator_android.AndroidControlIntent
-import infiltrator_android.FfiErrorCode
 import infiltrator_android.AndroidVpnConfigurationActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationReleaseResult
 import infiltrator_android.AndroidVpnRoutingActivationResult
-import infiltrator_android.androidBeginVpnRoutingActivation
+import infiltrator_android.FfiErrorCode
 import infiltrator_android.androidBeginVpnConfigurationActivation
+import infiltrator_android.androidBeginVpnRoutingActivation
 import infiltrator_android.androidControl
 import infiltrator_android.androidFinishVpnConfigurationActivation
 import infiltrator_android.androidFinishVpnRoutingActivation
@@ -30,25 +30,22 @@ import infiltrator_android.cancelVpnPreparation
 import infiltrator_android.prepareVpn
 import infiltrator_android.startVpn
 import infiltrator_android.stopVpnWorker
+import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
-
 
 internal fun MihomoVpnService.createNotificationChannel() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val serviceChannel = NotificationChannel(
-            MihomoVpnService.CHANNEL_ID,
-            getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_LOW // Low priority to avoid annoying sounds
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(serviceChannel)
-    }
+    val serviceChannel = NotificationChannel(
+        MihomoVpnService.CHANNEL_ID,
+        getString(R.string.notification_channel_name),
+        NotificationManager.IMPORTANCE_LOW, // Low priority to avoid annoying sounds
+    )
+    val manager = getSystemService(NotificationManager::class.java)
+    manager.createNotificationChannel(serviceChannel)
 }
 
 internal fun MihomoVpnService.promoteToForeground(statusText: String): VpnForegroundPromotion =
@@ -69,13 +66,13 @@ internal fun MihomoVpnService.promoteToForeground(notification: Notification): V
     VpnForegroundPromotion.Failed(error.message ?: "Failed to enter foreground")
 }
 
-internal fun MihomoVpnService.createNotification(
-    statusText: String,
-    actionMode: VpnServiceNotificationActionMode,
-): Notification {
+internal fun MihomoVpnService.createNotification(statusText: String, actionMode: VpnServiceNotificationActionMode): Notification {
     val mainIntent = Intent().setClassName(this, getString(R.string.notification_activity))
     val pendingMainIntent = PendingIntent.getActivity(
-        this, 0, mainIntent, PendingIntent.FLAG_IMMUTABLE
+        this,
+        0,
+        mainIntent,
+        PendingIntent.FLAG_IMMUTABLE,
     )
     val builder = NotificationCompat.Builder(this, MihomoVpnService.CHANNEL_ID)
         .setContentTitle(getString(R.string.notification_title))
@@ -102,8 +99,8 @@ internal fun MihomoVpnService.createNotification(
                 pendingStopIntent,
             )
         }
+
         VpnServiceNotificationActionMode.SystemManaged -> Unit
     }
     return builder.build()
 }
-

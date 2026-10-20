@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.net.VpnService
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
@@ -16,13 +16,13 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import infiltrator_android.AndroidControlIntent
-import infiltrator_android.FfiErrorCode
 import infiltrator_android.AndroidVpnConfigurationActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationReleaseResult
 import infiltrator_android.AndroidVpnRoutingActivationResult
-import infiltrator_android.androidBeginVpnRoutingActivation
+import infiltrator_android.FfiErrorCode
 import infiltrator_android.androidBeginVpnConfigurationActivation
+import infiltrator_android.androidBeginVpnRoutingActivation
 import infiltrator_android.androidControl
 import infiltrator_android.androidFinishVpnConfigurationActivation
 import infiltrator_android.androidFinishVpnRoutingActivation
@@ -30,14 +30,13 @@ import infiltrator_android.cancelVpnPreparation
 import infiltrator_android.prepareVpn
 import infiltrator_android.startVpn
 import infiltrator_android.stopVpnWorker
+import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
-
 
 internal fun MihomoVpnService.readServiceCommand(intent: Intent?): VpnServiceCommandExtra {
     if (intent == null || !intent.hasExtra(MihomoVpnService.EXTRA_COMMAND)) return VpnServiceCommandExtra.Missing
@@ -65,18 +64,15 @@ internal fun MihomoVpnService.readServiceDelivery(flags: Int): VpnServiceDeliver
 }
 
 internal fun MihomoVpnService.readAlwaysOnObservation(): VpnAlwaysOnObservation = when {
-    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> VpnAlwaysOnObservation.NotQueryable
     isAlwaysOn -> VpnAlwaysOnObservation.Enabled
     else -> VpnAlwaysOnObservation.Disabled
 }
 
-internal fun MihomoVpnService.startSystemManagedProxy(
-    startId: Int,
-    decision: VpnServiceStartupDecision.RestoreSystemManagedProxy,
-): Int {
+internal fun MihomoVpnService.startSystemManagedProxy(startId: Int, decision: VpnServiceStartupDecision.RestoreSystemManagedProxy): Int {
     notificationActionMode = VpnServiceNotificationActionMode.SystemManaged
     when (val promotion = promoteToForeground(getString(R.string.notification_starting))) {
         VpnForegroundPromotion.Promoted -> Unit
+
         is VpnForegroundPromotion.Failed -> {
             Log.e(MihomoVpnService.TAG, "Always-on VPN service could not enter foreground: ${promotion.reason}")
             stopSelfResult(startId)
@@ -117,14 +113,17 @@ internal fun MihomoVpnService.dispatchSystemManagedProxyStart(
     }
     when (val readiness = awaitCoreOwnerSession(application, deadline)) {
         is VpnOwnerSessionWaitOutcome.Ready -> Unit
+
         is VpnOwnerSessionWaitOutcome.Failed -> {
             showSystemManagedStartupFailure(startId, readiness.reason)
             return
         }
+
         VpnOwnerSessionWaitOutcome.TimedOut -> {
             showSystemManagedStartupFailure(startId, "Core owner initialization timed out")
             return
         }
+
         VpnOwnerSessionWaitOutcome.Interrupted -> {
             showSystemManagedStartupFailure(startId, "Core owner initialization was interrupted")
             return
@@ -142,6 +141,7 @@ internal fun MihomoVpnService.dispatchSystemManagedProxyStart(
     }
     when (status.code) {
         FfiErrorCode.OK -> showSystemManagedStartupStatus(getString(R.string.notification_active))
+
         else -> showSystemManagedStartupFailure(
             startId,
             status.message ?: "Always-on proxy start failed",
@@ -169,7 +169,9 @@ internal fun MihomoVpnService.awaitCoreOwnerSession(
             )
         ) {
             is VpnOwnerSessionWaitDirective.Complete -> return directive.outcome
+
             is VpnOwnerSessionWaitDirective.Wait -> try {
+                // ARCH-REDLINE: the typed owner wait directive is bounded and runs on the VPN worker thread
                 Thread.sleep(directive.millis)
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -183,20 +185,27 @@ internal fun MihomoVpnService.showSystemManagedStartupFailure(startId: Int, reas
     Log.e(MihomoVpnService.TAG, reason)
     when (serviceAdmission.phase()) {
         VpnServiceAdmissionPhase.Accepting -> Unit
+
         VpnServiceAdmissionPhase.Destroying,
-        VpnServiceAdmissionPhase.Destroyed -> return
+        VpnServiceAdmissionPhase.Destroyed,
+        -> return
     }
     val snapshot = MihomoVpnService.lifecycle.snapshot()
     when (snapshot.state) {
         VpnProcessState.Running -> Unit
+
         VpnProcessState.StartRequested,
         VpnProcessState.Starting,
         VpnProcessState.Foreground,
-        VpnProcessState.TunnelEstablished -> cleanupFailedStart(snapshot.generation, startId, reason)
+        VpnProcessState.TunnelEstablished,
+        -> cleanupFailedStart(snapshot.generation, startId, reason)
+
         VpnProcessState.Stopping -> Unit
+
         VpnProcessState.Stopped,
         VpnProcessState.Revoked,
-        is VpnProcessState.Failed -> MihomoVpnService.lifecycle.failUnrequestedRestart(reason)
+        is VpnProcessState.Failed,
+        -> MihomoVpnService.lifecycle.failUnrequestedRestart(reason)
     }
     showSystemManagedStartupStatus("${getString(R.string.notification_start_failed)}: $reason")
 }
@@ -212,4 +221,3 @@ internal fun MihomoVpnService.showSystemManagedStartupStatus(status: String) {
         manager.notify(MihomoVpnService.NOTIFICATION_ID, notification)
     }
 }
-

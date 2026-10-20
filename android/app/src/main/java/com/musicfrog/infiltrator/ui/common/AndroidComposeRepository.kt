@@ -37,11 +37,9 @@ internal interface AndroidComposeRepository {
 internal object UniFfiAndroidComposeRepository : AndroidComposeRepository {
     override suspend fun readOwnerSurface(): OwnerSurfaceRead = readOwnerSurfaceSnapshot()
 
-    override suspend fun executeProductCommand(commandJson: String): String =
-        androidExecuteProductCommandJson(commandJson)
+    override suspend fun executeProductCommand(commandJson: String): String = androidExecuteProductCommandJson(commandJson)
 
-    override suspend fun readCoreLifecycle(): AndroidCoreLifecycleResult =
-        androidCoreLifecycleStatus()
+    override suspend fun readCoreLifecycle(): AndroidCoreLifecycleResult = androidCoreLifecycleStatus()
 
     override suspend fun checkPublicIp(): IpResult = ipCheck()
 }

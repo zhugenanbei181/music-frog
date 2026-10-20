@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator.ui.settings.routing
 
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
@@ -20,40 +21,31 @@ import kotlinx.coroutines.withContext
 
 internal sealed interface AppRoutingRepositoryResult {
     data class Completed(val observation: AppRoutingObservation) : AppRoutingRepositoryResult
-    data class Failed(
-        val failure: AppFailure,
-        val latestSnapshot: AcceptedAppRoutingSnapshot,
-    ) : AppRoutingRepositoryResult
-    data class Cancelled(
-        val failure: AppFailure,
-        val latestSnapshot: AcceptedAppRoutingSnapshot,
-    ) : AppRoutingRepositoryResult
+    data class Failed(val failure: AppFailure, val latestSnapshot: AcceptedAppRoutingSnapshot) : AppRoutingRepositoryResult
+    data class Cancelled(val failure: AppFailure, val latestSnapshot: AcceptedAppRoutingSnapshot) : AppRoutingRepositoryResult
     data class TimedOut(val failure: AppFailure) : AppRoutingRepositoryResult
 }
 
 internal interface AppRoutingRepository {
-    suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): AppRoutingRepositoryResult
+    suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AppRoutingRepositoryResult
 }
 
 internal object UniFfiAppRoutingRepository : AppRoutingRepository {
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): AppRoutingRepositoryResult {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AppRoutingRepositoryResult {
         val exchange = UniFfiAndroidOwnerOperationGateway.execute(operation, timeoutMs)
         return when (exchange) {
             is AndroidOwnerOperationExchange.Completed -> exchange.reply.toAppRoutingRepositoryResult()
+
             is AndroidOwnerOperationExchange.Failed -> AppRoutingRepositoryResult.Failed(
                 exchange.failure,
                 AcceptedAppRoutingSnapshot.Missing,
             )
+
             is AndroidOwnerOperationExchange.Cancelled -> AppRoutingRepositoryResult.Cancelled(
                 exchange.failure,
                 AcceptedAppRoutingSnapshot.Missing,
             )
+
             is AndroidOwnerOperationExchange.TimedOut -> AppRoutingRepositoryResult.TimedOut(exchange.failure)
         }
     }
@@ -68,14 +60,18 @@ private fun AndroidOwnerOperationReply.toAppRoutingRepositoryResult(): AppRoutin
                     localizedFailure(FailureTextKey.NotReady).toAppFailure(),
                     ownerSnapshot,
                 )
+
                 else -> AppRoutingRepositoryResult.Completed(snapshot.toObservation(this))
             }
+
             FfiErrorCode.CANCELED -> AppRoutingRepositoryResult.Cancelled(
                 readback.v1.status.toAppFailure(),
                 ownerSnapshot,
             )
+
             else -> AppRoutingRepositoryResult.Failed(readback.v1.status.toAppFailure(), ownerSnapshot)
         }
+
         else -> AppRoutingRepositoryResult.Failed(
             localizedFailure(FailureTextKey.Internal).toAppFailure(),
             ownerSnapshot,
@@ -92,15 +88,15 @@ private fun AndroidOwnerOperationReply.latestAppRoutingSnapshot(): AcceptedAppRo
                 null -> AcceptedAppRoutingSnapshot.Missing
                 else -> AcceptedAppRoutingSnapshot.Present(value.toObservation(this))
             }
+
             else -> AcceptedAppRoutingSnapshot.Missing
         }
     }
+
     else -> AcceptedAppRoutingSnapshot.Missing
 }
 
-private fun AndroidAppRoutingSnapshot.toObservation(
-    reply: AndroidOwnerOperationReply,
-): AppRoutingObservation = AppRoutingObservation(
+private fun AndroidAppRoutingSnapshot.toObservation(reply: AndroidOwnerOperationReply): AppRoutingObservation = AppRoutingObservation(
     mode = mode,
     selectedPackages = packages.toSet(),
     ownerSessionId = reply.context.ownerSessionId,
@@ -115,11 +111,15 @@ internal interface InstalledAppsProvider {
 }
 
 /** Android PackageManager access stays separate from the owner operation repository. */
-internal class PackageManagerInstalledAppsProvider(
-    private val packageManager: PackageManager,
-) : InstalledAppsProvider {
+internal class PackageManagerInstalledAppsProvider(private val packageManager: PackageManager) : InstalledAppsProvider {
     override suspend fun loadInstalledApps(): List<AppItem> = withContext(Dispatchers.IO) {
-        packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        // Android 11 and later only expose the applications that the manifest
+        // declares in its `<queries>` element, so the launchable applications
+        // are queried instead of every installed package.
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        packageManager.queryIntentActivities(launcherIntent, 0)
+            .map { resolveInfo -> resolveInfo.activityInfo.applicationInfo }
+            .distinctBy { applicationInfo -> applicationInfo.packageName }
             .map { applicationInfo -> applicationInfo.toAppItem() }
             .sortedBy { app -> app.name.lowercase() }
     }

@@ -28,7 +28,8 @@ internal enum class OwnerIpcPendingCompletion {
 
 internal enum class OwnerBindAcceptance {
     Accepted,
-    Rejected;
+    Rejected,
+    ;
 
     companion object {
         fun fromPlatformResult(accepted: Boolean): OwnerBindAcceptance = when (accepted) {
@@ -48,15 +49,10 @@ internal sealed interface OwnerIpcPendingCancellation {
     data object Unknown : OwnerIpcPendingCancellation
 }
 
-internal data class OwnerIpcPendingFailure(
-    val requestId: Long,
-    val terminal: OwnerClientTerminal,
-)
+internal data class OwnerIpcPendingFailure(val requestId: Long, val terminal: OwnerClientTerminal)
 
 /** Pure request ledger shared by the Binder client and JVM fake transport tests. */
-internal class OwnerIpcClientPendingLedger(
-    private val capacity: Int = DEFAULT_CAPACITY,
-) {
+internal class OwnerIpcClientPendingLedger(private val capacity: Int = DEFAULT_CAPACITY) {
     private val requests = linkedMapOf<Long, OwnerIpcPendingDispatch>()
 
     init {
@@ -66,7 +62,9 @@ internal class OwnerIpcClientPendingLedger(
     @Synchronized
     fun admit(requestId: Long): OwnerIpcPendingAdmission = when {
         requests.containsKey(requestId) -> OwnerIpcPendingAdmission.DuplicateRequestId
+
         requests.size >= capacity -> OwnerIpcPendingAdmission.CapacityExceeded
+
         else -> {
             requests[requestId] = OwnerIpcPendingDispatch.WaitingForBinding
             OwnerIpcPendingAdmission.Admitted
@@ -79,8 +77,11 @@ internal class OwnerIpcClientPendingLedger(
             requests[requestId] = OwnerIpcPendingDispatch.Sent
             OwnerIpcPendingSendAdmission.Sent
         }
+
         OwnerIpcPendingDispatch.Sent -> OwnerIpcPendingSendAdmission.AlreadySent
+
         OwnerIpcPendingDispatch.CancellationSent -> OwnerIpcPendingSendAdmission.CancellationPending
+
         null -> OwnerIpcPendingSendAdmission.Unknown
     }
 
@@ -90,11 +91,14 @@ internal class OwnerIpcClientPendingLedger(
             requests.remove(requestId)
             OwnerIpcPendingCancellation.CanceledBeforeDispatch
         }
+
         OwnerIpcPendingDispatch.Sent -> {
             requests[requestId] = OwnerIpcPendingDispatch.CancellationSent
             OwnerIpcPendingCancellation.CancelSentRequest
         }
+
         OwnerIpcPendingDispatch.CancellationSent -> OwnerIpcPendingCancellation.AlreadyCanceled
+
         null -> OwnerIpcPendingCancellation.Unknown
     }
 

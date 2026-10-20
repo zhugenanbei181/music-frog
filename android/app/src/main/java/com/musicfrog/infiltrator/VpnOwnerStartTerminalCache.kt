@@ -7,10 +7,7 @@ internal sealed interface VpnOwnerStartReplayLookup<out T> {
 }
 
 /** Bounded same-request-ID terminal replay window for starts after caller timeout. */
-internal class VpnOwnerStartTerminalCache<T>(
-    private val capacity: Int = 128,
-    private val retentionMillis: Long = 60_000L,
-) {
+internal class VpnOwnerStartTerminalCache<T>(private val capacity: Int = 128, private val retentionMillis: Long = 60_000L) {
     init {
         require(capacity > 0)
         require(retentionMillis > 0L)
@@ -19,21 +16,14 @@ internal class VpnOwnerStartTerminalCache<T>(
     private val terminals = linkedMapOf<VpnOwnerRequestKey, Entry<T>>()
 
     @Synchronized
-    fun read(
-        key: VpnOwnerRequestKey,
-        nowElapsedRealtimeMillis: Long,
-    ): VpnOwnerStartReplayLookup<T> {
+    fun read(key: VpnOwnerRequestKey, nowElapsedRealtimeMillis: Long): VpnOwnerStartReplayLookup<T> {
         pruneExpired(nowElapsedRealtimeMillis)
         val entry = terminals[key] ?: return VpnOwnerStartReplayLookup.Miss
         return VpnOwnerStartReplayLookup.Hit(entry.response)
     }
 
     @Synchronized
-    fun store(
-        key: VpnOwnerRequestKey,
-        response: T,
-        nowElapsedRealtimeMillis: Long,
-    ) {
+    fun store(key: VpnOwnerRequestKey, response: T, nowElapsedRealtimeMillis: Long) {
         require(nowElapsedRealtimeMillis > 0L)
         pruneExpired(nowElapsedRealtimeMillis)
         terminals.remove(key)
@@ -59,11 +49,7 @@ internal class VpnOwnerStartTerminalCache<T>(
         expired.forEach { terminals.remove(it) }
     }
 
-    private fun saturatingAdd(first: Long, second: Long): Long =
-        if (Long.MAX_VALUE - first < second) Long.MAX_VALUE else first + second
+    private fun saturatingAdd(first: Long, second: Long): Long = if (Long.MAX_VALUE - first < second) Long.MAX_VALUE else first + second
 
-    private data class Entry<T>(
-        val response: T,
-        val expiresAtElapsedRealtimeMillis: Long,
-    )
+    private data class Entry<T>(val response: T, val expiresAtElapsedRealtimeMillis: Long)
 }

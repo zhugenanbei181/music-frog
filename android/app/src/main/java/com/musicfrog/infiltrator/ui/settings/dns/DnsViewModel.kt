@@ -41,23 +41,24 @@ internal data class DnsUiState(
     val activity: DnsActivity
         get() = when (operation) {
             DnsSettingsOperationState.Reading,
-            DnsSettingsOperationState.Saving -> DnsActivity.Busy
+            DnsSettingsOperationState.Saving,
+            -> DnsActivity.Busy
+
             DnsSettingsOperationState.Idle,
             is DnsSettingsOperationState.Saved,
             is DnsSettingsOperationState.Failed,
             is DnsSettingsOperationState.Cancelled,
             is DnsSettingsOperationState.TimedOut,
-            is DnsSettingsOperationState.Unconfirmed -> DnsActivity.Interactive
+            is DnsSettingsOperationState.Unconfirmed,
+            -> DnsActivity.Interactive
         }
 }
 
-internal class DnsViewModel(
-    private val repository: DnsRepository,
-) : ViewModel() {
+internal class DnsViewModel(private val repository: DnsRepository) : ViewModel() {
     constructor() : this(UniFfiDnsRepository())
 
     private val _state = MutableStateFlow(DnsUiState())
-    internal val state: StateFlow<DnsUiState> = _state.asStateFlow()
+    val state: StateFlow<DnsUiState> = _state.asStateFlow()
 
     private var requestSequence = 0uL
     private var latestRequestId = DnsRequestId(0uL)
@@ -127,13 +128,16 @@ internal class DnsViewModel(
             is DnsSettingsOperationState.Failed,
             is DnsSettingsOperationState.Cancelled,
             is DnsSettingsOperationState.TimedOut,
-            is DnsSettingsOperationState.Unconfirmed -> {
+            is DnsSettingsOperationState.Unconfirmed,
+            -> {
                 _state.value = _state.value.copy(operation = DnsSettingsOperationState.Idle)
             }
+
             DnsSettingsOperationState.Idle,
             DnsSettingsOperationState.Reading,
             DnsSettingsOperationState.Saving,
-            is DnsSettingsOperationState.Saved -> Unit
+            is DnsSettingsOperationState.Saved,
+            -> Unit
         }
     }
 
@@ -157,27 +161,32 @@ internal class DnsViewModel(
         return when (result) {
             is DnsRepositoryResult.Completed -> when (accept(result.point, DnsSettingsOperationState.Idle)) {
                 DnsSnapshotAdmission.Accepted -> DnsRequestOutcome.Accepted
+
                 DnsSnapshotAdmission.Stale -> {
                     failRead(notReadyFailure())
                     DnsRequestOutcome.Rejected
                 }
             }
+
             is DnsRepositoryResult.Failed -> {
                 acceptLatest(result.latest)
                 failRead(result.failure)
                 DnsRequestOutcome.Rejected
             }
+
             is DnsRepositoryResult.Cancelled -> {
                 acceptLatest(result.latest)
                 markUnavailable(result.failure)
                 _state.value = _state.value.copy(operation = DnsSettingsOperationState.Cancelled(result.failure))
                 DnsRequestOutcome.Rejected
             }
+
             is DnsRepositoryResult.TimedOut -> {
                 markUnavailable(result.failure)
                 _state.value = _state.value.copy(operation = DnsSettingsOperationState.TimedOut(result.failure))
                 DnsRequestOutcome.Rejected
             }
+
             is DnsRepositoryResult.Unconfirmed -> {
                 acceptLatest(result.latest)
                 markUnavailable(result.failure)
@@ -187,11 +196,7 @@ internal class DnsViewModel(
         }
     }
 
-    private fun handleWriteResult(
-        result: DnsRepositoryResult,
-        request: DnsRequestId,
-        intent: DnsSaveIntent,
-    ): DnsRequestOutcome {
+    private fun handleWriteResult(result: DnsRepositoryResult, request: DnsRequestId, intent: DnsSaveIntent): DnsRequestOutcome {
         when (requestAdmission(request)) {
             DnsRequestAdmission.Superseded -> return DnsRequestOutcome.Superseded
             DnsRequestAdmission.Current -> Unit
@@ -206,31 +211,39 @@ internal class DnsViewModel(
                     setUnconfirmed(notReadyFailure())
                     DnsRequestOutcome.Rejected
                 }
-                else -> when (accept(
-                    result.point,
-                    DnsSettingsOperationState.Saved(result.point.revision),
-                )) {
+
+                else -> when (
+                    accept(
+                        result.point,
+                        DnsSettingsOperationState.Saved(result.point.revision),
+                    )
+                ) {
                     DnsSnapshotAdmission.Accepted -> DnsRequestOutcome.Accepted
+
                     DnsSnapshotAdmission.Stale -> {
                         setUnconfirmed(notReadyFailure())
                         DnsRequestOutcome.Rejected
                     }
                 }
             }
+
             is DnsRepositoryResult.Failed -> {
                 acceptLatest(result.latest)
                 _state.value = _state.value.copy(operation = DnsSettingsOperationState.Failed(result.failure))
                 DnsRequestOutcome.Rejected
             }
+
             is DnsRepositoryResult.Cancelled -> {
                 acceptLatest(result.latest)
                 _state.value = _state.value.copy(operation = DnsSettingsOperationState.Cancelled(result.failure))
                 DnsRequestOutcome.Rejected
             }
+
             is DnsRepositoryResult.TimedOut -> {
                 _state.value = _state.value.copy(operation = DnsSettingsOperationState.TimedOut(result.failure))
                 DnsRequestOutcome.Rejected
             }
+
             is DnsRepositoryResult.Unconfirmed -> {
                 acceptLatest(result.latest)
                 setUnconfirmed(result.failure)
@@ -239,16 +252,15 @@ internal class DnsViewModel(
         }
     }
 
-    private fun accept(
-        point: DnsSettingsObservationPoint,
-        operation: DnsSettingsOperationState,
-    ): DnsSnapshotAdmission = when (acceptsDnsRevision(_state.value.observation, point.revision)) {
-        DnsSnapshotAdmission.Accepted -> {
-            acceptSettings(point, operation)
-            DnsSnapshotAdmission.Accepted
+    private fun accept(point: DnsSettingsObservationPoint, operation: DnsSettingsOperationState): DnsSnapshotAdmission =
+        when (acceptsDnsRevision(_state.value.observation, point.revision)) {
+            DnsSnapshotAdmission.Accepted -> {
+                acceptSettings(point, operation)
+                DnsSnapshotAdmission.Accepted
+            }
+
+            DnsSnapshotAdmission.Stale -> DnsSnapshotAdmission.Stale
         }
-        DnsSnapshotAdmission.Stale -> DnsSnapshotAdmission.Stale
-    }
 
     private fun acceptLatest(point: DnsSettingsObservationPoint?) {
         when (point) {
@@ -257,10 +269,7 @@ internal class DnsViewModel(
         }
     }
 
-    private fun acceptSettings(
-        point: DnsSettingsObservationPoint,
-        operation: DnsSettingsOperationState,
-    ) {
+    private fun acceptSettings(point: DnsSettingsObservationPoint, operation: DnsSettingsOperationState) {
         val settings = point.value
         val fallbackFilter = settings.fallbackFilter
         _state.value = DnsUiState(

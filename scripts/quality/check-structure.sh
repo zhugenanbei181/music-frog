@@ -52,6 +52,8 @@ python3 scripts/quality/android-owner-client-guard.py
 python3 scripts/quality/android-vpn-lifecycle-guard.py --self-test
 python3 scripts/quality/android-vpn-lifecycle-guard.py
 python3 scripts/quality/android-manifest-contract-guard.py
+python3 scripts/quality/android-architecture-redline-guard.py --self-test
+python3 scripts/quality/android-architecture-redline-guard.py --mode enforce
 python3 scripts/quality/android-so-combination-guard.py --self-test
 python3 scripts/quality/android-so-combination-guard.py
 python3 scripts/quality/verify-packaging.py

@@ -29,8 +29,7 @@ class ManifestDeclarationsTest {
             PackageManager.GET_META_DATA,
     )
 
-    private fun service(name: String): ServiceInfo? =
-        packageInfo.services?.firstOrNull { it.name.substringAfterLast('.') == name }
+    private fun service(name: String): ServiceInfo? = packageInfo.services?.firstOrNull { it.name.substringAfterLast('.') == name }
 
     @Test
     fun launcherMatchesTheInstalledProductFlavor() {
@@ -79,8 +78,10 @@ class ManifestDeclarationsTest {
         assertEquals("android.permission.BIND_VPN_SERVICE", vpn.permission)
         assertEquals(true, vpn.exported)
         assertTrue("MihomoVpnService must share the :vpn owner process", vpn.processName.endsWith(":vpn"))
+        // `ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED` was added in API 34
+        // and is 0x40000000.
         assertEquals(
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
+            0x40000000,
             vpn.foregroundServiceType,
         )
         assertEquals(

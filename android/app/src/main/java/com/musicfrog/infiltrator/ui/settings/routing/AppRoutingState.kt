@@ -41,26 +41,17 @@ internal sealed interface AcceptedAppRoutingSnapshot {
 }
 
 internal sealed interface AppRoutingSnapshotState {
-    data class Loading(
-        val lastAccepted: AcceptedAppRoutingSnapshot = AcceptedAppRoutingSnapshot.Missing,
-    ) : AppRoutingSnapshotState
+    data class Loading(val lastAccepted: AcceptedAppRoutingSnapshot = AcceptedAppRoutingSnapshot.Missing) : AppRoutingSnapshotState
 
     data class Observed(val observation: AppRoutingObservation) : AppRoutingSnapshotState
 
-    data class Unavailable(
-        val lastAccepted: AcceptedAppRoutingSnapshot,
-    ) : AppRoutingSnapshotState
+    data class Unavailable(val lastAccepted: AcceptedAppRoutingSnapshot) : AppRoutingSnapshotState
 }
 
 internal sealed interface InstalledAppsState {
-    data class Loading(
-        val lastAccepted: AcceptedInstalledApps = AcceptedInstalledApps.Missing,
-    ) : InstalledAppsState
+    data class Loading(val lastAccepted: AcceptedInstalledApps = AcceptedInstalledApps.Missing) : InstalledAppsState
     data class Available(val apps: List<AppItem>) : InstalledAppsState
-    data class Unavailable(
-        val lastAccepted: AcceptedInstalledApps,
-        val failure: AppFailure,
-    ) : InstalledAppsState
+    data class Unavailable(val lastAccepted: AcceptedInstalledApps, val failure: AppFailure) : InstalledAppsState
 }
 
 internal sealed interface AcceptedInstalledApps {
@@ -79,10 +70,7 @@ internal sealed interface AppRoutingOperationState {
 
 internal sealed interface AppRoutingModeState {
     data object Unavailable : AppRoutingModeState
-    data class Available(
-        val mode: AndroidAppRoutingMode,
-        val freshness: AppRoutingSnapshotFreshness,
-    ) : AppRoutingModeState
+    data class Available(val mode: AndroidAppRoutingMode, val freshness: AppRoutingSnapshotFreshness) : AppRoutingModeState
 }
 
 internal enum class AppRoutingSnapshotFreshness {
@@ -114,8 +102,7 @@ internal fun AppRoutingSnapshotState.lastAccepted(): AcceptedAppRoutingSnapshot 
     is AppRoutingSnapshotState.Unavailable -> lastAccepted
 }
 
-internal fun AppRoutingSnapshotState.markUnavailable(): AppRoutingSnapshotState =
-    AppRoutingSnapshotState.Unavailable(lastAccepted())
+internal fun AppRoutingSnapshotState.markUnavailable(): AppRoutingSnapshotState = AppRoutingSnapshotState.Unavailable(lastAccepted())
 
 internal fun InstalledAppsState.lastAccepted(): AcceptedInstalledApps = when (this) {
     is InstalledAppsState.Loading -> lastAccepted
@@ -123,52 +110,53 @@ internal fun InstalledAppsState.lastAccepted(): AcceptedInstalledApps = when (th
     is InstalledAppsState.Unavailable -> lastAccepted
 }
 
-internal fun admitAppRoutingSnapshot(
-    current: AcceptedAppRoutingSnapshot,
-    incoming: AppRoutingObservation,
-): AppRoutingSnapshotAdmission = when (current) {
-    AcceptedAppRoutingSnapshot.Missing -> AppRoutingSnapshotAdmission.Accepted
-    is AcceptedAppRoutingSnapshot.Present -> {
-        val previous = current.observation
-        if (previous.ownerSessionId != incoming.ownerSessionId ||
-            previous.revision.generation != incoming.revision.generation
-        ) {
-            AppRoutingSnapshotAdmission.Accepted
-        } else {
-            when {
-                incoming.revision.revision < previous.revision.revision -> AppRoutingSnapshotAdmission.Stale
-                incoming.revision.revision > previous.revision.revision -> AppRoutingSnapshotAdmission.Accepted
-                previous.mode == incoming.mode && previous.selectedPackages == incoming.selectedPackages -> {
-                    AppRoutingSnapshotAdmission.Accepted
+internal fun admitAppRoutingSnapshot(current: AcceptedAppRoutingSnapshot, incoming: AppRoutingObservation): AppRoutingSnapshotAdmission =
+    when (current) {
+        AcceptedAppRoutingSnapshot.Missing -> AppRoutingSnapshotAdmission.Accepted
+
+        is AcceptedAppRoutingSnapshot.Present -> {
+            val previous = current.observation
+            if (previous.ownerSessionId != incoming.ownerSessionId ||
+                previous.revision.generation != incoming.revision.generation
+            ) {
+                AppRoutingSnapshotAdmission.Accepted
+            } else {
+                when {
+                    incoming.revision.revision < previous.revision.revision -> AppRoutingSnapshotAdmission.Stale
+
+                    incoming.revision.revision > previous.revision.revision -> AppRoutingSnapshotAdmission.Accepted
+
+                    previous.mode == incoming.mode && previous.selectedPackages == incoming.selectedPackages -> {
+                        AppRoutingSnapshotAdmission.Accepted
+                    }
+
+                    else -> AppRoutingSnapshotAdmission.Conflict
                 }
-                else -> AppRoutingSnapshotAdmission.Conflict
             }
         }
     }
-}
 
 internal fun appRoutingModeState(state: AppRoutingSnapshotState): AppRoutingModeState = when (state) {
     is AppRoutingSnapshotState.Observed -> AppRoutingModeState.Available(
         state.observation.mode,
         AppRoutingSnapshotFreshness.Current,
     )
+
     is AppRoutingSnapshotState.Loading -> state.lastAccepted.toModeState()
+
     is AppRoutingSnapshotState.Unavailable -> state.lastAccepted.toModeState()
 }
 
 private fun AcceptedAppRoutingSnapshot.toModeState(): AppRoutingModeState = when (this) {
     AcceptedAppRoutingSnapshot.Missing -> AppRoutingModeState.Unavailable
+
     is AcceptedAppRoutingSnapshot.Present -> AppRoutingModeState.Available(
         observation.mode,
         AppRoutingSnapshotFreshness.Retained,
     )
 }
 
-internal fun visibleAppItems(
-    installedApps: InstalledAppsState,
-    query: String,
-    snapshot: AppRoutingSnapshotState,
-): List<AppItem> {
+internal fun visibleAppItems(installedApps: InstalledAppsState, query: String, snapshot: AppRoutingSnapshotState): List<AppItem> {
     val apps = when (installedApps) {
         is InstalledAppsState.Loading -> installedApps.lastAccepted.appsOrEmpty()
         is InstalledAppsState.Available -> installedApps.apps

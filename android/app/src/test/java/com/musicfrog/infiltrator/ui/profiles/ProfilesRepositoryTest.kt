@@ -6,10 +6,10 @@ import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.AppFailureCode
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
+import infiltrator_android.AndroidActiveProfileReferenceObservation
 import infiltrator_android.AndroidOwnerDataDomain
 import infiltrator_android.AndroidOwnerDataSnapshot
 import infiltrator_android.AndroidOwnerDataSnapshotData
-import infiltrator_android.AndroidActiveProfileReferenceObservation
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.AndroidOwnerOperationContext
 import infiltrator_android.AndroidOwnerOperationProtocolVersion
@@ -179,17 +179,13 @@ class ProfilesRepositoryTest {
         )
     }
 
-    private fun repository(
-        handle: suspend (AndroidOwnerOperation) -> AndroidOwnerOperationExchange,
-    ) = UniFfiProfilesRepository(object : AndroidOwnerOperationGateway {
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): AndroidOwnerOperationExchange = handle(operation)
-    })
+    private fun repository(handle: suspend (AndroidOwnerOperation) -> AndroidOwnerOperationExchange) =
+        UniFfiProfilesRepository(object : AndroidOwnerOperationGateway {
+            override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AndroidOwnerOperationExchange =
+                handle(operation)
+        })
 
-    private fun clientCompleted(reply: AndroidOwnerOperationReply) =
-        AndroidOwnerOperationExchange.Completed(reply)
+    private fun clientCompleted(reply: AndroidOwnerOperationReply) = AndroidOwnerOperationExchange.Completed(reply)
 
     private fun reply(
         operation: AndroidOwnerOperation,
@@ -200,9 +196,11 @@ class ProfilesRepositoryTest {
         val profilesResult = ProfilesResult(testFfiStatus(FfiErrorCode.OK), profiles)
         val readback = when (operation) {
             AndroidOwnerOperation.ProfilesList -> AndroidOwnerOperationReadback.ProfilesList(profilesResult)
+
             is AndroidOwnerOperation.ProfileDetail -> AndroidOwnerOperationReadback.ProfileDetail(
                 ProfileDetailResult(status, profileDetail),
             )
+
             is AndroidOwnerOperation.ProfileSelect -> AndroidOwnerOperationReadback.ProfileSelection(
                 AndroidProfileSelectionReadback(
                     operationStatus = status,
@@ -212,17 +210,22 @@ class ProfilesRepositoryTest {
                     ),
                 ),
             )
+
             is AndroidOwnerOperation.ProfileCreate,
             is AndroidOwnerOperation.ProfileUpdate,
             is AndroidOwnerOperation.ProfileSave,
             is AndroidOwnerOperation.ProfileDelete,
             is AndroidOwnerOperation.ProfileSubscriptionSave,
-            is AndroidOwnerOperation.ProfileSubscriptionClear -> AndroidOwnerOperationReadback.ProfileMutation(status)
+            is AndroidOwnerOperation.ProfileSubscriptionClear,
+            -> AndroidOwnerOperationReadback.ProfileMutation(status)
+
             else -> throw IllegalArgumentException("Not a Profiles operation: $operation")
         }
         val operationRevision = when (operation) {
             AndroidOwnerOperation.ProfilesList,
-            is AndroidOwnerOperation.ProfileDetail -> 0uL
+            is AndroidOwnerOperation.ProfileDetail,
+            -> 0uL
+
             else -> 1uL
         }
         return AndroidOwnerOperationReply(

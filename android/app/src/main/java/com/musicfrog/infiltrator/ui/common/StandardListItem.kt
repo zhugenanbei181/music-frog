@@ -17,7 +17,7 @@ fun StandardListItem(
     leadingContent: @Composable (() -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    containerColor: Color = Color.Transparent
+    containerColor: Color = Color.Transparent,
 ) {
     ListItem(
         headlineContent = { Text(headline) },
@@ -25,11 +25,11 @@ fun StandardListItem(
         leadingContent = leadingContent,
         trailingContent = trailingContent,
         modifier = Modifier.then(
-            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
         ),
         colors = ListItemDefaults.colors(
-            containerColor = containerColor
-        )
+            containerColor = containerColor,
+        ),
     )
 }
 
@@ -41,7 +41,7 @@ fun StandardListItem(
     leadingIcon: ImageVector, // Not nullable, to avoid ambiguity
     trailingContent: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    containerColor: Color = Color.Transparent
+    containerColor: Color = Color.Transparent,
 ) {
     StandardListItem(
         headline = headline,
@@ -49,6 +49,6 @@ fun StandardListItem(
         leadingContent = { Icon(leadingIcon, contentDescription = null) },
         trailingContent = trailingContent,
         onClick = onClick,
-        containerColor = containerColor
+        containerColor = containerColor,
     )
 }

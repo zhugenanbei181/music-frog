@@ -1,12 +1,12 @@
 package com.musicfrog.infiltrator
 
-import java.io.File
-import java.nio.file.Files
-import java.security.MessageDigest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import java.nio.file.Files
+import java.security.MessageDigest
 
 class CoreBinaryResolverTest {
     @Test
@@ -93,10 +93,9 @@ class CoreBinaryResolverTest {
         return binary
     }
 
-    private fun digest(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-256")
-            .digest(bytes)
-            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    private fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
     private fun withDirectory(block: (File) -> Unit) {
         val root = Files.createTempDirectory("android-core-binary-").toFile()

@@ -47,7 +47,7 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 viewModel.updateMtu(it)
                 showMtuDialog = false
             },
-            isNumeric = true
+            isNumeric = true,
         )
     }
 
@@ -56,14 +56,14 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
             title = stringResource(R.string.label_stack),
             options = listOf(
                 "system" to stringResource(R.string.option_stack_system),
-                "gvisor" to stringResource(R.string.option_stack_gvisor)
+                "gvisor" to stringResource(R.string.option_stack_gvisor),
             ),
             selectedOption = state.draft.stack,
             onDismiss = { showStackDialog = false },
             onSelect = {
                 viewModel.updateStack(it)
                 showStackDialog = false
-            }
+            },
         )
     }
 
@@ -73,23 +73,23 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
             ) {
                 Button(
                     onClick = { viewModel.save() },
                     enabled = !state.isBusy,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.action_save))
                 }
                 TextButton(
                     onClick = { viewModel.load() },
-                    enabled = !state.isBusy
+                    enabled = !state.isBusy,
                 ) {
                     Text(stringResource(R.string.action_reload))
                 }
             }
-        }
+        },
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (state.isBusy) {
@@ -99,7 +99,7 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
             state.failure?.let { failure ->
                 ErrorDialog(
                     failure = failure.toLocalizedFailure(),
-                    onDismiss = { viewModel.clearError() }
+                    onDismiss = { viewModel.clearError() },
                 )
             }
 
@@ -110,7 +110,7 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_mtu),
                         supporting = if (state.draft.mtu.isEmpty()) "Default (1500)" else state.draft.mtu,
-                        onClick = { if (!state.isBusy) showMtuDialog = true }
+                        onClick = { if (!state.isBusy) showMtuDialog = true },
                     )
                     HorizontalDivider()
                 }
@@ -123,7 +123,7 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                             "gvisor" -> stringResource(R.string.option_stack_gvisor)
                             else -> stringResource(R.string.option_stack_auto)
                         },
-                        onClick = { if (!state.isBusy) showStackDialog = true }
+                        onClick = { if (!state.isBusy) showStackDialog = true },
                     )
                     HorizontalDivider()
                 }
@@ -136,10 +136,10 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                             Switch(
                                 checked = state.draft.autoRoute,
                                 onCheckedChange = { viewModel.updateAutoRoute(it) },
-                                enabled = !state.isBusy
+                                enabled = !state.isBusy,
                             )
                         },
-                        onClick = { if (!state.isBusy) viewModel.updateAutoRoute(!state.draft.autoRoute) }
+                        onClick = { if (!state.isBusy) viewModel.updateAutoRoute(!state.draft.autoRoute) },
                     )
                     HorizontalDivider()
                 }
@@ -152,10 +152,10 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                             Switch(
                                 checked = state.draft.strictRoute,
                                 onCheckedChange = { viewModel.updateStrictRoute(it) },
-                                enabled = !state.isBusy
+                                enabled = !state.isBusy,
                             )
                         },
-                        onClick = { if (!state.isBusy) viewModel.updateStrictRoute(!state.draft.strictRoute) }
+                        onClick = { if (!state.isBusy) viewModel.updateStrictRoute(!state.draft.strictRoute) },
                     )
                     HorizontalDivider()
                 }
@@ -168,14 +168,14 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                             Switch(
                                 checked = state.draft.autoDetectInterface,
                                 onCheckedChange = { viewModel.updateAutoDetectInterface(it) },
-                                enabled = !state.isBusy
+                                enabled = !state.isBusy,
                             )
                         },
                         onClick = {
                             if (!state.isBusy) {
                                 viewModel.updateAutoDetectInterface(!state.draft.autoDetectInterface)
                             }
-                        }
+                        },
                     )
                     HorizontalDivider()
                 }
@@ -186,7 +186,7 @@ internal fun TunScreen(viewModel: TunViewModel = viewModel()) {
                             Text(
                                 text = stringResource(R.string.text_saved),
                                 color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelLarge
+                                style = MaterialTheme.typography.labelLarge,
                             )
                         }
                     }

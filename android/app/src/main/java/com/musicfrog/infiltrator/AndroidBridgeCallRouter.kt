@@ -27,36 +27,42 @@ internal interface AndroidBridgeCallHost {
 }
 
 internal class AndroidBridgeCallRouter(private val host: AndroidBridgeCallHost) {
-    fun execute(
-        call: AndroidBridgeCall,
-        deadline: VpnOwnerRequestDeadline,
-    ): AndroidBridgeCallReply = when (call) {
+    fun execute(call: AndroidBridgeCall, deadline: VpnOwnerRequestDeadline): AndroidBridgeCallReply = when (call) {
         is AndroidBridgeCall.CoreStart -> AndroidBridgeCallReply.CoreStart(
             host.coreStart(call.startRequestJson),
         )
+
         AndroidBridgeCall.CoreStop -> AndroidBridgeCallReply.CoreStop(host.coreStop())
+
         AndroidBridgeCall.CoreProcessObservation ->
             AndroidBridgeCallReply.CoreProcessObservation(host.coreProcessObservationJson())
+
         is AndroidBridgeCall.CoreProcessRecoveryCompleted ->
             AndroidBridgeCallReply.CoreProcessRecoveryCompleted(
                 host.coreProcessExitRecovered(call.contextJson),
             )
+
         is AndroidBridgeCall.CoreValidateConfiguration ->
             AndroidBridgeCallReply.CoreValidateConfiguration(
                 host.coreValidateConfiguration(call.requestJson),
             )
+
         AndroidBridgeCall.CoreLifecycleSnapshot -> AndroidBridgeCallReply.CoreLifecycleSnapshot(
             host.coreLifecycleSnapshot(deadline).required("Core lifecycle snapshot"),
         )
+
         is AndroidBridgeCall.ExecuteProductCommand -> AndroidBridgeCallReply.ExecuteProductCommand(
             host.executeProductCommandJson(call.commandJson, deadline).required("product command result"),
         )
+
         AndroidBridgeCall.SurfaceSnapshot -> AndroidBridgeCallReply.SurfaceSnapshot(
             host.surfaceSnapshotJson(deadline).required("owner surface snapshot"),
         )
+
         is AndroidBridgeCall.ExecuteOwnerOperation -> AndroidBridgeCallReply.ExecuteOwnerOperation(
             host.executeOwnerOperationJson(call.operationJson, deadline).required("owner operation result"),
         )
+
         is AndroidBridgeCall.ProfileAgeCredentialOwnerOperation -> try {
             AndroidBridgeCallReply.ProfileAgeCredentialOwnerOperation(
                 host.executeProfileAgeCredentialOwnerOperation(
@@ -68,31 +74,38 @@ internal class AndroidBridgeCallRouter(private val host: AndroidBridgeCallHost) 
         } finally {
             call.privateKeyBytes.fill(0)
         }
+
         is AndroidBridgeCall.CredentialGet -> AndroidBridgeCallReply.CredentialGet(
             host.credentialGet(call.service, call.key),
         )
+
         is AndroidBridgeCall.CredentialSet -> AndroidBridgeCallReply.CredentialSet(
             host.credentialSet(call.service, call.key, call.value),
         )
+
         is AndroidBridgeCall.CredentialDelete -> AndroidBridgeCallReply.CredentialDelete(
             host.credentialDelete(call.service, call.key),
         )
+
         AndroidBridgeCall.VpnStart -> AndroidBridgeCallReply.VpnStart(host.vpnStartOutcome(deadline))
+
         AndroidBridgeCall.VpnAuthorizationState -> AndroidBridgeCallReply.VpnAuthorizationState(
             host.vpnAuthorizationState(deadline),
         )
+
         is AndroidBridgeCall.VpnApplyConfiguration -> AndroidBridgeCallReply.VpnConfigurationApply(
             host.vpnApplyConfiguration(call.preparedJson, deadline),
         )
+
         is AndroidBridgeCall.VpnStop -> AndroidBridgeCallReply.VpnStop(
             host.vpnStopResultJson(call.targetCode, call.generation, deadline)
                 .required("VPN stop receipt"),
         )
+
         AndroidBridgeCall.VpnOwnerSnapshot -> AndroidBridgeCallReply.VpnOwnerSnapshot(
             host.vpnOwnerSnapshotJson(deadline).required("VPN owner snapshot"),
         )
     }
 
-    private fun String?.required(label: String): String =
-        this ?: throw IllegalStateException("Android host returned no $label")
+    private fun String?.required(label: String): String = this ?: throw IllegalStateException("Android host returned no $label")
 }

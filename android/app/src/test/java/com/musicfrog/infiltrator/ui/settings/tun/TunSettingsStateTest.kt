@@ -109,11 +109,8 @@ class TunSettingsStateTest {
         autoDetectInterface = false,
     )
 
-    private fun revision(
-        session: String = "owner-a",
-        generation: ULong = 4uL,
-        dataRevision: ULong = 7uL,
-    ) = TunSettingsRevision(session, generation, dataRevision)
+    private fun revision(session: String = "owner-a", generation: ULong = 4uL, dataRevision: ULong = 7uL) =
+        TunSettingsRevision(session, generation, dataRevision)
 
     private fun failure() = AppFailure(
         code = AppFailureCode.NotReady,

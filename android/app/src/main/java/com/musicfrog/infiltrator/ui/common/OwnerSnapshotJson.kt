@@ -5,10 +5,7 @@ import org.json.JSONObject
 import java.math.BigInteger
 import kotlin.math.roundToLong
 
-internal fun parseCoreScopeObservation(
-    scopeJson: JSONObject,
-    rawScopeJson: String,
-): CoreScopeObservation {
+internal fun parseCoreScopeObservation(scopeJson: JSONObject, rawScopeJson: String): CoreScopeObservation {
     val identityJson = scopeJson.getJSONObject("identity")
     val rawGeneration = rawJsonValueAtPath(rawScopeJson, "generation")
         ?: throw IllegalArgumentException("Owner CoreScope has no generation")
@@ -67,11 +64,17 @@ internal fun parseOwnerFailureReason(value: Any?): OwnerFailureReason? {
                 column = payload.unsigned("column"),
             )
         }
+
         "MixinYaml" -> reason.unitReason(variant, OwnerFailureReason.MixinYaml)
+
         "ActiveProfileInconsistent" -> reason.unitReason(variant, OwnerFailureReason.ActiveProfileInconsistent)
+
         "QuotaSourceChanged" -> reason.unitReason(variant, OwnerFailureReason.QuotaSourceChanged)
+
         "CurrentTimeUnavailable" -> reason.unitReason(variant, OwnerFailureReason.CurrentTimeUnavailable)
+
         "DownloadCanceled" -> reason.unitReason(variant, OwnerFailureReason.DownloadCanceled)
+
         else -> throw IllegalArgumentException("Unknown owner failure reason: $variant")
     }
 }
@@ -138,12 +141,7 @@ internal fun rawJsonValueAtPath(json: String, vararg path: String): String? {
     return json.substring(start, end)
 }
 
-private fun rawArrayElementRange(
-    json: String,
-    arrayStart: Int,
-    arrayEnd: Int,
-    requestedIndex: String,
-): Pair<Int, Int>? {
+private fun rawArrayElementRange(json: String, arrayStart: Int, arrayEnd: Int, requestedIndex: String): Pair<Int, Int>? {
     val index = requestedIndex.toIntOrNull()?.takeIf { it >= 0 } ?: return null
     var cursor = skipJsonWhitespace(json, arrayStart)
     require(cursor < arrayEnd && json[cursor] == '[') { "Expected a JSON array" }
@@ -165,12 +163,7 @@ private fun rawArrayElementRange(
     }
 }
 
-private fun rawObjectPropertyRange(
-    json: String,
-    objectStart: Int,
-    objectEnd: Int,
-    requestedKey: String,
-): Pair<Int, Int>? {
+private fun rawObjectPropertyRange(json: String, objectStart: Int, objectEnd: Int, requestedKey: String): Pair<Int, Int>? {
     var cursor = skipJsonWhitespace(json, objectStart)
     require(cursor < objectEnd && json[cursor] == '{') { "Expected a JSON object" }
     cursor++
@@ -213,16 +206,19 @@ private fun skipJsonValue(json: String, start: Int, bound: Int): Int {
     while (cursor < bound) {
         when (json[cursor]) {
             '"' -> cursor = skipJsonString(json, cursor)
+
             '{', '[' -> {
                 depth++
                 cursor++
             }
+
             '}', ']' -> {
                 depth--
                 cursor++
                 if (depth == 0) return cursor
                 require(depth > 0) { "Malformed JSON container" }
             }
+
             else -> cursor++
         }
     }
@@ -273,7 +269,6 @@ internal fun JSONArray.strings(): List<String> = (0 until length()).map { index 
     getString(index)
 }
 
-internal inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> =
-    (0 until length()).map { index ->
-        transform(getJSONObject(index))
-    }
+internal inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> = (0 until length()).map { index ->
+    transform(getJSONObject(index))
+}

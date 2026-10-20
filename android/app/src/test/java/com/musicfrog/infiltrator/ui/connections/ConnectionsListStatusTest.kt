@@ -1,7 +1,7 @@
 package com.musicfrog.infiltrator.ui.connections
 
-import com.musicfrog.infiltrator.ui.common.ConnectionRecord
 import com.musicfrog.infiltrator.ui.common.AppFailure
+import com.musicfrog.infiltrator.ui.common.ConnectionRecord
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import org.junit.Assert.assertEquals

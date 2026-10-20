@@ -1,10 +1,7 @@
 package com.musicfrog.infiltrator.ui.overview
 
 /** Identifies one owner read relative to routing-intent mutations. */
-internal data class RoutingIntentReadEpoch(
-    val mutation: Long,
-    val observation: Long,
-)
+internal data class RoutingIntentReadEpoch(val mutation: Long, val observation: Long)
 
 /** Rejects owner reads that began before a newer read or routing-intent write. */
 internal class RoutingIntentObservationFence {
@@ -30,6 +27,5 @@ internal class RoutingIntentObservationFence {
     }
 
     @Synchronized
-    fun accepts(epoch: RoutingIntentReadEpoch): Boolean =
-        epoch.mutation == mutation && epoch.observation == observation
+    fun accepts(epoch: RoutingIntentReadEpoch): Boolean = epoch.mutation == mutation && epoch.observation == observation
 }

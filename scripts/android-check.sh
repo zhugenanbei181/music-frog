@@ -98,4 +98,13 @@ echo "[android-check] cargo clippy -p infiltrator-bevy-ui -p infiltrator-bevy-wi
 cargo clippy -p infiltrator-bevy-ui -p infiltrator-bevy-widgets \
   --no-default-features --target aarch64-linux-android -- -D warnings
 
+# ---------------------------------------------------------------------------
+# BANDROID-044.5: the Android static analysis quality gates. The gate runs the
+# architecture red-line guard, the Kotlin file budget, ktlint, Detekt and the
+# Android Lint tasks of the Compose, Bevy and Slint Debug variants. It is a
+# real gate: no baseline file, no per-file suppression, no raised threshold.
+# ---------------------------------------------------------------------------
+echo "[android-check] Android static analysis quality gates"
+bash scripts/quality/android-quality-gates.sh
+
 echo "[android-check] OK"

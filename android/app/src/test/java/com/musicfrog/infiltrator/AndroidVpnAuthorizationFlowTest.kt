@@ -203,10 +203,7 @@ class AndroidVpnAuthorizationFlowTest {
         )
     }
 
-    private fun ownerSnapshot(
-        lifecycle: VpnOwnerLifecycleWire,
-        foreground: Boolean,
-    ): VpnOwnerSnapshotWire {
+    private fun ownerSnapshot(lifecycle: VpnOwnerLifecycleWire, foreground: Boolean): VpnOwnerSnapshotWire {
         val isRunning = lifecycle == VpnOwnerLifecycleWire.Running
         val readiness = when (lifecycle) {
             VpnOwnerLifecycleWire.Starting -> VpnOwnerReadinessWire.AwaitingForeground

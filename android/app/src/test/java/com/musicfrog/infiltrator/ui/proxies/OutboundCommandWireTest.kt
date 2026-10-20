@@ -1,19 +1,19 @@
 package com.musicfrog.infiltrator.ui.proxies
 
 import com.musicfrog.infiltrator.ui.common.AndroidProductCommandOutcome
-import com.musicfrog.infiltrator.ui.common.ProductCommandResult
-import com.musicfrog.infiltrator.ui.common.parseAndroidProductCommandOutcome
+import com.musicfrog.infiltrator.ui.common.OutboundDetailsPageState
 import com.musicfrog.infiltrator.ui.common.OutboundInventoryPageState
 import com.musicfrog.infiltrator.ui.common.OutboundInventoryState
-import com.musicfrog.infiltrator.ui.common.OutboundDetailsPageState
-import com.musicfrog.infiltrator.ui.common.OutboundUiPreferencesPageState
-import com.musicfrog.infiltrator.ui.common.OutboundProbeState
-import com.musicfrog.infiltrator.ui.common.OutboundProbeOperationCapability
 import com.musicfrog.infiltrator.ui.common.OutboundProbeAvailability
+import com.musicfrog.infiltrator.ui.common.OutboundProbeOperationCapability
+import com.musicfrog.infiltrator.ui.common.OutboundProbeState
 import com.musicfrog.infiltrator.ui.common.OutboundSortOrder
+import com.musicfrog.infiltrator.ui.common.OutboundUiPreferencesPageState
 import com.musicfrog.infiltrator.ui.common.OwnerErrorCode
 import com.musicfrog.infiltrator.ui.common.OwnerFailure
 import com.musicfrog.infiltrator.ui.common.OwnerSurfaceRead
+import com.musicfrog.infiltrator.ui.common.ProductCommandResult
+import com.musicfrog.infiltrator.ui.common.parseAndroidProductCommandOutcome
 import com.musicfrog.infiltrator.ui.common.parseOwnerSurfaceSnapshot
 import com.musicfrog.infiltrator.ui.common.rawJsonValueAtPath
 import org.json.JSONObject
@@ -139,18 +139,24 @@ class OutboundCommandWireTest {
             .getJSONObject("request")
 
         assertEquals(inventory.scope.json, rawJsonValueAtPath(json, "scope"))
-        assertEquals("18446744073709551614", rawJsonValueAtPath(
-            json,
-            "command",
-            "Application",
-            "ApplyOutboundUiPreference",
-            "request",
-            "expected_revision",
-        ))
+        assertEquals(
+            "18446744073709551614",
+            rawJsonValueAtPath(
+                json,
+                "command",
+                "Application",
+                "ApplyOutboundUiPreference",
+                "request",
+                "expected_revision",
+            ),
+        )
         assertEquals(OutboundSortOrder.LatencyAscending, preferences.sortOrder)
         assertEquals("set_favorite", payload.getJSONObject("intent").getString("operation"))
-        assertEquals("node-1:opaque", payload.getJSONObject("intent").getJSONObject("value")
-            .getJSONObject("outbound_id").getString("value"))
+        assertEquals(
+            "node-1:opaque",
+            payload.getJSONObject("intent").getJSONObject("value")
+                .getJSONObject("outbound_id").getString("value"),
+        )
         assertEquals("unpinned", payload.getJSONObject("intent").getJSONObject("value").getString("state"))
 
         val mismatchedScope = preferences.copy(scope = preferences.scope.copy(generation = "9"))
@@ -183,7 +189,6 @@ class OutboundCommandWireTest {
         val handling = evaluateOutboundUiPreferenceOutcome(
             parseAndroidProductCommandOutcome(outcome),
             inventory.scope,
-            inventory,
             preferences,
             intent,
         )
@@ -196,7 +201,6 @@ class OutboundCommandWireTest {
             evaluateOutboundUiPreferenceOutcome(
                 parseAndroidProductCommandOutcome(staleOutcome),
                 inventory.scope,
-                inventory,
                 preferences,
                 intent,
             ) is OutboundCommandHandling.UnexpectedResult,

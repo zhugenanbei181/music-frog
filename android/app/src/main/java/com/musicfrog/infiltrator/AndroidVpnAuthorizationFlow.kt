@@ -16,9 +16,7 @@ internal sealed interface VpnAuthorizationAvailability {
     data class Unavailable(val message: String) : VpnAuthorizationAvailability
 }
 
-internal fun readVpnAuthorizationAvailability(
-    context: Context,
-): VpnAuthorizationAvailability = try {
+internal fun readVpnAuthorizationAvailability(context: Context): VpnAuthorizationAvailability = try {
     when (VpnService.prepare(context)) {
         null -> VpnAuthorizationAvailability.Granted
         else -> VpnAuthorizationAvailability.Required
@@ -58,19 +56,13 @@ internal const val VPN_AUTHORIZATION_FLOW_STATE_KEY =
 internal sealed interface VpnProxyStartReadback {
     data object Running : VpnProxyStartReadback
 
-    data class CommandRejected(
-        val code: FfiErrorCode,
-        val message: String,
-    ) : VpnProxyStartReadback
+    data class CommandRejected(val code: FfiErrorCode, val message: String) : VpnProxyStartReadback
 
     data class OwnerStateUnavailable(val message: String) : VpnProxyStartReadback
 
     data class OwnerFailed(val message: String) : VpnProxyStartReadback
 
-    data class OwnerNotRunning(
-        val snapshot: VpnOwnerSnapshotWire,
-        val state: VpnOwnerDataPlaneState,
-    ) : VpnProxyStartReadback
+    data class OwnerNotRunning(val snapshot: VpnOwnerSnapshotWire, val state: VpnOwnerDataPlaneState) : VpnProxyStartReadback
 }
 
 internal interface AndroidVpnAuthorizationHost {
@@ -110,9 +102,12 @@ internal class AndroidVpnAuthorizationFlow(
 
     fun stateForSaving(): AndroidVpnAuthorizationFlowState = when (current) {
         AndroidVpnAuthorizationFlowState.AwaitingVpnConsent,
-        AndroidVpnAuthorizationFlowState.AwaitingNotificationPermission -> current
+        AndroidVpnAuthorizationFlowState.AwaitingNotificationPermission,
+        -> current
+
         AndroidVpnAuthorizationFlowState.Idle,
-        AndroidVpnAuthorizationFlowState.DispatchingStart -> AndroidVpnAuthorizationFlowState.Idle
+        AndroidVpnAuthorizationFlowState.DispatchingStart,
+        -> AndroidVpnAuthorizationFlowState.Idle
     }
 
     fun requestStart() {
@@ -178,7 +173,9 @@ internal class AndroidVpnAuthorizationFlow(
     private fun continueAfterAuthorization() {
         when (host.notificationPermissionStatus()) {
             NotificationPermissionStatus.NotRequired,
-            NotificationPermissionStatus.Granted -> dispatchProxyStart()
+            NotificationPermissionStatus.Granted,
+            -> dispatchProxyStart()
+
             NotificationPermissionStatus.NotGranted -> requestNotificationPermission()
         }
     }
@@ -187,7 +184,9 @@ internal class AndroidVpnAuthorizationFlow(
         current = AndroidVpnAuthorizationFlowState.AwaitingNotificationPermission
         when (val launch = host.launchNotificationPermissionPrompt()) {
             NotificationPromptLaunch.Launched -> Unit
+
             NotificationPromptLaunch.PermissionAlreadyGranted -> dispatchProxyStart()
+
             is NotificationPromptLaunch.Failed -> {
                 host.onNotificationPermissionPromptFailed(launch.message)
                 dispatchProxyStart()
@@ -209,11 +208,15 @@ internal class AndroidVpnAuthorizationFlow(
         current = AndroidVpnAuthorizationFlowState.Idle
         when (result) {
             VpnProxyStartReadback.Running -> Unit
+
             is VpnProxyStartReadback.CommandRejected -> host.reportFailure(
                 "VPN start command failed (${result.code}): ${result.message}",
             )
+
             is VpnProxyStartReadback.OwnerStateUnavailable -> host.reportFailure(result.message)
+
             is VpnProxyStartReadback.OwnerFailed -> host.reportFailure(result.message)
+
             is VpnProxyStartReadback.OwnerNotRunning -> host.reportFailure(
                 "The :vpn owner did not confirm a foreground running VPN session " +
                     "(state=${result.state}, generation=${result.snapshot.vpnGeneration}, " +
@@ -228,35 +231,37 @@ internal class AndroidVpnAuthorizationFlow(
     }
 
     companion object {
-        fun stateAfterRecreation(
-            state: AndroidVpnAuthorizationFlowState,
-        ): AndroidVpnAuthorizationFlowState = when (state) {
+        fun stateAfterRecreation(state: AndroidVpnAuthorizationFlowState): AndroidVpnAuthorizationFlowState = when (state) {
             AndroidVpnAuthorizationFlowState.AwaitingVpnConsent,
-            AndroidVpnAuthorizationFlowState.AwaitingNotificationPermission -> state
+            AndroidVpnAuthorizationFlowState.AwaitingNotificationPermission,
+            -> state
+
             AndroidVpnAuthorizationFlowState.Idle,
-            AndroidVpnAuthorizationFlowState.DispatchingStart -> AndroidVpnAuthorizationFlowState.Idle
+            AndroidVpnAuthorizationFlowState.DispatchingStart,
+            -> AndroidVpnAuthorizationFlowState.Idle
         }
     }
 }
 
-internal fun classifyVpnOwnerStartReadback(
-    snapshot: VpnOwnerSnapshotWire,
-): VpnProxyStartReadback = when (val state = snapshot.dataPlaneState()) {
-    VpnOwnerDataPlaneState.Running -> VpnProxyStartReadback.Running
-    is VpnOwnerDataPlaneState.Failed -> VpnProxyStartReadback.OwnerFailed(state.failureMessage)
-    is VpnOwnerDataPlaneState.Unavailable ->
-        VpnProxyStartReadback.OwnerStateUnavailable(state.failureMessage)
-    VpnOwnerDataPlaneState.PermissionRequired,
-    VpnOwnerDataPlaneState.Starting,
-    VpnOwnerDataPlaneState.Stopping,
-    is VpnOwnerDataPlaneState.CleanupPending,
-    VpnOwnerDataPlaneState.Stopped,
-    VpnOwnerDataPlaneState.Revoked -> VpnProxyStartReadback.OwnerNotRunning(snapshot, state)
-}
+internal fun classifyVpnOwnerStartReadback(snapshot: VpnOwnerSnapshotWire): VpnProxyStartReadback =
+    when (val state = snapshot.dataPlaneState()) {
+        VpnOwnerDataPlaneState.Running -> VpnProxyStartReadback.Running
 
-internal fun savedVpnAuthorizationFlowState(
-    savedState: Bundle?,
-): AndroidVpnAuthorizationFlowState {
+        is VpnOwnerDataPlaneState.Failed -> VpnProxyStartReadback.OwnerFailed(state.failureMessage)
+
+        is VpnOwnerDataPlaneState.Unavailable ->
+            VpnProxyStartReadback.OwnerStateUnavailable(state.failureMessage)
+
+        VpnOwnerDataPlaneState.PermissionRequired,
+        VpnOwnerDataPlaneState.Starting,
+        VpnOwnerDataPlaneState.Stopping,
+        is VpnOwnerDataPlaneState.CleanupPending,
+        VpnOwnerDataPlaneState.Stopped,
+        VpnOwnerDataPlaneState.Revoked,
+        -> VpnProxyStartReadback.OwnerNotRunning(snapshot, state)
+    }
+
+internal fun savedVpnAuthorizationFlowState(savedState: Bundle?): AndroidVpnAuthorizationFlowState {
     val restored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         savedState?.getSerializable(
             VPN_AUTHORIZATION_FLOW_STATE_KEY,

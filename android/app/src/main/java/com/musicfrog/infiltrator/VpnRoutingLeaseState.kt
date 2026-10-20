@@ -8,10 +8,8 @@ internal sealed interface VpnRoutingLeaseState {
 
     data class Held(val lease: AndroidVpnRoutingActivationLease) : VpnRoutingLeaseState
 
-    data class ReleasePending(
-        val lease: AndroidVpnRoutingActivationLease,
-        val problem: VpnRoutingLeaseReleaseProblem,
-    ) : VpnRoutingLeaseState
+    data class ReleasePending(val lease: AndroidVpnRoutingActivationLease, val problem: VpnRoutingLeaseReleaseProblem) :
+        VpnRoutingLeaseState
 }
 
 internal sealed interface VpnRoutingLeaseReleaseProblem {
@@ -32,35 +30,39 @@ internal fun VpnRoutingLeaseState.afterReleaseAttempt(
     result: AndroidVpnRoutingActivationReleaseResult,
 ): VpnRoutingLeaseState = when (this) {
     VpnRoutingLeaseState.Released -> this
+
     is VpnRoutingLeaseState.Held -> when (this.lease) {
         lease -> result.toLeaseState(this.lease)
         else -> this
     }
+
     is VpnRoutingLeaseState.ReleasePending -> when (this.lease) {
         lease -> result.toLeaseState(this.lease)
         else -> this
     }
 }
 
-private fun AndroidVpnRoutingActivationReleaseResult.toLeaseState(
-    lease: AndroidVpnRoutingActivationLease,
-): VpnRoutingLeaseState = when (this) {
-    AndroidVpnRoutingActivationReleaseResult.Released -> VpnRoutingLeaseState.Released
-    AndroidVpnRoutingActivationReleaseResult.LeaseMismatch -> VpnRoutingLeaseState.ReleasePending(
-        lease,
-        VpnRoutingLeaseReleaseProblem.LeaseMismatch,
-    )
-    AndroidVpnRoutingActivationReleaseResult.LeaseMissing -> VpnRoutingLeaseState.ReleasePending(
-        lease,
-        VpnRoutingLeaseReleaseProblem.LeaseMissing,
-    )
-    is AndroidVpnRoutingActivationReleaseResult.Failed -> VpnRoutingLeaseState.ReleasePending(
-        lease,
-        VpnRoutingLeaseReleaseProblem.OwnerFailure(
-            status.message ?: "VPN routing activation release failed",
-        ),
-    )
-}
+private fun AndroidVpnRoutingActivationReleaseResult.toLeaseState(lease: AndroidVpnRoutingActivationLease): VpnRoutingLeaseState =
+    when (this) {
+        AndroidVpnRoutingActivationReleaseResult.Released -> VpnRoutingLeaseState.Released
+
+        AndroidVpnRoutingActivationReleaseResult.LeaseMismatch -> VpnRoutingLeaseState.ReleasePending(
+            lease,
+            VpnRoutingLeaseReleaseProblem.LeaseMismatch,
+        )
+
+        AndroidVpnRoutingActivationReleaseResult.LeaseMissing -> VpnRoutingLeaseState.ReleasePending(
+            lease,
+            VpnRoutingLeaseReleaseProblem.LeaseMissing,
+        )
+
+        is AndroidVpnRoutingActivationReleaseResult.Failed -> VpnRoutingLeaseState.ReleasePending(
+            lease,
+            VpnRoutingLeaseReleaseProblem.OwnerFailure(
+                status.message ?: "VPN routing activation release failed",
+            ),
+        )
+    }
 
 internal fun VpnRoutingLeaseState.pendingLease(): AndroidVpnRoutingActivationLease? = when (this) {
     VpnRoutingLeaseState.Released -> null
@@ -68,36 +70,42 @@ internal fun VpnRoutingLeaseState.pendingLease(): AndroidVpnRoutingActivationLea
     is VpnRoutingLeaseState.ReleasePending -> lease
 }
 
-internal fun VpnRoutingLeaseState.afterReleaseFailure(
-    lease: AndroidVpnRoutingActivationLease,
-    message: String,
-): VpnRoutingLeaseState = when (this) {
-    VpnRoutingLeaseState.Released -> this
-    is VpnRoutingLeaseState.Held -> when (this.lease) {
-        lease -> VpnRoutingLeaseState.ReleasePending(
-            this.lease,
-            VpnRoutingLeaseReleaseProblem.OwnerFailure(message),
-        )
-        else -> this
+internal fun VpnRoutingLeaseState.afterReleaseFailure(lease: AndroidVpnRoutingActivationLease, message: String): VpnRoutingLeaseState =
+    when (this) {
+        VpnRoutingLeaseState.Released -> this
+
+        is VpnRoutingLeaseState.Held -> when (this.lease) {
+            lease -> VpnRoutingLeaseState.ReleasePending(
+                this.lease,
+                VpnRoutingLeaseReleaseProblem.OwnerFailure(message),
+            )
+
+            else -> this
+        }
+
+        is VpnRoutingLeaseState.ReleasePending -> when (this.lease) {
+            lease -> VpnRoutingLeaseState.ReleasePending(
+                this.lease,
+                VpnRoutingLeaseReleaseProblem.OwnerFailure(message),
+            )
+
+            else -> this
+        }
     }
-    is VpnRoutingLeaseState.ReleasePending -> when (this.lease) {
-        lease -> VpnRoutingLeaseState.ReleasePending(
-            this.lease,
-            VpnRoutingLeaseReleaseProblem.OwnerFailure(message),
-        )
-        else -> this
-    }
-}
 
 internal fun VpnRoutingLeaseState.cleanupAction(): VpnRoutingLeaseCleanupAction = when (this) {
     VpnRoutingLeaseState.Released -> VpnRoutingLeaseCleanupAction.NotRequired
+
     is VpnRoutingLeaseState.Held,
-    is VpnRoutingLeaseState.ReleasePending -> VpnRoutingLeaseCleanupAction.RetryRelease
+    is VpnRoutingLeaseState.ReleasePending,
+    -> VpnRoutingLeaseCleanupAction.RetryRelease
 }
 
 internal fun VpnRoutingLeaseState.releaseFailureMessage(): String? = when (this) {
     VpnRoutingLeaseState.Released -> null
+
     is VpnRoutingLeaseState.Held -> "VPN routing activation lease has not been released"
+
     is VpnRoutingLeaseState.ReleasePending -> when (problem) {
         VpnRoutingLeaseReleaseProblem.LeaseMismatch -> "VPN routing activation lease did not match during release"
         VpnRoutingLeaseReleaseProblem.LeaseMissing -> "VPN routing activation lease was missing during release"

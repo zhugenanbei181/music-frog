@@ -33,10 +33,7 @@ internal enum class VpnServiceBindAdmission {
 internal sealed interface VpnServiceBindReservation {
     data class Reserved(val registrationId: VpnServiceBindingRegistrationId) : VpnServiceBindReservation
 
-    data class Denied(
-        val admission: VpnServiceBindAdmission,
-        val state: VpnServiceBinding.State,
-    ) : VpnServiceBindReservation
+    data class Denied(val admission: VpnServiceBindAdmission, val state: VpnServiceBinding.State) : VpnServiceBindReservation
 }
 
 internal sealed interface VpnServiceBindingTransition {
@@ -67,14 +64,8 @@ internal class VpnServiceBindingState {
         data class Disconnected(val registrationId: VpnServiceBindingRegistrationId) : Phase
         data class Recovering(val registrationId: VpnServiceBindingRegistrationId) : Phase
         data class MissingBinder(val registrationId: VpnServiceBindingRegistrationId) : Phase
-        data class Releasing(
-            val registrationId: VpnServiceBindingRegistrationId,
-            val intent: VpnServiceBindingCleanupIntent,
-        ) : Phase
-        data class ReleaseFailed(
-            val registrationId: VpnServiceBindingRegistrationId,
-            val intent: VpnServiceBindingCleanupIntent,
-        ) : Phase
+        data class Releasing(val registrationId: VpnServiceBindingRegistrationId, val intent: VpnServiceBindingCleanupIntent) : Phase
+        data class ReleaseFailed(val registrationId: VpnServiceBindingRegistrationId, val intent: VpnServiceBindingCleanupIntent) : Phase
     }
 
     private var phase: Phase = Phase.Unbound
@@ -99,8 +90,10 @@ internal class VpnServiceBindingState {
             phase = Phase.Binding(registrationId)
             VpnServiceBindReservation.Reserved(registrationId)
         }
+
         VpnServiceBindAdmission.AlreadyActive,
-        VpnServiceBindAdmission.CleanupInProgress -> VpnServiceBindReservation.Denied(
+        VpnServiceBindAdmission.CleanupInProgress,
+        -> VpnServiceBindReservation.Denied(
             bindAdmission(),
             state(),
         )
@@ -108,30 +101,36 @@ internal class VpnServiceBindingState {
 
     fun bindAdmission(): VpnServiceBindAdmission = when (phase) {
         Phase.Unbound,
-        Phase.Failed -> VpnServiceBindAdmission.Allowed
+        Phase.Failed,
+        -> VpnServiceBindAdmission.Allowed
+
         is Phase.Binding,
         is Phase.Connected,
-        is Phase.Disconnected -> VpnServiceBindAdmission.AlreadyActive
+        is Phase.Disconnected,
+        -> VpnServiceBindAdmission.AlreadyActive
+
         is Phase.Recovering,
         is Phase.MissingBinder,
         is Phase.Releasing,
-        is Phase.ReleaseFailed -> VpnServiceBindAdmission.CleanupInProgress
+        is Phase.ReleaseFailed,
+        -> VpnServiceBindAdmission.CleanupInProgress
     }
 
-    fun bindResult(
-        registrationId: VpnServiceBindingRegistrationId,
-        attempt: VpnServiceBindAttempt,
-    ): VpnServiceBindingTransition = when (val current = phase) {
-        is Phase.Binding -> when {
-            current.registrationId != registrationId -> ignored()
-            attempt == VpnServiceBindAttempt.Accepted -> applied()
-            else -> {
-                phase = Phase.Failed
-                applied()
+    fun bindResult(registrationId: VpnServiceBindingRegistrationId, attempt: VpnServiceBindAttempt): VpnServiceBindingTransition =
+        when (val current = phase) {
+            is Phase.Binding -> when {
+                current.registrationId != registrationId -> ignored()
+
+                attempt == VpnServiceBindAttempt.Accepted -> applied()
+
+                else -> {
+                    phase = Phase.Failed
+                    applied()
+                }
             }
+
+            else -> ignored()
         }
-        else -> ignored()
-    }
 
     fun serviceConnected(
         registrationId: VpnServiceBindingRegistrationId,
@@ -139,90 +138,104 @@ internal class VpnServiceBindingState {
     ): VpnServiceBindingTransition = when (val current = phase) {
         is Phase.Binding -> when {
             current.registrationId != registrationId -> ignored()
+
             binder == VpnServiceBinderAvailability.Present -> {
                 phase = Phase.Connected(registrationId)
                 applied()
             }
+
             else -> missingBinder(registrationId)
         }
+
         is Phase.Connected -> when {
             current.registrationId != registrationId -> ignored()
             binder == VpnServiceBinderAvailability.Present -> ignored()
             else -> missingBinder(registrationId)
         }
+
         is Phase.Disconnected -> when {
             current.registrationId != registrationId -> ignored()
+
             binder == VpnServiceBinderAvailability.Present -> {
                 phase = Phase.Connected(registrationId)
                 applied()
             }
+
             else -> missingBinder(registrationId)
         }
+
         else -> ignored()
     }
 
-    fun serviceDisconnected(
-        registrationId: VpnServiceBindingRegistrationId,
-    ): VpnServiceBindingTransition = when (val current = phase) {
+    fun serviceDisconnected(registrationId: VpnServiceBindingRegistrationId): VpnServiceBindingTransition = when (val current = phase) {
         is Phase.Binding -> when (current.registrationId == registrationId) {
             true -> {
                 phase = Phase.Disconnected(registrationId)
                 applied()
             }
+
             false -> ignored()
         }
+
         is Phase.Connected -> when (current.registrationId == registrationId) {
             true -> {
                 phase = Phase.Disconnected(registrationId)
                 applied()
             }
+
             false -> ignored()
         }
+
         else -> ignored()
     }
 
-    fun bindingDied(
-        registrationId: VpnServiceBindingRegistrationId,
-    ): VpnServiceBindingTransition = when (val current = phase) {
+    fun bindingDied(registrationId: VpnServiceBindingRegistrationId): VpnServiceBindingTransition = when (val current = phase) {
         is Phase.Binding -> when (current.registrationId == registrationId) {
             true -> {
                 phase = Phase.Recovering(registrationId)
                 applied()
             }
+
             false -> ignored()
         }
+
         is Phase.Connected -> when (current.registrationId == registrationId) {
             true -> {
                 phase = Phase.Recovering(registrationId)
                 applied()
             }
+
             false -> ignored()
         }
+
         is Phase.Disconnected -> when (current.registrationId == registrationId) {
             true -> {
                 phase = Phase.Recovering(registrationId)
                 applied()
             }
+
             false -> ignored()
         }
+
         else -> ignored()
     }
 
-    fun nullBinding(
-        registrationId: VpnServiceBindingRegistrationId,
-    ): VpnServiceBindingTransition = when (val current = phase) {
+    fun nullBinding(registrationId: VpnServiceBindingRegistrationId): VpnServiceBindingTransition = when (val current = phase) {
         is Phase.Binding -> when (current.registrationId == registrationId) {
             true -> missingBinder(registrationId)
             false -> ignored()
         }
+
         is Phase.Connected -> when (current.registrationId == registrationId) {
             true -> missingBinder(registrationId)
             false -> ignored()
         }
+
         is Phase.Disconnected -> when (current.registrationId == registrationId) {
             true -> missingBinder(registrationId)
             false -> ignored()
         }
+
         else -> ignored()
     }
 
@@ -233,39 +246,59 @@ internal class VpnServiceBindingState {
         is Phase.Recovering -> when {
             current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.RebindAfterDeath ->
                 beginRelease(registrationId, intent)
+
             current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind ->
                 beginRelease(registrationId, intent)
+
             else -> cleanupIgnored()
         }
+
         is Phase.MissingBinder -> when {
             current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.FinishMissingBinder ->
                 beginRelease(registrationId, intent)
+
             current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind ->
                 beginRelease(registrationId, intent)
+
             else -> cleanupIgnored()
         }
+
         is Phase.Binding -> when (current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind) {
             true -> beginRelease(registrationId, intent)
             false -> cleanupIgnored()
         }
+
         is Phase.Connected -> when (current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind) {
             true -> beginRelease(registrationId, intent)
             false -> cleanupIgnored()
         }
-        is Phase.Disconnected -> when (current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind) {
-            true -> beginRelease(registrationId, intent)
-            false -> cleanupIgnored()
-        }
+
+        is Phase.Disconnected ->
+            when (
+                current.registrationId == registrationId &&
+                    intent == VpnServiceBindingCleanupIntent.ExplicitUnbind
+            ) {
+                true -> beginRelease(registrationId, intent)
+                false -> cleanupIgnored()
+            }
+
         is Phase.Releasing -> when (current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind) {
             true -> beginRelease(registrationId, intent)
             false -> cleanupIgnored()
         }
-        is Phase.ReleaseFailed -> when (current.registrationId == registrationId && intent == VpnServiceBindingCleanupIntent.ExplicitUnbind) {
-            true -> beginRelease(registrationId, intent)
-            false -> cleanupIgnored()
-        }
+
+        is Phase.ReleaseFailed ->
+            when (
+                current.registrationId == registrationId &&
+                    intent == VpnServiceBindingCleanupIntent.ExplicitUnbind
+            ) {
+                true -> beginRelease(registrationId, intent)
+                false -> cleanupIgnored()
+            }
+
         Phase.Unbound,
-        Phase.Failed -> cleanupIgnored()
+        Phase.Failed,
+        -> cleanupIgnored()
     }
 
     fun retryCleanup(): VpnServiceCleanupTransition = when (val current = phase) {
@@ -280,28 +313,35 @@ internal class VpnServiceBindingState {
     ): VpnServiceBindingTransition = when (val current = phase) {
         is Phase.Releasing -> when {
             current.registrationId != registrationId || current.intent != intent -> ignored()
+
             outcome == VpnServiceReleaseOutcome.Failed -> {
                 phase = Phase.ReleaseFailed(registrationId, intent)
                 applied()
             }
+
             else -> {
                 phase = when (intent) {
                     VpnServiceBindingCleanupIntent.RebindAfterDeath,
-                    VpnServiceBindingCleanupIntent.ExplicitUnbind -> Phase.Unbound
+                    VpnServiceBindingCleanupIntent.ExplicitUnbind,
+                    -> Phase.Unbound
+
                     VpnServiceBindingCleanupIntent.FinishMissingBinder -> Phase.Failed
                 }
                 applied()
             }
         }
+
         else -> ignored()
     }
 
     fun explicitUnbindWithoutRegistration(): VpnServiceBindingTransition = when (phase) {
         Phase.Unbound -> ignored()
+
         Phase.Failed -> {
             phase = Phase.Unbound
             applied()
         }
+
         else -> ignored()
     }
 
@@ -312,9 +352,12 @@ internal class VpnServiceBindingState {
         is Phase.Recovering,
         is Phase.MissingBinder,
         is Phase.Releasing,
-        is Phase.ReleaseFailed -> true
+        is Phase.ReleaseFailed,
+        -> true
+
         Phase.Unbound,
-        Phase.Failed -> false
+        Phase.Failed,
+        -> false
     }
 
     private fun missingBinder(registrationId: VpnServiceBindingRegistrationId): VpnServiceBindingTransition {

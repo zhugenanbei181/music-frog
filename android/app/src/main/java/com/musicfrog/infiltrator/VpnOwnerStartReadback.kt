@@ -8,9 +8,7 @@ import infiltrator_android.androidControl
  * Dispatch the authorized start through the typed Rust command and verify the
  * result against the VPN state read from the `:vpn` owner over Messenger.
  */
-internal suspend fun executeVpnStartAndReadOwnerState(
-    ownerClient: MihomoControlClient,
-): VpnProxyStartReadback {
+internal suspend fun executeVpnStartAndReadOwnerState(ownerClient: MihomoControlClient): VpnProxyStartReadback {
     val command = try {
         androidControl(AndroidControlIntent.START_PROXY)
     } catch (error: Exception) {

@@ -16,34 +16,23 @@ internal class FakeNativeHostAttachmentEffects : NativeHostAttachmentEffects {
     val detachFailuresRemaining =
         mutableMapOf<NativeHostAttachmentResource, Int>()
 
-    override fun registerLifecycleCallbacks() =
-        attach(NativeHostAttachStep.RegisterLifecycleCallbacks)
+    override fun registerLifecycleCallbacks() = attach(NativeHostAttachStep.RegisterLifecycleCallbacks)
 
-    override fun installInsetsListener() =
-        attach(NativeHostAttachStep.InstallInsetsListener)
+    override fun installInsetsListener() = attach(NativeHostAttachStep.InstallInsetsListener)
 
-    override fun registerRustBridge() =
-        attach(NativeHostAttachStep.RegisterRustBridge, rustRegistrationResult)
+    override fun registerRustBridge() = attach(NativeHostAttachStep.RegisterRustBridge, rustRegistrationResult)
 
-    override fun publishInitialLifecycle() =
-        attach(NativeHostAttachStep.PublishInitialLifecycle)
+    override fun publishInitialLifecycle() = attach(NativeHostAttachStep.PublishInitialLifecycle)
 
-    override fun requestInitialInsets() =
-        attach(NativeHostAttachStep.RequestInitialInsets)
+    override fun requestInitialInsets() = attach(NativeHostAttachStep.RequestInitialInsets)
 
-    override fun unregisterLifecycleCallbacks() =
-        detach(NativeHostAttachmentResource.ActivityLifecycleCallbacks)
+    override fun unregisterLifecycleCallbacks() = detach(NativeHostAttachmentResource.ActivityLifecycleCallbacks)
 
-    override fun removeInsetsListener() =
-        detach(NativeHostAttachmentResource.WindowInsetsListener)
+    override fun removeInsetsListener() = detach(NativeHostAttachmentResource.WindowInsetsListener)
 
-    override fun clearRustBridge() =
-        detach(NativeHostAttachmentResource.RustBridgeRegistration, rustCleanupResult)
+    override fun clearRustBridge() = detach(NativeHostAttachmentResource.RustBridgeRegistration, rustCleanupResult)
 
-    private fun attach(
-        step: NativeHostAttachStep,
-        forcedResult: NativeHostOperationResult? = null,
-    ): NativeHostOperationResult {
+    private fun attach(step: NativeHostAttachStep, forcedResult: NativeHostOperationResult? = null): NativeHostOperationResult {
         effects += FakeNativeHostEffect.Attach(step)
         // Simulate an Android API that mutates state and then reports failure.
         step.resource?.let(installedResources::add)

@@ -1,5 +1,7 @@
 package com.musicfrog.infiltrator
 
+import org.junit.Assert.assertEquals
+import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -8,8 +10,6 @@ import java.io.OutputStream
 import java.math.BigInteger
 import java.nio.file.Files
 import java.security.MessageDigest
-import org.junit.Assert.assertEquals
-import org.junit.Test
 
 class AndroidCoreProcessRecordStoreTest {
     @Test
@@ -144,9 +144,8 @@ class AndroidCoreProcessRecordStoreTest {
                 FakeProcess()
             },
             childInspector = object : AndroidChildProcessInspector {
-                override fun inspect(
-                    child: AndroidChildProcessIdentityWire,
-                ): AndroidChildProcessInspection = AndroidChildProcessInspection.Unavailable
+                override fun inspect(child: AndroidChildProcessIdentityWire): AndroidChildProcessInspection =
+                    AndroidChildProcessInspection.Unavailable
 
                 override fun snapshotCurrentThreadChildren(): AndroidCurrentThreadChildSnapshot =
                     AndroidCurrentThreadChildSnapshot.Unavailable
@@ -346,8 +345,7 @@ class AndroidCoreProcessRecordStoreTest {
         )
         var observationIndex = 0
         val inspector = object : AndroidChildProcessInspector {
-            override fun inspect(child: AndroidChildProcessIdentityWire): AndroidChildProcessInspection =
-                observations[observationIndex++]
+            override fun inspect(child: AndroidChildProcessIdentityWire): AndroidChildProcessInspection = observations[observationIndex++]
         }
         var signalCalls = 0
         val controller = CoreProcessController(
@@ -418,17 +416,13 @@ class AndroidCoreProcessRecordStoreTest {
         override fun snapshotCurrentThreadChildren(): AndroidCurrentThreadChildSnapshot =
             AndroidCurrentThreadChildSnapshot.Captured(101L, 202L, emptySet())
 
-        override fun captureStartedChild(
-            snapshot: AndroidCurrentThreadChildSnapshot,
-        ): AndroidChildProcessCapture =
+        override fun captureStartedChild(snapshot: AndroidCurrentThreadChildSnapshot): AndroidChildProcessCapture =
             AndroidChildProcessCapture.Identified(
                 AndroidChildProcessIdentityWire(321L, BigInteger("987654")),
             )
     }
 
-    private class FixedChildInspector(
-        private val result: AndroidChildProcessInspection,
-    ) : AndroidChildProcessInspector {
+    private class FixedChildInspector(private val result: AndroidChildProcessInspection) : AndroidChildProcessInspector {
         override fun inspect(child: AndroidChildProcessIdentityWire): AndroidChildProcessInspection = result
     }
 
@@ -447,8 +441,7 @@ class AndroidCoreProcessRecordStoreTest {
             lifecycle = Lifecycle.Exited
             return 0
         }
-        override fun waitFor(timeout: Long, unit: java.util.concurrent.TimeUnit): Boolean =
-            lifecycle == Lifecycle.Exited
+        override fun waitFor(timeout: Long, unit: java.util.concurrent.TimeUnit): Boolean = lifecycle == Lifecycle.Exited
         override fun exitValue(): Int = when (lifecycle) {
             Lifecycle.Running -> throw IllegalThreadStateException("fake process is running")
             Lifecycle.Exited -> 0

@@ -39,13 +39,18 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
     val observation = state.observation
     val operationFailure = when (val operation = state.operation) {
         is DnsSettingsOperationState.Failed -> operation.failure
+
         is DnsSettingsOperationState.Unconfirmed -> operation.failure
+
         is DnsSettingsOperationState.Cancelled -> operation.failure
+
         is DnsSettingsOperationState.TimedOut -> operation.failure
+
         DnsSettingsOperationState.Idle,
         DnsSettingsOperationState.Reading,
         DnsSettingsOperationState.Saving,
-        is DnsSettingsOperationState.Saved -> null
+        is DnsSettingsOperationState.Saved,
+        -> null
     }
     var dialog by remember { mutableStateOf(DnsDialogState.Closed) }
 
@@ -62,7 +67,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
             onSelect = {
                 viewModel.updateEnhancedMode(dnsEnhancedModeFromSelection(it))
                 dialog = DnsDialogState.Closed
-            }
+            },
         )
     }
 
@@ -75,7 +80,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 viewModel.updateNameserver(it)
                 dialog = DnsDialogState.Closed
             },
-            singleLine = false
+            singleLine = false,
         )
     }
 
@@ -88,7 +93,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 viewModel.updateDefaultNameserver(it)
                 dialog = DnsDialogState.Closed
             },
-            singleLine = false
+            singleLine = false,
         )
     }
 
@@ -101,7 +106,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 viewModel.updateFallback(it)
                 dialog = DnsDialogState.Closed
             },
-            singleLine = false
+            singleLine = false,
         )
     }
 
@@ -111,14 +116,14 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
             options = listOf(
                 "" to stringResource(R.string.option_auto),
                 "true" to stringResource(R.string.option_enabled),
-                "false" to stringResource(R.string.option_disabled)
+                "false" to stringResource(R.string.option_disabled),
             ),
             selectedOption = state.fallbackFilterGeoip.selectionValue,
             onDismiss = { dialog = DnsDialogState.Closed },
             onSelect = {
                 viewModel.updateFallbackFilterGeoip(DnsGeoIpPolicy.fromSelection(it))
                 dialog = DnsDialogState.Closed
-            }
+            },
         )
     }
 
@@ -130,7 +135,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
             onConfirm = {
                 viewModel.updateFallbackFilterGeoipCode(it)
                 dialog = DnsDialogState.Closed
-            }
+            },
         )
     }
 
@@ -143,7 +148,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 viewModel.updateFallbackFilterIpcidr(it)
                 dialog = DnsDialogState.Closed
             },
-            singleLine = false
+            singleLine = false,
         )
     }
 
@@ -156,7 +161,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 viewModel.updateFallbackFilterDomain(it)
                 dialog = DnsDialogState.Closed
             },
-            singleLine = false
+            singleLine = false,
         )
     }
 
@@ -169,7 +174,7 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 viewModel.updateFallbackFilterDomainSuffix(it)
                 dialog = DnsDialogState.Closed
             },
-            singleLine = false
+            singleLine = false,
         )
     }
 
@@ -179,30 +184,30 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
             ) {
                 Button(
                     onClick = { viewModel.save() },
                     enabled = state.activity == DnsActivity.Interactive &&
                         state.availability == DnsSettingsAvailability.Available,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.action_save))
                 }
                 TextButton(
                     onClick = { viewModel.load() },
-                    enabled = state.activity == DnsActivity.Interactive
+                    enabled = state.activity == DnsActivity.Interactive,
                 ) {
                     Text(stringResource(R.string.action_reload))
                 }
             }
-        }
+        },
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (operationFailure != null) {
                 ErrorDialog(
                     failure = operationFailure.toLocalizedFailure(),
-                    onDismiss = { viewModel.clearError() }
+                    onDismiss = { viewModel.clearError() },
                 )
             }
 
@@ -215,230 +220,252 @@ internal fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                         failure = read.failure.toLocalizedFailure(),
                         modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
                     )
+
                     is DnsSettingsReadState.Loading,
-                    is DnsSettingsReadState.Observed -> Unit
+                    is DnsSettingsReadState.Observed,
+                    -> Unit
                 }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.dns_enable),
-                        supporting = if (state.enabled == DnsToggleState.Unspecified) {
-                            stringResource(R.string.setting_not_explicit)
-                        } else {
-                            stringResource(R.string.dns_enable_desc)
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = state.enabled == DnsToggleState.Enabled,
-                                onCheckedChange = {
-                                    viewModel.updateEnabled(
-                                        if (it) DnsToggleState.Enabled else DnsToggleState.Disabled,
-                                    )
-                                },
-                                enabled = state.activity == DnsActivity.Interactive &&
-                                    state.availability == DnsSettingsAvailability.Available
-                            )
-                        },
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) {
-                                viewModel.updateEnabled(
-                                    if (state.enabled == DnsToggleState.Enabled) {
-                                        DnsToggleState.Disabled
-                                    } else {
-                                        DnsToggleState.Enabled
-                                    },
-                                )
-                            }
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_ipv6),
-                        supporting = if (state.ipv6 == DnsToggleState.Unspecified) {
-                            stringResource(R.string.setting_not_explicit)
-                        } else {
-                            stringResource(R.string.tun_ipv6_desc)
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = state.ipv6 == DnsToggleState.Enabled,
-                                onCheckedChange = {
-                                    viewModel.updateIpv6(
-                                        if (it) DnsToggleState.Enabled else DnsToggleState.Disabled,
-                                    )
-                                },
-                                enabled = state.activity == DnsActivity.Interactive &&
-                                    state.availability == DnsSettingsAvailability.Available
-                            )
-                        },
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) {
-                                viewModel.updateIpv6(
-                                    if (state.ipv6 == DnsToggleState.Enabled) {
-                                        DnsToggleState.Disabled
-                                    } else {
-                                        DnsToggleState.Enabled
-                                    },
-                                )
-                            }
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_enhanced_mode),
-                        supporting = when (val mode = state.enhancedMode) {
-                            DnsEnhancedMode.Unspecified -> stringResource(R.string.setting_not_explicit)
-                            DnsEnhancedMode.Disabled -> stringResource(R.string.enhanced_mode_disabled)
-                            DnsEnhancedMode.FakeIp -> stringResource(R.string.enhanced_mode_fake_ip)
-                            DnsEnhancedMode.RedirHost -> stringResource(R.string.enhanced_mode_redir_host)
-                            is DnsEnhancedMode.Custom -> mode.value
-                        },
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.EnhancedMode
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_nameserver),
-                        supporting = state.nameserver.replace("\n", ", "),
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.Nameserver
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_default_nameserver),
-                        supporting = state.defaultNameserver.replace("\n", ", "),
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.DefaultNameserver
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_fallback),
-                        supporting = state.fallback.replace("\n", ", "),
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.Fallback
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_fallback_filter_geoip),
-                        supporting = when (state.fallbackFilterGeoip) {
-                            DnsGeoIpPolicy.Enabled -> stringResource(R.string.option_enabled)
-                            DnsGeoIpPolicy.Disabled -> stringResource(R.string.option_disabled)
-                            DnsGeoIpPolicy.Automatic -> stringResource(R.string.option_auto)
-                        },
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.FallbackGeoIp
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_fallback_filter_geoip_code),
-                        supporting = state.fallbackFilterGeoipCode,
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.FallbackGeoIpCode
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_fallback_filter_ipcidr),
-                        supporting = state.fallbackFilterIpcidr.replace("\n", ", "),
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.FallbackIpcidr
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_fallback_filter_domain),
-                        supporting = state.fallbackFilterDomain.replace("\n", ", "),
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.FallbackDomain
-                        }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_fallback_filter_domain_suffix),
-                        supporting = state.fallbackFilterDomainSuffix.replace("\n", ", "),
-                        onClick = {
-                            if (state.activity == DnsActivity.Interactive &&
-                                state.availability == DnsSettingsAvailability.Available
-                            ) dialog = DnsDialogState.FallbackDomainSuffix
-                        }
-                    )
-                    HorizontalDivider()
-                }
-                
-                if (state.operation is DnsSettingsOperationState.Saved) {
                     item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = stringResource(R.string.text_saved),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelLarge
-                            )
+                        StandardListItem(
+                            headline = stringResource(R.string.dns_enable),
+                            supporting = if (state.enabled == DnsToggleState.Unspecified) {
+                                stringResource(R.string.setting_not_explicit)
+                            } else {
+                                stringResource(R.string.dns_enable_desc)
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = state.enabled == DnsToggleState.Enabled,
+                                    onCheckedChange = {
+                                        viewModel.updateEnabled(
+                                            if (it) DnsToggleState.Enabled else DnsToggleState.Disabled,
+                                        )
+                                    },
+                                    enabled = state.activity == DnsActivity.Interactive &&
+                                        state.availability == DnsSettingsAvailability.Available,
+                                )
+                            },
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    viewModel.updateEnabled(
+                                        if (state.enabled == DnsToggleState.Enabled) {
+                                            DnsToggleState.Disabled
+                                        } else {
+                                            DnsToggleState.Enabled
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_ipv6),
+                            supporting = if (state.ipv6 == DnsToggleState.Unspecified) {
+                                stringResource(R.string.setting_not_explicit)
+                            } else {
+                                stringResource(R.string.tun_ipv6_desc)
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = state.ipv6 == DnsToggleState.Enabled,
+                                    onCheckedChange = {
+                                        viewModel.updateIpv6(
+                                            if (it) DnsToggleState.Enabled else DnsToggleState.Disabled,
+                                        )
+                                    },
+                                    enabled = state.activity == DnsActivity.Interactive &&
+                                        state.availability == DnsSettingsAvailability.Available,
+                                )
+                            },
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    viewModel.updateIpv6(
+                                        if (state.ipv6 == DnsToggleState.Enabled) {
+                                            DnsToggleState.Disabled
+                                        } else {
+                                            DnsToggleState.Enabled
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_enhanced_mode),
+                            supporting = when (val mode = state.enhancedMode) {
+                                DnsEnhancedMode.Unspecified -> stringResource(R.string.setting_not_explicit)
+                                DnsEnhancedMode.Disabled -> stringResource(R.string.enhanced_mode_disabled)
+                                DnsEnhancedMode.FakeIp -> stringResource(R.string.enhanced_mode_fake_ip)
+                                DnsEnhancedMode.RedirHost -> stringResource(R.string.enhanced_mode_redir_host)
+                                is DnsEnhancedMode.Custom -> mode.value
+                            },
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.EnhancedMode
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_nameserver),
+                            supporting = state.nameserver.replace("\n", ", "),
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.Nameserver
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_default_nameserver),
+                            supporting = state.defaultNameserver.replace("\n", ", "),
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.DefaultNameserver
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_fallback),
+                            supporting = state.fallback.replace("\n", ", "),
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.Fallback
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_fallback_filter_geoip),
+                            supporting = when (state.fallbackFilterGeoip) {
+                                DnsGeoIpPolicy.Enabled -> stringResource(R.string.option_enabled)
+                                DnsGeoIpPolicy.Disabled -> stringResource(R.string.option_disabled)
+                                DnsGeoIpPolicy.Automatic -> stringResource(R.string.option_auto)
+                            },
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.FallbackGeoIp
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_fallback_filter_geoip_code),
+                            supporting = state.fallbackFilterGeoipCode,
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.FallbackGeoIpCode
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_fallback_filter_ipcidr),
+                            supporting = state.fallbackFilterIpcidr.replace("\n", ", "),
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.FallbackIpcidr
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_fallback_filter_domain),
+                            supporting = state.fallbackFilterDomain.replace("\n", ", "),
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.FallbackDomain
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    item {
+                        StandardListItem(
+                            headline = stringResource(R.string.label_fallback_filter_domain_suffix),
+                            supporting = state.fallbackFilterDomainSuffix.replace("\n", ", "),
+                            onClick = {
+                                if (state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
+                                ) {
+                                    dialog = DnsDialogState.FallbackDomainSuffix
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    if (state.operation is DnsSettingsOperationState.Saved) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = stringResource(R.string.text_saved),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
                     }
-                }
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     when (val observation = state.observation) {
                         is DnsSettingsReadState.Loading -> CircularProgressIndicator()
+
                         is DnsSettingsReadState.Unavailable -> LocalizedFailureText(
                             failure = observation.failure.toLocalizedFailure(),
                         )
+
                         is DnsSettingsReadState.Observed -> Text(stringResource(R.string.status_unknown))
                     }
                 }

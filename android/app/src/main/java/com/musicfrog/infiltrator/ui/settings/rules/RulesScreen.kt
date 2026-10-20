@@ -20,12 +20,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
@@ -66,6 +66,7 @@ internal fun RulesScreen(viewModel: RulesViewModel = viewModel()) {
 
             when (val failure = state.failure) {
                 RulesFailureState.None -> Unit
+
                 is RulesFailureState.Present -> ErrorDialog(
                     failure = failure.failure.toLocalizedFailure(),
                     onDismiss = viewModel::clearError,

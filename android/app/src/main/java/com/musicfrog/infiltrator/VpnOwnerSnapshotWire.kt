@@ -1,8 +1,8 @@
 package com.musicfrog.infiltrator
 
+import infiltrator_android.AndroidCoreLifecycle
 import org.json.JSONArray
 import org.json.JSONObject
-import infiltrator_android.AndroidCoreLifecycle
 
 internal sealed interface VpnOwnerLifecycleWire {
     data object PermissionRequired : VpnOwnerLifecycleWire
@@ -61,10 +61,7 @@ internal sealed interface VpnOwnerResourceStateWire {
     data class CleanupPending(val generation: Long, val failureMessage: String) : VpnOwnerResourceStateWire
 }
 
-internal data class VpnOwnerResourceFactWire(
-    val kind: VpnOwnerResourceKindWire,
-    val state: VpnOwnerResourceStateWire,
-)
+internal data class VpnOwnerResourceFactWire(val kind: VpnOwnerResourceKindWire, val state: VpnOwnerResourceStateWire)
 
 internal sealed interface VpnOwnerCoreReadbackWire {
     data class Available(val snapshot: CoreOwnerSnapshotWire) : VpnOwnerCoreReadbackWire
@@ -75,11 +72,7 @@ internal sealed interface VpnOwnerCoreReadbackWire {
 internal sealed interface CoreOwnerIdentityWire {
     data object Absent : CoreOwnerIdentityWire
 
-    data class Present(
-        val engineId: String,
-        val instanceId: String,
-        val version: String?,
-    ) : CoreOwnerIdentityWire {
+    data class Present(val engineId: String, val instanceId: String, val version: String?) : CoreOwnerIdentityWire {
         init {
             require(engineId.isNotBlank() && instanceId.isNotBlank())
             require(version == null || version.isNotBlank())
@@ -88,6 +81,7 @@ internal sealed interface CoreOwnerIdentityWire {
 
     fun toJsonValue(): Any = when (this) {
         Absent -> JSONObject.NULL
+
         is Present -> JSONObject()
             .put("engine", engineId)
             .put("instance", instanceId)
@@ -109,11 +103,7 @@ internal sealed interface CoreOwnerIdentityWire {
             }
         }.getOrNull()
 
-        fun fromNullableParts(
-            engineId: String?,
-            instanceId: String?,
-            version: String?,
-        ): CoreOwnerIdentityWire? = when {
+        fun fromNullableParts(engineId: String?, instanceId: String?, version: String?): CoreOwnerIdentityWire? = when {
             engineId == null && instanceId == null && version == null -> Absent
             engineId != null && instanceId != null -> Present(engineId, instanceId, version)
             else -> null
@@ -175,10 +165,15 @@ internal sealed interface CoreOwnerFailureReasonWire {
             "YamlSyntax",
             JSONObject().put("line", line).put("column", column),
         )
+
         MixinYaml -> "MixinYaml"
+
         ActiveProfileInconsistent -> "ActiveProfileInconsistent"
+
         QuotaSourceChanged -> "QuotaSourceChanged"
+
         CurrentTimeUnavailable -> "CurrentTimeUnavailable"
+
         DownloadCanceled -> "DownloadCanceled"
     }
 
@@ -192,6 +187,7 @@ internal sealed interface CoreOwnerFailureReasonWire {
                 "DownloadCanceled" -> DownloadCanceled
                 else -> error("unknown Core failure reason")
             }
+
             is JSONObject -> {
                 require(value.length() == 1 && value.has("YamlSyntax"))
                 val syntax = value.getJSONObject("YamlSyntax")
@@ -201,6 +197,7 @@ internal sealed interface CoreOwnerFailureReasonWire {
                     syntax.getLong("column").also { require(it >= 0L) },
                 )
             }
+
             else -> error("invalid Core failure reason")
         }
     }
@@ -225,8 +222,10 @@ internal data class CoreOwnerFailureWire(
 
         fun parse(json: JSONObject): CoreOwnerFailureWire {
             val keys = json.keys().asSequence().toSet()
-            require(keys == setOf("code", "message", "retryable") ||
-                keys == setOf("code", "message", "retryable", "reason"))
+            require(
+                keys == setOf("code", "message", "retryable") ||
+                    keys == setOf("code", "message", "retryable", "reason"),
+            )
             val reason = if (json.has("reason")) CoreOwnerFailureReasonWire.parse(json.get("reason")) else null
             return CoreOwnerFailureWire(
                 code = CoreOwnerFailureCodeWire.entries.first { it.wireName == json.getString("code") },
@@ -248,7 +247,7 @@ internal data class CoreOwnerSnapshotWire(
 ) {
     init {
         require(generation >= 0L && revision >= 0L)
-        require(sessionToken == null || sessionToken.isNotBlank() && sessionToken.all(Char::isDigit))
+        require(sessionToken == null || (sessionToken.isNotBlank() && sessionToken.all(Char::isDigit)))
     }
 
     fun toJson(): JSONObject = JSONObject()
@@ -310,20 +309,29 @@ internal data class VpnOwnerSnapshotWire(
         return when (vpnState) {
             is VpnOwnerLifecycleWire.Unavailable ->
                 VpnOwnerDataPlaneState.Unavailable(vpnState.failureMessage)
+
             is VpnOwnerLifecycleWire.Failed ->
                 VpnOwnerDataPlaneState.Failed(vpnState.failureMessage)
+
             else -> when (readiness) {
                 VpnOwnerReadinessWire.Unavailable ->
                     VpnOwnerDataPlaneState.Unavailable("VPN owner readback is unavailable")
+
                 VpnOwnerReadinessWire.Failed ->
                     VpnOwnerDataPlaneState.Failed("VPN owner published failed readiness")
+
                 VpnOwnerReadinessWire.CleanupPending ->
                     VpnOwnerDataPlaneState.CleanupPending("VPN owner cleanup is pending")
+
                 VpnOwnerReadinessWire.PermissionRequired -> VpnOwnerDataPlaneState.PermissionRequired
+
                 VpnOwnerReadinessWire.AwaitingForeground,
                 VpnOwnerReadinessWire.AwaitingTunnel,
-                VpnOwnerReadinessWire.AwaitingDataPlane -> VpnOwnerDataPlaneState.Starting
+                VpnOwnerReadinessWire.AwaitingDataPlane,
+                -> VpnOwnerDataPlaneState.Starting
+
                 VpnOwnerReadinessWire.Stopping -> VpnOwnerDataPlaneState.Stopping
+
                 VpnOwnerReadinessWire.Ready -> when (vpnState) {
                     VpnOwnerLifecycleWire.Running -> if (isRunningDataPlane()) {
                         VpnOwnerDataPlaneState.Running
@@ -336,19 +344,28 @@ internal data class VpnOwnerSnapshotWire(
                             "VPN Running readback lacks its current worker or tunnel resource",
                         )
                     }
+
                     VpnOwnerLifecycleWire.PermissionRequired -> VpnOwnerDataPlaneState.PermissionRequired
+
                     VpnOwnerLifecycleWire.StartRequested,
                     VpnOwnerLifecycleWire.Starting,
                     VpnOwnerLifecycleWire.Foreground,
-                    VpnOwnerLifecycleWire.TunnelEstablished -> VpnOwnerDataPlaneState.Starting
+                    VpnOwnerLifecycleWire.TunnelEstablished,
+                    -> VpnOwnerDataPlaneState.Starting
+
                     VpnOwnerLifecycleWire.Stopping -> VpnOwnerDataPlaneState.Stopping
+
                     VpnOwnerLifecycleWire.Stopped,
-                    VpnOwnerLifecycleWire.Revoked -> VpnOwnerDataPlaneState.Failed(
+                    VpnOwnerLifecycleWire.Revoked,
+                    -> VpnOwnerDataPlaneState.Failed(
                         "VPN terminal lifecycle conflicts with Ready readiness",
                     )
+
                     is VpnOwnerLifecycleWire.Failed,
-                    is VpnOwnerLifecycleWire.Unavailable -> error("handled above")
+                    is VpnOwnerLifecycleWire.Unavailable,
+                    -> error("handled above")
                 }
+
                 VpnOwnerReadinessWire.Stopped -> if (
                     vpnState == VpnOwnerLifecycleWire.Stopped && isTerminalStopped()
                 ) {
@@ -358,6 +375,7 @@ internal data class VpnOwnerSnapshotWire(
                         "VPN Stopped readback still owns a resource or conflicts with lifecycle",
                     )
                 }
+
                 VpnOwnerReadinessWire.Revoked -> if (
                     vpnState == VpnOwnerLifecycleWire.Revoked && isTerminalStopped()
                 ) {
@@ -371,16 +389,14 @@ internal data class VpnOwnerSnapshotWire(
         }
     }
 
-    fun isRunningDataPlane(): Boolean =
-        vpnState == VpnOwnerLifecycleWire.Running &&
-            readiness == VpnOwnerReadinessWire.Ready &&
-            foreground &&
-            resourceHeld(VpnOwnerResourceKindWire.Worker) &&
-            resourceHeld(VpnOwnerResourceKindWire.TunnelDescriptor)
+    fun isRunningDataPlane(): Boolean = vpnState == VpnOwnerLifecycleWire.Running &&
+        readiness == VpnOwnerReadinessWire.Ready &&
+        foreground &&
+        resourceHeld(VpnOwnerResourceKindWire.Worker) &&
+        resourceHeld(VpnOwnerResourceKindWire.TunnelDescriptor)
 
-    private fun resourceHeld(kind: VpnOwnerResourceKindWire): Boolean =
-        resources.singleOrNull { it.kind == kind }?.state ==
-            VpnOwnerResourceStateWire.Held(vpnGeneration)
+    private fun resourceHeld(kind: VpnOwnerResourceKindWire): Boolean = resources.singleOrNull { it.kind == kind }?.state ==
+        VpnOwnerResourceStateWire.Held(vpnGeneration)
 
     fun isTerminalStopped(): Boolean {
         val terminalReadiness = when (vpnState) {
@@ -391,10 +407,9 @@ internal data class VpnOwnerSnapshotWire(
         return terminalReadiness && resourcesReleased()
     }
 
-    fun resourcesReleased(): Boolean =
-        resources.size == VpnOwnerResourceKindWire.entries.size &&
-            resources.map { it.kind }.toSet() == VpnOwnerResourceKindWire.entries.toSet() &&
-            resources.all { it.state == VpnOwnerResourceStateWire.Absent }
+    fun resourcesReleased(): Boolean = resources.size == VpnOwnerResourceKindWire.entries.size &&
+        resources.map { it.kind }.toSet() == VpnOwnerResourceKindWire.entries.toSet() &&
+        resources.all { it.state == VpnOwnerResourceStateWire.Absent }
 
     fun coreLifecycleJson(): String? = when (val readback = core) {
         is VpnOwnerCoreReadbackWire.Unavailable -> null
@@ -404,10 +419,12 @@ internal data class VpnOwnerSnapshotWire(
     companion object {
         fun parse(raw: String): VpnOwnerSnapshotWire? = runCatching {
             val json = JSONObject(raw)
-            require(json.keys().asSequence().toSet() == setOf(
-                "owner_session_id", "revision", "vpn_generation", "vpn_state", "readiness",
-                "resources", "foreground", "mtu", "route_count", "dns_servers", "ipv6", "core",
-            ))
+            require(
+                json.keys().asSequence().toSet() == setOf(
+                    "owner_session_id", "revision", "vpn_generation", "vpn_state", "readiness",
+                    "resources", "foreground", "mtu", "route_count", "dns_servers", "ipv6", "core",
+                ),
+            )
             val ownerSessionId = json.getString("owner_session_id").trim().also { require(it.isNotEmpty()) }
             val revision = json.getLong("revision").also { require(it > 0L) }
             val vpnGeneration = json.getLong("vpn_generation").also { require(it >= 0L) }
@@ -421,6 +438,7 @@ internal data class VpnOwnerSnapshotWire(
                     val stateJson = resource.get("state")
                     val state = when (stateJson) {
                         "Absent" -> VpnOwnerResourceStateWire.Absent
+
                         else -> {
                             val tagged = stateJson as JSONObject
                             require(tagged.length() == 1)
@@ -430,6 +448,7 @@ internal data class VpnOwnerSnapshotWire(
                                     require(held.keys().asSequence().toSet() == setOf("generation"))
                                     VpnOwnerResourceStateWire.Held(held.getLong("generation").also { require(it >= 0L) })
                                 }
+
                                 "CleanupPending" -> {
                                     val pending = tagged.getJSONObject("CleanupPending")
                                     require(pending.keys().asSequence().toSet() == setOf("generation", "failure_message"))
@@ -438,6 +457,7 @@ internal data class VpnOwnerSnapshotWire(
                                         pending.getString("failure_message").also { require(it.isNotBlank()) },
                                     )
                                 }
+
                                 else -> error("unknown resource state")
                             }
                         }
@@ -450,12 +470,20 @@ internal data class VpnOwnerSnapshotWire(
             val core = when {
                 coreJson.has("Available") && coreJson.length() == 1 -> {
                     val coreSnapshot = coreJson.getJSONObject("Available")
-                    require(coreSnapshot.keys().asSequence().toSet() == setOf(
-                        "identity", "lifecycle", "generation", "session_token", "revision", "failure",
-                    ))
+                    require(
+                        coreSnapshot.keys().asSequence().toSet() == setOf(
+                            "identity",
+                            "lifecycle",
+                            "generation",
+                            "session_token",
+                            "revision",
+                            "failure",
+                        ),
+                    )
                     val identityJson = coreSnapshot.get("identity")
                     val identity = when (identityJson) {
                         JSONObject.NULL -> CoreOwnerIdentityWire.Absent
+
                         is JSONObject -> {
                             require(identityJson.keys().asSequence().toSet() == setOf("engine", "instance", "version"))
                             CoreOwnerIdentityWire.Present(
@@ -464,6 +492,7 @@ internal data class VpnOwnerSnapshotWire(
                                 version = if (identityJson.isNull("version")) null else identityJson.getString("version"),
                             )
                         }
+
                         else -> error("invalid Core identity")
                     }
                     val failureJson = coreSnapshot.get("failure")
@@ -480,8 +509,12 @@ internal data class VpnOwnerSnapshotWire(
                             },
                             generation = coreSnapshot.getLong("generation").also { require(it >= 0L) },
                             sessionToken = coreSnapshot.get("session_token").let {
-                                if (it == JSONObject.NULL) null else it.toString().also { token ->
-                                    require(token.isNotBlank() && token.all(Char::isDigit))
+                                if (it == JSONObject.NULL) {
+                                    null
+                                } else {
+                                    it.toString().also { token ->
+                                        require(token.isNotBlank() && token.all(Char::isDigit))
+                                    }
                                 }
                             },
                             revision = coreSnapshot.getLong("revision").also { require(it >= 0L) },
@@ -489,11 +522,13 @@ internal data class VpnOwnerSnapshotWire(
                         ),
                     )
                 }
+
                 coreJson.has("Unavailable") && coreJson.length() == 1 -> {
                     val unavailable = coreJson.getJSONObject("Unavailable")
                     require(unavailable.keys().asSequence().toSet() == setOf("failure_message"))
                     VpnOwnerCoreReadbackWire.Unavailable(unavailable.getString("failure_message"))
                 }
+
                 else -> error("invalid core readback")
             }
             val state = parseLifecycle(json.get("vpn_state"))
@@ -522,14 +557,23 @@ internal data class VpnOwnerSnapshotWire(
 
         private fun parseLifecycle(value: Any): VpnOwnerLifecycleWire = when (value) {
             "PermissionRequired" -> VpnOwnerLifecycleWire.PermissionRequired
+
             "StartRequested" -> VpnOwnerLifecycleWire.StartRequested
+
             "Starting" -> VpnOwnerLifecycleWire.Starting
+
             "Foreground" -> VpnOwnerLifecycleWire.Foreground
+
             "TunnelEstablished" -> VpnOwnerLifecycleWire.TunnelEstablished
+
             "Running" -> VpnOwnerLifecycleWire.Running
+
             "Stopping" -> VpnOwnerLifecycleWire.Stopping
+
             "Stopped" -> VpnOwnerLifecycleWire.Stopped
+
             "Revoked" -> VpnOwnerLifecycleWire.Revoked
+
             else -> {
                 val tagged = value as JSONObject
                 require(tagged.length() == 1)
@@ -546,22 +590,14 @@ internal data class VpnOwnerSnapshotWire(
     }
 }
 
-internal data class VpnOwnerConfigurationWire(
-    val mtu: Int,
-    val routeCount: Int,
-    val dnsServers: List<String>,
-    val ipv6: Boolean,
-)
+internal data class VpnOwnerConfigurationWire(val mtu: Int, val routeCount: Int, val dnsServers: List<String>, val ipv6: Boolean)
 
 /** Holds the authoritative owner revision; identical reads return the same revision. */
 internal class VpnOwnerSnapshotPublisher {
     private sealed interface State {
         data object Empty : State
 
-        data class Published(
-            val facts: VpnOwnerSnapshotFacts,
-            val revision: Long,
-        ) : State
+        data class Published(val facts: VpnOwnerSnapshotFacts, val revision: Long) : State
     }
 
     private var state: State = State.Empty
@@ -570,6 +606,7 @@ internal class VpnOwnerSnapshotPublisher {
     fun publish(facts: VpnOwnerSnapshotFacts): String {
         val published = when (val current = state) {
             State.Empty -> State.Published(facts, 1L)
+
             is State.Published -> if (current.facts == facts) {
                 current
             } else {
@@ -604,10 +641,12 @@ internal class VpnOwnerSnapshotPublisher {
 
     private fun VpnOwnerResourceStateWire.toJson(): Any = when (this) {
         VpnOwnerResourceStateWire.Absent -> "Absent"
+
         is VpnOwnerResourceStateWire.Held -> JSONObject().put(
             "Held",
             JSONObject().put("generation", generation),
         )
+
         is VpnOwnerResourceStateWire.CleanupPending -> JSONObject().put(
             "CleanupPending",
             JSONObject()
@@ -621,12 +660,12 @@ internal class VpnOwnerSnapshotPublisher {
             "Available",
             snapshot.toJson(),
         )
+
         is VpnOwnerCoreReadbackWire.Unavailable -> JSONObject().put(
             "Unavailable",
             JSONObject().put("failure_message", failureMessage),
         )
     }
-
 }
 
 private fun Long.saturatingIncrement(): Long = if (this == Long.MAX_VALUE) Long.MAX_VALUE else this + 1L

@@ -1,4 +1,3 @@
-import java.util.Properties
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -7,6 +6,7 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import java.util.Properties
 
 abstract class GenerateProductIcon : DefaultTask() {
     @get:InputFile
@@ -30,27 +30,31 @@ val productIdentityFile = rootProject.file("../product-identity.properties")
 check(productIdentityFile.isFile) {
     "Android product identity file is missing: $productIdentityFile"
 }
-val productIdentity = Properties().apply {
-    productIdentityFile.inputStream().use { load(it) }
-}
-fun identityValue(key: String): String =
-    productIdentity.getProperty(key)?.takeIf { it.isNotBlank() }
-        ?: error("Missing Android product identity key '$key' in $productIdentityFile")
+val productIdentity =
+    Properties().apply {
+        productIdentityFile.inputStream().use { load(it) }
+    }
+
+fun identityValue(key: String): String = productIdentity.getProperty(key)?.takeIf { it.isNotBlank() }
+    ?: error("Missing Android product identity key '$key' in $productIdentityFile")
 
 fun generatedIdentityValue(key: String): String {
-    val output = providers.exec {
-        commandLine(
-            "python3",
-            rootProject.file("../scripts/product_identity.py").absolutePath,
-            "--get",
-            key,
-        )
-    }
+    val output =
+        providers.exec {
+            commandLine(
+                "python3",
+                rootProject.file("../scripts/product_identity.py").absolutePath,
+                "--get",
+                key,
+            )
+        }
     val result = output.result.get()
     check(result.exitValue == 0) {
         "Cannot read product identity '$key': ${output.standardError.asText.get()}"
     }
-    return output.standardOutput.asText.get().trim()
+    return output.standardOutput.asText
+        .get()
+        .trim()
 }
 
 val productVersionName = generatedIdentityValue("version.name")
@@ -73,30 +77,37 @@ val slintIconAsset = identityValue("slint.icon_asset")
 val composeLauncherActivity = identityValue("compose.launcher_activity")
 val bevyLauncherActivity = identityValue("bevy.launcher_activity")
 val slintLauncherActivity = identityValue("slint.launcher_activity")
-val productIcons = mapOf(
-    "compose" to (composeIconAsset to composeIconResource),
-    "bevy" to (bevyIconAsset to bevyIconResource),
-    "slint" to (slintIconAsset to slintIconResource),
-)
+val productIcons =
+    mapOf(
+        "compose" to (composeIconAsset to composeIconResource),
+        "bevy" to (bevyIconAsset to bevyIconResource),
+        "slint" to (slintIconAsset to slintIconResource),
+    )
 
 val androidToolchainFile = rootProject.file("toolchain.properties")
 check(androidToolchainFile.isFile) { "Android toolchain pins are missing: $androidToolchainFile" }
-val androidToolchain = Properties().apply {
-    androidToolchainFile.inputStream().use(::load)
-}
-fun toolchainValue(key: String): String =
-    androidToolchain.getProperty(key)?.takeIf { it.isNotBlank() }
-        ?: error("Missing Android toolchain key '$key' in $androidToolchainFile")
+val androidToolchain =
+    Properties().apply {
+        androidToolchainFile.inputStream().use(::load)
+    }
+
+fun toolchainValue(key: String): String = androidToolchain.getProperty(key)?.takeIf { it.isNotBlank() }
+    ?: error("Missing Android toolchain key '$key' in $androidToolchainFile")
+
 fun toolchainInt(key: String): Int = toolchainValue(key).toIntOrNull()
     ?: error("Android toolchain key '$key' must be an integer")
 val javaTargetVersion = toolchainValue("java.major")
 
-fun launcherActivityClass(activity: String): String =
-    if (activity.startsWith('.')) "$androidNamespace$activity" else activity
+fun launcherActivityClass(activity: String): String = if (activity.startsWith('.')) "$androidNamespace$activity" else activity
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    // BANDROID-044.2: ktlint and Detekt are enforced gates for every Kotlin
+    // source set of this module. Neither tool uses a baseline, a per-file
+    // suppression or a raised issue threshold.
+    id("org.jlleitschuh.gradle.ktlint")
+    id("io.gitlab.arturbosch.detekt")
 }
 
 android {
@@ -168,7 +179,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
             signingConfig = signingConfigs.getByName("debug")
         }
@@ -207,8 +218,28 @@ android {
 
     kotlin {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(javaTargetVersion))
+            jvmTarget.set(
+                org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                    .fromTarget(javaTargetVersion),
+            )
         }
+    }
+
+    // BANDROID-044.1: Android Lint is a real gate for the Compose, Bevy and
+    // Slint Debug variants. It never runs `assemble` as a proxy, it never
+    // reads a baseline file, and a warning is an error so that a new finding
+    // cannot slip through. The narrow, documented suppressions live in
+    // `android/app/lint.xml` and are re-checked by
+    // `scripts/quality/android-architecture-redline-guard.py`.
+    lint {
+        abortOnError = true
+        warningsAsErrors = true
+        checkDependencies = true
+        checkReleaseBuilds = false
+        checkTestSources = true
+        ignoreTestSources = false
+        // No baseline: the module must not carry a `lint-baseline.xml`.
+        baseline = null
     }
 
     // BANDROID-021: JVM unit tests (android/app/src/test) run without a device.
@@ -231,20 +262,90 @@ android {
     }
 }
 
+// ---------------------------------------------------------------------------
+// BANDROID-044.1 / BANDROID-044.2: the static analysis gates.
+//
+// `lintComposeDebug`, `lintBevyDebug` and `lintSlintDebug` are the AGP Lint
+// tasks of the three product flavors; `androidLintGate` is the stable
+// aggregate the CI workflow and the local check entry point call, so a
+// renamed AGP task cannot silently turn the gate into a no-op.
+//
+// `ktlintCheck` and `detekt` enforce the Kotlin style and static analysis
+// rules. Neither tool is allowed a baseline, a per-file suppression or a
+// raised issue threshold.
+// ---------------------------------------------------------------------------
+val lintGateVariants = listOf("ComposeDebug", "BevyDebug", "SlintDebug")
+
+tasks.register("androidLintGate") {
+    group = "verification"
+    description = "Runs Android Lint for the Compose, Bevy and Slint Debug variants."
+    lintGateVariants.forEach { variant ->
+        dependsOn(tasks.named("lint$variant"))
+    }
+}
+
+ktlint {
+    version = "1.8.0"
+    // The Android tree is written in the IntelliJ "official" Kotlin style
+    // (android/gradle.properties sets `kotlin.code.style=official`), so ktlint
+    // verifies that style instead of imposing a second one. The
+    // `ktlint_official` style re-indents the whole product surface and its
+    // `standard:indent` rule then disagrees with its own formatter.
+    additionalEditorconfig.put("ktlint_code_style", "intellij_idea")
+    additionalEditorconfig.put("max_line_length", "140")
+    // Jetpack Compose composable functions are PascalCase by convention.
+    additionalEditorconfig.put("ktlint_function_naming_ignore_when_annotated_with", "Composable")
+    // The typed owners name their enum entries in UpperCamel, and the binary
+    // target observations keep the Rust target triple spelling.
+    additionalEditorconfig.put("ktlint_enum_entry_name_casing", "upper_or_camel_cases")
+    // The generated UniFFI binding is not hand-written source: it is produced
+    // by `scripts/android-build.sh` and is excluded from every gate, exactly
+    // like `scripts/quality/kt-line-guard.py` excludes it.
+    filter {
+        exclude { element -> element.file.path.contains("infiltrator_android") }
+    }
+    // BANDROID-044.2: no baseline, no per-file suppression.
+    ignoreFailures = false
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    // BANDROID-044.2: no baseline, no per-file suppression, no raised
+    // threshold. `maxIssues` stays at its default of 0, so a single finding
+    // fails the build.
+    ignoreFailures = false
+    parallel = true
+    source.setFrom(
+        files(
+            "src/main/java",
+            "src/test/java",
+            "src/androidTest/java",
+            "src/androidTestCompose/java",
+        ).asFileTree.matching {
+            include("**/*.kt")
+            exclude("**/infiltrator_android/**")
+        },
+    )
+}
+
 androidComponents {
     onVariants { variant ->
-        val product = variant.productFlavors
-            .singleOrNull { (dimension, _) -> dimension == "surface" }
-            ?.second
-            ?: return@onVariants
+        val product =
+            variant.productFlavors
+                .singleOrNull { (dimension, _) -> dimension == "surface" }
+                ?.second
+                ?: return@onVariants
         val (iconAsset, iconResource) = productIcons.getValue(product)
-        val generationTask = tasks.register<GenerateProductIcon>(
-            "generate${variant.name.replaceFirstChar { it.uppercase() }}ProductIcon",
-        ) {
-            sourceIcon.set(rootProject.layout.projectDirectory.file("../$iconAsset"))
-            resourceName.set(iconResource)
-            outputDirectory.set(layout.buildDirectory.dir("generated/productIdentity/${variant.name}/res"))
-        }
+        val generationTask =
+            tasks.register<GenerateProductIcon>(
+                "generate${variant.name.replaceFirstChar { it.uppercase() }}ProductIcon",
+            ) {
+                sourceIcon.set(rootProject.layout.projectDirectory.file("../$iconAsset"))
+                resourceName.set(iconResource)
+                outputDirectory.set(layout.buildDirectory.dir("generated/productIdentity/${variant.name}/res"))
+            }
         variant.sources.res?.addGeneratedSourceDirectory(
             generationTask,
             GenerateProductIcon::outputDirectory,
@@ -257,28 +358,30 @@ androidComponents {
 val fetchMihomoScript = rootProject.file("../scripts/fetch-mihomo.py")
 val mihomoStagingDirectory = layout.buildDirectory.dir("generated/mihomo-assets")
 
-fun fetchMihomoAsset(taskName: String, target: String, abi: String) =
-    tasks.register<Exec>(taskName) {
-        commandLine(
-            "python3",
-            fetchMihomoScript.absolutePath,
-            "--target",
-            target,
-            "--stage",
-            mihomoStagingDirectory.get().file("$abi/libmihomo.so").asFile.absolutePath,
-        )
-    }
+fun fetchMihomoAsset(taskName: String, target: String, abi: String) = tasks.register<Exec>(taskName) {
+    val stagingFile = mihomoStagingDirectory.get().file("$abi/libmihomo.so")
+    commandLine(
+        "python3",
+        fetchMihomoScript.absolutePath,
+        "--target",
+        target,
+        "--stage",
+        stagingFile.asFile.absolutePath,
+    )
+}
 
-val fetchMihomoArm64Asset = fetchMihomoAsset(
-    "fetchMihomoArm64Asset",
-    "aarch64-linux-android",
-    "arm64-v8a",
-)
-val fetchMihomoX86_64Asset = fetchMihomoAsset(
-    "fetchMihomoX86_64Asset",
-    "x86_64-linux-android",
-    "x86_64",
-)
+val fetchMihomoArm64Asset =
+    fetchMihomoAsset(
+        "fetchMihomoArm64Asset",
+        "aarch64-linux-android",
+        "arm64-v8a",
+    )
+val fetchMihomoX86_64Asset =
+    fetchMihomoAsset(
+        "fetchMihomoX86_64Asset",
+        "x86_64-linux-android",
+        "x86_64",
+    )
 
 tasks.register<Copy>("prepareMihomoAsset") {
     mustRunAfter("cargoBuild")
@@ -305,7 +408,7 @@ tasks.register<Exec>("cargoBuild") {
             localProperties.load(input)
         }
     }
-    
+
     val sdkDir = localProperties.getProperty("sdk.dir")?.takeIf { it.isNotBlank() }
     val ndkDir = localProperties.getProperty("ndk.dir")?.takeIf { it.isNotBlank() }
 
@@ -354,14 +457,15 @@ tasks.named("preBuild") {
 // The Slint NativeActivity is linked into the same Rust library as the
 // existing Android bridge. Its flavor-specific library enables `slint-ui`;
 // Compose and Bevy continue to package the standard host library.
-val buildSlintAndroidRust = tasks.register<Exec>("buildSlintAndroidRust") {
-    workingDir = rootProject.projectDir.parentFile
-    commandLine("bash", rootProject.file("../scripts/android-slint-build.sh").absolutePath)
-    // The shared host task also writes libinfiltrator_android.so. Serialize
-    // feature-specific builds so Cargo's per-target output cannot be copied
-    // into the wrong Android source set.
-    mustRunAfter("cargoBuild")
-}
+val buildSlintAndroidRust =
+    tasks.register<Exec>("buildSlintAndroidRust") {
+        workingDir = rootProject.projectDir.parentFile
+        commandLine("bash", rootProject.file("../scripts/android-slint-build.sh").absolutePath)
+        // The shared host task also writes libinfiltrator_android.so. Serialize
+        // feature-specific builds so Cargo's per-target output cannot be copied
+        // into the wrong Android source set.
+        mustRunAfter("cargoBuild")
+    }
 tasks.configureEach {
     if (name.startsWith("mergeSlint") && name.endsWith("JniLibFolders")) {
         dependsOn(buildSlintAndroidRust)

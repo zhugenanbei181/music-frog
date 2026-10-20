@@ -2,21 +2,21 @@ package com.musicfrog.infiltrator.ui.proxies
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.musicfrog.infiltrator.ui.common.AndroidComposeRepository
+import com.musicfrog.infiltrator.ui.common.AndroidProductCommandOutcome
+import com.musicfrog.infiltrator.ui.common.CallResult
 import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
-import com.musicfrog.infiltrator.ui.common.AndroidComposeRepository
-import com.musicfrog.infiltrator.ui.common.CallResult
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LocalizedFailure
-import com.musicfrog.infiltrator.ui.common.AndroidProductCommandOutcome
 import com.musicfrog.infiltrator.ui.common.OutboundDetailsPageState
 import com.musicfrog.infiltrator.ui.common.OutboundDetailsSnapshot
+import com.musicfrog.infiltrator.ui.common.OutboundIdObservation
 import com.musicfrog.infiltrator.ui.common.OutboundInventoryPageState
 import com.musicfrog.infiltrator.ui.common.OutboundInventorySnapshot
-import com.musicfrog.infiltrator.ui.common.OutboundProbeSnapshot
 import com.musicfrog.infiltrator.ui.common.OutboundProbeOperationCapability
+import com.musicfrog.infiltrator.ui.common.OutboundProbeSnapshot
 import com.musicfrog.infiltrator.ui.common.OutboundSelectionCollection
-import com.musicfrog.infiltrator.ui.common.OutboundIdObservation
 import com.musicfrog.infiltrator.ui.common.OutboundUiPreferencesPageState
 import com.musicfrog.infiltrator.ui.common.OutboundUiPreferencesSnapshot
 import com.musicfrog.infiltrator.ui.common.OwnerErrorCode
@@ -24,9 +24,9 @@ import com.musicfrog.infiltrator.ui.common.OwnerFailure
 import com.musicfrog.infiltrator.ui.common.OwnerSurfaceRead
 import com.musicfrog.infiltrator.ui.common.OwnerSurfaceSnapshot
 import com.musicfrog.infiltrator.ui.common.ProtocolStudioPageState
+import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.parseAndroidProductCommandOutcome
 import com.musicfrog.infiltrator.ui.common.runCall
-import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -38,40 +38,38 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-internal class ProxiesViewModel internal constructor(
-    private val repository: AndroidComposeRepository,
-) : ViewModel() {
+internal class ProxiesViewModel internal constructor(private val repository: AndroidComposeRepository) : ViewModel() {
     constructor() : this(com.musicfrog.infiltrator.ui.common.UniFfiAndroidComposeRepository)
 
     private val _inventory = MutableStateFlow<OutboundInventoryPageState>(OutboundInventoryPageState.Loading)
-    internal val inventory: StateFlow<OutboundInventoryPageState> = _inventory.asStateFlow()
+    val inventory: StateFlow<OutboundInventoryPageState> = _inventory.asStateFlow()
 
     private val _details = MutableStateFlow<OutboundDetailsPageState>(OutboundDetailsPageState.Loading)
-    internal val details: StateFlow<OutboundDetailsPageState> = _details.asStateFlow()
+    val details: StateFlow<OutboundDetailsPageState> = _details.asStateFlow()
 
     private val _preferences = MutableStateFlow<OutboundUiPreferencesPageState>(OutboundUiPreferencesPageState.Loading)
-    internal val preferences: StateFlow<OutboundUiPreferencesPageState> = _preferences.asStateFlow()
+    val preferences: StateFlow<OutboundUiPreferencesPageState> = _preferences.asStateFlow()
 
     private val _protocolStudio = MutableStateFlow<ProtocolStudioPageState>(ProtocolStudioPageState.Loading)
-    internal val protocolStudio: StateFlow<ProtocolStudioPageState> = _protocolStudio.asStateFlow()
+    val protocolStudio: StateFlow<ProtocolStudioPageState> = _protocolStudio.asStateFlow()
 
     private val _probeReadback = MutableStateFlow<OutboundProbeSnapshot?>(null)
-    internal val probeReadback: StateFlow<OutboundProbeSnapshot?> = _probeReadback.asStateFlow()
+    val probeReadback: StateFlow<OutboundProbeSnapshot?> = _probeReadback.asStateFlow()
 
     private val _probeCapability = MutableStateFlow<OutboundProbeOperationCapability>(OutboundProbeOperationCapability.Unknown)
-    internal val probeCapability: StateFlow<OutboundProbeOperationCapability> = _probeCapability.asStateFlow()
+    val probeCapability: StateFlow<OutboundProbeOperationCapability> = _probeCapability.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _commandInProgress = MutableStateFlow(false)
-    internal val commandInProgress: StateFlow<Boolean> = _commandInProgress.asStateFlow()
+    val commandInProgress: StateFlow<Boolean> = _commandInProgress.asStateFlow()
 
     private val _error = MutableStateFlow<LocalizedFailure?>(null)
     val error: StateFlow<LocalizedFailure?> = _error.asStateFlow()
 
     private val _commandFailure = MutableStateFlow<OwnerFailure?>(null)
-    internal val commandFailure: StateFlow<OwnerFailure?> = _commandFailure.asStateFlow()
+    val commandFailure: StateFlow<OwnerFailure?> = _commandFailure.asStateFlow()
 
     private val refreshMutex = Mutex()
     private var lastAcceptedSnapshot: OutboundInventorySnapshot? = null
@@ -97,10 +95,13 @@ internal class ProxiesViewModel internal constructor(
             refreshMutex.withLock {
                 if (showLoading) _isLoading.value = true
                 try {
-                    when (val call = runCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
-                        repository.readOwnerSurface()
-                    }) {
+                    when (
+                        val call = runCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
+                            repository.readOwnerSurface()
+                        }
+                    ) {
                         is CallResult.Failure -> publishUnavailable(call.failure.toLocalizedFailure())
+
                         is CallResult.Success -> when (val read = call.value) {
                             is OwnerSurfaceRead.Available -> acceptSurface(read.snapshot)
                             is OwnerSurfaceRead.Unavailable -> publishUnavailable(read.failure)
@@ -153,7 +154,6 @@ internal class ProxiesViewModel internal constructor(
             evaluateOutboundUiPreferenceOutcome(
                 outcome = outcome,
                 observedScope = observedInventory.scope,
-                inventory = observedInventory,
                 preferences = observedPreferences,
                 intent = intent,
             )
@@ -193,14 +193,17 @@ internal class ProxiesViewModel internal constructor(
             try {
                 _error.value = null
                 _commandFailure.value = null
-                val outcome = when (val call = runCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
-                    repository.executeProductCommand(commandJson)
-                }) {
+                val outcome = when (
+                    val call = runCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
+                        repository.executeProductCommand(commandJson)
+                    }
+                ) {
                     is CallResult.Failure -> {
                         publishCommandError(call.failure.toLocalizedFailure())
                         loadInventory()
                         return@launch
                     }
+
                     is CallResult.Success -> try {
                         parseAndroidProductCommandOutcome(call.value)
                     } catch (error: CancellationException) {
@@ -213,13 +216,16 @@ internal class ProxiesViewModel internal constructor(
                 }
                 when (val handling = evaluate(outcome)) {
                     OutboundCommandHandling.Success -> loadInventory()
+
                     is OutboundCommandHandling.SelectionApplied -> {
                         when (acceptInventory(OutboundInventoryPageState.Observed(handling.snapshot))) {
                             OutboundInventoryAdmission.Accepted,
-                            OutboundInventoryAdmission.RejectedStale -> Unit
+                            OutboundInventoryAdmission.RejectedStale,
+                            -> Unit
                         }
                         loadInventory()
                     }
+
                     is OutboundCommandHandling.PreferencesApplied -> {
                         val currentInventory = (_inventory.value as? OutboundInventoryPageState.Observed)?.snapshot
                         if (currentInventory != null && sameScope(currentInventory.scope, handling.snapshot.scope)) {
@@ -231,21 +237,25 @@ internal class ProxiesViewModel internal constructor(
                         }
                         loadInventory()
                     }
+
                     is OutboundCommandHandling.ProbeCompleted -> {
                         if (sameScope(observedScope, handling.snapshot.scope)) {
                             _probeReadback.value = handling.snapshot
                         }
                         loadInventory()
                     }
+
                     is OutboundCommandHandling.OwnerFailure -> {
                         _commandFailure.value = handling.failure
                         publishCommandError(handling.failure.toLocalizedFailure())
                         loadInventory()
                     }
+
                     OutboundCommandHandling.StaleScope -> {
                         publishCommandError(localizedFailure(FailureTextKey.InvalidState))
                         loadInventory()
                     }
+
                     is OutboundCommandHandling.UnexpectedResult -> {
                         publishCommandError(localizedFailure(FailureTextKey.Internal))
                         loadInventory()
@@ -294,6 +304,7 @@ internal class ProxiesViewModel internal constructor(
             is OutboundInventoryPageState.Observed -> {
                 when (val current = lastAcceptedSnapshot) {
                     null -> Unit
+
                     else -> when (classifyInventoryObservation(current, incoming.snapshot)) {
                         OutboundInventoryAdmission.Accepted -> Unit
                         OutboundInventoryAdmission.RejectedStale -> return OutboundInventoryAdmission.RejectedStale
@@ -301,13 +312,16 @@ internal class ProxiesViewModel internal constructor(
                 }
                 lastAcceptedSnapshot = incoming.snapshot
             }
+
             else -> Unit
         }
         val retainedIncoming = retainLastAcceptedInventory(incoming, lastAcceptedSnapshot)
         _inventory.value = retainedIncoming
         when (incoming) {
             is OutboundInventoryPageState.Failed,
-            is OutboundInventoryPageState.Unavailable -> Unit
+            is OutboundInventoryPageState.Unavailable,
+            -> Unit
+
             else -> _error.value = null
         }
         return OutboundInventoryAdmission.Accepted
@@ -343,6 +357,7 @@ internal fun retainLastAcceptedInventory(
     is OutboundInventoryPageState.Unavailable -> incoming.copy(
         lastValue = incoming.lastValue ?: lastAccepted,
     )
+
     else -> incoming
 }
 
@@ -421,7 +436,6 @@ private fun scopeMismatchFailure() = OwnerFailure(
     reason = null,
 )
 
-private fun sameScope(first: CoreScopeObservation, second: CoreScopeObservation): Boolean =
-    first.identity == second.identity &&
-        first.generation == second.generation &&
-        first.sessionToken == second.sessionToken
+private fun sameScope(first: CoreScopeObservation, second: CoreScopeObservation): Boolean = first.identity == second.identity &&
+    first.generation == second.generation &&
+    first.sessionToken == second.sessionToken

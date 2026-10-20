@@ -4,33 +4,21 @@ import com.musicfrog.infiltrator.ui.common.AppFailure
 import infiltrator_android.DnsSettings
 import infiltrator_android.DnsSettingsPatch
 
-internal data class DnsSettingsObservationPoint(
-    val value: DnsSettings,
-    val revision: DnsSettingsRevision,
-)
+internal data class DnsSettingsObservationPoint(val value: DnsSettings, val revision: DnsSettingsRevision)
 
-internal data class DnsSettingsRevision(
-    val ownerSessionId: String,
-    val coreGeneration: ULong,
-    val dataRevision: ULong,
-)
+internal data class DnsSettingsRevision(val ownerSessionId: String, val coreGeneration: ULong, val dataRevision: ULong)
 
 internal sealed interface DnsSettingsReadState {
     data class Loading(val lastAccepted: DnsSettingsObservationPoint? = null) : DnsSettingsReadState
-    data class Observed(
-        val value: DnsSettings,
-        val revision: DnsSettingsRevision,
-    ) : DnsSettingsReadState
-    data class Unavailable(
-        val lastAccepted: DnsSettingsObservationPoint?,
-        val failure: AppFailure,
-    ) : DnsSettingsReadState
+    data class Observed(val value: DnsSettings, val revision: DnsSettingsRevision) : DnsSettingsReadState
+    data class Unavailable(val lastAccepted: DnsSettingsObservationPoint?, val failure: AppFailure) : DnsSettingsReadState
 }
 
 internal enum class DnsGeoIpPolicy(val selectionValue: String) {
     Automatic(""),
     Enabled("true"),
-    Disabled("false");
+    Disabled("false"),
+    ;
 
     companion object {
         fun fromSelection(value: String): DnsGeoIpPolicy = when (value) {
@@ -52,17 +40,25 @@ internal sealed interface DnsEnhancedMode {
 
 internal fun DnsEnhancedMode.selectionValue(): String = when (this) {
     DnsEnhancedMode.Unspecified,
-    DnsEnhancedMode.Disabled -> ""
+    DnsEnhancedMode.Disabled,
+    -> ""
+
     DnsEnhancedMode.FakeIp -> "fake-ip"
+
     DnsEnhancedMode.RedirHost -> "redir-host"
+
     is DnsEnhancedMode.Custom -> value
 }
 
 internal fun DnsEnhancedMode.toPatchValue(): String? = when (this) {
     DnsEnhancedMode.Unspecified,
-    DnsEnhancedMode.Disabled -> null
+    DnsEnhancedMode.Disabled,
+    -> null
+
     DnsEnhancedMode.FakeIp -> "fake-ip"
+
     DnsEnhancedMode.RedirHost -> "redir-host"
+
     is DnsEnhancedMode.Custom -> value
 }
 
@@ -143,17 +139,12 @@ internal fun lastAcceptedDns(state: DnsSettingsReadState): DnsSettingsObservatio
     is DnsSettingsReadState.Unavailable -> state.lastAccepted
 }
 
-internal fun unavailableDns(
-    previous: DnsSettingsReadState,
-    failure: AppFailure,
-): DnsSettingsReadState = lastAcceptedDns(previous).let { accepted ->
-    DnsSettingsReadState.Unavailable(accepted, failure)
-}
+internal fun unavailableDns(previous: DnsSettingsReadState, failure: AppFailure): DnsSettingsReadState =
+    lastAcceptedDns(previous).let { accepted ->
+        DnsSettingsReadState.Unavailable(accepted, failure)
+    }
 
-internal fun acceptsDnsRevision(
-    current: DnsSettingsReadState,
-    incoming: DnsSettingsRevision,
-): DnsSnapshotAdmission {
+internal fun acceptsDnsRevision(current: DnsSettingsReadState, incoming: DnsSettingsRevision): DnsSnapshotAdmission {
     val accepted = lastAcceptedDns(current)?.revision ?: return DnsSnapshotAdmission.Accepted
     if (accepted.ownerSessionId != incoming.ownerSessionId) return DnsSnapshotAdmission.Accepted
     return when {

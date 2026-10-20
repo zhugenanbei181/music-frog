@@ -1,8 +1,8 @@
 package com.musicfrog.infiltrator
 
-import java.util.ArrayDeque
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.ArrayDeque
 
 class VpnLifecycleWakeLockTest {
     @Test
@@ -193,7 +193,9 @@ class VpnLifecycleWakeLockTest {
             val result = releaseResults.pollFirst() ?: VpnWakeLockPlatformRelease.Released
             when (result) {
                 VpnWakeLockPlatformRelease.Released,
-                VpnWakeLockPlatformRelease.Expired -> state = FakeWakeLockState.Released
+                VpnWakeLockPlatformRelease.Expired,
+                -> state = FakeWakeLockState.Released
+
                 is VpnWakeLockPlatformRelease.Failed -> Unit
             }
             return result

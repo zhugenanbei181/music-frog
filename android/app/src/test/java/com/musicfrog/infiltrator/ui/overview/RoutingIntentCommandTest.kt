@@ -19,8 +19,11 @@ class RoutingIntentCommandTest {
             .getJSONObject("Application")
             .getJSONObject("SetRoutingIntent")
 
-        assertEquals("mihomo", JSONObject(request).getJSONObject("scope")
-            .getJSONObject("identity").getString("engine"))
+        assertEquals(
+            "mihomo",
+            JSONObject(request).getJSONObject("scope")
+                .getJSONObject("identity").getString("engine"),
+        )
         assertEquals("9223372036854775808", rawJsonValueAtPath(request, "scope", "session_token"))
         assertEquals("bypass_proxy", command.getJSONObject("intent").getString("kind"))
         assertEquals(null, command.opt("mode"))

@@ -1,9 +1,6 @@
 package com.musicfrog.infiltrator
 
-internal data class OwnerIpcRequestKey(
-    val clientSessionId: String,
-    val requestId: Long,
-)
+internal data class OwnerIpcRequestKey(val clientSessionId: String, val requestId: Long)
 
 internal sealed interface OwnerIpcAdmission<out T> {
     data object Admitted : OwnerIpcAdmission<Nothing>
@@ -106,8 +103,11 @@ internal class OwnerIpcRequestAdmission<T>(
             if (existing.fingerprint != fingerprint) return OwnerIpcAdmission.RequestIdConflict
             return when (val state = existing.state) {
                 State.Queued,
-                State.Executing -> OwnerIpcAdmission.InFlight
+                State.Executing,
+                -> OwnerIpcAdmission.InFlight
+
                 State.Canceled -> OwnerIpcAdmission.CanceledBeforeExecution
+
                 is State.Terminal -> OwnerIpcAdmission.TerminalReadback(state.response)
             }
         }
@@ -125,21 +125,23 @@ internal class OwnerIpcRequestAdmission<T>(
     }
 
     @Synchronized
-    fun begin(
-        key: OwnerIpcRequestKey,
-        nowElapsedRealtimeMillis: Long,
-    ): OwnerIpcExecutionStart<T> = when (val entry = entries[key]) {
+    fun begin(key: OwnerIpcRequestKey, nowElapsedRealtimeMillis: Long): OwnerIpcExecutionStart<T> = when (val entry = entries[key]) {
         null -> OwnerIpcExecutionStart.Unknown
+
         else -> when (entry.state) {
             State.Queued -> when (entry.deadline.remainingAt(nowElapsedRealtimeMillis)) {
                 VpnDeadlineState.Expired -> OwnerIpcExecutionStart.Expired
+
                 is VpnDeadlineState.Remaining -> {
                     entries[key] = entry.copy(state = State.Executing)
                     OwnerIpcExecutionStart.Started
                 }
             }
+
             State.Canceled -> OwnerIpcExecutionStart.Canceled
+
             State.Executing -> OwnerIpcExecutionStart.InFlight
+
             is State.Terminal -> OwnerIpcExecutionStart.TerminalReadback(entry.state.response)
         }
     }
@@ -147,40 +149,45 @@ internal class OwnerIpcRequestAdmission<T>(
     @Synchronized
     fun cancel(key: OwnerIpcRequestKey): OwnerIpcCancellation<T> = when (val entry = entries[key]) {
         null -> OwnerIpcCancellation.Unknown
+
         else -> when (val state = entry.state) {
             State.Queued -> {
                 entries[key] = entry.copy(state = State.Canceled)
                 OwnerIpcCancellation.CanceledBeforeExecution
             }
+
             State.Canceled -> OwnerIpcCancellation.AlreadyCanceled
+
             State.Executing -> OwnerIpcCancellation.ExecutionAlreadyStarted
+
             is State.Terminal -> OwnerIpcCancellation.TerminalReadback(state.response)
         }
     }
 
     @Synchronized
-    fun complete(
-        key: OwnerIpcRequestKey,
-        response: T,
-        nowElapsedRealtimeMillis: Long,
-    ): OwnerIpcCompletion = when (val entry = entries[key]) {
-        null -> OwnerIpcCompletion.Unknown
-        else -> when (entry.state) {
-            State.Canceled -> OwnerIpcCompletion.SuppressCanceledCompletion
-            State.Queued,
-            State.Executing -> {
-                entries[key] = entry.copy(
-                    state = State.Terminal(response),
-                    retainedUntilElapsedRealtimeMillis = addSaturating(
-                        nowElapsedRealtimeMillis,
-                        terminalRetentionMillis,
-                    ),
-                )
-                OwnerIpcCompletion.TerminalCached
+    fun complete(key: OwnerIpcRequestKey, response: T, nowElapsedRealtimeMillis: Long): OwnerIpcCompletion =
+        when (val entry = entries[key]) {
+            null -> OwnerIpcCompletion.Unknown
+
+            else -> when (entry.state) {
+                State.Canceled -> OwnerIpcCompletion.SuppressCanceledCompletion
+
+                State.Queued,
+                State.Executing,
+                -> {
+                    entries[key] = entry.copy(
+                        state = State.Terminal(response),
+                        retainedUntilElapsedRealtimeMillis = addSaturating(
+                            nowElapsedRealtimeMillis,
+                            terminalRetentionMillis,
+                        ),
+                    )
+                    OwnerIpcCompletion.TerminalCached
+                }
+
+                is State.Terminal -> OwnerIpcCompletion.Unknown
             }
-            is State.Terminal -> OwnerIpcCompletion.Unknown
         }
-    }
 
     @Synchronized
     fun retainedRequestCount(nowElapsedRealtimeMillis: Long): Int {

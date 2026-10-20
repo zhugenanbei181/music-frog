@@ -1,7 +1,7 @@
 package com.musicfrog.infiltrator
 
-import android.app.NativeActivity
 import android.Manifest
+import android.app.NativeActivity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,12 +10,12 @@ import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.core.content.ContextCompat
 import androidx.annotation.Keep
+import androidx.core.content.ContextCompat
 import infiltrator_android.AndroidControlIntent
 import infiltrator_android.FfiErrorCode
-import infiltrator_android.VpnAuthorizationResult
 import infiltrator_android.FfiStatus
+import infiltrator_android.VpnAuthorizationResult
 import infiltrator_android.androidControl
 import infiltrator_android.androidExecuteProductCommandJson
 import infiltrator_android.androidSurfaceSnapshotJson
@@ -44,23 +44,19 @@ class BevyHostActivity : NativeActivity() {
 
     /** JNI entry for the Bevy command sink; the payload is shared Rust enum JSON. */
     @Keep
-    fun executeAndroidProductCommandJson(commandJson: String): String =
-        runBlocking { androidExecuteProductCommandJson(commandJson) }
+    fun executeAndroidProductCommandJson(commandJson: String): String = runBlocking { androidExecuteProductCommandJson(commandJson) }
 
     /** Read the current owner-authored VPN/Core lifecycle snapshot for command readback. */
     @Keep
-    fun readAndroidVpnOwnerSnapshotJson(): String? =
-        ownerIpcClient().readVpnOwnerSnapshotJson()
+    fun readAndroidVpnOwnerSnapshotJson(): String? = ownerIpcClient().readVpnOwnerSnapshotJson()
 
     /** Stop the VPN through the :vpn owner and return its owner-authored terminal receipt. */
     @Keep
-    fun stopAndroidVpnServiceCurrent(): String =
-        ownerIpcClient().stopVpnService()
-            ?: throw IllegalStateException("VPN owner returned no stop receipt")
+    fun stopAndroidVpnServiceCurrent(): String = ownerIpcClient().stopVpnService()
+        ?: throw IllegalStateException("VPN owner returned no stop receipt")
 
-    private fun ownerIpcClient(): MihomoControlClient =
-        (applicationContext as? MihomoApplication)?.ownerIpcClient
-            ?: throw IllegalStateException("MihomoApplication must own the Android control client")
+    private fun ownerIpcClient(): MihomoControlClient = (applicationContext as? MihomoApplication)?.ownerIpcClient
+        ?: throw IllegalStateException("MihomoApplication must own the Android control client")
 
     /** JNI entry for the Bevy reader; data remains authored by the `:vpn` process. */
     @Keep
@@ -91,10 +87,12 @@ class BevyHostActivity : NativeActivity() {
             val command = readControlIntent(intent) ?: return
             when (command) {
                 AndroidControlIntent.START_PROXY -> requestControl(command)
+
                 AndroidControlIntent.STOP_PROXY,
                 AndroidControlIntent.RESUME_KERNEL,
                 AndroidControlIntent.PAUSE_KERNEL,
-                AndroidControlIntent.RESTART_KERNEL ->
+                AndroidControlIntent.RESTART_KERNEL,
+                ->
                     Log.w(TAG, "unexpected host authorization request: $command")
             }
         }
@@ -156,11 +154,7 @@ class BevyHostActivity : NativeActivity() {
     // NativeActivity does not implement ComponentActivity's Activity Result
     // registry, so this platform callback forwards into the same shared flow.
     @Deprecated("NativeActivity permission adapter for the shared VPN authorization flow")
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != NOTIFICATION_PERMISSION_REQUEST) return
         vpnAuthorizationFlow.onNotificationPermissionPromptReturned(
@@ -168,8 +162,8 @@ class BevyHostActivity : NativeActivity() {
         )
     }
 
-    private fun readControlIntent(intent: Intent): AndroidControlIntent? {
-        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+    private fun readControlIntent(intent: Intent): AndroidControlIntent? =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             intent.getSerializableExtra(
                 AndroidControlIntentWire.EXTRA,
                 AndroidControlIntent::class.java,
@@ -179,7 +173,6 @@ class BevyHostActivity : NativeActivity() {
             intent.getSerializableExtra(AndroidControlIntentWire.EXTRA)
                 as? AndroidControlIntent
         }
-    }
 
     private fun handleControlIntent(intent: Intent?) {
         pendingControlIntent = intent?.let(::readControlIntent)
@@ -194,10 +187,12 @@ class BevyHostActivity : NativeActivity() {
     private fun requestControl(command: AndroidControlIntent) {
         when (command) {
             AndroidControlIntent.START_PROXY -> vpnAuthorizationFlow.requestStart()
+
             AndroidControlIntent.STOP_PROXY,
             AndroidControlIntent.RESUME_KERNEL,
             AndroidControlIntent.PAUSE_KERNEL,
-            AndroidControlIntent.RESTART_KERNEL -> dispatchControl(command)
+            AndroidControlIntent.RESTART_KERNEL,
+            -> dispatchControl(command)
         }
     }
 
@@ -249,8 +244,7 @@ class BevyHostActivity : NativeActivity() {
     }
 
     private inner class BevyVpnAuthorizationHost : AndroidVpnAuthorizationHost {
-        override fun authorizationAvailability(): VpnAuthorizationAvailability =
-            readVpnAuthorizationAvailability(this@BevyHostActivity)
+        override fun authorizationAvailability(): VpnAuthorizationAvailability = readVpnAuthorizationAvailability(this@BevyHostActivity)
 
         override fun launchVpnConsentPrompt(): VpnConsentPromptLaunch {
             return try {
@@ -280,7 +274,7 @@ class BevyHostActivity : NativeActivity() {
                     return NotificationPromptLaunch.PermissionAlreadyGranted
                 }
                 requestPermissions(
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    arrayOf(POST_NOTIFICATIONS_PERMISSION),
                     NOTIFICATION_PERMISSION_REQUEST,
                 )
                 NotificationPromptLaunch.Launched
@@ -291,8 +285,7 @@ class BevyHostActivity : NativeActivity() {
             }
         }
 
-        override fun reportVpnAuthorization(result: VpnAuthorizationResult): FfiStatus =
-            vpnAuthorizationResult(result)
+        override fun reportVpnAuthorization(result: VpnAuthorizationResult): FfiStatus = vpnAuthorizationResult(result)
 
         override fun onVpnAuthorizationNotGranted(status: FfiStatus) {
             val message = status.message ?: getString(R.string.status_permission_required)

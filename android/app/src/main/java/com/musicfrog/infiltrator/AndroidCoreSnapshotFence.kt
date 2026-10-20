@@ -37,10 +37,7 @@ internal class AndroidCoreSnapshotFence {
         latest.set(null)
     }
 
-    private fun isOlderThan(
-        incoming: CoreSnapshotVersion,
-        current: CoreSnapshotVersion,
-    ): Boolean {
+    private fun isOlderThan(incoming: CoreSnapshotVersion, current: CoreSnapshotVersion): Boolean {
         if (incoming.generation != current.generation) {
             return incoming.generation < current.generation
         }

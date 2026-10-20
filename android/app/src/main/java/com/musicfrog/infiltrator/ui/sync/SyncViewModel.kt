@@ -13,13 +13,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-internal class SyncViewModel(
-    private val repository: SyncRepository,
-) : ViewModel() {
+internal class SyncViewModel(private val repository: SyncRepository) : ViewModel() {
     constructor() : this(UniFfiSyncRepository())
 
     private val _state = MutableStateFlow(SyncUiState())
-    internal val state: StateFlow<SyncUiState> = _state.asStateFlow()
+    val state: StateFlow<SyncUiState> = _state.asStateFlow()
 
     private var requestSequence = 0uL
 
@@ -54,6 +52,7 @@ internal class SyncViewModel(
         val form = currentEditableForm() ?: return unavailable(SyncOperation.SaveSettings)
         val interval = when (val parsed = parseSyncInterval(form.draft.intervalMinutes)) {
             is SyncIntervalParse.Valid -> parsed.minutes
+
             SyncIntervalParse.Invalid -> {
                 _state.value = _state.value.copy(
                     action = SyncActionState.Failed(
@@ -85,6 +84,7 @@ internal class SyncViewModel(
         val form = currentEditableForm() ?: return unavailable(SyncOperation.TestConnection)
         val interval = when (val parsed = parseSyncInterval(form.draft.intervalMinutes)) {
             is SyncIntervalParse.Valid -> parsed.minutes
+
             SyncIntervalParse.Invalid -> {
                 _state.value = _state.value.copy(
                     action = SyncActionState.Failed(
@@ -130,12 +130,15 @@ internal class SyncViewModel(
             is SyncActionState.Failed,
             is SyncActionState.Cancelled,
             is SyncActionState.TimedOut,
-            is SyncActionState.Unconfirmed -> _state.value = _state.value.copy(action = SyncActionState.Idle)
+            is SyncActionState.Unconfirmed,
+            -> _state.value = _state.value.copy(action = SyncActionState.Idle)
+
             SyncActionState.Idle,
             is SyncActionState.Working,
             SyncActionState.Saved,
             SyncActionState.ConnectionTested,
-            is SyncActionState.Synchronized -> Unit
+            is SyncActionState.Synchronized,
+            -> Unit
         }
     }
 
@@ -153,8 +156,10 @@ internal class SyncViewModel(
 
     private fun currentEditableForm(): SyncForm? = when (val settings = _state.value.settings) {
         is SyncSettingsState.Observed -> settings.form
+
         is SyncSettingsState.Loading,
-        is SyncSettingsState.Unavailable -> null
+        is SyncSettingsState.Unavailable,
+        -> null
     }
 
     private fun begin(operation: SyncOperation): SyncRequest? {
@@ -167,6 +172,7 @@ internal class SyncViewModel(
                 requestSequence = allocation.sequence.value
                 SyncRequest(allocation.sequence)
             }
+
             SyncRequestAllocation.Exhausted -> {
                 _state.value = _state.value.copy(
                     action = SyncActionState.Unconfirmed(
@@ -197,7 +203,9 @@ internal class SyncViewModel(
                 val currentForm = _state.value.settings.lastAccepted()
                 when (admitSyncSettings(currentForm, result.snapshot, request.sequence.value)) {
                     SyncSnapshotAdmission.Stale,
-                    SyncSnapshotAdmission.Conflicting -> markUnconfirmed(operation)
+                    SyncSnapshotAdmission.Conflicting,
+                    -> markUnconfirmed(operation)
+
                     SyncSnapshotAdmission.Accepted -> {
                         val draft = when (draftPolicy) {
                             SyncDraftPolicy.ReplaceWithAccepted -> result.snapshot.toDraft()
@@ -216,20 +224,24 @@ internal class SyncViewModel(
                     }
                 }
             }
+
             is SyncRepositoryResult.Failed -> {
                 acceptLatest(result.latest, request.sequence, draftPolicy)
                 _state.value = _state.value.copy(action = SyncActionState.Failed(operation, result.failure.toLocalizedFailure()))
             }
+
             is SyncRepositoryResult.Cancelled -> {
                 acceptLatest(result.latest, request.sequence, draftPolicy)
                 _state.value = _state.value.copy(action = SyncActionState.Cancelled(operation, result.failure.toLocalizedFailure()))
             }
+
             is SyncRepositoryResult.TimedOut -> {
                 _state.value = _state.value.copy(
                     settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
                     action = SyncActionState.TimedOut(operation, result.failure.toLocalizedFailure()),
                 )
             }
+
             is SyncRepositoryResult.Unconfirmed -> {
                 _state.value = _state.value.copy(
                     settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
@@ -239,11 +251,7 @@ internal class SyncViewModel(
         }
     }
 
-    private fun acceptLatest(
-        snapshot: SyncSettingsSnapshot?,
-        sequence: SyncRequestSequence,
-        draftPolicy: SyncDraftPolicy,
-    ) {
+    private fun acceptLatest(snapshot: SyncSettingsSnapshot?, sequence: SyncRequestSequence, draftPolicy: SyncDraftPolicy) {
         if (snapshot == null) {
             _state.value = _state.value.copy(
                 settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
@@ -261,8 +269,10 @@ internal class SyncViewModel(
                     settings = SyncSettingsState.Observed(SyncForm(snapshot, draft, sequence.value)),
                 )
             }
+
             SyncSnapshotAdmission.Stale,
-            SyncSnapshotAdmission.Conflicting -> {
+            SyncSnapshotAdmission.Conflicting,
+            -> {
                 _state.value = _state.value.copy(
                     settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
                 )
@@ -296,6 +306,4 @@ private enum class SyncDraftPolicy {
     Preserve,
 }
 
-private data class SyncRequest(
-    val sequence: SyncRequestSequence,
-)
+private data class SyncRequest(val sequence: SyncRequestSequence)

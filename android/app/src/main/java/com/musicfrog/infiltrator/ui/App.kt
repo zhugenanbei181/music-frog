@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,11 +33,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.testTag
-import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
+import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.connections.ConnectionsScreen
 import com.musicfrog.infiltrator.ui.logs.LogsScreen
 import com.musicfrog.infiltrator.ui.overview.OverviewScreen
@@ -60,7 +60,7 @@ fun InfiltratorApp(
     onRequestVpnPermission: () -> Unit,
     onControlIntent: (AndroidControlIntent) -> Unit,
     pendingImportUrl: String? = null,
-    onImportHandled: () -> Unit = {}
+    onImportHandled: () -> Unit = {},
 ) {
     var route by rememberSaveable(stateSaver = AppRouteSaver) {
         mutableStateOf<AppRoute>(AppRoute.Main(AppSection.Overview))
@@ -108,8 +108,8 @@ fun InfiltratorApp(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent
-                )
+                    scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                ),
             )
         },
         bottomBar = {
@@ -126,7 +126,7 @@ fun InfiltratorApp(
                     }
                 }
             }
-        }
+        },
     ) { innerPadding ->
         Row(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (navigationType == NavigationType.Rail) {
@@ -135,7 +135,7 @@ fun InfiltratorApp(
                         modifier = Modifier
                             .fillMaxHeight()
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
                     ) {
                         AppSection.values().forEach { item ->
                             NavigationRailItem(
@@ -152,7 +152,7 @@ fun InfiltratorApp(
 
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxSize(),
             ) {
                 routeStateHolder.SaveableStateProvider(route.saveableStateKey) {
                     when (val activeRoute = route) {
@@ -161,13 +161,16 @@ fun InfiltratorApp(
                                 vpnAuthorization = vpnAuthorization,
                                 onRequestVpnPermission = onRequestVpnPermission,
                                 onControlIntent = onControlIntent,
-                                isExpanded = overviewExpanded
+                                isExpanded = overviewExpanded,
                             )
+
                             AppSection.Profiles -> ProfilesScreen(
                                 initialImportUrl = pendingImportUrl,
-                                onImportHandled = onImportHandled
+                                onImportHandled = onImportHandled,
                             )
+
                             AppSection.Proxies -> ProxiesScreen()
+
                             AppSection.AppRouting -> SettingsScreen(
                                 onNavigateToRouting = {
                                     route = AppRoute.SettingsDetail(SettingsDestination.Routing)
@@ -189,10 +192,12 @@ fun InfiltratorApp(
                                 },
                                 onNavigateToLogs = {
                                     route = AppRoute.SettingsDetail(SettingsDestination.Logs)
-                                }
+                                },
                             )
+
                             AppSection.Sync -> SyncScreen()
                         }
+
                         is AppRoute.SettingsDetail -> when (activeRoute.destination) {
                             SettingsDestination.Routing -> AppRoutingScreen()
                             SettingsDestination.Tun -> TunScreen()
@@ -211,5 +216,5 @@ fun InfiltratorApp(
 
 private enum class NavigationType {
     Bottom,
-    Rail
+    Rail,
 }

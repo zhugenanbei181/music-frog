@@ -1,8 +1,8 @@
 package com.musicfrog.infiltrator
 
+import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
-import org.json.JSONObject
 
 internal sealed interface CoreBinaryResolution {
     data class Available(val file: File) : CoreBinaryResolution
@@ -12,10 +12,7 @@ internal sealed interface CoreBinaryResolution {
     data class Rejected(val reason: String) : CoreBinaryResolution
 }
 
-internal class AndroidCoreBinaryResolver(
-    private val nativeLibraryDirectory: File,
-    private val filesDirectory: File,
-) {
+internal class AndroidCoreBinaryResolver(private val nativeLibraryDirectory: File, private val filesDirectory: File) {
     fun resolve(binary: CoreLaunchBinaryWire): CoreBinaryResolution = when (binary) {
         CoreLaunchBinaryWire.MihomoBundled -> resolveBundledMihomo()
         is CoreLaunchBinaryWire.SingBoxManaged -> resolveManagedSingBox(binary)
@@ -30,9 +27,7 @@ internal class AndroidCoreBinaryResolver(
         }
     }
 
-    private fun resolveManagedSingBox(
-        binary: CoreLaunchBinaryWire.SingBoxManaged,
-    ): CoreBinaryResolution {
+    private fun resolveManagedSingBox(binary: CoreLaunchBinaryWire.SingBoxManaged): CoreBinaryResolution {
         if (!isCanonicalSingBoxVersion(binary.version)) {
             return CoreBinaryResolution.Rejected("managed sing-box version is not canonical")
         }
@@ -100,11 +95,9 @@ internal class AndroidCoreBinaryResolver(
             }
     }
 
-    private fun File.isDescendantOf(root: File): Boolean =
-        path.startsWith(root.path.trimEnd(File.separatorChar) + File.separator)
+    private fun File.isDescendantOf(root: File): Boolean = path.startsWith(root.path.trimEnd(File.separatorChar) + File.separator)
 
-    private fun String.isSha256Digest(): Boolean =
-        length == SHA256_HEX_LENGTH && all { it in '0'..'9' || it in 'a'..'f' }
+    private fun String.isSha256Digest(): Boolean = length == SHA256_HEX_LENGTH && all { it in '0'..'9' || it in 'a'..'f' }
 
     private fun File.sha256(): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -119,8 +112,7 @@ internal class AndroidCoreBinaryResolver(
         return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 
-    private fun JSONObject.requiredString(key: String): String =
-        get(key) as? String ?: error("${key} must be a string")
+    private fun JSONObject.requiredString(key: String): String = get(key) as? String ?: error("$key must be a string")
 
     private companion object {
         const val MIHOMO_BINARY_NAME = "libmihomo.so"

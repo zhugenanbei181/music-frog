@@ -13,17 +13,17 @@ import com.musicfrog.infiltrator.ui.common.runCall
 import com.musicfrog.infiltrator.ui.common.toAppFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 internal const val DEFAULT_LOGS_POLL_INTERVAL_MS = 2_000L
 
@@ -112,6 +112,7 @@ internal class LogsViewModel internal constructor(
             try {
                 when (val call = runCall(LONG_FFI_TIMEOUT_MS) { repository.clearLogs(coreScope) }) {
                     is CallResult.Failure -> publishClearFailure(operationSequence, call.failure)
+
                     is CallResult.Success -> when (val result = call.value) {
                         LogsClearResult.Accepted -> confirmClear(operationSequence)
                         is LogsClearResult.Failed -> publishClearFailure(operationSequence, result.failure)
@@ -146,9 +147,12 @@ internal class LogsViewModel internal constructor(
                     _state.value = _state.value.copy(operation = operation)
                 }
             }
+
             is LogsRefreshResult.Unavailable -> publishClearFailure(operationSequence, readback.failure)
+
             LogsRefreshResult.Pending,
-            LogsRefreshResult.Superseded -> publishClearFailure(operationSequence, logsNotReadyFailure())
+            LogsRefreshResult.Superseded,
+            -> publishClearFailure(operationSequence, logsNotReadyFailure())
         }
     }
 
@@ -199,6 +203,7 @@ internal class LogsViewModel internal constructor(
                 } else {
                     LogsRefreshResult.Superseded
                 }
+
                 is CallResult.Success -> acceptRead(requestRevision, call.value)
             }
         } catch (error: CancellationException) {
@@ -214,16 +219,14 @@ internal class LogsViewModel internal constructor(
         }
     }
 
-    private fun acceptRead(
-        requestRevision: ObservationRevision.Request,
-        read: LogsSnapshotRead,
-    ): LogsRefreshResult {
+    private fun acceptRead(requestRevision: ObservationRevision.Request, read: LogsSnapshotRead): LogsRefreshResult {
         if (requestRevision != readRequestRevision) return LogsRefreshResult.Superseded
         return when (read) {
             is LogsSnapshotRead.Unavailable -> {
                 publishUnavailable(read.failure)
                 LogsRefreshResult.Unavailable(read.failure)
             }
+
             is LogsSnapshotRead.OwnerSnapshot -> {
                 if (!acceptsLogsRevision(lastAcceptedRevision, read.revision)) {
                     return LogsRefreshResult.Superseded
@@ -231,7 +234,8 @@ internal class LogsViewModel internal constructor(
                 lastAcceptedRevision = read.revision
                 when (read.page.state) {
                     OwnerPageState.Ready,
-                    OwnerPageState.Empty -> {
+                    OwnerPageState.Empty,
+                    -> {
                         val logs = read.page.data
                         if (logs == null) {
                             val failure = logsNotReadyFailure()
@@ -245,6 +249,7 @@ internal class LogsViewModel internal constructor(
                             LogsRefreshResult.Accepted(point)
                         }
                     }
+
                     OwnerPageState.Loading -> {
                         _state.value = _state.value.copy(
                             observation = LogsObservationState.Loading(
@@ -254,8 +259,10 @@ internal class LogsViewModel internal constructor(
                         )
                         LogsRefreshResult.Pending
                     }
+
                     OwnerPageState.Unavailable,
-                    OwnerPageState.Failed -> {
+                    OwnerPageState.Failed,
+                    -> {
                         val failure = read.page.failure?.toAppFailure() ?: logsNotReadyFailure()
                         publishUnavailable(failure)
                         LogsRefreshResult.Unavailable(failure)
@@ -283,7 +290,6 @@ internal class LogsViewModel internal constructor(
 
     override fun onCleared() {
         coroutineScope.cancel()
-        super.onCleared()
     }
 }
 

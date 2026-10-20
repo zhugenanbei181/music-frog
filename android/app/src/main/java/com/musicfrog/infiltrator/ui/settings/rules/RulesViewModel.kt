@@ -16,9 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-internal class RulesViewModel(
-    private val repository: RulesRepository,
-) : ViewModel() {
+internal class RulesViewModel(private val repository: RulesRepository) : ViewModel() {
     constructor() : this(UniFfiRulesRepository())
 
     private val _state = MutableStateFlow(RulesUiState())
@@ -34,8 +32,10 @@ internal class RulesViewModel(
     fun load() {
         when (_state.value.reloadAvailability) {
             RulesReloadAvailability.Available -> Unit
+
             RulesReloadAvailability.Busy,
-            RulesReloadAvailability.UnsavedChanges -> return
+            RulesReloadAvailability.UnsavedChanges,
+            -> return
         }
         val sequence = nextRequestSequence()
         val current = _state.value
@@ -45,25 +45,34 @@ internal class RulesViewModel(
             operation = RulesOperationState.Loading,
         )
         viewModelScope.launch {
-            when (handleResult(
-                repository.execute(AndroidOwnerOperation.RulesList, DEFAULT_FFI_TIMEOUT_MS),
-                sequence,
-                RulesRequestKind.ReadRules,
-            )) {
+            when (
+                handleResult(
+                    repository.execute(AndroidOwnerOperation.RulesList, DEFAULT_FFI_TIMEOUT_MS),
+                    sequence,
+                    RulesRequestKind.ReadRules,
+                )
+            ) {
                 RulesRequestOutcome.Accepted -> Unit
+
                 RulesRequestOutcome.Rejected,
-                RulesRequestOutcome.Superseded -> return@launch
+                RulesRequestOutcome.Superseded,
+                -> return@launch
             }
 
-            when (handleResult(
-                repository.execute(AndroidOwnerOperation.RuleProviders, DEFAULT_FFI_TIMEOUT_MS),
-                sequence,
-                RulesRequestKind.ReadProviders,
-            )) {
-                RulesRequestOutcome.Accepted -> _state.value =
-                    _state.value.copy(operation = RulesOperationState.Ready)
+            when (
+                handleResult(
+                    repository.execute(AndroidOwnerOperation.RuleProviders, DEFAULT_FFI_TIMEOUT_MS),
+                    sequence,
+                    RulesRequestKind.ReadProviders,
+                )
+            ) {
+                RulesRequestOutcome.Accepted ->
+                    _state.value =
+                        _state.value.copy(operation = RulesOperationState.Ready)
+
                 RulesRequestOutcome.Rejected,
-                RulesRequestOutcome.Superseded -> Unit
+                RulesRequestOutcome.Superseded,
+                -> Unit
             }
         }
     }
@@ -78,6 +87,7 @@ internal class RulesViewModel(
         }
         when (current.rulesAvailability) {
             RulesObservationAvailability.Available -> Unit
+
             RulesObservationAvailability.Unavailable -> {
                 fail(notReadyFailure())
                 return
@@ -185,23 +195,22 @@ internal class RulesViewModel(
             is RulesOperationState.Failed,
             is RulesOperationState.Cancelled,
             is RulesOperationState.TimedOut,
-            is RulesOperationState.Unconfirmed -> {
+            is RulesOperationState.Unconfirmed,
+            -> {
                 _state.value = _state.value.copy(operation = RulesOperationState.Ready)
             }
+
             RulesOperationState.Loading,
             RulesOperationState.Ready,
             RulesOperationState.SavingRules,
             RulesOperationState.RulesSaved,
             RulesOperationState.SavingProviders,
-            RulesOperationState.ProvidersSaved -> Unit
+            RulesOperationState.ProvidersSaved,
+            -> Unit
         }
     }
 
-    private suspend fun handleResult(
-        result: RulesRepositoryResult,
-        sequence: ULong,
-        purpose: RulesRequestKind,
-    ): RulesRequestOutcome {
+    private suspend fun handleResult(result: RulesRepositoryResult, sequence: ULong, purpose: RulesRequestKind): RulesRequestOutcome {
         when (requestAdmission(sequence)) {
             RulesRequestAdmission.Current -> Unit
             RulesRequestAdmission.Superseded -> return RulesRequestOutcome.Superseded
@@ -212,13 +221,17 @@ internal class RulesViewModel(
                     RulesSnapshotAdmission.Accepted -> {
                         when (purpose) {
                             RulesRequestKind.ReadRules,
-                            RulesRequestKind.ReadProviders -> Unit
+                            RulesRequestKind.ReadProviders,
+                            -> Unit
+
                             RulesRequestKind.WriteRules -> {
                                 _state.value = _state.value.copy(operation = RulesOperationState.RulesSaved)
                             }
+
                             RulesRequestKind.WriteProviders -> {
                                 _state.value = _state.value.copy(operation = RulesOperationState.ProvidersSaved)
                             }
+
                             RulesRequestKind.Unsupported -> {
                                 setUnconfirmed(purpose, notReadyFailure())
                                 return RulesRequestOutcome.Rejected
@@ -226,28 +239,33 @@ internal class RulesViewModel(
                         }
                         RulesRequestOutcome.Accepted
                     }
+
                     RulesSnapshotAdmission.Stale -> {
                         setUnconfirmed(purpose, notReadyFailure())
                         RulesRequestOutcome.Rejected
                     }
                 }
             }
+
             is RulesRepositoryResult.Failed -> {
                 acceptLatest(result.latest, purpose.domain)
                 setFailure(purpose, result.failure)
                 RulesRequestOutcome.Rejected
             }
+
             is RulesRepositoryResult.Cancelled -> {
                 acceptLatest(result.latest, purpose.domain)
                 markUnavailableForRead(purpose, result.failure)
                 _state.value = _state.value.copy(operation = RulesOperationState.Cancelled(result.failure))
                 RulesRequestOutcome.Rejected
             }
+
             is RulesRepositoryResult.TimedOut -> {
                 markUnavailableForRead(purpose, result.failure)
                 _state.value = _state.value.copy(operation = RulesOperationState.TimedOut(result.failure))
                 RulesRequestOutcome.Rejected
             }
+
             is RulesRepositoryResult.Unconfirmed -> {
                 acceptLatest(result.latest, purpose.domain)
                 setUnconfirmed(purpose, result.failure)
@@ -256,10 +274,7 @@ internal class RulesViewModel(
         }
     }
 
-    private fun accept(
-        observation: RulesRepositoryObservation,
-        domain: RulesDomain,
-    ): RulesSnapshotAdmission = when (observation) {
+    private fun accept(observation: RulesRepositoryObservation, domain: RulesDomain): RulesSnapshotAdmission = when (observation) {
         is RulesRepositoryObservation.Rules -> when (domain) {
             RulesDomain.Rules -> when (
                 admitsRulesRevision(acceptedRules(_state.value.rules), observation.snapshot.revision)
@@ -271,14 +286,20 @@ internal class RulesViewModel(
                     )
                     RulesSnapshotAdmission.Accepted
                 }
+
                 RulesSnapshotAdmission.Stale -> RulesSnapshotAdmission.Stale
             }
+
             RulesDomain.Providers,
-            RulesDomain.Unsupported -> RulesSnapshotAdmission.Stale
+            RulesDomain.Unsupported,
+            -> RulesSnapshotAdmission.Stale
         }
+
         is RulesRepositoryObservation.Providers -> when (domain) {
             RulesDomain.Rules,
-            RulesDomain.Unsupported -> RulesSnapshotAdmission.Stale
+            RulesDomain.Unsupported,
+            -> RulesSnapshotAdmission.Stale
+
             RulesDomain.Providers -> when (
                 admitsProvidersRevision(acceptedRuleProviders(_state.value.providers), observation.snapshot.revision)
             ) {
@@ -289,6 +310,7 @@ internal class RulesViewModel(
                     )
                     RulesSnapshotAdmission.Accepted
                 }
+
                 RulesSnapshotAdmission.Stale -> RulesSnapshotAdmission.Stale
             }
         }
@@ -314,10 +336,13 @@ internal class RulesViewModel(
     private fun markUnavailableForRead(purpose: RulesRequestKind, failure: AppFailure) {
         when (purpose) {
             RulesRequestKind.ReadRules -> markRulesUnavailable(failure)
+
             RulesRequestKind.ReadProviders -> markProvidersUnavailable(failure)
+
             RulesRequestKind.WriteRules,
             RulesRequestKind.WriteProviders,
-            RulesRequestKind.Unsupported -> Unit
+            RulesRequestKind.Unsupported,
+            -> Unit
         }
     }
 

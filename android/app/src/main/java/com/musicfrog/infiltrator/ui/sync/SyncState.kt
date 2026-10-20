@@ -3,16 +3,9 @@ package com.musicfrog.infiltrator.ui.sync
 import com.musicfrog.infiltrator.ui.common.LocalizedFailure
 import infiltrator_android.WebDavSettings
 
-internal data class SyncSettingsRevision(
-    val ownerSessionId: String,
-    val coreGeneration: ULong,
-    val dataRevision: ULong,
-)
+internal data class SyncSettingsRevision(val ownerSessionId: String, val coreGeneration: ULong, val dataRevision: ULong)
 
-internal data class SyncSettingsSnapshot(
-    val settings: WebDavSettings,
-    val revision: SyncSettingsRevision,
-)
+internal data class SyncSettingsSnapshot(val settings: WebDavSettings, val revision: SyncSettingsRevision)
 
 internal data class SyncSettingsDraft(
     val enabled: Boolean,
@@ -23,11 +16,7 @@ internal data class SyncSettingsDraft(
     val syncOnStartup: Boolean,
 )
 
-internal data class SyncForm(
-    val accepted: SyncSettingsSnapshot,
-    val draft: SyncSettingsDraft,
-    val requestSequence: ULong,
-)
+internal data class SyncForm(val accepted: SyncSettingsSnapshot, val draft: SyncSettingsDraft, val requestSequence: ULong)
 
 internal sealed interface SyncSettingsState {
     data class Loading(val lastAccepted: SyncForm? = null) : SyncSettingsState
@@ -54,11 +43,7 @@ internal sealed interface SyncActionState {
     data class Unconfirmed(val operation: SyncOperation, val failure: LocalizedFailure) : SyncActionState
 }
 
-internal data class SyncSummary(
-    val successCount: UInt,
-    val failedCount: UInt,
-    val totalActions: UInt,
-)
+internal data class SyncSummary(val successCount: UInt, val failedCount: UInt, val totalActions: UInt)
 
 internal data class SyncUiState(
     val settings: SyncSettingsState = SyncSettingsState.Loading(),
@@ -78,11 +63,10 @@ internal sealed interface SyncRequestAllocation {
     data object Exhausted : SyncRequestAllocation
 }
 
-internal fun allocateSyncRequest(current: ULong): SyncRequestAllocation =
-    when (current) {
-        ULong.MAX_VALUE -> SyncRequestAllocation.Exhausted
-        else -> SyncRequestAllocation.Allocated(SyncRequestSequence(current + 1u))
-    }
+internal fun allocateSyncRequest(current: ULong): SyncRequestAllocation = when (current) {
+    ULong.MAX_VALUE -> SyncRequestAllocation.Exhausted
+    else -> SyncRequestAllocation.Allocated(SyncRequestSequence(current + 1u))
+}
 
 internal enum class SyncScreenActivity {
     Loading,
@@ -138,6 +122,7 @@ internal fun SyncSettingsState.displayForm(): SyncForm? = lastAccepted()
 
 internal fun SyncUiState.screenActivity(): SyncScreenActivity = when (action) {
     is SyncActionState.Working -> SyncScreenActivity.Busy
+
     SyncActionState.Idle,
     SyncActionState.Saved,
     SyncActionState.ConnectionTested,
@@ -145,7 +130,8 @@ internal fun SyncUiState.screenActivity(): SyncScreenActivity = when (action) {
     is SyncActionState.Failed,
     is SyncActionState.Cancelled,
     is SyncActionState.TimedOut,
-    is SyncActionState.Unconfirmed -> when (settings) {
+    is SyncActionState.Unconfirmed,
+    -> when (settings) {
         is SyncSettingsState.Loading -> SyncScreenActivity.Loading
         is SyncSettingsState.Observed -> SyncScreenActivity.Ready
         is SyncSettingsState.Unavailable -> SyncScreenActivity.Unavailable
@@ -154,6 +140,7 @@ internal fun SyncUiState.screenActivity(): SyncScreenActivity = when (action) {
 
 internal fun SyncUiState.requestAvailability(): SyncRequestAvailability = when (action) {
     is SyncActionState.Working -> SyncRequestAvailability.Busy
+
     SyncActionState.Idle,
     SyncActionState.Saved,
     SyncActionState.ConnectionTested,
@@ -161,20 +148,18 @@ internal fun SyncUiState.requestAvailability(): SyncRequestAvailability = when (
     is SyncActionState.Failed,
     is SyncActionState.Cancelled,
     is SyncActionState.TimedOut,
-    is SyncActionState.Unconfirmed -> SyncRequestAvailability.Available
+    is SyncActionState.Unconfirmed,
+    -> SyncRequestAvailability.Available
 }
 
 internal fun SyncUiState.inputAvailability(): SyncInputAvailability = when {
     settings is SyncSettingsState.Observed && action !is SyncActionState.Working ->
         SyncInputAvailability.Enabled
+
     else -> SyncInputAvailability.Disabled
 }
 
-internal fun admitSyncSettings(
-    current: SyncForm?,
-    incoming: SyncSettingsSnapshot,
-    requestSequence: ULong,
-): SyncSnapshotAdmission {
+internal fun admitSyncSettings(current: SyncForm?, incoming: SyncSettingsSnapshot, requestSequence: ULong): SyncSnapshotAdmission {
     if (current == null) return SyncSnapshotAdmission.Accepted
     if (requestSequence < current.requestSequence) return SyncSnapshotAdmission.Stale
 
@@ -191,11 +176,10 @@ internal fun admitSyncSettings(
     }
 }
 
-internal fun SyncSettingsSnapshot.isReadbackOf(requested: WebDavSettings): SyncReadbackConfirmation =
-    when (settings == requested) {
-        true -> SyncReadbackConfirmation.Confirmed
-        false -> SyncReadbackConfirmation.Mismatch
-    }
+internal fun SyncSettingsSnapshot.isReadbackOf(requested: WebDavSettings): SyncReadbackConfirmation = when (settings == requested) {
+    true -> SyncReadbackConfirmation.Confirmed
+    false -> SyncReadbackConfirmation.Mismatch
+}
 
 internal enum class SyncReadbackConfirmation {
     Confirmed,

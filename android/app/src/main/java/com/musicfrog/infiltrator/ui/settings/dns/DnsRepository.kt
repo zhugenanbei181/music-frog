@@ -16,45 +16,28 @@ import infiltrator_android.FfiErrorCode
 
 internal sealed interface DnsRepositoryResult {
     data class Completed(val point: DnsSettingsObservationPoint) : DnsRepositoryResult
-    data class Failed(
-        val failure: AppFailure,
-        val latest: DnsSettingsObservationPoint?,
-    ) : DnsRepositoryResult
-    data class Cancelled(
-        val failure: AppFailure,
-        val latest: DnsSettingsObservationPoint?,
-    ) : DnsRepositoryResult
+    data class Failed(val failure: AppFailure, val latest: DnsSettingsObservationPoint?) : DnsRepositoryResult
+    data class Cancelled(val failure: AppFailure, val latest: DnsSettingsObservationPoint?) : DnsRepositoryResult
     data class TimedOut(val failure: AppFailure) : DnsRepositoryResult
-    data class Unconfirmed(
-        val failure: AppFailure,
-        val latest: DnsSettingsObservationPoint?,
-    ) : DnsRepositoryResult
+    data class Unconfirmed(val failure: AppFailure, val latest: DnsSettingsObservationPoint?) : DnsRepositoryResult
 }
 
 internal interface DnsRepository {
-    suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): DnsRepositoryResult
+    suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): DnsRepositoryResult
 }
 
-internal class UniFfiDnsRepository(
-    private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway,
-) : DnsRepository {
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): DnsRepositoryResult = when (val exchange = gateway.execute(operation, timeoutMs)) {
-        is AndroidOwnerOperationExchange.Completed -> exchange.reply.toDnsRepositoryResult(operation)
-        is AndroidOwnerOperationExchange.Failed -> DnsRepositoryResult.Failed(exchange.failure, null)
-        is AndroidOwnerOperationExchange.Cancelled -> DnsRepositoryResult.Cancelled(exchange.failure, null)
-        is AndroidOwnerOperationExchange.TimedOut -> DnsRepositoryResult.TimedOut(exchange.failure)
-    }
+internal class UniFfiDnsRepository(private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway) :
+    DnsRepository {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): DnsRepositoryResult =
+        when (val exchange = gateway.execute(operation, timeoutMs)) {
+            is AndroidOwnerOperationExchange.Completed -> exchange.reply.toDnsRepositoryResult(operation)
+            is AndroidOwnerOperationExchange.Failed -> DnsRepositoryResult.Failed(exchange.failure, null)
+            is AndroidOwnerOperationExchange.Cancelled -> DnsRepositoryResult.Cancelled(exchange.failure, null)
+            is AndroidOwnerOperationExchange.TimedOut -> DnsRepositoryResult.TimedOut(exchange.failure)
+        }
 }
 
-private fun AndroidOwnerOperationReply.toDnsRepositoryResult(
-    operation: AndroidOwnerOperation,
-): DnsRepositoryResult {
+private fun AndroidOwnerOperationReply.toDnsRepositoryResult(operation: AndroidOwnerOperation): DnsRepositoryResult {
     val purpose = when (operation) {
         AndroidOwnerOperation.DnsSettings -> DnsOperationPurpose.Read
         is AndroidOwnerOperation.DnsSettingsSave -> DnsOperationPurpose.Write
@@ -63,7 +46,9 @@ private fun AndroidOwnerOperationReply.toDnsRepositoryResult(
     val latest = latestDnsSnapshot()
     when (purpose) {
         DnsOperationPurpose.Read,
-        DnsOperationPurpose.Write -> Unit
+        DnsOperationPurpose.Write,
+        -> Unit
+
         DnsOperationPurpose.Unsupported -> return unconfirmedDns(latest)
     }
     if (dataDomain != AndroidOwnerDataDomain.DNS_SETTINGS ||
@@ -81,13 +66,16 @@ private fun AndroidOwnerOperationReply.toDnsRepositoryResult(
     }
     val expectedDataRevision = when (purpose) {
         DnsOperationPurpose.Read -> context.expectedDataRevision
+
         DnsOperationPurpose.Write -> when (readback.status.code) {
             FfiErrorCode.OK -> when (context.expectedDataRevision) {
                 ULong.MAX_VALUE -> return unconfirmedDns(latest)
                 else -> context.expectedDataRevision + 1u
             }
+
             else -> context.expectedDataRevision
         }
+
         DnsOperationPurpose.Unsupported -> return unconfirmedDns(latest)
     }
     if (dataRevision != expectedDataRevision) return unconfirmedDns(latest)
@@ -100,7 +88,9 @@ private fun AndroidOwnerOperationReply.toDnsRepositoryResult(
             if (snapshot.v1 != readback) return unconfirmedDns(point)
             DnsRepositoryResult.Completed(point)
         }
+
         FfiErrorCode.CANCELED -> DnsRepositoryResult.Cancelled(readback.status.toAppFailure(), latest)
+
         else -> DnsRepositoryResult.Failed(readback.status.toAppFailure(), latest)
     }
 }
@@ -128,5 +118,4 @@ private enum class DnsOperationPurpose {
     Unsupported,
 }
 
-private fun unconfirmedDns(latest: DnsSettingsObservationPoint?) =
-    DnsRepositoryResult.Unconfirmed(notReadyFailure(), latest)
+private fun unconfirmedDns(latest: DnsSettingsObservationPoint?) = DnsRepositoryResult.Unconfirmed(notReadyFailure(), latest)

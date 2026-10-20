@@ -23,46 +23,53 @@ import infiltrator_android.androidCloseCoreOwner
 import infiltrator_android.androidCoreLifecycleStatus
 import infiltrator_android.androidDispatchOwnerOperationWireJson
 import infiltrator_android.androidDispatchProfileAgeCredentialOwnerOperationWireJson
-import infiltrator_android.androidOwnerDataRevision
 import infiltrator_android.androidExecuteProductCommandJson
+import infiltrator_android.androidOwnerDataRevision
 import infiltrator_android.androidSurfaceSnapshotJson
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.FutureTask
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import java.util.UUID
 
 internal fun Bundle.putOwnerResponsePayload(payload: OwnerResponsePayload) {
     putSerializable(MihomoControlService.RESPONSE_PAYLOAD_KIND, payload.kind())
     when (payload) {
         OwnerResponsePayload.Failure -> Unit
+
         is OwnerResponsePayload.CoreLifecycleSnapshot -> putCoreSnapshot(payload.snapshot)
+
         is OwnerResponsePayload.VpnOwnerSnapshot -> putString(
             MihomoControlService.VPN_OWNER_SNAPSHOT_JSON,
             payload.canonicalJson,
         )
+
         is OwnerResponsePayload.SurfaceSnapshot -> {
             putString(MihomoControlService.SURFACE_SNAPSHOT_JSON, payload.json)
             putCoreReadback(payload.coreReadback)
         }
+
         is OwnerResponsePayload.OwnerDataRevision -> {
             putLong(MihomoControlService.OWNER_DATA_REVISION, payload.revision)
             putLong(MihomoControlService.OWNER_DATA_GENERATION, payload.generation)
             putCoreReadback(payload.coreReadback)
         }
+
         is OwnerResponsePayload.Authorization -> putSerializable(
             MihomoControlService.VPN_AUTHORIZATION_STATE,
             payload.state,
         )
+
         is OwnerResponsePayload.ProductCommand -> {
             putString(MihomoControlService.PRODUCT_COMMAND_RESULT_JSON, payload.resultJson)
             putCoreReadback(payload.coreReadback)
         }
+
         is OwnerResponsePayload.OwnerOperation -> {
             putString(MihomoControlService.OWNER_OPERATION_RESULT_JSON, payload.outcomeJson)
             putLong(MihomoControlService.OWNER_DATA_REVISION, payload.revision)
@@ -72,6 +79,7 @@ internal fun Bundle.putOwnerResponsePayload(payload: OwnerResponsePayload) {
                     MihomoControlService.OWNER_OPERATION_DATA_FACTS_KIND,
                     OwnerOperationDataFactsKind.RevisionOnly,
                 )
+
                 is OwnerOperationDataFacts.Domain -> {
                     putSerializable(
                         MihomoControlService.OWNER_OPERATION_DATA_FACTS_KIND,
@@ -79,6 +87,7 @@ internal fun Bundle.putOwnerResponsePayload(payload: OwnerResponsePayload) {
                     )
                     putSerializable(MihomoControlService.OWNER_OPERATION_DATA_DOMAIN, facts.domain)
                 }
+
                 is OwnerOperationDataFacts.Snapshot -> {
                     putSerializable(
                         MihomoControlService.OWNER_OPERATION_DATA_FACTS_KIND,
@@ -90,12 +99,16 @@ internal fun Bundle.putOwnerResponsePayload(payload: OwnerResponsePayload) {
             }
             putCoreReadback(payload.coreReadback)
         }
+
         is OwnerResponsePayload.StopVpn -> putString(MihomoControlService.VPN_STOP_SNAPSHOT_JSON, payload.snapshotJson)
+
         is OwnerResponsePayload.VpnStart -> putSerializable(MihomoControlService.VPN_START_OUTCOME, payload.outcome)
+
         is OwnerResponsePayload.VpnConfiguration -> putSerializable(
             MihomoControlService.VPN_CONFIGURATION_OUTCOME,
             payload.outcome,
         )
+
         is OwnerResponsePayload.OwnerSessionReadback -> {
             putLong(MihomoControlService.OWNER_DATA_REVISION, payload.ownerDataRevision)
             putCoreReadback(payload.coreReadback)
@@ -109,6 +122,7 @@ internal fun Bundle.putCoreReadback(readback: OwnerCoreReadback) {
             MihomoControlService.CORE_READBACK_KIND,
             OwnerCoreReadbackKind.Unavailable,
         )
+
         is OwnerCoreReadback.Available -> {
             putSerializable(MihomoControlService.CORE_READBACK_KIND, OwnerCoreReadbackKind.Available)
             putCoreSnapshot(readback.snapshot)
@@ -149,13 +163,15 @@ internal suspend fun MihomoControlService.execute(
     arguments: Bundle,
     requestKey: OwnerIpcRequestKey,
 ): ControlServiceResponse {
-    val host = (application as? MihomoApplication)?.coreHost
-        ?: return ControlServiceResponse(
+    if ((application as? MihomoApplication)?.coreHost == null) {
+        return ControlServiceResponse(
             AndroidHostReply.SERVICE_UNAVAILABLE,
             FfiErrorCode.NOT_READY,
         )
+    }
     return when (request) {
         AndroidHostRequest.READ_CORE_LIFECYCLE -> readCoreLifecycle()
+
         AndroidHostRequest.EXECUTE_PRODUCT_COMMAND -> {
             val commandJson = arguments.getString(MihomoControlService.PRODUCT_COMMAND_JSON)
                 ?: return ControlServiceResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
@@ -169,6 +185,7 @@ internal suspend fun MihomoControlService.execute(
                 ),
             ).withCurrentCoreSnapshot()
         }
+
         AndroidHostRequest.READ_SURFACE_SNAPSHOT -> {
             val result = androidSurfaceSnapshotJson()
             val snapshotJson = result.value
@@ -189,6 +206,7 @@ internal suspend fun MihomoControlService.execute(
                 )
             }
         }
+
         AndroidHostRequest.READ_OWNER_DATA_REVISION ->
             ControlServiceResponse(
                 AndroidHostReply.OWNER_DATA_REVISION_AVAILABLE,
@@ -199,6 +217,7 @@ internal suspend fun MihomoControlService.execute(
                     coreReadback = OwnerCoreReadback.Unavailable,
                 ),
             ).withCurrentCoreSnapshot()
+
         AndroidHostRequest.EXECUTE_OWNER_OPERATION -> {
             val operationJson = arguments.getString(MihomoControlService.OWNER_OPERATION_JSON)
                 ?: return ControlServiceResponse(AndroidHostReply.FAILED, FfiErrorCode.INVALID_INPUT)
@@ -237,6 +256,7 @@ internal suspend fun MihomoControlService.execute(
                 ),
             ).withCurrentCoreSnapshot()
         }
+
         AndroidHostRequest.EXECUTE_PROFILE_AGE_CREDENTIAL_OWNER_OPERATION -> {
             val metadataJson = runCatching {
                 arguments.getString(MihomoControlService.PROFILE_AGE_CREDENTIAL_METADATA_JSON)
@@ -250,6 +270,7 @@ internal suspend fun MihomoControlService.execute(
                     FfiErrorCode.INVALID_INPUT,
                     "Age credential request has no one-shot secret payload",
                 )
+
                 is OwnerIpcSensitivePayloadLookup.Present -> payload.bytes
             }
             val expectedOwnerSession = runCatching {
@@ -312,12 +333,15 @@ internal suspend fun MihomoControlService.execute(
                 ),
             ).withCurrentCoreSnapshot()
         }
+
         AndroidHostRequest.START_VPN_SERVICE -> ControlServiceResponse(
             AndroidHostReply.SERVICE_UNAVAILABLE,
             FfiErrorCode.NOT_READY,
             "VPN start must use bounded owner admission",
         )
+
         AndroidHostRequest.STOP_VPN_SERVICE -> stopVpn(arguments)
+
         AndroidHostRequest.READ_VPN_AUTHORIZATION -> {
             val authorization = readVpnAuthorization()
             ControlServiceResponse(
@@ -326,7 +350,9 @@ internal suspend fun MihomoControlService.execute(
                 payload = OwnerResponsePayload.Authorization(authorization),
             )
         }
+
         AndroidHostRequest.READ_VPN_OWNER_SNAPSHOT -> readVpnOwnerSnapshot()
+
         AndroidHostRequest.APPLY_VPN_CONFIGURATION ->
             applyVpnConfiguration(arguments)
     }
@@ -382,6 +408,7 @@ internal suspend fun MihomoControlService.stopVpn(arguments: Bundle): ControlSer
     )
     when (target) {
         VpnStopTarget.Current -> Unit
+
         is VpnStopTarget.Generation -> return ControlServiceResponse(
             reply = AndroidHostReply.FAILED,
             statusCode = FfiErrorCode.INVALID_INPUT,
@@ -399,12 +426,14 @@ internal suspend fun MihomoControlService.stopVpn(arguments: Bundle): ControlSer
                 AndroidHostReply.VPN_STOPPED,
                 FfiErrorCode.OK,
             )
+
             false, null -> ControlServiceResponse(
                 AndroidHostReply.VPN_STOP_SUPERSEDED,
                 FfiErrorCode.INVALID_STATE,
                 "VPN stop was superseded before owner readback",
             )
         }
+
         is VpnStopResult.Failed -> {
             Log.e(MihomoControlService.TAG, "VpnService shutdown failed: ${result.message}")
             ControlServiceResponse(
@@ -413,16 +442,19 @@ internal suspend fun MihomoControlService.stopVpn(arguments: Bundle): ControlSer
                 result.message,
             )
         }
+
         VpnStopResult.TimedOut -> ControlServiceResponse(
             AndroidHostReply.VPN_STOP_TIMED_OUT,
             FfiErrorCode.NOT_READY,
             "VpnService did not stop before the shutdown deadline",
         )
+
         VpnStopResult.Superseded -> ControlServiceResponse(
             AndroidHostReply.VPN_STOP_SUPERSEDED,
             FfiErrorCode.INVALID_STATE,
             "VPN stop request belongs to an older generation",
         )
+
         VpnStopResult.Canceled -> ControlServiceResponse(
             AndroidHostReply.VPN_STOP_CANCELED,
             FfiErrorCode.NOT_READY,
@@ -471,12 +503,14 @@ internal suspend fun MihomoControlService.readCoreLifecycle(): ControlServiceRes
     val result = androidCoreLifecycleStatus()
     return when {
         result.status.code != FfiErrorCode.OK -> result.toControlServiceResponse(AndroidHostReply.FAILED)
+
         else -> when (val core = result.toControlOwnerCoreReadback()) {
             OwnerCoreReadback.Unavailable -> ControlServiceResponse(
                 AndroidHostReply.FAILED,
                 FfiErrorCode.NOT_READY,
                 "Core lifecycle snapshot is unavailable",
             )
+
             is OwnerCoreReadback.Available -> ControlServiceResponse(
                 AndroidHostReply.CORE_LIFECYCLE_AVAILABLE,
                 FfiErrorCode.OK,
@@ -500,6 +534,7 @@ internal fun MihomoControlService.applyVpnConfiguration(arguments: Bundle): Cont
                     VpnConfigurationApplyOutcomeWire.Accepted,
                 ),
             )
+
         VpnConfigurationApplyOutcomeWire.Rejected ->
             ControlServiceResponse(
                 AndroidHostReply.FAILED,
@@ -508,6 +543,7 @@ internal fun MihomoControlService.applyVpnConfiguration(arguments: Bundle): Cont
                     VpnConfigurationApplyOutcomeWire.Rejected,
                 ),
             )
+
         VpnConfigurationApplyOutcomeWire.OwnerUnavailable ->
             ControlServiceResponse(
                 AndroidHostReply.SERVICE_UNAVAILABLE,
@@ -519,10 +555,7 @@ internal fun MihomoControlService.applyVpnConfiguration(arguments: Bundle): Cont
     }
 }
 
-internal fun MihomoControlService.startVpnService(
-    key: VpnOwnerRequestKey,
-    deadline: VpnOwnerRequestDeadline,
-): ControlServiceResponse {
+internal fun MihomoControlService.startVpnService(key: VpnOwnerRequestKey, deadline: VpnOwnerRequestDeadline): ControlServiceResponse {
     when (val authorization = readVpnAuthorization()) {
         OwnerVpnAuthorization.PermissionRequired -> {
             VpnAuthorizationBroadcast.requestForExplicitStart(this)
@@ -532,6 +565,7 @@ internal fun MihomoControlService.startVpnService(
                 payload = OwnerResponsePayload.VpnStart(VpnStartOutcomeWire.PermissionRequired),
             )
         }
+
         OwnerVpnAuthorization.Authorized -> Unit
     }
     val result = MihomoVpnService.startAndAwaitRunning(
@@ -560,11 +594,13 @@ internal fun MihomoControlService.startVpnService(
             FfiErrorCode.OK,
             payload = OwnerResponsePayload.VpnStart(outcome),
         )
+
         VpnStartResult.PermissionRequired -> ControlServiceResponse(
             AndroidHostReply.VPN_PERMISSION_REQUIRED,
             FfiErrorCode.OK,
             payload = OwnerResponsePayload.VpnStart(outcome),
         )
+
         is VpnStartResult.Failed -> {
             Log.e(MihomoControlService.TAG, "VpnService startup failed: ${result.message}")
             ControlServiceResponse(
@@ -574,6 +610,7 @@ internal fun MihomoControlService.startVpnService(
                 OwnerResponsePayload.VpnStart(outcome),
             )
         }
+
         VpnStartResult.TimedOut -> {
             Log.e(MihomoControlService.TAG, "VpnService startup timed out before proxy data path was running")
             ControlServiceResponse(
@@ -585,11 +622,9 @@ internal fun MihomoControlService.startVpnService(
     }
 }
 
-internal fun MihomoControlService.readVpnAuthorization(): OwnerVpnAuthorization {
-    return when (VpnService.prepare(this)) {
-        null -> OwnerVpnAuthorization.Authorized
-        else -> OwnerVpnAuthorization.PermissionRequired
-    }
+internal fun MihomoControlService.readVpnAuthorization(): OwnerVpnAuthorization = when (VpnService.prepare(this)) {
+    null -> OwnerVpnAuthorization.Authorized
+    else -> OwnerVpnAuthorization.PermissionRequired
 }
 
 internal fun MihomoControlService.readRequest(bundle: Bundle): AndroidHostRequest? {
@@ -625,6 +660,7 @@ internal fun AndroidCoreLifecycleResult.toControlServiceResponse(accepted: Andro
             status.code,
             status.message,
         )
+
         is OwnerCoreReadback.Available -> ControlServiceResponse(
             accepted,
             status.code,
@@ -688,4 +724,3 @@ internal enum class VpnStartReplyAdmission {
     CapacityExceeded,
     NoActiveRequest,
 }
-

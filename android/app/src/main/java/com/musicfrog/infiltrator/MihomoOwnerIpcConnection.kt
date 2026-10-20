@@ -28,9 +28,7 @@ internal sealed interface OwnerIpcTransportResult<out T> {
 }
 
 /** Application-owned Binder binding, reply Handler and bounded request table. */
-internal class MihomoOwnerIpcConnection(
-    context: Context,
-) {
+internal class MihomoOwnerIpcConnection(context: Context) {
     private val applicationContext = context.applicationContext
     private val lock = Any()
     private val pending = linkedMapOf<Long, Pending<*>>()
@@ -73,10 +71,13 @@ internal class MihomoOwnerIpcConnection(
         val admission = synchronized(lock) {
             when {
                 bindingState == BindingState.Closed -> PendingAdmission.Closed
+
                 else -> {
                     when (pendingLedger.admit(requestId)) {
                         OwnerIpcPendingAdmission.CapacityExceeded -> PendingAdmission.Full
+
                         OwnerIpcPendingAdmission.DuplicateRequestId -> PendingAdmission.Duplicate
+
                         OwnerIpcPendingAdmission.Admitted -> {
                             pending[requestId] = pendingRequest
                             when (val state = bindingState) {
@@ -86,8 +87,11 @@ internal class MihomoOwnerIpcConnection(
                                     bindingState = BindingState.Binding(bindingId, connection)
                                     bindConnection = connection
                                 }
+
                                 is BindingState.Binding -> Unit
+
                                 is BindingState.Connected -> connectedMessenger = state.messenger
+
                                 BindingState.Closed -> Unit
                             }
                             PendingAdmission.Added
@@ -98,10 +102,13 @@ internal class MihomoOwnerIpcConnection(
         }
         when (admission) {
             PendingAdmission.Full -> return OwnerIpcTransportResult.PendingCapacityExceeded
+
             PendingAdmission.Duplicate -> return OwnerIpcTransportResult.RequestIdAlreadyPending
+
             PendingAdmission.Closed -> return OwnerIpcTransportResult.Completed(
                 onFailure(OwnerClientTerminal.OwnerUnavailable),
             )
+
             PendingAdmission.Added -> Unit
         }
 
@@ -121,6 +128,7 @@ internal class MihomoOwnerIpcConnection(
             }
             when (acceptance) {
                 OwnerBindAcceptance.Accepted -> Unit
+
                 OwnerBindAcceptance.Rejected ->
                     breakBinding(connectionToBind, OwnerClientTerminal.BindRejected)
             }
@@ -139,8 +147,11 @@ internal class MihomoOwnerIpcConnection(
             pendingLedger.disconnect(OwnerClientTerminal.OwnerUnavailable)
             when (current) {
                 BindingState.Unbound,
-                BindingState.Closed -> CloseSnapshot(null, null, null, requests)
+                BindingState.Closed,
+                -> CloseSnapshot(null, null, null, requests)
+
                 is BindingState.Binding -> CloseSnapshot(current.connection, null, null, requests)
+
                 is BindingState.Connected -> CloseSnapshot(
                     current.connection,
                     current.messenger,
@@ -184,9 +195,11 @@ internal class MihomoOwnerIpcConnection(
                     } else {
                         emptyList()
                     }
+
                     BindingState.Unbound,
                     is BindingState.Connected,
-                    BindingState.Closed -> emptyList()
+                    BindingState.Closed,
+                    -> emptyList()
                 }
             }
             if (queued.isEmpty()) {
@@ -199,14 +212,11 @@ internal class MihomoOwnerIpcConnection(
             }
         }
 
-        override fun onServiceDisconnected(name: ComponentName?) =
-            breakBinding(this, OwnerClientTerminal.BinderDied)
+        override fun onServiceDisconnected(name: ComponentName?) = breakBinding(this, OwnerClientTerminal.BinderDied)
 
-        override fun onBindingDied(name: ComponentName?) =
-            breakBinding(this, OwnerClientTerminal.BindingDied)
+        override fun onBindingDied(name: ComponentName?) = breakBinding(this, OwnerClientTerminal.BindingDied)
 
-        override fun onNullBinding(name: ComponentName?) =
-            breakBinding(this, OwnerClientTerminal.NullBinding)
+        override fun onNullBinding(name: ComponentName?) = breakBinding(this, OwnerClientTerminal.NullBinding)
     }
 
     private fun dispatch(pendingRequest: Pending<*>, messenger: Messenger) {
@@ -230,26 +240,33 @@ internal class MihomoOwnerIpcConnection(
                                     DispatchResult.SendFailed
                                 }
                             }
+
                             OwnerIpcPendingSendAdmission.AlreadySent,
                             OwnerIpcPendingSendAdmission.CancellationPending,
-                            OwnerIpcPendingSendAdmission.Unknown -> {
+                            OwnerIpcPendingSendAdmission.Unknown,
+                            -> {
                                 pendingRequest.markCanceledBeforeDispatch()
                                 DispatchResult.AlreadyDispatched
                             }
                         }
                     }
                 }
+
                 is PendingDispatchState.Sent,
                 PendingDispatchState.CanceledBeforeDispatch,
                 PendingDispatchState.CancellationSent,
-                PendingDispatchState.Terminal -> DispatchResult.AlreadyDispatched
+                PendingDispatchState.Terminal,
+                -> DispatchResult.AlreadyDispatched
             }
         }
         when (sendResult) {
             DispatchResult.Expired -> pendingRequest.fail(OwnerClientTerminal.ReplyTimedOut)
+
             DispatchResult.SendFailed -> breakBindingForCurrent(OwnerClientTerminal.SendFailed)
+
             DispatchResult.Sent,
-            DispatchResult.AlreadyDispatched -> Unit
+            DispatchResult.AlreadyDispatched,
+            -> Unit
         }
     }
 
@@ -266,9 +283,12 @@ internal class MihomoOwnerIpcConnection(
         val connection = synchronized(lock) {
             when (val current = bindingState) {
                 is BindingState.Binding -> current.connection
+
                 is BindingState.Connected -> current.connection
+
                 BindingState.Unbound,
-                BindingState.Closed -> null
+                BindingState.Closed,
+                -> null
             }
         } ?: return
         breakBinding(connection, terminal)
@@ -279,8 +299,11 @@ internal class MihomoOwnerIpcConnection(
             val current = bindingState
             val matches = when (current) {
                 BindingState.Unbound,
-                BindingState.Closed -> false
+                BindingState.Closed,
+                -> false
+
                 is BindingState.Binding -> current.connection === connection
+
                 is BindingState.Connected -> current.connection === connection
             }
             if (!matches) return
@@ -323,8 +346,7 @@ internal class MihomoOwnerIpcConnection(
         var dispatchState: PendingDispatchState = PendingDispatchState.WaitingForBinding
             private set
 
-        fun isExpired(): Boolean =
-            deadline.remainingAt(SystemClock.elapsedRealtime()) == VpnDeadlineState.Expired
+        fun isExpired(): Boolean = deadline.remainingAt(SystemClock.elapsedRealtime()) == VpnDeadlineState.Expired
 
         fun markSent(messenger: Messenger) {
             dispatchState = PendingDispatchState.Sent(messenger)
@@ -386,6 +408,7 @@ internal class MihomoOwnerIpcConnection(
             }
             return when (val result = outcome.get()) {
                 is PendingOutcome.Completed -> OwnerIpcTransportResult.Completed(result.response)
+
                 PendingOutcome.Waiting -> OwnerIpcTransportResult.Completed(
                     onFailure(OwnerClientTerminal.OwnerUnavailable),
                 )
@@ -401,25 +424,32 @@ internal class MihomoOwnerIpcConnection(
                                 dispatchState = PendingDispatchState.CanceledBeforeDispatch
                                 null
                             }
+
                             OwnerIpcPendingCancellation.CancelSentRequest,
                             OwnerIpcPendingCancellation.AlreadyCanceled,
-                            OwnerIpcPendingCancellation.Unknown -> null
+                            OwnerIpcPendingCancellation.Unknown,
+                            -> null
                         }
                     }
+
                     is PendingDispatchState.Sent -> {
                         when (pendingLedger.cancel(requestId)) {
                             OwnerIpcPendingCancellation.CancelSentRequest -> {
                                 dispatchState = PendingDispatchState.CancellationSent
                                 state.messenger
                             }
+
                             OwnerIpcPendingCancellation.CanceledBeforeDispatch,
                             OwnerIpcPendingCancellation.AlreadyCanceled,
-                            OwnerIpcPendingCancellation.Unknown -> null
+                            OwnerIpcPendingCancellation.Unknown,
+                            -> null
                         }
                     }
+
                     PendingDispatchState.CanceledBeforeDispatch,
                     PendingDispatchState.CancellationSent,
-                    PendingDispatchState.Terminal -> null
+                    PendingDispatchState.Terminal,
+                    -> null
                 }
             }
             if (messenger != null) onCancel(messenger)
@@ -443,11 +473,8 @@ internal class MihomoOwnerIpcConnection(
 
         data class Binding(val id: Long, val connection: ServiceConnection) : BindingState
 
-        data class Connected(
-            val connection: ServiceConnection,
-            val messenger: Messenger,
-            val deathRecipient: IBinder.DeathRecipient,
-        ) : BindingState
+        data class Connected(val connection: ServiceConnection, val messenger: Messenger, val deathRecipient: IBinder.DeathRecipient) :
+            BindingState
 
         data object Closed : BindingState
     }

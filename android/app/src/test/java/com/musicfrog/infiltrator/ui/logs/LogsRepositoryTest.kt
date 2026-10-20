@@ -31,7 +31,10 @@ class LogsRepositoryTest {
     fun clearRejectsACompletionFromAnotherCoreActivation() = runBlocking {
         val scope = testScope()
         val owner = FakeAndroidComposeRepository(
-            response = """{"Terminal":{"scope":${scope.json.replace("\"generation\":7", "\"generation\":8")},"result":{"Completed":{"request_id":9}}}}""",
+            response = """{"Terminal":{"scope":${scope.json.replace(
+                "\"generation\":7",
+                "\"generation\":8",
+            )},"result":{"Completed":{"request_id":9}}}}""",
         )
 
         assertEquals(
@@ -41,9 +44,7 @@ class LogsRepositoryTest {
     }
 }
 
-private class FakeAndroidComposeRepository(
-    private val response: String,
-) : AndroidComposeRepository {
+private class FakeAndroidComposeRepository(private val response: String) : AndroidComposeRepository {
     var lastCommand: String? = null
 
     override suspend fun readOwnerSurface(): OwnerSurfaceRead = error("unused")

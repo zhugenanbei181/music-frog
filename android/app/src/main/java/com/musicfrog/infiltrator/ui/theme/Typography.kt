@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.sp
 import com.musicfrog.infiltrator.R
 
 val AppFontFamily = FontFamily(
-    Font(R.font.cjk_regular, FontWeight.Normal)
+    Font(R.font.cjk_regular, FontWeight.Normal),
 )
 
 val AppTypography = Typography(

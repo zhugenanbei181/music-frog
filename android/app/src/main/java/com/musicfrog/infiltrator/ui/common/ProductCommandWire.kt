@@ -19,24 +19,14 @@ internal sealed interface ScopedProductCommandResult {
 internal sealed interface ProductCommandResult {
     data class Accepted(val requestId: String) : ProductCommandResult
     data class Completed(val requestId: String) : ProductCommandResult
-    data class Produced(
-        val requestId: String,
-        val outputVariant: String,
-        val outputJson: String,
-    ) : ProductCommandResult
+    data class Produced(val requestId: String, val outputVariant: String, val outputJson: String) : ProductCommandResult
     data class Rejected(val requestId: String, val failure: OwnerFailure) : ProductCommandResult
 }
 
 internal sealed interface AndroidProductCommandOutcome {
-    data class Terminal(
-        val scope: CoreScopeObservation?,
-        val result: ProductCommandResult,
-    ) : AndroidProductCommandOutcome
+    data class Terminal(val scope: CoreScopeObservation?, val result: ProductCommandResult) : AndroidProductCommandOutcome
 
-    data class Unavailable(
-        val scope: CoreScopeObservation?,
-        val failure: OwnerFailure,
-    ) : AndroidProductCommandOutcome
+    data class Unavailable(val scope: CoreScopeObservation?, val failure: OwnerFailure) : AndroidProductCommandOutcome
 }
 
 /** Parse the one shared owner-command result contract used by all Android pages. */
@@ -52,6 +42,7 @@ internal fun parseAndroidProductCommandOutcome(json: String): AndroidProductComm
                 result = parseProductCommandResult(payload.getJSONObject("result"), rawResult),
             )
         }
+
         "Unavailable" -> {
             val payload = root.getJSONObject(variant)
             AndroidProductCommandOutcome.Unavailable(
@@ -59,6 +50,7 @@ internal fun parseAndroidProductCommandOutcome(json: String): AndroidProductComm
                 failure = parseOwnerFailure(payload.getJSONObject("failure")),
             )
         }
+
         else -> throw IllegalArgumentException("Unknown AndroidProductCommandOutcome variant: $variant")
     }
 }
@@ -68,33 +60,31 @@ internal fun wrapObservedCommand(scope: CoreScopeObservation, commandJson: Strin
     """{"scope":${scope.json},"command":$commandJson}"""
 
 /** Serialize an exhaustive Android product command with the scope the user observed. */
-internal fun buildApplicationCommandJson(
-    scope: CoreScopeObservation,
-    command: AndroidApplicationCommand,
-): String {
+internal fun buildApplicationCommandJson(scope: CoreScopeObservation, command: AndroidApplicationCommand): String {
     val commandJson = when (command) {
         AndroidApplicationCommand.ClearLogs -> """{"Application":"ClearLogs"}"""
+
         is AndroidApplicationCommand.CloseConnection -> {
             val id = command.id.trim()
             require(id.isNotEmpty()) { "Connection ID is empty" }
             """{"Application":{"CloseConnection":{"id":${JSONObject.quote(id)}}}}"""
         }
+
         AndroidApplicationCommand.CloseAllConnections -> """{"Application":"CloseAllConnections"}"""
     }
     return wrapObservedCommand(scope, commandJson)
 }
 
 /** Accept only a synchronous terminal result from the exact observed Core activation. */
-internal fun parseScopedProductCommandResult(
-    json: String,
-    expectedScope: CoreScopeObservation,
-): ScopedProductCommandResult = try {
+internal fun parseScopedProductCommandResult(json: String, expectedScope: CoreScopeObservation): ScopedProductCommandResult = try {
     when (val outcome = parseAndroidProductCommandOutcome(json)) {
         is AndroidProductCommandOutcome.Unavailable -> when {
             outcome.scope != null && !sameCoreScope(expectedScope, outcome.scope) ->
                 ScopedProductCommandResult.ScopeMismatch
+
             else -> ScopedProductCommandResult.Failed(outcome.failure)
         }
+
         is AndroidProductCommandOutcome.Terminal -> {
             val scope = outcome.scope
             if (scope == null || !sameCoreScope(expectedScope, scope)) {
@@ -102,9 +92,12 @@ internal fun parseScopedProductCommandResult(
             } else {
                 when (val result = outcome.result) {
                     is ProductCommandResult.Completed -> ScopedProductCommandResult.Completed(result.requestId)
+
                     is ProductCommandResult.Rejected -> ScopedProductCommandResult.Failed(result.failure)
+
                     is ProductCommandResult.Accepted,
-                    is ProductCommandResult.Produced -> ScopedProductCommandResult.NonTerminal
+                    is ProductCommandResult.Produced,
+                    -> ScopedProductCommandResult.NonTerminal
                 }
             }
         }
@@ -123,9 +116,11 @@ private fun parseProductCommandResult(value: JSONObject, rawResultJson: String):
         "Accepted" -> ProductCommandResult.Accepted(
             value.getJSONObject(variant).unsignedId("request_id"),
         )
+
         "Completed" -> ProductCommandResult.Completed(
             value.getJSONObject(variant).unsignedId("request_id"),
         )
+
         "Produced" -> {
             val payload = value.getJSONObject(variant)
             val rawOutput = rawJsonValueAtPath(rawResultJson, variant, "output")
@@ -137,6 +132,7 @@ private fun parseProductCommandResult(value: JSONObject, rawResultJson: String):
                 outputJson = rawOutput,
             )
         }
+
         "Rejected" -> {
             val payload = value.getJSONObject(variant)
             ProductCommandResult.Rejected(
@@ -144,6 +140,7 @@ private fun parseProductCommandResult(value: JSONObject, rawResultJson: String):
                 failure = parseOwnerFailure(payload.getJSONObject("failure")),
             )
         }
+
         else -> throw IllegalArgumentException("Unknown CommandResult variant: $variant")
     }
 
@@ -157,5 +154,4 @@ private fun JSONObject.nullableScope(rawScopeJson: String?): CoreScopeObservatio
     )
 }
 
-private fun JSONObject.unsignedId(name: String): String =
-    parseUnsignedDecimal(get(name).toString(), name)
+private fun JSONObject.unsignedId(name: String): String = parseUnsignedDecimal(get(name).toString(), name)

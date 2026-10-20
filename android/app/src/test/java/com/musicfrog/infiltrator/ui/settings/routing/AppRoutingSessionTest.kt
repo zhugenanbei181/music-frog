@@ -160,10 +160,8 @@ class AppRoutingSessionTest {
     @Test
     fun parentCancellationIsRethrown() = runBlocking {
         val repository = object : AppRoutingRepository {
-            override suspend fun execute(
-                operation: AndroidOwnerOperation,
-                timeoutMs: Long,
-            ): AppRoutingRepositoryResult = throw CancellationException("parent canceled")
+            override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AppRoutingRepositoryResult =
+                throw CancellationException("parent canceled")
         }
         val session = AppRoutingSession(repository, FakeInstalledAppsProvider())
 
@@ -182,16 +180,15 @@ class AppRoutingSessionTest {
         val newest = observation(revision = 12uL, packages = setOf("org.example.newest"))
         var callCount = 0
         val repository = object : AppRoutingRepository {
-            override suspend fun execute(
-                operation: AndroidOwnerOperation,
-                timeoutMs: Long,
-            ): AppRoutingRepositoryResult = when (callCount++) {
-                0 -> {
-                    firstStarted.complete(Unit)
-                    releaseFirst.await()
+            override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AppRoutingRepositoryResult =
+                when (callCount++) {
+                    0 -> {
+                        firstStarted.complete(Unit)
+                        releaseFirst.await()
+                    }
+
+                    else -> AppRoutingRepositoryResult.Completed(newest)
                 }
-                else -> AppRoutingRepositoryResult.Completed(newest)
-            }
         }
         val session = AppRoutingSession(repository, FakeInstalledAppsProvider())
         val older = launch { session.load() }
@@ -205,24 +202,17 @@ class AppRoutingSessionTest {
         assertEquals(newest, (session.snapshot.value as AppRoutingSnapshotState.Observed).observation)
     }
 
-    private class FakeAppRoutingRepository(
-        vararg results: AppRoutingRepositoryResult,
-    ) : AppRoutingRepository {
+    private class FakeAppRoutingRepository(vararg results: AppRoutingRepositoryResult) : AppRoutingRepository {
         private val pending = ArrayDeque(results.toList())
         val operations = mutableListOf<AndroidOwnerOperation>()
 
-        override suspend fun execute(
-            operation: AndroidOwnerOperation,
-            timeoutMs: Long,
-        ): AppRoutingRepositoryResult {
+        override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): AppRoutingRepositoryResult {
             operations += operation
             return pending.removeFirst()
         }
     }
 
-    private class FakeInstalledAppsProvider(
-        private val values: List<AppItem> = appRoutingSessionTestApps(),
-    ) : InstalledAppsProvider {
+    private class FakeInstalledAppsProvider(private val values: List<AppItem> = appRoutingSessionTestApps()) : InstalledAppsProvider {
         override suspend fun loadInstalledApps(): List<AppItem> = values
     }
 
@@ -242,10 +232,8 @@ class AppRoutingSessionTest {
         revision = ObservationRevision.Owner(generation = 2uL, revision = revision),
     )
 
-    private fun failure(
-        code: AppFailureCode = AppFailureCode.NotReady,
-        key: FailureTextKey = FailureTextKey.NotReady,
-    ) = AppFailure(code = code, localization = key)
+    private fun failure(code: AppFailureCode = AppFailureCode.NotReady, key: FailureTextKey = FailureTextKey.NotReady) =
+        AppFailure(code = code, localization = key)
 }
 
 private fun appRoutingSessionTestApps() = listOf(

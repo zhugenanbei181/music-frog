@@ -36,7 +36,7 @@ fun InputDialog(
     onConfirm: (String) -> Unit,
     label: String? = null,
     singleLine: Boolean = true,
-    isNumeric: Boolean = false
+    isNumeric: Boolean = false,
 ) {
     var text by remember { mutableStateOf(initialValue) }
     val focusRequester = remember { FocusRequester() }
@@ -56,11 +56,11 @@ fun InputDialog(
                     singleLine = singleLine,
                     keyboardOptions = if (isNumeric) {
                         androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
                         )
                     } else {
                         androidx.compose.foundation.text.KeyboardOptions.Default
-                    }
+                    },
                 )
             }
         },
@@ -73,7 +73,7 @@ fun InputDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
             }
-        }
+        },
     )
 
     LaunchedEffect(Unit) {
@@ -82,13 +82,7 @@ fun InputDialog(
 }
 
 @Composable
-fun <T> SelectionDialog(
-    title: String,
-    options: List<Pair<T, String>>,
-    selectedOption: T,
-    onDismiss: () -> Unit,
-    onSelect: (T) -> Unit
-) {
+fun <T> SelectionDialog(title: String, options: List<Pair<T, String>>, selectedOption: T, onDismiss: () -> Unit, onSelect: (T) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -102,19 +96,19 @@ fun <T> SelectionDialog(
                             .selectable(
                                 selected = (option == selectedOption),
                                 onClick = { onSelect(option) },
-                                role = Role.RadioButton
+                                role = Role.RadioButton,
                             )
                             .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
                             selected = (option == selectedOption),
-                            onClick = null // null because of selectable
+                            onClick = null, // null because of selectable
                         )
                         Text(
                             text = label,
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 16.dp)
+                            modifier = Modifier.padding(start = 16.dp),
                         )
                     }
                 }
@@ -124,6 +118,6 @@ fun <T> SelectionDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
             }
-        }
+        },
     )
 }

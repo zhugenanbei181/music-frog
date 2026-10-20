@@ -1,10 +1,7 @@
 package com.musicfrog.infiltrator
 
 /** A caller-owned request identity that is unique across client process sessions. */
-internal data class VpnOwnerRequestKey(
-    val clientSessionId: String,
-    val requestId: Long,
-) {
+internal data class VpnOwnerRequestKey(val clientSessionId: String, val requestId: Long) {
     init {
         require(clientSessionId.isNotBlank())
         require(requestId > 0L)
@@ -100,9 +97,7 @@ internal sealed interface VpnOwnerStartCancellation {
 
     data object CanceledBeforeGeneration : VpnOwnerStartCancellation
 
-    data class CancelGeneration(
-        val generation: Long,
-    ) : VpnOwnerStartCancellation
+    data class CancelGeneration(val generation: Long) : VpnOwnerStartCancellation
 
     data object ExecutionAlreadyStarted : VpnOwnerStartCancellation
 
@@ -146,11 +141,7 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
     private val requests = linkedMapOf<VpnOwnerRequestKey, VpnOwnerStartRequestState>()
 
     @Synchronized
-    fun admit(
-        key: VpnOwnerRequestKey,
-        deadline: VpnOwnerRequestDeadline,
-        nowElapsedRealtimeMillis: Long,
-    ): VpnOwnerStartAdmission {
+    fun admit(key: VpnOwnerRequestKey, deadline: VpnOwnerRequestDeadline, nowElapsedRealtimeMillis: Long): VpnOwnerStartAdmission {
         if (requests.containsKey(key)) return VpnOwnerStartAdmission.Duplicate
         if (deadline.remainingAt(nowElapsedRealtimeMillis) == VpnDeadlineState.Expired) {
             return VpnOwnerStartAdmission.Expired
@@ -161,11 +152,9 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
     }
 
     @Synchronized
-    fun begin(
-        key: VpnOwnerRequestKey,
-        nowElapsedRealtimeMillis: Long,
-    ): VpnOwnerStartExecution = when (val state = requests[key]) {
+    fun begin(key: VpnOwnerRequestKey, nowElapsedRealtimeMillis: Long): VpnOwnerStartExecution = when (val state = requests[key]) {
         null -> VpnOwnerStartExecution.Unknown
+
         is VpnOwnerStartRequestState.Queued -> when (
             state.deadline.remainingAt(nowElapsedRealtimeMillis)
         ) {
@@ -173,77 +162,80 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
                 requests[key] = VpnOwnerStartRequestState.Executing(state.deadline)
                 VpnOwnerStartExecution.Started(state.deadline)
             }
+
             VpnDeadlineState.Expired -> VpnOwnerStartExecution.Expired
         }
+
         is VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartExecution.Canceled
+
         is VpnOwnerStartRequestState.GenerationBound,
         is VpnOwnerStartRequestState.ServiceDispatchPending,
         is VpnOwnerStartRequestState.ServiceDispatching,
         is VpnOwnerStartRequestState.ServiceDispatched,
         is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
         is VpnOwnerStartRequestState.CanceledForGeneration,
-        is VpnOwnerStartRequestState.Executing -> VpnOwnerStartExecution.Unknown
+        is VpnOwnerStartRequestState.Executing,
+        -> VpnOwnerStartExecution.Unknown
     }
 
     @Synchronized
-    fun associateGeneration(
-        key: VpnOwnerRequestKey,
-        generation: Long,
-    ): VpnOwnerStartGenerationBinding {
+    fun associateGeneration(key: VpnOwnerRequestKey, generation: Long): VpnOwnerStartGenerationBinding {
         require(generation > 0L)
         return when (val state = requests[key]) {
             null -> VpnOwnerStartGenerationBinding.Unknown
+
             is VpnOwnerStartRequestState.Executing -> {
                 requests[key] = VpnOwnerStartRequestState.GenerationBound(state.deadline, generation)
                 VpnOwnerStartGenerationBinding.Bound
             }
+
             is VpnOwnerStartRequestState.CanceledBeforeGeneration -> {
                 requests[key] = VpnOwnerStartRequestState.CanceledForGeneration(generation)
                 VpnOwnerStartGenerationBinding.Canceled
             }
+
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.GenerationBound,
             is VpnOwnerStartRequestState.ServiceDispatchPending,
             is VpnOwnerStartRequestState.ServiceDispatching,
             is VpnOwnerStartRequestState.ServiceDispatched,
             is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
-            is VpnOwnerStartRequestState.CanceledForGeneration ->
+            is VpnOwnerStartRequestState.CanceledForGeneration,
+            ->
                 VpnOwnerStartGenerationBinding.Unknown
         }
     }
 
     /** A joined generation already crossed the service-start side-effect boundary. */
     @Synchronized
-    fun associateAlreadyExecutingGeneration(
-        key: VpnOwnerRequestKey,
-        generation: Long,
-    ): VpnOwnerStartGenerationBinding {
+    fun associateAlreadyExecutingGeneration(key: VpnOwnerRequestKey, generation: Long): VpnOwnerStartGenerationBinding {
         require(generation > 0L)
         return when (val state = requests[key]) {
             is VpnOwnerStartRequestState.Executing -> {
                 requests[key] = VpnOwnerStartRequestState.ServiceDispatched(state.deadline, generation)
                 VpnOwnerStartGenerationBinding.ExecutionAlreadyStarted
             }
+
             is VpnOwnerStartRequestState.CanceledBeforeGeneration -> {
                 requests[key] = VpnOwnerStartRequestState.CanceledForGeneration(generation)
                 VpnOwnerStartGenerationBinding.Canceled
             }
+
             null -> VpnOwnerStartGenerationBinding.Unknown
+
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.GenerationBound,
             is VpnOwnerStartRequestState.ServiceDispatchPending,
             is VpnOwnerStartRequestState.ServiceDispatching,
             is VpnOwnerStartRequestState.ServiceDispatched,
             is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
-            is VpnOwnerStartRequestState.CanceledForGeneration -> VpnOwnerStartGenerationBinding.Unknown
+            is VpnOwnerStartRequestState.CanceledForGeneration,
+            -> VpnOwnerStartGenerationBinding.Unknown
         }
     }
 
     @Synchronized
-    fun markServiceDispatchPending(
-        key: VpnOwnerRequestKey,
-        generation: Long,
-    ): VpnOwnerStartDispatchOutcome {
+    fun markServiceDispatchPending(key: VpnOwnerRequestKey, generation: Long): VpnOwnerStartDispatchOutcome {
         require(generation > 0L)
         return when (val state = requests[key]) {
             is VpnOwnerStartRequestState.GenerationBound -> if (state.generation == generation) {
@@ -252,27 +244,31 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
             } else {
                 VpnOwnerStartDispatchOutcome.Unknown
             }
+
             is VpnOwnerStartRequestState.CanceledForGeneration ->
-                if (state.generation == generation) VpnOwnerStartDispatchOutcome.Canceled
-                else VpnOwnerStartDispatchOutcome.Unknown
+                if (state.generation == generation) {
+                    VpnOwnerStartDispatchOutcome.Canceled
+                } else {
+                    VpnOwnerStartDispatchOutcome.Unknown
+                }
+
             VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartDispatchOutcome.Canceled
+
             null,
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.Executing,
             is VpnOwnerStartRequestState.ServiceDispatchPending,
             is VpnOwnerStartRequestState.ServiceDispatching,
             is VpnOwnerStartRequestState.ServiceDispatched,
-            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment ->
+            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
+            ->
                 VpnOwnerStartDispatchOutcome.Unknown
         }
     }
 
     /** Commit to invoking startForegroundService; cancellation may no longer roll it back. */
     @Synchronized
-    fun markServiceDispatchStarted(
-        key: VpnOwnerRequestKey,
-        generation: Long,
-    ): VpnOwnerStartDispatchOutcome {
+    fun markServiceDispatchStarted(key: VpnOwnerRequestKey, generation: Long): VpnOwnerStartDispatchOutcome {
         require(generation > 0L)
         return when (val state = requests[key]) {
             is VpnOwnerStartRequestState.ServiceDispatchPending -> if (state.generation == generation) {
@@ -281,26 +277,30 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
             } else {
                 VpnOwnerStartDispatchOutcome.Unknown
             }
+
             is VpnOwnerStartRequestState.CanceledForGeneration ->
-                if (state.generation == generation) VpnOwnerStartDispatchOutcome.Canceled
-                else VpnOwnerStartDispatchOutcome.Unknown
+                if (state.generation == generation) {
+                    VpnOwnerStartDispatchOutcome.Canceled
+                } else {
+                    VpnOwnerStartDispatchOutcome.Unknown
+                }
+
             VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartDispatchOutcome.Canceled
+
             null,
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.Executing,
             is VpnOwnerStartRequestState.GenerationBound,
             is VpnOwnerStartRequestState.ServiceDispatching,
             is VpnOwnerStartRequestState.ServiceDispatched,
-            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment ->
+            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
+            ->
                 VpnOwnerStartDispatchOutcome.Unknown
         }
     }
 
     @Synchronized
-    fun markServiceDispatched(
-        key: VpnOwnerRequestKey,
-        generation: Long,
-    ): VpnOwnerStartDispatchOutcome {
+    fun markServiceDispatched(key: VpnOwnerRequestKey, generation: Long): VpnOwnerStartDispatchOutcome {
         require(generation > 0L)
         return when (val state = requests[key]) {
             is VpnOwnerStartRequestState.ServiceDispatching -> if (state.generation == generation) {
@@ -309,17 +309,24 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
             } else {
                 VpnOwnerStartDispatchOutcome.Unknown
             }
+
             is VpnOwnerStartRequestState.CanceledForGeneration ->
-                if (state.generation == generation) VpnOwnerStartDispatchOutcome.Canceled
-                else VpnOwnerStartDispatchOutcome.Unknown
+                if (state.generation == generation) {
+                    VpnOwnerStartDispatchOutcome.Canceled
+                } else {
+                    VpnOwnerStartDispatchOutcome.Unknown
+                }
+
             VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartDispatchOutcome.Canceled
+
             null,
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.Executing,
             is VpnOwnerStartRequestState.GenerationBound,
             is VpnOwnerStartRequestState.ServiceDispatchPending,
             is VpnOwnerStartRequestState.ServiceDispatched,
-            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment ->
+            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
+            ->
                 VpnOwnerStartDispatchOutcome.Unknown
         }
     }
@@ -327,123 +334,130 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
     @Synchronized
     fun cancel(key: VpnOwnerRequestKey): VpnOwnerStartCancellation = when (val state = requests[key]) {
         null -> VpnOwnerStartCancellation.Unknown
+
         is VpnOwnerStartRequestState.Queued,
-        is VpnOwnerStartRequestState.Executing -> {
+        is VpnOwnerStartRequestState.Executing,
+        -> {
             requests[key] = VpnOwnerStartRequestState.CanceledBeforeGeneration
             VpnOwnerStartCancellation.CanceledBeforeGeneration
         }
+
         is VpnOwnerStartRequestState.GenerationBound -> {
             requests[key] = VpnOwnerStartRequestState.CanceledForGeneration(state.generation)
             VpnOwnerStartCancellation.CancelGeneration(state.generation)
         }
+
         is VpnOwnerStartRequestState.ServiceDispatchPending -> {
             requests[key] = VpnOwnerStartRequestState.CanceledForGeneration(state.generation)
             VpnOwnerStartCancellation.CancelGeneration(state.generation)
         }
+
         is VpnOwnerStartRequestState.ServiceDispatching,
-        is VpnOwnerStartRequestState.ServiceDispatched -> VpnOwnerStartCancellation.ExecutionAlreadyStarted
+        is VpnOwnerStartRequestState.ServiceDispatched,
+        -> VpnOwnerStartCancellation.ExecutionAlreadyStarted
+
         is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment -> when (val terminal = state.terminal) {
             VpnOwnerStartTerminal.NoGeneration -> VpnOwnerStartCancellation.TerminalReadback
+
             is VpnOwnerStartTerminal.Generation -> when (terminal.dispatchPhase) {
                 VpnOwnerStartDispatchPhase.Dispatching,
-                VpnOwnerStartDispatchPhase.Dispatched -> VpnOwnerStartCancellation.ExecutionAlreadyStarted
+                VpnOwnerStartDispatchPhase.Dispatched,
+                -> VpnOwnerStartCancellation.ExecutionAlreadyStarted
+
                 VpnOwnerStartDispatchPhase.NotDispatched,
-                VpnOwnerStartDispatchPhase.DispatchPending -> VpnOwnerStartCancellation.TerminalReadback
+                VpnOwnerStartDispatchPhase.DispatchPending,
+                -> VpnOwnerStartCancellation.TerminalReadback
             }
         }
+
         is VpnOwnerStartRequestState.CanceledBeforeGeneration,
-        is VpnOwnerStartRequestState.CanceledForGeneration -> VpnOwnerStartCancellation.AlreadyCanceled
+        is VpnOwnerStartRequestState.CanceledForGeneration,
+        -> VpnOwnerStartCancellation.AlreadyCanceled
     }
 
     @Synchronized
     fun complete(key: VpnOwnerRequestKey): VpnOwnerStartCompletion = when (val state = requests[key]) {
         null -> VpnOwnerStartCompletion.Unknown
+
         VpnOwnerStartRequestState.CanceledBeforeGeneration,
-        is VpnOwnerStartRequestState.CanceledForGeneration -> {
+        is VpnOwnerStartRequestState.CanceledForGeneration,
+        -> {
             requests.remove(key)
             VpnOwnerStartCompletion.SuppressLateReceipt
         }
+
         is VpnOwnerStartRequestState.Queued,
         is VpnOwnerStartRequestState.Executing,
         is VpnOwnerStartRequestState.GenerationBound,
         is VpnOwnerStartRequestState.ServiceDispatchPending,
         is VpnOwnerStartRequestState.ServiceDispatching,
-        is VpnOwnerStartRequestState.ServiceDispatched -> {
+        is VpnOwnerStartRequestState.ServiceDispatched,
+        -> {
             val terminal = when (state) {
                 is VpnOwnerStartRequestState.GenerationBound -> VpnOwnerStartTerminal.Generation(
                     state.generation,
                     VpnOwnerStartDispatchPhase.NotDispatched,
                 )
+
                 is VpnOwnerStartRequestState.ServiceDispatchPending -> VpnOwnerStartTerminal.Generation(
                     state.generation,
                     VpnOwnerStartDispatchPhase.DispatchPending,
                 )
+
                 is VpnOwnerStartRequestState.ServiceDispatching -> VpnOwnerStartTerminal.Generation(
                     state.generation,
                     VpnOwnerStartDispatchPhase.Dispatching,
                 )
+
                 is VpnOwnerStartRequestState.ServiceDispatched -> VpnOwnerStartTerminal.Generation(
                     state.generation,
                     VpnOwnerStartDispatchPhase.Dispatched,
                 )
+
                 is VpnOwnerStartRequestState.Queued,
-                is VpnOwnerStartRequestState.Executing -> VpnOwnerStartTerminal.NoGeneration
+                is VpnOwnerStartRequestState.Executing,
+                -> VpnOwnerStartTerminal.NoGeneration
+
                 is VpnOwnerStartRequestState.CanceledBeforeGeneration,
                 is VpnOwnerStartRequestState.CanceledForGeneration,
-                is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment ->
+                is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
+                ->
                     return VpnOwnerStartCompletion.Unknown
             }
             val deadline = when (state) {
                 is VpnOwnerStartRequestState.Queued -> state.deadline
+
                 is VpnOwnerStartRequestState.Executing -> state.deadline
+
                 is VpnOwnerStartRequestState.GenerationBound -> state.deadline
+
                 is VpnOwnerStartRequestState.ServiceDispatchPending -> state.deadline
+
                 is VpnOwnerStartRequestState.ServiceDispatching -> state.deadline
+
                 is VpnOwnerStartRequestState.ServiceDispatched -> state.deadline
+
                 is VpnOwnerStartRequestState.CanceledBeforeGeneration,
                 is VpnOwnerStartRequestState.CanceledForGeneration,
-                is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment ->
+                is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment,
+                ->
                     return VpnOwnerStartCompletion.Unknown
             }
             requests[key] = VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment(deadline, terminal)
             VpnOwnerStartCompletion.Publish
         }
+
         is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment -> VpnOwnerStartCompletion.Unknown
     }
 
     @Synchronized
-    fun acknowledgeTerminal(key: VpnOwnerRequestKey): VpnOwnerStartAcknowledgment =
-        when (requests[key]) {
-            is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment -> {
-                requests.remove(key)
-                VpnOwnerStartAcknowledgment.Acknowledged
-            }
-            null,
-            is VpnOwnerStartRequestState.Queued,
-            is VpnOwnerStartRequestState.Executing,
-            is VpnOwnerStartRequestState.GenerationBound,
-            is VpnOwnerStartRequestState.ServiceDispatchPending,
-            is VpnOwnerStartRequestState.ServiceDispatching,
-            is VpnOwnerStartRequestState.ServiceDispatched,
-            is VpnOwnerStartRequestState.CanceledBeforeGeneration,
-            is VpnOwnerStartRequestState.CanceledForGeneration -> VpnOwnerStartAcknowledgment.Unknown
+    fun acknowledgeTerminal(key: VpnOwnerRequestKey): VpnOwnerStartAcknowledgment = when (requests[key]) {
+        is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment -> {
+            requests.remove(key)
+            VpnOwnerStartAcknowledgment.Acknowledged
         }
 
-    @Synchronized
-    fun expireTerminal(
-        key: VpnOwnerRequestKey,
-        nowElapsedRealtimeMillis: Long,
-    ): VpnOwnerStartExpiry = when (val state = requests[key]) {
-        null -> VpnOwnerStartExpiry.Unknown
-        is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment -> when (
-            state.deadline.remainingAt(nowElapsedRealtimeMillis)
-        ) {
-            is VpnDeadlineState.Remaining -> VpnOwnerStartExpiry.NotExpired
-            VpnDeadlineState.Expired -> {
-                requests.remove(key)
-                VpnOwnerStartExpiry.ExpiredTerminal
-            }
-        }
+        null,
         is VpnOwnerStartRequestState.Queued,
         is VpnOwnerStartRequestState.Executing,
         is VpnOwnerStartRequestState.GenerationBound,
@@ -451,7 +465,34 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
         is VpnOwnerStartRequestState.ServiceDispatching,
         is VpnOwnerStartRequestState.ServiceDispatched,
         is VpnOwnerStartRequestState.CanceledBeforeGeneration,
-        is VpnOwnerStartRequestState.CanceledForGeneration -> VpnOwnerStartExpiry.Unknown
+        is VpnOwnerStartRequestState.CanceledForGeneration,
+        -> VpnOwnerStartAcknowledgment.Unknown
+    }
+
+    @Synchronized
+    fun expireTerminal(key: VpnOwnerRequestKey, nowElapsedRealtimeMillis: Long): VpnOwnerStartExpiry = when (val state = requests[key]) {
+        null -> VpnOwnerStartExpiry.Unknown
+
+        is VpnOwnerStartRequestState.TerminalAwaitingAcknowledgment -> when (
+            state.deadline.remainingAt(nowElapsedRealtimeMillis)
+        ) {
+            is VpnDeadlineState.Remaining -> VpnOwnerStartExpiry.NotExpired
+
+            VpnDeadlineState.Expired -> {
+                requests.remove(key)
+                VpnOwnerStartExpiry.ExpiredTerminal
+            }
+        }
+
+        is VpnOwnerStartRequestState.Queued,
+        is VpnOwnerStartRequestState.Executing,
+        is VpnOwnerStartRequestState.GenerationBound,
+        is VpnOwnerStartRequestState.ServiceDispatchPending,
+        is VpnOwnerStartRequestState.ServiceDispatching,
+        is VpnOwnerStartRequestState.ServiceDispatched,
+        is VpnOwnerStartRequestState.CanceledBeforeGeneration,
+        is VpnOwnerStartRequestState.CanceledForGeneration,
+        -> VpnOwnerStartExpiry.Unknown
     }
 
     @Synchronized
@@ -465,30 +506,16 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
 
         data class Executing(val deadline: VpnOwnerRequestDeadline) : VpnOwnerStartRequestState
 
-        data class GenerationBound(
-            val deadline: VpnOwnerRequestDeadline,
-            val generation: Long,
-        ) : VpnOwnerStartRequestState
+        data class GenerationBound(val deadline: VpnOwnerRequestDeadline, val generation: Long) : VpnOwnerStartRequestState
 
-        data class ServiceDispatchPending(
-            val deadline: VpnOwnerRequestDeadline,
-            val generation: Long,
-        ) : VpnOwnerStartRequestState
+        data class ServiceDispatchPending(val deadline: VpnOwnerRequestDeadline, val generation: Long) : VpnOwnerStartRequestState
 
-        data class ServiceDispatching(
-            val deadline: VpnOwnerRequestDeadline,
-            val generation: Long,
-        ) : VpnOwnerStartRequestState
+        data class ServiceDispatching(val deadline: VpnOwnerRequestDeadline, val generation: Long) : VpnOwnerStartRequestState
 
-        data class ServiceDispatched(
-            val deadline: VpnOwnerRequestDeadline,
-            val generation: Long,
-        ) : VpnOwnerStartRequestState
+        data class ServiceDispatched(val deadline: VpnOwnerRequestDeadline, val generation: Long) : VpnOwnerStartRequestState
 
-        data class TerminalAwaitingAcknowledgment(
-            val deadline: VpnOwnerRequestDeadline,
-            val terminal: VpnOwnerStartTerminal,
-        ) : VpnOwnerStartRequestState
+        data class TerminalAwaitingAcknowledgment(val deadline: VpnOwnerRequestDeadline, val terminal: VpnOwnerStartTerminal) :
+            VpnOwnerStartRequestState
 
         data object CanceledBeforeGeneration : VpnOwnerStartRequestState
 
@@ -498,10 +525,7 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
     private sealed interface VpnOwnerStartTerminal {
         data object NoGeneration : VpnOwnerStartTerminal
 
-        data class Generation(
-            val generation: Long,
-            val dispatchPhase: VpnOwnerStartDispatchPhase,
-        ) : VpnOwnerStartTerminal
+        data class Generation(val generation: Long, val dispatchPhase: VpnOwnerStartDispatchPhase) : VpnOwnerStartTerminal
     }
 }
 
@@ -548,13 +572,18 @@ internal class VpnServiceExecutorAdmission {
         require(generation > 0L)
         return when (phase) {
             VpnServiceAdmissionPhase.Destroying -> VpnServiceTaskAdmission.Destroying
+
             VpnServiceAdmissionPhase.Destroyed -> VpnServiceTaskAdmission.Destroyed
+
             VpnServiceAdmissionPhase.Accepting -> when {
                 running == VpnServiceTaskSlot.Start(generation) ||
                     pending == VpnServiceTaskSlot.Start(generation) -> VpnServiceTaskAdmission.Joined
+
                 running is VpnServiceTaskSlot.Cleanup || pending is VpnServiceTaskSlot.Cleanup ->
                     VpnServiceTaskAdmission.StaleGeneration
+
                 pending != VpnServiceTaskSlot.Empty -> VpnServiceTaskAdmission.QueueFull
+
                 else -> {
                     pending = VpnServiceTaskSlot.Start(generation)
                     VpnServiceTaskAdmission.Accepted
@@ -568,14 +597,19 @@ internal class VpnServiceExecutorAdmission {
         val cleanup = VpnServiceTaskSlot.Cleanup(request.generation, request.resourceGeneration)
         return when (phase) {
             VpnServiceAdmissionPhase.Destroyed -> VpnServiceTaskAdmission.Destroyed
+
             VpnServiceAdmissionPhase.Accepting,
-            VpnServiceAdmissionPhase.Destroying -> when {
+            VpnServiceAdmissionPhase.Destroying,
+            -> when {
                 running == cleanup || pending == cleanup -> VpnServiceTaskAdmission.Joined
+
                 pending is VpnServiceTaskSlot.Start -> {
                     pending = cleanup
                     VpnServiceTaskAdmission.ReplacedQueuedStart
                 }
+
                 pending != VpnServiceTaskSlot.Empty -> VpnServiceTaskAdmission.QueueFull
+
                 else -> {
                     pending = cleanup
                     VpnServiceTaskAdmission.Accepted
@@ -587,7 +621,9 @@ internal class VpnServiceExecutorAdmission {
     @Synchronized
     fun beginStart(generation: Long): VpnServiceTaskAdmission = when (pending) {
         VpnServiceTaskSlot.Empty -> VpnServiceTaskAdmission.StaleGeneration
+
         is VpnServiceTaskSlot.Cleanup -> VpnServiceTaskAdmission.StaleGeneration
+
         is VpnServiceTaskSlot.Start -> if ((pending as VpnServiceTaskSlot.Start).generation == generation) {
             pending = VpnServiceTaskSlot.Empty
             running = VpnServiceTaskSlot.Start(generation)
@@ -602,7 +638,9 @@ internal class VpnServiceExecutorAdmission {
         val cleanup = VpnServiceTaskSlot.Cleanup(request.generation, request.resourceGeneration)
         return when (pending) {
             VpnServiceTaskSlot.Empty -> VpnServiceTaskAdmission.StaleGeneration
+
             is VpnServiceTaskSlot.Start -> VpnServiceTaskAdmission.StaleGeneration
+
             is VpnServiceTaskSlot.Cleanup -> if (pending == cleanup) {
                 pending = VpnServiceTaskSlot.Empty
                 running = cleanup

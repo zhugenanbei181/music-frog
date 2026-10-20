@@ -2,8 +2,19 @@ package com.musicfrog.infiltrator
 
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+
+/**
+ * A sink that drops the bytes of the child's stdout. `OutputStream.nullOutputStream()`
+ * only exists from API 33 and the product supports API 29.
+ */
+private object DiscardingOutputStream : OutputStream() {
+    override fun write(byte: Int) = Unit
+
+    override fun write(bytes: ByteArray, offset: Int, length: Int) = Unit
+}
 
 internal class MihomoCoreConfigurationValidator(
     private val nativeLibraryDirectory: File,
@@ -19,11 +30,7 @@ internal class MihomoCoreConfigurationValidator(
     private var workerState: ValidationWorkerState = ValidationWorkerState.Ready
 
     private sealed interface PathValidation {
-        data class Accepted(
-            val binary: File,
-            val candidate: File,
-            val workingDirectory: File,
-        ) : PathValidation
+        data class Accepted(val binary: File, val candidate: File, val workingDirectory: File) : PathValidation
 
         data object BinaryUnavailable : PathValidation
         data object CandidateMissing : PathValidation
@@ -43,10 +50,7 @@ internal class MihomoCoreConfigurationValidator(
     }
 
     private sealed interface ChildExecutionOutcome {
-        data class Exited(
-            val exitCode: Int,
-            val digestMatches: Boolean,
-        ) : ChildExecutionOutcome
+        data class Exited(val exitCode: Int, val digestMatches: Boolean) : ChildExecutionOutcome
 
         data object TimedOut : ChildExecutionOutcome
         data object Interrupted : ChildExecutionOutcome
@@ -59,6 +63,7 @@ internal class MihomoCoreConfigurationValidator(
     @Synchronized
     fun coreStartReadiness(): CoreValidationWorkerReadiness = when (val state = workerState) {
         ValidationWorkerState.Ready -> CoreValidationWorkerReadiness.Ready
+
         is ValidationWorkerState.CleanupPending -> when (
             runCatching { state.child.waitFor(0L, TimeUnit.MILLISECONDS) }
                 .getOrDefault(false)
@@ -67,16 +72,16 @@ internal class MihomoCoreConfigurationValidator(
                 workerState = ValidationWorkerState.Ready
                 CoreValidationWorkerReadiness.Ready
             }
+
             false -> CoreValidationWorkerReadiness.CleanupPending
         }
     }
 
     @Synchronized
-    fun validate(
-        request: CoreConfigurationValidationRequestWire,
-    ): CoreConfigurationValidationOutcomeWire {
+    fun validate(request: CoreConfigurationValidationRequestWire): CoreConfigurationValidationOutcomeWire {
         when (coreStartReadiness()) {
             CoreValidationWorkerReadiness.Ready -> Unit
+
             CoreValidationWorkerReadiness.CleanupPending ->
                 return CoreConfigurationValidationOutcomeWire.ValidationCleanupPending
         }
@@ -88,14 +93,19 @@ internal class MihomoCoreConfigurationValidator(
         val paths = when (val validation = validatePathsAndDigest(request)) {
             PathValidation.BinaryUnavailable ->
                 return CoreConfigurationValidationOutcomeWire.BinaryUnavailable
+
             PathValidation.CandidateMissing ->
                 return CoreConfigurationValidationOutcomeWire.CandidateMissing
+
             PathValidation.PathRejected ->
                 return CoreConfigurationValidationOutcomeWire.CandidatePathRejected
+
             PathValidation.DigestMismatch ->
                 return CoreConfigurationValidationOutcomeWire.CandidateDigestMismatch
+
             PathValidation.IdentityDigestMismatch ->
                 return CoreConfigurationValidationOutcomeWire.CandidateIdentityMismatch
+
             is PathValidation.Accepted -> validation
         }
 
@@ -129,18 +139,24 @@ internal class MihomoCoreConfigurationValidator(
                 child.exitCode == 0 -> CoreConfigurationValidationOutcomeWire.Validated
                 else -> CoreConfigurationValidationOutcomeWire.ConfigurationRejected(child.exitCode)
             }
+
             ChildExecutionOutcome.TimedOut -> CoreConfigurationValidationOutcomeWire.TimedOut
+
             ChildExecutionOutcome.Interrupted -> CoreConfigurationValidationOutcomeWire.Interrupted
+
             ChildExecutionOutcome.LaunchFailed ->
                 CoreConfigurationValidationOutcomeWire.ProcessLaunchFailed
+
             is ChildExecutionOutcome.TimeoutCleanupFailed -> {
                 workerState = ValidationWorkerState.CleanupPending(child.child)
                 CoreConfigurationValidationOutcomeWire.TimeoutCleanupFailed
             }
+
             is ChildExecutionOutcome.InterruptedCleanupFailed -> {
                 workerState = ValidationWorkerState.CleanupPending(child.child)
                 CoreConfigurationValidationOutcomeWire.InterruptedCleanupFailed
             }
+
             is ChildExecutionOutcome.ProcessCleanupFailed -> {
                 workerState = ValidationWorkerState.CleanupPending(child.child)
                 CoreConfigurationValidationOutcomeWire.ProcessCleanupFailed
@@ -148,22 +164,17 @@ internal class MihomoCoreConfigurationValidator(
         }
     }
 
-    private fun deadlineOutcome(
-        timeoutMillis: Long,
-        nowMillis: Long,
-    ): CoreConfigurationValidationOutcomeWire? {
-        return when {
-            timeoutMillis <= 0L -> CoreConfigurationValidationOutcomeWire.DeadlineExpired
-            timeoutMillis > MAX_VALIDATION_DEADLINE_MILLIS ||
-                nowMillis > Long.MAX_VALUE - timeoutMillis ->
-                CoreConfigurationValidationOutcomeWire.DeadlineTooFar
-            else -> null
-        }
+    private fun deadlineOutcome(timeoutMillis: Long, nowMillis: Long): CoreConfigurationValidationOutcomeWire? = when {
+        timeoutMillis <= 0L -> CoreConfigurationValidationOutcomeWire.DeadlineExpired
+
+        timeoutMillis > MAX_VALIDATION_DEADLINE_MILLIS ||
+            nowMillis > Long.MAX_VALUE - timeoutMillis ->
+            CoreConfigurationValidationOutcomeWire.DeadlineTooFar
+
+        else -> null
     }
 
-    private fun validatePathsAndDigest(
-        request: CoreConfigurationValidationRequestWire,
-    ): PathValidation {
+    private fun validatePathsAndDigest(request: CoreConfigurationValidationRequestWire): PathValidation {
         val nativeRoot = canonical(nativeLibraryDirectory) ?: return PathValidation.BinaryUnavailable
         val binary = File(nativeRoot, BINARY_NAME)
         val canonicalBinary = canonical(binary) ?: return PathValidation.BinaryUnavailable
@@ -239,32 +250,38 @@ internal class MihomoCoreConfigurationValidator(
             if (remainingMillis <= 0L) {
                 when (terminateAndReap(child)) {
                     ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.TimedOut
+
                     ProcessCleanupOutcome.StillRunning ->
                         ChildExecutionOutcome.TimeoutCleanupFailed(child)
                 }
-            } else when (waitForExit(child, remainingMillis)) {
-                ProcessWaitOutcome.Exited -> {
-                    val exitCode = try {
-                        child.exitValue()
-                    } catch (_: IllegalThreadStateException) {
-                        return when (terminateAndReap(child)) {
-                            ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.LaunchFailed
-                            ProcessCleanupOutcome.StillRunning ->
-                                ChildExecutionOutcome.ProcessCleanupFailed(child)
+            } else {
+                when (waitForExit(child, remainingMillis)) {
+                    ProcessWaitOutcome.Exited -> {
+                        val exitCode = try {
+                            child.exitValue()
+                        } catch (_: IllegalThreadStateException) {
+                            return when (terminateAndReap(child)) {
+                                ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.LaunchFailed
+
+                                ProcessCleanupOutcome.StillRunning ->
+                                    ChildExecutionOutcome.ProcessCleanupFailed(child)
+                            }
+                        }
+                        val digestMatches = runCatching {
+                            digest(candidate) == request.candidateDigest.encoded()
+                        }.getOrDefault(false)
+                        when (elapsedRealtimeMillis() >= deadlineElapsedRealtimeMillis) {
+                            true -> ChildExecutionOutcome.TimedOut
+                            false -> ChildExecutionOutcome.Exited(exitCode, digestMatches)
                         }
                     }
-                    val digestMatches = runCatching {
-                        digest(candidate) == request.candidateDigest.encoded()
-                    }.getOrDefault(false)
-                    when (elapsedRealtimeMillis() >= deadlineElapsedRealtimeMillis) {
-                        true -> ChildExecutionOutcome.TimedOut
-                        false -> ChildExecutionOutcome.Exited(exitCode, digestMatches)
+
+                    ProcessWaitOutcome.TimedOut -> when (terminateAndReap(child)) {
+                        ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.TimedOut
+
+                        ProcessCleanupOutcome.StillRunning ->
+                            ChildExecutionOutcome.TimeoutCleanupFailed(child)
                     }
-                }
-                ProcessWaitOutcome.TimedOut -> when (terminateAndReap(child)) {
-                    ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.TimedOut
-                    ProcessCleanupOutcome.StillRunning ->
-                        ChildExecutionOutcome.TimeoutCleanupFailed(child)
                 }
             }
         } catch (_: InterruptedException) {
@@ -272,6 +289,7 @@ internal class MihomoCoreConfigurationValidator(
             Thread.currentThread().interrupt()
             when (cleanup) {
                 ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.Interrupted
+
                 ProcessCleanupOutcome.StillRunning ->
                     ChildExecutionOutcome.InterruptedCleanupFailed(child)
             }
@@ -288,8 +306,7 @@ internal class MihomoCoreConfigurationValidator(
 
     private fun startOutputDrain(child: Process): Thread = Thread({
         child.inputStream.use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (input.read(buffer) >= 0) {}
+            input.copyTo(DiscardingOutputStream, DEFAULT_BUFFER_SIZE)
         }
     }, "mihomo-config-validation-output").apply {
         isDaemon = true
@@ -353,8 +370,7 @@ internal class MihomoCoreConfigurationValidator(
         File(path).takeIf(File::isAbsolute)?.canonicalFile
     }.getOrNull()
 
-    private fun isDescendant(path: File, root: File): Boolean =
-        path.path.startsWith(root.path + File.separator)
+    private fun isDescendant(path: File, root: File): Boolean = path.path.startsWith(root.path + File.separator)
 
     private fun candidateMatchesProfile(fileName: String, profileId: String): Boolean {
         val targetName = "$profileId.yaml"
@@ -390,14 +406,17 @@ internal class CoreConfigurationValidationHost(
     fun validate(requestJson: String): CoreConfigurationValidationReplyWire {
         val request = when (val decoded = CoreConfigurationValidationRequestWire.decode(requestJson)) {
             is CoreConfigurationValidationRequestDecode.Accepted -> decoded.request
+
             is CoreConfigurationValidationRequestDecode.InvalidRequest -> {
                 return CoreConfigurationValidationReplyWire.InvalidRequest(decoded.reason)
             }
         }
         val outcome = when (processRole()) {
             AndroidProcessRole.VpnOwner -> controller.validateConfiguration(request)
+
             AndroidProcessRole.Ui,
-            is AndroidProcessRole.Unsupported ->
+            is AndroidProcessRole.Unsupported,
+            ->
                 CoreConfigurationValidationOutcomeWire.NotVpnOwner
         }
         return CoreConfigurationValidationReplyWire.Receipt(request, outcome)

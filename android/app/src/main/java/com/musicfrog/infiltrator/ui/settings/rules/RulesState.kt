@@ -4,39 +4,22 @@ import com.musicfrog.infiltrator.ui.common.AppFailure
 import infiltrator_android.AndroidRuleEntry
 import infiltrator_android.AndroidRuleProviderEntry
 
-internal data class RulesRevision(
-    val ownerSessionId: String,
-    val coreGeneration: ULong,
-    val dataRevision: ULong,
-)
+internal data class RulesRevision(val ownerSessionId: String, val coreGeneration: ULong, val dataRevision: ULong)
 
-internal data class RulesSnapshot(
-    val entries: List<AndroidRuleEntry>,
-    val revision: RulesRevision,
-)
+internal data class RulesSnapshot(val entries: List<AndroidRuleEntry>, val revision: RulesRevision)
 
-internal data class RuleProvidersSnapshot(
-    val entries: List<AndroidRuleProviderEntry>,
-    val json: String,
-    val revision: RulesRevision,
-)
+internal data class RuleProvidersSnapshot(val entries: List<AndroidRuleProviderEntry>, val json: String, val revision: RulesRevision)
 
 internal sealed interface RulesReadState {
     data class Loading(val lastAccepted: RulesSnapshot? = null) : RulesReadState
     data class Observed(val snapshot: RulesSnapshot) : RulesReadState
-    data class Unavailable(
-        val lastAccepted: RulesSnapshot?,
-        val failure: AppFailure,
-    ) : RulesReadState
+    data class Unavailable(val lastAccepted: RulesSnapshot?, val failure: AppFailure) : RulesReadState
 }
 
 internal sealed interface RuleProvidersReadState {
     data class Loading(val lastAccepted: RuleProvidersSnapshot? = null) : RuleProvidersReadState
     data class Observed(val snapshot: RuleProvidersSnapshot) : RuleProvidersReadState
-    data class Unavailable(
-        val lastAccepted: RuleProvidersSnapshot?,
-        val failure: AppFailure,
-    ) : RuleProvidersReadState
+    data class Unavailable(val lastAccepted: RuleProvidersSnapshot?, val failure: AppFailure) : RuleProvidersReadState
 }
 
 internal sealed interface RulesOperationState {
@@ -110,28 +93,36 @@ internal data class RulesUiState(
         get() = when (operation) {
             RulesOperationState.Loading,
             RulesOperationState.SavingRules,
-            RulesOperationState.SavingProviders -> RulesActivity.Busy
+            RulesOperationState.SavingProviders,
+            -> RulesActivity.Busy
+
             RulesOperationState.Ready,
             RulesOperationState.RulesSaved,
             RulesOperationState.ProvidersSaved,
             is RulesOperationState.Failed,
             is RulesOperationState.Cancelled,
             is RulesOperationState.TimedOut,
-            is RulesOperationState.Unconfirmed -> RulesActivity.Interactive
+            is RulesOperationState.Unconfirmed,
+            -> RulesActivity.Interactive
         }
 
     val failure: RulesFailureState
         get() = when (val current = operation) {
             is RulesOperationState.Failed -> RulesFailureState.Present(current.failure)
+
             is RulesOperationState.Cancelled -> RulesFailureState.Present(current.failure)
+
             is RulesOperationState.TimedOut -> RulesFailureState.Present(current.failure)
+
             is RulesOperationState.Unconfirmed -> RulesFailureState.Present(current.failure)
+
             RulesOperationState.Loading,
             RulesOperationState.Ready,
             RulesOperationState.SavingRules,
             RulesOperationState.RulesSaved,
             RulesOperationState.SavingProviders,
-            RulesOperationState.ProvidersSaved -> RulesFailureState.None
+            RulesOperationState.ProvidersSaved,
+            -> RulesFailureState.None
         }
 
     val rulesAvailability: RulesObservationAvailability
@@ -157,13 +148,18 @@ internal data class RulesUiState(
     val reloadAvailability: RulesReloadAvailability
         get() = when (activity) {
             RulesActivity.Busy -> RulesReloadAvailability.Busy
+
             RulesActivity.Interactive -> when (rulesDraftStatus) {
                 RulesDraftStatus.Changed -> RulesReloadAvailability.UnsavedChanges
+
                 RulesDraftStatus.Unavailable,
-                RulesDraftStatus.Clean -> when (providersDraftStatus) {
+                RulesDraftStatus.Clean,
+                -> when (providersDraftStatus) {
                     RulesDraftStatus.Changed -> RulesReloadAvailability.UnsavedChanges
+
                     RulesDraftStatus.Unavailable,
-                    RulesDraftStatus.Clean -> RulesReloadAvailability.Available
+                    RulesDraftStatus.Clean,
+                    -> RulesReloadAvailability.Available
                 }
             }
         }
@@ -181,10 +177,7 @@ internal fun acceptedRuleProviders(state: RuleProvidersReadState): RuleProviders
     is RuleProvidersReadState.Unavailable -> state.lastAccepted
 }
 
-internal fun admitsRulesRevision(
-    current: RulesSnapshot?,
-    incoming: RulesRevision,
-): RulesSnapshotAdmission {
+internal fun admitsRulesRevision(current: RulesSnapshot?, incoming: RulesRevision): RulesSnapshotAdmission {
     if (current == null || current.revision.ownerSessionId != incoming.ownerSessionId) {
         return RulesSnapshotAdmission.Accepted
     }
@@ -197,10 +190,7 @@ internal fun admitsRulesRevision(
     }
 }
 
-internal fun admitsProvidersRevision(
-    current: RuleProvidersSnapshot?,
-    incoming: RulesRevision,
-): RulesSnapshotAdmission {
+internal fun admitsProvidersRevision(current: RuleProvidersSnapshot?, incoming: RulesRevision): RulesSnapshotAdmission {
     if (current == null || current.revision.ownerSessionId != incoming.ownerSessionId) {
         return RulesSnapshotAdmission.Accepted
     }

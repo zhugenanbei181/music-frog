@@ -6,7 +6,6 @@ import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.FakeIpSettings
 import infiltrator_android.FakeIpSettingsPatch
-import java.util.ArrayDeque
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +14,7 @@ import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.ArrayDeque
 
 class FakeIpViewModelTest {
     @Test
@@ -131,16 +131,12 @@ private class FakeRepository : FakeIpRepository {
         results.addLast(CompletableDeferred(result))
     }
 
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): FakeIpRepositoryResult {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): FakeIpRepositoryResult {
         operations += operation
         return results.removeFirst().await()
     }
 
-    override suspend fun clearHostFakeIpFileCache(timeoutMs: Long) =
-        FakeIpCacheClearResult.Completed(removedFile = false)
+    override suspend fun clearHostFakeIpFileCache(timeoutMs: Long) = FakeIpCacheClearResult.Completed(removedFile = false)
 }
 
 private fun testScope() = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
@@ -151,14 +147,10 @@ private fun settings() = FakeIpSettings(
     storeFakeIp = null,
 )
 
-private fun revision(
-    ownerSessionId: String = "owner-a",
-    coreGeneration: ULong = 7uL,
-    dataRevision: ULong,
-) = FakeIpSettingsRevision(ownerSessionId, coreGeneration, dataRevision)
+private fun revision(ownerSessionId: String = "owner-a", coreGeneration: ULong = 7uL, dataRevision: ULong) =
+    FakeIpSettingsRevision(ownerSessionId, coreGeneration, dataRevision)
 
-private fun point(settings: FakeIpSettings, revision: FakeIpSettingsRevision) =
-    FakeIpSettingsObservationPoint(settings, revision)
+private fun point(settings: FakeIpSettings, revision: FakeIpSettingsRevision) = FakeIpSettingsObservationPoint(settings, revision)
 
 private fun failure() = AppFailure(
     code = AppFailureCode.NotReady,

@@ -244,10 +244,7 @@ class VpnStopOwnerContractTest {
         terminal = terminal,
     )
 
-    private fun snapshot(
-        state: VpnOwnerLifecycleWire,
-        readiness: VpnOwnerReadinessWire,
-    ): VpnOwnerSnapshotWire {
+    private fun snapshot(state: VpnOwnerLifecycleWire, readiness: VpnOwnerReadinessWire): VpnOwnerSnapshotWire {
         val resources = VpnOwnerResourceKindWire.entries.map { kind ->
             val resourceState = if (
                 readiness == VpnOwnerReadinessWire.CleanupPending &&

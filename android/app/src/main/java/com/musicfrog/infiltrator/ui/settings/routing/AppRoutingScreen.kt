@@ -16,12 +16,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -30,7 +30,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,12 +40,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import infiltrator_android.AndroidAppRoutingMode
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
+import infiltrator_android.AndroidAppRoutingMode
 
 private enum class RoutingModeMenuState {
     Expanded,
@@ -61,14 +61,18 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     val canEditSelection = when (val mode = routingMode) {
         AppRoutingModeState.Unavailable -> false
-        is AppRoutingModeState.Available -> operation == AppRoutingOperationState.Ready &&
-            mode.freshness == AppRoutingSnapshotFreshness.Current &&
-            mode.mode != AndroidAppRoutingMode.PROXY_ALL
+
+        is AppRoutingModeState.Available ->
+            operation == AppRoutingOperationState.Ready &&
+                mode.freshness == AppRoutingSnapshotFreshness.Current &&
+                mode.mode != AndroidAppRoutingMode.PROXY_ALL
     }
     val canChangeMode = when (val mode = routingMode) {
         AppRoutingModeState.Unavailable -> false
-        is AppRoutingModeState.Available -> mode.freshness == AppRoutingSnapshotFreshness.Current &&
-            operation == AppRoutingOperationState.Ready
+
+        is AppRoutingModeState.Available ->
+            mode.freshness == AppRoutingSnapshotFreshness.Current &&
+                operation == AppRoutingOperationState.Ready
     }
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(AppGroup.User) }
@@ -78,13 +82,13 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
         ) {
             // Mode Selection
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(16.dp),
             ) {
                 ExposedDropdownMenuBox(
                     expanded = modeMenuState == RoutingModeMenuState.Expanded,
@@ -93,7 +97,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                             true -> RoutingModeMenuState.Expanded
                             false -> RoutingModeMenuState.Collapsed
                         }
-                    }
+                    },
                 ) {
                     OutlinedTextField(
                         value = when (val mode = routingMode) {
@@ -113,7 +117,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                     )
                     ExposedDropdownMenu(
                         expanded = modeMenuState == RoutingModeMenuState.Expanded,
-                        onDismissRequest = { modeMenuState = RoutingModeMenuState.Collapsed }
+                        onDismissRequest = { modeMenuState = RoutingModeMenuState.Collapsed },
                     ) {
                         listOf(
                             AndroidAppRoutingMode.PROXY_ALL,
@@ -128,12 +132,13 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                                 },
                                 leadingIcon = when (val currentMode = routingMode) {
                                     AppRoutingModeState.Unavailable -> null
+
                                     is AppRoutingModeState.Available -> if (currentMode.mode == mode) {
                                         { Icon(Icons.Default.Check, null) }
                                     } else {
                                         null
                                     }
-                                }
+                                },
                             )
                         }
                     }
@@ -151,7 +156,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true
+                singleLine = true,
             )
 
             // User/System Tabs
@@ -164,12 +169,12 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                 Tab(
                     selected = selectedTab == AppGroup.User,
                     onClick = { selectedTab = AppGroup.User },
-                    text = { Text(stringResource(R.string.tab_user_apps)) }
+                    text = { Text(stringResource(R.string.tab_user_apps)) },
                 )
                 Tab(
                     selected = selectedTab == AppGroup.System,
                     onClick = { selectedTab = AppGroup.System },
-                    text = { Text(stringResource(R.string.tab_system_apps)) }
+                    text = { Text(stringResource(R.string.tab_system_apps)) },
                 )
             }
 
@@ -177,17 +182,17 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
             ) {
                 TextButton(
                     onClick = { viewModel.selectAll(selectedTab) },
-                    enabled = canEditSelection
+                    enabled = canEditSelection,
                 ) {
                     Text(stringResource(R.string.action_select_all))
                 }
                 TextButton(
                     onClick = { viewModel.clearAll(selectedTab) },
-                    enabled = canEditSelection
+                    enabled = canEditSelection,
                 ) {
                     Text(stringResource(R.string.action_clear_all))
                 }
@@ -199,6 +204,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                         CircularProgressIndicator()
                     }
                 }
+
                 is AppRoutingOperationState.Failed -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -209,6 +215,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                         }
                     }
                 }
+
                 is AppRoutingOperationState.Cancelled -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -219,6 +226,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                         }
                     }
                 }
+
                 is AppRoutingOperationState.TimedOut -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -229,39 +237,41 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                         }
                     }
                 }
-                AppRoutingOperationState.Ready,
-                AppRoutingOperationState.Updating -> {
-                val filteredApps = apps.filter { app ->
-                    when (selectedTab) {
-                        AppGroup.User -> app.classification == AppClassification.User
-                        AppGroup.System -> app.classification == AppClassification.System
-                    }
-                }
 
-                if (filteredApps.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = stringResource(R.string.text_no_apps),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                AppRoutingOperationState.Ready,
+                AppRoutingOperationState.Updating,
+                -> {
+                    val filteredApps = apps.filter { app ->
+                        when (selectedTab) {
+                            AppGroup.User -> app.classification == AppClassification.User
+                            AppGroup.System -> app.classification == AppClassification.System
+                        }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
-                    ) {
-                        items(filteredApps, key = { it.packageName }) { app ->
-                            AppRow(
-                                app = app,
-                                onToggle = { viewModel.toggleApp(app.packageName) },
-                                enabled = canEditSelection
+
+                    if (filteredApps.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = stringResource(R.string.text_no_apps),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            HorizontalDivider()
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
+                        ) {
+                            items(filteredApps, key = { it.packageName }) { app ->
+                                AppRow(
+                                    app = app,
+                                    onToggle = { viewModel.toggleApp(app.packageName) },
+                                    enabled = canEditSelection,
+                                )
+                                HorizontalDivider()
+                            }
                         }
                     }
                 }
-            }
             }
         }
     }
@@ -277,7 +287,7 @@ internal fun AppRow(app: AppItem, onToggle: () -> Unit, enabled: Boolean) {
                 Image(
                     bitmap = app.icon.toBitmap().asImageBitmap(),
                     contentDescription = null,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(40.dp),
                 )
             }
         },
@@ -285,18 +295,16 @@ internal fun AppRow(app: AppItem, onToggle: () -> Unit, enabled: Boolean) {
             Switch(
                 checked = app.selection == AppPackageSelection.Selected,
                 onCheckedChange = { onToggle() },
-                enabled = enabled
+                enabled = enabled,
             )
         },
-        onClick = if (enabled) onToggle else null
+        onClick = if (enabled) onToggle else null,
     )
 }
 
 @Composable
-private fun getModeLabel(mode: AndroidAppRoutingMode): String {
-    return when (mode) {
-        AndroidAppRoutingMode.PROXY_ALL -> stringResource(R.string.routing_mode_proxy_all)
-        AndroidAppRoutingMode.PROXY_SELECTED -> stringResource(R.string.routing_mode_proxy_selected)
-        AndroidAppRoutingMode.BYPASS_SELECTED -> stringResource(R.string.routing_mode_bypass_selected)
-    }
+private fun getModeLabel(mode: AndroidAppRoutingMode): String = when (mode) {
+    AndroidAppRoutingMode.PROXY_ALL -> stringResource(R.string.routing_mode_proxy_all)
+    AndroidAppRoutingMode.PROXY_SELECTED -> stringResource(R.string.routing_mode_proxy_selected)
+    AndroidAppRoutingMode.BYPASS_SELECTED -> stringResource(R.string.routing_mode_bypass_selected)
 }

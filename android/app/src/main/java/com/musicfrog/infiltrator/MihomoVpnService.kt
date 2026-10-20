@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.net.VpnService
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
@@ -16,13 +16,13 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import infiltrator_android.AndroidControlIntent
-import infiltrator_android.FfiErrorCode
 import infiltrator_android.AndroidVpnConfigurationActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationReleaseResult
 import infiltrator_android.AndroidVpnRoutingActivationResult
-import infiltrator_android.androidBeginVpnRoutingActivation
+import infiltrator_android.FfiErrorCode
 import infiltrator_android.androidBeginVpnConfigurationActivation
+import infiltrator_android.androidBeginVpnRoutingActivation
 import infiltrator_android.androidControl
 import infiltrator_android.androidFinishVpnConfigurationActivation
 import infiltrator_android.androidFinishVpnRoutingActivation
@@ -30,17 +30,19 @@ import infiltrator_android.cancelVpnPreparation
 import infiltrator_android.prepareVpn
 import infiltrator_android.startVpn
 import infiltrator_android.stopVpnWorker
+import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
 
 private fun <T> VpnOwnedResource<T>.toOwnerWireState(): VpnOwnerResourceStateWire = when (this) {
     VpnOwnedResource.Absent -> VpnOwnerResourceStateWire.Absent
+
     is VpnOwnedResource.Held -> VpnOwnerResourceStateWire.Held(generation)
+
     is VpnOwnedResource.CleanupPending -> VpnOwnerResourceStateWire.CleanupPending(
         generation,
         failure.message,
@@ -49,13 +51,17 @@ private fun <T> VpnOwnedResource<T>.toOwnerWireState(): VpnOwnerResourceStateWir
 
 private fun VpnOwnedResource<VpnRoutingLeaseState>.toRoutingLeaseOwnerWireState(): VpnOwnerResourceStateWire = when (this) {
     VpnOwnedResource.Absent -> VpnOwnerResourceStateWire.Absent
+
     is VpnOwnedResource.CleanupPending -> VpnOwnerResourceStateWire.CleanupPending(
         generation,
         failure.message,
     )
+
     is VpnOwnedResource.Held -> when (val leaseState = value) {
         VpnRoutingLeaseState.Released -> VpnOwnerResourceStateWire.Absent
+
         is VpnRoutingLeaseState.Held -> VpnOwnerResourceStateWire.Held(generation)
+
         is VpnRoutingLeaseState.ReleasePending -> VpnOwnerResourceStateWire.CleanupPending(
             generation,
             leaseState.releaseFailureMessage() ?: "VPN routing lease release is pending",
@@ -68,7 +74,7 @@ private typealias MihomoVpnOwnerResources = VpnOwnerResourceRecord<
     VpnWorkerOwnership,
     VpnRoutingLeaseState,
     VpnPreparedOwnership,
->
+    >
 
 class MihomoVpnService : VpnService() {
     internal val ownerResources: MihomoVpnOwnerResources
@@ -103,10 +109,12 @@ class MihomoVpnService : VpnService() {
         createNotificationChannel()
         when (val retry = lifecycle.retryPendingCleanup()) {
             is VpnCleanupPlan.Retry -> queueCleanup(retry, stopId = null)
+
             is VpnCleanupPlan.Dispatch,
             is VpnCleanupPlan.Join,
             is VpnCleanupPlan.AlreadyClean,
-            VpnCleanupPlan.Superseded -> Unit
+            VpnCleanupPlan.Superseded,
+            -> Unit
         }
     }
 
@@ -119,19 +127,24 @@ class MihomoVpnService : VpnService() {
         )
         notificationActionMode = when (decision) {
             is VpnServiceStartupDecision.ExecuteCommand -> decision.notificationMode
+
             is VpnServiceStartupDecision.RestoreSystemManagedProxy ->
                 VpnServiceNotificationActionMode.SystemManaged
+
             is VpnServiceStartupDecision.Reject -> VpnServiceNotificationActionMode.UserManaged
         }
         return when (decision) {
             is VpnServiceStartupDecision.ExecuteCommand -> when (decision.command) {
                 VpnServiceCommand.Start -> intent?.let { startForegroundAndQueue(it, startId) }
                     ?: failClosedUnrequestedRestart(startId, VpnServiceStartupRejection.MalformedCommand)
+
                 VpnServiceCommand.Stop -> intent?.let { queueStop(it, startId) }
                     ?: failClosedUnrequestedRestart(startId, VpnServiceStartupRejection.MalformedCommand)
             }
+
             is VpnServiceStartupDecision.RestoreSystemManagedProxy ->
                 startSystemManagedProxy(startId, decision)
+
             is VpnServiceStartupDecision.Reject ->
                 failClosedUnrequestedRestart(startId, decision.reason)
         }
@@ -143,33 +156,42 @@ class MihomoVpnService : VpnService() {
             val cleanupPlan = when (snapshot.state) {
                 VpnProcessState.Stopped -> when (ownerResources.snapshot().presence()) {
                     VpnOwnedResourcesPresence.Clear -> VpnCleanupPlan.AlreadyClean(snapshot.generation)
+
                     VpnOwnedResourcesPresence.Retained -> lifecycle.requestCleanup(
                         VpnCleanupIntent.Stop,
                         resources = VpnOwnedResourcesPresence.Retained,
                     )
                 }
+
                 VpnProcessState.Revoked -> when (ownerResources.snapshot().presence()) {
                     VpnOwnedResourcesPresence.Clear -> VpnCleanupPlan.AlreadyClean(snapshot.generation)
+
                     VpnOwnedResourcesPresence.Retained -> lifecycle.requestCleanup(
                         VpnCleanupIntent.Revoke,
                         resources = VpnOwnedResourcesPresence.Retained,
                     )
                 }
+
                 VpnProcessState.Stopping -> lifecycle.retryPendingCleanup()
+
                 is VpnProcessState.Failed -> when {
                     lifecycle.hasPendingCleanup() -> lifecycle.retryPendingCleanup()
+
                     ownerResources.snapshot().presence() == VpnOwnedResourcesPresence.Retained ->
                         lifecycle.requestCleanup(
                             VpnCleanupIntent.Stop,
                             resources = VpnOwnedResourcesPresence.Retained,
                         )
+
                     else -> VpnCleanupPlan.AlreadyClean(snapshot.generation)
                 }
+
                 VpnProcessState.StartRequested,
                 VpnProcessState.Starting,
                 VpnProcessState.Foreground,
                 VpnProcessState.TunnelEstablished,
-                VpnProcessState.Running -> lifecycle.requestCleanup(
+                VpnProcessState.Running,
+                -> lifecycle.requestCleanup(
                     VpnCleanupIntent.Stop,
                     resources = ownerResources.snapshot().presence(),
                 )
@@ -191,14 +213,18 @@ class MihomoVpnService : VpnService() {
         }
         when (snapshot.state) {
             VpnProcessState.StartRequested -> Unit
+
             VpnProcessState.Starting,
             VpnProcessState.Foreground,
             VpnProcessState.TunnelEstablished,
             VpnProcessState.Running,
-            VpnProcessState.Stopping -> return START_NOT_STICKY
+            VpnProcessState.Stopping,
+            -> return START_NOT_STICKY
+
             VpnProcessState.Stopped,
             VpnProcessState.Revoked,
-            is VpnProcessState.Failed -> {
+            is VpnProcessState.Failed,
+            -> {
                 Log.w(TAG, "Ignoring VPN start without a matching start request")
                 stopSelfResult(startId)
                 return START_NOT_STICKY
@@ -211,8 +237,10 @@ class MihomoVpnService : VpnService() {
         }
         when (lifecycle.transition(generation, VpnProcessState.Starting)) {
             VpnTransitionOutcome.Applied -> Unit
+
             VpnTransitionOutcome.StaleGeneration,
-            VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> return START_NOT_STICKY
+            VpnTransitionOutcome.RunningRequiresDataPlaneReceipt,
+            -> return START_NOT_STICKY
         }
         try {
             when (
@@ -231,15 +259,19 @@ class MihomoVpnService : VpnService() {
             Log.e(TAG, message, e)
             when (lifecycle.transition(generation, VpnProcessState.Failed(message))) {
                 VpnTransitionOutcome.Applied -> stopSelfResult(startId)
+
                 VpnTransitionOutcome.StaleGeneration,
-                VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> Unit
+                VpnTransitionOutcome.RunningRequiresDataPlaneReceipt,
+                -> Unit
             }
             return START_NOT_STICKY
         }
         when (lifecycle.transition(generation, VpnProcessState.Foreground)) {
             VpnTransitionOutcome.Applied -> Unit
+
             VpnTransitionOutcome.StaleGeneration,
-            VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> return START_NOT_STICKY
+            VpnTransitionOutcome.RunningRequiresDataPlaneReceipt,
+            -> return START_NOT_STICKY
         }
         if (deadline.remainingAt(SystemClock.elapsedRealtime()) == VpnDeadlineState.Expired) {
             cleanupFailedStart(generation, startId, "VPN start request expired before service admission")
@@ -269,11 +301,7 @@ class MihomoVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
-    private fun submitStartTransaction(
-        generation: Long,
-        startId: Int,
-        deadline: VpnOwnerRequestDeadline,
-    ) {
+    private fun submitStartTransaction(generation: Long, startId: Int, deadline: VpnOwnerRequestDeadline) {
         val admission = serviceAdmission.admitStart(generation)
         when (admission) {
             VpnServiceTaskAdmission.Accepted -> {
@@ -291,22 +319,30 @@ class MihomoVpnService : VpnService() {
                         )
                     ) {
                         VpnTransitionOutcome.Applied -> removeForegroundAndStop(startId, generation)
+
                         VpnTransitionOutcome.StaleGeneration,
-                        VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> Unit
+                        VpnTransitionOutcome.RunningRequiresDataPlaneReceipt,
+                        -> Unit
                     }
                 }
             }
+
             VpnServiceTaskAdmission.Joined,
             VpnServiceTaskAdmission.StaleGeneration,
             VpnServiceTaskAdmission.Destroying,
-            VpnServiceTaskAdmission.Destroyed -> Unit
+            VpnServiceTaskAdmission.Destroyed,
+            -> Unit
+
             VpnServiceTaskAdmission.QueueFull -> when (
                 lifecycle.transition(generation, VpnProcessState.Failed("VPN lifecycle queue is saturated"))
             ) {
                 VpnTransitionOutcome.Applied -> removeForegroundAndStop(startId, generation)
+
                 VpnTransitionOutcome.StaleGeneration,
-                VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> Unit
+                VpnTransitionOutcome.RunningRequiresDataPlaneReceipt,
+                -> Unit
             }
+
             VpnServiceTaskAdmission.ReplacedQueuedStart -> Unit
         }
     }
@@ -335,11 +371,7 @@ class MihomoVpnService : VpnService() {
         }
     }
 
-    private fun runStartTransaction(
-        generation: Long,
-        startId: Int,
-        deadline: VpnOwnerRequestDeadline,
-    ) {
+    private fun runStartTransaction(generation: Long, startId: Int, deadline: VpnOwnerRequestDeadline) {
         if (!lifecycle.isCurrent(generation)) return
         if (deadline.remainingAt(SystemClock.elapsedRealtime()) == VpnDeadlineState.Expired) {
             cleanupFailedStart(generation, startId, "VPN start request expired in the lifecycle queue")
@@ -348,8 +380,10 @@ class MihomoVpnService : VpnService() {
         try {
             when (ownerResources.routingLeaseState() ?: VpnRoutingLeaseState.Released) {
                 VpnRoutingLeaseState.Released -> Unit
+
                 is VpnRoutingLeaseState.Held,
-                is VpnRoutingLeaseState.ReleasePending -> throw IOException(
+                is VpnRoutingLeaseState.ReleasePending,
+                -> throw IOException(
                     "A prior VPN routing activation lease still needs cleanup",
                 )
             }
@@ -364,7 +398,7 @@ class MihomoVpnService : VpnService() {
                     generation,
                     VpnPreparedOwnership(preparationId),
                 ) ==
-                    VpnOwnerResourceMutation.StaleGeneration
+                VpnOwnerResourceMutation.StaleGeneration
             ) {
                 throw IOException("A newer VPN preparation is still owned by the service")
             }
@@ -374,14 +408,19 @@ class MihomoVpnService : VpnService() {
                 val outcome = takePendingConfiguration(generation.toULong(), preparationId)
             ) {
                 is VpnPreparedConfigurationTakeOutcome.Taken -> outcome.configuration
+
                 VpnPreparedConfigurationTakeOutcome.Missing ->
                     throw IOException("Rust VPN configuration was not prepared")
+
                 VpnPreparedConfigurationTakeOutcome.NotReady ->
                     throw IOException("Rust VPN configuration is not ready")
+
                 VpnPreparedConfigurationTakeOutcome.TransactionMismatch ->
                     throw IOException("VPN Builder transaction ID did not match Rust preparation")
+
                 VpnPreparedConfigurationTakeOutcome.StaleGeneration ->
                     throw IOException("VPN Builder configuration belongs to an old generation")
+
                 VpnPreparedConfigurationTakeOutcome.AlreadyConsumed ->
                     throw IOException("VPN Builder configuration was already consumed")
             }
@@ -406,10 +445,12 @@ class MihomoVpnService : VpnService() {
                 release = { lease ->
                     when (val state = releaseConfigurationActivation(generation, lease)) {
                         VpnConfigurationActivationLeaseState.Released -> Unit
+
                         is VpnConfigurationActivationLeaseState.Held -> Log.e(
                             TAG,
                             "VPN configuration activation lease remained held after release",
                         )
+
                         is VpnConfigurationActivationLeaseState.ReleasePending -> Log.e(
                             TAG,
                             "VPN configuration activation cleanup remains pending: ${state.problem}",
@@ -434,13 +475,16 @@ class MihomoVpnService : VpnService() {
                     val activation = androidBeginVpnRoutingActivation(routing.routingRevision)
                     val routingLease = when (activation) {
                         is AndroidVpnRoutingActivationResult.Acquired -> activation.lease
+
                         is AndroidVpnRoutingActivationResult.Stale -> throw IOException(
                             "VPN app-routing changed while configuring the tunnel " +
                                 "(expected ${routing.routingRevision}, observed ${activation.observedRoutingRevision})",
                         )
+
                         AndroidVpnRoutingActivationResult.Busy -> throw IOException(
                             "Another VPN routing activation or update is in progress",
                         )
+
                         is AndroidVpnRoutingActivationResult.Failed -> throw IOException(
                             activation.status.message ?: "VPN routing activation could not be fenced",
                         )
@@ -463,17 +507,19 @@ class MihomoVpnService : VpnService() {
                             ?: throw IOException("Failed to establish VPN interface")
                         if (
                             ownerResources.recordTunnelDescriptor(generation, established) ==
-                                VpnOwnerResourceMutation.StaleGeneration
+                            VpnOwnerResourceMutation.StaleGeneration
                         ) {
                             closeInterface(established)
                             throw IOException("A newer VPN tunnel descriptor is still owned by the service")
                         }
                         when (lifecycle.transition(generation, VpnProcessState.TunnelEstablished)) {
                             VpnTransitionOutcome.Applied -> Unit
+
                             VpnTransitionOutcome.StaleGeneration -> {
                                 cleanupStaleStart(generation)
                                 return
                             }
+
                             VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> {
                                 throw IOException("VPN Running requires a successful Rust data-plane receipt")
                             }
@@ -513,15 +559,18 @@ class MihomoVpnService : VpnService() {
                                     )
                                 ) {
                                     VpnDataPlaneStartPublication.Published -> Unit
+
                                     VpnDataPlaneStartPublication.StaleGeneration -> {
                                         cleanupStaleStart(generation)
                                         return
                                     }
+
                                     VpnDataPlaneStartPublication.RoutingLeaseNotHeld -> {
                                         Log.e(TAG, "Rust start receipt arrived without a held routing activation lease")
                                         cleanupStaleStart(generation)
                                         return
                                     }
+
                                     is VpnDataPlaneStartPublication.UnexpectedState -> {
                                         Log.e(
                                             TAG,
@@ -532,6 +581,7 @@ class MihomoVpnService : VpnService() {
                                     }
                                 }
                             }
+
                             is VpnDataPlaneStartReceipt.Failed -> {
                                 when (
                                     val publication = lifecycle.completeDataPlaneStart(
@@ -541,15 +591,18 @@ class MihomoVpnService : VpnService() {
                                     )
                                 ) {
                                     VpnDataPlaneStartPublication.Published -> throw IOException(receipt.message)
+
                                     VpnDataPlaneStartPublication.StaleGeneration -> {
                                         cleanupStaleStart(generation)
                                         return
                                     }
+
                                     VpnDataPlaneStartPublication.RoutingLeaseNotHeld -> {
                                         Log.e(TAG, "Rust start failure arrived without a held routing activation lease")
                                         cleanupStaleStart(generation)
                                         return
                                     }
+
                                     is VpnDataPlaneStartPublication.UnexpectedState -> {
                                         Log.e(
                                             TAG,
@@ -601,17 +654,21 @@ class MihomoVpnService : VpnService() {
         )
         return when (plan) {
             is VpnCleanupPlan.Dispatch,
-            is VpnCleanupPlan.Retry -> {
+            is VpnCleanupPlan.Retry,
+            -> {
                 queueCleanup(plan, stopId = startId)
                 START_NOT_STICKY
             }
+
             is VpnCleanupPlan.Join -> {
                 START_NOT_STICKY
             }
+
             is VpnCleanupPlan.AlreadyClean -> {
                 stopSelfResult(startId)
                 START_NOT_STICKY
             }
+
             VpnCleanupPlan.Superseded -> START_NOT_STICKY
         }
     }
@@ -619,10 +676,13 @@ class MihomoVpnService : VpnService() {
     internal fun queueCleanup(plan: VpnCleanupPlan, stopId: Int?) {
         val request = when (plan) {
             is VpnCleanupPlan.Dispatch -> plan.request
+
             is VpnCleanupPlan.Retry -> plan.request
+
             is VpnCleanupPlan.Join,
             is VpnCleanupPlan.AlreadyClean,
-            VpnCleanupPlan.Superseded -> return
+            VpnCleanupPlan.Superseded,
+            -> return
         }
         submitCleanupRequest(request, stopId)
     }
@@ -632,12 +692,16 @@ class MihomoVpnService : VpnService() {
         val admission = serviceAdmission.admitCleanup(request)
         when (admission) {
             VpnServiceTaskAdmission.Joined -> return
+
             VpnServiceTaskAdmission.Accepted,
-            VpnServiceTaskAdmission.ReplacedQueuedStart -> Unit
+            VpnServiceTaskAdmission.ReplacedQueuedStart,
+            -> Unit
+
             VpnServiceTaskAdmission.QueueFull,
             VpnServiceTaskAdmission.Destroyed,
             VpnServiceTaskAdmission.Destroying,
-            VpnServiceTaskAdmission.StaleGeneration -> {
+            VpnServiceTaskAdmission.StaleGeneration,
+            -> {
                 rejectCleanupAdmission(request, "VPN cleanup could not enter the bounded lifecycle queue")
                 return
             }
@@ -654,10 +718,7 @@ class MihomoVpnService : VpnService() {
         }
     }
 
-    private inner class CleanupTransactionTask(
-        private val request: VpnCleanupRequest,
-        private val stopId: Int?,
-    ) : Runnable {
+    private inner class CleanupTransactionTask(private val request: VpnCleanupRequest, private val stopId: Int?) : Runnable {
         override fun run() {
             if (serviceAdmission.beginCleanup(request) != VpnServiceTaskAdmission.Accepted) return
             try {
@@ -684,8 +745,10 @@ class MihomoVpnService : VpnService() {
         when (val publication = lifecycle.cleanupQueueRejected(request, message)) {
             is VpnCleanupPublication.CleanupPending ->
                 Log.e(TAG, "VPN cleanup remains pending: ${publication.failure.message}")
+
             is VpnCleanupPublication.Published,
-            VpnCleanupPublication.StaleGeneration -> Unit
+            VpnCleanupPublication.StaleGeneration,
+            -> Unit
         }
     }
 
@@ -703,9 +766,11 @@ class MihomoVpnService : VpnService() {
                         val leaseFailure = retryRoutingLeaseRelease(request.resourceGeneration)
                         if (firstFailure == null) firstFailure = leaseFailure
                     }
+
                     else -> Unit
                 }
             }
+
             else -> Unit
         }
 
@@ -725,8 +790,10 @@ class MihomoVpnService : VpnService() {
                 Log.i(TAG, "VPN cleanup reached owner terminal state: ${publication.state}")
                 removeForegroundAndStop(stopId, request.generation)
             }
+
             is VpnCleanupPublication.CleanupPending ->
                 Log.e(TAG, "VPN cleanup remains pending: ${publication.failure.message}")
+
             VpnCleanupPublication.StaleGeneration ->
                 Log.w(TAG, "Ignoring stale VPN cleanup completion for generation ${request.generation}")
         }
@@ -760,7 +827,7 @@ class MihomoVpnService : VpnService() {
             VpnWorkerOwnership,
             VpnRoutingLeaseState,
             VpnPreparedOwnership,
-        >()
+            >()
 
         internal val preparedConfigurationStore = VpnPreparedConfigurationStore()
         internal const val OWNER_REQUEST_TIMEOUT_MILLIS = 15_000L
@@ -812,6 +879,5 @@ class MihomoVpnService : VpnService() {
                 ipv6 = worker.ipv6,
             )
         }
-
     }
 }

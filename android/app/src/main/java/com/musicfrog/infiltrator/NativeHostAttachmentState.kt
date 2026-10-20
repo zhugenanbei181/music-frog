@@ -18,14 +18,10 @@ internal enum class NativeHostAttachStep(val resource: NativeHostAttachmentResou
 
 internal sealed interface NativeHostFailureLocation {
     data class AttachStep(val step: NativeHostAttachStep) : NativeHostFailureLocation
-    data class DetachResource(val resource: NativeHostAttachmentResource) :
-        NativeHostFailureLocation
+    data class DetachResource(val resource: NativeHostAttachmentResource) : NativeHostFailureLocation
 }
 
-internal data class NativeHostOperationFailure(
-    val location: NativeHostFailureLocation,
-    val detail: String,
-)
+internal data class NativeHostOperationFailure(val location: NativeHostFailureLocation, val detail: String)
 
 /** A superseded resource belongs to a newer Activity generation; stale cleanup is complete. */
 internal sealed interface NativeHostOperationResult {
@@ -42,14 +38,8 @@ internal sealed interface NativeHostAttachmentState {
         val resources: List<NativeHostAttachmentResource>,
         val completedSteps: List<NativeHostAttachStep>,
     ) : NativeHostAttachmentState
-    data class Attached(
-        val generation: Long,
-        val resources: List<NativeHostAttachmentResource>,
-    ) : NativeHostAttachmentState
-    data class Detaching(
-        val generation: Long,
-        val resources: List<NativeHostAttachmentResource>,
-    ) : NativeHostAttachmentState
+    data class Attached(val generation: Long, val resources: List<NativeHostAttachmentResource>) : NativeHostAttachmentState
+    data class Detaching(val generation: Long, val resources: List<NativeHostAttachmentResource>) : NativeHostAttachmentState
     data class CleanupNeeded(
         val generation: Long,
         val resources: List<NativeHostAttachmentResource>,
@@ -98,10 +88,7 @@ internal interface NativeHostAttachmentEffects {
 }
 
 /** Atomic attach with reverse rollback and exhaustive, retryable detach. */
-internal class NativeHostAttachment(
-    private val generation: Long,
-    private val effects: NativeHostAttachmentEffects,
-) {
+internal class NativeHostAttachment(private val generation: Long, private val effects: NativeHostAttachmentEffects) {
     private var currentState: NativeHostAttachmentState = NativeHostAttachmentState.Detached
 
     val state: NativeHostAttachmentState
@@ -112,9 +99,12 @@ internal class NativeHostAttachment(
     fun acceptsCallbacks(): Boolean = when (val state = currentState) {
         NativeHostAttachmentState.Detached,
         is NativeHostAttachmentState.Detaching,
-        is NativeHostAttachmentState.CleanupNeeded -> false
+        is NativeHostAttachmentState.CleanupNeeded,
+        -> false
+
         is NativeHostAttachmentState.Attaching ->
             NativeHostAttachStep.PublishInitialLifecycle in state.completedSteps
+
         is NativeHostAttachmentState.Attached -> true
     }
 
@@ -122,11 +112,14 @@ internal class NativeHostAttachment(
     fun attach(): NativeHostAttachOutcome {
         when (val state = currentState) {
             NativeHostAttachmentState.Detached -> Unit
+
             is NativeHostAttachmentState.Attached ->
                 return NativeHostAttachOutcome.AlreadyAttached(state.generation)
+
             is NativeHostAttachmentState.Attaching,
             is NativeHostAttachmentState.Detaching,
-            is NativeHostAttachmentState.CleanupNeeded ->
+            is NativeHostAttachmentState.CleanupNeeded,
+            ->
                 return NativeHostAttachOutcome.Rejected(state)
         }
 
@@ -150,6 +143,7 @@ internal class NativeHostAttachment(
             val result = performAttachStep(step)
             when (result) {
                 NativeHostOperationResult.Applied -> Unit
+
                 NativeHostOperationResult.Superseded -> {
                     val failureDetail = "operation was superseded by a newer Activity generation"
                     val cleanupFailures = release(resources)
@@ -162,6 +156,7 @@ internal class NativeHostAttachment(
                         currentState,
                     )
                 }
+
                 is NativeHostOperationResult.Failed -> {
                     val cleanupFailures = release(resources)
                     return NativeHostAttachOutcome.Failed(
@@ -173,6 +168,7 @@ internal class NativeHostAttachment(
                         currentState,
                     )
                 }
+
                 is NativeHostOperationResult.Unknown -> {
                     val cleanupFailures = release(resources)
                     return NativeHostAttachOutcome.Failed(
@@ -201,46 +197,54 @@ internal class NativeHostAttachment(
     fun detach(): NativeHostDetachOutcome {
         val resources = when (val state = currentState) {
             NativeHostAttachmentState.Detached -> return NativeHostDetachOutcome.AlreadyDetached
+
             is NativeHostAttachmentState.Attached -> state.resources
+
             is NativeHostAttachmentState.CleanupNeeded -> state.resources
+
             is NativeHostAttachmentState.Attaching,
-            is NativeHostAttachmentState.Detaching ->
+            is NativeHostAttachmentState.Detaching,
+            ->
                 return NativeHostDetachOutcome.Rejected(state)
         }
         val failures = release(resources)
         return when (val state = currentState) {
             NativeHostAttachmentState.Detached ->
                 NativeHostDetachOutcome.Detached(generation)
+
             is NativeHostAttachmentState.CleanupNeeded ->
                 NativeHostDetachOutcome.CleanupNeeded(
                     state.generation,
                     state.resources,
                     failures.ifEmpty { state.failures },
                 )
+
             is NativeHostAttachmentState.Attaching,
             is NativeHostAttachmentState.Attached,
-            is NativeHostAttachmentState.Detaching ->
+            is NativeHostAttachmentState.Detaching,
+            ->
                 NativeHostDetachOutcome.Rejected(state)
         }
     }
 
-    private fun performAttachStep(step: NativeHostAttachStep): NativeHostOperationResult =
-        safely {
-            when (step) {
-                NativeHostAttachStep.RegisterLifecycleCallbacks ->
-                    effects.registerLifecycleCallbacks()
-                NativeHostAttachStep.InstallInsetsListener ->
-                    effects.installInsetsListener()
-                NativeHostAttachStep.RegisterRustBridge -> effects.registerRustBridge()
-                NativeHostAttachStep.PublishInitialLifecycle ->
-                    effects.publishInitialLifecycle()
-                NativeHostAttachStep.RequestInitialInsets -> effects.requestInitialInsets()
-            }
-        }
+    private fun performAttachStep(step: NativeHostAttachStep): NativeHostOperationResult = safely {
+        when (step) {
+            NativeHostAttachStep.RegisterLifecycleCallbacks ->
+                effects.registerLifecycleCallbacks()
 
-    private fun release(
-        resources: List<NativeHostAttachmentResource>,
-    ): List<NativeHostOperationFailure> {
+            NativeHostAttachStep.InstallInsetsListener ->
+                effects.installInsetsListener()
+
+            NativeHostAttachStep.RegisterRustBridge -> effects.registerRustBridge()
+
+            NativeHostAttachStep.PublishInitialLifecycle ->
+                effects.publishInitialLifecycle()
+
+            NativeHostAttachStep.RequestInitialInsets -> effects.requestInitialInsets()
+        }
+    }
+
+    private fun release(resources: List<NativeHostAttachmentResource>): List<NativeHostOperationFailure> {
         currentState = NativeHostAttachmentState.Detaching(generation, resources.toList())
         val pending = resources.toMutableList()
         val failures = mutableListOf<NativeHostOperationFailure>()
@@ -249,19 +253,24 @@ internal class NativeHostAttachment(
                 when (resource) {
                     NativeHostAttachmentResource.ActivityLifecycleCallbacks ->
                         effects.unregisterLifecycleCallbacks()
+
                     NativeHostAttachmentResource.WindowInsetsListener ->
                         effects.removeInsetsListener()
+
                     NativeHostAttachmentResource.RustBridgeRegistration ->
                         effects.clearRustBridge()
                 }
             }
             when (result) {
                 NativeHostOperationResult.Applied,
-                NativeHostOperationResult.Superseded -> pending.remove(resource)
+                NativeHostOperationResult.Superseded,
+                -> pending.remove(resource)
+
                 is NativeHostOperationResult.Failed -> failures += NativeHostOperationFailure(
                     NativeHostFailureLocation.DetachResource(resource),
                     result.detail,
                 )
+
                 is NativeHostOperationResult.Unknown -> failures += NativeHostOperationFailure(
                     NativeHostFailureLocation.DetachResource(resource),
                     result.detail,
@@ -281,9 +290,7 @@ internal class NativeHostAttachment(
         return failures
     }
 
-    private inline fun safely(
-        operation: () -> NativeHostOperationResult,
-    ): NativeHostOperationResult = try {
+    private inline fun safely(operation: () -> NativeHostOperationResult): NativeHostOperationResult = try {
         operation()
     } catch (error: Exception) {
         NativeHostOperationResult.Failed(
@@ -296,19 +303,13 @@ internal class NativeHostAttachment(
 internal class NativeHostGenerationRegistry {
     private sealed interface Owner {
         data class Registered(val generation: Long) : Owner
-        data class Uncertain(
-            val generation: Long,
-            val previousGeneration: Long?,
-        ) : Owner
+        data class Uncertain(val generation: Long, val previousGeneration: Long?) : Owner
     }
 
     private var owner: Owner? = null
 
     @Synchronized
-    fun register(
-        generation: Long,
-        operation: () -> NativeHostOperationResult,
-    ): NativeHostOperationResult {
+    fun register(generation: Long, operation: () -> NativeHostOperationResult): NativeHostOperationResult {
         val previous = owner
         if (previous is Owner.Uncertain) {
             return NativeHostOperationResult.Failed(
@@ -322,6 +323,7 @@ internal class NativeHostGenerationRegistry {
                     owner = Owner.Registered(generation)
                     result
                 }
+
                 is NativeHostOperationResult.Unknown -> {
                     owner = Owner.Uncertain(
                         generation,
@@ -329,8 +331,10 @@ internal class NativeHostGenerationRegistry {
                     )
                     result
                 }
+
                 NativeHostOperationResult.Superseded,
-                is NativeHostOperationResult.Failed -> result
+                is NativeHostOperationResult.Failed,
+                -> result
             }
         } catch (error: Exception) {
             owner = Owner.Uncertain(
@@ -344,15 +348,14 @@ internal class NativeHostGenerationRegistry {
     }
 
     @Synchronized
-    fun clearIfOwned(
-        generation: Long,
-        operation: () -> NativeHostOperationResult,
-    ): NativeHostOperationResult {
+    fun clearIfOwned(generation: Long, operation: () -> NativeHostOperationResult): NativeHostOperationResult {
         when (val current = owner) {
             null -> return NativeHostOperationResult.Superseded
+
             is Owner.Registered -> if (current.generation != generation) {
                 return NativeHostOperationResult.Superseded
             }
+
             is Owner.Uncertain -> if (current.generation == generation) {
                 val previous = current.previousGeneration
                     ?.let { " (previous owner was $it)" }
@@ -371,9 +374,11 @@ internal class NativeHostGenerationRegistry {
                     owner = null
                     result
                 }
+
                 NativeHostOperationResult.Superseded,
                 is NativeHostOperationResult.Failed,
-                is NativeHostOperationResult.Unknown -> result
+                is NativeHostOperationResult.Unknown,
+                -> result
             }
         } catch (error: Exception) {
             NativeHostOperationResult.Failed(
@@ -390,6 +395,5 @@ internal class NativeHostGenerationRegistry {
     }
 
     @Synchronized
-    fun isUncertainFor(generation: Long): Boolean =
-        (owner as? Owner.Uncertain)?.generation == generation
+    fun isUncertainFor(generation: Long): Boolean = (owner as? Owner.Uncertain)?.generation == generation
 }

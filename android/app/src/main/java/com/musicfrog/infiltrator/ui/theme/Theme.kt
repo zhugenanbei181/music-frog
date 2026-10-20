@@ -74,11 +74,7 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun InfiltratorTheme(
-    darkTheme: Boolean,
-    amoledBlack: Boolean = false,
-    content: @Composable () -> Unit
-) {
+fun InfiltratorTheme(darkTheme: Boolean, amoledBlack: Boolean = false, content: @Composable () -> Unit) {
     val baseColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val context = LocalContext.current
         if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -90,7 +86,7 @@ fun InfiltratorTheme(
         baseColors.copy(
             background = androidx.compose.ui.graphics.Color.Black,
             surface = androidx.compose.ui.graphics.Color.Black,
-            surfaceVariant = androidx.compose.ui.graphics.Color(0xFF121212)
+            surfaceVariant = androidx.compose.ui.graphics.Color(0xFF121212),
         )
     } else {
         baseColors
@@ -100,6 +96,6 @@ fun InfiltratorTheme(
         colorScheme = colors,
         typography = AppTypography,
         shapes = AppShapes,
-        content = content
+        content = content,
     )
 }

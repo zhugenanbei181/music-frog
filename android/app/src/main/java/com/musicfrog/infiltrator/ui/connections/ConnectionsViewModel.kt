@@ -7,11 +7,11 @@ import com.musicfrog.infiltrator.ui.common.CallResult
 import com.musicfrog.infiltrator.ui.common.ConnectionRecord
 import com.musicfrog.infiltrator.ui.common.CoreScopeObservation
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
+import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import com.musicfrog.infiltrator.ui.common.OwnerSurfaceRead
 import com.musicfrog.infiltrator.ui.common.ScopedProductCommandResult
-import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.runCall
 import com.musicfrog.infiltrator.ui.common.toAppFailure
@@ -32,9 +32,7 @@ internal data class ConnectionsUiState(
     val failure: AppFailure? = null,
 )
 
-class ConnectionsViewModel internal constructor(
-    private val repository: ConnectionsRepository,
-) : ViewModel() {
+class ConnectionsViewModel internal constructor(private val repository: ConnectionsRepository) : ViewModel() {
     constructor() : this(UniFfiConnectionsRepository())
 
     private val connectionReadState = MutableStateFlow<ConnectionReadState>(ConnectionReadState.Loading())
@@ -139,15 +137,19 @@ class ConnectionsViewModel internal constructor(
                     actionState.value = ConnectionActionState.Failed(call.failure)
                     return@launch
                 }
+
                 is CallResult.Success -> when (val result = call.value) {
                     is ScopedProductCommandResult.Completed -> Unit
+
                     is ScopedProductCommandResult.Failed -> {
                         actionState.value = ConnectionActionState.Failed(result.failure.toAppFailure())
                         return@launch
                     }
+
                     ScopedProductCommandResult.ScopeMismatch,
                     ScopedProductCommandResult.NonTerminal,
-                    ScopedProductCommandResult.Invalid -> {
+                    ScopedProductCommandResult.Invalid,
+                    -> {
                         actionState.value = ConnectionActionState.Failed(notReadyFailure())
                         return@launch
                     }
@@ -161,9 +163,11 @@ class ConnectionsViewModel internal constructor(
                         ConnectionCloseReadback.StillActive -> ConnectionActionState.Failed(notReadyFailure())
                     }
                 }
+
                 is ConnectionReadState.Unavailable -> {
                     actionState.value = ConnectionActionState.Failed(readback.failure)
                 }
+
                 is ConnectionReadState.Loading -> {
                     actionState.value = ConnectionActionState.Failed(notReadyFailure())
                 }
@@ -181,11 +185,13 @@ class ConnectionsViewModel internal constructor(
                 return unavailableConnections(connectionReadState.value, call.failure)
                     .also { connectionReadState.value = it }
             }
+
             is CallResult.Success -> when (val read = call.value) {
                 is OwnerSurfaceRead.Unavailable -> {
                     return unavailableConnections(connectionReadState.value, read.failure.toAppFailure())
                         .also { connectionReadState.value = it }
                 }
+
                 is OwnerSurfaceRead.Available -> {
                     val snapshot = read.snapshot
                     val page = snapshot.connections
@@ -215,10 +221,7 @@ class ConnectionsViewModel internal constructor(
         }
     }
 
-    private data class ConnectionsState(
-        val readState: ConnectionReadState,
-        val actionState: ConnectionActionState,
-    )
+    private data class ConnectionsState(val readState: ConnectionReadState, val actionState: ConnectionActionState)
 
     private fun ConnectionReadState.snapshotOrLastAccepted(): ConnectionSnapshot? = when (this) {
         is ConnectionReadState.Loading -> lastAccepted?.value
@@ -228,8 +231,7 @@ class ConnectionsViewModel internal constructor(
 
     private fun notReadyFailure(): AppFailure = localizedFailure(FailureTextKey.NotReady).toAppFailure()
 
-    private fun observedCoreScope(): CoreScopeObservation? =
-        lastAcceptedConnection(connectionReadState.value)?.value?.coreScope
+    private fun observedCoreScope(): CoreScopeObservation? = lastAcceptedConnection(connectionReadState.value)?.value?.coreScope
 
     private fun failUnavailableClose() {
         actionState.value = ConnectionActionState.Failed(notReadyFailure())

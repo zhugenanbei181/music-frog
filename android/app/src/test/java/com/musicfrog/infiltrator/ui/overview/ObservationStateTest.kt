@@ -1,11 +1,6 @@
 package com.musicfrog.infiltrator.ui.overview
 
 import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
-import com.musicfrog.infiltrator.ui.common.AppFailure
-import com.musicfrog.infiltrator.ui.common.AppFailureCode
-import com.musicfrog.infiltrator.ui.common.FailureTextKey
-import com.musicfrog.infiltrator.ui.common.ObservationRevision
-import com.musicfrog.infiltrator.ui.common.OwnerVpnObservation
 import com.musicfrog.infiltrator.VpnOwnerCoreReadbackWire
 import com.musicfrog.infiltrator.VpnOwnerDataPlaneState
 import com.musicfrog.infiltrator.VpnOwnerLifecycleWire
@@ -14,6 +9,11 @@ import com.musicfrog.infiltrator.VpnOwnerResourceFactWire
 import com.musicfrog.infiltrator.VpnOwnerResourceKindWire
 import com.musicfrog.infiltrator.VpnOwnerResourceStateWire
 import com.musicfrog.infiltrator.VpnOwnerSnapshotWire
+import com.musicfrog.infiltrator.ui.common.AppFailure
+import com.musicfrog.infiltrator.ui.common.AppFailureCode
+import com.musicfrog.infiltrator.ui.common.FailureTextKey
+import com.musicfrog.infiltrator.ui.common.ObservationRevision
+import com.musicfrog.infiltrator.ui.common.OwnerVpnObservation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -114,7 +114,9 @@ class ObservationStateTest {
             resources = valid.resources.map { fact ->
                 if (fact.kind == VpnOwnerResourceKindWire.TunnelDescriptor) {
                     fact.copy(state = VpnOwnerResourceStateWire.Absent)
-                } else fact
+                } else {
+                    fact
+                }
             },
         )
         assertTrue(missingTunnel.dataPlaneState() is VpnOwnerDataPlaneState.Failed)
@@ -126,8 +128,7 @@ class ObservationStateTest {
         )
     }
 
-    private fun ownerObservation(snapshot: VpnOwnerSnapshotWire): OwnerVpnObservation =
-        OwnerVpnObservation.AndroidOwner(snapshot)
+    private fun ownerObservation(snapshot: VpnOwnerSnapshotWire): OwnerVpnObservation = OwnerVpnObservation.AndroidOwner(snapshot)
 
     private fun vpnRevision(snapshot: VpnOwnerSnapshotWire) = ObservationRevision.VpnService(
         snapshot.ownerSessionId,
@@ -158,9 +159,11 @@ class ObservationStateTest {
                 kind = kind,
                 state = when {
                     resourcesReleased -> VpnOwnerResourceStateWire.Absent
+
                     lifecycle == VpnOwnerLifecycleWire.Running &&
                         kind in setOf(VpnOwnerResourceKindWire.Worker, VpnOwnerResourceKindWire.TunnelDescriptor) ->
                         VpnOwnerResourceStateWire.Held(5)
+
                     else -> VpnOwnerResourceStateWire.Absent
                 },
             )

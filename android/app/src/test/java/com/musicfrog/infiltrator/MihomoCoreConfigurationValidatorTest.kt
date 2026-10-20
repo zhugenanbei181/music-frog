@@ -1,5 +1,10 @@
 package com.musicfrog.infiltrator
 
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -9,11 +14,6 @@ import java.math.BigInteger
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
-import org.json.JSONObject
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
 
 class MihomoCoreConfigurationValidatorTest {
     private enum class BinaryFixture {
@@ -22,22 +22,21 @@ class MihomoCoreConfigurationValidatorTest {
     }
 
     @Test
-    fun launchRejectsConfigurationChangedAfterRustPreflightBeforeAnyProcessSideEffect() =
-        withFiles { files ->
-            var starts = 0
-            val controller = files.controller {
-                starts += 1
-                FakeProcess(FakeProcessBehavior.Running)
-            }
-            val spec = files.launchSpec()
-            files.candidate.writeText("mixed-port: 7891\nmode: global\n")
-
-            assertEquals(
-                CoreProcessStartReceipt.LaunchSpecRejected,
-                controller.start(spec, startContext()),
-            )
-            assertEquals(0, starts)
+    fun launchRejectsConfigurationChangedAfterRustPreflightBeforeAnyProcessSideEffect() = withFiles { files ->
+        var starts = 0
+        val controller = files.controller {
+            starts += 1
+            FakeProcess(FakeProcessBehavior.Running)
         }
+        val spec = files.launchSpec()
+        files.candidate.writeText("mixed-port: 7891\nmode: global\n")
+
+        assertEquals(
+            CoreProcessStartReceipt.LaunchSpecRejected,
+            controller.start(spec, startContext()),
+        )
+        assertEquals(0, starts)
+    }
 
     @Test
     fun runningChildIsAdoptedOnlyByTheSameTypedOwnerContext() = withFiles { files ->
@@ -376,10 +375,7 @@ class MihomoCoreConfigurationValidatorTest {
         assertEquals(0, starts)
     }
 
-    private inline fun withFiles(
-        binaryFixture: BinaryFixture = BinaryFixture.Present,
-        block: (ValidationFiles) -> Unit,
-    ) {
+    private inline fun withFiles(binaryFixture: BinaryFixture = BinaryFixture.Present, block: (ValidationFiles) -> Unit) {
         val root = Files.createTempDirectory("mihomo-validation-").toFile()
         val files = ValidationFiles(root, binaryFixture)
         try {
@@ -403,6 +399,7 @@ class MihomoCoreConfigurationValidatorTest {
                     writeBytes(byteArrayOf(0x7f, 0x45, 0x4c, 0x46))
                     setExecutable(true)
                 }
+
                 BinaryFixture.Missing -> Unit
             }
         }
@@ -425,13 +422,9 @@ class MihomoCoreConfigurationValidatorTest {
             workingDirectory = filesDirectory.absolutePath,
         )
 
-        fun validator(starter: CoreProcessStarter): MihomoCoreConfigurationValidator =
-            validator(starter) { 100L }
+        fun validator(starter: CoreProcessStarter): MihomoCoreConfigurationValidator = validator(starter) { 100L }
 
-        fun validator(
-            starter: CoreProcessStarter,
-            elapsedRealtimeMillis: () -> Long,
-        ): MihomoCoreConfigurationValidator =
+        fun validator(starter: CoreProcessStarter, elapsedRealtimeMillis: () -> Long): MihomoCoreConfigurationValidator =
             MihomoCoreConfigurationValidator(
                 nativeLibraryDirectory = nativeDirectory,
                 filesDirectory = filesDirectory,
@@ -439,15 +432,14 @@ class MihomoCoreConfigurationValidatorTest {
                 elapsedRealtimeMillis = elapsedRealtimeMillis,
             )
 
-        fun controller(starter: CoreProcessStarter): CoreProcessController =
-            CoreProcessController(
-                nativeLibraryDirectory = nativeDirectory,
-                filesDirectory = filesDirectory,
-                processStarter = starter,
-                elapsedRealtimeMillis = { 100L },
-                recordStore = AndroidCoreProcessRecordStore(filesDirectory),
-                childInspector = FixedChildInspector,
-            )
+        fun controller(starter: CoreProcessStarter): CoreProcessController = CoreProcessController(
+            nativeLibraryDirectory = nativeDirectory,
+            filesDirectory = filesDirectory,
+            processStarter = starter,
+            elapsedRealtimeMillis = { 100L },
+            recordStore = AndroidCoreProcessRecordStore(filesDirectory),
+            childInspector = FixedChildInspector,
+        )
 
         fun launchSpec(): CoreLaunchSpecWire = CoreLaunchSpecWire(
             configurationIdentity = identity(),
@@ -483,12 +475,11 @@ class MihomoCoreConfigurationValidatorTest {
             return binary
         }
 
-        fun identity(documentRevision: String = digest(candidate).removePrefix("sha256:")) =
-            CoreLaunchConfigurationIdentityWire(
-                engineId = "mihomo",
-                profileId = "primary",
-                documentRevision = documentRevision,
-            )
+        fun identity(documentRevision: String = digest(candidate).removePrefix("sha256:")) = CoreLaunchConfigurationIdentityWire(
+            engineId = "mihomo",
+            profileId = "primary",
+            documentRevision = documentRevision,
+        )
     }
 
     private fun digest(file: File): String {
@@ -505,9 +496,7 @@ class MihomoCoreConfigurationValidatorTest {
         data object NeverReaps : FakeProcessBehavior
     }
 
-    private class FakeProcess(
-        private val behavior: FakeProcessBehavior,
-    ) : Process() {
+    private class FakeProcess(private val behavior: FakeProcessBehavior) : Process() {
         private enum class Lifecycle {
             Running,
             Exited,
@@ -515,9 +504,11 @@ class MihomoCoreConfigurationValidatorTest {
 
         private var lifecycle = when (behavior) {
             is FakeProcessBehavior.Exit -> Lifecycle.Exited
+
             FakeProcessBehavior.Running,
             FakeProcessBehavior.TimeoutThenForceReap,
-            FakeProcessBehavior.NeverReaps -> Lifecycle.Running
+            FakeProcessBehavior.NeverReaps,
+            -> Lifecycle.Running
         }
         private var exitCode = (behavior as? FakeProcessBehavior.Exit)?.code ?: 0
         var destroyCalls: Int = 0
@@ -544,7 +535,9 @@ class MihomoCoreConfigurationValidatorTest {
                     lifecycle = Lifecycle.Exited
                     true
                 }
+
                 FakeProcessBehavior.Running -> false
+
                 FakeProcessBehavior.TimeoutThenForceReap -> {
                     if (forceDestroyCalls > 0) {
                         lifecycle = Lifecycle.Exited
@@ -553,6 +546,7 @@ class MihomoCoreConfigurationValidatorTest {
                         false
                     }
                 }
+
                 FakeProcessBehavior.NeverReaps -> lifecycle == Lifecycle.Exited
             }
         }
@@ -570,9 +564,11 @@ class MihomoCoreConfigurationValidatorTest {
             forceDestroyCalls += 1
             when (behavior) {
                 FakeProcessBehavior.NeverReaps -> Unit
+
                 is FakeProcessBehavior.Exit,
                 FakeProcessBehavior.Running,
-                FakeProcessBehavior.TimeoutThenForceReap -> lifecycle = Lifecycle.Exited
+                FakeProcessBehavior.TimeoutThenForceReap,
+                -> lifecycle = Lifecycle.Exited
             }
             return this
         }
@@ -589,25 +585,21 @@ private object FixedChildInspector : AndroidChildProcessInspector {
     override fun inspect(child: AndroidChildProcessIdentityWire): AndroidChildProcessInspection =
         AndroidChildProcessInspection.ExactChildRunning
 
-    override fun capture(pid: Long): AndroidChildProcessCapture =
-        AndroidChildProcessCapture.Identified(
-            AndroidChildProcessIdentityWire(pid, BigInteger("987654")),
-        )
+    override fun capture(pid: Long): AndroidChildProcessCapture = AndroidChildProcessCapture.Identified(
+        AndroidChildProcessIdentityWire(pid, BigInteger("987654")),
+    )
 
     override fun snapshotCurrentThreadChildren(): AndroidCurrentThreadChildSnapshot =
         AndroidCurrentThreadChildSnapshot.Captured(101L, 202L, emptySet())
 
-    override fun captureStartedChild(
-        snapshot: AndroidCurrentThreadChildSnapshot,
-    ): AndroidChildProcessCapture =
+    override fun captureStartedChild(snapshot: AndroidCurrentThreadChildSnapshot): AndroidChildProcessCapture =
         AndroidChildProcessCapture.Identified(
             AndroidChildProcessIdentityWire(321L, BigInteger("987654")),
         )
 }
 
-private fun startContext(generation: Long = 1L, token: BigInteger = BigInteger("42")) =
-    CoreProcessStartContextWire(
-        CoreIdentityWire("mihomo", "android-active", null),
-        BigInteger.valueOf(generation),
-        token,
-    )
+private fun startContext(generation: Long = 1L, token: BigInteger = BigInteger("42")) = CoreProcessStartContextWire(
+    CoreIdentityWire("mihomo", "android-active", null),
+    BigInteger.valueOf(generation),
+    token,
+)

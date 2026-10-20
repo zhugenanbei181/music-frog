@@ -63,10 +63,7 @@ internal sealed interface OwnerSessionFenceState {
         val progress: OwnerSessionReadbackProgress,
     ) : OwnerSessionFenceState
 
-    data class Ready(
-        val ownerSessionId: String,
-        override val requestId: Long,
-    ) : OwnerSessionFenceState
+    data class Ready(val ownerSessionId: String, override val requestId: Long) : OwnerSessionFenceState
 }
 
 /** Tracks :vpn process identity, forces post-death readback, and rejects retired sessions. */
@@ -95,11 +92,7 @@ internal class AndroidOwnerSessionFence {
     fun state(): OwnerSessionFenceState = state
 
     @Synchronized
-    fun requireReadback(
-        requestId: Long,
-        expectedSessionId: String?,
-        terminal: OwnerClientTerminal,
-    ): OwnerSessionInvalidation {
+    fun requireReadback(requestId: Long, expectedSessionId: String?, terminal: OwnerClientTerminal): OwnerSessionInvalidation {
         val currentSessionId = current()
         if (currentSessionId != null && expectedSessionId != null &&
             expectedSessionId != currentSessionId
@@ -174,6 +167,7 @@ internal class AndroidOwnerSessionFence {
                     evidence,
                     OwnerSessionAcceptance.Current,
                 )
+
                 is OwnerSessionFenceState.Ready -> {
                     state = OwnerSessionFenceState.Ready(
                         ownerSessionId = responseSessionId,
@@ -202,12 +196,14 @@ internal class AndroidOwnerSessionFence {
         state = when (progress) {
             OwnerSessionReadbackProgress.AwaitingCoreAndVpn,
             OwnerSessionReadbackProgress.AwaitingCore,
-            OwnerSessionReadbackProgress.AwaitingVpn -> OwnerSessionFenceState.ReadbackRequired(
+            OwnerSessionReadbackProgress.AwaitingVpn,
+            -> OwnerSessionFenceState.ReadbackRequired(
                 ownerSessionId = responseSessionId,
                 requestId = requestId,
                 terminal = OwnerClientTerminal.OwnerSessionReadbackRequired,
                 progress = progress,
             )
+
             OwnerSessionReadbackProgress.Complete -> OwnerSessionFenceState.Ready(
                 ownerSessionId = responseSessionId,
                 requestId = requestId,
@@ -234,12 +230,14 @@ internal class AndroidOwnerSessionFence {
         state = when (progress) {
             OwnerSessionReadbackProgress.AwaitingCoreAndVpn,
             OwnerSessionReadbackProgress.AwaitingCore,
-            OwnerSessionReadbackProgress.AwaitingVpn -> OwnerSessionFenceState.ReadbackRequired(
+            OwnerSessionReadbackProgress.AwaitingVpn,
+            -> OwnerSessionFenceState.ReadbackRequired(
                 ownerSessionId = responseSessionId,
                 requestId = maxOf(current.requestId, requestId),
                 terminal = OwnerClientTerminal.OwnerSessionReadbackRequired,
                 progress = progress,
             )
+
             OwnerSessionReadbackProgress.Complete -> OwnerSessionFenceState.Ready(
                 ownerSessionId = responseSessionId,
                 requestId = maxOf(current.requestId, requestId),
@@ -252,28 +250,38 @@ internal class AndroidOwnerSessionFence {
         OwnerSessionEvidence.CoreLifecycleReadback,
         OwnerSessionEvidence.VpnStateReadback,
         OwnerSessionEvidence.VpnStopReadback,
-        OwnerSessionEvidence.VpnOwnerSnapshotReadback -> true
+        OwnerSessionEvidence.VpnOwnerSnapshotReadback,
+        -> true
+
         OwnerSessionEvidence.OperationReply -> false
     }
 
-    private fun readbackProgress(
-        current: OwnerSessionReadbackProgress,
-        evidence: OwnerSessionEvidence,
-    ): OwnerSessionReadbackProgress = when (evidence) {
-        OwnerSessionEvidence.CoreLifecycleReadback -> when (current) {
-            OwnerSessionReadbackProgress.AwaitingCoreAndVpn -> OwnerSessionReadbackProgress.AwaitingVpn
-            OwnerSessionReadbackProgress.AwaitingCore -> OwnerSessionReadbackProgress.Complete
-            OwnerSessionReadbackProgress.AwaitingVpn,
-            OwnerSessionReadbackProgress.Complete -> current
+    private fun readbackProgress(current: OwnerSessionReadbackProgress, evidence: OwnerSessionEvidence): OwnerSessionReadbackProgress =
+        when (evidence) {
+            OwnerSessionEvidence.CoreLifecycleReadback -> when (current) {
+                OwnerSessionReadbackProgress.AwaitingCoreAndVpn -> OwnerSessionReadbackProgress.AwaitingVpn
+
+                OwnerSessionReadbackProgress.AwaitingCore -> OwnerSessionReadbackProgress.Complete
+
+                OwnerSessionReadbackProgress.AwaitingVpn,
+                OwnerSessionReadbackProgress.Complete,
+                -> current
+            }
+
+            OwnerSessionEvidence.VpnStateReadback,
+            OwnerSessionEvidence.VpnStopReadback,
+            -> when (current) {
+                OwnerSessionReadbackProgress.AwaitingCoreAndVpn -> OwnerSessionReadbackProgress.AwaitingCore
+
+                OwnerSessionReadbackProgress.AwaitingVpn -> OwnerSessionReadbackProgress.Complete
+
+                OwnerSessionReadbackProgress.AwaitingCore,
+                OwnerSessionReadbackProgress.Complete,
+                -> current
+            }
+
+            OwnerSessionEvidence.VpnOwnerSnapshotReadback -> OwnerSessionReadbackProgress.Complete
+
+            OwnerSessionEvidence.OperationReply -> current
         }
-        OwnerSessionEvidence.VpnStateReadback,
-        OwnerSessionEvidence.VpnStopReadback -> when (current) {
-            OwnerSessionReadbackProgress.AwaitingCoreAndVpn -> OwnerSessionReadbackProgress.AwaitingCore
-            OwnerSessionReadbackProgress.AwaitingVpn -> OwnerSessionReadbackProgress.Complete
-            OwnerSessionReadbackProgress.AwaitingCore,
-            OwnerSessionReadbackProgress.Complete -> current
-        }
-        OwnerSessionEvidence.VpnOwnerSnapshotReadback -> OwnerSessionReadbackProgress.Complete
-        OwnerSessionEvidence.OperationReply -> current
-    }
 }

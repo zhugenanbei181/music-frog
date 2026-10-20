@@ -17,10 +17,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal class AppRoutingSession(
-    private val repository: AppRoutingRepository,
-    private val installedAppsProvider: InstalledAppsProvider,
-) {
+internal class AppRoutingSession(private val repository: AppRoutingRepository, private val installedAppsProvider: InstalledAppsProvider) {
     private val _installedApps = MutableStateFlow<InstalledAppsState>(InstalledAppsState.Loading())
     private val _snapshot = MutableStateFlow<AppRoutingSnapshotState>(AppRoutingSnapshotState.Loading())
     private val _operation = MutableStateFlow<AppRoutingOperationState>(AppRoutingOperationState.Loading)
@@ -43,6 +40,7 @@ internal class AppRoutingSession(
                     _installedApps.value = InstalledAppsState.Available(apps.apps)
                 }
             }
+
             is InstalledAppsLoadResult.Failed -> {
                 if (requestAdmission(requestId) == AppRoutingRequestAdmission.Current) {
                     _installedApps.value = InstalledAppsState.Unavailable(
@@ -54,6 +52,7 @@ internal class AppRoutingSession(
                 }
                 return
             }
+
             is InstalledAppsLoadResult.TimedOut -> {
                 if (requestAdmission(requestId) == AppRoutingRequestAdmission.Current) {
                     _installedApps.value = InstalledAppsState.Unavailable(
@@ -114,10 +113,7 @@ internal class AppRoutingSession(
         AndroidAppRoutingPackageSelection.UNSELECTED,
     )
 
-    private suspend fun setGroupSelection(
-        group: AppGroup,
-        selection: AndroidAppRoutingPackageSelection,
-    ) {
+    private suspend fun setGroupSelection(group: AppGroup, selection: AndroidAppRoutingPackageSelection) {
         if (_operation.value != AppRoutingOperationState.Ready) return
         val observation = when (val accepted = _snapshot.value.lastAccepted()) {
             AcceptedAppRoutingSnapshot.Missing -> return
@@ -140,10 +136,7 @@ internal class AppRoutingSession(
         mutatePackages(packages, selection)
     }
 
-    private suspend fun mutatePackages(
-        packages: List<String>,
-        selection: AndroidAppRoutingPackageSelection,
-    ) {
+    private suspend fun mutatePackages(packages: List<String>, selection: AndroidAppRoutingPackageSelection) {
         if (_operation.value != AppRoutingOperationState.Ready || packages.isEmpty()) return
         executeOwnerOperation(
             operation = AndroidOwnerOperation.AppRoutingPackagesSet(packages, selection),
@@ -168,6 +161,7 @@ internal class AppRoutingSession(
             AppRoutingRequestKind.Refresh -> {
                 _snapshot.value = AppRoutingSnapshotState.Loading(_snapshot.value.lastAccepted())
             }
+
             AppRoutingRequestKind.Mutation -> Unit
         }
 
@@ -193,27 +187,23 @@ internal class AppRoutingSession(
                 _snapshot.value = AppRoutingSnapshotState.Observed(incoming)
                 _operation.value = AppRoutingOperationState.Ready
             }
+
             AppRoutingSnapshotAdmission.Stale,
-            AppRoutingSnapshotAdmission.Conflict -> fail(
+            AppRoutingSnapshotAdmission.Conflict,
+            -> fail(
                 localizedFailure(FailureTextKey.InvalidState).toAppFailure(),
                 AcceptedAppRoutingSnapshot.Missing,
             )
         }
     }
 
-    private fun fail(
-        failure: AppFailure,
-        latestSnapshot: AcceptedAppRoutingSnapshot,
-    ) {
+    private fun fail(failure: AppFailure, latestSnapshot: AcceptedAppRoutingSnapshot) {
         retain(latestSnapshot)
         _snapshot.value = _snapshot.value.markUnavailable()
         _operation.value = AppRoutingOperationState.Failed(failure)
     }
 
-    private fun cancel(
-        failure: AppFailure,
-        latestSnapshot: AcceptedAppRoutingSnapshot,
-    ) {
+    private fun cancel(failure: AppFailure, latestSnapshot: AcceptedAppRoutingSnapshot) {
         retain(latestSnapshot)
         _snapshot.value = _snapshot.value.markUnavailable()
         _operation.value = AppRoutingOperationState.Cancelled(failure)
@@ -227,22 +217,27 @@ internal class AppRoutingSession(
     private fun retain(candidate: AcceptedAppRoutingSnapshot) {
         when (candidate) {
             AcceptedAppRoutingSnapshot.Missing -> Unit
+
             is AcceptedAppRoutingSnapshot.Present -> when (
                 admitAppRoutingSnapshot(_snapshot.value.lastAccepted(), candidate.observation)
             ) {
                 AppRoutingSnapshotAdmission.Accepted -> {
                     _snapshot.value = AppRoutingSnapshotState.Observed(candidate.observation)
                 }
+
                 AppRoutingSnapshotAdmission.Stale,
-                AppRoutingSnapshotAdmission.Conflict -> Unit
+                AppRoutingSnapshotAdmission.Conflict,
+                -> Unit
             }
         }
     }
 
     private suspend fun loadInstalledApps(): InstalledAppsLoadResult = try {
-        when (val apps = withTimeoutOrNull(DEFAULT_FFI_TIMEOUT_MS) {
-            installedAppsProvider.loadInstalledApps()
-        }) {
+        when (
+            val apps = withTimeoutOrNull(DEFAULT_FFI_TIMEOUT_MS) {
+                installedAppsProvider.loadInstalledApps()
+            }
+        ) {
             null -> InstalledAppsLoadResult.TimedOut(localizedFailure(FailureTextKey.NotReady).toAppFailure())
             else -> InstalledAppsLoadResult.Loaded(apps)
         }

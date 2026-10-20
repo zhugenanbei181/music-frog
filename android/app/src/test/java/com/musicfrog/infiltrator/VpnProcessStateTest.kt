@@ -727,10 +727,12 @@ class VpnProcessStateTest {
     fun terminalStateRequiresClearResourceRecordAndMatchingOwnerReadback() {
         val lifecycle = VpnLifecycleCoordinator()
         lifecycle.requestStart()
-        val request = (lifecycle.requestCleanup(
-            VpnCleanupIntent.Stop,
-            resources = VpnOwnedResourcesPresence.Retained,
-        ) as VpnCleanupPlan.Dispatch).request
+        val request = (
+            lifecycle.requestCleanup(
+                VpnCleanupIntent.Stop,
+                resources = VpnOwnedResourcesPresence.Retained,
+            ) as VpnCleanupPlan.Dispatch
+            ).request
 
         assertEquals(
             VpnCleanupPublication.CleanupPending(
@@ -745,7 +747,10 @@ class VpnProcessStateTest {
                 resources = VpnOwnedResourcesPresence.Retained,
             ),
         )
-        assertEquals(VpnStopResult.Failed("VPN cleanup pending: VPN owner still retains resources after cleanup"), lifecycle.awaitStop(request.generation, 1))
+        assertEquals(
+            VpnStopResult.Failed("VPN cleanup pending: VPN owner still retains resources after cleanup"),
+            lifecycle.awaitStop(request.generation, 1),
+        )
 
         assertEquals(VpnCleanupPlan.Retry(request), lifecycle.retryPendingCleanup())
         val mismatchedReadback = lifecycle.snapshot()

@@ -26,7 +26,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.StandardListItem
@@ -50,7 +50,7 @@ fun SettingsScreen(
     onNavigateToFakeIp: () -> Unit,
     onNavigateToRules: () -> Unit,
     onNavigateToConnections: () -> Unit = {},
-    onNavigateToLogs: () -> Unit = {}
+    onNavigateToLogs: () -> Unit = {},
 ) {
     val currentLocale by viewModel.currentLocale.collectAsStateWithLifecycle()
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -60,14 +60,14 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp),
         ) {
             item {
                 StandardListItem(
                     headline = stringResource(R.string.setting_language_title),
                     supporting = getLocaleLabel(currentLocale),
                     leadingIcon = Icons.Outlined.Language,
-                    onClick = { showLanguageDialog = true }
+                    onClick = { showLanguageDialog = true },
                 )
                 HorizontalDivider()
             }
@@ -77,7 +77,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_battery_title),
                     supporting = stringResource(R.string.setting_battery_desc),
                     leadingIcon = Icons.Outlined.BatteryChargingFull,
-                    onClick = { requestBatteryExemption(context) }
+                    onClick = { requestBatteryExemption(context) },
                 )
                 HorizontalDivider()
             }
@@ -86,7 +86,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_routing_title),
                     supporting = stringResource(R.string.setting_routing_desc),
                     leadingIcon = Icons.Outlined.Apps,
-                    onClick = onNavigateToRouting
+                    onClick = onNavigateToRouting,
                 )
                 HorizontalDivider()
             }
@@ -95,7 +95,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_tun_title),
                     supporting = stringResource(R.string.setting_tun_desc),
                     leadingIcon = Icons.Outlined.Router,
-                    onClick = onNavigateToTun
+                    onClick = onNavigateToTun,
                 )
                 HorizontalDivider()
             }
@@ -104,7 +104,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_dns_title),
                     supporting = stringResource(R.string.setting_dns_desc),
                     leadingIcon = Icons.Outlined.Dns,
-                    onClick = onNavigateToDns
+                    onClick = onNavigateToDns,
                 )
                 HorizontalDivider()
             }
@@ -113,7 +113,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_fakeip_title),
                     supporting = stringResource(R.string.setting_fakeip_desc),
                     leadingIcon = Icons.Outlined.Public,
-                    onClick = onNavigateToFakeIp
+                    onClick = onNavigateToFakeIp,
                 )
                 HorizontalDivider()
             }
@@ -122,7 +122,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_rules_title),
                     supporting = stringResource(R.string.setting_rules_desc),
                     leadingIcon = Icons.AutoMirrored.Outlined.List,
-                    onClick = onNavigateToRules
+                    onClick = onNavigateToRules,
                 )
                 HorizontalDivider()
             }
@@ -131,7 +131,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_connections_title),
                     supporting = stringResource(R.string.setting_connections_desc),
                     leadingIcon = Icons.Outlined.Apps,
-                    onClick = onNavigateToConnections
+                    onClick = onNavigateToConnections,
                 )
                 HorizontalDivider()
             }
@@ -140,7 +140,7 @@ fun SettingsScreen(
                     headline = stringResource(R.string.setting_logs_title),
                     supporting = stringResource(R.string.setting_logs_desc),
                     leadingIcon = Icons.Outlined.Description,
-                    onClick = onNavigateToLogs
+                    onClick = onNavigateToLogs,
                 )
             }
         }
@@ -152,23 +152,19 @@ fun SettingsScreen(
                 onSelect = { tag ->
                     viewModel.setLocale(tag)
                     showLanguageDialog = false
-                }
+                },
             )
         }
     }
 }
 
 @Composable
-fun LanguageDialog(
-    currentLocale: String,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
-) {
+fun LanguageDialog(currentLocale: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
     val options = listOf(
         "system" to stringResource(R.string.setting_language_system),
         "en" to stringResource(R.string.setting_language_en),
         "zh-CN" to stringResource(R.string.setting_language_zh_cn),
-        "zh-TW" to stringResource(R.string.setting_language_zh_tw)
+        "zh-TW" to stringResource(R.string.setting_language_zh_tw),
     )
 
     AlertDialog(
@@ -184,19 +180,19 @@ fun LanguageDialog(
                             .selectable(
                                 selected = (tag == currentLocale),
                                 onClick = { onSelect(tag) },
-                                role = Role.RadioButton
+                                role = Role.RadioButton,
                             )
                             .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
                             selected = (tag == currentLocale),
-                            onClick = null // handled by row
+                            onClick = null, // handled by row
                         )
                         Text(
                             text = label,
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 16.dp)
+                            modifier = Modifier.padding(start = 16.dp),
                         )
                     }
                 }
@@ -205,28 +201,27 @@ fun LanguageDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        }
+        },
     )
 }
 
 private fun requestBatteryExemption(context: android.content.Context) {
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-        val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
-        if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
-            val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = android.net.Uri.parse("package:${context.packageName}")
-            }
-            context.startActivity(intent)
-        }
+    val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+    if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
+        // The Play Store content policy forbids the direct exemption request,
+        // so the system battery optimisation list is opened instead and the
+        // user grants the exemption there.
+        val intent = android.content.Intent(
+            android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+        )
+        context.startActivity(intent)
     }
 }
 
 @Composable
-private fun getLocaleLabel(tag: String): String {
-    return when (tag) {
-        "en" -> stringResource(R.string.setting_language_en)
-        "zh-CN" -> stringResource(R.string.setting_language_zh_cn)
-        "zh-TW" -> stringResource(R.string.setting_language_zh_tw)
-        else -> stringResource(R.string.setting_language_system)
-    }
+private fun getLocaleLabel(tag: String): String = when (tag) {
+    "en" -> stringResource(R.string.setting_language_en)
+    "zh-CN" -> stringResource(R.string.setting_language_zh_cn)
+    "zh-TW" -> stringResource(R.string.setting_language_zh_tw)
+    else -> stringResource(R.string.setting_language_system)
 }

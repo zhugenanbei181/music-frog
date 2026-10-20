@@ -6,6 +6,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import androidx.core.content.edit
 import java.nio.ByteBuffer
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -31,17 +32,14 @@ internal class AndroidCredentialStore(context: Context) {
 
     fun set(service: String, key: String, value: String): AndroidCredentialMutationOutcome {
         val payload = encrypt(value) ?: return AndroidCredentialMutationOutcome.Rejected
-        return when (prefs.edit().putString(combineKey(service, key), payload).commit()) {
-            true -> AndroidCredentialMutationOutcome.Applied
-            false -> AndroidCredentialMutationOutcome.Rejected
-        }
+        prefs.edit { putString(combineKey(service, key), payload) }
+        return AndroidCredentialMutationOutcome.Applied
     }
 
-    fun delete(service: String, key: String): AndroidCredentialMutationOutcome =
-        when (prefs.edit().remove(combineKey(service, key)).commit()) {
-            true -> AndroidCredentialMutationOutcome.Applied
-            false -> AndroidCredentialMutationOutcome.Rejected
-        }
+    fun delete(service: String, key: String): AndroidCredentialMutationOutcome {
+        prefs.edit { remove(combineKey(service, key)) }
+        return AndroidCredentialMutationOutcome.Applied
+    }
 
     private fun combineKey(service: String, key: String): String = "$service:$key"
 

@@ -5,49 +5,27 @@ import infiltrator_android.AndroidProfileSelectionTarget
 import infiltrator_android.ProfileDetail
 import infiltrator_android.ProfileSummary
 
-internal data class ProfilesRevision(
-    val ownerSessionId: String,
-    val coreGeneration: ULong,
-    val dataRevision: ULong,
-)
+internal data class ProfilesRevision(val ownerSessionId: String, val coreGeneration: ULong, val dataRevision: ULong)
 
-internal data class ProfilesSnapshot(
-    val profiles: List<ProfileSummary>,
-    val revision: ProfilesRevision,
-)
+internal data class ProfilesSnapshot(val profiles: List<ProfileSummary>, val revision: ProfilesRevision)
 
-internal data class ProfilesObservationPoint(
-    val value: ProfilesSnapshot,
-    val requestSequence: ULong,
-)
+internal data class ProfilesObservationPoint(val value: ProfilesSnapshot, val requestSequence: ULong)
 
-internal data class ProfileDetailSnapshot(
-    val profile: ProfileDetail,
-    val revision: ProfilesRevision,
-)
+internal data class ProfileDetailSnapshot(val profile: ProfileDetail, val revision: ProfilesRevision)
 
-internal data class ProfileDetailPoint(
-    val value: ProfileDetailSnapshot,
-    val requestSequence: ULong,
-)
+internal data class ProfileDetailPoint(val value: ProfileDetailSnapshot, val requestSequence: ULong)
 
 internal sealed interface ProfilesReadState {
     data class Loading(val lastAccepted: ProfilesObservationPoint? = null) : ProfilesReadState
     data class Observed(val point: ProfilesObservationPoint) : ProfilesReadState
-    data class Unavailable(
-        val lastAccepted: ProfilesObservationPoint?,
-        val failure: AppFailure,
-    ) : ProfilesReadState
+    data class Unavailable(val lastAccepted: ProfilesObservationPoint?, val failure: AppFailure) : ProfilesReadState
 }
 
 internal sealed interface ProfileDetailReadState {
     data object Idle : ProfileDetailReadState
     data class Loading(val lastAccepted: ProfileDetailPoint? = null) : ProfileDetailReadState
     data class Observed(val point: ProfileDetailPoint) : ProfileDetailReadState
-    data class Unavailable(
-        val lastAccepted: ProfileDetailPoint?,
-        val failure: AppFailure,
-    ) : ProfileDetailReadState
+    data class Unavailable(val lastAccepted: ProfileDetailPoint?, val failure: AppFailure) : ProfileDetailReadState
 }
 
 internal enum class ProfileOperation {
@@ -76,10 +54,7 @@ internal sealed interface ProfileActionState {
     data class Unconfirmed(val operation: ProfileOperation, val failure: AppFailure) : ProfileActionState
 }
 
-data class LocalImportDraft(
-    val suggestedName: String,
-    val content: String,
-)
+data class LocalImportDraft(val suggestedName: String, val content: String)
 
 data class ProfileDraftsState(
     val showAddDialog: Boolean = false,
@@ -101,18 +76,10 @@ internal sealed interface ProfileReadbackExpectation {
     data class Active(val name: String) : ProfileReadbackExpectation
     data class ActiveReference(val target: AndroidProfileSelectionTarget) : ProfileReadbackExpectation
     data class Absent(val name: String) : ProfileReadbackExpectation
-    data class Subscription(
-        val name: String,
-        val url: String,
-        val updatePolicy: SubscriptionUpdatePolicy,
-        val intervalHours: Int?,
-    ) : ProfileReadbackExpectation
+    data class Subscription(val name: String, val url: String, val updatePolicy: SubscriptionUpdatePolicy, val intervalHours: Int?) :
+        ProfileReadbackExpectation
     data class SubscriptionCleared(val name: String) : ProfileReadbackExpectation
-    data class SavedContent(
-        val name: String,
-        val content: String,
-        val activation: ProfileActivation,
-    ) : ProfileReadbackExpectation
+    data class SavedContent(val name: String, val content: String, val activation: ProfileActivation) : ProfileReadbackExpectation
 }
 
 internal enum class ProfileActivation {
@@ -138,27 +105,32 @@ internal enum class ProfilesSnapshotAdmission {
 
 internal fun ProfilesSnapshot.satisfies(expectation: ProfileReadbackExpectation): ProfileReadbackResult = when (expectation) {
     is ProfileReadbackExpectation.Present -> profiles.any { it.name == expectation.name }.toReadbackResult()
+
     is ProfileReadbackExpectation.Active -> profiles.any { it.name == expectation.name && it.active }.toReadbackResult()
+
     is ProfileReadbackExpectation.ActiveReference -> ProfileReadbackResult.NotConfirmed
+
     is ProfileReadbackExpectation.Absent -> profiles.none { it.name == expectation.name }.toReadbackResult()
-    is ProfileReadbackExpectation.Subscription -> profiles
-        .firstOrNull { it.name == expectation.name }
-        ?.matches(expectation)
-        ?: ProfileReadbackResult.NotConfirmed
+
+    is ProfileReadbackExpectation.Subscription ->
+        profiles
+            .firstOrNull { it.name == expectation.name }
+            ?.matches(expectation)
+            ?: ProfileReadbackResult.NotConfirmed
+
     is ProfileReadbackExpectation.SubscriptionCleared -> profiles.any {
         it.name == expectation.name &&
             it.subscriptionUrl == null &&
             !it.autoUpdateEnabled &&
             it.updateIntervalHours == null
     }.toReadbackResult()
+
     is ProfileReadbackExpectation.SavedContent -> profiles.any {
         it.name == expectation.name && it.active == (expectation.activation == ProfileActivation.Active)
     }.toReadbackResult()
 }
 
-private fun ProfileSummary.matches(
-    expectation: ProfileReadbackExpectation.Subscription,
-): ProfileReadbackResult {
+private fun ProfileSummary.matches(expectation: ProfileReadbackExpectation.Subscription): ProfileReadbackResult {
     if (subscriptionUrl != expectation.url) return ProfileReadbackResult.NotConfirmed
     if (autoUpdateEnabled != (expectation.updatePolicy == SubscriptionUpdatePolicy.Enabled)) {
         return ProfileReadbackResult.NotConfirmed
@@ -174,9 +146,7 @@ private fun ProfileSummary.matches(
     }
 }
 
-internal fun ProfileDetailSnapshot.satisfies(
-    expectation: ProfileReadbackExpectation.SavedContent,
-): ProfileReadbackResult = when {
+internal fun ProfileDetailSnapshot.satisfies(expectation: ProfileReadbackExpectation.SavedContent): ProfileReadbackResult = when {
     profile.name != expectation.name -> ProfileReadbackResult.NotConfirmed
     profile.content != expectation.content -> ProfileReadbackResult.NotConfirmed
     profile.active != (expectation.activation == ProfileActivation.Active) -> ProfileReadbackResult.NotConfirmed
@@ -201,10 +171,7 @@ internal fun acceptedProfileDetail(state: ProfileDetailReadState): ProfileDetail
     is ProfileDetailReadState.Unavailable -> state.lastAccepted
 }
 
-internal fun admitsProfilesSnapshot(
-    current: ProfilesObservationPoint?,
-    incoming: ProfilesObservationPoint,
-): ProfilesSnapshotAdmission {
+internal fun admitsProfilesSnapshot(current: ProfilesObservationPoint?, incoming: ProfilesObservationPoint): ProfilesSnapshotAdmission {
     if (current == null) return ProfilesSnapshotAdmission.Accepted
     if (incoming.requestSequence < current.requestSequence) return ProfilesSnapshotAdmission.Stale
 
@@ -231,10 +198,7 @@ internal fun admitsProfilesSnapshot(
     }
 }
 
-internal fun admitsProfileDetail(
-    current: ProfileDetailPoint?,
-    incoming: ProfileDetailPoint,
-): ProfilesSnapshotAdmission {
+internal fun admitsProfileDetail(current: ProfileDetailPoint?, incoming: ProfileDetailPoint): ProfilesSnapshotAdmission {
     if (current == null) return ProfilesSnapshotAdmission.Accepted
     if (incoming.requestSequence < current.requestSequence) return ProfilesSnapshotAdmission.Stale
 

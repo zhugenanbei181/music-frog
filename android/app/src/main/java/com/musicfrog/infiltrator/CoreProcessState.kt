@@ -1,21 +1,15 @@
 package com.musicfrog.infiltrator
 
-import java.math.BigInteger
 import org.json.JSONObject
+import java.math.BigInteger
 
-internal data class AndroidChildProcessIdentityWire(
-    val pid: Long,
-    val startTimeTicks: BigInteger,
-) {
+internal data class AndroidChildProcessIdentityWire(val pid: Long, val startTimeTicks: BigInteger) {
     fun toJson(): JSONObject = JSONObject()
         .put("pid", pid)
         .put("start_time_ticks", startTimeTicks)
 }
 
-internal data class AndroidOwnedCoreProcessWire(
-    val context: CoreProcessStartContextWire,
-    val child: AndroidChildProcessIdentityWire,
-) {
+internal data class AndroidOwnedCoreProcessWire(val context: CoreProcessStartContextWire, val child: AndroidChildProcessIdentityWire) {
     fun toJson(): JSONObject = JSONObject()
         .put("context", context.toManagedJson())
         .put("child", child.toJson())
@@ -81,18 +75,16 @@ internal sealed interface AndroidCoreProcessObservationWire {
 
     data class Running(val owned: AndroidOwnedCoreProcessWire) : AndroidCoreProcessObservationWire
 
-    data class Exited(
-        val owned: AndroidOwnedCoreProcessWire,
-        val evidence: AndroidCoreProcessExitEvidenceWire,
-    ) : AndroidCoreProcessObservationWire
+    data class Exited(val owned: AndroidOwnedCoreProcessWire, val evidence: AndroidCoreProcessExitEvidenceWire) :
+        AndroidCoreProcessObservationWire
 
-    data class Unavailable(
-        val reason: AndroidCoreProcessUnavailableReasonWire,
-    ) : AndroidCoreProcessObservationWire
+    data class Unavailable(val reason: AndroidCoreProcessUnavailableReasonWire) : AndroidCoreProcessObservationWire
 
     fun toJson(): String = when (this) {
         NeverStarted -> JSONObject.quote("NeverStarted")
+
         is Running -> JSONObject().put("Running", JSONObject().put("owned", owned.toJson())).toString()
+
         is Exited -> JSONObject()
             .put(
                 "Exited",
@@ -101,6 +93,7 @@ internal sealed interface AndroidCoreProcessObservationWire {
                     .put("evidence", evidence.name),
             )
             .toString()
+
         is Unavailable -> JSONObject()
             .put("Unavailable", JSONObject().put("reason", reason.name))
             .toString()
@@ -126,11 +119,7 @@ internal sealed interface AndroidChildProcessInspection {
 }
 
 internal sealed interface AndroidCurrentThreadChildSnapshot {
-    data class Captured(
-        val processId: Long,
-        val threadId: Long,
-        val childIds: Set<Long>,
-    ) : AndroidCurrentThreadChildSnapshot
+    data class Captured(val processId: Long, val threadId: Long, val childIds: Set<Long>) : AndroidCurrentThreadChildSnapshot
 
     data object Unavailable : AndroidCurrentThreadChildSnapshot
 }
@@ -140,12 +129,10 @@ internal fun interface AndroidChildProcessInspector {
 
     fun capture(pid: Long): AndroidChildProcessCapture = AndroidChildProcessCapture.Unavailable
 
-    fun snapshotCurrentThreadChildren(): AndroidCurrentThreadChildSnapshot =
-        AndroidCurrentThreadChildSnapshot.Unavailable
+    fun snapshotCurrentThreadChildren(): AndroidCurrentThreadChildSnapshot = AndroidCurrentThreadChildSnapshot.Unavailable
 
-    fun captureStartedChild(
-        snapshot: AndroidCurrentThreadChildSnapshot,
-    ): AndroidChildProcessCapture = AndroidChildProcessCapture.Unavailable
+    fun captureStartedChild(snapshot: AndroidCurrentThreadChildSnapshot): AndroidChildProcessCapture =
+        AndroidChildProcessCapture.Unavailable
 }
 
 internal sealed interface AndroidChildProcessCapture {
@@ -182,9 +169,11 @@ internal class ProcAndroidChildProcessInspector(
 ) : AndroidChildProcessInspector {
     override fun inspect(child: AndroidChildProcessIdentityWire): AndroidChildProcessInspection {
         val stat = readStat(child.pid)
-        if (stat === ProcStatRead.Missing) return AndroidChildProcessInspection.Exited(
-            AndroidCoreProcessExitEvidenceWire.ProcessEntryMissing,
-        )
+        if (stat === ProcStatRead.Missing) {
+            return AndroidChildProcessInspection.Exited(
+                AndroidCoreProcessExitEvidenceWire.ProcessEntryMissing,
+            )
+        }
         if (stat === ProcStatRead.Unavailable) return AndroidChildProcessInspection.Unavailable
         stat as ProcStatRead.Present
         if (stat.state == 'Z' || stat.state == 'X') {
@@ -205,7 +194,9 @@ internal class ProcAndroidChildProcessInspector(
         if (pid !in 1..Int.MAX_VALUE.toLong()) return AndroidChildProcessCapture.Unavailable
         return when (val stat = readStat(pid)) {
             ProcStatRead.Missing -> AndroidChildProcessCapture.Exited
+
             ProcStatRead.Unavailable -> AndroidChildProcessCapture.Unavailable
+
             is ProcStatRead.Present -> if (stat.state == 'Z' || stat.state == 'X') {
                 AndroidChildProcessCapture.Exited
             } else {
@@ -223,6 +214,7 @@ internal class ProcAndroidChildProcessInspector(
             .getOrElse { return AndroidCurrentThreadChildSnapshot.Unavailable }
         return when (val children = readCurrentThreadChildren(processId, threadId)) {
             CurrentThreadChildrenRead.Unavailable -> AndroidCurrentThreadChildSnapshot.Unavailable
+
             is CurrentThreadChildrenRead.Available -> AndroidCurrentThreadChildSnapshot.Captured(
                 processId,
                 threadId,
@@ -233,14 +225,14 @@ internal class ProcAndroidChildProcessInspector(
 
     // Process.pid() is newer than this app's minSdk; bind the record to the
     // unique child added by the ProcessBuilder caller thread and recheck it.
-    override fun captureStartedChild(
-        snapshot: AndroidCurrentThreadChildSnapshot,
-    ): AndroidChildProcessCapture = when (snapshot) {
+    override fun captureStartedChild(snapshot: AndroidCurrentThreadChildSnapshot): AndroidChildProcessCapture = when (snapshot) {
         AndroidCurrentThreadChildSnapshot.Unavailable -> AndroidChildProcessCapture.Unavailable
+
         is AndroidCurrentThreadChildSnapshot.Captured -> when (
             val currentChildren = readCurrentThreadChildren(snapshot.processId, snapshot.threadId)
         ) {
             CurrentThreadChildrenRead.Unavailable -> AndroidChildProcessCapture.Unavailable
+
             is CurrentThreadChildrenRead.Available -> {
                 val newChildren = currentChildren.childIds - snapshot.childIds
                 val candidate = when (newChildren.size) {
@@ -261,6 +253,7 @@ internal class ProcAndroidChildProcessInspector(
             val currentChildren = readCurrentThreadChildren(snapshot.processId, snapshot.threadId)
         ) {
             CurrentThreadChildrenRead.Unavailable -> AndroidChildProcessCapture.Unavailable
+
             is CurrentThreadChildrenRead.Available -> when (
                 candidate.child.pid in currentChildren.childIds
             ) {
@@ -269,17 +262,17 @@ internal class ProcAndroidChildProcessInspector(
                     is AndroidChildProcessInspection.Exited -> AndroidChildProcessCapture.Exited
                     AndroidChildProcessInspection.Unavailable -> AndroidChildProcessCapture.Unavailable
                 }
+
                 false -> AndroidChildProcessCapture.Exited
             }
         }
+
         AndroidChildProcessCapture.Exited -> AndroidChildProcessCapture.Exited
+
         AndroidChildProcessCapture.Unavailable -> AndroidChildProcessCapture.Unavailable
     }
 
-    private fun readCurrentThreadChildren(
-        processId: Long,
-        threadId: Long,
-    ): CurrentThreadChildrenRead = runCatching {
+    private fun readCurrentThreadChildren(processId: Long, threadId: Long): CurrentThreadChildrenRead = runCatching {
         val path = java.io.File(procDirectory, "$processId/task/$threadId/children")
         val contents = path.readText().trim()
         val childIds = if (contents.isEmpty()) {
@@ -358,6 +351,7 @@ internal class AndroidCoreProcessRecordStore(private val filesDirectory: java.io
                     }
                     StoredAndroidCoreProcessRecord.LaunchReserved(context)
                 }
+
                 "Owned" -> {
                     val decodedOwned = AndroidOwnedCoreProcessWire.decode(
                         record.getJSONObject(variant).toString(),
@@ -365,25 +359,23 @@ internal class AndroidCoreProcessRecordStore(private val filesDirectory: java.io
                     when (decodedOwned) {
                         is AndroidOwnedCoreProcessDecode.Accepted ->
                             StoredAndroidCoreProcessRecord.Owned(decodedOwned.owned)
+
                         is AndroidOwnedCoreProcessDecode.Rejected -> error(decodedOwned.reason)
                     }
                 }
+
                 else -> error("unknown Android Core ownership record variant")
             }
         }.getOrElse { StoredAndroidCoreProcessRecord.Corrupt }
     }
 
     @Synchronized
-    fun writeReservation(
-        context: CoreProcessStartContextWire,
-    ): AndroidCoreProcessRecordMutationOutcome = write(
+    fun writeReservation(context: CoreProcessStartContextWire): AndroidCoreProcessRecordMutationOutcome = write(
         JSONObject().put("LaunchReserved", context.toManagedJson().getJSONObject("Managed")),
     )
 
     @Synchronized
-    fun writeOwned(
-        process: AndroidOwnedCoreProcessWire,
-    ): AndroidCoreProcessRecordMutationOutcome = write(
+    fun writeOwned(process: AndroidOwnedCoreProcessWire): AndroidCoreProcessRecordMutationOutcome = write(
         JSONObject().put("Owned", process.toJson()),
     )
 

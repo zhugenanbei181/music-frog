@@ -18,7 +18,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -26,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
 
@@ -56,35 +56,43 @@ fun SyncScreen() {
 
         when (state.screenActivity()) {
             SyncScreenActivity.Loading,
-            SyncScreenActivity.Busy -> item {
+            SyncScreenActivity.Busy,
+            -> item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.height(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = stringResource(R.string.text_sync_loading))
                 }
             }
+
             SyncScreenActivity.Ready,
-            SyncScreenActivity.Unavailable -> Unit
+            SyncScreenActivity.Unavailable,
+            -> Unit
         }
 
         when (val action = state.action) {
             is SyncActionState.Failed -> item {
                 ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
             }
+
             is SyncActionState.Cancelled -> item {
                 ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
             }
+
             is SyncActionState.TimedOut -> item {
                 ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
             }
+
             is SyncActionState.Unconfirmed -> item {
                 ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
             }
+
             SyncActionState.Idle,
             is SyncActionState.Working,
             SyncActionState.Saved,
             SyncActionState.ConnectionTested,
-            is SyncActionState.Synchronized -> Unit
+            is SyncActionState.Synchronized,
+            -> Unit
         }
 
         item {
@@ -192,6 +200,7 @@ fun SyncScreen() {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+
             SyncActionState.ConnectionTested -> item {
                 Text(
                     text = stringResource(R.string.text_sync_connection_tested),
@@ -199,6 +208,7 @@ fun SyncScreen() {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+
             is SyncActionState.Synchronized -> item {
                 Text(
                     text = stringResource(
@@ -211,23 +221,20 @@ fun SyncScreen() {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+
             SyncActionState.Idle,
             is SyncActionState.Working,
             is SyncActionState.Failed,
             is SyncActionState.Cancelled,
             is SyncActionState.TimedOut,
-            is SyncActionState.Unconfirmed -> Unit
+            is SyncActionState.Unconfirmed,
+            -> Unit
         }
     }
 }
 
 @Composable
-private fun ToggleRow(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean,
-) {
+private fun ToggleRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, enabled: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,

@@ -24,6 +24,23 @@ val androidApiJar = file(
     "$androidSdkRoot/platforms/android-${toolchainValue("android.sdk.platform")}/android.jar",
 )
 
+// BANDROID-044.2: the shared source set compiles the credential store, which
+// writes through the AndroidX `SharedPreferences.edit` extension. That
+// extension ships inside an AAR and this module is a plain JVM module, so the
+// AAR is expanded into its classes jar for the compile classpath.
+val androidXCoreKtx: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+val expandAndroidXCoreKtx = tasks.register<Copy>("expandAndroidXCoreKtx") {
+    from(zipTree(androidXCoreKtx.singleFile)) {
+        include("classes.jar")
+    }
+    into(layout.buildDirectory.dir("androidx-core-ktx"))
+    rename { "core-ktx-classes.jar" }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(toolchainValue("java.major")))
@@ -123,6 +140,16 @@ kotlin {
 
 dependencies {
     compileOnly(files(androidApiJar))
+    // The shared credential store uses the AndroidX KTX extension, so the
+    // shared source set needs the same library on its compile classpath.
+    androidXCoreKtx("androidx.core:core:1.19.1")
+    compileOnly(
+        files(
+            expandAndroidXCoreKtx.map {
+                layout.buildDirectory.file("androidx-core-ktx/core-ktx-classes.jar")
+            },
+        ).builtBy(expandAndroidXCoreKtx),
+    )
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }

@@ -63,13 +63,13 @@ internal sealed interface VpnDataPlaneStartPublication {
 }
 
 /** The Rust FFI returns OK only after its typed worker readiness receipt and owner readback agree. */
-internal fun FfiStatus.toVpnDataPlaneStartReceipt(): VpnDataPlaneStartReceipt =
-    when (code) {
-        FfiErrorCode.OK -> VpnDataPlaneStartReceipt.Started
-        else -> VpnDataPlaneStartReceipt.Failed(
-            message ?: "Rust failed to start the VPN data path",
-        )
-    }
+internal fun FfiStatus.toVpnDataPlaneStartReceipt(): VpnDataPlaneStartReceipt = when (code) {
+    FfiErrorCode.OK -> VpnDataPlaneStartReceipt.Started
+
+    else -> VpnDataPlaneStartReceipt.Failed(
+        message ?: "Rust failed to start the VPN data path",
+    )
+}
 
 internal sealed interface VpnStopResult {
     data object Stopped : VpnStopResult
@@ -83,10 +83,7 @@ internal sealed interface VpnStopResult {
     data object Canceled : VpnStopResult
 }
 
-internal data class VpnLifecycleSnapshot(
-    val generation: Long,
-    val state: VpnProcessState,
-)
+internal data class VpnLifecycleSnapshot(val generation: Long, val state: VpnProcessState)
 
 internal sealed interface VpnStartPlan {
     data class Dispatch(val generation: Long) : VpnStartPlan
@@ -108,24 +105,26 @@ internal sealed interface VpnStopTarget {
     }
 
     companion object {
-        fun fromWire(targetCode: Int, generation: Long): VpnStopTarget? =
-            when (VpnStopTargetWire.fromWireCode(targetCode)) {
-                VpnStopTargetWire.Current -> when (generation) {
-                    0L -> VpnStopTarget.Current
-                    else -> null
-                }
-                VpnStopTargetWire.Generation -> when {
-                    generation > 0L -> VpnStopTarget.Generation(generation)
-                    else -> null
-                }
-                null -> null
+        fun fromWire(targetCode: Int, generation: Long): VpnStopTarget? = when (VpnStopTargetWire.fromWireCode(targetCode)) {
+            VpnStopTargetWire.Current -> when (generation) {
+                0L -> VpnStopTarget.Current
+                else -> null
             }
+
+            VpnStopTargetWire.Generation -> when {
+                generation > 0L -> VpnStopTarget.Generation(generation)
+                else -> null
+            }
+
+            null -> null
+        }
     }
 }
 
 internal enum class VpnStopTargetWire(val wireCode: Int) {
     Current(0),
-    Generation(1);
+    Generation(1),
+    ;
 
     companion object {
         fun fromWireCode(code: Int): VpnStopTargetWire? = entries.firstOrNull { it.wireCode == code }
@@ -149,7 +148,9 @@ internal class VpnLifecycleCoordinator {
         when (val state = current.state) {
             VpnProcessState.StartRequested,
             VpnProcessState.Starting,
-            VpnProcessState.Foreground -> VpnPreparedConfigurationGate.Accepted
+            VpnProcessState.Foreground,
+            -> VpnPreparedConfigurationGate.Accepted
+
             else -> VpnPreparedConfigurationGate.UnexpectedState(state)
         }
     }
@@ -160,11 +161,15 @@ internal class VpnLifecycleCoordinator {
         }
         when (current.state) {
             VpnProcessState.Running -> VpnStartPlan.AlreadyRunning
+
             VpnProcessState.StartRequested,
             VpnProcessState.Starting,
             VpnProcessState.Foreground,
-            VpnProcessState.TunnelEstablished -> VpnStartPlan.Join(current.generation)
+            VpnProcessState.TunnelEstablished,
+            -> VpnStartPlan.Join(current.generation)
+
             VpnProcessState.Stopping -> VpnStartPlan.StopInProgress
+
             is VpnProcessState.Failed -> {
                 if (resources == VpnOwnedResourcesPresence.Retained) {
                     return@withLock VpnStartPlan.StopInProgress
@@ -174,8 +179,10 @@ internal class VpnLifecycleCoordinator {
                 changed.signalAll()
                 VpnStartPlan.Dispatch(generation)
             }
+
             VpnProcessState.Stopped,
-            VpnProcessState.Revoked -> {
+            VpnProcessState.Revoked,
+            -> {
                 if (resources == VpnOwnedResourcesPresence.Retained) {
                     return@withLock VpnStartPlan.StopInProgress
                 }
@@ -201,11 +208,13 @@ internal class VpnLifecycleCoordinator {
             pendingCleanup = merged
             return@withLock when (current.state) {
                 VpnProcessState.Stopping -> VpnCleanupPlan.Join(merged)
+
                 is VpnProcessState.Failed -> {
                     current = VpnLifecycleSnapshot(merged.generation, VpnProcessState.Stopping)
                     changed.signalAll()
                     VpnCleanupPlan.Retry(merged)
                 }
+
                 else -> VpnCleanupPlan.Join(merged)
             }
         }
@@ -234,6 +243,7 @@ internal class VpnLifecycleCoordinator {
         resources: VpnOwnedResourcesPresence = VpnOwnedResourcesPresence.Clear,
     ): VpnCleanupPlan = when (target) {
         VpnStopTarget.Current -> requestCleanup(intent, resources = resources)
+
         is VpnStopTarget.Generation -> requestCleanup(
             intent,
             expectedGeneration = target.value,
@@ -245,6 +255,7 @@ internal class VpnLifecycleCoordinator {
         val pending = pendingCleanup ?: return@withLock VpnCleanupPlan.AlreadyClean(current.generation)
         when (current.state) {
             VpnProcessState.Stopping -> VpnCleanupPlan.Join(pending)
+
             else -> {
                 current = VpnLifecycleSnapshot(pending.generation, VpnProcessState.Stopping)
                 changed.signalAll()
@@ -281,12 +292,15 @@ internal class VpnLifecycleCoordinator {
                     VpnCleanupResourceKind.OwnerReadback,
                     "VPN cleanup owner readback did not match the active cleanup generation",
                 )
+
                 ownerReadback.resources != VpnOwnedResourcesPresence.Clear -> VpnCleanupFailure(
                     VpnCleanupResourceKind.OwnerReadback,
                     "VPN owner still retains resources after cleanup",
                 )
+
                 else -> null
             }
+
             is VpnCleanupOutcome.CleanupPending -> outcome.failure
         }
         if (failure != null) {
@@ -311,6 +325,7 @@ internal class VpnLifecycleCoordinator {
 
     private fun matchingCleanup(request: VpnCleanupRequest): VpnCleanupRequest? = when (val pending = pendingCleanup) {
         null -> null
+
         else -> pending.takeIf {
             current.generation == request.generation &&
                 pending.generation == request.generation &&
@@ -343,8 +358,10 @@ internal class VpnLifecycleCoordinator {
         val nextState = when (receipt) {
             VpnDataPlaneStartReceipt.Started -> when (routingLease) {
                 is VpnRoutingLeaseState.Held -> VpnProcessState.Running
+
                 VpnRoutingLeaseState.Released,
-                is VpnRoutingLeaseState.ReleasePending -> {
+                is VpnRoutingLeaseState.ReleasePending,
+                -> {
                     current = VpnLifecycleSnapshot(
                         generation,
                         VpnProcessState.Failed("VPN Running requires a held routing activation lease"),
@@ -353,6 +370,7 @@ internal class VpnLifecycleCoordinator {
                     return@withLock VpnDataPlaneStartPublication.RoutingLeaseNotHeld
                 }
             }
+
             is VpnDataPlaneStartReceipt.Failed -> VpnProcessState.Failed(receipt.message)
         }
         current = VpnLifecycleSnapshot(generation, nextState)
@@ -375,19 +393,27 @@ internal class VpnLifecycleCoordinator {
                         VpnStartResult.Failed("VPN start request was superseded")
                     }
                 }
+
                 VpnProcessState.Revoked -> return@withLock VpnStartResult.PermissionRequired
+
                 is VpnProcessState.Failed -> return@withLock VpnStartResult.Failed(state.message)
+
                 VpnProcessState.Stopped,
-                VpnProcessState.Stopping -> return@withLock when (pendingCleanup?.intent) {
+                VpnProcessState.Stopping,
+                -> return@withLock when (pendingCleanup?.intent) {
                     VpnCleanupIntent.Revoke -> VpnStartResult.PermissionRequired
+
                     VpnCleanupIntent.Stop,
                     is VpnCleanupIntent.StartFailure,
-                    null -> VpnStartResult.Failed("VPN service stopped before proxy became active")
+                    null,
+                    -> VpnStartResult.Failed("VPN service stopped before proxy became active")
                 }
+
                 VpnProcessState.StartRequested,
                 VpnProcessState.Starting,
                 VpnProcessState.Foreground,
-                VpnProcessState.TunnelEstablished -> {
+                VpnProcessState.TunnelEstablished,
+                -> {
                     if (current.generation != generation) {
                         return@withLock VpnStartResult.Failed("VPN start request was superseded")
                     }
@@ -406,74 +432,83 @@ internal class VpnLifecycleCoordinator {
     }
 
     /** Wait using the caller's absolute deadline so queue time is not reset at owner admission. */
-    fun awaitStartUntil(
-        generation: Long,
-        deadline: VpnOwnerRequestDeadline,
-        elapsedRealtimeMillis: () -> Long,
-    ): VpnStartResult = lock.withLock {
-        while (true) {
-            when (val state = current.state) {
-                VpnProcessState.Running -> {
-                    return@withLock if (current.generation == generation) {
-                        VpnStartResult.Running
-                    } else {
-                        VpnStartResult.Failed("VPN start request was superseded")
+    fun awaitStartUntil(generation: Long, deadline: VpnOwnerRequestDeadline, elapsedRealtimeMillis: () -> Long): VpnStartResult =
+        lock.withLock {
+            while (true) {
+                when (val state = current.state) {
+                    VpnProcessState.Running -> {
+                        return@withLock if (current.generation == generation) {
+                            VpnStartResult.Running
+                        } else {
+                            VpnStartResult.Failed("VPN start request was superseded")
+                        }
                     }
-                }
-                VpnProcessState.Revoked -> return@withLock VpnStartResult.PermissionRequired
-                is VpnProcessState.Failed -> return@withLock VpnStartResult.Failed(state.message)
-                VpnProcessState.Stopped,
-                VpnProcessState.Stopping -> return@withLock when (pendingCleanup?.intent) {
-                    VpnCleanupIntent.Revoke -> VpnStartResult.PermissionRequired
-                    VpnCleanupIntent.Stop,
-                    is VpnCleanupIntent.StartFailure,
-                    null -> VpnStartResult.Failed("VPN service stopped before proxy became active")
-                }
-                VpnProcessState.StartRequested,
-                VpnProcessState.Starting,
-                VpnProcessState.Foreground,
-                VpnProcessState.TunnelEstablished -> {
-                    if (current.generation != generation) {
-                        return@withLock VpnStartResult.Failed("VPN start request was superseded")
+
+                    VpnProcessState.Revoked -> return@withLock VpnStartResult.PermissionRequired
+
+                    is VpnProcessState.Failed -> return@withLock VpnStartResult.Failed(state.message)
+
+                    VpnProcessState.Stopped,
+                    VpnProcessState.Stopping,
+                    -> return@withLock when (pendingCleanup?.intent) {
+                        VpnCleanupIntent.Revoke -> VpnStartResult.PermissionRequired
+
+                        VpnCleanupIntent.Stop,
+                        is VpnCleanupIntent.StartFailure,
+                        null,
+                        -> VpnStartResult.Failed("VPN service stopped before proxy became active")
                     }
-                    val remainingMillis = when (
-                        val budget = deadline.remainingAt(elapsedRealtimeMillis())
-                    ) {
-                        VpnDeadlineState.Expired -> return@withLock VpnStartResult.TimedOut
-                        is VpnDeadlineState.Remaining -> budget.millis
-                    }
-                    try {
-                        changed.awaitNanos(TimeUnit.MILLISECONDS.toNanos(remainingMillis))
-                    } catch (error: InterruptedException) {
-                        Thread.currentThread().interrupt()
-                        return@withLock VpnStartResult.Failed("VPN startup wait was interrupted")
+
+                    VpnProcessState.StartRequested,
+                    VpnProcessState.Starting,
+                    VpnProcessState.Foreground,
+                    VpnProcessState.TunnelEstablished,
+                    -> {
+                        if (current.generation != generation) {
+                            return@withLock VpnStartResult.Failed("VPN start request was superseded")
+                        }
+                        val remainingMillis = when (
+                            val budget = deadline.remainingAt(elapsedRealtimeMillis())
+                        ) {
+                            VpnDeadlineState.Expired -> return@withLock VpnStartResult.TimedOut
+                            is VpnDeadlineState.Remaining -> budget.millis
+                        }
+                        try {
+                            changed.awaitNanos(TimeUnit.MILLISECONDS.toNanos(remainingMillis))
+                        } catch (error: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            return@withLock VpnStartResult.Failed("VPN startup wait was interrupted")
+                        }
                     }
                 }
             }
+            @Suppress("UNREACHABLE_CODE")
+            VpnStartResult.TimedOut
         }
-        @Suppress("UNREACHABLE_CODE")
-        VpnStartResult.TimedOut
-    }
 
     fun awaitStop(generation: Long, timeoutMillis: Long): VpnStopResult = lock.withLock {
         var remainingNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
         while (true) {
             when (val state = current.state) {
                 VpnProcessState.Stopped,
-                VpnProcessState.Revoked -> {
+                VpnProcessState.Revoked,
+                -> {
                     return@withLock if (current.generation == generation) {
                         VpnStopResult.Stopped
                     } else {
                         VpnStopResult.Superseded
                     }
                 }
+
                 is VpnProcessState.Failed -> return@withLock VpnStopResult.Failed(state.message)
+
                 VpnProcessState.StartRequested,
                 VpnProcessState.Starting,
                 VpnProcessState.Foreground,
                 VpnProcessState.TunnelEstablished,
                 VpnProcessState.Running,
-                VpnProcessState.Stopping -> {
+                VpnProcessState.Stopping,
+                -> {
                     if (current.generation != generation) {
                         return@withLock VpnStopResult.Superseded
                     }
@@ -492,47 +527,48 @@ internal class VpnLifecycleCoordinator {
     }
 
     /** Stop waits share their original caller deadline; cleanup admission remains owner-owned. */
-    fun awaitStopUntil(
-        generation: Long,
-        deadline: VpnOwnerRequestDeadline,
-        elapsedRealtimeMillis: () -> Long,
-    ): VpnStopResult = lock.withLock {
-        while (true) {
-            when (val state = current.state) {
-                VpnProcessState.Stopped,
-                VpnProcessState.Revoked -> {
-                    return@withLock if (current.generation == generation) {
-                        VpnStopResult.Stopped
-                    } else {
-                        VpnStopResult.Superseded
+    fun awaitStopUntil(generation: Long, deadline: VpnOwnerRequestDeadline, elapsedRealtimeMillis: () -> Long): VpnStopResult =
+        lock.withLock {
+            while (true) {
+                when (val state = current.state) {
+                    VpnProcessState.Stopped,
+                    VpnProcessState.Revoked,
+                    -> {
+                        return@withLock if (current.generation == generation) {
+                            VpnStopResult.Stopped
+                        } else {
+                            VpnStopResult.Superseded
+                        }
                     }
-                }
-                is VpnProcessState.Failed -> return@withLock VpnStopResult.Failed(state.message)
-                VpnProcessState.StartRequested,
-                VpnProcessState.Starting,
-                VpnProcessState.Foreground,
-                VpnProcessState.TunnelEstablished,
-                VpnProcessState.Running,
-                VpnProcessState.Stopping -> {
-                    if (current.generation != generation) return@withLock VpnStopResult.Superseded
-                    val remainingMillis = when (
-                        val budget = deadline.remainingAt(elapsedRealtimeMillis())
-                    ) {
-                        VpnDeadlineState.Expired -> return@withLock VpnStopResult.TimedOut
-                        is VpnDeadlineState.Remaining -> budget.millis
-                    }
-                    try {
-                        changed.awaitNanos(TimeUnit.MILLISECONDS.toNanos(remainingMillis))
-                    } catch (error: InterruptedException) {
-                        Thread.currentThread().interrupt()
-                        return@withLock VpnStopResult.Canceled
+
+                    is VpnProcessState.Failed -> return@withLock VpnStopResult.Failed(state.message)
+
+                    VpnProcessState.StartRequested,
+                    VpnProcessState.Starting,
+                    VpnProcessState.Foreground,
+                    VpnProcessState.TunnelEstablished,
+                    VpnProcessState.Running,
+                    VpnProcessState.Stopping,
+                    -> {
+                        if (current.generation != generation) return@withLock VpnStopResult.Superseded
+                        val remainingMillis = when (
+                            val budget = deadline.remainingAt(elapsedRealtimeMillis())
+                        ) {
+                            VpnDeadlineState.Expired -> return@withLock VpnStopResult.TimedOut
+                            is VpnDeadlineState.Remaining -> budget.millis
+                        }
+                        try {
+                            changed.awaitNanos(TimeUnit.MILLISECONDS.toNanos(remainingMillis))
+                        } catch (error: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            return@withLock VpnStopResult.Canceled
+                        }
                     }
                 }
             }
+            @Suppress("UNREACHABLE_CODE")
+            VpnStopResult.TimedOut
         }
-        @Suppress("UNREACHABLE_CODE")
-        VpnStopResult.TimedOut
-    }
 
     fun failUnrequestedRestart(message: String): VpnLifecycleSnapshot = lock.withLock {
         if (pendingCleanup != null) return@withLock current
@@ -543,15 +579,17 @@ internal class VpnLifecycleCoordinator {
     }
 }
 
-internal fun VpnProcessState.isForegroundProtected(): Boolean =
-    when (this) {
-        VpnProcessState.Foreground,
-        VpnProcessState.TunnelEstablished,
-        VpnProcessState.Running -> true
-        VpnProcessState.Stopped,
-        VpnProcessState.StartRequested,
-        VpnProcessState.Starting,
-        VpnProcessState.Stopping,
-        VpnProcessState.Revoked,
-        is VpnProcessState.Failed -> false
-    }
+internal fun VpnProcessState.isForegroundProtected(): Boolean = when (this) {
+    VpnProcessState.Foreground,
+    VpnProcessState.TunnelEstablished,
+    VpnProcessState.Running,
+    -> true
+
+    VpnProcessState.Stopped,
+    VpnProcessState.StartRequested,
+    VpnProcessState.Starting,
+    VpnProcessState.Stopping,
+    VpnProcessState.Revoked,
+    is VpnProcessState.Failed,
+    -> false
+}

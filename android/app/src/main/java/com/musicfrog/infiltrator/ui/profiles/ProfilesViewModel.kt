@@ -3,8 +3,8 @@ package com.musicfrog.infiltrator.ui.profiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musicfrog.infiltrator.ui.common.AppFailure
-import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
+import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
@@ -27,7 +27,7 @@ internal class ProfilesViewModel internal constructor(
         get() = coroutineScope ?: viewModelScope
 
     private val _state = MutableStateFlow(ProfilesUiState())
-    internal val state: StateFlow<ProfilesUiState> = _state.asStateFlow()
+    val state: StateFlow<ProfilesUiState> = _state.asStateFlow()
 
     private var requestSequence = 0uL
     private var latestRequestSequence = 0uL
@@ -53,35 +53,43 @@ internal class ProfilesViewModel internal constructor(
                         acceptProfilesSnapshot(observation.snapshot, sequence)
                     ) {
                         ProfilesSnapshotAdmission.Accepted -> setIdle()
+
                         ProfilesSnapshotAdmission.Stale,
-                        ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(
+                        ProfilesSnapshotAdmission.Conflicting,
+                        -> setUnconfirmed(
                             ProfileOperation.ReadProfiles,
                             notReadyFailure(),
                         )
                     }
+
                     is ProfilesRepositoryObservation.Detail -> setUnconfirmed(
                         ProfileOperation.ReadProfiles,
                         notReadyFailure(),
                     )
+
                     is ProfilesRepositoryObservation.Selection -> setUnconfirmed(
                         ProfileOperation.ReadProfiles,
                         notReadyFailure(),
                     )
                 }
+
                 is ProfilesRepositoryResult.Failed -> {
                     acceptLatestProfiles(result.latest, sequence)
                     markProfilesUnavailable(result.failure)
                     setFailed(ProfileOperation.ReadProfiles, result.failure)
                 }
+
                 is ProfilesRepositoryResult.Cancelled -> {
                     acceptLatestProfiles(result.latest, sequence)
                     markProfilesUnavailable(result.failure)
                     setCancelled(ProfileOperation.ReadProfiles, result.failure)
                 }
+
                 is ProfilesRepositoryResult.TimedOut -> {
                     markProfilesUnavailable(result.failure)
                     setTimedOut(ProfileOperation.ReadProfiles, result.failure)
                 }
+
                 is ProfilesRepositoryResult.Unconfirmed -> {
                     acceptLatestProfiles(result.latest, sequence)
                     markProfilesUnavailable(result.failure)
@@ -153,12 +161,7 @@ internal class ProfilesViewModel internal constructor(
         },
     )
 
-    fun saveSubscriptionSettings(
-        name: String,
-        url: String,
-        updatePolicy: SubscriptionUpdatePolicy,
-        updateIntervalHours: Int?,
-    ) {
+    fun saveSubscriptionSettings(name: String, url: String, updatePolicy: SubscriptionUpdatePolicy, updateIntervalHours: Int?) {
         when (requestAvailability()) {
             ProfileRequestAvailability.Busy -> return
             ProfileRequestAvailability.Available -> Unit
@@ -166,6 +169,7 @@ internal class ProfilesViewModel internal constructor(
         val intervalHours = updateIntervalHours?.let { hours ->
             when {
                 hours >= 0 -> hours.toUInt()
+
                 else -> {
                     setFailed(ProfileOperation.SaveSubscription, invalidProfileInputFailure())
                     return
@@ -205,21 +209,28 @@ internal class ProfilesViewModel internal constructor(
             is ProfileActionState.Failed,
             is ProfileActionState.Cancelled,
             is ProfileActionState.TimedOut,
-            is ProfileActionState.Unconfirmed -> ProfileActionState.Idle
+            is ProfileActionState.Unconfirmed,
+            -> ProfileActionState.Idle
+
             ProfileActionState.Idle,
-            is ProfileActionState.Working -> current.action
+            is ProfileActionState.Working,
+            -> current.action
         }
         val nextDetail = when (current.detail) {
             is ProfileDetailReadState.Unavailable -> ProfileDetailReadState.Idle
+
             ProfileDetailReadState.Idle,
             is ProfileDetailReadState.Loading,
-            is ProfileDetailReadState.Observed -> current.detail
+            is ProfileDetailReadState.Observed,
+            -> current.detail
         }
         val nextCollection = when (val collection = current.collection) {
             is ProfilesReadState.Unavailable -> collection.lastAccepted?.let { ProfilesReadState.Observed(it) }
                 ?: ProfilesReadState.Loading()
+
             is ProfilesReadState.Loading,
-            is ProfilesReadState.Observed -> collection
+            is ProfilesReadState.Observed,
+            -> collection
         }
         _state.value = current.copy(action = nextAction, collection = nextCollection, detail = nextDetail)
     }
@@ -229,7 +240,7 @@ internal class ProfilesViewModel internal constructor(
             drafts = _state.value.drafts.copy(
                 showAddDialog = true,
                 prefilledUrl = prefilledUrl,
-            )
+            ),
         )
     }
 
@@ -238,25 +249,25 @@ internal class ProfilesViewModel internal constructor(
             drafts = _state.value.drafts.copy(
                 showAddDialog = false,
                 prefilledUrl = null,
-            )
+            ),
         )
     }
 
     fun setLocalImportDraft(draft: LocalImportDraft?) {
         _state.value = _state.value.copy(
-            drafts = _state.value.drafts.copy(localImportDraft = draft)
+            drafts = _state.value.drafts.copy(localImportDraft = draft),
         )
     }
 
     fun setDeletingProfile(profile: ProfileSummary?) {
         _state.value = _state.value.copy(
-            drafts = _state.value.drafts.copy(deletingProfile = profile)
+            drafts = _state.value.drafts.copy(deletingProfile = profile),
         )
     }
 
     fun setSubscriptionProfile(profile: ProfileSummary?) {
         _state.value = _state.value.copy(
-            drafts = _state.value.drafts.copy(subscriptionProfile = profile)
+            drafts = _state.value.drafts.copy(subscriptionProfile = profile),
         )
     }
 
@@ -285,23 +296,28 @@ internal class ProfilesViewModel internal constructor(
                                         expectation,
                                         operation,
                                     )
+
                                     else -> {
                                         onConfirmed()
                                         setIdle()
                                     }
                                 }
+
                                 ProfileReadbackResult.NotConfirmed -> setUnconfirmed(
                                     operation,
                                     notReadyFailure(),
                                 )
                             }
+
                             ProfilesSnapshotAdmission.Stale,
-                            ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(
+                            ProfilesSnapshotAdmission.Conflicting,
+                            -> setUnconfirmed(
                                 operation,
                                 notReadyFailure(),
                             )
                         }
                     }
+
                     is ProfilesRepositoryObservation.Selection -> {
                         when (acceptProfilesSnapshot(observation.snapshot, sequence)) {
                             ProfilesSnapshotAdmission.Accepted -> when (expectation) {
@@ -312,28 +328,37 @@ internal class ProfilesViewModel internal constructor(
                                         onConfirmed()
                                         setIdle()
                                     }
+
                                     false -> setUnconfirmed(operation, notReadyFailure())
                                 }
+
                                 else -> setUnconfirmed(operation, notReadyFailure())
                             }
+
                             ProfilesSnapshotAdmission.Stale,
-                            ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(
+                            ProfilesSnapshotAdmission.Conflicting,
+                            -> setUnconfirmed(
                                 operation,
                                 notReadyFailure(),
                             )
                         }
                     }
+
                     is ProfilesRepositoryObservation.Detail -> setUnconfirmed(operation, notReadyFailure())
                 }
+
                 is ProfilesRepositoryResult.Failed -> {
                     acceptLatestProfiles(result.latest, sequence)
                     setFailed(operation, result.failure)
                 }
+
                 is ProfilesRepositoryResult.Cancelled -> {
                     acceptLatestProfiles(result.latest, sequence)
                     setCancelled(operation, result.failure)
                 }
+
                 is ProfilesRepositoryResult.TimedOut -> setTimedOut(operation, result.failure)
+
                 is ProfilesRepositoryResult.Unconfirmed -> {
                     acceptLatestProfiles(result.latest, sequence)
                     setUnconfirmed(operation, result.failure)
@@ -342,15 +367,14 @@ internal class ProfilesViewModel internal constructor(
         }
     }
 
-    private suspend fun confirmSavedContent(
-        expectation: ProfileReadbackExpectation.SavedContent,
-        operation: ProfileOperation,
-    ) {
+    private suspend fun confirmSavedContent(expectation: ProfileReadbackExpectation.SavedContent, operation: ProfileOperation) {
         val sequence = nextRequestSequence()
-        when (val result = repository.execute(
-            AndroidOwnerOperation.ProfileDetail(expectation.name),
-            DEFAULT_FFI_TIMEOUT_MS,
-        )) {
+        when (
+            val result = repository.execute(
+                AndroidOwnerOperation.ProfileDetail(expectation.name),
+                DEFAULT_FFI_TIMEOUT_MS,
+            )
+        ) {
             is ProfilesRepositoryResult.Completed -> when (val observation = result.observation) {
                 is ProfilesRepositoryObservation.Detail -> {
                     when (acceptProfilesSnapshot(observation.profiles, sequence)) {
@@ -361,33 +385,44 @@ internal class ProfilesViewModel internal constructor(
                                 acceptProfileDetail(observation.detail, sequence)
                             ) {
                                 ProfilesSnapshotAdmission.Accepted -> setIdle()
+
                                 ProfilesSnapshotAdmission.Stale,
-                                ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(
+                                ProfilesSnapshotAdmission.Conflicting,
+                                -> setUnconfirmed(
                                     operation,
                                     notReadyFailure(),
                                 )
                             }
+
                             ProfileReadbackResult.NotConfirmed -> setUnconfirmed(
                                 operation,
                                 notReadyFailure(),
                             )
                         }
+
                         ProfilesSnapshotAdmission.Stale,
-                        ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(operation, notReadyFailure())
+                        ProfilesSnapshotAdmission.Conflicting,
+                        -> setUnconfirmed(operation, notReadyFailure())
                     }
                 }
+
                 is ProfilesRepositoryObservation.Profiles,
-                is ProfilesRepositoryObservation.Selection -> setUnconfirmed(operation, notReadyFailure())
+                is ProfilesRepositoryObservation.Selection,
+                -> setUnconfirmed(operation, notReadyFailure())
             }
+
             is ProfilesRepositoryResult.Failed -> {
                 acceptLatestProfiles(result.latest, sequence)
                 setUnconfirmed(operation, result.failure)
             }
+
             is ProfilesRepositoryResult.Cancelled -> {
                 acceptLatestProfiles(result.latest, sequence)
                 setCancelled(operation, result.failure)
             }
+
             is ProfilesRepositoryResult.TimedOut -> setTimedOut(operation, result.failure)
+
             is ProfilesRepositoryResult.Unconfirmed -> {
                 acceptLatestProfiles(result.latest, sequence)
                 setUnconfirmed(operation, result.failure)
@@ -395,11 +430,7 @@ internal class ProfilesViewModel internal constructor(
         }
     }
 
-    private suspend fun handleDetailResult(
-        result: ProfilesRepositoryResult,
-        sequence: ULong,
-        operation: ProfileOperation,
-    ) {
+    private suspend fun handleDetailResult(result: ProfilesRepositoryResult, sequence: ULong, operation: ProfileOperation) {
         if (sequence != latestRequestSequence) return
         when (result) {
             is ProfilesRepositoryResult.Completed -> when (val observation = result.observation) {
@@ -409,42 +440,52 @@ internal class ProfilesViewModel internal constructor(
                             acceptProfileDetail(observation.detail, sequence)
                         ) {
                             ProfilesSnapshotAdmission.Accepted -> setIdle()
+
                             ProfilesSnapshotAdmission.Stale,
-                            ProfilesSnapshotAdmission.Conflicting -> {
+                            ProfilesSnapshotAdmission.Conflicting,
+                            -> {
                                 markDetailUnavailable(notReadyFailure())
                                 setUnconfirmed(operation, notReadyFailure())
                             }
                         }
+
                         ProfilesSnapshotAdmission.Stale,
-                        ProfilesSnapshotAdmission.Conflicting -> {
+                        ProfilesSnapshotAdmission.Conflicting,
+                        -> {
                             markDetailUnavailable(notReadyFailure())
                             setUnconfirmed(operation, notReadyFailure())
                         }
                     }
                 }
+
                 is ProfilesRepositoryObservation.Profiles -> {
                     markDetailUnavailable(notReadyFailure())
                     setUnconfirmed(operation, notReadyFailure())
                 }
+
                 is ProfilesRepositoryObservation.Selection -> {
                     markDetailUnavailable(notReadyFailure())
                     setUnconfirmed(operation, notReadyFailure())
                 }
             }
+
             is ProfilesRepositoryResult.Failed -> {
                 acceptLatestProfiles(result.latest, sequence)
                 markDetailUnavailable(result.failure)
                 setFailed(operation, result.failure)
             }
+
             is ProfilesRepositoryResult.Cancelled -> {
                 acceptLatestProfiles(result.latest, sequence)
                 markDetailUnavailable(result.failure)
                 setCancelled(operation, result.failure)
             }
+
             is ProfilesRepositoryResult.TimedOut -> {
                 markDetailUnavailable(result.failure)
                 setTimedOut(operation, result.failure)
             }
+
             is ProfilesRepositoryResult.Unconfirmed -> {
                 acceptLatestProfiles(result.latest, sequence)
                 markDetailUnavailable(result.failure)
@@ -453,34 +494,32 @@ internal class ProfilesViewModel internal constructor(
         }
     }
 
-    private fun acceptProfilesSnapshot(
-        snapshot: ProfilesSnapshot,
-        sequence: ULong,
-    ): ProfilesSnapshotAdmission {
+    private fun acceptProfilesSnapshot(snapshot: ProfilesSnapshot, sequence: ULong): ProfilesSnapshotAdmission {
         if (sequence != latestRequestSequence) return ProfilesSnapshotAdmission.Stale
         val point = ProfilesObservationPoint(snapshot, sequence)
-        return when (val admission = admitsProfilesSnapshot(acceptedProfiles(_state.value.collection), point)) {
+        return when (admitsProfilesSnapshot(acceptedProfiles(_state.value.collection), point)) {
             ProfilesSnapshotAdmission.Accepted -> {
                 _state.value = _state.value.copy(collection = ProfilesReadState.Observed(point))
                 ProfilesSnapshotAdmission.Accepted
             }
+
             ProfilesSnapshotAdmission.Stale -> ProfilesSnapshotAdmission.Stale
+
             ProfilesSnapshotAdmission.Conflicting -> ProfilesSnapshotAdmission.Conflicting
         }
     }
 
-    private fun acceptProfileDetail(
-        snapshot: ProfileDetailSnapshot,
-        sequence: ULong,
-    ): ProfilesSnapshotAdmission {
+    private fun acceptProfileDetail(snapshot: ProfileDetailSnapshot, sequence: ULong): ProfilesSnapshotAdmission {
         if (sequence != latestRequestSequence) return ProfilesSnapshotAdmission.Stale
         val point = ProfileDetailPoint(snapshot, sequence)
-        return when (val admission = admitsProfileDetail(acceptedProfileDetail(_state.value.detail), point)) {
+        return when (admitsProfileDetail(acceptedProfileDetail(_state.value.detail), point)) {
             ProfilesSnapshotAdmission.Accepted -> {
                 _state.value = _state.value.copy(detail = ProfileDetailReadState.Observed(point))
                 ProfilesSnapshotAdmission.Accepted
             }
+
             ProfilesSnapshotAdmission.Stale -> ProfilesSnapshotAdmission.Stale
+
             ProfilesSnapshotAdmission.Conflicting -> ProfilesSnapshotAdmission.Conflicting
         }
     }
@@ -526,11 +565,13 @@ internal class ProfilesViewModel internal constructor(
 
     private fun requestAvailability(): ProfileRequestAvailability = when (_state.value.action) {
         is ProfileActionState.Working -> ProfileRequestAvailability.Busy
+
         ProfileActionState.Idle,
         is ProfileActionState.Failed,
         is ProfileActionState.Cancelled,
         is ProfileActionState.TimedOut,
-        is ProfileActionState.Unconfirmed -> ProfileRequestAvailability.Available
+        is ProfileActionState.Unconfirmed,
+        -> ProfileRequestAvailability.Available
     }
 
     private fun nextRequestSequence(): ULong {

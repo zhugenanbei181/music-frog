@@ -78,19 +78,24 @@ internal fun decideVpnOwnerSessionWait(
         is VpnOwnerSessionReadiness.Ready -> VpnOwnerSessionWaitDirective.Complete(
             VpnOwnerSessionWaitOutcome.Ready(readiness.sessionId),
         )
+
         is VpnOwnerSessionReadiness.Failed -> VpnOwnerSessionWaitDirective.Complete(
             VpnOwnerSessionWaitOutcome.Failed(readiness.reason),
         )
+
         is VpnOwnerSessionReadiness.Ended -> VpnOwnerSessionWaitDirective.Complete(
             VpnOwnerSessionWaitOutcome.Failed(
                 "Core owner session ${readiness.sessionId} ended during startup",
             ),
         )
+
         VpnOwnerSessionReadiness.NotStarted,
-        is VpnOwnerSessionReadiness.Preparing -> when (budget) {
+        is VpnOwnerSessionReadiness.Preparing,
+        -> when (budget) {
             VpnOwnerSessionWaitBudget.Expired -> VpnOwnerSessionWaitDirective.Complete(
                 VpnOwnerSessionWaitOutcome.TimedOut,
             )
+
             is VpnOwnerSessionWaitBudget.Remaining -> VpnOwnerSessionWaitDirective.Wait(
                 minOf(budget.millis, pollIntervalMillis),
             )
@@ -105,10 +110,7 @@ internal sealed interface VpnServiceStartupDecision {
         val notificationMode: VpnServiceNotificationActionMode,
     ) : VpnServiceStartupDecision
 
-    data class RestoreSystemManagedProxy(
-        val policy: VpnSystemManagedPolicy,
-        val delivery: VpnServiceDelivery,
-    ) : VpnServiceStartupDecision
+    data class RestoreSystemManagedProxy(val policy: VpnSystemManagedPolicy, val delivery: VpnServiceDelivery) : VpnServiceStartupDecision
 
     data class Reject(val reason: VpnServiceStartupRejection) : VpnServiceStartupDecision
 }
@@ -123,24 +125,30 @@ internal fun decideVpnServiceStartup(
             VpnSystemManagedPolicy.AlwaysOnConfirmed,
             delivery,
         )
+
         VpnAlwaysOnObservation.NotQueryable -> VpnServiceStartupDecision.RestoreSystemManagedProxy(
             VpnSystemManagedPolicy.LegacyUnflaggedStart,
             delivery,
         )
+
         VpnAlwaysOnObservation.Disabled -> VpnServiceStartupDecision.Reject(
             VpnServiceStartupRejection.AlwaysOnNotEnabled,
         )
     }
+
     VpnServiceCommandExtra.Malformed -> VpnServiceStartupDecision.Reject(
         VpnServiceStartupRejection.MalformedCommand,
     )
+
     is VpnServiceCommandExtra.Present -> VpnServiceStartupDecision.ExecuteCommand(
         command = command.command,
         delivery = delivery,
         notificationMode = when (alwaysOn) {
             VpnAlwaysOnObservation.Enabled -> VpnServiceNotificationActionMode.SystemManaged
+
             VpnAlwaysOnObservation.Disabled,
-            VpnAlwaysOnObservation.NotQueryable -> VpnServiceNotificationActionMode.UserManaged
+            VpnAlwaysOnObservation.NotQueryable,
+            -> VpnServiceNotificationActionMode.UserManaged
         },
     )
 }

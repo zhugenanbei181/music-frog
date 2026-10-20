@@ -1,9 +1,9 @@
 package com.musicfrog.infiltrator
 
 import android.content.Context
+import android.os.SystemClock
 import android.system.Os
 import android.system.OsConstants
-import android.os.SystemClock
 import android.util.Log
 import java.io.File
 import java.io.IOException
@@ -19,7 +19,8 @@ internal enum class CoreProcessStartReceipt(val wireCode: Int) {
     NotVpnOwner(5),
     OwnerContextMismatch(6),
     PreviousChildExitPending(7),
-    OwnershipRecordUnavailable(8);
+    OwnershipRecordUnavailable(8),
+    ;
 
     companion object {
         fun fromWireCode(code: Int): CoreProcessStartReceipt? = when (code) {
@@ -44,7 +45,8 @@ internal enum class CoreProcessStopReceipt(val wireCode: Int) {
     TimedOut(3),
     Interrupted(4),
     NotVpnOwner(5),
-    OwnershipRecordUnavailable(6);
+    OwnershipRecordUnavailable(6),
+    ;
 
     companion object {
         fun fromWireCode(code: Int): CoreProcessStopReceipt? = when (code) {
@@ -60,10 +62,7 @@ internal enum class CoreProcessStopReceipt(val wireCode: Int) {
     }
 }
 
-internal data class CoreProcessSpawnCommand(
-    val arguments: List<String>,
-    val workingDirectory: File,
-) {
+internal data class CoreProcessSpawnCommand(val arguments: List<String>, val workingDirectory: File) {
     fun processBuilder(): ProcessBuilder = ProcessBuilder(arguments)
         .directory(workingDirectory)
         .redirectErrorStream(true)
@@ -77,6 +76,7 @@ internal data class CoreProcessSpawnCommand(
                     "-f",
                     launch.configurationPath,
                 )
+
                 is CoreLaunchArgumentsWire.SingBox -> listOf(
                     "run",
                     "-c",
@@ -126,23 +126,13 @@ internal class CoreProcessController(
             val owned: AndroidOwnedCoreProcessWire
         }
 
-        data class RunningWithHandle(
-            val process: Process,
-            override val owned: AndroidOwnedCoreProcessWire,
-        ) : Running
+        data class RunningWithHandle(val process: Process, override val owned: AndroidOwnedCoreProcessWire) : Running
 
-        data class RunningByIdentity(
-            override val owned: AndroidOwnedCoreProcessWire,
-        ) : Running
+        data class RunningByIdentity(override val owned: AndroidOwnedCoreProcessWire) : Running
 
-        data class Exited(
-            val owned: AndroidOwnedCoreProcessWire,
-            val evidence: AndroidCoreProcessExitEvidenceWire,
-        ) : ProcessState
+        data class Exited(val owned: AndroidOwnedCoreProcessWire, val evidence: AndroidCoreProcessExitEvidenceWire) : ProcessState
 
-        data class Unavailable(
-            val reason: AndroidCoreProcessUnavailableReasonWire,
-        ) : ProcessState
+        data class Unavailable(val reason: AndroidCoreProcessUnavailableReasonWire) : ProcessState
     }
 
     private enum class ProcessWaitOutcome {
@@ -186,10 +176,7 @@ internal class CoreProcessController(
     )
 
     @Synchronized
-    fun start(
-        spec: CoreLaunchSpecWire,
-        context: CoreProcessStartContextWire,
-    ): CoreProcessStartReceipt {
+    fun start(spec: CoreLaunchSpecWire, context: CoreProcessStartContextWire): CoreProcessStartReceipt {
         if (spec.configurationIdentity.engineId != context.identity.engine ||
             spec.configurationIdentity.engineId != spec.binary.engineId.wireValue ||
             spec.configurationIdentity.engineId != spec.launchArguments.engineId.wireValue
@@ -202,44 +189,47 @@ internal class CoreProcessController(
         }
     }
 
-    private fun startWithBinary(
-        spec: CoreLaunchSpecWire,
-        context: CoreProcessStartContextWire,
-    ): CoreProcessStartReceipt = when (val state = reconcileProcessState()) {
-        is ProcessState.RunningWithHandle -> if (state.owned.context == context) {
-            CoreProcessStartReceipt.AlreadyRunning
-        } else {
-            CoreProcessStartReceipt.OwnerContextMismatch
-        }
-        is ProcessState.RunningByIdentity -> if (state.owned.context == context) {
-            CoreProcessStartReceipt.AlreadyRunning
-        } else {
-            CoreProcessStartReceipt.OwnerContextMismatch
-        }
-        is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
-        is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
-        ProcessState.NeverStarted -> when (verifyConfigurationRevision(spec)) {
-            LaunchConfigurationVerification.Rejected -> {
-                CoreProcessStartReceipt.LaunchSpecRejected
+    private fun startWithBinary(spec: CoreLaunchSpecWire, context: CoreProcessStartContextWire): CoreProcessStartReceipt =
+        when (val state = reconcileProcessState()) {
+            is ProcessState.RunningWithHandle -> if (state.owned.context == context) {
+                CoreProcessStartReceipt.AlreadyRunning
+            } else {
+                CoreProcessStartReceipt.OwnerContextMismatch
             }
-            LaunchConfigurationVerification.MatchesRevision ->
-                when (val binary = binaryResolver.resolve(spec.binary)) {
-                    CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
-                    is CoreBinaryResolution.Rejected -> {
-                        Log.w(TAG_PROCESS, "Core launch binary was rejected: ${binary.reason}")
-                        CoreProcessStartReceipt.LaunchSpecRejected
-                    }
-                    is CoreBinaryResolution.Available -> when (spec.binary) {
-                        CoreLaunchBinaryWire.MihomoBundled -> spawn(binary.file, spec, context)
-                        is CoreLaunchBinaryWire.SingBoxManaged -> spawn(binary.file, spec, context)
-                    }
-                }
-            }
-    }
 
-    private fun verifyConfigurationRevision(
-        spec: CoreLaunchSpecWire,
-    ): LaunchConfigurationVerification {
+            is ProcessState.RunningByIdentity -> if (state.owned.context == context) {
+                CoreProcessStartReceipt.AlreadyRunning
+            } else {
+                CoreProcessStartReceipt.OwnerContextMismatch
+            }
+
+            is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
+
+            is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
+
+            ProcessState.NeverStarted -> when (verifyConfigurationRevision(spec)) {
+                LaunchConfigurationVerification.Rejected -> {
+                    CoreProcessStartReceipt.LaunchSpecRejected
+                }
+
+                LaunchConfigurationVerification.MatchesRevision ->
+                    when (val binary = binaryResolver.resolve(spec.binary)) {
+                        CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
+
+                        is CoreBinaryResolution.Rejected -> {
+                            Log.w(TAG_PROCESS, "Core launch binary was rejected: ${binary.reason}")
+                            CoreProcessStartReceipt.LaunchSpecRejected
+                        }
+
+                        is CoreBinaryResolution.Available -> when (spec.binary) {
+                            CoreLaunchBinaryWire.MihomoBundled -> spawn(binary.file, spec, context)
+                            is CoreLaunchBinaryWire.SingBoxManaged -> spawn(binary.file, spec, context)
+                        }
+                    }
+            }
+        }
+
+    private fun verifyConfigurationRevision(spec: CoreLaunchSpecWire): LaunchConfigurationVerification {
         val expectedDigest = spec.configurationIdentity.documentRevision
         if (!expectedDigest.isSha256Digest()) return LaunchConfigurationVerification.Rejected
         val configuration = File(spec.launchArguments.configurationPath)
@@ -254,8 +244,7 @@ internal class CoreProcessController(
         }
     }
 
-    private fun String.isSha256Digest(): Boolean =
-        length == SHA256_HEX_LENGTH && all { it in '0'..'9' || it in 'a'..'f' }
+    private fun String.isSha256Digest(): Boolean = length == SHA256_HEX_LENGTH && all { it in '0'..'9' || it in 'a'..'f' }
 
     private fun File.sha256(): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -271,29 +260,30 @@ internal class CoreProcessController(
     }
 
     @Synchronized
-    fun validateConfiguration(
-        request: CoreConfigurationValidationRequestWire,
-    ): CoreConfigurationValidationOutcomeWire = when (reconcileProcessState()) {
-        is ProcessState.RunningWithHandle,
-        is ProcessState.RunningByIdentity -> CoreConfigurationValidationOutcomeWire.CoreActive
-        is ProcessState.Unavailable ->
-            CoreConfigurationValidationOutcomeWire.CoreProcessObservationUnavailable
-        ProcessState.NeverStarted,
-        is ProcessState.Exited -> configurationValidator.validate(request)
-    }
+    fun validateConfiguration(request: CoreConfigurationValidationRequestWire): CoreConfigurationValidationOutcomeWire =
+        when (reconcileProcessState()) {
+            is ProcessState.RunningWithHandle,
+            is ProcessState.RunningByIdentity,
+            -> CoreConfigurationValidationOutcomeWire.CoreActive
 
-    private fun spawn(
-        binary: File,
-        spec: CoreLaunchSpecWire,
-        context: CoreProcessStartContextWire,
-    ): CoreProcessStartReceipt {
+            is ProcessState.Unavailable ->
+                CoreConfigurationValidationOutcomeWire.CoreProcessObservationUnavailable
+
+            ProcessState.NeverStarted,
+            is ProcessState.Exited,
+            -> configurationValidator.validate(request)
+        }
+
+    private fun spawn(binary: File, spec: CoreLaunchSpecWire, context: CoreProcessStartContextWire): CoreProcessStartReceipt {
         val launchSnapshot = when (val snapshot = childInspector.snapshotCurrentThreadChildren()) {
             AndroidCurrentThreadChildSnapshot.Unavailable ->
                 return CoreProcessStartReceipt.OwnershipRecordUnavailable
+
             is AndroidCurrentThreadChildSnapshot.Captured -> snapshot
         }
         when (recordStore.writeReservation(context)) {
             AndroidCoreProcessRecordMutationOutcome.Committed -> Unit
+
             AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
                 processState = ProcessState.Unavailable(
                     AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
@@ -302,7 +292,7 @@ internal class CoreProcessController(
             }
         }
         val child = try {
-        val command = CoreProcessSpawnCommand.from(binary, spec)
+            val command = CoreProcessSpawnCommand.from(binary, spec)
             processStarter.start(command.processBuilder())
         } catch (error: IOException) {
             Log.w(TAG_PROCESS, "Core spawn failed: ${error.message}")
@@ -317,11 +307,14 @@ internal class CoreProcessController(
             val capture = childInspector.captureStartedChild(launchSnapshot)
         ) {
             is AndroidChildProcessCapture.Identified -> capture.child
+
             AndroidChildProcessCapture.Exited,
-            AndroidChildProcessCapture.Unavailable -> {
+            AndroidChildProcessCapture.Unavailable,
+            -> {
                 child.destroyForcibly()
                 when (waitForExit(child, FORCE_STOP_GRACE_SECONDS)) {
                     ProcessWaitOutcome.Exited -> clearFailedReservation()
+
                     ProcessWaitOutcome.TimedOut -> {
                         processState = ProcessState.Unavailable(
                             AndroidCoreProcessUnavailableReasonWire.LaunchReservationIncomplete,
@@ -334,10 +327,12 @@ internal class CoreProcessController(
         val owned = AndroidOwnedCoreProcessWire(context, childIdentity)
         when (recordStore.writeOwned(owned)) {
             AndroidCoreProcessRecordMutationOutcome.Committed -> Unit
+
             AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
                 child.destroyForcibly()
                 when (waitForExit(child, FORCE_STOP_GRACE_SECONDS)) {
                     ProcessWaitOutcome.Exited -> clearFailedReservation()
+
                     ProcessWaitOutcome.TimedOut -> {
                         processState = ProcessState.Unavailable(
                             AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
@@ -364,12 +359,16 @@ internal class CoreProcessController(
     @Synchronized
     fun stop(): CoreProcessStopReceipt = when (val state = reconcileProcessState()) {
         ProcessState.NeverStarted -> CoreProcessStopReceipt.AlreadyStopped
+
         // Keep exact exit evidence until the Rust owner explicitly consumes
         // it during recovery; a generic stop call cannot prove that lease was
         // released by the old owner session.
         is ProcessState.Exited -> CoreProcessStopReceipt.AlreadyStopped
+
         is ProcessState.Unavailable -> CoreProcessStopReceipt.OwnershipRecordUnavailable
+
         is ProcessState.RunningWithHandle -> stop(state.process)
+
         is ProcessState.RunningByIdentity -> stopOwnedChild(state.owned)
     }
 
@@ -377,10 +376,12 @@ internal class CoreProcessController(
         current.destroy()
         when (waitForExit(current, STOP_GRACE_SECONDS)) {
             ProcessWaitOutcome.Exited -> clearStoppedRecord(CoreProcessStopReceipt.StoppedGracefully)
+
             ProcessWaitOutcome.TimedOut -> {
                 current.destroyForcibly()
                 when (waitForExit(current, FORCE_STOP_GRACE_SECONDS)) {
                     ProcessWaitOutcome.Exited -> clearStoppedRecord(CoreProcessStopReceipt.StoppedForcibly)
+
                     ProcessWaitOutcome.TimedOut -> {
                         Log.e(TAG_PROCESS, "Mihomo ignored graceful and forced stop deadlines")
                         CoreProcessStopReceipt.TimedOut
@@ -404,91 +405,109 @@ internal class CoreProcessController(
     }
 
     @Synchronized
-    fun consumeRecoveredExit(
-        context: CoreProcessStartContextWire,
-    ): AndroidCoreProcessRecoveryReceiptWire = when (val state = reconcileProcessState()) {
-        ProcessState.NeverStarted -> AndroidCoreProcessRecoveryReceiptWire.AlreadyAbsent
-        is ProcessState.RunningWithHandle -> when (state.owned.context == context) {
-            true -> AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning
-            false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
-        }
-        is ProcessState.RunningByIdentity -> when (state.owned.context == context) {
-            true -> AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning
-            false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
-        }
-        is ProcessState.Exited -> when (state.owned.context == context) {
-            false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
-            true -> when (val stored = recordStore.read()) {
-                StoredAndroidCoreProcessRecord.Missing -> {
-                    processState = ProcessState.NeverStarted
-                    AndroidCoreProcessRecoveryReceiptWire.AlreadyAbsent
-                }
-                is StoredAndroidCoreProcessRecord.LaunchReserved,
-                StoredAndroidCoreProcessRecord.Corrupt ->
-                    AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
-                is StoredAndroidCoreProcessRecord.Owned -> when (stored.process) {
-                    state.owned -> when (recordStore.clear()) {
-                        AndroidCoreProcessRecordMutationOutcome.Committed -> {
-                            processState = ProcessState.NeverStarted
-                            AndroidCoreProcessRecoveryReceiptWire.Consumed
-                        }
-                        AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
-                            processState = ProcessState.Unavailable(
-                                AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
-                            )
-                            AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
-                        }
+    fun consumeRecoveredExit(context: CoreProcessStartContextWire): AndroidCoreProcessRecoveryReceiptWire =
+        when (val state = reconcileProcessState()) {
+            ProcessState.NeverStarted -> AndroidCoreProcessRecoveryReceiptWire.AlreadyAbsent
+
+            is ProcessState.RunningWithHandle -> when (state.owned.context == context) {
+                true -> AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning
+                false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+            }
+
+            is ProcessState.RunningByIdentity -> when (state.owned.context == context) {
+                true -> AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning
+                false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+            }
+
+            is ProcessState.Exited -> when (state.owned.context == context) {
+                false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+
+                true -> when (val stored = recordStore.read()) {
+                    StoredAndroidCoreProcessRecord.Missing -> {
+                        processState = ProcessState.NeverStarted
+                        AndroidCoreProcessRecoveryReceiptWire.AlreadyAbsent
                     }
-                    else -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+
+                    is StoredAndroidCoreProcessRecord.LaunchReserved,
+                    StoredAndroidCoreProcessRecord.Corrupt,
+                    ->
+                        AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
+
+                    is StoredAndroidCoreProcessRecord.Owned -> when (stored.process) {
+                        state.owned -> when (recordStore.clear()) {
+                            AndroidCoreProcessRecordMutationOutcome.Committed -> {
+                                processState = ProcessState.NeverStarted
+                                AndroidCoreProcessRecoveryReceiptWire.Consumed
+                            }
+
+                            AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
+                                processState = ProcessState.Unavailable(
+                                    AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
+                                )
+                                AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
+                            }
+                        }
+
+                        else -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+                    }
                 }
             }
+
+            is ProcessState.Unavailable -> AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
         }
-        is ProcessState.Unavailable -> AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
-    }
 
     private fun reconcileProcessState(): ProcessState = when (val current = processState) {
         ProcessState.NeverStarted,
         is ProcessState.Exited,
-        is ProcessState.Unavailable -> current
+        is ProcessState.Unavailable,
+        -> current
+
         is ProcessState.RunningWithHandle -> when (processHandleObservation(current.process)) {
             ProcessHandleObservation.Exited -> ProcessState.Exited(
                 current.owned,
                 AndroidCoreProcessExitEvidenceWire.ProcessHandleExited,
             ).also { processState = it }
+
             ProcessHandleObservation.Running -> reconcileOwnedProcess(current.owned, current)
         }
+
         is ProcessState.RunningByIdentity -> reconcileOwnedProcess(current.owned, current)
     }
 
     private fun processHandleObservation(process: Process): ProcessHandleObservation =
         if (process.isAlive) ProcessHandleObservation.Running else ProcessHandleObservation.Exited
 
-    private fun reconcileOwnedProcess(
-        owned: AndroidOwnedCoreProcessWire,
-        running: ProcessState.Running,
-    ): ProcessState = when (val inspection = childInspector.inspect(owned.child)) {
-        AndroidChildProcessInspection.ExactChildRunning -> running
-        is AndroidChildProcessInspection.Exited -> ProcessState.Exited(owned, inspection.evidence)
-            .also { processState = it }
-        AndroidChildProcessInspection.Unavailable -> ProcessState.Unavailable(
-            AndroidCoreProcessUnavailableReasonWire.ProcessInspectionUnavailable,
-        ).also { processState = it }
-    }
+    private fun reconcileOwnedProcess(owned: AndroidOwnedCoreProcessWire, running: ProcessState.Running): ProcessState =
+        when (val inspection = childInspector.inspect(owned.child)) {
+            AndroidChildProcessInspection.ExactChildRunning -> running
+
+            is AndroidChildProcessInspection.Exited -> ProcessState.Exited(owned, inspection.evidence)
+                .also { processState = it }
+
+            AndroidChildProcessInspection.Unavailable -> ProcessState.Unavailable(
+                AndroidCoreProcessUnavailableReasonWire.ProcessInspectionUnavailable,
+            ).also { processState = it }
+        }
 
     private fun restoreProcessState(): ProcessState = when (val record = recordStore.read()) {
         StoredAndroidCoreProcessRecord.Missing -> ProcessState.NeverStarted
+
         is StoredAndroidCoreProcessRecord.LaunchReserved -> ProcessState.Unavailable(
             AndroidCoreProcessUnavailableReasonWire.LaunchReservationIncomplete,
         )
+
         StoredAndroidCoreProcessRecord.Corrupt -> ProcessState.Unavailable(
             AndroidCoreProcessUnavailableReasonWire.OwnershipRecordCorrupt,
         )
+
         is StoredAndroidCoreProcessRecord.Owned -> when (
             val inspection = childInspector.inspect(record.process.child)
         ) {
             AndroidChildProcessInspection.ExactChildRunning -> ProcessState.RunningByIdentity(record.process)
+
             is AndroidChildProcessInspection.Exited ->
                 ProcessState.Exited(record.process, inspection.evidence)
+
             AndroidChildProcessInspection.Unavailable -> ProcessState.Unavailable(
                 AndroidCoreProcessUnavailableReasonWire.ProcessInspectionUnavailable,
             )
@@ -498,25 +517,26 @@ internal class CoreProcessController(
     private fun clearFailedReservation() {
         processState = when (recordStore.clear()) {
             AndroidCoreProcessRecordMutationOutcome.Committed -> ProcessState.NeverStarted
+
             AndroidCoreProcessRecordMutationOutcome.Unavailable -> ProcessState.Unavailable(
                 AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
             )
         }
     }
 
-    private fun clearStoppedRecord(receipt: CoreProcessStopReceipt): CoreProcessStopReceipt =
-        when (recordStore.clear()) {
-            AndroidCoreProcessRecordMutationOutcome.Committed -> {
-                processState = ProcessState.NeverStarted
-                receipt
-            }
-            AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
-                processState = ProcessState.Unavailable(
-                    AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
-                )
-                CoreProcessStopReceipt.OwnershipRecordUnavailable
-            }
+    private fun clearStoppedRecord(receipt: CoreProcessStopReceipt): CoreProcessStopReceipt = when (recordStore.clear()) {
+        AndroidCoreProcessRecordMutationOutcome.Committed -> {
+            processState = ProcessState.NeverStarted
+            receipt
         }
+
+        AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
+            processState = ProcessState.Unavailable(
+                AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
+            )
+            CoreProcessStopReceipt.OwnershipRecordUnavailable
+        }
+    }
 
     private fun stopOwnedChild(owned: AndroidOwnedCoreProcessWire): CoreProcessStopReceipt =
         when (val inspection = childInspector.inspect(owned.child)) {
@@ -525,16 +545,20 @@ internal class CoreProcessController(
                 inspection.evidence,
                 CoreProcessStopReceipt.AlreadyStopped,
             )
+
             AndroidChildProcessInspection.Unavailable -> CoreProcessStopReceipt.OwnershipRecordUnavailable
+
             AndroidChildProcessInspection.ExactChildRunning -> when (
                 val signal = signalExactChild(owned, AndroidChildProcessSignal.Graceful)
             ) {
                 ProcessSignalOutcome.Sent -> awaitOwnedStop(owned)
+
                 is ProcessSignalOutcome.Exited -> recordOwnedExit(
                     owned,
                     signal.evidence,
                     CoreProcessStopReceipt.AlreadyStopped,
                 )
+
                 ProcessSignalOutcome.Unavailable -> CoreProcessStopReceipt.OwnershipRecordUnavailable
             }
         }
@@ -546,8 +570,11 @@ internal class CoreProcessController(
                 AndroidCoreProcessExitEvidenceWire.ProcessHandleExited,
                 CoreProcessStopReceipt.StoppedGracefully,
             )
+
             OwnedProcessWaitOutcome.Unavailable -> CoreProcessStopReceipt.OwnershipRecordUnavailable
+
             OwnedProcessWaitOutcome.Interrupted -> CoreProcessStopReceipt.Interrupted
+
             OwnedProcessWaitOutcome.TimedOut -> when (
                 val signal = signalExactChild(owned, AndroidChildProcessSignal.Force)
             ) {
@@ -557,15 +584,20 @@ internal class CoreProcessController(
                         AndroidCoreProcessExitEvidenceWire.ProcessHandleExited,
                         CoreProcessStopReceipt.StoppedForcibly,
                     )
+
                     OwnedProcessWaitOutcome.TimedOut -> CoreProcessStopReceipt.TimedOut
+
                     OwnedProcessWaitOutcome.Unavailable -> CoreProcessStopReceipt.OwnershipRecordUnavailable
+
                     OwnedProcessWaitOutcome.Interrupted -> CoreProcessStopReceipt.Interrupted
                 }
+
                 is ProcessSignalOutcome.Exited -> recordOwnedExit(
                     owned,
                     signal.evidence,
                     CoreProcessStopReceipt.AlreadyStopped,
                 )
+
                 ProcessSignalOutcome.Unavailable -> CoreProcessStopReceipt.OwnershipRecordUnavailable
             }
         }
@@ -579,10 +611,7 @@ internal class CoreProcessController(
         return receipt
     }
 
-    private fun signalExactChild(
-        owned: AndroidOwnedCoreProcessWire,
-        signal: AndroidChildProcessSignal,
-    ): ProcessSignalOutcome =
+    private fun signalExactChild(owned: AndroidOwnedCoreProcessWire, signal: AndroidChildProcessSignal): ProcessSignalOutcome =
         when (val inspection = childInspector.inspect(owned.child)) {
             AndroidChildProcessInspection.ExactChildRunning -> when (
                 childSignalPort.signal(owned.child.pid.toInt(), signal)
@@ -590,21 +619,24 @@ internal class CoreProcessController(
                 AndroidChildProcessSignalOutcome.Sent -> ProcessSignalOutcome.Sent
                 AndroidChildProcessSignalOutcome.Unavailable -> ProcessSignalOutcome.Unavailable
             }
+
             is AndroidChildProcessInspection.Exited -> ProcessSignalOutcome.Exited(inspection.evidence)
+
             AndroidChildProcessInspection.Unavailable -> ProcessSignalOutcome.Unavailable
         }
 
-    private fun waitForOwnedExit(
-        owned: AndroidOwnedCoreProcessWire,
-        timeoutSeconds: Long,
-    ): OwnedProcessWaitOutcome {
+    private fun waitForOwnedExit(owned: AndroidOwnedCoreProcessWire, timeoutSeconds: Long): OwnedProcessWaitOutcome {
         val deadline = elapsedRealtimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds)
         try {
             while (elapsedRealtimeMillis() < deadline) {
                 when (childInspector.inspect(owned.child)) {
                     is AndroidChildProcessInspection.Exited -> return OwnedProcessWaitOutcome.Exited
+
                     AndroidChildProcessInspection.Unavailable -> return OwnedProcessWaitOutcome.Unavailable
-                    AndroidChildProcessInspection.ExactChildRunning -> Thread.sleep(POLL_INTERVAL_MILLIS)
+
+                    AndroidChildProcessInspection.ExactChildRunning ->
+                        // ARCH-REDLINE: the owned process poll is bounded by the deadline and runs off the main thread
+                        Thread.sleep(POLL_INTERVAL_MILLIS)
                 }
             }
         } catch (error: InterruptedException) {

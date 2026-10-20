@@ -56,23 +56,18 @@ class AndroidBridgeCallRouterTest {
         val deadlines = mutableListOf<Long>()
 
         override fun coreStart(startRequestJson: String): Int = record("core-start:$startRequestJson", 1)
-        override fun coreValidateConfiguration(requestJson: String): String =
-            record("validate:$requestJson", "validation-receipt")
+        override fun coreValidateConfiguration(requestJson: String): String = record("validate:$requestJson", "validation-receipt")
         override fun coreStop(): Int = record("core-stop", 2)
         override fun coreProcessObservationJson(): String = record("process-observation", "observation")
         override fun coreProcessExitRecovered(contextJson: String): Int = record("recovered:$contextJson", 3)
         override fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String? =
             recordDeadline(deadline, "core-snapshot", "core-snapshot")
-        override fun executeProductCommandJson(
-            commandJson: String,
-            deadline: VpnOwnerRequestDeadline,
-        ): String? = recordDeadline(deadline, "product:$commandJson", "product-result")
+        override fun executeProductCommandJson(commandJson: String, deadline: VpnOwnerRequestDeadline): String? =
+            recordDeadline(deadline, "product:$commandJson", "product-result")
         override fun surfaceSnapshotJson(deadline: VpnOwnerRequestDeadline): String? =
             recordDeadline(deadline, "surface", "surface-snapshot")
-        override fun executeOwnerOperationJson(
-            operationJson: String,
-            deadline: VpnOwnerRequestDeadline,
-        ): String? = recordDeadline(deadline, "operation:$operationJson", "operation-result")
+        override fun executeOwnerOperationJson(operationJson: String, deadline: VpnOwnerRequestDeadline): String? =
+            recordDeadline(deadline, "operation:$operationJson", "operation-result")
         override fun executeProfileAgeCredentialOwnerOperation(
             metadataJson: String,
             privateKeyBytes: ByteArray,
@@ -82,44 +77,25 @@ class AndroidBridgeCallRouterTest {
             "age-credential:$metadataJson:${privateKeyBytes.size}",
             "age-result",
         )
-        override fun credentialGet(service: String, key: String): String? =
-            record("credential-get:$service:$key", "secret")
-        override fun credentialSet(
-            service: String,
-            key: String,
-            value: String,
-        ): AndroidCredentialMutationOutcome {
+        override fun credentialGet(service: String, key: String): String? = record("credential-get:$service:$key", "secret")
+        override fun credentialSet(service: String, key: String, value: String): AndroidCredentialMutationOutcome {
             record("credential-set:$service:$key:$value", Unit)
             return AndroidCredentialMutationOutcome.Applied
         }
-        override fun credentialDelete(
-            service: String,
-            key: String,
-        ): AndroidCredentialMutationOutcome {
+        override fun credentialDelete(service: String, key: String): AndroidCredentialMutationOutcome {
             record("credential-delete:$service:$key", Unit)
             return AndroidCredentialMutationOutcome.Applied
         }
-        override fun vpnStartOutcome(deadline: VpnOwnerRequestDeadline): Int =
-            recordDeadline(deadline, "vpn-start", 4)
-        override fun vpnAuthorizationState(deadline: VpnOwnerRequestDeadline): Int =
-            recordDeadline(deadline, "vpn-authorization", 5)
-        override fun vpnApplyConfiguration(
-            configJson: String,
-            deadline: VpnOwnerRequestDeadline,
-        ): Int = recordDeadline(deadline, "vpn-apply:$configJson", 6)
-        override fun vpnStopResultJson(
-            targetCode: Int,
-            generation: Long,
-            deadline: VpnOwnerRequestDeadline,
-        ): String? = recordDeadline(deadline, "vpn-stop:$targetCode:$generation", "stop-receipt")
+        override fun vpnStartOutcome(deadline: VpnOwnerRequestDeadline): Int = recordDeadline(deadline, "vpn-start", 4)
+        override fun vpnAuthorizationState(deadline: VpnOwnerRequestDeadline): Int = recordDeadline(deadline, "vpn-authorization", 5)
+        override fun vpnApplyConfiguration(configJson: String, deadline: VpnOwnerRequestDeadline): Int =
+            recordDeadline(deadline, "vpn-apply:$configJson", 6)
+        override fun vpnStopResultJson(targetCode: Int, generation: Long, deadline: VpnOwnerRequestDeadline): String? =
+            recordDeadline(deadline, "vpn-stop:$targetCode:$generation", "stop-receipt")
         override fun vpnOwnerSnapshotJson(deadline: VpnOwnerRequestDeadline): String? =
             recordDeadline(deadline, "vpn-snapshot", "vpn-snapshot")
 
-        private fun <T> recordDeadline(
-            deadline: VpnOwnerRequestDeadline,
-            call: String,
-            result: T,
-        ): T {
+        private fun <T> recordDeadline(deadline: VpnOwnerRequestDeadline, call: String, result: T): T {
             deadlines += deadline.elapsedRealtimeMillis
             return record(call, result)
         }

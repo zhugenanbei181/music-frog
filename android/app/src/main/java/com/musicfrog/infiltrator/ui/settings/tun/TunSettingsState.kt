@@ -5,30 +5,16 @@ import infiltrator_android.VpnTunSettings
 import infiltrator_android.VpnTunSettingsPatch
 import infiltrator_android.VpnTunStackUpdate
 
-internal data class TunSettingsRevision(
-    val ownerSessionId: String,
-    val coreGeneration: ULong,
-    val dataRevision: ULong,
-)
+internal data class TunSettingsRevision(val ownerSessionId: String, val coreGeneration: ULong, val dataRevision: ULong)
 
-internal data class TunSettingsObservationPoint(
-    val value: VpnTunSettings,
-    val revision: TunSettingsRevision,
-)
+internal data class TunSettingsObservationPoint(val value: VpnTunSettings, val revision: TunSettingsRevision)
 
 internal sealed interface TunSettingsReadState {
-    data class Loading(
-        val lastAccepted: TunSettingsObservationPoint? = null,
-    ) : TunSettingsReadState
+    data class Loading(val lastAccepted: TunSettingsObservationPoint? = null) : TunSettingsReadState
 
-    data class Observed(
-        val point: TunSettingsObservationPoint,
-    ) : TunSettingsReadState
+    data class Observed(val point: TunSettingsObservationPoint) : TunSettingsReadState
 
-    data class Unavailable(
-        val lastAccepted: TunSettingsObservationPoint?,
-        val failure: AppFailure,
-    ) : TunSettingsReadState
+    data class Unavailable(val lastAccepted: TunSettingsObservationPoint?, val failure: AppFailure) : TunSettingsReadState
 }
 
 internal data class TunSettingsDraft(
@@ -60,12 +46,16 @@ internal data class TunUiState(
     val failure: AppFailure?
         get() = when (val current = operation) {
             is TunOperationState.Failed -> current.failure
+
             is TunOperationState.Cancelled -> current.failure
+
             is TunOperationState.Unconfirmed -> current.failure
+
             TunOperationState.Idle,
             TunOperationState.Loading,
             TunOperationState.Saving,
-            is TunOperationState.Saved -> null
+            is TunOperationState.Saved,
+            -> null
         }
 }
 
@@ -74,14 +64,12 @@ internal enum class TunReadbackMatch {
     NotConfirmed,
 }
 
-internal fun VpnTunSettings.matches(
-    patch: VpnTunSettingsPatch,
-): TunReadbackMatch = if (
+internal fun VpnTunSettings.matches(patch: VpnTunSettingsPatch): TunReadbackMatch = if (
     (patch.mtu == null || mtu == patch.mtu) &&
-        (patch.autoRoute == null || autoRoute == patch.autoRoute) &&
-        (patch.strictRoute == null || strictRoute == patch.strictRoute) &&
-        stackMatches(patch.stackUpdate) &&
-        (patch.autoDetectInterface == null || autoDetectInterface == patch.autoDetectInterface)
+    (patch.autoRoute == null || autoRoute == patch.autoRoute) &&
+    (patch.strictRoute == null || strictRoute == patch.strictRoute) &&
+    stackMatches(patch.stackUpdate) &&
+    (patch.autoDetectInterface == null || autoDetectInterface == patch.autoDetectInterface)
 ) {
     TunReadbackMatch.Confirmed
 } else {
@@ -100,15 +88,10 @@ internal fun lastAcceptedTun(state: TunSettingsReadState): TunSettingsObservatio
     is TunSettingsReadState.Unavailable -> state.lastAccepted
 }
 
-internal fun unavailableTun(
-    previous: TunSettingsReadState,
-    failure: AppFailure,
-): TunSettingsReadState = TunSettingsReadState.Unavailable(lastAcceptedTun(previous), failure)
+internal fun unavailableTun(previous: TunSettingsReadState, failure: AppFailure): TunSettingsReadState =
+    TunSettingsReadState.Unavailable(lastAcceptedTun(previous), failure)
 
-internal fun acceptsTunRevision(
-    current: TunSettingsReadState,
-    incoming: TunSettingsRevision,
-): Boolean {
+internal fun acceptsTunRevision(current: TunSettingsReadState, incoming: TunSettingsRevision): Boolean {
     val accepted = lastAcceptedTun(current)?.revision ?: return true
     if (accepted.ownerSessionId != incoming.ownerSessionId) return true
     return when {

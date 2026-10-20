@@ -104,11 +104,8 @@ class DnsSettingsStateTest {
         fallbackFilter = null,
     )
 
-    private fun revision(
-        dataRevision: ULong,
-        generation: ULong = 2uL,
-        session: String = "owner-a",
-    ) = DnsSettingsRevision(session, generation, dataRevision)
+    private fun revision(dataRevision: ULong, generation: ULong = 2uL, session: String = "owner-a") =
+        DnsSettingsRevision(session, generation, dataRevision)
 
     private fun failure() = AppFailure(
         code = AppFailureCode.NotReady,

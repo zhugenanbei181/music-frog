@@ -5,10 +5,7 @@ import infiltrator_android.FfiFailureLocalization
 import infiltrator_android.FfiFailureLocalizationKey
 import infiltrator_android.FfiStatus
 
-internal fun testFfiStatus(
-    code: FfiErrorCode,
-    message: String? = null,
-): FfiStatus {
+internal fun testFfiStatus(code: FfiErrorCode, message: String? = null): FfiStatus {
     val localizationKey = when (code) {
         FfiErrorCode.OK -> null
         FfiErrorCode.INVALID_STATE -> FfiFailureLocalizationKey.INVALID_STATE

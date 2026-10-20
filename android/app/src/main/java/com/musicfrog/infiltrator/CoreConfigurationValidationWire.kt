@@ -3,13 +3,10 @@ package com.musicfrog.infiltrator
 import org.json.JSONObject
 import java.io.File
 
-internal class CoreConfigurationDigestWire private constructor(
-    internal val sha256Hex: String,
-) {
+internal class CoreConfigurationDigestWire private constructor(internal val sha256Hex: String) {
     fun encoded(): String = "sha256:$sha256Hex"
 
-    override fun equals(other: Any?): Boolean =
-        other is CoreConfigurationDigestWire && sha256Hex == other.sha256Hex
+    override fun equals(other: Any?): Boolean = other is CoreConfigurationDigestWire && sha256Hex == other.sha256Hex
 
     override fun hashCode(): Int = sha256Hex.hashCode()
 
@@ -18,8 +15,10 @@ internal class CoreConfigurationDigestWire private constructor(
 
         fun decode(raw: String): CoreConfigurationDigestWireDecode = when {
             !raw.startsWith("sha256:") -> CoreConfigurationDigestWireDecode.Rejected
+
             !SHA256.matches(raw.removePrefix("sha256:")) ->
                 CoreConfigurationDigestWireDecode.Rejected
+
             else -> CoreConfigurationDigestWireDecode.Accepted(
                 CoreConfigurationDigestWire(raw.removePrefix("sha256:")),
             )
@@ -113,8 +112,7 @@ internal data class CoreConfigurationValidationRequestWire(
 }
 
 internal sealed interface CoreConfigurationValidationRequestDecode {
-    data class Accepted(val request: CoreConfigurationValidationRequestWire) :
-        CoreConfigurationValidationRequestDecode
+    data class Accepted(val request: CoreConfigurationValidationRequestWire) : CoreConfigurationValidationRequestDecode
 
     data class InvalidRequest(val reason: String) : CoreConfigurationValidationRequestDecode
 }
@@ -124,8 +122,7 @@ private fun CoreLaunchConfigurationIdentityWire.toJson(): JSONObject = JSONObjec
     .put("profile_id", profileId)
     .put("document_revision", documentRevision)
 
-private fun JSONObject.requiredString(key: String): String =
-    get(key) as? String ?: error("$key must be a string")
+private fun JSONObject.requiredString(key: String): String = get(key) as? String ?: error("$key must be a string")
 
 private fun JSONObject.requiredLong(key: String): Long {
     val number = get(key) as? Number ?: error("$key must be an integer")
@@ -155,10 +152,8 @@ internal sealed interface CoreConfigurationValidationOutcomeWire {
 }
 
 internal sealed interface CoreConfigurationValidationReplyWire {
-    data class Receipt(
-        val request: CoreConfigurationValidationRequestWire,
-        val outcome: CoreConfigurationValidationOutcomeWire,
-    ) : CoreConfigurationValidationReplyWire
+    data class Receipt(val request: CoreConfigurationValidationRequestWire, val outcome: CoreConfigurationValidationOutcomeWire) :
+        CoreConfigurationValidationReplyWire
 
     data class InvalidRequest(val reason: String) : CoreConfigurationValidationReplyWire
 }
@@ -172,6 +167,7 @@ internal fun CoreConfigurationValidationReplyWire.toJson(): String = when (this)
                 .put("outcome", outcome.toJsonValue()),
         )
         .toString()
+
     is CoreConfigurationValidationReplyWire.InvalidRequest -> JSONObject()
         .put("InvalidRequest", JSONObject().put("reason", reason))
         .toString()
@@ -179,23 +175,41 @@ internal fun CoreConfigurationValidationReplyWire.toJson(): String = when (this)
 
 private fun CoreConfigurationValidationOutcomeWire.toJsonValue(): Any = when (this) {
     CoreConfigurationValidationOutcomeWire.Validated -> "Validated"
+
     is CoreConfigurationValidationOutcomeWire.ConfigurationRejected -> JSONObject()
         .put("ConfigurationRejected", JSONObject().put("exit_code", exitCode))
+
     CoreConfigurationValidationOutcomeWire.CoreActive -> "CoreActive"
+
     CoreConfigurationValidationOutcomeWire.BinaryUnavailable -> "BinaryUnavailable"
+
     CoreConfigurationValidationOutcomeWire.CandidateMissing -> "CandidateMissing"
+
     CoreConfigurationValidationOutcomeWire.CandidatePathRejected -> "CandidatePathRejected"
+
     CoreConfigurationValidationOutcomeWire.CandidateDigestMismatch -> "CandidateDigestMismatch"
+
     CoreConfigurationValidationOutcomeWire.CandidateIdentityMismatch -> "CandidateIdentityMismatch"
+
     CoreConfigurationValidationOutcomeWire.DeadlineExpired -> "DeadlineExpired"
+
     CoreConfigurationValidationOutcomeWire.DeadlineTooFar -> "DeadlineTooFar"
+
     CoreConfigurationValidationOutcomeWire.TimedOut -> "TimedOut"
+
     CoreConfigurationValidationOutcomeWire.TimeoutCleanupFailed -> "TimeoutCleanupFailed"
+
     CoreConfigurationValidationOutcomeWire.Interrupted -> "Interrupted"
+
     CoreConfigurationValidationOutcomeWire.InterruptedCleanupFailed -> "InterruptedCleanupFailed"
+
     CoreConfigurationValidationOutcomeWire.ProcessCleanupFailed -> "ProcessCleanupFailed"
+
     CoreConfigurationValidationOutcomeWire.ValidationCleanupPending -> "ValidationCleanupPending"
+
     CoreConfigurationValidationOutcomeWire.CoreProcessObservationUnavailable -> "CoreProcessObservationUnavailable"
+
     CoreConfigurationValidationOutcomeWire.ProcessLaunchFailed -> "ProcessLaunchFailed"
+
     CoreConfigurationValidationOutcomeWire.NotVpnOwner -> "NotVpnOwner"
 }

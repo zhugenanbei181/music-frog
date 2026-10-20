@@ -3,11 +3,7 @@ package com.musicfrog.infiltrator
 import infiltrator_android.AndroidOwnerDataDomain
 import java.util.concurrent.atomic.AtomicReference
 
-internal data class OwnerDataStamp(
-    val ownerSessionId: String,
-    val coreGeneration: Long,
-    val revision: Long,
-)
+internal data class OwnerDataStamp(val ownerSessionId: String, val coreGeneration: Long, val revision: Long)
 
 internal enum class OwnerDataAcceptance {
     Accepted,

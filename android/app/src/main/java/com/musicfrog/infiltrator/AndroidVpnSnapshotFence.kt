@@ -2,11 +2,7 @@ package com.musicfrog.infiltrator
 
 import java.util.concurrent.atomic.AtomicReference
 
-internal data class VpnOwnerSnapshotVersion(
-    val ownerSessionId: String,
-    val requestId: Long,
-    val snapshot: VpnOwnerSnapshotWire,
-) {
+internal data class VpnOwnerSnapshotVersion(val ownerSessionId: String, val requestId: Long, val snapshot: VpnOwnerSnapshotWire) {
     init {
         require(ownerSessionId.isNotBlank())
         require(requestId > 0L)
@@ -38,10 +34,7 @@ internal class AndroidVpnSnapshotFence {
         latest.set(null)
     }
 
-    private fun isOlderThan(
-        incoming: VpnOwnerSnapshotVersion,
-        current: VpnOwnerSnapshotVersion,
-    ): Boolean {
+    private fun isOlderThan(incoming: VpnOwnerSnapshotVersion, current: VpnOwnerSnapshotVersion): Boolean {
         val next = incoming.snapshot
         val previous = current.snapshot
         if (incoming.ownerSessionId != current.ownerSessionId) return true
@@ -57,9 +50,11 @@ internal class AndroidVpnSnapshotFence {
             val previousFacts = previousCore.snapshot
             if (nextFacts.generation < previousFacts.generation) return true
             if (nextFacts.generation == previousFacts.generation &&
-                (nextFacts.identity != previousFacts.identity ||
-                    nextFacts.sessionToken != previousFacts.sessionToken ||
-                    nextFacts.revision < previousFacts.revision)
+                (
+                    nextFacts.identity != previousFacts.identity ||
+                        nextFacts.sessionToken != previousFacts.sessionToken ||
+                        nextFacts.revision < previousFacts.revision
+                    )
             ) {
                 return true
             }

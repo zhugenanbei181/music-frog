@@ -11,6 +11,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 14+ requires specific foreground service types -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+
+    <!-- The per-app routing screen lists the launchable applications. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
     <application
         android:name=".MihomoApplication"
         android:allowBackup="true"
@@ -20,7 +28,7 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Infiltrator"
-        tools:targetApi="31">
+        tools:targetApi="33">
 
         <service
             android:name=".MihomoControlService"

@@ -10,23 +10,25 @@ internal sealed interface VpnCleanupIntent {
 
 internal fun VpnCleanupIntent.merge(incoming: VpnCleanupIntent): VpnCleanupIntent = when (this) {
     VpnCleanupIntent.Revoke -> this
+
     VpnCleanupIntent.Stop -> when (incoming) {
         VpnCleanupIntent.Revoke -> incoming
+
         VpnCleanupIntent.Stop,
-        is VpnCleanupIntent.StartFailure -> this
+        is VpnCleanupIntent.StartFailure,
+        -> this
     }
+
     is VpnCleanupIntent.StartFailure -> when (incoming) {
         VpnCleanupIntent.Revoke,
-        VpnCleanupIntent.Stop -> incoming
+        VpnCleanupIntent.Stop,
+        -> incoming
+
         is VpnCleanupIntent.StartFailure -> this
     }
 }
 
-internal data class VpnCleanupRequest(
-    val generation: Long,
-    val resourceGeneration: Long,
-    val intent: VpnCleanupIntent,
-) {
+internal data class VpnCleanupRequest(val generation: Long, val resourceGeneration: Long, val intent: VpnCleanupIntent) {
     init {
         require(generation > 0L)
         require(resourceGeneration >= 0L)
@@ -57,10 +59,7 @@ internal enum class VpnCleanupResourceKind {
     OwnerReadback,
 }
 
-internal data class VpnCleanupFailure(
-    val resource: VpnCleanupResourceKind,
-    val message: String,
-)
+internal data class VpnCleanupFailure(val resource: VpnCleanupResourceKind, val message: String)
 
 internal sealed interface VpnCleanupOutcome {
     data object Completed : VpnCleanupOutcome
@@ -83,11 +82,7 @@ internal sealed interface VpnPreparedConfigurationGate {
     data class UnexpectedState(val state: VpnProcessState) : VpnPreparedConfigurationGate
 }
 
-internal data class VpnCleanupOwnerReadback(
-    val generation: Long,
-    val state: VpnProcessState,
-    val resources: VpnOwnedResourcesPresence,
-)
+internal data class VpnCleanupOwnerReadback(val generation: Long, val state: VpnProcessState, val resources: VpnOwnedResourcesPresence)
 
 internal sealed interface VpnCleanupPublication {
     data class Published(val state: VpnProcessState) : VpnCleanupPublication
@@ -102,11 +97,7 @@ internal sealed interface VpnOwnedResource<out T> {
 
     data class Held<T>(val generation: Long, val value: T) : VpnOwnedResource<T>
 
-    data class CleanupPending<T>(
-        val generation: Long,
-        val value: T,
-        val failure: VpnCleanupFailure,
-    ) : VpnOwnedResource<T>
+    data class CleanupPending<T>(val generation: Long, val value: T, val failure: VpnCleanupFailure) : VpnOwnedResource<T>
 }
 
 internal data class VpnWorkerOwnership(
@@ -130,6 +121,7 @@ internal data class VpnOwnerResourceRecordSnapshot<InterfaceHandle, WorkerHandle
             worker is VpnOwnedResource.Absent &&
             routingLease is VpnOwnedResource.Absent &&
             preparedConfiguration is VpnOwnedResource.Absent -> VpnOwnedResourcesPresence.Clear
+
         else -> VpnOwnedResourcesPresence.Retained
     }
 }
@@ -149,12 +141,13 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
     private var preparedConfiguration: VpnOwnedResource<PreparedHandle> = VpnOwnedResource.Absent
 
     @Synchronized
-    fun snapshot(): VpnOwnerResourceRecordSnapshot<InterfaceHandle, WorkerHandle, LeaseHandle, PreparedHandle> = VpnOwnerResourceRecordSnapshot(
-        tunnelDescriptor,
-        worker,
-        routingLease,
-        preparedConfiguration,
-    )
+    fun snapshot(): VpnOwnerResourceRecordSnapshot<InterfaceHandle, WorkerHandle, LeaseHandle, PreparedHandle> =
+        VpnOwnerResourceRecordSnapshot(
+            tunnelDescriptor,
+            worker,
+            routingLease,
+            preparedConfiguration,
+        )
 
     @Synchronized
     fun markCleanupPending(generation: Long, failure: VpnCleanupFailure) {
@@ -176,12 +169,10 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
         markPending(generation, failure, tunnelDescriptor) { tunnelDescriptor = it }
 
     @Synchronized
-    fun clearTunnelDescriptor(generation: Long): VpnOwnerResourceMutation =
-        clear(generation, tunnelDescriptor) { tunnelDescriptor = it }
+    fun clearTunnelDescriptor(generation: Long): VpnOwnerResourceMutation = clear(generation, tunnelDescriptor) { tunnelDescriptor = it }
 
     @Synchronized
-    fun recordWorker(generation: Long, handle: WorkerHandle): VpnOwnerResourceMutation =
-        record(generation, handle, worker) { worker = it }
+    fun recordWorker(generation: Long, handle: WorkerHandle): VpnOwnerResourceMutation = record(generation, handle, worker) { worker = it }
 
     @Synchronized
     fun hasWorker(generation: Long): Boolean = worker.valueFor(generation) != null
@@ -204,40 +195,28 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
     fun routingLeaseState(generation: Long): LeaseHandle? = routingLease.valueFor(generation)
 
     @Synchronized
-    fun updateRoutingLease(
-        generation: Long,
-        state: LeaseHandle,
-        pendingFailure: VpnCleanupFailure? = null,
-    ): VpnOwnerResourceMutation = when (pendingFailure) {
-        null -> record(generation, state, routingLease) { routingLease = it }
-        else -> recordPending(generation, state, pendingFailure, routingLease) { routingLease = it }
-    }
+    fun updateRoutingLease(generation: Long, state: LeaseHandle, pendingFailure: VpnCleanupFailure? = null): VpnOwnerResourceMutation =
+        when (pendingFailure) {
+            null -> record(generation, state, routingLease) { routingLease = it }
+            else -> recordPending(generation, state, pendingFailure, routingLease) { routingLease = it }
+        }
 
     @Synchronized
-    fun markRoutingLeasePending(
-        generation: Long,
-        failure: VpnCleanupFailure,
-    ): VpnOwnerResourceMutation = markPending(generation, failure, routingLease) { routingLease = it }
+    fun markRoutingLeasePending(generation: Long, failure: VpnCleanupFailure): VpnOwnerResourceMutation =
+        markPending(generation, failure, routingLease) { routingLease = it }
 
     @Synchronized
-    fun clearRoutingLease(generation: Long): VpnOwnerResourceMutation =
-        clear(generation, routingLease) { routingLease = it }
+    fun clearRoutingLease(generation: Long): VpnOwnerResourceMutation = clear(generation, routingLease) { routingLease = it }
 
     @Synchronized
-    fun recordPreparedConfiguration(
-        generation: Long,
-        preparation: PreparedHandle,
-    ): VpnOwnerResourceMutation = record(
+    fun recordPreparedConfiguration(generation: Long, preparation: PreparedHandle): VpnOwnerResourceMutation = record(
         generation,
         preparation,
         preparedConfiguration,
     ) { preparedConfiguration = it }
 
     @Synchronized
-    fun markPreparedConfigurationPending(
-        generation: Long,
-        failure: VpnCleanupFailure,
-    ): VpnOwnerResourceMutation = markPending(
+    fun markPreparedConfigurationPending(generation: Long, failure: VpnCleanupFailure): VpnOwnerResourceMutation = markPending(
         generation,
         failure,
         preparedConfiguration,
@@ -257,18 +236,22 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
             assign(VpnOwnedResource.Held(generation, value))
             VpnOwnerResourceMutation.Recorded
         }
+
         is VpnOwnedResource.Held -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.Held(generation, value))
                 VpnOwnerResourceMutation.Recorded
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
+
         is VpnOwnedResource.CleanupPending -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.Held(generation, value))
                 VpnOwnerResourceMutation.Recorded
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
     }
@@ -281,18 +264,22 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
         assign: (VpnOwnedResource<T>) -> Unit,
     ): VpnOwnerResourceMutation = when (current) {
         VpnOwnedResource.Absent -> VpnOwnerResourceMutation.StaleGeneration
+
         is VpnOwnedResource.Held -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.CleanupPending(generation, value, failure))
                 VpnOwnerResourceMutation.Recorded
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
+
         is VpnOwnedResource.CleanupPending -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.CleanupPending(generation, value, failure))
                 VpnOwnerResourceMutation.Recorded
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
     }
@@ -304,18 +291,22 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
         assign: (VpnOwnedResource<T>) -> Unit,
     ): VpnOwnerResourceMutation = when (current) {
         VpnOwnedResource.Absent -> VpnOwnerResourceMutation.AlreadyAbsent
+
         is VpnOwnedResource.Held -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.CleanupPending(generation, current.value, failure))
                 VpnOwnerResourceMutation.Recorded
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
+
         is VpnOwnedResource.CleanupPending -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.CleanupPending(generation, current.value, failure))
                 VpnOwnerResourceMutation.Recorded
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
     }
@@ -326,18 +317,22 @@ internal class VpnOwnerResourceRecord<InterfaceHandle, WorkerHandle, LeaseHandle
         assign: (VpnOwnedResource<T>) -> Unit,
     ): VpnOwnerResourceMutation = when (current) {
         VpnOwnedResource.Absent -> VpnOwnerResourceMutation.AlreadyAbsent
+
         is VpnOwnedResource.Held -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.Absent)
                 VpnOwnerResourceMutation.Cleared
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
+
         is VpnOwnedResource.CleanupPending -> when (current.generation) {
             generation -> {
                 assign(VpnOwnedResource.Absent)
                 VpnOwnerResourceMutation.Cleared
             }
+
             else -> VpnOwnerResourceMutation.StaleGeneration
         }
     }

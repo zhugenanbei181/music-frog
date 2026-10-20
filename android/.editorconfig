@@ -1,0 +1,14 @@
+# BANDROID-044.2: ktlint configuration for the Android Gradle build scripts.
+#
+# The product Kotlin sources are configured through the ktlint Gradle plugin
+# in `android/app/build.gradle.kts`; this file only carries the settings that
+# the plugin DSL cannot express, because they are scoped to one file type.
+
+[*.kts]
+# The Mihomo asset guard (scripts/quality/android-mihomo-assets-guard.py)
+# pins the Gradle property name `fetchMihomoX86_64Asset`, which mirrors the
+# canonical Rust target triple `x86_64-unknown-linux-gnu`. The triple
+# spelling is a wire fact that the guard owns, so it wins over the camelCase
+# property convention for the build scripts. The product Kotlin sources keep
+# the `standard:property-naming` rule enabled.
+ktlint_standard_property-naming = disabled

@@ -21,10 +21,7 @@ internal sealed interface AndroidBridgeCall {
 
     data class ExecuteOwnerOperation(val operationJson: String) : AndroidBridgeCall
 
-    data class ProfileAgeCredentialOwnerOperation(
-        val metadataJson: String,
-        val privateKeyBytes: ByteArray,
-    ) : AndroidBridgeCall
+    data class ProfileAgeCredentialOwnerOperation(val metadataJson: String, val privateKeyBytes: ByteArray) : AndroidBridgeCall
 
     data class CredentialGet(val service: String, val key: String) : AndroidBridgeCall
 
@@ -101,8 +98,11 @@ internal object AndroidBridgeCallWire {
                     AndroidBridgeCall.CoreStart(body.getString("start_request_json")),
                 )
             }
+
             "core_stop" -> unit(payload, AndroidBridgeCall.CoreStop)
+
             "core_process_observation" -> unit(payload, AndroidBridgeCall.CoreProcessObservation)
+
             "core_process_recovery_completed" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("context_json"))
@@ -110,6 +110,7 @@ internal object AndroidBridgeCallWire {
                     AndroidBridgeCall.CoreProcessRecoveryCompleted(body.getString("context_json")),
                 )
             }
+
             "core_validate_configuration" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("request_json"))
@@ -117,7 +118,9 @@ internal object AndroidBridgeCallWire {
                     AndroidBridgeCall.CoreValidateConfiguration(body.getString("request_json")),
                 )
             }
+
             "core_lifecycle_snapshot" -> unit(payload, AndroidBridgeCall.CoreLifecycleSnapshot)
+
             "execute_product_command" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("command_json"))
@@ -125,7 +128,9 @@ internal object AndroidBridgeCallWire {
                     AndroidBridgeCall.ExecuteProductCommand(body.getString("command_json")),
                 )
             }
+
             "surface_snapshot" -> unit(payload, AndroidBridgeCall.SurfaceSnapshot)
+
             "execute_owner_operation" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("operation_json"))
@@ -133,6 +138,7 @@ internal object AndroidBridgeCallWire {
                     AndroidBridgeCall.ExecuteOwnerOperation(body.getString("operation_json")),
                 )
             }
+
             "credential_get" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("service", "key"))
@@ -143,6 +149,7 @@ internal object AndroidBridgeCallWire {
                     ),
                 )
             }
+
             "credential_set" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("service", "key", "value"))
@@ -154,6 +161,7 @@ internal object AndroidBridgeCallWire {
                     ),
                 )
             }
+
             "credential_delete" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("service", "key"))
@@ -164,8 +172,11 @@ internal object AndroidBridgeCallWire {
                     ),
                 )
             }
+
             "vpn_start" -> unit(payload, AndroidBridgeCall.VpnStart)
+
             "vpn_authorization_state" -> unit(payload, AndroidBridgeCall.VpnAuthorizationState)
+
             "vpn_apply_configuration" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("prepared_json"))
@@ -173,6 +184,7 @@ internal object AndroidBridgeCallWire {
                     AndroidBridgeCall.VpnApplyConfiguration(body.getString("prepared_json")),
                 )
             }
+
             "vpn_stop" -> {
                 val body = payloadObject(payload)
                 requireKeys(body, setOf("target"))
@@ -181,6 +193,7 @@ internal object AndroidBridgeCallWire {
                 val stopTarget = when {
                     targetKeys == setOf("Current") && target.isNull("Current") ->
                         AndroidBridgeCall.VpnStop(targetCode = 0, generation = 0L)
+
                     targetKeys == setOf("Generation") -> {
                         val generation = target.get("Generation")
                             .toString()
@@ -189,11 +202,14 @@ internal object AndroidBridgeCallWire {
                         require(generation > 0L) { "VPN stop generation must be positive" }
                         AndroidBridgeCall.VpnStop(targetCode = 1, generation = generation)
                     }
+
                     else -> error("VPN stop target variant is invalid")
                 }
                 AndroidBridgeCallDecode.Accepted(stopTarget)
             }
+
             "vpn_owner_snapshot" -> unit(payload, AndroidBridgeCall.VpnOwnerSnapshot)
+
             else -> AndroidBridgeCallDecode.Rejected("unknown Android bridge operation variant")
         }
     } catch (error: Exception) {
@@ -203,32 +219,49 @@ internal object AndroidBridgeCallWire {
     fun encodeReply(reply: AndroidBridgeCallReply): String {
         val result = when (reply) {
             is AndroidBridgeCallReply.CoreStart -> tagged("core_start", JSONObject().put("wire_code", reply.wireCode))
+
             is AndroidBridgeCallReply.CoreStop -> tagged("core_stop", JSONObject().put("wire_code", reply.wireCode))
+
             is AndroidBridgeCallReply.CoreProcessObservation -> tagged("core_process_observation", reply.json)
+
             is AndroidBridgeCallReply.CoreProcessRecoveryCompleted ->
                 tagged("core_process_recovery_completed", JSONObject().put("wire_code", reply.wireCode))
+
             is AndroidBridgeCallReply.CoreValidateConfiguration -> tagged("core_validate_configuration", reply.json)
+
             is AndroidBridgeCallReply.CoreLifecycleSnapshot -> tagged("core_lifecycle_snapshot", reply.json)
+
             is AndroidBridgeCallReply.ExecuteProductCommand -> tagged("execute_product_command", reply.json)
+
             is AndroidBridgeCallReply.SurfaceSnapshot -> tagged("surface_snapshot", reply.json)
+
             is AndroidBridgeCallReply.ExecuteOwnerOperation -> tagged("execute_owner_operation", reply.json)
+
             is AndroidBridgeCallReply.ProfileAgeCredentialOwnerOperation ->
                 tagged("profile_age_credential_owner_operation", reply.json)
+
             is AndroidBridgeCallReply.CredentialGet -> tagged("credential_get", reply.value ?: JSONObject.NULL)
+
             is AndroidBridgeCallReply.CredentialSet -> tagged(
                 "credential_set",
                 JSONObject().put("outcome", reply.outcome.wireValue),
             )
+
             is AndroidBridgeCallReply.CredentialDelete -> tagged(
                 "credential_delete",
                 JSONObject().put("outcome", reply.outcome.wireValue),
             )
+
             is AndroidBridgeCallReply.VpnStart -> tagged("vpn_start", JSONObject().put("wire_code", reply.wireCode))
+
             is AndroidBridgeCallReply.VpnAuthorizationState ->
                 tagged("vpn_authorization_state", JSONObject().put("wire_code", reply.wireCode))
+
             is AndroidBridgeCallReply.VpnConfigurationApply ->
                 tagged("vpn_configuration_apply", JSONObject().put("wire_code", reply.wireCode))
+
             is AndroidBridgeCallReply.VpnStop -> tagged("vpn_stop", reply.json)
+
             is AndroidBridgeCallReply.VpnOwnerSnapshot -> tagged("vpn_owner_snapshot", reply.json)
         }
         return JSONObject()

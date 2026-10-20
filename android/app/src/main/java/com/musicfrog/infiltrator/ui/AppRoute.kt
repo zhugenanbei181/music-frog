@@ -1,6 +1,5 @@
 package com.musicfrog.infiltrator.ui
 
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Settings
@@ -8,12 +7,10 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.musicfrog.infiltrator.R
 
-internal enum class AppSection(
-    val titleRes: Int,
-    val icon: ImageVector,
-) {
+internal enum class AppSection(val titleRes: Int, val icon: ImageVector) {
     Overview(R.string.nav_overview, Icons.Outlined.Shield),
     Profiles(R.string.nav_profiles, Icons.Outlined.Storage),
     Proxies(R.string.nav_proxies, Icons.Outlined.Tune),
@@ -55,10 +52,12 @@ internal sealed interface AppRoute {
 
         override fun back(): AppRoute = when (section) {
             AppSection.Overview -> this
+
             AppSection.Profiles,
             AppSection.Proxies,
             AppSection.AppRouting,
-            AppSection.Sync -> Main(AppSection.Overview)
+            AppSection.Sync,
+            -> Main(AppSection.Overview)
         }
     }
 
@@ -94,9 +93,11 @@ internal fun restoreAppRoute(value: String): AppRoute? {
         "main" -> AppSection.values()
             .firstOrNull { it.name == key }
             ?.let(AppRoute::Main)
+
         "settings" -> SettingsDestination.values()
             .firstOrNull { it.name == key }
             ?.let(AppRoute::SettingsDetail)
+
         else -> null
     }
 }

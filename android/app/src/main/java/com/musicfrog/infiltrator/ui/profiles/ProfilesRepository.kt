@@ -1,19 +1,19 @@
 package com.musicfrog.infiltrator.ui.profiles
 
-import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationGateway
+import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.UniFfiAndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
+import infiltrator_android.AndroidActiveProfileReferenceObservation
 import infiltrator_android.AndroidOwnerDataDomain
 import infiltrator_android.AndroidOwnerDataSnapshotData
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.AndroidOwnerOperationProtocolVersion
 import infiltrator_android.AndroidOwnerOperationReadback
 import infiltrator_android.AndroidOwnerOperationReply
-import infiltrator_android.AndroidActiveProfileReferenceObservation
 import infiltrator_android.AndroidProfileSelectionReadback
 import infiltrator_android.AndroidProfileSelectionTarget
 import infiltrator_android.FfiErrorCode
@@ -21,58 +21,35 @@ import infiltrator_android.FfiStatus
 
 internal sealed interface ProfilesRepositoryObservation {
     data class Profiles(val snapshot: ProfilesSnapshot) : ProfilesRepositoryObservation
-    data class Selection(
-        val snapshot: ProfilesSnapshot,
-        val target: AndroidProfileSelectionTarget,
-        val activeReferenceRevision: ULong,
-    ) : ProfilesRepositoryObservation
-    data class Detail(
-        val detail: ProfileDetailSnapshot,
-        val profiles: ProfilesSnapshot,
-    ) : ProfilesRepositoryObservation
+    data class Selection(val snapshot: ProfilesSnapshot, val target: AndroidProfileSelectionTarget, val activeReferenceRevision: ULong) :
+        ProfilesRepositoryObservation
+    data class Detail(val detail: ProfileDetailSnapshot, val profiles: ProfilesSnapshot) : ProfilesRepositoryObservation
 }
 
 internal sealed interface ProfilesRepositoryResult {
     data class Completed(val observation: ProfilesRepositoryObservation) : ProfilesRepositoryResult
-    data class Failed(
-        val failure: AppFailure,
-        val latest: ProfilesSnapshot?,
-    ) : ProfilesRepositoryResult
-    data class Cancelled(
-        val failure: AppFailure,
-        val latest: ProfilesSnapshot?,
-    ) : ProfilesRepositoryResult
+    data class Failed(val failure: AppFailure, val latest: ProfilesSnapshot?) : ProfilesRepositoryResult
+    data class Cancelled(val failure: AppFailure, val latest: ProfilesSnapshot?) : ProfilesRepositoryResult
     data class TimedOut(val failure: AppFailure) : ProfilesRepositoryResult
-    data class Unconfirmed(
-        val failure: AppFailure,
-        val latest: ProfilesSnapshot?,
-    ) : ProfilesRepositoryResult
+    data class Unconfirmed(val failure: AppFailure, val latest: ProfilesSnapshot?) : ProfilesRepositoryResult
 }
 
 internal interface ProfilesRepository {
-    suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): ProfilesRepositoryResult
+    suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): ProfilesRepositoryResult
 }
 
-internal class UniFfiProfilesRepository(
-    private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway,
-) : ProfilesRepository {
-    override suspend fun execute(
-        operation: AndroidOwnerOperation,
-        timeoutMs: Long,
-    ): ProfilesRepositoryResult = when (val result = gateway.execute(operation, timeoutMs)) {
-        is AndroidOwnerOperationExchange.Completed -> result.reply.toProfilesRepositoryResult(operation)
-        is AndroidOwnerOperationExchange.Failed -> ProfilesRepositoryResult.Failed(result.failure, null)
-        is AndroidOwnerOperationExchange.Cancelled -> ProfilesRepositoryResult.Cancelled(result.failure, null)
-        is AndroidOwnerOperationExchange.TimedOut -> ProfilesRepositoryResult.TimedOut(result.failure)
-    }
+internal class UniFfiProfilesRepository(private val gateway: AndroidOwnerOperationGateway = UniFfiAndroidOwnerOperationGateway) :
+    ProfilesRepository {
+    override suspend fun execute(operation: AndroidOwnerOperation, timeoutMs: Long): ProfilesRepositoryResult =
+        when (val result = gateway.execute(operation, timeoutMs)) {
+            is AndroidOwnerOperationExchange.Completed -> result.reply.toProfilesRepositoryResult(operation)
+            is AndroidOwnerOperationExchange.Failed -> ProfilesRepositoryResult.Failed(result.failure, null)
+            is AndroidOwnerOperationExchange.Cancelled -> ProfilesRepositoryResult.Cancelled(result.failure, null)
+            is AndroidOwnerOperationExchange.TimedOut -> ProfilesRepositoryResult.TimedOut(result.failure)
+        }
 }
 
-private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
-    operation: AndroidOwnerOperation,
-): ProfilesRepositoryResult {
+private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(operation: AndroidOwnerOperation): ProfilesRepositoryResult {
     val kind = operation.profilesRequestKind()
     if (kind == ProfilesRequestKind.Unsupported || !matchesOwnerFence(kind)) {
         return unconfirmedProfiles(null)
@@ -80,10 +57,13 @@ private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
 
     val expectedRevision = when (kind.revisionAdvance()) {
         ProfilesRevisionAdvance.None -> context.expectedDataRevision
-        ProfilesRevisionAdvance.One -> context.expectedDataRevision
-            .takeIf { it < ULong.MAX_VALUE }
-            ?.plus(1u)
-            ?: return unconfirmedProfiles(null)
+
+        ProfilesRevisionAdvance.One ->
+            context.expectedDataRevision
+                .takeIf { it < ULong.MAX_VALUE }
+                ?.plus(1u)
+                ?: return unconfirmedProfiles(null)
+
         ProfilesRevisionAdvance.Unsupported -> return unconfirmedProfiles(null)
     }
     if (dataRevision != expectedRevision) return unconfirmedProfiles(null)
@@ -99,7 +79,9 @@ private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
         FfiErrorCode.OK -> operation.toCompletedObservation(this, latest)
             ?.let { observation -> ProfilesRepositoryResult.Completed(observation) }
             ?: unconfirmedProfiles(latest)
+
         FfiErrorCode.CANCELED -> ProfilesRepositoryResult.Cancelled(status.toAppFailure(), latest)
+
         else -> ProfilesRepositoryResult.Failed(status.toAppFailure(), latest)
     }
 }
@@ -117,27 +99,30 @@ private fun AndroidOwnerOperationReply.matchesOwnerFence(kind: ProfilesRequestKi
         ownerSnapshot.data is AndroidOwnerDataSnapshotData.Profiles
 }
 
-private fun AndroidOwnerOperationReply.readbackStatus(
-    kind: ProfilesRequestKind,
-): ProfilesReadbackReceipt = when (kind) {
+private fun AndroidOwnerOperationReply.readbackStatus(kind: ProfilesRequestKind): ProfilesReadbackReceipt = when (kind) {
     ProfilesRequestKind.List -> when (val receipt = readback) {
         is AndroidOwnerOperationReadback.ProfilesList -> ProfilesReadbackReceipt.Observed(receipt.v1.status)
         else -> ProfilesReadbackReceipt.Mismatch
     }
+
     ProfilesRequestKind.Detail -> when (val receipt = readback) {
         is AndroidOwnerOperationReadback.ProfileDetail -> ProfilesReadbackReceipt.Observed(receipt.v1.status)
         else -> ProfilesReadbackReceipt.Mismatch
     }
+
     ProfilesRequestKind.Mutation -> when (val receipt = readback) {
         is AndroidOwnerOperationReadback.ProfileMutation -> ProfilesReadbackReceipt.Observed(receipt.v1)
         else -> ProfilesReadbackReceipt.Mismatch
     }
+
     ProfilesRequestKind.Selection -> when (val receipt = readback) {
         is AndroidOwnerOperationReadback.ProfileSelection -> {
             val reference = receipt.v1.activeReference
             val status = when (reference) {
                 is AndroidActiveProfileReferenceObservation.Selected,
-                is AndroidActiveProfileReferenceObservation.Unselected -> receipt.v1.operationStatus
+                is AndroidActiveProfileReferenceObservation.Unselected,
+                -> receipt.v1.operationStatus
+
                 is AndroidActiveProfileReferenceObservation.Unavailable -> when (
                     receipt.v1.operationStatus.code
                 ) {
@@ -147,8 +132,10 @@ private fun AndroidOwnerOperationReply.readbackStatus(
             }
             ProfilesReadbackReceipt.Selection(status, receipt.v1)
         }
+
         else -> ProfilesReadbackReceipt.Mismatch
     }
+
     ProfilesRequestKind.Unsupported -> ProfilesReadbackReceipt.Mismatch
 }
 
@@ -165,6 +152,7 @@ private fun AndroidOwnerOperation.toCompletedObservation(
                 false -> null
             }
         }
+
         is AndroidOwnerOperation.ProfileDetail -> {
             val receipt = reply.readback as? AndroidOwnerOperationReadback.ProfileDetail ?: return null
             val detail = receipt.v1.profile ?: return null
@@ -174,6 +162,7 @@ private fun AndroidOwnerOperation.toCompletedObservation(
                 profiles = profiles,
             )
         }
+
         is AndroidOwnerOperation.ProfileSelect -> {
             val readback = reply.readback as? AndroidOwnerOperationReadback.ProfileSelection ?: return null
             val reference = readback.v1.activeReference as? AndroidActiveProfileReferenceObservation.Selected
@@ -187,15 +176,18 @@ private fun AndroidOwnerOperation.toCompletedObservation(
                 activeReferenceRevision = reference.revision,
             )
         }
+
         is AndroidOwnerOperation.ProfileCreate,
         is AndroidOwnerOperation.ProfileUpdate,
         is AndroidOwnerOperation.ProfileSave,
         is AndroidOwnerOperation.ProfileDelete,
         is AndroidOwnerOperation.ProfileSubscriptionSave,
-        is AndroidOwnerOperation.ProfileSubscriptionClear -> when (reply.readback) {
+        is AndroidOwnerOperation.ProfileSubscriptionClear,
+        -> when (reply.readback) {
             is AndroidOwnerOperationReadback.ProfileMutation -> ProfilesRepositoryObservation.Profiles(profiles)
             else -> null
         }
+
         else -> null
     }
 }
@@ -222,22 +214,31 @@ private fun AndroidOwnerOperationReply.latestProfilesSnapshot(): ProfilesSnapsho
 
 private fun AndroidOwnerOperation.profilesRequestKind(): ProfilesRequestKind = when (this) {
     AndroidOwnerOperation.ProfilesList -> ProfilesRequestKind.List
+
     is AndroidOwnerOperation.ProfileDetail -> ProfilesRequestKind.Detail
+
     is AndroidOwnerOperation.ProfileSelect -> ProfilesRequestKind.Selection
+
     is AndroidOwnerOperation.ProfileCreate,
     is AndroidOwnerOperation.ProfileUpdate,
     is AndroidOwnerOperation.ProfileSave,
     is AndroidOwnerOperation.ProfileDelete,
     is AndroidOwnerOperation.ProfileSubscriptionSave,
-    is AndroidOwnerOperation.ProfileSubscriptionClear -> ProfilesRequestKind.Mutation
+    is AndroidOwnerOperation.ProfileSubscriptionClear,
+    -> ProfilesRequestKind.Mutation
+
     else -> ProfilesRequestKind.Unsupported
 }
 
 private fun ProfilesRequestKind.revisionAdvance(): ProfilesRevisionAdvance = when (this) {
     ProfilesRequestKind.List,
-    ProfilesRequestKind.Detail -> ProfilesRevisionAdvance.None
+    ProfilesRequestKind.Detail,
+    -> ProfilesRevisionAdvance.None
+
     ProfilesRequestKind.Mutation,
-    ProfilesRequestKind.Selection -> ProfilesRevisionAdvance.One
+    ProfilesRequestKind.Selection,
+    -> ProfilesRevisionAdvance.One
+
     ProfilesRequestKind.Unsupported -> ProfilesRevisionAdvance.Unsupported
 }
 
@@ -257,15 +258,10 @@ private enum class ProfilesRevisionAdvance {
 
 private sealed interface ProfilesReadbackReceipt {
     data class Observed(val status: FfiStatus) : ProfilesReadbackReceipt
-    data class Selection(
-        val status: FfiStatus,
-        val readback: AndroidProfileSelectionReadback,
-    ) : ProfilesReadbackReceipt
+    data class Selection(val status: FfiStatus, val readback: AndroidProfileSelectionReadback) : ProfilesReadbackReceipt
     data object Mismatch : ProfilesReadbackReceipt
 }
 
 private fun notReadyFailure(): AppFailure = localizedFailure(FailureTextKey.NotReady).toAppFailure()
 
-private fun unconfirmedProfiles(
-    latest: ProfilesSnapshot?,
-) = ProfilesRepositoryResult.Unconfirmed(notReadyFailure(), latest)
+private fun unconfirmedProfiles(latest: ProfilesSnapshot?) = ProfilesRepositoryResult.Unconfirmed(notReadyFailure(), latest)

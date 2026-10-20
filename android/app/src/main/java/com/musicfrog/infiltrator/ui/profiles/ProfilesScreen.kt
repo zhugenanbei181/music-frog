@@ -46,11 +46,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.EmptyStateText
@@ -69,7 +69,7 @@ import kotlinx.coroutines.withContext
 internal fun ProfilesScreen(
     viewModel: ProfilesViewModel = viewModel(),
     initialImportUrl: String? = null,
-    onImportHandled: () -> Unit = {}
+    onImportHandled: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val drafts = state.drafts
@@ -89,16 +89,23 @@ internal fun ProfilesScreen(
         (collection is ProfilesReadState.Loading && collection.lastAccepted == null)
     val emptyState = when (collection) {
         is ProfilesReadState.Observed -> if (collection.point.value.profiles.isEmpty()) EmptyStateTextKey.Profiles else null
+
         is ProfilesReadState.Loading,
-        is ProfilesReadState.Unavailable -> null
+        is ProfilesReadState.Unavailable,
+        -> null
     }
     val visibleFailure = when (val action = state.action) {
         is ProfileActionState.Failed -> action.failure
+
         is ProfileActionState.Cancelled -> action.failure
+
         is ProfileActionState.TimedOut -> action.failure
+
         is ProfileActionState.Unconfirmed -> action.failure
+
         is ProfileActionState.Idle,
-        is ProfileActionState.Working -> (state.detail as? ProfileDetailReadState.Unavailable)?.failure
+        is ProfileActionState.Working,
+        -> (state.detail as? ProfileDetailReadState.Unavailable)?.failure
     }
 
     val scope = rememberCoroutineScope()
@@ -119,10 +126,12 @@ internal fun ProfilesScreen(
                 ?.substringBeforeLast(".")
                 ?.takeIf { it.isNotBlank() }
                 ?: "imported"
-            viewModel.setLocalImportDraft(LocalImportDraft(
-                suggestedName = suggestedName,
-                content = fileContent,
-            ))
+            viewModel.setLocalImportDraft(
+                LocalImportDraft(
+                    suggestedName = suggestedName,
+                    content = fileContent,
+                ),
+            )
         }
     }
 
@@ -136,7 +145,7 @@ internal fun ProfilesScreen(
         floatingActionButton = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.End
+                horizontalAlignment = Alignment.End,
             ) {
                 FloatingActionButton(
                     onClick = { importLocalLauncher.launch("*/*") },
@@ -157,11 +166,13 @@ internal fun ProfilesScreen(
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.title_add_profile))
                 }
             }
-        }
+        },
     ) { padding ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 140.dp),
@@ -185,7 +196,7 @@ internal fun ProfilesScreen(
 
             if (!isLoading && profiles.isEmpty() && emptyState != null) {
                 EmptyStateText(
-                    key = emptyState!!,
+                    key = emptyState,
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
@@ -202,7 +213,7 @@ internal fun ProfilesScreen(
             if (visibleFailure != null) {
                 ErrorDialog(
                     failure = visibleFailure.toLocalizedFailure(),
-                    onDismiss = { viewModel.clearError() }
+                    onDismiss = { viewModel.clearError() },
                 )
             }
 
@@ -217,17 +228,17 @@ internal fun ProfilesScreen(
                         viewModel.addProfile(name, url)
                         viewModel.closeAddDialog()
                         onImportHandled()
-                    }
+                    },
                 )
             }
 
             if (profileDetail != null) {
                 SaveProfileDialog(
                     title = stringResource(R.string.title_edit_profile),
-                    initialName = profileDetail!!.name,
+                    initialName = profileDetail.name,
                     nameEditable = false,
-                    initialContent = profileDetail!!.content,
-                    initialActivate = profileDetail!!.active,
+                    initialContent = profileDetail.content,
+                    initialActivate = profileDetail.active,
                     onDismiss = { viewModel.clearProfileDetail() },
                     onConfirm = { name, content, activate ->
                         viewModel.saveProfileContent(name, content, activate.toProfileActivation())
@@ -235,8 +246,8 @@ internal fun ProfilesScreen(
                 )
             }
 
-            if (drafts.localImportDraft != null) {
-                val localDraft = drafts.localImportDraft!!
+            val localDraft = drafts.localImportDraft
+            if (localDraft != null) {
                 SaveProfileDialog(
                     title = stringResource(R.string.title_import_local_profile),
                     initialName = localDraft.suggestedName,
@@ -251,8 +262,8 @@ internal fun ProfilesScreen(
                 )
             }
 
-            if (drafts.subscriptionProfile != null) {
-                val subProfile = drafts.subscriptionProfile!!
+            val subProfile = drafts.subscriptionProfile
+            if (subProfile != null) {
                 SubscriptionSettingsDialog(
                     profile = subProfile,
                     onDismiss = { viewModel.setSubscriptionProfile(null) },
@@ -268,19 +279,19 @@ internal fun ProfilesScreen(
                     onClear = {
                         viewModel.clearSubscriptionSettings(subProfile.name)
                         viewModel.setSubscriptionProfile(null)
-                    }
+                    },
                 )
             }
 
-            if (drafts.deletingProfile != null) {
-                val delProfile = drafts.deletingProfile!!
+            val delProfile = drafts.deletingProfile
+            if (delProfile != null) {
                 ConfirmDeleteDialog(
                     profileName = delProfile.name,
                     onDismiss = { viewModel.setDeletingProfile(null) },
                     onConfirm = {
                         viewModel.deleteProfile(delProfile.name)
                         viewModel.setDeletingProfile(null)
-                    }
+                    },
                 )
             }
         }
@@ -313,7 +324,7 @@ private fun ProfileRow(
                         Icons.Default.Check,
                         contentDescription = stringResource(R.string.status_active),
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp, end = 12.dp)
+                        modifier = Modifier.padding(start = 8.dp, end = 12.dp),
                     )
                 }
                 Box {
@@ -362,16 +373,12 @@ private fun ProfileRow(
                     }
                 }
             }
-        }
+        },
     )
 }
 
 @Composable
-private fun AddProfileDialog(
-    initialUrl: String = "",
-    onDismiss: () -> Unit,
-    onConfirm: (String, String) -> Unit
-) {
+private fun AddProfileDialog(initialUrl: String = "", onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf(initialUrl) }
 
@@ -385,21 +392,21 @@ private fun AddProfileDialog(
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.label_name)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
                     label = { Text(stringResource(R.string.label_url)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(name, url) },
-                enabled = name.isNotBlank() && url.isNotBlank()
+                enabled = name.isNotBlank() && url.isNotBlank(),
             ) {
                 Text(stringResource(R.string.action_add))
             }
@@ -408,7 +415,7 @@ private fun AddProfileDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
             }
-        }
+        },
     )
 }
 
@@ -437,7 +444,7 @@ private fun SaveProfileDialog(
                     label = { Text(stringResource(R.string.label_name)) },
                     enabled = nameEditable,
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = content,
@@ -449,7 +456,7 @@ private fun SaveProfileDialog(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(text = stringResource(R.string.label_activate_after_save))
                     Switch(
@@ -475,7 +482,7 @@ private fun SaveProfileDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
             }
-        }
+        },
     )
 }
 
@@ -499,19 +506,19 @@ private fun SubscriptionSettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = profile.name,
-                    style = MaterialTheme.typography.titleSmall
+                    style = MaterialTheme.typography.titleSmall,
                 )
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
                     label = { Text(stringResource(R.string.label_subscription_url)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(text = stringResource(R.string.label_auto_update))
                     Switch(
@@ -525,7 +532,7 @@ private fun SubscriptionSettingsDialog(
                         onValueChange = { intervalHours = it },
                         label = { Text(stringResource(R.string.label_update_interval_hours)) },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -555,11 +562,7 @@ private fun SubscriptionSettingsDialog(
 }
 
 @Composable
-private fun ConfirmDeleteDialog(
-    profileName: String,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
+private fun ConfirmDeleteDialog(profileName: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.title_delete_profile)) },
@@ -573,15 +576,13 @@ private fun ConfirmDeleteDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
             }
-        }
+        },
     )
 }
 
-private suspend fun readTextFromUri(context: Context, uri: Uri): String? {
-    return withContext(Dispatchers.IO) {
-        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-            reader.readText()
-        }
+private suspend fun readTextFromUri(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
+    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+        reader.readText()
     }
 }
 
