@@ -198,7 +198,41 @@
   - 待验证：真实交互与像素回执（官方 barrier/Esc/焦点圈闭的用户可见证据）随本批截图批次。
   - 本机可执行动作：跑统一截图批次。
 
-## 八、登记说明
+## 八、Android 静态质量门（已交付，4条 / 9pt）
+
+- [ ] BANDROID-044.1 [kind: infra] [priority: P1] [points: 2] [owner: android gradle] [status: Integrated] Android Lint 接入
+  - 产物：Compose/Bevy/Slint Debug 变体注册真实 lint task（`androidLintGate`），警告即错误（`warningsAsErrors = true`、`abortOnError = true`），不读 baseline 文件、不把 assemble 当 lint 结果；lint task 跑在 PR/push workflow 与本机入口里。
+  - 依赖：BANDROID-042/043 存量违规清理。
+  - 验收：lint 结果分项报告，违规清零后强制生效。
+  - 当前证据（L）：提交 `faa013c`；本机实测 lint 68 条（4 errors + 64 warnings）→ 0；四条有据可查的窄豁免写在 `android/app/lint.xml` 并由架构红线守卫逐条钉住；`android/app/lint.xml` 之外无任何 suppression。
+  - 待验证：受控 CI runner 的真实 lint 回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
+  - 本机可执行动作：跑统一验证批次 `scripts/quality/android-quality-gates.sh`。
+
+- [ ] BANDROID-044.2 [kind: infra] [priority: P1] [points: 2] [owner: android gradle + scripts/quality] [status: Integrated] ktlint/Detekt 门
+  - 产物：ktlint 与 Detekt 接入并强制；无永久 baseline、文件级 suppression 或抬高阈值。
+  - 依赖：BANDROID-044.1。
+  - 验收：违规清零后强制生效；正反例可复现。
+  - 当前证据（L）：提交 `faa013c`；ktlint 5046 → 0（以仓库自身代码风格为声明风格，作用域限定 Gradle 脚本）；Detekt 项目配置 0 条（stock profile 的 769 条不作数），每条 exclude 都写明由哪道机器门负责该关注点；无 baseline 文件、无文件级 suppression、无抬高阈值。
+  - 待验证：受控 CI runner 的真实 ktlint/Detekt 回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
+  - 本机可执行动作：跑统一验证批次 `scripts/quality/android-quality-gates.sh`。
+
+- [ ] BANDROID-044.4 [kind: infra] [priority: P1] [points: 3] [owner: scripts/quality] [status: Integrated] 架构红线守卫
+  - 产物：禁止生产 readiness sleep、主线程阻塞、无界 GlobalScope、空 catch、吞取消、`!!` 与多状态 Boolean wire。
+  - 依赖：BANDROID-044.2。
+  - 验收：窄例外有局部说明与行为回归；正反例通过。
+  - 当前证据（L）：提交 `faa013c`；新增 `scripts/quality/android-architecture-redline-guard.py`，扫描 137 处违规点、0 违例；ARCH001–007 七条红线各有负例（共 23 条负例）；窄例外必须同时具备局部说明与行为回归。
+  - 待验证：受控 CI runner 的守卫回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
+  - 本机可执行动作：跑统一验证批次；守卫已接入 `scripts/quality/check-structure.sh`。
+
+- [ ] BANDROID-044.5 [kind: infra] [priority: P1] [points: 2] [owner: CI + 本机检查入口] [status: Integrated] 质量门接线并自测
+  - 产物：Android workflow 与本机入口分别运行三 flavor lint、ktlint、Detekt、文件预算与架构守卫。
+  - 依赖：BANDROID-044.1～044.4。
+  - 验收：正反例验证任务注册、排除、放行与拒绝；真实执行后才称质量门接通。
+  - 当前证据（L）：提交 `faa013c`；本机入口 `scripts/quality/android-quality-gates.sh` 一次跑完 lint/ktlint/Detekt/架构守卫并带自测；Android 单测 192 core host + 391 app 全绿；架构守卫以 `--self-test` + `--mode enforce` 接入结构门。
+  - 待验证：受控 CI runner 的真实回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
+  - 本机可执行动作：跑统一验证批次 `bash scripts/quality/check-structure.sh`。
+
+## 九、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。

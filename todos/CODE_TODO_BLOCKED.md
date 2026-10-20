@@ -154,10 +154,10 @@
   - 产物：用户/组织持有的 release keystore 与受保护 CI secrets；无 secret 时发布 job 清晰失败，禁止静默退回 debug key。
   - 依赖：用户提供并安全配置 keystore/alias/password。
   - 验收：签名产物可复现；私钥不入仓库/日志/APK 输出。
-  - 当前证据：无 secret 时发布 job 的 fail-closed 路径已在 release workflow 登记。
+  - 当前证据：release 变体已用专用签名配置读取 keystore 路径/store 密码/key alias/key 密码（typed sum：完整 keystore 或缺失清单）；无 secret 时发布 job 明确失败、Gradle 配置期即报缺失清单，debug key 不再用于任何 release 产物（提交 `0031973`）。本机验证：缺 secret 时 `:app:assembleComposeRelease` 配置失败并列出缺失项，材料齐备时配置通过。
   - 阻塞方：用户提供的持久 release keystore 与 CI secrets。
   - 解锁条件：用户下发 keystore/alias/password 并完成 secret 配置后的发布 job 回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：fail-closed 路径已闭环，无剩余本机可执行动作。
+  - 本板停留期间：仓库侧 fail-closed 路径已闭环并实测，剩余闭环只依赖用户 secrets。
 - [ ] BANDROID-015.2 [kind: evidence] [priority: P0] [points: 2] [owner: android/app Gradle + release] [status: Blocked] release universal APK 签名/identity 校验
   - 产物：Compose/Bevy/Slint release universal APK 通过 identity/aapt 与签名校验。
   - 依赖：BANDROID-039 持久 keystore。

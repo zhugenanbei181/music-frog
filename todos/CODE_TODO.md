@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v245`：现在佛 67 pt（28 条）/ 过去佛 55 pt（23 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
-- 本板 28 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261020-v246`：现在佛 58 pt（24 条）/ 过去佛 64 pt（27 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
+- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -201,30 +201,6 @@
 
 ## 七、C 主线：质量红线与安装包
 
-- [ ] BANDROID-044.1 [kind: infra] [priority: P1] [points: 2] [owner: android gradle] [status: Planned] Android Lint 接入
-  - 产物：Compose/Bevy Debug 变体 lint task 注册并接入 PR/push workflow；不把 assemble 当 lint 结果。
-  - 依赖：BANDROID-042/043 存量违规清理；AGP 9.3.1/JDK 17 的 Lint crash 待官方兼容矩阵覆盖。
-  - 验收：lint 结果分项报告，违规清零后强制生效。
-  - 计划：① 登记当前 lint 违规基线；② 逐类清理；③ 注册 task 与 workflow 步骤并留分项报告。
-  - 证据：lint 报告 + workflow run ID。
-- [ ] BANDROID-044.2 [kind: infra] [priority: P1] [points: 2] [owner: android gradle + scripts/quality] [status: Planned] ktlint/Detekt 门
-  - 产物：ktlint 与 Detekt 接入并强制；无永久 baseline、文件级 suppression 或抬高阈值。
-  - 依赖：BANDROID-044.1。
-  - 验收：违规清零后强制生效；正反例可复现。
-  - 计划：① 接入工具并盘点违规；② 清理至零；③ 去掉任何豁免开关后复跑。
-  - 证据：扫描报告 + 负例回执。
-- [ ] BANDROID-044.4 [kind: infra] [priority: P1] [points: 3] [owner: scripts/quality] [status: Planned] 架构红线守卫
-  - 产物：禁止生产 readiness sleep、主线程阻塞、无界 GlobalScope、空 catch、吞取消、`!!` 与多状态 Boolean wire。
-  - 依赖：BANDROID-044.2。
-  - 验收：窄例外有局部说明与行为回归；正反例通过。
-  - 计划：① 复用既有 typed-state/line 守卫规则集；② 扩展到 Kotlin 与桌面 crate；③ 接入结构门。
-  - 证据：守卫 run ID + 负例回执。
-- [ ] BANDROID-044.5 [kind: infra] [priority: P1] [points: 2] [owner: CI + 本机检查入口] [status: Planned] 质量门接线并自测
-  - 产物：Android workflow 与本机入口分别运行两 flavor lint、ktlint、Detekt、文件预算与架构守卫。
-  - 依赖：BANDROID-044.1～044.4。
-  - 验收：正反例验证任务注册、排除、放行与拒绝；真实执行后才称质量门接通。
-  - 计划：① 汇总本机入口脚本；② 接 workflow；③ 用故意违规验证 CI 拒绝。
-  - 证据：workflow run ID + 负例回执；CI 实际 runner 回执在斗战胜佛 §二。
 - [ ] APPID-001.3 [kind: evidence] [priority: P0] [points: 2] [owner: packaging/linux] [status: Planned] Linux 最终 Deb/AppImage 产物
   - 产物：Linux 最终 Deb/AppImage 构建与验收。
   - 依赖：APPID-001.2。
