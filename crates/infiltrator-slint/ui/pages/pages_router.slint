@@ -2,12 +2,13 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import {
     ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup,
-    TrafficBar, HomeTrafficPoint, LicenseRow
+    TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem
 } from "../components/models.slint";
 import { PagesMain } from "pages_main.slint";
 import { PagesSettings } from "pages_settings.slint";
 import { PagesObserve } from "pages_observe.slint";
 import { PagesInfo } from "pages_info.slint";
+import { PageWorkbench } from "page_workbench.slint";
 
 export component PagesRouter inherits VerticalLayout {
     in property <string> page;
@@ -158,6 +159,15 @@ export component PagesRouter inherits VerticalLayout {
     in property <string> license-detail-error;
     in property <string> license-detail-text;
 
+    // Workbench pages
+    in property <[WorkbenchItem]> workbench-items;
+    in-out property <string> workbench-draft;
+    in-out property <string> workbench-draft-2;
+    in property <string> workbench-draft-id;
+    in property <string> workbench-draft-2-id;
+    in property <string> workbench-draft-placeholder;
+    in property <string> workbench-draft-2-placeholder;
+
     // Callbacks
     callback start-runtime();
     callback stop-runtime();
@@ -220,9 +230,21 @@ export component PagesRouter inherits VerticalLayout {
     callback search-licenses(string);
     callback retry-license-catalog();
     callback select-license(LicenseRow);
+    callback workbench-action(string, string);
+    callback workbench-draft-edited(string, string);
+    callback refresh-home-egress();
 
     width: 100%;
     alignment: start;
+
+    if root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting": PageWorkbench {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
 
     PagesMain {
         page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
@@ -268,6 +290,7 @@ export component PagesRouter inherits VerticalLayout {
         select-group(g) => { root.select-group(g); } select-proxy(g, n) => { root.select-proxy(g, n); }
         search-proxy-nodes(q) => { root.search-proxy-nodes(q); } test-proxy(g, n) => { root.test-proxy(g, n); }
         open-sort-menu => { root.open-sort-menu(); } set-route-mode(m) => { root.set-route-mode(m); }
+        refresh-home-egress => { root.refresh-home-egress(); }
     }
 
     PagesSettings {

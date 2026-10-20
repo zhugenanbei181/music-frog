@@ -91,6 +91,7 @@ export component PagesMain inherits VerticalLayout {
     callback test-proxy(string, string);
     callback open-sort-menu();
     callback set-route-mode(string);
+    callback refresh-home-egress();
 
     width: 100%;
     alignment: start;
@@ -139,6 +140,7 @@ export component PagesMain inherits VerticalLayout {
         open-profile-add => { root.open-profile-add(); }
         navigate(t) => { root.navigate(t); }
         cache-back-preview => { root.cache-back-preview(); }
+        refresh-home-egress => { root.refresh-home-egress(); }
     }
 
     if root.page == "Config": PageConfig {

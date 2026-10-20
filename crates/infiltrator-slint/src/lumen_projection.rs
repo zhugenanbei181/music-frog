@@ -6,10 +6,12 @@
 //! store.
 
 pub(super) mod collections;
+pub(super) mod workbench;
 
 use super::flag_assets;
 use super::slint_model;
 use super::{AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
+use crate::surface::workbenches::Workbenches;
 use crate::theme_util::apply_theme_color;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
@@ -315,6 +317,19 @@ pub(super) fn project_snapshot(
             }
         }
     }
+}
+
+/// Projects the workbench pages from the shared owner snapshot.
+///
+/// The workbench reducers live in the shared surface state, so this
+/// projection is separate from the page projection the other surfaces share.
+pub(super) fn project_workbench(
+    window: &AppWindow,
+    snapshot: &SurfaceSnapshot,
+    workbenches: &Workbenches,
+) {
+    let language = snapshot_language(snapshot);
+    workbench::project(window, snapshot, &language, workbenches);
 }
 
 pub(super) fn snapshot_window_warning(snapshot: &SurfaceSnapshot, page: &str) -> String {

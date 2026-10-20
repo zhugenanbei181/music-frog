@@ -1,3 +1,4 @@
+import { Button } from "std-widgets.slint";
 import { FilledButton, TonalButton } from "@material";
 import { FlagIcon } from "../lumen-flags.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
@@ -55,6 +56,7 @@ export component PageHome inherits VerticalLayout {
     callback open-profile-add();
     callback navigate(string);
     callback cache-back-preview();
+    callback refresh-home-egress();
 
     width: 100%;
     spacing: LumenTheme.space-4;
@@ -177,10 +179,11 @@ export component PageHome inherits VerticalLayout {
             if root.home-exit-country-code != "": Text { text: root.home-exit-country-code; color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; vertical-alignment: center; }
         }
         HorizontalLayout {
-            width: parent.width; height: 32px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
+            width: parent.width; height: 40px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
             Text { text: root.home-exit-ip; color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
             if root.home-exit-status != "" && root.home-exit-status != "已更新": Text { text: root.home-exit-status; color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; vertical-alignment: center; }
+            Button { text: @tr("刷新"); clicked => { root.refresh-home-egress(); } }
         }
         Rectangle {
             width: parent.width;
@@ -299,6 +302,8 @@ export component PageHome inherits VerticalLayout {
         SummaryRow { label: @tr("网络接管"); value: root.network-mode-label; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
         SummaryRow { label: @tr("代理模式"); value: root.route-mode == "Rule" ? @tr("规则") : root.route-mode == "Global" ? @tr("全局") : @tr("直连"); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Proxy"); } }
         SummaryRow { label: @tr("活动连接"); value: root.stat-connections; emphasized: true; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
+        SummaryRow { label: @tr("出口 IP"); value: root.home-exit-ip; }
+        Button { text: @tr("刷新"); clicked => { root.refresh-home-egress(); } }
     }
     if root.traffic-today-has-data && !root.compact-layout: SurfaceCard {
         HorizontalLayout { spacing: LumenTheme.space-2;

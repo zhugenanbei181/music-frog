@@ -1435,3 +1435,21 @@ msgstr "Error"
 
 msgid "MIHOMO CLIENT"
 msgstr "MIHOMO CLIENT"
+
+msgid "DNS"
+msgstr "DNS"
+
+msgid "编辑器"
+msgstr "Editor"
+
+msgid "过滤与聚合"
+msgstr "Filters and aggregation"
+
+msgid "诊断"
+msgstr "Diagnostics"
+
+msgid "同步"
+msgstr "Sync"
+
+msgid "应用路由"
+msgstr "App routing"

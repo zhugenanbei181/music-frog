@@ -10,11 +10,12 @@ import { LumenTheme } from "components/theme.slint";
 export { LumenTheme }
 
 import { LumenUiScale } from "lumen-ui-scale.slint";
-import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow } from "components/models.slint";
+import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
 import { AppBottomBar, ClearTrafficDialog, NoticeBanner, SettingsMessageBanner, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
+import { PageWorkbench } from "pages/page_workbench.slint";
 
 export component AppWindow inherits MaterialWindow {
     title: "MusicFrog Infiltrator";
@@ -84,11 +85,12 @@ export component AppWindow inherits MaterialWindow {
     // The real on-screen geometry of the sheet the surface opened. The parity
     // capture path publishes these bounds with its activation marker, so a
     // pixel receipt is bound to the surface that was actually activated.
-    out property <bool> capture-sheet-open: root.profile-add-open || root.pending-delete-id != "";
-    out property <length> capture-bounds-x: root.profile-add-open ? profile-overlays.add-sheet-x : profile-overlays.delete-sheet-x;
-    out property <length> capture-bounds-y: root.profile-add-open ? profile-overlays.add-sheet-y : profile-overlays.delete-sheet-y;
-    out property <length> capture-bounds-width: root.profile-add-open ? profile-overlays.add-sheet-width : profile-overlays.delete-sheet-width;
-    out property <length> capture-bounds-height: root.profile-add-open ? profile-overlays.add-sheet-height : profile-overlays.delete-sheet-height;
+    out property <bool> capture-page-open: root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting";
+    out property <bool> capture-sheet-open: root.profile-add-open || root.pending-delete-id != "" || root.capture-page-open;
+    out property <length> capture-bounds-x: root.capture-page-open ? 0px * LumenUiScale.factor : root.profile-add-open ? profile-overlays.add-sheet-x : profile-overlays.delete-sheet-x;
+    out property <length> capture-bounds-y: root.capture-page-open ? 0px * LumenUiScale.factor : root.profile-add-open ? profile-overlays.add-sheet-y : profile-overlays.delete-sheet-y;
+    out property <length> capture-bounds-width: root.capture-page-open ? root.width : root.profile-add-open ? profile-overlays.add-sheet-width : profile-overlays.delete-sheet-width;
+    out property <length> capture-bounds-height: root.capture-page-open ? root.height : root.profile-add-open ? profile-overlays.add-sheet-height : profile-overlays.delete-sheet-height;
     in-out property <int> back-request-revision: 0;
     in-out property <float> back-gesture-progress: 0;
     in-out property <bool> back-gesture-active: false;
@@ -251,31 +253,23 @@ export component AppWindow inherits MaterialWindow {
     in-out property <string> content-preview: "";
     in-out property <string> content-preview-profile: "";
     in-out property <string> core-version: "";
-    in-out property <[LicenseRow]> license-rows: [];
-    in-out property <int> license-rows-revision: 0;
-    in-out property <string> license-query: "";
-    in-out property <string> license-catalog-error: "";
-    in-out property <string> license-detail-name: "";
-    in-out property <string> license-detail-version: "";
-    in-out property <string> license-detail-identifier: "";
-    in-out property <string> license-detail-text: "";
-    in-out property <string> license-detail-error: "";
-    in-out property <int> license-detail-revision: 0;
+    in-out property <[LicenseRow]> license-rows: []; in-out property <int> license-rows-revision: 0;
+    in-out property <string> license-query: ""; in-out property <string> license-catalog-error: "";
+    in-out property <string> license-detail-name: ""; in-out property <string> license-detail-version: "";
+    in-out property <string> license-detail-identifier: ""; in-out property <string> license-detail-text: "";
+    in-out property <string> license-detail-error: ""; in-out property <int> license-detail-revision: 0;
+    in-out property <[WorkbenchItem]> workbench-items: []; in-out property <string> workbench-draft: "";
+    in-out property <string> workbench-draft-2: ""; in-out property <string> workbench-draft-id: "";
+    in-out property <string> workbench-draft-2-id: ""; in-out property <string> workbench-draft-placeholder: "";
+    in-out property <string> workbench-draft-2-placeholder: "";
 
-    callback navigate(string);
-    callback color-scheme-changed(bool);
-    callback start-runtime();
-    callback stop-runtime();
-    callback set-route-mode(string);
-    callback set-network-mode(string);
-    callback check-core();
-    callback retry-proxy-restore();
-    callback add-override(string, string);
-    callback import-override-url(string);
-    callback choose-override-file();
-    callback save-override(string, string);
-    callback delete-override(string);
-    callback export-override(string);
+    callback navigate(string); callback color-scheme-changed(bool);
+    callback start-runtime(); callback stop-runtime();
+    callback set-route-mode(string); callback set-network-mode(string);
+    callback check-core(); callback retry-proxy-restore();
+    callback add-override(string, string); callback import-override-url(string);
+    callback choose-override-file(); callback save-override(string, string);
+    callback delete-override(string); callback export-override(string);
     callback edit-override(string);
     callback apply-override(string);
     callback add-url-profile(string, string, string);
@@ -334,6 +328,7 @@ export component AppWindow inherits MaterialWindow {
     callback search-licenses(string);
     callback open-license(string);
     callback retry-license-catalog();
+    callback workbench-action(string, string); callback workbench-draft-edited(string, string);
 
     changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.bottom-bar-visible = true; root.update-color-scheme(); }
     changed selected-group => { root.proxy-active-node-position = 0px * LumenUiScale.factor; root.proxy-current-node-available = false; root.update-color-scheme(); root.select-proxy-group(root.selected-group); }
@@ -430,6 +425,8 @@ export component AppWindow inherits MaterialWindow {
         window-height: root.height; content-preview: root.content-preview; content-preview-profile: root.content-preview-profile;
         license-query <=> root.license-query; license-rows: root.license-rows;
         license-catalog-error: root.license-catalog-error; license-detail-name: root.license-detail-name; license-detail-version: root.license-detail-version; license-detail-identifier: root.license-detail-identifier; license-detail-error: root.license-detail-error; license-detail-text: root.license-detail-text;
+        workbench-items: root.workbench-items; workbench-draft <=> root.workbench-draft; workbench-draft-2 <=> root.workbench-draft-2;
+        workbench-draft-id: root.workbench-draft-id; workbench-draft-2-id: root.workbench-draft-2-id; workbench-draft-placeholder: root.workbench-draft-placeholder; workbench-draft-2-placeholder: root.workbench-draft-2-placeholder;
         navigate(t) => {
             if t == "Connections" || t == "Logs" || t == "Rules" || t == "Traffic" { root.page-origin = "Settings"; }
             if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
@@ -486,6 +483,9 @@ export component AppWindow inherits MaterialWindow {
             if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
         root.page = "LicenseDetail"; root.navigate("LicenseDetail"); root.open-license(item.id);
         }
+        workbench-action(id, row) => { root.workbench-action(id, row); }
+        workbench-draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+        refresh-home-egress => { root.refresh-home-egress(); }
     }
 
     proxy-sort-menu := ProxySortMenu {
@@ -516,6 +516,7 @@ export component AppWindow inherits MaterialWindow {
         close-profile-action => { root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; }
         open-editor => { let id = root.profile-action-id; root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.page = "Preview"; root.navigate("Preview"); root.show-profile-preview(id); }
         open-settings => { let id = root.profile-action-id; root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; root.open-profile-settings(id); }
+        refresh-profile => { let id = root.profile-action-id; root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; root.refresh-profile(id); }
         close-profile-share => { root.pending-profile-export-id = ""; root.pending-profile-export-name = ""; }
         export-profile => { let id = root.pending-profile-export-id; root.pending-profile-export-id = ""; root.pending-profile-export-name = ""; root.export-profile(id); }
         close-profile-delete => { root.pending-delete-id = ""; root.pending-delete-name = ""; }

@@ -11,7 +11,10 @@
 use super::{FailureObserver, install_failure_observer};
 use crate::callbacks;
 use crate::lumen_projection;
-use crate::{AppWindow, ObservationRow, SlintAction, SurfaceSnapshot, WorkerRequest};
+use crate::surface::workbenches::Workbenches;
+use crate::{
+    AppWindow, ObservationRow, SlintAction, SurfaceSnapshot, WorkbenchItem, WorkerRequest,
+};
 use lurker_core_contract::error::Failure;
 use slint::Model;
 use slint::platform;
@@ -58,6 +61,7 @@ pub struct SurfaceHarness {
     window: AppWindow,
     requests: Receiver<WorkerRequest>,
     latest: Arc<Mutex<Option<SurfaceSnapshot>>>,
+    workbenches: Arc<Workbenches>,
     failures: Rc<RefCell<Vec<Failure>>>,
     previous_observer: Option<FailureObserver>,
 }
@@ -72,7 +76,13 @@ impl SurfaceHarness {
         let window = AppWindow::new()?;
         let (requests, receiver) = channel::<WorkerRequest>();
         let latest = Arc::new(Mutex::new(snapshot));
-        callbacks::register_callbacks(&window, requests, Arc::clone(&latest));
+        let workbenches = Arc::new(Workbenches::default());
+        callbacks::register_callbacks(
+            &window,
+            requests,
+            Arc::clone(&latest),
+            Arc::clone(&workbenches),
+        );
         let failures = Rc::new(RefCell::new(Vec::new()));
         let observed = Rc::clone(&failures);
         let observer: FailureObserver = Rc::new(move |failure: Failure| {
@@ -83,6 +93,7 @@ impl SurfaceHarness {
             window,
             requests: receiver,
             latest,
+            workbenches,
             failures,
             previous_observer,
         })
@@ -95,6 +106,7 @@ impl SurfaceHarness {
             *latest = Some(snapshot.clone());
         }
         lumen_projection::project_snapshot(&self.window, &snapshot, None);
+        lumen_projection::project_workbench(&self.window, &snapshot, &self.workbenches);
     }
 
     /// The window the harness drives.
@@ -385,6 +397,68 @@ impl SurfaceHarness {
     /// The rule the surface marked as pending.
     pub fn rule_pending_index(&self) -> String {
         self.window.get_rule_pending_index().to_string()
+    }
+
+    /// Opens one page of the surface, exactly as the navigation does.
+    ///
+    /// The projection of the page follows the owner snapshot the surface
+    /// already observes.
+    pub fn open_page(&self, page: &str) {
+        self.window.set_page(page.into());
+        let snapshot = self.latest.lock().ok().and_then(|guard| guard.clone());
+        if let Some(snapshot) = snapshot {
+            lumen_projection::project_snapshot(&self.window, &snapshot, None);
+            lumen_projection::project_workbench(&self.window, &snapshot, &self.workbenches);
+        }
+    }
+
+    /// Drives one workbench panel action, exactly as the panel button does.
+    pub fn workbench_action(&self, action: &str, row: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_workbench_action(action.into(), row.into()))
+    }
+
+    /// Drives one workbench draft edit, exactly as the panel input does.
+    pub fn workbench_draft_edited(&self, id: &str, value: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_workbench_draft_edited(id.into(), value.into()))
+    }
+
+    /// Sets the draft the panel input holds, exactly as typing does.
+    pub fn set_workbench_draft(&self, value: &str) {
+        self.window.set_workbench_draft(value.into());
+    }
+
+    /// Sets the secondary draft the panel input holds.
+    pub fn set_workbench_draft_2(&self, value: &str) {
+        self.window.set_workbench_draft_2(value.into());
+    }
+
+    /// Drives the subscription refresh callback of the profile action sheet.
+    pub fn refresh_profile(&self, profile_id: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_refresh_profile(profile_id.into()))
+    }
+
+    /// Drives the public egress re-probe callback of the home page.
+    pub fn refresh_home_egress(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_refresh_home_egress())
+    }
+
+    /// The workbench cells the surface projects for the open page.
+    pub fn workbench_items(&self) -> Vec<WorkbenchItem> {
+        let model = self.window.get_workbench_items();
+        (0..model.row_count())
+            .filter_map(|row| model.row_data(row))
+            .collect()
+    }
+
+    /// The workbench cell the surface projects for one business.
+    pub fn workbench_item(&self, id: &str) -> Option<WorkbenchItem> {
+        self.workbench_items()
+            .into_iter()
+            .find(|item| item.id.as_str() == id)
     }
 
     /// The connection the surface marked as pending.

@@ -4,7 +4,7 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
 import {
     ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup,
-    TrafficBar, HomeTrafficPoint, LicenseRow
+    TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem
 } from "./models.slint";
 import { DesktopSideBar } from "./sidebar.slint";
 import { PagesRouter } from "../pages/pages_router.slint";
@@ -167,6 +167,15 @@ export component AppBody inherits Rectangle {
     in property <string> license-detail-error;
     in property <string> license-detail-text;
 
+    // Workbench pages
+    in property <[WorkbenchItem]> workbench-items;
+    in-out property <string> workbench-draft;
+    in-out property <string> workbench-draft-2;
+    in property <string> workbench-draft-id;
+    in property <string> workbench-draft-2-id;
+    in property <string> workbench-draft-placeholder;
+    in property <string> workbench-draft-2-placeholder;
+
     // Callbacks
     callback navigate(string);
     callback open-sort-menu();
@@ -229,6 +238,9 @@ export component AppBody inherits Rectangle {
     callback search-licenses(string);
     callback retry-license-catalog();
     callback select-license(LicenseRow);
+    callback workbench-action(string, string);
+    callback workbench-draft-edited(string, string);
+    callback refresh-home-egress();
 
     public function scroll-to-top() {
         page-scroll.content-y = 0px * LumenUiScale.factor;
@@ -331,7 +343,7 @@ export component AppBody inherits Rectangle {
                         clicked => { root.go-back(); }
                     }
                     Text {
-                        text: root.page == "AppSettings" ? @tr("应用设置") : root.page == "Meta" ? @tr("Meta 功能") : root.page == "Network" ? @tr("网络设置") : root.page == "Overrides" ? @tr("覆写") : root.page == "Connections" ? @tr("连接") : root.page == "ConnectionDetail" ? @tr("连接详情") : root.page == "Logs" ? @tr("日志") : root.page == "Rules" ? @tr("规则") : root.page == "Traffic" ? @tr("流量统计") : root.page == "Providers" ? @tr("外部资源") : root.page == "Preview" ? root.content-preview-profile : root.page == "ProfileSettings" ? @tr("订阅设置") : root.page == "About" ? @tr("关于") : root.page == "Licenses" ? @tr("开源许可") : root.page == "LicenseDetail" ? root.license-detail-name : root.page;
+                        text: root.page == "AppSettings" ? @tr("应用设置") : root.page == "Meta" ? @tr("Meta 功能") : root.page == "Network" ? @tr("网络设置") : root.page == "Overrides" ? @tr("覆写") : root.page == "Connections" ? @tr("连接") : root.page == "ConnectionDetail" ? @tr("连接详情") : root.page == "Logs" ? @tr("日志") : root.page == "Rules" ? @tr("规则") : root.page == "Traffic" ? @tr("流量统计") : root.page == "Providers" ? @tr("外部资源") : root.page == "Preview" ? root.content-preview-profile : root.page == "ProfileSettings" ? @tr("订阅设置") : root.page == "About" ? @tr("关于") : root.page == "Licenses" ? @tr("开源许可") : root.page == "LicenseDetail" ? root.license-detail-name : root.page == "Dns" ? @tr("DNS") : root.page == "Editor" ? @tr("编辑器") : root.page == "Filters" ? @tr("过滤与聚合") : root.page == "Doctor" ? @tr("诊断") : root.page == "Sync" ? @tr("同步") : root.page == "AppRouting" ? @tr("应用路由") : root.page;
                         color: LumenTheme.text-primary;
                         font-size: 18px * LumenUiScale.factor;
                         font-weight: 600;
@@ -426,6 +438,10 @@ export component AppBody inherits Rectangle {
                             license-catalog-error: root.license-catalog-error; license-detail-name: root.license-detail-name;
                             license-detail-version: root.license-detail-version; license-detail-identifier: root.license-detail-identifier;
                             license-detail-error: root.license-detail-error; license-detail-text: root.license-detail-text;
+                            workbench-items: root.workbench-items; workbench-draft <=> root.workbench-draft; workbench-draft-2 <=> root.workbench-draft-2;
+                            workbench-draft-id: root.workbench-draft-id; workbench-draft-2-id: root.workbench-draft-2-id; workbench-draft-placeholder: root.workbench-draft-placeholder; workbench-draft-2-placeholder: root.workbench-draft-2-placeholder;
+                            workbench-action(id, row) => { root.workbench-action(id, row); } workbench-draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+                            refresh-home-egress => { root.refresh-home-egress(); }
                             start-runtime => { root.start-runtime(); } stop-runtime => { root.stop-runtime(); }
                             navigate(t) => { root.navigate(t); } cache-back-preview => { root.cache-back-preview(); }
                             open-profile-add => { root.open-profile-add(); } set-current-profile(id) => { root.set-current-profile(id); }

@@ -1,0 +1,129 @@
+import { Button, LineEdit } from "std-widgets.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The carrier of every business that has no dedicated page yet. Each cell of
+// the flat item list renders one observation, one status line or one action
+// of the business the owner published.
+export component PageWorkbench inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-3;
+    alignment: start;
+
+    if root.draft-id != "": LineEdit {
+        width: parent.width;
+        text <=> root.draft;
+        placeholder-text: root.draft-placeholder;
+        edited(value) => { root.draft-edited(root.draft-id, value); }
+    }
+    if root.draft-2-id != "": LineEdit {
+        width: parent.width;
+        text <=> root.draft-2;
+        placeholder-text: root.draft-2-placeholder;
+        edited(value) => { root.draft-edited(root.draft-2-id, value); }
+    }
+
+    for item in root.items: VerticalLayout {
+        vertical-stretch: 0;
+        width: parent.width;
+        spacing: 0px * LumenUiScale.factor;
+        alignment: start;
+
+        if item.kind == "header": Rectangle {
+            width: parent.width;
+            height: 58px * LumenUiScale.factor;
+            border-radius: LumenTheme.radius-control;
+            background: LumenTheme.surface;
+            VerticalLayout {
+                x: 14px * LumenUiScale.factor;
+                width: parent.width - 28px * LumenUiScale.factor;
+                height: parent.height;
+                spacing: 2px * LumenUiScale.factor;
+                alignment: center;
+                Text {
+                    text: item.title;
+                    color: LumenTheme.text-primary;
+                    font-size: 16px * LumenUiScale.factor;
+                    font-weight: 600;
+                    wrap: word-wrap;
+                    vertical-stretch: 0;
+                }
+                Text {
+                    text: item.status;
+                    color: item.tone == "danger" ? LumenTheme.error
+                        : item.tone == "success" ? LumenTheme.ping-good
+                        : item.tone == "warning" ? LumenTheme.status-warning
+                        : LumenTheme.text-secondary;
+                    font-size: 13px * LumenUiScale.factor;
+                    wrap: word-wrap;
+                    vertical-stretch: 0;
+                }
+            }
+        }
+
+        if item.kind == "text": Text {
+            width: parent.width;
+            text: item.detail;
+            color: LumenTheme.text-secondary;
+            font-size: 13px * LumenUiScale.factor;
+            wrap: word-wrap;
+            vertical-stretch: 0;
+        }
+
+        if item.kind == "row": Rectangle {
+            width: parent.width;
+            height: 46px * LumenUiScale.factor;
+            border-radius: LumenTheme.radius-control;
+            background: LumenTheme.surface-muted;
+            HorizontalLayout {
+                x: 12px * LumenUiScale.factor;
+                width: parent.width - 24px * LumenUiScale.factor;
+                height: parent.height;
+                spacing: LumenTheme.space-2;
+                cross-axis-alignment: center;
+                Text {
+                    text: item.title;
+                    color: LumenTheme.text-primary;
+                    font-size: 14px * LumenUiScale.factor;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                Text {
+                    text: item.detail;
+                    color: LumenTheme.text-secondary;
+                    font-size: 12px * LumenUiScale.factor;
+                    overflow: elide;
+                }
+                Text {
+                    text: item.trailing;
+                    color: LumenTheme.accent;
+                    font-size: 12px * LumenUiScale.factor;
+                    overflow: elide;
+                }
+                if item.action-id != "": Button {
+                    text: item.label;
+                    enabled: item.enabled;
+                    clicked => { root.action(item.action-id, item.row-id); }
+                }
+            }
+        }
+
+        if item.kind == "button": Button {
+            text: item.label;
+            enabled: item.enabled;
+            clicked => { root.action(item.action-id, ""); }
+        }
+    }
+}

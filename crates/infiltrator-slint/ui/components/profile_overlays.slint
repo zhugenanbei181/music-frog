@@ -37,6 +37,7 @@ export component ProfileOverlays inherits Rectangle {
     callback close-profile-action();
     callback open-editor();
     callback open-settings();
+    callback refresh-profile();
     callback close-profile-share();
     callback export-profile();
     callback close-profile-delete();
@@ -114,6 +115,7 @@ export component ProfileOverlays inherits Rectangle {
         dismiss => { root.close-profile-action(); }
         open-editor => { root.open-editor(); }
         open-settings => { root.open-settings(); }
+        refresh => { root.refresh-profile(); }
     }
 
     profile-share-sheet := ProfileShareSheet {

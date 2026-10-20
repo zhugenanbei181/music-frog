@@ -24,6 +24,7 @@ mod lumen_projection;
 pub mod surface;
 pub mod theme_util;
 
+use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::named_override::NamedOverrideId;
@@ -236,6 +237,7 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
     let (event_tx, event_rx) = channel::<WorkerEvent>();
     let poll_pending = Arc::new(AtomicBool::new(false));
     let latest_snapshot = Arc::new(Mutex::new(None));
+    let workbenches = Arc::new(Workbenches::default());
     spawn_host_worker(
         Arc::clone(&host),
         request_rx,
@@ -243,10 +245,18 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
         Arc::clone(&poll_pending),
         Arc::clone(&latest_snapshot),
     );
-    callbacks::register_callbacks(&window, request_tx.clone(), Arc::clone(&latest_snapshot));
+    callbacks::register_callbacks(
+        &window,
+        request_tx.clone(),
+        Arc::clone(&latest_snapshot),
+        Arc::clone(&workbenches),
+    );
 
     let update_window = window.as_weak();
     let poll_tx = request_tx.clone();
+    // The event loop closure owns a handle to the shared workbench state, so
+    // the surface's reducers stay reachable from every projection.
+    let workbenches = Arc::clone(&workbenches);
     let timer = slint::Timer::default();
     timer.start(
         slint::TimerMode::Repeated,
@@ -261,11 +271,15 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
             }
             while let Ok(event) = event_rx.try_recv() {
                 let weak = update_window.clone();
+                // Each event closure takes its own handle to the shared
+                // workbench state; the outer loop keeps its own.
+                let workbenches = Arc::clone(&workbenches);
                 let _ = weak.upgrade_in_event_loop(move |window| match event {
                     WorkerEvent::Snapshot(Ok(snapshot), autostart) => {
                         let language = lumen_projection::snapshot_language(&snapshot);
                         select_translation(&window, &language);
                         lumen_projection::project_snapshot(&window, &snapshot, autostart);
+                        lumen_projection::project_workbench(&window, &snapshot, &workbenches);
                     }
                     WorkerEvent::Snapshot(Err(failure), _) => {
                         window.set_notice(failure.message.into());

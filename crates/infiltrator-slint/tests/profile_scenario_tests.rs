@@ -279,10 +279,12 @@ fn the_capture_scenario_opens_the_sheet_of_the_business_it_names() {
     assert_eq!(window.get_pending_delete_id(), "profile-2");
     assert_eq!(window.get_pending_delete_name(), "Beta Local Direct");
 
-    // A business the surface does not carry is never activated.
+    // A business the surface does not carry is never activated. The DNS
+    // workbench pages are carried now, so the probe uses a business the
+    // Slint surface still has no page for.
     assert!(!capture_scenario::activate(
         window,
-        "dns-leak-alert",
+        "connections-details-drawer",
         &snapshot
     ));
 }

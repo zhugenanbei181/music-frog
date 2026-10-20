@@ -6,7 +6,9 @@ mod product;
 mod profiles;
 mod runtime;
 mod settings;
+mod workbench;
 
+use crate::surface::workbenches::Workbenches;
 use crate::{AppWindow, SurfaceSnapshot, WorkerRequest};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -15,11 +17,13 @@ pub(super) fn register_callbacks(
     window: &AppWindow,
     requests: Sender<WorkerRequest>,
     latest: Arc<Mutex<Option<SurfaceSnapshot>>>,
+    workbenches: Arc<Workbenches>,
 ) {
     navigation::register(window, Arc::clone(&latest));
     profiles::register(window, requests.clone(), Arc::clone(&latest));
     runtime::register(window, requests.clone(), Arc::clone(&latest));
     outbound::register(window, requests.clone(), Arc::clone(&latest));
     settings::register(window, requests.clone(), Arc::clone(&latest));
-    product::register(window, requests, latest);
+    product::register(window, requests.clone(), Arc::clone(&latest));
+    workbench::register(window, requests, latest, workbenches);
 }

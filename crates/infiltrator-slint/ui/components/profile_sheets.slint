@@ -171,6 +171,7 @@ export component ProfileActionSheet inherits ModalBottomSheet {
     callback dismiss();
     callback open-editor();
     callback open-settings();
+    callback refresh();
 
     sheet_elevation_level: 1;
     show_layout_bounds: root.layout-debug-bounds;
@@ -182,7 +183,7 @@ export component ProfileActionSheet inherits ModalBottomSheet {
 
     Rectangle {
         width: root.profile-dialog-content-width;
-        height: 224px * LumenUiScale.factor;
+        height: 280px * LumenUiScale.factor;
         background: transparent;
         border-width: LumenTheme.show-layout-bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
         border-color: #FF2D55;
@@ -194,6 +195,11 @@ export component ProfileActionSheet inherits ModalBottomSheet {
                 width: parent.width;
                 label: @tr("编辑器打开");
                 clicked => { root.open-editor(); }
+            }
+            SheetActionButton {
+                width: parent.width;
+                label: @tr("刷新");
+                clicked => { root.refresh(); }
             }
             SheetActionButton {
                 width: parent.width;

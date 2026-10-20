@@ -32,6 +32,15 @@ export component PageSettings inherits VerticalLayout {
     Text { text: @tr("更多"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
     SectionCard {
         heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
+        SettingRow { label: @tr("DNS"); detail: @tr("泄漏检测、查询、缓存与 Hosts"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Dns"); } }
+        SettingRow { label: @tr("编辑器"); detail: @tr("脚本沙箱、导出评审、差异与快照恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/edit.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Editor"); } }
+        SettingRow { label: @tr("过滤与聚合"); detail: @tr("订阅过滤与配置聚合向导"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/search.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Filters"); } }
+        SettingRow { label: @tr("诊断"); detail: @tr("诊断检查与生命周期恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/list-checks-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Doctor"); } }
+        SettingRow { label: @tr("同步"); detail: @tr("冲突解决与备份恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/share.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Sync"); } }
+        SettingRow { label: @tr("应用路由"); detail: @tr("按应用分流的策略编辑"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-app.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppRouting"); } }
+    }
+    SectionCard {
+        heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
         SettingRow { label: @tr("关于"); detail: @tr("版本与许可证"); badge: "v0.1.0"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-about.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("About"); } }
         if root.layout-debug-tools-enabled: CheckBox {
             text: @tr("显示布局边界（调试）");

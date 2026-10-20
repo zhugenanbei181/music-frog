@@ -6,6 +6,8 @@
 //! command and the same typed failure. No surface rule may be re-implemented
 //! outside this module.
 
+pub mod workbench;
+
 use crate::theme_util;
 use crate::{CommandIntent, SlintAction, SurfaceSnapshot};
 use infiltrator_contract::android_control::{

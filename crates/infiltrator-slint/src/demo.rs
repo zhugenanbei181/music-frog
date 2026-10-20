@@ -79,6 +79,12 @@ impl DemoSettings {
             "traffic" => "Traffic",
             "app_settings" | "app-settings" => "AppSettings",
             "about" => "About",
+            "dns" => "Dns",
+            "editor" => "Editor",
+            "filters" | "filter" => "Filters",
+            "doctor" => "Doctor",
+            "sync" => "Sync",
+            "app_routing" | "app-routing" => "AppRouting",
             _ => "Home",
         }
         .to_string();
@@ -676,10 +682,13 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
     lumen_projection::project_initial(&window, &initial_language, host.autostart_enabled());
 
     let snapshot = host.read_snapshot().unwrap();
+    let workbenches = Workbenches::default();
     lumen_projection::project_snapshot(&window, &snapshot, host.autostart_enabled());
+    lumen_projection::project_workbench(&window, &snapshot, &workbenches);
 
     // Explicitly enforce skin and page after projection
     window.set_page(settings.page.clone().into());
+    lumen_projection::project_workbench(&window, &snapshot, &workbenches);
     let is_dark = settings.skin == "dark" || settings.skin == "amoled";
     window.set_theme_mode(settings.skin.clone().into());
     window.set_application_dark_mode(is_dark);

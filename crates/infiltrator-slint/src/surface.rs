@@ -17,6 +17,7 @@
 
 pub mod action;
 pub mod harness;
+pub mod workbenches;
 
 use lurker_core_contract::error::Failure;
 use std::cell::RefCell;

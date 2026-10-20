@@ -28,8 +28,10 @@ static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
 lurker-core-contract = { path = "../lurker-core-contract" }
+lurker-ui-presentation = { version = "0.50.0", path = "../lurker-ui-presentation" }
 anyhow.workspace = true
 infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-application = { path = "../infiltrator-application", optional = true }

@@ -24,6 +24,11 @@ pub struct CaptureBounds {
 /// open what a user gesture opens. A scenario the surface cannot open returns
 /// `false` and is never published as activated.
 pub fn activate(window: &AppWindow, scenario: &str, snapshot: &SurfaceSnapshot) -> bool {
+    if let Some(page) = workbench_page(scenario) {
+        window.set_page(page.into());
+        window.set_page_origin("Settings".into());
+        return true;
+    }
     match scenario {
         "profiles-import-modal" => {
             window.set_profile_add_kind_index(0);
@@ -52,6 +57,30 @@ pub fn activate(window: &AppWindow, scenario: &str, snapshot: &SurfaceSnapshot) 
             true
         }
         _ => false,
+    }
+}
+
+/// The workbench page one parity business is carried by.
+///
+/// The capture activates the page the business lives on, so a receipt proves
+/// the interaction surface of that business.
+fn workbench_page(scenario: &str) -> Option<&'static str> {
+    match scenario {
+        "dns-leak-alert"
+        | "dns-query-details"
+        | "dns-fake-ip-flush-confirm"
+        | "dns-hosts-editor" => Some("Dns"),
+        "profiles-script-sandbox"
+        | "profiles-script-export-review"
+        | "profiles-diff-viewer"
+        | "profiles-snapshot-restore-confirm" => Some("Editor"),
+        "profiles-filter-editor" | "profiles-aggregator-wizard" | "profiles-aggregator-preview" => {
+            Some("Filters")
+        }
+        "doctor-failure-recovery" | "lifecycle-recovery-panel" => Some("Doctor"),
+        "sync-conflict-resolver" | "sync-restore-confirm" => Some("Sync"),
+        "app-routing-policy-editor" => Some("AppRouting"),
+        _ => None,
     }
 }
 
