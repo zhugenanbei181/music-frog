@@ -47,7 +47,9 @@ def main():
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"_{os.getpid()}"
     output = ROOT / ".evidence/runs" / stamp
     output.mkdir(parents=True)
-    discovery = command_json(["cargo", "nextest", "list", "--workspace", "--build-jobs", "4", "--message-format", "json"])
+    discovery = command_json(["cargo", "nextest", "list", "--workspace", "--features",
+                               "infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools",
+                               "--build-jobs", "4", "--message-format", "json"])
     discovery_path = output / "discovery.json"
     discovery_path.write_text(json.dumps(discovery))
     catalogue_path = output / "catalogue.json"
@@ -66,7 +68,9 @@ def main():
         package, binary_name, name = metadata[anchor]
         filters.append(f"(package(={package}) & binary(={binary_name}) & test(={name}))")
     filters.append("(package(=infiltrator-contract) & test(parity::parity_test))")
-    subprocess.run(["cargo", "nextest", "run", "--workspace", "--build-jobs", "4", "--test-threads", "4",
+    subprocess.run(["cargo", "nextest", "run", "--workspace", "--features",
+                    "infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools",
+                    "--build-jobs", "4", "--test-threads", "4",
                     "-E", " | ".join(filters)], cwd=ROOT, check=True)
     (output / "behavior_tests.json").write_text(json.dumps({"test_ids": sorted(anchors), "status": "passed"}, indent=2) + "\n")
     runs = {}
@@ -83,6 +87,10 @@ def main():
                     continue
                 for viewport, size in (("standard", "1180x780"), ("compact", "720x480")):
                     writer.writerow([f"{feature}-{viewport}", page, "dark", size])
+        if not any(surface in carriers[feature] for feature in features):
+            # No selected business has a carrier on this surface, so there is
+            # nothing to capture; the gap stays recorded in the registry.
+            continue
         env = dict(os.environ, INFILTRATOR_CAPTURE_MATRIX=str(matrix), INFILTRATOR_CAPTURE_OUT_DIR=str(output / surface),
                    INFILTRATOR_LANG="en-US", CARGO_BUILD_JOBS="4", INFILTRATOR_CAPTURE_SCENARIOS="")
         evidence_root = ROOT / f".evidence/captures/{surface}"

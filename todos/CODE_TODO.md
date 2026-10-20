@@ -111,6 +111,7 @@
   - 验收：`visual_receipts.py` 输出的 118 个待回执单元格全部转绿，无「以静态页面截图冒充平权通过」。
   - 计划：① 用 `scripts/capture-{iced,bevy,slint}-matrix.sh` 跑标准/紧凑两视口；② 逐业务比对几何与交互断言；③ 失败业务回流对应 UI 修缺陷再重取。
   - 证据：`.evidence/visual_receipts.json` 全绿 + 每业务截图清单。
+  - 已验证能力（2026-10-20）：本机 `kwin_wayland --virtual` + 嵌套 `niri` 私有合成器可正常起栈，应用能写出 `CAPTURE_READY` 标记并落 PNG/manifest，截图取证在本机可复跑；缺的是逐业务的 demo 交互实现与「无载体页面不得锚定」之外的覆盖补齐。
 - [ ] PARITY-001.3 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 四个 pending 行为锚点补齐
   - 产物：`core-version-rollback-confirm`（iced/bevy/slint contract）、`proxies-search-highlight`（iced scenario）、`speedtest-progress-cancel`（iced scenario）四个单元格补真实行为测试并转 anchored。
   - 依赖：共享 core rollback / proxy 搜索 / speedtest 取消 owner 契约。
