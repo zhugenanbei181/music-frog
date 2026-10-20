@@ -56,6 +56,9 @@ mod proxy_search_tests;
 #[path = "headless/proxy_search_behavior_tests.rs"]
 mod proxy_search_behavior_tests;
 
+#[path = "headless/speedtest_cancel_tests.rs"]
+mod speedtest_cancel_tests;
+
 #[path = "common/probe_settings_store.rs"]
 mod probe_settings_store;
 #[path = "headless/probe_settings_tests.rs"]

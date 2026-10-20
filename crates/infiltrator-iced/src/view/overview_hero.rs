@@ -11,11 +11,22 @@ use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::core_control::CoreControlAction;
+use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use lurker_ui_presentation::core_status_projection::lifecycle_copy;
+
+/// The typed action that cancels the running speedtest, taken from the observed
+/// owner snapshot. One place decides it, so the rendered control and the
+/// behaviour test cannot disagree.
+pub fn speedtest_cancel_message(snapshot: &SpeedtestSnapshot) -> Option<Message> {
+    if !snapshot.is_running() {
+        return None;
+    }
+    snapshot.state.run_id().map(Message::CancelSpeedtestRun)
+}
 
 /// Accent hero: status dot + localized status, routing intent / core-version meta row
 /// and the prominent start/stop control.
@@ -78,10 +89,10 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
     // Speedtest has its own cancellation token. A typed outbound batch can be
     // dismissed locally; its late receipt is discarded by the batch token.
     let dismiss_message = if snapshot_running {
-        let Some(run_id) = snapshot.state.run_id() else {
+        let Some(message) = speedtest_cancel_message(snapshot) else {
             return test_btn.into();
         };
-        Message::CancelSpeedtestRun(run_id)
+        message
     } else {
         Message::DismissOutboundProbeBatch
     };
