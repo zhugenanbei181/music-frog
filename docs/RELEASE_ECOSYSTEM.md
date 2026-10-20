@@ -55,6 +55,41 @@ python3 scripts/quality/sandbox-chaos-guard.py --mode run          # cargo nexte
 - `--dry-run` 不克隆、不编译、不运行，但仍走完整步骤序并产出同一份报告，结构门用它离线验证演练逻辑。
 - `scripts/quality/journey-rehearsal-guard.py` 保证脚本与模板描述的是同一条旅程：步骤数、顺序、五分钟预算与全部占位符。
 
+## 5. Release 签名契约（fail closed）
+
+Release 产物的身份只有一处来源：用户持有的持久 keystore。debug key 永远不用于 release 产物，缺 secret 时发布流程**明确失败**，不会退化成未签名或 debug 签名的产物。
+
+需要在仓库 secrets 里配置四个值：
+
+| secret | 含义 |
+| --- | --- |
+| `RELEASE_KEYSTORE_BASE64` | 持久 release keystore 的 base64 内容 |
+| `RELEASE_KEYSTORE_PASSWORD` | keystore 的 store 密码 |
+| `RELEASE_KEY_ALIAS` | keystore 内的 key alias |
+| `RELEASE_KEY_PASSWORD` | 该 key 的密码 |
+
+发布作业的行为：
+
+1. 先校验四个 secret 是否齐备，缺任意一个立即以明确信息失败——**在昂贵的三 flavor release 构建之前**。
+2. 把 base64 secret 物化成仓库之外（`$RUNNER_TEMP`）的私有目录里的 keystore 文件，权限 0600。
+3. 把 keystore 路径与三个凭据交给 Gradle；`android/app/build.gradle.kts` 的 release 变体用专用签名配置读取它们。
+4. 作业结束时（无论成功失败）删除该 keystore 文件。
+
+Gradle 侧同样是 fail closed：release 产物的构建任务若拿不到完整材料，会在**配置期**失败并列出缺了哪一项（`RELEASE_KEYSTORE_PATH` / 密码 / alias / key 密码），不会产出未签名 APK。Debug 变体不受影响，本地 lint / ktlint / Detekt 门照常在 Debug 变体上运行。
+
+本机演练（不需要真实 secret，只校验接线契约）：
+
+```bash
+bash scripts/blocked/release-keystore-evidence.sh --dry-run
+```
+
+拿到真实 keystore 后，同一条命令会读出证书指纹与 APK 签名者的证书摘要并比对两者：
+
+```bash
+RELEASE_KEYSTORE_BASE64=... RELEASE_KEYSTORE_PASSWORD=... RELEASE_KEY_ALIAS=... RELEASE_KEY_PASSWORD=... \
+  bash scripts/blocked/release-keystore-evidence.sh --apk-a dist/app-compose-universal-release.apk
+```
+
 ## 验证入口
 
 ```bash
@@ -62,4 +97,5 @@ bash scripts/quality/check-structure.sh          # 四组门禁的离线形态
 cargo nextest run --locked -p lurker-sandbox     # 混沌矩阵
 python3 scripts/quality/examples-guard.py --mode compile   # 用例展厅编译门
 python3 scripts/quality/semver-compat-guard.py --mode tool  # SemVer 工具层
+bash scripts/blocked/release-keystore-evidence.sh --dry-run # release 签名契约
 ```
