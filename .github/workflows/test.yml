@@ -30,6 +30,15 @@ jobs:
     # 在冷缓存下超时，超时=整轮 gate 报废。放宽到 60 给冷缓存留余量。
     timeout-minutes: 60
 
+    env:
+      # The runner's root volume cannot hold the workspace's debug info for
+      # every test binary: the build alone filled the disk and the runner
+      # could not write its own log. Line tables keep every backtrace's line
+      # numbers while the artifacts shrink by a factor of three.
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: "0"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
