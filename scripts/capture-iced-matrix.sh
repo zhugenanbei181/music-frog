@@ -54,6 +54,10 @@ RUN_ID="${RUN_STAMP}_${GIT_HEAD}_${WORKTREE_STATE}_$$"
 RUN_DIR="$EVIDENCE_ROOT/$RUN_ID"
 # Keep niri's IPC and Wayland socket paths below Linux's sockaddr_un limit even
 # when the checkout itself lives under a long mounted workspace path.
+# The linker writes large temporary objects; keep them beside the build output
+# so a busy shared /tmp cannot fail the capture build with a quota error.
+BUILD_TMP="${CAPTURE_BUILD_TMP:-${CARGO_TARGET_DIR:-$REPO/target}/capture-tmp}"
+mkdir -p "$BUILD_TMP"
 RUNTIME_DIR="$(mktemp -d /tmp/infiltrator-iced-niri.XXXXXX)"
 CONF="$RUN_DIR/niri-capture.kdl"
 METADATA="$RUN_DIR/capture-metadata.txt"
@@ -230,7 +234,7 @@ done
 # ------------------------------------------------------------------- build --
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
 printf 'build: cargo build --quiet -p infiltrator-iced --features capture-tools\n'
-timeout --kill-after=10s 20m cargo build --quiet -p infiltrator-iced --features capture-tools
+timeout --kill-after=10s 20m env TMPDIR="$BUILD_TMP" cargo build --quiet -p infiltrator-iced --features capture-tools
 [ -x "$APP" ] || fail_hard "iced binary was not produced: $APP"
 APP="$(python3 scripts/parity/product_build.py --surface iced --binary "$APP" --output "$RUN_DIR/product-build.json")"
 BINARY_SHA256="$(sha256sum "$APP" | cut -d' ' -f1)"

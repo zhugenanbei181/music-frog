@@ -254,7 +254,11 @@ CAPTURE_FEATURES="${INFILTRATOR_BEVY_FEATURES:-capture-tools}"
 BUILD_FEATURE_ARGS=(--features "$CAPTURE_FEATURES")
 printf 'build: cargo build --quiet (workspace package: infiltrator-bevy-desktop-host; features: %s)\n' \
   "$CAPTURE_FEATURES"
-timeout --kill-after=10s 20m cargo build --quiet \
+# The linker writes large temporary objects; keep them beside the build output
+# so a busy shared /tmp cannot fail the capture build with a quota error.
+BUILD_TMP="${CAPTURE_BUILD_TMP:-${CARGO_TARGET_DIR:-$REPO/target}/capture-tmp}"
+mkdir -p "$BUILD_TMP"
+timeout --kill-after=10s 20m env TMPDIR="$BUILD_TMP" cargo build --quiet \
   --manifest-path "$CRATE_DIR/Cargo.toml" --bin infiltrator-bevy-ui \
   "${BUILD_FEATURE_ARGS[@]}"
 [ -x "$APP" ] || fail_hard "bevy binary was not produced: $APP"
