@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "platform": "ios",
+  "label": "iOS",
+  "products": [],
+  "legs": [
+    {
+      "leg": "build",
+      "status": "Unsupported",
+      "reason": "仓库只有 iOS 的 Rust host seam：没有 iOS target 构建、没有应用包、没有 NetworkExtension 包（GAP-3.2）",
+      "command": "cargo build --locked --release --target aarch64-apple-ios",
+      "evidence": []
+    },
+    {
+      "leg": "install",
+      "status": "Unsupported",
+      "reason": "没有 iOS 应用包，因此没有任何可安装对象",
+      "command": "bash scripts/blocked/foreign-target-evidence.sh --dry-run",
+      "evidence": []
+    },
+    {
+      "leg": "run",
+      "status": "Unsupported",
+      "reason": "iOS 运行证据缺失：host seam 从未在设备上承载过",
+      "command": "bash scripts/blocked/foreign-target-evidence.sh --dry-run",
+      "evidence": []
+    },
+    {
+      "leg": "target",
+      "status": "Unsupported",
+      "reason": "Apple target 解禁决议与 macOS 工具链都缺失",
+      "command": "python3 scripts/quality/apple-ci-deferral-guard.py",
+      "evidence": []
+    }
+  ]
+}

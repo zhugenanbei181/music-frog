@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "platform": "linux",
+  "label": "Linux desktop",
+  "products": ["iced", "bevy", "slint"],
+  "legs": [
+    {
+      "leg": "build",
+      "status": "Unsupported",
+      "reason": "当前源码的最终产物尚未构建：打包器与身份校验已就位，但本源码没有对应产物",
+      "command": "bash packaging/linux/build-linux.sh --product iced --arch x86_64",
+      "evidence": [
+        {
+          "kind": "cross_compile",
+          "product": "",
+          "identity": "command:bash scripts/cross-check.sh (aarch64-unknown-linux-gnu)",
+          "detail": "aarch64 桌面 crate 只有交叉编译检查，编译检查不是产物"
+        }
+      ]
+    },
+    {
+      "leg": "install",
+      "status": "Unsupported",
+      "reason": "安装冒烟尚未针对当前源码的产物执行",
+      "command": "bash packaging/linux/smoke-install.sh --product iced --deb dist/infiltrator_$(python3 scripts/product_identity.py --get version.name)_amd64.deb --appimage dist/Infiltrator-Linux-x86_64.AppImage",
+      "evidence": []
+    },
+    {
+      "leg": "run",
+      "status": "Unsupported",
+      "reason": "当前源码的已安装产物尚未启动过",
+      "command": "bash packaging/linux/smoke-install.sh --product iced --deb dist/infiltrator_$(python3 scripts/product_identity.py --get version.name)_amd64.deb --appimage dist/Infiltrator-Linux-x86_64.AppImage",
+      "evidence": []
+    },
+    {
+      "leg": "target",
+      "status": "Unsupported",
+      "reason": "桌面冒烟跑在私有虚拟合成器里；真实桌面会话（托盘、TUN 接管、会话集成）仍无证据",
+      "command": "bash scripts/desktop-smoke.sh all",
+      "evidence": []
+    }
+  ]
+}

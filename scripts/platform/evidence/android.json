@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "platform": "android",
+  "label": "Android",
+  "products": ["compose", "bevy", "slint"],
+  "legs": [
+    {
+      "leg": "build",
+      "status": "Unsupported",
+      "reason": "当前源码没有 release APK：三个 flavor 的 Gradle 构建未对本源码执行，Rust crate 只有交叉编译",
+      "command": "cd android && ./gradlew :app:assembleComposeRelease :app:assembleBevyRelease :app:assembleSlintRelease",
+      "evidence": [
+        {
+          "kind": "cross_compile",
+          "product": "",
+          "identity": "command:bash scripts/android-check.sh (aarch64-linux-android, x86_64-linux-android)",
+          "detail": "Android crate 只有交叉编译检查，编译检查不是 APK"
+        }
+      ]
+    },
+    {
+      "leg": "install",
+      "status": "Unsupported",
+      "reason": "当前源码的 APK 没有在真机或模拟器上安装过（GAP-3.1）",
+      "command": "adb install -r dist/app-compose-universal-release.apk",
+      "evidence": []
+    },
+    {
+      "leg": "run",
+      "status": "Unsupported",
+      "reason": "三个 flavor 的交互截图与行为回执缺失（PARITY-001.4）",
+      "command": "bash scripts/android-emulator-tests.sh",
+      "evidence": []
+    },
+    {
+      "leg": "target",
+      "status": "Unsupported",
+      "reason": "本工作站没有接入 ARM64 真机（BANDROID-041.3.2R.15）",
+      "command": "bash scripts/blocked/arm64-device-evidence.sh --dry-run",
+      "evidence": []
+    }
+  ]
+}

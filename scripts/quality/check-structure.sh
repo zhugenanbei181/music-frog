@@ -70,7 +70,11 @@ python3 scripts/quality/license-guard.py --self-test
 python3 scripts/quality/license-guard.py --mode enforce
 python3 scripts/quality/parity-coverage-guard.py --self-test
 python3 scripts/quality/parity-coverage-guard.py --mode enforce
+python3 scripts/quality/platform-evidence-guard.py --self-test
+python3 scripts/quality/platform-evidence-guard.py --mode enforce
+python3 scripts/platform/build-evidence-matrix.py --check
 python3 scripts/quality/implicit-state-audit.py --self-test
 python3 scripts/quality/implicit-state-audit.py --mode enforce
 python3 -m unittest discover -s scripts/parity -p 'test_*.py'
 python3 scripts/parity/resolve_surface_evidence.py --structure-only --report-json target/parity/structure.json
+

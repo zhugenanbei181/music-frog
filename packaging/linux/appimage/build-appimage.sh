@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # Builds a self-contained Linux AppImage for an Infiltrator UI.
 #
-# Product identity is env-overridable so each desktop product (iced, bevy,
-# slint) gets its own equal AppImage from one tested template. Defaults
-# reproduce the iced package.
+# The product identity (binary name, package id, icon and desktop entry)
+# comes from the product identity registry and from nowhere else: APP_PRODUCT
+# only selects which registered desktop product is packaged.
 #
-#   APP_BIN      binary filename inside the image   (default infiltrator-iced)
-#   APP_PKG      desktop/icon basename              (default infiltrator)
-#   APP_DESKTOP  tracked .desktop template path     (default appimage/infiltrator.desktop)
-#   APP_ICON     tracked PNG icon path              (default iced icon)
-#   APPIMAGE_ARCH target architecture: x86_64 | aarch64 (default x86_64)
+#   APP_PRODUCT    registered desktop product to package (default iced)
+#   BIN_PATH       the release binary to package
+#   OUTPUT_PATH    where the AppImage is written (default: dist/<prefix>-Linux-<arch>.AppImage)
+#   APPIMAGE_ARCH  target architecture: x86_64 | aarch64 (default x86_64)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -38,10 +37,10 @@ case "$APPIMAGE_ARCH" in
         ;;
 esac
 
-APP_BIN="${APP_BIN:-$(identity_value binary_name)}"
-APP_PKG="${APP_PKG:-$(identity_value linux_package_id)}"
-APP_DESKTOP="${APP_DESKTOP:-$(identity_value linux_desktop_file)}"
-APP_ICON="${APP_ICON:-$(identity_value icon_png)}"
+APP_BIN="$(identity_value binary_name)"
+APP_PKG="$(identity_value linux_package_id)"
+APP_DESKTOP="$(identity_value linux_desktop_file)"
+APP_ICON="$(identity_value icon_png)"
 OUTPUT_PATH="${2:-dist/$(identity_value release_artifact_prefix)-Linux-${APPIMAGE_ARCH}.AppImage}"
 ICON_PATH="$REPO_ROOT/$APP_ICON"
 
@@ -79,16 +78,22 @@ cp "$ICON_PATH" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/${APP_PKG}.png"
 # Copy AppRun, substituting the packaged binary name and the Debian multiarch
 # tuple used for the in-image library search path.
 sed -e "s/@APP_BIN@/${APP_BIN}/g" -e "s/@MULTIARCH@/${MULTIARCH}/g" \
-    packaging/linux/appimage/AppRun > "$APP_DIR/AppRun"
+    "$REPO_ROOT/packaging/linux/appimage/AppRun" > "$APP_DIR/AppRun"
 chmod +x "$APP_DIR/AppRun"
 
 # Check for appimagetool
 if ! command -v appimagetool >/dev/null 2>&1; then
-    echo "[build-appimage] appimagetool not found, downloading standalone tool..."
-    TOOL_PATH="$WORK_DIR/appimagetool"
-    curl --fail --silent --show-error --location --retry 3 \
-        -o "$TOOL_PATH" \
-        "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${APPIMAGE_ARCH}.AppImage"
+    echo "[build-appimage] appimagetool not found, fetching the standalone tool..."
+    # The tool is cached beside the build output: a repeated build of the
+    # same architecture must not depend on the network again.
+    TOOL_DIR="$REPO_ROOT/target/appimagetool"
+    TOOL_PATH="$TOOL_DIR/appimagetool-${APPIMAGE_ARCH}.AppImage"
+    if [ ! -s "$TOOL_PATH" ]; then
+        mkdir -p "$TOOL_DIR"
+        curl --fail --silent --show-error --location --retry 3 \
+            -o "$TOOL_PATH" \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${APPIMAGE_ARCH}.AppImage"
+    fi
     chmod +x "$TOOL_PATH"
     APPIMAGETOOL="$TOOL_PATH"
 else

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "platform": "windows",
+  "label": "Windows desktop",
+  "products": ["iced", "bevy", "slint"],
+  "legs": [
+    {
+      "leg": "build",
+      "status": "Unsupported",
+      "reason": "NSIS 安装包只能在 Windows 目标机上构建；该证据属于环境阻塞板的 Windows 腿（APPID-001.4）",
+      "command": "bash packaging/windows/nsis/build-nsis.sh iced $(python3 scripts/product_identity.py --get version.name) target/x86_64-pc-windows-msvc/release/infiltrator-iced.exe dist/Infiltrator-Setup-x86_64.exe",
+      "evidence": [
+        {
+          "kind": "cross_compile",
+          "product": "",
+          "identity": "command:bash scripts/cross-check.sh (aarch64-pc-windows-msvc)",
+          "detail": "Windows target 在本机只有交叉编译检查，编译检查不是安装包"
+        }
+      ]
+    },
+    {
+      "leg": "install",
+      "status": "Unsupported",
+      "reason": "安装包的安装与卸载冒烟必须在 Windows 目标机上执行（GAP-2.1）",
+      "command": "dist/Infiltrator-Setup-x86_64.exe /S",
+      "evidence": []
+    },
+    {
+      "leg": "run",
+      "status": "Unsupported",
+      "reason": "Windows 运行证据缺失：托盘、TUN 接管与系统集成从未在 Windows 上被观察",
+      "command": "bash scripts/blocked/foreign-target-evidence.sh --dry-run",
+      "evidence": []
+    },
+    {
+      "leg": "target",
+      "status": "Unsupported",
+      "reason": "本工作站没有接入 Windows 目标机",
+      "command": "bash scripts/blocked/foreign-target-evidence.sh --dry-run",
+      "evidence": []
+    }
+  ]
+}

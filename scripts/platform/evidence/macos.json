@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "platform": "macos",
+  "label": "macOS desktop",
+  "products": ["iced", "bevy"],
+  "legs": [
+    {
+      "leg": "build",
+      "status": "Unsupported",
+      "reason": "Apple CI 暂缓仍然生效：没有 macOS runner、也没有安排 Apple target，当前源码没有 bundle 与 DMG（GAP-2.2）",
+      "command": "bash packaging/macos/create-dmg.sh dist/Infiltrator-macOS.dmg \"dist/MusicFrog Infiltrator.app\"",
+      "evidence": []
+    },
+    {
+      "leg": "install",
+      "status": "Unsupported",
+      "reason": "没有任何 macOS bundle 在 macOS 机器上被安装过（GAP-2.2）",
+      "command": "bash scripts/blocked/foreign-target-evidence.sh --dry-run",
+      "evidence": []
+    },
+    {
+      "leg": "run",
+      "status": "Unsupported",
+      "reason": "macOS 运行证据缺失：bundle 从未启动，NetworkExtension 从未被观察",
+      "command": "bash scripts/blocked/foreign-target-evidence.sh --dry-run",
+      "evidence": []
+    },
+    {
+      "leg": "target",
+      "status": "Unsupported",
+      "reason": "本工作站没有接入 macOS 目标机，且 Apple CI 暂缓决议仍然生效",
+      "command": "python3 scripts/quality/apple-ci-deferral-guard.py",
+      "evidence": []
+    }
+  ]
+}
