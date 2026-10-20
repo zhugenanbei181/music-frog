@@ -27,6 +27,10 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::stun_projection::project_stun;
 use infiltrator_shared::locales::Lang;
 
+/// One-off layout value (not a ladder rung): the minimum height of the STUN
+/// probe report listing box that holds the mono observation rows.
+const STUN_LISTING_MIN_HEIGHT_PX: f32 = 48.0;
+
 /// The STUN UDP-egress card (status + mapping / comparison listing).
 pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> impl Scene + use<> {
     let display = project_stun(&projection.stun, &Lang(UiLocale::default().code()));
@@ -53,7 +57,7 @@ pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: rem(48.0),
+                                min_height: rem(STUN_LISTING_MIN_HEIGHT_PX),
                                 padding: UiRect::all(rem(space::S8)),
                                 border_radius: BorderRadius::all(rem(
                                         palette.control_radius_px,

@@ -23,6 +23,9 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 
+/// The centered-dialog card's fixed width in baseline pixels.
+const ADAPTIVE_MODAL_CARD_WIDTH_PX: f32 = 480.0;
+
 /// State tracking modal open/closed and current presentation mode.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModalState {
@@ -108,7 +111,7 @@ pub fn adaptive_modal_scene(
                 --
                 Node {
                     flex_direction: FlexDirection::Column,
-                    width: rem(480.0),
+                    width: rem(ADAPTIVE_MODAL_CARD_WIDTH_PX),
                     max_width: percent(90),
                     max_height: percent(92),
                     min_height: px(0.0),
@@ -229,7 +232,7 @@ pub fn sync_adaptive_modal_morphology(
                     };
                 }
                 ModalForm::CenteredDialog => {
-                    card.width = rem(480.0);
+                    card.width = rem(ADAPTIVE_MODAL_CARD_WIDTH_PX);
                     card.max_width = percent(90);
                     card.padding = UiRect::all(rem(space::S20));
                     card.border_radius = BorderRadius::all(rem(radius::CARD));

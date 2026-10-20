@@ -25,6 +25,10 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 
+/// One-off layout value (not a ladder rung): the width of the floating
+/// context-menu panel that lists the actions.
+const CONTEXT_MENU_PANEL_WIDTH_PX: f32 = 180.0;
+
 /// An individual action entry inside a context menu.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContextMenuItem {
@@ -181,7 +185,7 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
                     position_type: PositionType::Absolute,
                     left: px(pos_x),
                     top: px(pos_y),
-                    width: rem(180.0),
+                    width: rem(CONTEXT_MENU_PANEL_WIDTH_PX),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(rem(space::S4)),
                     row_gap: rem(space::S2),

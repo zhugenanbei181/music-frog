@@ -19,6 +19,11 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+
+/// One-off layout value (not a ladder rung): the widest the DNS cache modal
+/// card may grow on a wide viewport.
+const DNS_CACHE_MODAL_MAX_WIDTH_PX: f32 = 560.0;
+
 pub fn spawn(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(modal(&palette));
 }
@@ -38,7 +43,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) CacheAction::Cancel
             --
             Node {
-                width: percent(90), max_width: rem(560.0), max_height: percent(90),
+                width: percent(90), max_width: rem(DNS_CACHE_MODAL_MAX_WIDTH_PX), max_height: percent(90),
                 padding: UiRect::all(rem(space::S20)),
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S12),

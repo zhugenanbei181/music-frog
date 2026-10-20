@@ -36,6 +36,10 @@ use infiltrator_bevy_widgets::sandbox::{
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+/// One-off layout value (not a ladder rung): the width of the sandbox
+/// dashboard slot panel that floats above the widget board.
+const SANDBOX_SLOT_PANEL_WIDTH_PX: f32 = 360.0;
+
 /// Isolated render-slot width the host assigns to a dashboard widget.
 pub const WIDGET_SLOT_WIDTH: u32 = 320;
 /// Isolated render-slot height the host assigns to a dashboard widget.
@@ -311,7 +315,7 @@ pub fn widget_sandbox_slot_scene(
                 position_type: PositionType::Absolute,
                 right: rem(space::S16),
                 top: rem(space::S16),
-                width: rem(360.0),
+                width: rem(SANDBOX_SLOT_PANEL_WIDTH_PX),
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S6),
                 padding: UiRect::all(rem(space::S12)),

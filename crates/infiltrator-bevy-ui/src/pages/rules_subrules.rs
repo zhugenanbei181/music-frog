@@ -42,6 +42,12 @@ use infiltrator_domain::rules::{edit, logical};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use infiltrator_shared::locales::Lang;
 
+/// The remove-condition button's minimum height in baseline pixels.
+const SUBRULE_REMOVE_CONDITION_MIN_HEIGHT_PX: f32 = 22.0;
+
+/// The operator chip's minimum height in baseline pixels.
+const SUBRULE_OPERATOR_CHIP_MIN_HEIGHT_PX: f32 = 26.0;
+
 /// Marker for the sub-rule builder card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesSubRuleRoot;
@@ -289,7 +295,7 @@ fn condition_row(index: usize, condition: String, _palette: &UiPalette) -> impl 
                 Text(label) TextRole(Role::Caption)
                 --
                 Node {
-                    min_height: rem(22.0),
+                    min_height: rem(SUBRULE_REMOVE_CONDITION_MIN_HEIGHT_PX),
                     padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
@@ -318,7 +324,7 @@ fn operator_chip(
     };
     bsn! {
             Node {
-                min_height: rem(26.0),
+                min_height: rem(SUBRULE_OPERATOR_CHIP_MIN_HEIGHT_PX),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,

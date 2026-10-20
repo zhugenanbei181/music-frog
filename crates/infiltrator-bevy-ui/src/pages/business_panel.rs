@@ -23,6 +23,10 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use lurker_core_contract::page::PageStatus;
 
+/// One-off layout value (not a ladder rung): the widest the business panel
+/// dialog card may grow on a wide viewport.
+const BUSINESS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PanelKind {
     #[default]
@@ -98,7 +102,7 @@ pub fn panel_scene(
             ModalScrim
             --
             Node {
-                width: percent(90), max_width: rem(960.0), max_height: percent(90),
+                width: percent(90), max_width: rem(BUSINESS_PANEL_MAX_WIDTH_PX), max_height: percent(90),
                 min_width: px(0.0), flex_direction: FlexDirection::Column,
                 padding: UiRect::all(rem(space::S16)), row_gap: rem(space::S12),
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),

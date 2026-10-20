@@ -47,6 +47,21 @@ use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::outbound::identity::OutboundId;
 
+/// The "只看可用" indicator chip's fixed width in baseline pixels.
+const FILTER_ALIVE_INDICATOR_WIDTH_PX: f32 = 28.0;
+
+/// The selected proxy card's accent border width in baseline pixels.
+const SELECTED_CARD_BORDER_WIDTH_PX: f32 = 1.5;
+
+/// The proxy node card's minimum height in baseline pixels.
+const PROXY_NODE_CARD_MIN_HEIGHT_PX: f32 = 58.0;
+
+/// The swipe action drawer's fixed width in baseline pixels.
+const SWIPE_ACTION_DRAWER_WIDTH_PX: f32 = 88.0;
+
+/// The group header action button's minimum height in baseline pixels.
+const GROUP_HEADER_ACTION_MIN_HEIGHT_PX: f32 = 28.0;
+
 /// Renders the toolbar card containing search box, "只看可用" toggle switch, 4 sort mode pills, and "测试地址" indicator.
 pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {
     let search_a11y = accesskit::Node::new(accesskit::Role::Search);
@@ -88,7 +103,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             LocalizedText::plain("proxies_filter_alive") TextRole(Role::Caption)
                             --
                             Node {
-                                width: rem(28.0),
+                                width: rem(FILTER_ALIVE_INDICATOR_WIDTH_PX),
                                 height: rem(space::S16),
                                 border_radius: BorderRadius::all(rem(radius::SM)),
                                 align_items: AlignItems::Center,
@@ -395,7 +410,11 @@ pub fn proxy_node_scene_sized(
     let (bg, border_color, border_width) = if node.selected {
         // Selected cards carry a 1.5px accent border; no token carries that
         // width, so the baseline magnitude travels through the rem channel.
-        (palette.accent_container, palette.accent, rem(1.5))
+        (
+            palette.accent_container,
+            palette.accent,
+            rem(SELECTED_CARD_BORDER_WIDTH_PX),
+        )
     } else {
         (
             palette.surface_elevated,
@@ -458,7 +477,7 @@ pub fn proxy_node_scene_sized(
     bsn! {
             Node {
                 width: { width },
-                min_height: rem(58.0),
+                min_height: rem(PROXY_NODE_CARD_MIN_HEIGHT_PX),
                 border: UiRect::all(border_width),
                 border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 overflow: Overflow::clip(),
@@ -489,7 +508,7 @@ pub fn proxy_node_scene_sized(
             Children [
                 Node {
                     width: percent(100),
-                    min_height: rem(58.0),
+                    min_height: rem(PROXY_NODE_CARD_MIN_HEIGHT_PX),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                     padding: UiRect::axes(rem(space::S12), rem(space::S8)),
@@ -584,7 +603,7 @@ pub fn proxy_node_scene_sized(
                     right: px(0.0),
                     top: px(0.0),
                     bottom: px(0.0),
-                    width: rem(88.0),
+                    width: rem(SWIPE_ACTION_DRAWER_WIDTH_PX),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     column_gap: rem(space::S4),
@@ -735,7 +754,7 @@ fn group_card_scene_impl(
                                     LocalizedText { .. { current_label } } GroupCurrentText(g_idx) TextRole(Role::Caption)
                                     --
                                     Node {
-                                        min_height: rem(28.0),
+                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
                                         padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
@@ -752,7 +771,7 @@ fn group_card_scene_impl(
                                     ]
                                     --
                                     Node {
-                                        min_height: rem(28.0),
+                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
                                         padding: UiRect::axes(rem(space::S6), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
@@ -770,7 +789,7 @@ fn group_card_scene_impl(
                                     ]
                                     --
                                     Node {
-                                        min_height: rem(28.0),
+                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
                                         padding: UiRect::axes(rem(space::S6), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
@@ -788,7 +807,7 @@ fn group_card_scene_impl(
                                     ]
                                     --
                                     Node {
-                                        min_height: rem(28.0),
+                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
                                         padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,

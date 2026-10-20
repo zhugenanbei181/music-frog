@@ -19,13 +19,13 @@
 | 能力 | 强制方式 | 当前实测 | 缺口 / 收口条目 |
 | --- | --- | --- | --- |
 | 场景结构（`bsn!` 唯一入口、ECS 访问边界） | 机器：`scripts/quality/bevy_bsn_guard.py`（BEVY-BSN-001～006、BEVY-ECS-007～009），注册于 `scripts/quality/check-structure.sh` 与 CI | 两个 crate 生产树 349 文件零违例：结构原语、手动挂子 API、直接 spawn、临时结构值、裸 `ChildOf` 重挂、`World`/`App::world()` 访问与 lint 抑制全部被拒 | 无，本口径已闭合 |
-| ① rem/em 尺寸通道 | 机器（两段互补）：共享包场景门禁 `scripts/quality/bevy_scene_gate.py`（`UIK-REM-001/002`：禁硬编码非零 px 字面量、禁 `FontSize::Px`，存量 128 处记在 `scripts/quality/bevy_scene_ratchet.json`）＋ 产品守卫 `scripts/quality/bevy_rem_guard.py`（`BEVY-REM-001`～`004`：禁命名/派生 px 值越出本文①物理白名单、禁字面量 `em`、禁非 rem 字号，存量 52 处记在 `scripts/quality/bevy_rem_inventory.json`） | 字号通道已闭合（`FontSize::Px` 0 处，字号一律 `FontSize::Rem`）；尺寸通道**已机器强制、存量未清零**：两份台账站点互不重叠，合计 180 处非白名单 px（字面量 128 + 命名 52），白名单外新增即失败 | 存量清零由 `BEVYCAP-001.2` 承担；BSN 律法双执行器（产品守卫 vs 共享包门禁）的唯一 owner 收敛由 `BEVYCAP-003.1` 承担 |
+| ① rem/em 尺寸通道 | 机器：产品守卫 `scripts/quality/bevy_rem_guard.py`（`BEVY-REM-001`～`005`：禁命名/派生 px 值越出本文①物理白名单、禁硬编码 px 字面量、禁非 rem 字号、禁字面量 `em`、禁未命名 rem 尺寸），已注册 `scripts/quality/check-structure.sh` 与 CI；共享包场景门禁 `scripts/quality/bevy_scene_gate.py`（`UIK-REM-001/002`）为上游镜像（advisory） | **已强制且存量清零**：生产树 180 处非白名单 px 全部迁到 rem 通道（字面量 132 + 命名 48），胶囊圆角改 `BorderRadius::MAX`（29 处），一次性布局尺寸改角色命名的文件内常量（70 余处）；字号通道 `FontSize::Px` 0 处；权威台账 `scripts/quality/bevy_rem_inventory.json` 归零（`{"debt": {}}`），白名单外新增即失败 | 字号档位的真实像素回执（`INFILTRATOR_BEVY_FONT_SCALE` 两档截图）由 `BEVYCAP-001.2` 的待验证项承担 |
 | ② 两段式上下文主题 | 人工评审 | 浮层根已声明 `ThemeContext(SurfaceLevel::Floating)`；无守卫 | 随 `BEVYCAP-001.1` 同批机械化 |
 | ③ headless 标签页 | 人工评审 | 已迁到官方 `TabList`/`Tab`/`SelectedTab`；无守卫 | 同上 |
 | ④ `FixedNode` 视口定位 | 人工评审 | 视口级浮层根已挂载；无守卫 | 同上 |
 | ⑤ 行内内容 | 人工评审 | 已迁到 `InlineBox`/`InlineImage`；无守卫 | 同上 |
 | ⑥ 官方行为层优先 | 人工评审 | 自研 `MenuState`/`ModalState.is_open` 等旧入口已删除；无守卫 | 同上 |
-| ⑦ 小件收敛 | **人工评审，无守卫** | `bsn_list!` 0 处、内联 `Children [` 974 处；`bevy_scene::Ready` 0 处；`despawn_all` 2 处；胶囊圆角未统一到 `BorderRadius::MAX` | `BEVYCAP-002.1` 建守卫 + 迁存量 |
+| ⑦ 小件收敛 | 机器：`scripts/quality/bevy_bsn_guard.py`（`BEVY-BSN-008` 列表场景必须 `bsn_list!`、`BEVY-BSN-009` 批量退役必须 `despawn_all`、`BEVY-BSN-010` 胶囊必须 `BorderRadius::MAX`、`BEVY-BSN-007` `template_value` 硬零）+ 评审口径（`Ready` 事件语义无法词法判定） | 6 处真实列表场景改 `bsn_list!` + `SceneList`；1 处挂载后初始化改订阅 `bevy_scene::Ready`；1 处批量退役改 `despawn_all`；胶囊圆角 29 处全量 `BorderRadius::MAX`；固定 2–3 个手写子项的静态 `Children [ ... ]` 明确保留（非列表场景） | 真实交互与像素验收随本批截图批次 |
 
 ### 产品侧 rem 守卫（`BEVYCAP-001.1` 交付物）
 
@@ -60,7 +60,7 @@
 
 **台账口径**：权威台账唯一——`scripts/quality/bevy_rem_inventory.json`（产品库存，只允许缩小，`--prune-inventory` 拒绝登记新债）；共享包棘轮 `scripts/quality/bevy_scene_ratchet.json` 归其 owner，是上游镜像，只读参考，不作为产品的放行依据。
 
-**硬结论：**"`bsn!` 已强制"成立（机器红线、CI 生效）；**"rem 已强制"现已成立为机器红线**——硬编码 px 字面量与 `FontSize::Px` 由共享包场景门禁拦截，命名/派生 px 值由产品守卫拦截，两段互补成本文①的闭集白名单；**"rem 通道已清零"尚未成立**：存量 180 处非白名单 px 仍让"根字号是全 UI 唯一缩放入口"在这些节点上失效（用户字号偏好不会缩放它们），由 `BEVYCAP-001.2` 收口。
+**硬结论：**"`bsn!` 已强制"成立（机器红线、CI 生效）；**"rem 已强制且存量已清零"成立**——产品守卫是唯一阻塞执行器且覆盖共享包律法全部规则，180 处非白名单 px 全部迁到 rem 通道，存量台账归零，白名单外新增即失败；**唯一未闭环的是证据层**：字号档位下的真实缩放仍需像素回执（`INFILTRATOR_BEVY_FONT_SCALE` 两档截图），静态守卫与 headless 结果不能替代它。
 
 ## ① rem/em 动态字号与尺寸（`Val::Rem`/`Val::Em`、`FontSize::Rem`、`RemSize`/`EmSize`）
 
@@ -70,7 +70,7 @@
 - **px 例外白名单**（只能这些场景写 px）：1px 发丝线与 2px 光标（`metrics::HAIRLINE`/`CARET_WIDTH`）、视口断点（`breakpoint`，视口语义而非字号语义）、最小触控目标（`MIN_TOUCH_TARGET`，物理可达性下限）、inset 物理像素换算结果、GPU/测量代码。
 - 禁止：新增 `FontSize::Px` 写入、新增把字号/间距换算散落到页面的代码。
 - 落点：`W/theme.rs`（type_scale/space/radius/metrics 输出 rem）、`W/text.rs`（role_typography → `FontSize::Rem`）、壳层 `RemSize` 资源。
-- 强制状态：见[强制化台账](#强制化台账2026-10-20-实测)。硬编码 px 字面量与 `FontSize::Px` 由 `scripts/quality/bevy_scene_gate.py` 拦截（存量豁免记在 `scripts/quality/bevy_scene_ratchet.json`），命名/派生 px 值、字面量 `em` 与非 rem 字号由 `scripts/quality/bevy_rem_guard.py` 拦截（存量豁免记在 `scripts/quality/bevy_rem_inventory.json`）；两份台账只允许缩小，180 处存量迁移由 `BEVYCAP-001.2` 收口。
+- 强制状态：见[强制化台账](#强制化台账2026-10-20-实测)与[覆盖差表](#场景律法覆盖差表bevycap-0031-裁决产品守卫--唯一阻塞执行器且是上游律法的严格超集)。产品守卫 `scripts/quality/bevy_rem_guard.py` 是唯一阻塞执行器：命名/派生 px 值、硬编码 px 字面量、非 rem 字号、字面量 `em` 与未命名 rem 尺寸全部拦截（存量台账 `scripts/quality/bevy_rem_inventory.json` 已归零）；共享包场景门禁 `scripts/quality/bevy_scene_gate.py` 为上游镜像（advisory）。180 处存量迁移已由 `BEVYCAP-001.2` 收口，字号档位的像素回执是唯一未闭环的证据项。
 
 ## ② 两段式上下文主题（`ThemeContext`、`ThemeToken`→`SemanticToken`、`UiTheme`）
 

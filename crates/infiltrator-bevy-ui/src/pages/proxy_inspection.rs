@@ -29,13 +29,13 @@ use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
 use infiltrator_bevy_widgets::chart::{ChartPlate, chart_scene_with_smooth};
-use infiltrator_bevy_widgets::theme::space;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -51,6 +51,10 @@ use lurker_core_contract::outbound::{
     identity::SnapshotRevision,
 };
 use lurker_core_contract::page::{PageData, PageStatus};
+
+/// One-off layout value (not a ladder rung): the widest the proxy inspection
+/// modal card may grow on a wide viewport.
+const PROXY_INSPECTION_MODAL_MAX_WIDTH_PX: f32 = 650.0;
 
 /// Presentation rows projected from the engine-neutral outbound details snapshot.
 /// This belongs to the page because it defines labels, not backend data.
@@ -644,7 +648,7 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type:PositionType::Absolute, width:percent(100),height:percent(100) }
             ThemeBackgroundColor({Token::Scrim}) ModalScrim Button CloseProxyInspection
             --
-            Node { width:percent(92),max_width:rem(650.0),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(space::S12),padding:UiRect::all(rem(space::S16)),border_radius:BorderRadius::all(rem(palette.card_radius_px)) }
+            Node { width:percent(92),max_width:rem(PROXY_INSPECTION_MODAL_MAX_WIDTH_PX),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(space::S12),padding:UiRect::all(rem(space::S16)),border_radius:BorderRadius::all(rem(palette.card_radius_px)) }
             ThemeBackgroundColor({Token::Surface}) ProxyInspectionCard ModalDialogCard
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_inspection_title")
             Children [

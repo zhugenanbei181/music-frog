@@ -74,6 +74,25 @@ pub fn window_size_from_env() -> Option<(u32, u32)> {
         .and_then(|raw| parse_window_size(&raw))
 }
 
+/// Parse the root font scale knob. A positive, finite multiplier of the shared
+/// `REM_BASE`; anything else is `None` (the launcher keeps the default root).
+/// Pure function — unit-tested below without any env access.
+pub fn parse_font_scale(raw: &str) -> Option<f32> {
+    let scale = raw.trim().parse::<f32>().ok()?;
+    (scale.is_finite() && scale > 0.0).then_some(scale)
+}
+
+/// The capture font scale from the environment, if it parses.
+///
+/// The rem channel makes the root font size the only scaling entry
+/// (capability spec ①), so this knob is how a capture proves that a user
+/// font-scale preference actually moves the whole layout.
+pub fn font_scale_from_env() -> Option<f32> {
+    env::var("INFILTRATOR_BEVY_FONT_SCALE")
+        .ok()
+        .and_then(|raw| parse_font_scale(&raw))
+}
+
 /// The capture marker path from the environment, if set and non-empty.
 pub fn marker_path_from_env() -> Option<PathBuf> {
     env::var("INFILTRATOR_CAPTURE_MARKER")
@@ -351,6 +370,18 @@ mod tests {
         assert_eq!(parse_skin("blue"), None);
         assert_eq!(parse_skin(""), None);
         assert_eq!(parse_skin("system"), None, "system is not a skin");
+    }
+
+    #[test]
+    fn font_scale_parses_a_positive_multiplier_and_rejects_junk() {
+        assert_eq!(parse_font_scale("1.0"), Some(1.0));
+        assert_eq!(parse_font_scale(" 1.5 "), Some(1.5));
+        assert_eq!(parse_font_scale("2"), Some(2.0));
+        assert_eq!(parse_font_scale("0"), None);
+        assert_eq!(parse_font_scale("-1.0"), None);
+        assert_eq!(parse_font_scale("nan"), None);
+        assert_eq!(parse_font_scale("inf"), None);
+        assert_eq!(parse_font_scale("big"), None);
     }
 
     #[test]

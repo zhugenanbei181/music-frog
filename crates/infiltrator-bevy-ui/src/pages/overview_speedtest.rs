@@ -44,6 +44,9 @@ use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
+/// The concurrency step button's minimum width in baseline pixels.
+const SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX: f32 = 26.0;
+
 /// Marker on the speedtest detail's scroll area.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct SpeedtestDetailScrollArea;
@@ -142,7 +145,7 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     LocalizedText::plain("speedtest_concurrency_label") TextRole(Role::Caption)
                     --
                     Node {
-                        min_width: rem(26.0),
+                        min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
                         min_height: rem(space::S24),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
@@ -160,7 +163,7 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     TextRole(Role::Caption)
                     --
                     Node {
-                        min_width: rem(26.0),
+                        min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
                         min_height: rem(space::S24),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,

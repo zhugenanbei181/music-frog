@@ -39,6 +39,12 @@ use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_domain::rules::edit;
 use infiltrator_presentation::rule_form_binding::{RuleFormBinding, default_form_target};
 
+/// The rule-type chip row's flex basis in baseline pixels.
+const RULE_TYPE_CHIP_ROW_FLEX_BASIS_PX: f32 = 280.0;
+
+/// The rule-type chip's minimum height in baseline pixels.
+const RULE_TYPE_CHIP_MIN_HEIGHT_PX: f32 = 28.0;
+
 /// Marker for custom rule builder card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesBuilderRoot;
@@ -193,7 +199,7 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                             Children [
                                 Node {
                                     flex_grow: 1.0,
-                                    flex_basis: rem(280.0),
+                                    flex_basis: rem(RULE_TYPE_CHIP_ROW_FLEX_BASIS_PX),
                                     min_width: px(0.0),
                                     max_width: percent(100),
                                     flex_wrap: FlexWrap::Wrap,
@@ -250,7 +256,7 @@ fn rule_type_chip(index: usize, rule_type: String, _palette: &UiPalette) -> impl
     let semantic = button_semantic_node(&rule_type);
     bsn! {
             Node {
-                min_height: rem(28.0),
+                min_height: rem(RULE_TYPE_CHIP_MIN_HEIGHT_PX),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,

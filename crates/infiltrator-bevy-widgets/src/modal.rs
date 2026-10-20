@@ -28,6 +28,10 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 
+/// One-off layout value (not a ladder rung): the width of the shared modal
+/// dialog card. The shared ladder carries no dialog width.
+const MODAL_DIALOG_WIDTH_PX: f32 = 460.0;
+
 /// Semantic kind of a dialog.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ModalKind {
@@ -52,7 +56,6 @@ pub struct ModalState {
     pub is_open: bool,
     pub title: String,
     pub dismiss_on_scrim: bool,
-    pub width_px: f32,
     pub kind: ModalKind,
 }
 
@@ -62,7 +65,6 @@ impl ModalState {
             is_open: true,
             title: title.into(),
             dismiss_on_scrim: true,
-            width_px: 440.0,
             kind: ModalKind::Info,
         }
     }
@@ -72,10 +74,6 @@ impl ModalState {
         self
     }
 
-    pub fn with_width(mut self, width_px: f32) -> Self {
-        self.width_px = width_px;
-        self
-    }
 }
 
 /// Marker component on full-screen scrim.
@@ -151,7 +149,7 @@ pub fn modal_scene(
             ModalScrim
             Children [
                 Node {
-                    width: rem(460.0),
+                    width: rem(MODAL_DIALOG_WIDTH_PX),
                     max_width: percent(90),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(rem(space::S16)),

@@ -20,6 +20,11 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+
+/// One-off layout value (not a ladder rung): the widest the snapshot restore
+/// review modal card may grow on a wide viewport.
+const SNAPSHOT_RESTORE_MODAL_MAX_WIDTH_PX: f32 = 700.0;
+
 #[derive(Component, Clone, Copy)]
 #[require(Button, ButtonDisabled)]
 pub enum RestoreControl {
@@ -56,7 +61,7 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim cancel ReviewControl ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(700), max_height: percent(85), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(SNAPSHOT_RESTORE_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard RestoreCard AccessibilityNode(semantic) LocalizedLabel::plain("snapshot_restore_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("snapshot_restore_title") TextRole(Role::Heading)

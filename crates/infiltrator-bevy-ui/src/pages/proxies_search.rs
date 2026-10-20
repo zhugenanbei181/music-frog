@@ -27,6 +27,10 @@ use infiltrator_contract::command::RequestId;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 
+/// One-off layout value (not a ladder rung): the narrowest the proxy search
+/// column may shrink before the query field stops growing.
+const PROXY_SEARCH_MIN_WIDTH_PX: f32 = 220.0;
+
 #[derive(Component, Clone, Copy, Default)]
 pub struct ProxySearchInput;
 #[derive(Component, Clone, Copy, Default)]
@@ -75,7 +79,7 @@ impl ProxySearchState {
 
 pub fn search_input_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { flex_grow: 1.0, min_width: rem(220.0), flex_direction: FlexDirection::Column }
+        Node { flex_grow: 1.0, min_width: rem(PROXY_SEARCH_MIN_WIDTH_PX), flex_direction: FlexDirection::Column }
         Children [
             Node { width: percent(100), align_items: AlignItems::Center, column_gap: rem(space::S8) }
             Children [

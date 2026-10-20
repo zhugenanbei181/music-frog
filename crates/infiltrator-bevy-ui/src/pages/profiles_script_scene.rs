@@ -25,6 +25,10 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_run::ScriptEditorField;
 
+/// One-off layout value (not a ladder rung): the widest the script export
+/// review modal card may grow on a wide viewport.
+const SCRIPT_REVIEW_MODAL_MAX_WIDTH_PX: f32 = 560.0;
+
 #[derive(Component, Clone, Copy, Default)]
 pub struct ScriptWorkbenchCard;
 #[derive(Component, Clone, Copy, Default)]
@@ -109,7 +113,7 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim cancel ScriptReviewControl ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(560), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+            Node { width: percent(90), max_width: rem(SCRIPT_REVIEW_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("script_export_title") ThemeBackgroundColor({Token::Surface})
             Children [

@@ -21,6 +21,12 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+/// The line-number gutter's minimum width in baseline pixels.
+const EDITOR_LINE_NUMBER_GUTTER_WIDTH_PX: f32 = 36.0;
+
+/// The indentation rail tick's height in baseline pixels.
+const EDITOR_INDENT_TICK_HEIGHT_PX: f32 = 10.0;
+
 fn token_color(kind: SyntaxTokenKind, palette: &UiPalette) -> Color {
     match kind {
         SyntaxTokenKind::Comment => palette.ink_dim,
@@ -90,7 +96,7 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
                     BackgroundColor({ background })
                     Children [
                         Node {
-                            min_width: rem(36.0),
+                            min_width: rem(EDITOR_LINE_NUMBER_GUTTER_WIDTH_PX),
                             justify_content: JustifyContent::FlexEnd,
                         }
                         Children [
@@ -134,7 +140,7 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
         ticks.push(Box::new(bsn! {
                     Node {
                         width: rem(space::S2),
-                        height: rem(10.0),
+                        height: rem(EDITOR_INDENT_TICK_HEIGHT_PX),
                         margin: UiRect::right(rem(space::S2)),
                     }
                     BackgroundColor({ color })

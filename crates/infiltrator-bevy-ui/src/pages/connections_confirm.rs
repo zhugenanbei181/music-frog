@@ -21,6 +21,9 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_shared::locales::{Lang, Localizer};
 
+/// The confirmation dialog's fixed width in baseline pixels.
+const CONFIRM_DIALOG_WIDTH_PX: f32 = 420.0;
+
 #[derive(Event, Clone, Copy, Debug)]
 pub struct RequestCloseAllConfirmation;
 
@@ -75,7 +78,7 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
             CloseAllConfirmationAction::Cancel
             --
             Node {
-                width: rem(420.0), max_width: percent(90),
+                width: rem(CONFIRM_DIALOG_WIDTH_PX), max_width: percent(90),
                 max_height: percent(90),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(rem(space::S20)), row_gap: rem(space::S16),

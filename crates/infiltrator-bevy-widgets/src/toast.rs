@@ -32,6 +32,10 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 
+/// One-off layout value (not a ladder rung): the width of a single toast card
+/// in the notification stack.
+const TOAST_CARD_WIDTH_PX: f32 = 320.0;
+
 /// Semantic type of a toast alert.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToastKind {
@@ -203,7 +207,7 @@ pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene
 
     bsn! {
             Node {
-                width: rem(320.0),
+                width: rem(TOAST_CARD_WIDTH_PX),
                 padding: UiRect::all(rem(space::S12)),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,

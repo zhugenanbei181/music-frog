@@ -23,6 +23,10 @@ use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_presentation::rule_condition_projection::field_key;
 
+/// One-off layout value (not a ladder rung): the height of the collapsible
+/// tracer sandbox panel that holds the per-field drafts.
+const TRACER_SANDBOX_PANEL_HEIGHT_PX: f32 = 180.0;
+
 #[derive(Component, Clone, Copy, Default)]
 pub struct TracerSandboxRoot;
 #[derive(Component, Clone, Copy, Default)]
@@ -58,7 +62,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
         Children [
             @{ (localized_button_scene(LocalizedText::plain("rule_trace_sandbox_toggle"), ButtonVariant::Default, palette), bsn! { TracerSandboxToggle }) }
             --
-            Node { width: percent(100), height: rem(180.0), min_height: px(0.0), display: Display::None, flex_direction: FlexDirection::Column, row_gap: rem(space::S8), overflow: Overflow::scroll_y(), padding: UiRect::all(rem(space::S4)) }
+            Node { width: percent(100), height: rem(TRACER_SANDBOX_PANEL_HEIGHT_PX), min_height: px(0.0), display: Display::None, flex_direction: FlexDirection::Column, row_gap: rem(space::S8), overflow: Overflow::scroll_y(), padding: UiRect::all(rem(space::S4)) }
             TracerSandboxRoot ScrollArea
             Children [
                 LocalizedText::plain("rule_trace_sandbox_notice") TextRole(Role::Caption)

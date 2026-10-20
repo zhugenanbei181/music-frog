@@ -39,6 +39,10 @@ use infiltrator_presentation::runtime_probe_settings_editor::{
 };
 use lurker_core_contract::error::{ErrorCode, Failure};
 
+/// One-off layout value (not a ladder rung): the widest the probe settings
+/// modal card may grow on a wide viewport.
+const PROBE_SETTINGS_MODAL_MAX_WIDTH_PX: f32 = 520.0;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ProbeSettingsDialogState {
     #[default]
@@ -118,7 +122,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ThemeBackgroundColor({ Token::Scrim }) ModalScrim Button CancelProbeSettings ButtonDisabled(false)
             --
-            Node { width: percent(90), max_width: rem(520.0), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(PROBE_SETTINGS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ThemeBackgroundColor({ Token::Surface }) ModalDialogCard ProbeSettingsCard
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_probe_settings_title")
             Children [

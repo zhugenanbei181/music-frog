@@ -24,6 +24,9 @@ use bevy::ui::prelude::{AlignItems, Display, FlexDirection, Node, UiRect, percen
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 
+/// The master pane's fixed width in baseline pixels (split layout).
+const MASTER_PANE_WIDTH_PX: f32 = 320.0;
+
 /// Active view in stacked navigation mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MasterDetailView {
@@ -135,7 +138,7 @@ pub fn master_detail_scene(
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    width: rem(320.0),
+                    width: rem(MASTER_PANE_WIDTH_PX),
                     flex_shrink: 0.0,
                 }
                 MasterPane
@@ -230,7 +233,7 @@ pub fn sync_master_detail_layout(
         match mode {
             MasterDetailMode::Split => {
                 master.display = Display::Flex;
-                master.width = rem(320.0);
+                master.width = rem(MASTER_PANE_WIDTH_PX);
             }
             MasterDetailMode::Stacked => {
                 master.width = percent(100);

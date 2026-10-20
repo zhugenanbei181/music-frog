@@ -36,6 +36,15 @@ use infiltrator_contract::dns_form::DnsFormField;
 use infiltrator_presentation::dns_settings_projection::field_label_key;
 use infiltrator_shared::locales::{Lang, Localizer};
 
+/// The DNS switch track's fixed width in baseline pixels.
+const DNS_SWITCH_TRACK_WIDTH_PX: f32 = 38.0;
+
+/// The DNS switch track's fixed height in baseline pixels.
+const DNS_SWITCH_TRACK_HEIGHT_PX: f32 = 22.0;
+
+/// The DNS switch knob's left offset when the switch is on, in baseline pixels.
+const DNS_SWITCH_KNOB_OFFSET_PX: f32 = 18.0;
+
 fn dns_switch_row_scene(
     field: DnsSwitchField,
     switches: DnsCoreSwitches,
@@ -60,7 +69,11 @@ fn dns_switch_row_scene(
     } else {
         palette.surface_elevated
     };
-    let knob_left = if enabled { rem(18.0) } else { rem(space::S2) };
+    let knob_left = if enabled {
+        rem(DNS_SWITCH_KNOB_OFFSET_PX)
+    } else {
+        rem(space::S2)
+    };
     let knob_color = if enabled {
         palette.on_accent
     } else {
@@ -101,8 +114,8 @@ fn dns_switch_row_scene(
                     TextColor({ status_color })
                     --
                     Node {
-                        width: rem(38.0),
-                        height: rem(22.0),
+                        width: rem(DNS_SWITCH_TRACK_WIDTH_PX),
+                        height: rem(DNS_SWITCH_TRACK_HEIGHT_PX),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
                         border_radius: BorderRadius::MAX,
                         position_type: PositionType::Relative,

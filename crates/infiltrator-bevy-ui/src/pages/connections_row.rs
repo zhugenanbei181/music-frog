@@ -34,6 +34,10 @@ use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use zhuge_ui_core::text::SearchTextRun;
 
+/// One-off layout value (not a ladder rung): the width of the swipe-revealed
+/// action drawer that slides in from the row's trailing edge.
+const SWIPE_ACTION_DRAWER_WIDTH_PX: f32 = 88.0;
+
 /// Construct a connection row scene supporting horizontal swipe-to-action.
 pub fn connection_row_scene(
     idx: usize,
@@ -159,7 +163,7 @@ pub fn connection_row_scene(
                     right: px(0.0),
                     top: px(0.0),
                     bottom: px(0.0),
-                    width: rem(88.0),
+                    width: rem(SWIPE_ACTION_DRAWER_WIDTH_PX),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     display: Display::None,

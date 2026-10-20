@@ -30,6 +30,10 @@ use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
 use infiltrator_presentation::log_search::LogSearchState;
 use lurker_core_contract::page::PageData;
 
+/// One-off layout value (not a ladder rung): the narrowest the logs regex
+/// search field may shrink before the row wraps.
+const LOGS_SEARCH_FIELD_MIN_WIDTH_PX: f32 = 180.0;
+
 #[derive(Resource, Default)]
 pub struct LogsViewState(pub LogSearchState);
 #[derive(Component, Clone, Copy, Default)]
@@ -48,7 +52,7 @@ pub fn logs_search_scene(palette: &UiPalette) -> impl Scene + use<> {
         Children [
             Node { width: percent(100), align_items: AlignItems::Center, flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S4) }
             Children [
-                Node { width: percent(80), min_width: rem(180.0) } LogsSearchField
+                Node { width: percent(80), min_width: rem(LOGS_SEARCH_FIELD_MIN_WIDTH_PX) } LogsSearchField
                 Children [
                     @{ text_field_with_placeholder_scene(String::new(), String::new(), palette) } NativeTextField(11) LocalizedPlaceholder::plain("logs_regex_placeholder")
                 ]

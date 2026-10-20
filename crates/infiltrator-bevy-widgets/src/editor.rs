@@ -73,6 +73,10 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 
+/// One-off layout value (not a ladder rung): the width of the line-number
+/// gutter column beside the code body.
+const CODE_EDITOR_GUTTER_WIDTH_PX: f32 = 48.0;
+
 /// Marker component for the code editor container root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CodeEditorRoot;
@@ -148,7 +152,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
             CodeEditorRoot
             Children [
                 Node {
-                    width: rem(48.0),
+                    width: rem(CODE_EDITOR_GUTTER_WIDTH_PX),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::vertical(rem(space::S8)),
                 }

@@ -62,6 +62,12 @@ use infiltrator_presentation::system_toggle_projection::compact_label;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
+/// The sidebar speed footer's waveform strip width in baseline pixels.
+const SHELL_WAVEFORM_WIDTH_PX: f32 = 60.0;
+
+/// The rail nav tooltip's left offset, in baseline pixels.
+const NAV_TOOLTIP_LEFT_OFFSET_PX: f32 = 68.0;
+
 /// The root shell scene.
 pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
     shell_scene_with_toggles(title, &SystemToggleSnapshot::default(), palette)
@@ -735,7 +741,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                     ]
                 ]
                 --
-                Node { width: rem(60.0), height: rem(space::S24) }
+                Node { width: rem(SHELL_WAVEFORM_WIDTH_PX), height: rem(space::S24) }
                 ShellWaveform
 
                 ]
@@ -790,7 +796,7 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
                 --
                 Node {
                     position_type: PositionType::Absolute,
-                    left: rem(68.0),
+                    left: rem(NAV_TOOLTIP_LEFT_OFFSET_PX),
                     display: Display::None,
                     padding: UiRect::new(rem(space::S8), rem(space::S8), rem(space::S4), rem(space::S4)),
                     border: UiRect::all(Val::Px(palette.hairline_px)),

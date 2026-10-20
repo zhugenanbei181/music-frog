@@ -25,6 +25,15 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 
+/// The metric column's minimum width in baseline pixels.
+const STATISTICS_METRIC_MIN_WIDTH_PX: f32 = 120.0;
+
+/// The statistics card's fixed height in baseline pixels.
+const STATISTICS_CARD_HEIGHT_PX: f32 = 320.0;
+
+/// The cleanup confirmation dialog's maximum width in baseline pixels.
+const STATISTICS_CLEANUP_DIALOG_MAX_WIDTH_PX: f32 = 560.0;
+
 fn control(
     key: &'static str,
     action: StatisticsControl,
@@ -37,13 +46,13 @@ fn control(
 }
 fn metric(key: &'static str, line: StatisticsLine) -> impl Scene + use<> {
     bsn! {
-        Node { min_width: rem(120.0), flex_grow: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
+        Node { min_width: rem(STATISTICS_METRIC_MIN_WIDTH_PX), flex_grow: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [ LocalizedText::plain(key) TextRole(Role::Caption) -- Text(String::new()) StatisticsLine { .. { line } } TextRole(Role::BodyStrong) ]
     }
 }
 pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), height: rem(320.0), min_height: rem(320.0), flex_shrink: 0.0,
+        Node { width: percent(100), height: rem(STATISTICS_CARD_HEIGHT_PX), min_height: rem(STATISTICS_CARD_HEIGHT_PX), flex_shrink: 0.0,
             padding: UiRect::all(rem(space::S12)), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         StatisticsCard ThemeBackgroundColor({Token::SurfaceElevated})
         Children [
@@ -110,7 +119,7 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim StatisticsControl::CancelCleanup ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(560.0), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+            Node { width: percent(90), max_width: rem(STATISTICS_CLEANUP_DIALOG_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             StatisticsConfirmationCard ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") ThemeBackgroundColor({Token::Surface})
             Children [

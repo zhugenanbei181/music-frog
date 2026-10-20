@@ -30,6 +30,10 @@ use infiltrator_presentation::stun_projection::project_stun;
 use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::locales::Lang;
 
+/// One-off layout value (not a ladder rung): the minimum height of the
+/// self-heal observation listing box that holds the mono check rows.
+const SELF_HEAL_LISTING_MIN_HEIGHT_PX: f32 = 48.0;
+
 /// The DNS self-heal card (overall state + one row per check).
 pub fn dns_self_heal_card_scene(
     projection: &DnsProjection,
@@ -58,7 +62,7 @@ pub fn dns_self_heal_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: rem(48.0),
+                                min_height: rem(SELF_HEAL_LISTING_MIN_HEIGHT_PX),
                                 padding: UiRect::all(rem(space::S8)),
                                 border_radius: BorderRadius::all(rem(
                                         palette.control_radius_px,

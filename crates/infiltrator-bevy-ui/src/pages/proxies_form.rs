@@ -153,7 +153,7 @@ pub fn protocol_fields_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(10.0), flex_shrink: 0.0 }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), flex_shrink: 0.0 }
         Children [ { protocol_field_scenes(studio, palette) } ]
     }
 }

@@ -35,11 +35,21 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::dns::{append_server, parse_server_list};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
 use infiltrator_presentation::dns_settings_projection::{field_label_key, form_status};
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// The geoip switch track's width in baseline pixels.
+const GEOIP_SWITCH_TRACK_WIDTH_PX: f32 = 38.0;
+/// The geoip switch track's height in baseline pixels.
+const GEOIP_SWITCH_TRACK_HEIGHT_PX: f32 = 22.0;
+/// The geoip switch knob's square size in baseline pixels.
+const GEOIP_SWITCH_KNOB_SIZE_PX: f32 = 16.0;
+
+/// The geoip switch knob's on-state offset inside its 38px track.
+const SWITCH_KNOB_ON_OFFSET_PX: f32 = 18.0;
 
 /// The DNS workbench submission stage.
 ///
@@ -317,7 +327,7 @@ fn template_chip(
     bsn! {
             Node {
                 padding: UiRect::axes(rem(space::S6), rem(space::S2)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
                 align_items: AlignItems::Center,
             }
             BackgroundColor({ bg })
@@ -350,7 +360,7 @@ fn geoip_toggle_row(
     } else {
         palette.ink_dim
     };
-    let knob_left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };
+    let knob_left = if enabled { rem(SWITCH_KNOB_ON_OFFSET_PX) } else { rem(space::S2) };
     let status = geoip_status_label(enabled, UiLocale::default().code());
     let status_color = if enabled {
         palette.success
@@ -386,10 +396,10 @@ fn geoip_toggle_row(
                     Text(status) DnsEditGeoipStatus TextRole(Role::Caption) TextColor({ status_color })
                     --
                     Node {
-                        width: rem(38.0),
-                        height: rem(22.0),
+                        width: rem(GEOIP_SWITCH_TRACK_WIDTH_PX),
+                        height: rem(GEOIP_SWITCH_TRACK_HEIGHT_PX),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                        border_radius: BorderRadius::MAX,
                         position_type: PositionType::Relative,
                         align_items: AlignItems::Center,
                     }
@@ -406,9 +416,9 @@ fn geoip_toggle_row(
                         Node {
                             position_type: PositionType::Absolute,
                             left: { knob_left },
-                            width: rem(16.0),
-                            height: rem(16.0),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
+                            width: rem(GEOIP_SWITCH_KNOB_SIZE_PX),
+                            height: rem(GEOIP_SWITCH_KNOB_SIZE_PX),
+                            border_radius: BorderRadius::MAX,
                         }
                         BackgroundColor({ knob })
                     ]

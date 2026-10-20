@@ -308,6 +308,9 @@ pub struct RulesJsonStatusText;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesJsonSaveLabel;
 
+/// Fixed height of the JSON editor panel (px); the partition scrolls inside it.
+const JSON_EDITOR_BODY_HEIGHT_PX: f32 = 320.0;
+
 fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn Scene> {
     let index = section.index();
     let selected = index == 0;
@@ -427,7 +430,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                 --
                 Node {
                     width: percent(100),
-                    height: rem(320.0),
+                    height: rem(JSON_EDITOR_BODY_HEIGHT_PX),
                     padding: UiRect::all(rem(space::S8)),
                     border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                     overflow: Overflow::scroll_y(),

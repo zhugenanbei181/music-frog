@@ -39,6 +39,15 @@ use infiltrator_presentation::mixin_studio_projection;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
+/// The preset-toggle chip's minimum height in baseline pixels.
+const MIXIN_TOGGLE_MIN_HEIGHT_PX: f32 = 22.0;
+
+/// The preflight pill's vertical padding in baseline pixels.
+const PREFLIGHT_PILL_VERTICAL_PADDING_PX: f32 = 1.0;
+
+/// The mixin column box's maximum height in baseline pixels.
+const MIXIN_COLUMN_MAX_HEIGHT_PX: f32 = 220.0;
+
 /// One common-overlay toggle chip (index into the shared catalogue).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MixinToggleButton {
@@ -138,7 +147,7 @@ pub fn mixin_studio_scene(
             let label = LocalizedText::plain(mixin_studio_projection::preset_key(toggle.id));
             Box::new(bsn! {
                             Node {
-                                min_height: rem(22.0),
+                                min_height: rem(MIXIN_TOGGLE_MIN_HEIGHT_PX),
                                 padding: UiRect::horizontal(rem(space::S8)),
                                 align_items: AlignItems::Center,
                             }
@@ -180,8 +189,9 @@ pub fn mixin_studio_scene(
                 Children [
                     Node {
                         // 4px sides / 1px vertical chip padding: no spacing token
-                        // carries 1px, so the baseline magnitude is kept as-is.
-                        padding: UiRect::new(rem(space::S4), rem(space::S4), rem(1.0), rem(1.0)),
+                        // carries 1px, so the baseline magnitude travels through
+                        // the named constant above.
+                        padding: UiRect::new(rem(space::S4), rem(space::S4), rem(PREFLIGHT_PILL_VERTICAL_PADDING_PX), rem(PREFLIGHT_PILL_VERTICAL_PADDING_PX)),
                         border_radius: BorderRadius::all(rem(radius::XS)),
                     }
                     BackgroundColor({ preflight_pill.1 })
@@ -280,7 +290,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     --
                     Node {
                         width: percent(100),
-                        max_height: rem(220.0),
+                        max_height: rem(MIXIN_COLUMN_MAX_HEIGHT_PX),
                         padding: UiRect::all(rem(space::S8)),
                         border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
@@ -305,7 +315,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     --
                     Node {
                         width: percent(100),
-                        max_height: rem(220.0),
+                        max_height: rem(MIXIN_COLUMN_MAX_HEIGHT_PX),
                         padding: UiRect::all(rem(space::S8)),
                         border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         overflow: Overflow::scroll_y(),
@@ -332,7 +342,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     --
                     Node {
                         width: percent(100),
-                        max_height: rem(220.0),
+                        max_height: rem(MIXIN_COLUMN_MAX_HEIGHT_PX),
                         padding: UiRect::all(rem(space::S8)),
                         border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         border: UiRect::all(Val::Px(palette.hairline_px)),

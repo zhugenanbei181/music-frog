@@ -31,6 +31,10 @@ use infiltrator_contract::pac::PacServiceState;
 use infiltrator_presentation::host_network_projection::pac;
 use infiltrator_shared::locales::Lang;
 
+/// One-off layout value (not a ladder rung): the width of the PAC bypass list
+/// field next to its label.
+const PAC_BYPASS_FIELD_WIDTH_PX: f32 = 360.0;
+
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PacToggle;
 
@@ -80,7 +84,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         Children [
                             LocalizedText::plain("settings_pac_bypass_label") TextRole(Role::Body)
                             --
-                            Node { width: rem(360.0) }
+                            Node { width: rem(PAC_BYPASS_FIELD_WIDTH_PX) }
                             PacBypassField
                             Children [
                                 @{ text_field_with_placeholder_scene(bypass, "localhost, *.lan, example.com".to_owned(), palette) }

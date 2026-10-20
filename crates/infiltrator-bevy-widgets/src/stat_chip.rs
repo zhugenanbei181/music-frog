@@ -29,6 +29,12 @@ use bevy::ui::widget::Text;
 /// Minimum chip height (px) — one card row of the metrics band.
 pub const CHIP_MIN_HEIGHT: f32 = 64.0;
 
+/// The chip's flex basis in baseline pixels (one chip of the metrics row).
+const STAT_CHIP_FLEX_BASIS_PX: f32 = 140.0;
+
+/// The chip's minimum width in baseline pixels.
+const STAT_CHIP_MIN_WIDTH_PX: f32 = 110.0;
+
 /// Marker on the chip root; [`sync_stat_chip_visuals`] re-projects its
 /// fill from the live palette.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -61,8 +67,8 @@ pub fn stat_chip_scene(
             Node {
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
-                flex_basis: rem(140.0),
-                min_width: rem(110.0),
+                flex_basis: rem(STAT_CHIP_FLEX_BASIS_PX),
+                min_width: rem(STAT_CHIP_MIN_WIDTH_PX),
                 min_height: px(CHIP_MIN_HEIGHT),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,

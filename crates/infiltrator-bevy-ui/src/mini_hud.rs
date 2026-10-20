@@ -36,6 +36,12 @@ use infiltrator_presentation::routing_intent_projection::routing_intent_status_c
 use infiltrator_presentation::system_toggle_projection::{compact_label, compact_status_line};
 use infiltrator_shared::locales::{Lang, Localizer};
 
+/// The mini HUD card's fixed width in baseline pixels.
+const MINI_HUD_CARD_WIDTH_PX: f32 = 280.0;
+
+/// The mini HUD card's fixed height in baseline pixels.
+const MINI_HUD_CARD_HEIGHT_PX: f32 = 112.0;
+
 /// Toggle state for Mini HUD mode.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudMode(pub bool);
@@ -239,8 +245,8 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
             FixedNode
             Children [
                 Node {
-                    width: rem(280.0),
-                    height: rem(112.0),
+                    width: rem(MINI_HUD_CARD_WIDTH_PX),
+                    height: rem(MINI_HUD_CARD_HEIGHT_PX),
                     flex_direction: FlexDirection::Column,
                     row_gap: rem(space::S4),
                     padding: UiRect::all(rem(space::S12)),

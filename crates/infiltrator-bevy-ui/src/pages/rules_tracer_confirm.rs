@@ -32,6 +32,10 @@ use infiltrator_presentation::rule_condition_projection::location_text;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
+/// One-off layout value (not a ladder rung): the widest the rule trace
+/// confirmation modal card may grow on a wide viewport.
+const TRACE_CONFIRMATION_MODAL_MAX_WIDTH_PX: f32 = 560.0;
+
 #[derive(Component, Clone, Copy, Default)]
 pub struct TraceConfirmationRoot;
 #[derive(Component, Clone, Copy, Default)]
@@ -58,7 +62,7 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) TraceConfirmationAction::Cancel
             --
-            Node { width: percent(90), max_width: rem(560.0), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(TRACE_CONFIRMATION_MODAL_MAX_WIDTH_PX), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
             Children [
                 LocalizedText::plain("rule_trace_confirm_title") TextRole(Role::Heading)

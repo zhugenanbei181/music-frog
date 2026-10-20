@@ -48,6 +48,10 @@ use lurker_ui_presentation::proxy_group_order_editor::{
 };
 use std::collections::{HashMap, HashSet};
 
+/// One-off layout value (not a ladder rung): the widest the proxy group order
+/// modal card may grow on a wide viewport.
+const GROUP_ORDER_MODAL_MAX_WIDTH_PX: f32 = 520.0;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GroupOrderDialogState {
     #[default]
@@ -120,7 +124,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) Button GroupOrderAction::Cancel ButtonDisabled(false)
             --
-            Node { width: percent(90), max_width: rem(520.0), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(GROUP_ORDER_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard GroupOrderCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("proxies_reorder_title")
             Children [
                 LocalizedText::plain("proxies_reorder_title") TextRole(Role::Heading)

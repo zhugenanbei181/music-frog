@@ -29,6 +29,10 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::dns_mapping_projection::project_mappings;
 use infiltrator_shared::locales::Lang;
 
+/// One-off layout value (not a ladder rung): the minimum height of the
+/// Fake-IP mapping listing box that holds the mono listing rows.
+const FAKE_IP_LISTING_MIN_HEIGHT_PX: f32 = 48.0;
+
 /// Marker on the Fake-IP search field's parent node.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DnsFakeIpSearchField;
@@ -72,7 +76,7 @@ pub fn dns_fakeip_pool_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: rem(48.0),
+                                min_height: rem(FAKE_IP_LISTING_MIN_HEIGHT_PX),
                                 padding: UiRect::all(rem(space::S8)),
                                 border_radius: BorderRadius::all(rem(
                                         palette.control_radius_px,

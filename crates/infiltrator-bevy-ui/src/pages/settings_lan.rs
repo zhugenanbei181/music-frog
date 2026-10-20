@@ -38,6 +38,27 @@ use infiltrator_contract::lan::LanCredentials;
 use infiltrator_presentation::settings_status_projection::format_lan_auth;
 use std::collections::HashMap;
 
+/// The mixed-port field's fixed width in baseline pixels.
+const LAN_MIXED_PORT_FIELD_WIDTH_PX: f32 = 180.0;
+
+/// The bind-address field's fixed width in baseline pixels.
+const LAN_BIND_ADDRESS_FIELD_WIDTH_PX: f32 = 300.0;
+
+/// The allowed-CIDR field's fixed width in baseline pixels.
+const LAN_ALLOWED_IPS_FIELD_WIDTH_PX: f32 = 360.0;
+
+/// The denied-CIDR field's fixed width in baseline pixels.
+const LAN_DENIED_IPS_FIELD_WIDTH_PX: f32 = 360.0;
+
+/// The skip-auth-prefix field's fixed width in baseline pixels.
+const LAN_SKIP_AUTH_PREFIXES_FIELD_WIDTH_PX: f32 = 360.0;
+
+/// The auth-username field's fixed width in baseline pixels.
+const LAN_AUTH_USERNAME_FIELD_WIDTH_PX: f32 = 240.0;
+
+/// The auth-password field's fixed width in baseline pixels.
+const LAN_AUTH_PASSWORD_FIELD_WIDTH_PX: f32 = 240.0;
+
 #[derive(Resource, Default)]
 pub(super) struct LanFieldObservations(HashMap<Entity, String>);
 #[derive(Component, Clone, Debug, Default)]
@@ -149,7 +170,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(180.0) }
+                                    Node { width: rem(LAN_MIXED_PORT_FIELD_WIDTH_PX) }
                                     LanMixedPortField
                                     Children [
                                         @{ text_field_with_placeholder_scene(mixed_port.clone(), "7890".to_owned(), palette) } LanFieldBaseline({ mixed_port.clone() })
@@ -167,7 +188,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_bind_address_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(300.0) }
+                                    Node { width: rem(LAN_BIND_ADDRESS_FIELD_WIDTH_PX) }
                                     LanBindAddressField
                                     Children [
                                         @{ text_field_with_placeholder_scene(bind_address.clone(), "* / 192.168.1.10 / [::1]".to_owned(), palette) } LanFieldBaseline({ bind_address.clone() })
@@ -219,7 +240,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_allowed_cidr_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(360.0) }
+                                    Node { width: rem(LAN_ALLOWED_IPS_FIELD_WIDTH_PX) }
                                     LanAllowedIpsField
                                     Children [
                                         @{ text_field_with_placeholder_scene(allowed_ips.clone(), "192.168.0.0/16, 10.0.0.0/8".to_owned(), palette) } LanFieldBaseline({ allowed_ips.clone() })
@@ -237,7 +258,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_denied_cidr_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(360.0) }
+                                    Node { width: rem(LAN_DENIED_IPS_FIELD_WIDTH_PX) }
                                     LanDisallowedIpsField
                                     Children [
                                         @{ text_field_with_placeholder_scene(disallowed_ips.clone(), "192.168.1.10/32".to_owned(), palette) } LanFieldBaseline({ disallowed_ips.clone() })
@@ -255,7 +276,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_skip_auth_cidr_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(360.0) }
+                                    Node { width: rem(LAN_SKIP_AUTH_PREFIXES_FIELD_WIDTH_PX) }
                                     LanSkipAuthPrefixesField
                                     Children [
                                         @{ text_field_with_placeholder_scene(skip_auth_prefixes.clone(), "127.0.0.0/8, ::1/128".to_owned(), palette) } LanFieldBaseline({ skip_auth_prefixes.clone() })
@@ -286,7 +307,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_auth_username_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(240.0) }
+                                    Node { width: rem(LAN_AUTH_USERNAME_FIELD_WIDTH_PX) }
                                     LanAuthUsernameField
                                     Children [
                                         @{ text_field_with_placeholder_scene(auth_username.clone(), "musicfrog".to_owned(), palette) } LanFieldBaseline({ auth_username.clone() })
@@ -304,7 +325,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_auth_password_label") TextRole(Role::Body)
                                     --
-                                    Node { width: rem(240.0) }
+                                    Node { width: rem(LAN_AUTH_PASSWORD_FIELD_WIDTH_PX) }
                                     LanAuthPasswordField
                                     Children [
                                         @{ password_field_scene(String::new(), "Apply to set password".to_owned(), palette) }

@@ -12,7 +12,9 @@
 //! [`PROXIES_VIRTUAL_THRESHOLD`]; below it the page keeps its full-mount
 //! vocabulary (and its stable-identity reconcile contract).
 
-use crate::pages::proxies::{LastProxiesProjection, ProxiesProjection, ProxiesScrollArea, ProxyGroup};
+use crate::pages::proxies::{
+    LastProxiesProjection, ProxiesProjection, ProxiesScrollArea, ProxyGroup,
+};
 use crate::pages::proxies_card::{
     ProxyNodeSceneContext, group_header_scene, proxy_node_scene_sized,
 };

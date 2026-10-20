@@ -95,6 +95,12 @@ use lurker_ui_presentation::core_status_projection::{
     OverviewBannerVerdict, banner_verdict_copy, failure_copy, project_banner_verdict, source_copy,
 };
 
+/// The status banner's text column minimum width in baseline pixels.
+const OVERVIEW_STATUS_TEXT_MIN_WIDTH_PX: f32 = 180.0;
+
+/// The status banner's dot diameter in baseline pixels.
+const OVERVIEW_STATUS_DOT_SIZE_PX: f32 = 10.0;
+
 #[path = "overview_reactive.rs"]
 pub mod overview_reactive;
 
@@ -611,7 +617,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
             Children [
                 Node {
                     flex_grow: 1.0,
-                    min_width: rem(180.0),
+                    min_width: rem(OVERVIEW_STATUS_TEXT_MIN_WIDTH_PX),
                     flex_direction: FlexDirection::Column,
                     row_gap: rem(space::S8),
                 }
@@ -622,8 +628,8 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                     }
                     Children [
                         Node {
-                            width: rem(10.0),
-                            height: rem(10.0),
+                            width: rem(OVERVIEW_STATUS_DOT_SIZE_PX),
+                            height: rem(OVERVIEW_STATUS_DOT_SIZE_PX),
                             flex_shrink: 0.0,
                             border_radius: BorderRadius::MAX,
                         }

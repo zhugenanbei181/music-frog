@@ -33,6 +33,10 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::{CoreLifecycle, CoreLifecycleSnapshot};
 use lurker_core_contract::page::SurfaceOrigin;
 
+/// One-off layout value (not a ladder rung): the widest the core-control
+/// column may grow inside the overview grid.
+const CORE_CONTROL_MAX_WIDTH_PX: f32 = 320.0;
+
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlButton;
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -97,7 +101,7 @@ fn projection(
 
 pub fn core_control_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { min_width: px(0.0), max_width: rem(320.0), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
+        Node { min_width: px(0.0), max_width: rem(CORE_CONTROL_MAX_WIDTH_PX), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [
             Node {
                 min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S12)),

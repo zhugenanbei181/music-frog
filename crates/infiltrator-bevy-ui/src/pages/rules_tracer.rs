@@ -46,6 +46,10 @@ use infiltrator_presentation::rule_trace_projection::{
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::{ErrorCode, Failure};
 
+/// One-off layout value (not a ladder rung): the width of the tracer's source
+/// IP field, kept narrower than the target field it shares a row with.
+const TRACER_SOURCE_IP_FIELD_WIDTH_PX: f32 = 240.0;
+
 #[derive(Resource, Default)]
 pub struct RulesTraceState {
     pub model: RuleTraceActions,
@@ -539,7 +543,7 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                                 bsn! { TracerNativeField NativeTextField(0) }) }
                         ]
                         --
-                        Node { width: rem(240.0) }
+                        Node { width: rem(TRACER_SOURCE_IP_FIELD_WIDTH_PX) }
                         TracerSourceIpField
                         Children [
                             @{ (localized_field_scene(src_ip_initial, LocalizedText::plain("field_tracer_source"), palette),

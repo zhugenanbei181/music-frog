@@ -35,6 +35,10 @@ use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_presentation::dns_leak_projection::{LeakTone, project_leak};
 use infiltrator_shared::locales::Lang;
 
+/// One-off layout value (not a ladder rung): the minimum height of the leak
+/// probe-source listing box that holds the per-source rows.
+const LEAK_SOURCES_LISTING_MIN_HEIGHT_PX: f32 = 48.0;
+
 #[derive(Component, Clone, Default)]
 pub struct LeakCard;
 #[derive(Component, Clone, Default)]
@@ -108,7 +112,7 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                 Box::new(bsn! {
                                 Node {
                                     width: percent(100),
-                                    min_height: rem(48.0),
+                                    min_height: rem(LEAK_SOURCES_LISTING_MIN_HEIGHT_PX),
                                     padding: UiRect::all(rem(space::S8)),
                                     border_radius: BorderRadius::all(rem(
                                             palette.control_radius_px,

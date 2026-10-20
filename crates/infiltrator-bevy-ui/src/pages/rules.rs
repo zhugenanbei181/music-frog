@@ -96,6 +96,10 @@ use infiltrator_presentation::rule_statistics_projection::project_statistics;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
 
+/// One-off layout value (not a ladder rung): the minimum height of the rule
+/// type chip that carries the row's rule-type label.
+const RULE_TYPE_CHIP_MIN_HEIGHT_PX: f32 = 18.0;
+
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct RulesPageRoot;
@@ -680,7 +684,7 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
             Node {
                 flex_shrink: 0.0,
                 min_width: rem(space::S8),
-                min_height: rem(18.0),
+                min_height: rem(RULE_TYPE_CHIP_MIN_HEIGHT_PX),
                 padding: UiRect::horizontal(rem(space::S6)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,

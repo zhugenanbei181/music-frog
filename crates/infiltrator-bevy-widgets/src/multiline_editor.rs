@@ -35,6 +35,12 @@ use bevy::ui::{
 use bevy::ui_widgets::{TextInput, TextInputPlugin};
 use bevy::window::Ime;
 
+/// The editor's minimum height in baseline pixels.
+const MULTILINE_EDITOR_MIN_HEIGHT_PX: f32 = 160.0;
+
+/// The editor's inner padding in baseline pixels.
+const MULTILINE_EDITOR_PADDING_PX: f32 = 8.0;
+
 #[derive(Component, Clone, Copy, Default)]
 #[require(TextInput)]
 pub struct MultilineEditor;
@@ -98,8 +104,8 @@ pub fn multiline_editor_scene(
         ..Default::default()
     };
     bsn! {
-        Node { width: percent(100), min_width: px(0), min_height: rem(160), max_width: percent(100),
-            overflow: Overflow::clip(), padding: UiRect::all(rem(8)),
+        Node { width: percent(100), min_width: px(0), min_height: rem(MULTILINE_EDITOR_MIN_HEIGHT_PX), max_width: percent(100),
+            overflow: Overflow::clip(), padding: UiRect::all(rem(MULTILINE_EDITOR_PADDING_PX)),
             border: UiRect::all(px(palette.hairline_px)), border_radius: BorderRadius::all(rem(palette.control_radius_px)) }
         ThemeBackgroundColor({Token::SurfaceElevated})
         BorderColor::all(palette.border)

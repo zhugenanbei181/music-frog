@@ -23,7 +23,7 @@ use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexWrap, JustifyContent, Node, UiRect, Val,
+    AlignItems, BackgroundColor, BorderRadius, FlexWrap, JustifyContent, Node, UiRect,
 };
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -32,7 +32,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
@@ -127,7 +127,7 @@ fn sort_pill(key: ConnectionSortKey, palette: &UiPalette) -> impl Scene + use<> 
     bsn! {
             Node {
                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
                 align_items: AlignItems::Center,
             }
             BackgroundColor({ bg })

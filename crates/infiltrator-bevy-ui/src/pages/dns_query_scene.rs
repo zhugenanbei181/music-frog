@@ -28,6 +28,15 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 
+/// The query modal dialog's maximum width in baseline pixels.
+const DNS_QUERY_MODAL_MAX_WIDTH_PX: f32 = 640.0;
+
+/// The query modal dialog's maximum height in baseline pixels.
+const DNS_QUERY_MODAL_MAX_HEIGHT_PX: f32 = 640.0;
+
+/// The record-type menu's top offset inside the modal, in baseline pixels.
+const DNS_QUERY_TYPE_MENU_TOP_PX: f32 = 100.0;
+
 pub fn query_button(
     action: QueryAction,
     copy: LocalizedText,
@@ -89,7 +98,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) QueryAction::Cancel
             --
             Node {
-                width: percent(90), max_width: rem(640.0), height: percent(90), max_height: rem(640.0),
+                width: percent(90), max_width: rem(DNS_QUERY_MODAL_MAX_WIDTH_PX), height: percent(90), max_height: rem(DNS_QUERY_MODAL_MAX_HEIGHT_PX),
                 padding: UiRect::all(rem(space::S12)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S6),
             }
@@ -109,7 +118,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 ]
                 --
                 Node {
-                    position_type: PositionType::Absolute, top: rem(100.0), left: rem(space::S12), right: rem(space::S12),
+                    position_type: PositionType::Absolute, top: rem(DNS_QUERY_TYPE_MENU_TOP_PX), left: rem(space::S12), right: rem(space::S12),
                     flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S4), row_gap: rem(space::S4),
                     padding: UiRect::all(rem(space::S8)), display: Display::None,
                 }

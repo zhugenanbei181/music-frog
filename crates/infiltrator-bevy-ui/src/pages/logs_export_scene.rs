@@ -21,6 +21,11 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+
+/// One-off layout value (not a ladder rung): the widest the logs export modal
+/// card may grow on a wide viewport.
+const LOGS_EXPORT_MODAL_MAX_WIDTH_PX: f32 = 560.0;
+
 pub fn spawn(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(scene(&palette));
 }
@@ -35,7 +40,7 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({Token::Scrim}) LogsExportAction::Cancel
             --
-            Node { width: percent(90), max_width: rem(560.0), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+            Node { width: percent(90), max_width: rem(LOGS_EXPORT_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border: UiRect::all(px(palette.hairline_px)) }
             ModalDialogCard LogsExportCard ThemeBackgroundColor({Token::Surface}) BorderColor::all(edge)
             AccessibilityNode(semantic) LocalizedLabel::plain("logs_export_title")

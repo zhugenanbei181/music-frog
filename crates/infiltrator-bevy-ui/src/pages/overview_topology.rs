@@ -44,6 +44,12 @@ use infiltrator_presentation::traffic_topology_projection;
 use infiltrator_presentation::traffic_topology_projection::status_label;
 use infiltrator_shared::locales::Lang;
 
+/// The topology stage card's flex basis in baseline pixels.
+const TOPOLOGY_STAGE_FLEX_BASIS_PX: f32 = 140.0;
+
+/// The topology stage card's minimum width in baseline pixels.
+const TOPOLOGY_STAGE_MIN_WIDTH_PX: f32 = 110.0;
+
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 #[cfg(any(feature = "capture-tools", test))]
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
@@ -226,8 +232,8 @@ fn topology_stage_chip_scene(
             Node {
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
-                flex_basis: rem(140.0),
-                min_width: rem(110.0),
+                flex_basis: rem(TOPOLOGY_STAGE_FLEX_BASIS_PX),
+                min_width: rem(TOPOLOGY_STAGE_MIN_WIDTH_PX),
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S6),
                 padding: UiRect::all(rem(space::S8)),

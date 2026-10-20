@@ -53,6 +53,15 @@ use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholde
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::subscription_filter_form::FilterField;
 
+/// The "activate after import" switch track's fixed width in baseline pixels.
+const IMPORT_ACTIVATE_TRACK_WIDTH_PX: f32 = 38.0;
+
+/// The "activate after import" switch track's fixed height in baseline pixels.
+const IMPORT_ACTIVATE_TRACK_HEIGHT_PX: f32 = 22.0;
+
+/// The "activate after import" knob's left offset, in baseline pixels.
+const IMPORT_ACTIVATE_KNOB_OFFSET_PX: f32 = 18.0;
+
 /// Marker for the profiles import card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProfilesImportRoot;
@@ -227,8 +236,8 @@ pub fn profiles_import_card_scene(
                                     LocalizedText::plain("overview_toggle_enabled") TextRole(Role::Caption) ThemeTextColor({ Token::Success })
                                     --
                                     Node {
-                                        width: rem(38.0),
-                                        height: rem(22.0),
+                                        width: rem(IMPORT_ACTIVATE_TRACK_WIDTH_PX),
+                                        height: rem(IMPORT_ACTIVATE_TRACK_HEIGHT_PX),
                                         border: UiRect::all(Val::Px(palette.hairline_px)),
                                         // Capsule track: 11px is half the 22px track
                                         // height, and no radius token carries it.
@@ -246,7 +255,7 @@ pub fn profiles_import_card_scene(
                                     Children [
                                         Node {
                                             position_type: PositionType::Absolute,
-                                            left: rem(18.0),
+                                            left: rem(IMPORT_ACTIVATE_KNOB_OFFSET_PX),
                                             width: rem(space::S16),
                                             height: rem(space::S16),
                                             border_radius: BorderRadius::all(rem(radius::SM)),
