@@ -865,17 +865,23 @@ pub fn sync_safe_area_insets(
     // the bottom avoidance to `max(permanent_bottom, ime)` and is never added
     // on top of the permanent navigation-bar margin (no duplicate margins).
     let keyboard_bottom = keyboard.as_ref().map_or(0.0, |k| k.bottom_px);
-    let avoidance_bottom = insets_bottom.max(keyboard_bottom);
+    let bottom_avoidance_inset = insets_bottom.max(keyboard_bottom);
 
     // 1. The compact bar extends through the host's bottom inset, while its
     //    content padding moves every navigation hit target above that region.
-    let bottom_nav_height = Val::Px(BOTTOM_NAV_CONTENT_HEIGHT + avoidance_bottom);
-    let bottom_nav_padding = if avoidance_bottom > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
+    //    The bar's own height is a scaling dimension and travels through the
+    //    rem channel; the host's avoidance area is physical, so it rides on
+    //    its own margin (bevy's `Val` cannot add a rem to a px). The content
+    //    box therefore keeps its baseline height (58 - 6 = 52) and the hit
+    //    targets still end above the gesture region.
+    let bottom_nav_height = rem(BOTTOM_NAV_CONTENT_HEIGHT);
+    let bottom_nav_margin = UiRect::bottom(Val::Px(bottom_avoidance_inset));
+    let bottom_nav_padding = if insets_left > 0.0 || insets_right > 0.0 {
         UiRect::new(
             Val::Px(insets_left),
             Val::Px(insets_right),
             Val::Px(0.0),
-            Val::Px(space::S6 + avoidance_bottom),
+            rem(space::S6),
         )
     } else {
         UiRect::bottom(rem(space::S6))
@@ -891,9 +897,16 @@ pub fn sync_safe_area_insets(
         if node.padding != bottom_nav_padding {
             node.padding = bottom_nav_padding;
         }
+        if node.margin != bottom_nav_margin {
+            node.margin = bottom_nav_margin;
+        }
     }
 
     // 2. Chrome Drag Bar safe area avoidance (status bar / notch)
+    //    The drag strip is the host window frame's own physical height (the
+    //    contract owns `CHROME_DRAG_STRIP_HEIGHT_PX`, and the scene in
+    //    `chrome.rs` paints it in pixels), so it stays in the physical
+    //    channel together with the host's status-bar inset.
     let chrome_height = Val::Px(CHROME_DRAG_STRIP_HEIGHT_PX as f32 + insets_top);
     let chrome_padding = if insets_top > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
         UiRect::new(
@@ -920,22 +933,24 @@ pub fn sync_safe_area_insets(
     }
 
     // 3. Shell Root horizontal & fallback bottom/top safe area avoidance
+    //    The fallback pads are the host's own physical insets, so they stay
+    //    in the physical channel as named inset values (never bare literals).
     let is_compact = layout.mode == LayoutMode::BottomNav;
-    let root_bottom_pad = if !is_compact && avoidance_bottom > 0.0 {
-        avoidance_bottom
+    let root_bottom_inset = if !is_compact && bottom_avoidance_inset > 0.0 {
+        Val::Px(bottom_avoidance_inset)
     } else {
-        0.0
+        Val::Px(0.0)
     };
-    let root_top_pad = if chrome_bar_count == 0 && insets_top > 0.0 {
-        insets_top
+    let root_top_inset = if chrome_bar_count == 0 && insets_top > 0.0 {
+        Val::Px(insets_top)
     } else {
-        0.0
+        Val::Px(0.0)
     };
     let root_padding = UiRect::new(
         Val::Px(insets_left),
         Val::Px(insets_right),
-        Val::Px(root_top_pad),
-        Val::Px(root_bottom_pad),
+        root_top_inset,
+        root_bottom_inset,
     );
 
     for mut node in &mut shell_roots {

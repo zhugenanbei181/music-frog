@@ -14,7 +14,7 @@ use bevy::prelude::Color;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::feathers_theme::Token;
@@ -60,7 +60,7 @@ pub fn dns_self_heal_card_scene(
                                 width: percent(100),
                                 min_height: rem(48.0),
                                 padding: UiRect::all(rem(space::S8)),
-                                border_radius: BorderRadius::all(Val::Px(
+                                border_radius: BorderRadius::all(rem(
                                         palette.control_radius_px,
                                 )),
                                 flex_direction: FlexDirection::Column,

@@ -5,7 +5,7 @@
 本 crate 只拥有 Bevy 页面实现、通用宿主注入入口和隔离截图工具。桌面 `DesktopProductSession`、Core pump、command sink 与产品可执行入口由 [Bevy desktop host](../../infiltrator-bevy-desktop-host/README.md) 组合；Android driver 只注入 owner IPC client、窗口输入和 Insets。
 
 - [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)：ECS、bsn 场景、shader 与资源生命周期章程。
-- [BEVY_020_UI_CAPABILITIES.md](BEVY_020_UI_CAPABILITIES.md)：Bevy 0.20 UI 能力唯一权威规范（rem/em 尺寸、ThemeContext 分层主题、headless 控件优先、FixedNode、InlineBox、bsn_list!/Ready/despawn_all）；新 UI 代码必须遵守。**强制化台账见该文「强制化台账」一节**：场景结构（`bsn!` 唯一入口 + ECS 访问边界）由 `scripts/quality/bevy_bsn_guard.py` 机器强制并接入 CI；rem/em 尺寸通道由两段互补执行器强制——共享包场景门禁 `scripts/quality/bevy_scene_gate.py`（禁硬编码非零 px 字面量与 `FontSize::Px`）＋ 产品守卫 `scripts/quality/bevy_rem_guard.py`（禁命名/派生 px 值越出物理白名单、禁字面量 `em`、禁非 rem 字号），两份存量台账只允许缩小；⑦ 小件收敛目前**仅人工评审**（由 `BEVYCAP-002.1` 收口）。
+- [BEVY_020_UI_CAPABILITIES.md](BEVY_020_UI_CAPABILITIES.md)：Bevy 0.20 UI 能力唯一权威规范（rem/em 尺寸、ThemeContext 分层主题、headless 控件优先、FixedNode、InlineBox、bsn_list!/Ready/despawn_all）；新 UI 代码必须遵守。**强制化台账与场景律法覆盖差表见该文「强制化台账」一节**：场景结构（`bsn!` 唯一入口 + ECS 访问边界）由 `scripts/quality/bevy_bsn_guard.py` 机器强制，rem/em 尺寸通道由 `scripts/quality/bevy_rem_guard.py` 机器强制（禁硬编码 px 字面量、禁命名/派生 px 值越出物理白名单、禁字面量 `em`、禁非 rem 字号），两者均已接入 `scripts/quality/check-structure.sh` 与 CI；共享包场景门禁 `scripts/quality/bevy_scene_gate.py` 是**上游律法差集探测器**（advisory，不阻塞、不作产品放行依据）；⑦ 小件收敛目前**仅人工评审**（由 `BEVYCAP-002.1` 收口）。
 
 ## 消费端架构纪律（强制遵照执行）
 

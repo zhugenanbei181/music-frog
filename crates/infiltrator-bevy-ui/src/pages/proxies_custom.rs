@@ -19,7 +19,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{Scene, bsn};
+use bevy::scene::{Scene, SceneList, bsn, bsn_list};
 use bevy::ui::prelude::{FlexDirection, FlexWrap, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -29,6 +29,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
 use infiltrator_presentation::protocol_editor_operation::ProtocolEditorEffect;
@@ -116,6 +117,18 @@ pub(super) fn slot_initial(slot: ProtocolStudioSlot, studio: &ProtocolStudioSnap
     )
 }
 
+/// The read-only studio fact slots as one scene list: a repeated group, so it
+/// is authored as a [`SceneList`] instead of an inline `Children [...]` enumeration.
+fn studio_slot_scenes(studio: &ProtocolStudioSnapshot) -> impl SceneList + use<> {
+    let slots: Vec<Box<dyn Scene>> = ProtocolStudioSlot::ALL.iter().filter(|slot| **slot != ProtocolStudioSlot::UriPreview).map(|slot| {
+        Box::new(bsn! {
+            Node { width: percent(100), flex_shrink: 0.0 }
+            Children [ Text({ slot_initial(*slot, studio) }) CustomNodeText({ *slot }) ProtocolFormText({ ProtocolFormTextKind::Fact(*slot) }) TextRole(Role::Caption) ]
+        }) as Box<dyn Scene>
+    }).collect();
+    bsn_list! { { slots } }
+}
+
 /// Custom Node Editor scene.
 pub fn custom_node_scene(
     studio: &ProtocolStudioSnapshot,
@@ -123,14 +136,8 @@ pub fn custom_node_scene(
 ) -> impl Scene + use<> {
     let language = active_language();
     let lang = Lang(&language);
-    let slots: Vec<Box<dyn Scene>> = ProtocolStudioSlot::ALL.iter().filter(|slot| **slot != ProtocolStudioSlot::UriPreview).map(|slot| {
-        Box::new(bsn! {
-            Node { width: percent(100), flex_shrink: 0.0 }
-            Children [ Text({ slot_initial(*slot, studio) }) CustomNodeText({ *slot }) ProtocolFormText({ ProtocolFormTextKind::Fact(*slot) }) TextRole(Role::Caption) ]
-        }) as Box<dyn Scene>
-    }).collect();
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(12.0), flex_shrink: 0.0 }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), flex_shrink: 0.0 }
         CustomNodeEditorRoot
         Children [
             Node { width: percent(100), flex_shrink: 0.0 }
@@ -140,17 +147,17 @@ pub fn custom_node_scene(
             CustomNodeUriField CustomNodeInputField(CustomNodeInput::Uri)
             Children [ @{ text_field_with_placeholder_scene(String::new(), lang.tr("custom_node_uri_placeholder").into_owned(), palette) } ]
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0), flex_shrink: 0.0 }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
             Children [
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 ThemeBackgroundColor({ Token::Accent }) Button ImportUriButton CustomNodeActionButton(CustomNodeAction::ImportUri)
                 Children [ Text({ lang.tr("custom_node_btn_import_uri").into_owned() }) TextRole(Role::Body) ]
                 --
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 ThemeBackgroundColor({ Token::SurfaceElevated }) Button CustomNodeActionButton(CustomNodeAction::ExportUri)
                 Children [ Text({ lang.tr("custom_node_btn_export_uri").into_owned() }) TextRole(Role::Body) ]
                 --
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 ThemeBackgroundColor({ Token::Success }) Button SaveCustomNodeButton CustomNodeActionButton(CustomNodeAction::SaveDraft)
                 Children [ Text({ lang.tr("btn_save").into_owned() }) TextRole(Role::BodyStrong) ]
             ]
@@ -160,15 +167,15 @@ pub fn custom_node_scene(
             --
             @{ protocol_fields_scene(studio, palette) }
             --
-            { slots }
+            { studio_slot_scenes(studio) }
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0), flex_shrink: 0.0 }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
             Children [
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 Button ScanDialerChainsButton CustomNodeActionButton(CustomNodeAction::ScanDialer)
                 Children [ Text({ lang.tr("custom_node_dialer_scan").into_owned() }) TextRole(Role::Body) ]
                 --
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 Button VerifyCustomNodeCaButton CustomNodeActionButton(CustomNodeAction::VerifyCa)
                 Children [ Text({ lang.tr("custom_node_ca_verify").into_owned() }) TextRole(Role::Body) ]
             ]

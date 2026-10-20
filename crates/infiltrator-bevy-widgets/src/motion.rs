@@ -1,5 +1,6 @@
 //! Animation easing curves, spring physics simulation, and color interpolation.
 
+use crate::palette::rem;
 use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -358,7 +359,7 @@ pub fn sync_spring_toggle_knob(
     for (mut knob, mut node) in &mut knobs {
         knob.spring.target = if knob.is_on { knob.on_x } else { knob.off_x };
         let x = knob.spring.step(dt);
-        node.left = Val::Px(x);
+        node.left = rem(x);
     }
 }
 
@@ -380,7 +381,7 @@ pub fn sync_spring_route_transition(
         if let Some(mut transform) = transform_opt {
             transform.translation.y = y;
         } else if let Some(mut node) = node_opt {
-            node.top = Val::Px(y);
+            node.top = rem(y);
         }
         if transition.translation_y.is_settled(0.05) {
             transition.translation_y.value = 0.0;
@@ -419,7 +420,7 @@ pub fn sync_spring_staggered_cards(
             if let Some(mut transform) = transform_opt {
                 transform.translation.y = translation_y;
             } else if let Some(mut node) = node_opt {
-                node.top = Val::Px(translation_y);
+                node.top = rem(translation_y);
             }
         }
     }
@@ -444,7 +445,7 @@ pub fn sync_spring_card_hover_lift(time: Res<Time>, mut cards: Query<CardHoverLa
         if let Some(mut transform) = transform_opt {
             transform.translation.y = y;
         } else if let Some(mut node) = node_opt {
-            node.top = Val::Px(y);
+            node.top = rem(y);
         }
     }
 }

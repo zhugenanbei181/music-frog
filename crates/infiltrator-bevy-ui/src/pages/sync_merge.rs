@@ -189,7 +189,7 @@ pub fn replay_fields(
     last: Res<LastSyncProjection>,
     locale: Res<UiLocale>,
     mut cache: ResMut<SyncMergeRowsCache>,
-    slots: Query<(Entity, Option<&Children>), With<SyncMergeFieldsSlot>>,
+    slots: Query<Entity, With<SyncMergeFieldsSlot>>,
     mut rows: Query<(&SyncMergeRow, &mut Text)>,
     mut commands: Commands,
 ) {
@@ -204,15 +204,11 @@ pub fn replay_fields(
         .iter()
         .map(|field| field.key.clone())
         .collect::<Vec<_>>();
-    let Ok((slot, children)) = slots.single() else {
+    let Ok(slot) = slots.single() else {
         return;
     };
     if cache.slot != Some(slot) || cache.keys != keys {
-        if let Some(children) = children {
-            for child in children {
-                commands.entity(*child).despawn();
-            }
-        }
+        commands.entity(slot).despawn_children();
         let scenes = field_scenes(conflict, &locale);
         commands.spawn_scene(bsn! {
             Node { width: percent(100), min_width: px(0.0), flex_direction: FlexDirection::Column,

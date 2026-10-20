@@ -44,6 +44,7 @@ use infiltrator_bevy_widgets::gesture::{
 };
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::shell_gesture::{
@@ -699,13 +700,13 @@ fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
         let (node, _) = navs.single(world).expect("one bottom nav bar");
         assert_eq!(
             node.height,
-            px(BOTTOM_NAV_CONTENT_HEIGHT + 300.0),
-            "IME and system gesture avoidance are converted from physical pixels"
+            rem(BOTTOM_NAV_CONTENT_HEIGHT),
+            "the bar keeps its own height; the IME and gesture avoidance ride the margin"
         );
-        assert_ne!(
-            node.height,
-            px(BOTTOM_NAV_CONTENT_HEIGHT + 16.0 + 300.0),
-            "the IME replaces the permanent bottom margin"
+        assert_eq!(
+            node.margin.bottom,
+            Val::Px(300.0),
+            "IME and system gesture avoidance are converted from physical pixels"
         );
     }
 
@@ -724,5 +725,6 @@ fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
     let world = app.world_mut();
     let mut navs = world.query::<(&Node, &BottomNavBar)>();
     let (node, _) = navs.single(world).expect("one bottom nav bar");
-    assert_eq!(node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 32.0));
+    assert_eq!(node.height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
+    assert_eq!(node.margin.bottom, Val::Px(32.0));
 }

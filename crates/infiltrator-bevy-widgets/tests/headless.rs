@@ -30,6 +30,8 @@ mod icon_tile_tests;
 mod list_tests;
 #[path = "headless/menu_tests.rs"]
 mod menu_tests;
+#[path = "headless/motion_tests.rs"]
+mod motion_tests;
 #[path = "headless/modal_dialog_tests.rs"]
 mod modal_dialog_tests;
 #[path = "headless/nav_tests.rs"]

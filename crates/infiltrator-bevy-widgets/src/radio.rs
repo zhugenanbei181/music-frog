@@ -176,9 +176,10 @@ pub fn indexed_radio_scene(
                             height: rem(palette.control_square_px),
                             flex_shrink: 0.0,
                             border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(
-                                    palette.control_square_px * 0.5,
-                            )),
+                            // The ring is square and its radius is half the
+                            // side: bevy's adaptive capsule radius draws the
+                            // same circle while the rem channel owns the size.
+                            border_radius: BorderRadius::MAX,
                         }
                         BackgroundColor({ fill })
                         BorderColor {
@@ -209,9 +210,10 @@ pub fn indexed_radio_scene(
                             height: rem(palette.control_square_px),
                             flex_shrink: 0.0,
                             border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(
-                                    palette.control_square_px * 0.5,
-                            )),
+                            // The ring is square and its radius is half the
+                            // side: bevy's adaptive capsule radius draws the
+                            // same circle while the rem channel owns the size.
+                            border_radius: BorderRadius::MAX,
                         }
                         BackgroundColor({ fill })
                         BorderColor {
@@ -296,9 +298,10 @@ fn selected_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The ring is square and its radius is half the side:
+                    // bevy's adaptive capsule radius draws the same circle
+                    // while the rem channel owns the size.
+                    border_radius: BorderRadius::MAX,
                 }
                 BackgroundColor({ fill })
                 BorderColor {
@@ -332,9 +335,10 @@ fn idle_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The ring is square and its radius is half the side:
+                    // bevy's adaptive capsule radius draws the same circle
+                    // while the rem channel owns the size.
+                    border_radius: BorderRadius::MAX,
                 }
                 BackgroundColor({ fill })
                 BorderColor {

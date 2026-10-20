@@ -12,17 +12,17 @@ The law has two halves with two owners, and they compose into the closed
 whitelist without two baselines for the same sites:
 
 * the **shared-kit scene gate** (`zhuge-ui-kit`'s `check_bevy_ui.py`, vendored as
-  `scripts/quality/bevy_scene_gate.py`, rule `UIK-REM-001`) owns *hardcoded px
-  literals* — `px(4.0)` / `Val::Px(4.0)` — and keeps its own ratchet;
-* this guard owns the **named and derived px values** — `Val::Px(gap)`,
-  `Val::Px(palette.control_radius_px)` — that a literal ban cannot see, plus
-  the type and `em` rules the kit law does not name.
+  `scripts/quality/bevy_scene_gate.py`, rule `UIK-REM-001/002`) is the upstream
+  lower bound for the same law — hardcoded px literals and `FontSize::Px`;
+* this guard is the **product's blocking authority** and covers the whole law
+  (hardcoded literals, named and derived px values, `em` and type), so the
+  product never depends on a vendored copy being in place to be enforced.
 
 Rules:
 
-* **BEVY-REM-001** — a named or derived `Val::Px` dimension that is neither on
-  the physical whitelist nor registered in the legacy debt inventory. A new px
-  dimension is a node the user font scale cannot reach.
+* **BEVY-REM-001** — a `Val::Px` dimension (literal, named or derived) that is
+  neither on the physical whitelist nor registered in the legacy debt
+  inventory. A new px dimension is a node the user font scale cannot reach.
 * **BEVY-REM-002** — a font size that is not `FontSize::Rem` (`Px`, `Vw`, `Vh`,
   `VMin`, `VMax`). The root font size is the single type-scaling entry.
 * **BEVY-REM-003** — a `Val::Em` dimension written as a bare literal. `em` is
@@ -61,7 +61,9 @@ ROOTS = ("crates/infiltrator-bevy-widgets/src", "crates/infiltrator-bevy-ui/src"
 INVENTORY = Path("scripts/quality/bevy_rem_inventory.json")
 
 #: The capability spec's px whitelist: hairlines, the caret, viewport
-#: breakpoints, the minimum touch target and host inset physical pixels.
+#: breakpoints, the minimum touch target, host inset physical pixels and the
+#: measured/physical quantities the product keeps in pixels on purpose (raster
+#: plates, virtual-list row metrics, measured spacers).
 PHYSICAL_WHITELIST = re.compile(
     r"HAIRLINE"
     r"|CARET_WIDTH"
@@ -74,7 +76,12 @@ PHYSICAL_WHITELIST = re.compile(
     r"|EXPANDED_MAX_PX"
     r"|breakpoint"
     r"|inset"
-    r"|safe_area",
+    r"|safe_area"
+    r"|raster_"
+    r"|HEIGHT_PX"
+    r"|spacer_px"
+    r"|item_width_px"
+    r"|display_",
     re.IGNORECASE,
 )
 
@@ -166,7 +173,7 @@ def is_zero(argument: str) -> bool:
 
 
 def is_literal(argument: str) -> bool:
-    """A hardcoded px literal; the shared-kit scene gate owns that half."""
+    """A hardcoded px literal (the upstream law's lower bound, also a violation)."""
     return bool(PX_LITERAL.fullmatch(argument))
 
 
@@ -249,7 +256,7 @@ def collect_debt(root: Path) -> dict[str, dict[str, int]]:
         relative = path.relative_to(root).as_posix()
         text = path.read_text(encoding="utf-8", errors="replace")
         for _, argument in px_sites(text):
-            if is_literal(argument) or is_physical(relative, argument):
+            if is_physical(relative, argument):
                 continue
             values = debt.setdefault(relative, {})
             values[argument] = values.get(argument, 0) + 1
@@ -291,20 +298,21 @@ def scan(root: Path) -> tuple[list[Violation], list[Notice]]:
                 )
             )
         for offset, argument in px_sites(text):
-            if is_literal(argument) or is_physical(relative, argument):
+            if is_physical(relative, argument):
                 continue
             values = remaining.get(relative, {})
             left = values.get(argument, 0)
             if left > 0:
                 values[argument] = left - 1
                 continue
+            kind = "a hardcoded px literal" if is_literal(argument) else "a named px value"
             violations.append(
                 Violation(
                     relative,
                     text.count("\n", 0, offset) + 1,
                     "BEVY-REM-001",
-                    f"Val::Px({argument}) is outside the physical whitelist and"
-                    " not registered legacy debt; use rem(...)",
+                    f"Val::Px({argument}) is {kind} outside the physical whitelist"
+                    " and not registered legacy debt; use rem(...)",
                 )
             )
 
@@ -452,9 +460,9 @@ def self_test() -> int:
         ["BEVY-REM-001", "BEVY-REM-001"],
     )
     expect(
-        "a hardcoded px literal belongs to the shared-kit scene gate",
+        "a hardcoded px literal is forbidden as well",
         "fn card() { let radius = Val::Px(4.0); }",
-        [],
+        ["BEVY-REM-001"],
     )
     expect(
         "a non-rem font size is rejected",

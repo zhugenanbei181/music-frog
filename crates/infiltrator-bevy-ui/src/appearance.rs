@@ -201,14 +201,14 @@ pub fn tonal_ladder_preview_scene(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node {
                     width: percent(100),
-                    height: rem(24.0),
+                    height: rem(space::S24),
                     border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
                 Children [ { perceptual } ]
                 --
                 Node {
                     width: percent(100),
-                    height: rem(12.0),
+                    height: rem(space::S12),
                     border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
                 Children [ { fallback } ]

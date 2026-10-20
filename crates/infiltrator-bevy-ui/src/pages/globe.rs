@@ -197,7 +197,7 @@ pub fn globe_page(data: &GlobeData, mode: GlobeMode, palette: &UiPalette) -> imp
     }
 }
 
-fn header_scene(data: &GlobeData, _palette: &UiPalette) -> impl Scene + use<> {
+fn header_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<> {
     let summary = format!(
         "{} of {} node locations are plottable",
         data.plottable_count(),
@@ -216,7 +216,7 @@ fn header_scene(data: &GlobeData, _palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node {
                     width: percent(100),
-                    height: px(1.0),
+                    height: px(palette.hairline_px),
                 }
                 ThemeBackgroundColor({ Token::Border })
             ]

@@ -19,8 +19,7 @@ use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexWrap, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexWrap, JustifyContent, Node, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -35,7 +34,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_domain::rules::edit;
 use infiltrator_presentation::rule_form_binding::{RuleFormBinding, default_form_target};
@@ -255,7 +254,7 @@ fn rule_type_chip(index: usize, rule_type: String, _palette: &UiPalette) -> impl
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Button

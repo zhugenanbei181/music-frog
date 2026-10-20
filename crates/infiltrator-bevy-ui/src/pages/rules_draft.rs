@@ -25,6 +25,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::rule_document::RuleListOperationId;
 use infiltrator_presentation::rule_list_editor::RuleListEditor;
@@ -65,14 +66,14 @@ pub struct RuleMutationControl {
 
 pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         RuleListEditorCard
         Children [
             Text(String::new()) RuleListStatus TextRole(Role::Caption)
             --
             Text(String::new()) RuleListPreview TextRole(Role::Body)
             --
-            Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0) }
+            Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
             Children [
                 @{ (localized_button_scene(LocalizedText::plain("rules_save_btn"), ButtonVariant::Primary, palette), bsn! { RuleListControl::Save ButtonDisabled(true) }) }
                 --

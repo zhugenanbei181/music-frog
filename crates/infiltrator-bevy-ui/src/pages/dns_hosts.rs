@@ -12,6 +12,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
 use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
 
@@ -62,7 +63,7 @@ pub struct HostRowText(pub u64, pub bool);
 pub fn dns_hosts_card_scene(palette: &UiPalette) -> impl Scene + use<> {
     surface_scene(
         vec![Box::new(bsn! {
-            Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
+            Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
             Children [
                 LocalizedText::plain("dns_hosts_title") TextRole(Role::BodyStrong)
                 --

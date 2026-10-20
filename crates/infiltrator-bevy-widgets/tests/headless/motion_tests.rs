@@ -63,8 +63,8 @@ fn test_spring_animation_plugin_systems_execution() {
     // Knob should advance towards 20.0
     let knob_node = app.world().get::<Node>(knob).unwrap();
     match knob_node.left {
-        Val::Px(x) => assert!(x > 0.0),
-        _ => panic!("Expected Val::Px for knob.left"),
+        Val::Rem(offset) => assert!(offset > 0.0),
+        _ => panic!("Expected Val::Rem for knob.left"),
     }
 
     // Route transition should move towards 0.0

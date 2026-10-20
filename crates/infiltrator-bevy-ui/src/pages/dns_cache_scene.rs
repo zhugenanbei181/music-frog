@@ -18,6 +18,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 pub fn spawn(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(modal(&palette));
 }
@@ -38,9 +39,9 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             --
             Node {
                 width: percent(90), max_width: rem(560.0), max_height: percent(90),
-                padding: UiRect::all(rem(20.0)),
+                padding: UiRect::all(rem(space::S20)),
                 flex_direction: FlexDirection::Column,
-                row_gap: rem(12.0),
+                row_gap: rem(space::S12),
             }
             ModalDialogCard CacheModalCard ThemeBackgroundColor({ Token::Surface })
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_cache_title")
@@ -55,7 +56,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Text(String::new()) CacheLine::System TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: rem(12.0), justify_content: JustifyContent::FlexEnd }
+                Node { width: percent(100), column_gap: rem(space::S12), justify_content: JustifyContent::FlexEnd }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("dns_cache_cancel"), ButtonVariant::Default, palette), bsn! { CacheAction::Cancel }) }
                     --

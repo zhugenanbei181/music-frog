@@ -9,7 +9,7 @@
 > Bevy 0.20 UI 能力（rem/em、ThemeContext、headless 控件、FixedNode、InlineBox、bsn_list!/Ready/despawn_all）的使用规范见 [BEVY_020_UI_CAPABILITIES.md](BEVY_020_UI_CAPABILITIES.md)，本文与其冲突时以能力规范为准。
 
 - 使用 `bsn!` 声明 UI 场景，通过受限系统更新实体；不在业务路径中命令式创建、拆解或重挂 UI 树。
-- 结构与 ECS 口径由 `scripts/quality/bevy_bsn_guard.py` 机器强制（接入 `scripts/quality/check-structure.sh` 与 CI）；rem/em 尺寸通道由共享包场景门禁 `scripts/quality/bevy_scene_gate.py`（禁硬编码 px 字面量）与产品守卫 `scripts/quality/bevy_rem_guard.py`（禁命名/派生 px 值越出物理白名单）互补强制；⑦ 小件收敛目前仅人工评审，强制状态与收口条目见能力规范的「强制化台账」一节。
+- 结构与 ECS 口径由 `scripts/quality/bevy_bsn_guard.py` 机器强制（接入 `scripts/quality/check-structure.sh` 与 CI）；rem/em 尺寸通道由 `scripts/quality/bevy_rem_guard.py` 机器强制（禁硬编码 px 字面量、禁命名/派生 px 值越出物理白名单、禁字面量 `em`、禁非 rem 字号）；共享包场景门禁是上游律法差集探测器（advisory），⑦ 小件收敛目前仅人工评审，强制状态与收口条目见能力规范的「强制化台账」一节。
 - 系统声明所需的 `Query`、资源、事件、`Commands` 与职责明确的 `SystemParam`。禁止透传整个 `World`、`App::world()`/`world_mut()`、`DeferredWorld`、独占系统和全局服务定位器。
 - 插件在 `build` 中一次注册资源与观察者。页面根只标记身份；控件用受限 Observer 初始化。实体创建、退役和 SDK 状态同步通过明确的调度顺序与 `ApplyDeferred` 完成。
 - 业务状态与投影由共享 owner 持有。UI 原位回放结果和输入状态，不复制业务事实、不因数据刷新重建整页；`infiltrator-bevy-widgets` 保持业务无关。

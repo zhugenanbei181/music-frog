@@ -26,7 +26,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val, px,
+    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val,
 };
 use bevy::ui::widget::Text;
 use bevy::ui::{InteractionDisabled, Pressed};
@@ -272,8 +272,8 @@ pub fn button_with_label_scene(
     let scene = control::button_scene(
         ButtonLayout {
             min_width: Val::Auto,
-            height: px(height_px),
-            padding: UiRect::horizontal(Val::Px(padding_h)),
+            height: rem(height_px),
+            padding: UiRect::horizontal(rem(padding_h)),
             border: UiRect::all(Val::Px(metrics::HAIRLINE)),
             align: AlignItems::Center,
             justify: JustifyContent::Center,
@@ -343,7 +343,7 @@ pub fn pill_scene(label: String, selected: bool, palette: &UiPalette) -> impl Sc
     let edge = control_border(palette);
     let scene = control::button_scene(
         ButtonLayout {
-            min_width: px(palette.control_height_px * 2.8),
+            min_width: rem(palette.control_height_px * 2.8),
             height: rem(palette.control_height_px),
             padding: UiRect::horizontal(rem(space::S12)),
             border: UiRect::all(Val::Px(metrics::HAIRLINE)),
@@ -380,7 +380,7 @@ pub fn pill_caption_with_label_scene(
     let edge = control_border(palette);
     Box::new(bsn! {
             Node {
-                height: px(palette.control_height_px * 0.8),
+                height: rem(palette.control_height_px * 0.8),
                 padding: UiRect::horizontal(rem(space::S8)),
                 border: UiRect::all(Val::Px(metrics::HAIRLINE)),
                 align_items: AlignItems::Center,

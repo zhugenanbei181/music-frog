@@ -22,6 +22,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_bevy_widgets::theme::space;
 pub fn spawn_modal(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(modal(&palette));
 }
@@ -34,27 +35,27 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) HostAction::Cancel
             --
-            Node { width: percent(90), max_width: rem(600.0), max_height: percent(90), padding: UiRect::all(rem(16.0)), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
+            Node { width: percent(90), max_width: rem(600.0), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
             ModalDialogCard HostsModalCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("dns_hosts_title")
             Children [
                 LocalizedText::plain("dns_hosts_title") TextRole(Role::Heading)
                 --
                 LocalizedText::plain("dns_hosts_desc") TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: rem(8.0) }
+                Node { width: percent(100), column_gap: rem(space::S8) }
                 Children [
-                    Node { width: percent(48), min_width: px(0.0), flex_direction: FlexDirection::Column, row_gap: rem(4.0) }
+                    Node { width: percent(48), min_width: px(0.0), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
                     DnsHostsEditorField
                     Children [ LocalizedText::plain("dns_hosts_address") TextRole(Role::Caption) --
                         @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_hosts_address"), palette), bsn! { NativeTextField(0) }) } ]
                     --
-                    Node { width: percent(48), min_width: px(0.0), flex_direction: FlexDirection::Column, row_gap: rem(4.0) }
+                    Node { width: percent(48), min_width: px(0.0), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
                     DnsHostsDomainField
                     Children [ LocalizedText::plain("dns_hosts_domain") TextRole(Role::Caption) --
                         @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_hosts_domain"), palette), bsn! { NativeTextField(1) }) } ]
                 ]
                 --
-                Node { width: percent(100), column_gap: rem(8.0), justify_content: JustifyContent::SpaceBetween }
+                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::SpaceBetween }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("dns_hosts_add"), ButtonVariant::Default, palette), bsn! { HostAction::CommitRow }) }
                     --
@@ -63,7 +64,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     @{ (localized_button_scene(LocalizedText::plain("dns_hosts_import_legacy"), ButtonVariant::Default, palette), bsn! { HostAction::ImportLegacy }) }
                 ]
                 --
-                Node { width: percent(100), height: rem(128.0), min_height: rem(40.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(4.0), overflow: Overflow::scroll_y() }
+                Node { width: percent(100), height: rem(128.0), min_height: rem(40.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S4), overflow: Overflow::scroll_y() }
                 ScrollArea HostsRows
                 --
                 LocalizedText::plain("dns_hosts_empty") HostsEmptyHint TextRole(Role::Caption)
@@ -72,7 +73,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 LocalizedText::plain("dns_hosts_unobserved") DnsHostsStatusLine TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: rem(8.0), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
+                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("dns_hosts_clear_draft"), ButtonVariant::Default, palette), bsn! { HostAction::Cancel }) }
                     --

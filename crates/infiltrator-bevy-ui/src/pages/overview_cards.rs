@@ -20,7 +20,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, Val, percent,
+    Overflow, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -32,7 +32,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
@@ -40,6 +40,10 @@ use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key
 use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
+
+/// One-off layout value (not a ladder rung): the preferred width of a master
+/// switch card before the row wraps. The shared `metrics` carry no card width.
+const MASTER_CARD_BASIS_PX: f32 = 280.0;
 
 /// Marker on active exit node card (BEVY-GAP-019).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -127,8 +131,8 @@ pub fn subscription_quota_scene_with_snapshot(
                         --
                         Node {
                             width: percent(100),
-                            height: rem(8.0),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
+                            height: rem(space::S8),
+                            border_radius: BorderRadius::all(rem(radius::XS)),
                             overflow: Overflow::clip(),
                         }
                         ThemeBackgroundColor({ Token::Border })
@@ -137,7 +141,7 @@ pub fn subscription_quota_scene_with_snapshot(
                             Node {
                                 width: percent(progress_percent),
                                 height: percent(100),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             ThemeBackgroundColor({ Token::Accent })
                             AccentFill
@@ -341,7 +345,7 @@ fn single_master_card_scene(
         vec![Box::new(bsn! {
                     Node {
                         flex_grow: 1.0,
-                        flex_basis: rem(280.0),
+                        flex_basis: rem(MASTER_CARD_BASIS_PX),
                         flex_direction: FlexDirection::Column,
                         row_gap: rem(space::S8),
                     }
@@ -368,9 +372,13 @@ fn single_master_card_scene(
                             }
                             Children [
                                 Node {
-                                    width: rem(6.0),
-                                    height: rem(6.0),
-                                    border_radius: BorderRadius::all(Val::Px(3.0)),
+                                    width: rem(space::S6),
+                                    height: rem(space::S6),
+                                    // A micro status dot: the XS rung is the
+                                    // micro scale, and bevy clamps a corner
+                                    // radius to half the box, so the 6px dot
+                                    // stays a circle.
+                                    border_radius: BorderRadius::all(rem(radius::XS)),
                                 }
                                 BackgroundColor({ dot_color })
                                 --

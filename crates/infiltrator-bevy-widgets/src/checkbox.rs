@@ -24,7 +24,7 @@ use bevy::ecs::system::{Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
 };
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderColor, Checked};
@@ -209,9 +209,10 @@ fn checked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<>
                     height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The box is square and its radius is half the side:
+                    // bevy's adaptive capsule radius draws the same circle
+                    // while the rem channel owns the box size.
+                    border_radius: BorderRadius::MAX,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
@@ -225,8 +226,8 @@ fn checked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<>
                 CheckboxBox
                 Children [
                     Node {
-                        width: px(palette.control_square_px * 0.55),
-                        height: px(2.0),
+                        width: rem(palette.control_square_px * 0.55),
+                        height: rem(space::S2),
                     }
                     ThemeBackgroundColor({ Token::OnAccent })
                     Visibility::Hidden
@@ -257,9 +258,10 @@ fn unchecked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use
                     height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The box is square and its radius is half the side:
+                    // bevy's adaptive capsule radius draws the same circle
+                    // while the rem channel owns the box size.
+                    border_radius: BorderRadius::MAX,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
@@ -273,8 +275,8 @@ fn unchecked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use
                 CheckboxBox
                 Children [
                     Node {
-                        width: px(palette.control_square_px * 0.55),
-                        height: px(2.0),
+                        width: rem(palette.control_square_px * 0.55),
+                        height: rem(space::S2),
                     }
                     ThemeBackgroundColor({ Token::OnAccent })
                     Visibility::Hidden
@@ -306,9 +308,10 @@ fn indeterminate_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene +
                     height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The box is square and its radius is half the side:
+                    // bevy's adaptive capsule radius draws the same circle
+                    // while the rem channel owns the box size.
+                    border_radius: BorderRadius::MAX,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
@@ -322,8 +325,8 @@ fn indeterminate_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene +
                 CheckboxBox
                 Children [
                     Node {
-                        width: px(palette.control_square_px * 0.55),
-                        height: px(2.0),
+                        width: rem(palette.control_square_px * 0.55),
+                        height: rem(space::S2),
                     }
                     ThemeBackgroundColor({ Token::OnAccent })
                     Visibility::Visible

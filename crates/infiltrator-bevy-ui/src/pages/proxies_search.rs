@@ -13,7 +13,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, FlexDirection, Node, Val, percent, px};
+use bevy::ui::prelude::{AlignItems, FlexDirection, Node, percent, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText, UiLocale};
@@ -22,6 +22,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
@@ -76,7 +77,7 @@ pub fn search_input_scene(query: &str, palette: &UiPalette) -> impl Scene + use<
     bsn! {
         Node { flex_grow: 1.0, min_width: rem(220.0), flex_direction: FlexDirection::Column }
         Children [
-            Node { width: percent(100), align_items: AlignItems::Center, column_gap: Val::Px(8.0) }
+            Node { width: percent(100), align_items: AlignItems::Center, column_gap: rem(space::S8) }
             Children [
                 Node { flex_grow: 1.0, min_width: px(0.0) } ProxySearchInput
                 Children [ @{ text_field_with_placeholder_scene(query.into(), String::new(), palette) } ]

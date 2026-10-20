@@ -11,6 +11,8 @@ use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, InteractionDisabled, Node, Val};
 use bevy::ui_widgets::{Activate, ButtonPlugin};
 use infiltrator_bevy_ui::app::ShellPlugin;
+use infiltrator_bevy_widgets::palette::rem;
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::pages::settings::settings_core::SettingsProjection;
 use infiltrator_bevy_ui::pages::settings::settings_preferences::{
@@ -76,7 +78,7 @@ fn native_preferences_replay_real_flags_stale_gates_locales_and_explicit_boolean
         .trigger(SettingsProjectionUpdated(facts.clone()));
     app.update();
     assert_eq!(app.world().get::<Text>(label).unwrap().0, "已关闭");
-    assert_eq!(app.world().get::<Node>(knob).unwrap().left, Val::Px(2.0));
+    assert_eq!(app.world().get::<Node>(knob).unwrap().left, rem(space::S2));
     assert!(!app.world().get::<ButtonDisabled>(tray).unwrap().0);
     click_entity(&mut app, tray);
     click_entity(&mut app, notifications);

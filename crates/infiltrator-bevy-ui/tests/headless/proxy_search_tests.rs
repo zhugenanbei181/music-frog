@@ -32,6 +32,7 @@ use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource,
 };
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
@@ -390,7 +391,7 @@ fn idle_highlights_do_not_relayout_text_and_short_spacing_keeps_input_entity() {
         app.update();
         assert_eq!(
             app.world().get::<Node>(scroll).unwrap().row_gap,
-            Val::Px(gap)
+            rem(gap)
         );
         assert_eq!(field(&mut app), input);
     }

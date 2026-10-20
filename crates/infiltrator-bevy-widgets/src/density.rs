@@ -3,12 +3,15 @@
 //! Controls and containers carrying [`AdaptiveDensityNode`] automatically adjust
 //! padding, gaps, and heights when layout density changes between Compact and Comfortable.
 
+use crate::palette::rem;
 use crate::responsive::{Density, ResponsiveContext};
 use bevy::ecs::component::Component;
 use bevy::ecs::system::{Query, Res};
-use bevy::ui::prelude::{Node, UiRect, Val};
+use bevy::ui::prelude::{Node, UiRect};
 
 /// Marker component on a node that automatically scales its padding, gap, and height with Density.
+/// The base values are baseline pixels; the system stamps them through the
+/// rem channel, so the root font size stays the only scaling entry.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct AdaptiveDensityNode {
     /// Base un-scaled padding in pixels.
@@ -59,20 +62,20 @@ pub fn sync_adaptive_density_styles(
         let pad = density.padding(adaptive.base_padding_px);
         let gap = density.gap(adaptive.base_gap_px);
 
-        if node.padding != UiRect::all(Val::Px(pad)) {
-            node.padding = UiRect::all(Val::Px(pad));
+        if node.padding != UiRect::all(rem(pad)) {
+            node.padding = UiRect::all(rem(pad));
         }
-        if node.column_gap != Val::Px(gap) {
-            node.column_gap = Val::Px(gap);
+        if node.column_gap != rem(gap) {
+            node.column_gap = rem(gap);
         }
-        if node.row_gap != Val::Px(gap) {
-            node.row_gap = Val::Px(gap);
+        if node.row_gap != rem(gap) {
+            node.row_gap = rem(gap);
         }
 
         if let Some(base_h) = adaptive.base_height_px {
             let h = density.row_height(base_h);
-            if node.height != Val::Px(h) {
-                node.height = Val::Px(h);
+            if node.height != rem(h) {
+                node.height = rem(h);
             }
         }
     }

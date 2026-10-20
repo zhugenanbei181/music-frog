@@ -648,8 +648,8 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
         let world = app.world_mut();
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT));
-        assert_eq!(nav_node.min_height, px(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.min_height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
         assert_eq!(nav_node.padding, UiRect::bottom(rem(space::S6)));
 
         let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
@@ -675,9 +675,11 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
         let world = app.world_mut();
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        // Height = 58 + 16 logical units; content stays above the gesture edge.
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 16.0));
-        assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 16.0));
+        // The bar keeps its own height; the gesture inset rides the margin so
+        // the content stays above the gesture edge.
+        assert_eq!(nav_node.height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.padding.bottom, rem(space::S6));
+        assert_eq!(nav_node.margin.bottom, Val::Px(16.0));
 
         let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
         let (chrome_node, _) = chrome_bars.single(world).unwrap();
@@ -704,8 +706,9 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
         // Height and padding follow the measured logical safe-area edges.
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 34.0));
-        assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 34.0));
+        assert_eq!(nav_node.height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.padding.bottom, rem(space::S6));
+        assert_eq!(nav_node.margin.bottom, Val::Px(34.0));
 
         let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
         let (chrome_node, _) = chrome_bars.single(world).unwrap();
@@ -738,8 +741,9 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
 
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 34.0));
-        assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 34.0));
+        assert_eq!(nav_node.height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.padding.bottom, rem(space::S6));
+        assert_eq!(nav_node.margin.bottom, Val::Px(34.0));
         assert_eq!(nav_node.padding.left, Val::Px(12.0));
         assert_eq!(nav_node.padding.right, Val::Px(12.0));
 

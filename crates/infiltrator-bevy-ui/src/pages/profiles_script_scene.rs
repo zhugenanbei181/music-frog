@@ -21,6 +21,7 @@ use infiltrator_bevy_widgets::multiline_editor::multiline_editor_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_run::ScriptEditorField;
 
@@ -46,13 +47,13 @@ pub fn workbench_scene(palette: &UiPalette) -> impl Scene + use<> {
     let code_input = ScriptInput(ScriptEditorField::Code);
     let yaml_input = ScriptInput(ScriptEditorField::InputYaml);
     bsn! {
-        Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(12), padding: UiRect::all(rem(16)) }
+        Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), padding: UiRect::all(rem(space::S16)) }
         ThemeBackgroundColor({Token::Surface}) ScriptWorkbenchCard
         Children [
             LocalizedText::plain("script_sandbox_title") TextRole(Role::Heading)
             -- LocalizedText::plain("script_sandbox_presets") TextRole(Role::Caption)
             --
-            Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(8), row_gap: rem(8) }
+            Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
             Children [
                 @{control("script_preset_country", ScriptControl::Preset("auto-country-groups"), palette)}
                 --
@@ -81,7 +82,7 @@ pub fn workbench_scene(palette: &UiPalette) -> impl Scene + use<> {
             --
             @{multiline_editor_scene("", "script_sandbox_input_preview", 41, palette)} yaml_input
             --
-            Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(6) }
+            Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S6) }
             ScriptResultBody
         ]
     }
@@ -108,8 +109,8 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim cancel ScriptReviewControl ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(560), max_height: percent(85), padding: UiRect::all(rem(16)),
-                flex_direction: FlexDirection::Column, row_gap: rem(12) }
+            Node { width: percent(90), max_width: rem(560), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+                flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("script_export_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("script_export_title") TextRole(Role::Heading)
@@ -117,14 +118,14 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
                 Node { width: percent(100), min_height: px(0), flex_shrink: 1.0, overflow: Overflow::scroll_y() }
                 ScrollArea
                 Children [
-                    Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(8) }
+                    Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
                     Children [ Text(String::new()) status TextRole(Role::Body)
                         -- Text(String::new()) details TextRole(Role::Body)
                         -- Text(String::new()) content TextRole(Role::Mono)
                         -- Text(String::new()) path TextRole(Role::Body) ]
                 ]
                 --
-                Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(8), row_gap: rem(8), flex_shrink: 0.0 }
+                Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
                 Children [
                     @{control("logs_export_cancel", ScriptControl::Cancel, &palette)} ScriptReviewControl
                     -- @{control("logs_export_confirm", ScriptControl::Confirm, &palette)} ScriptReviewControl

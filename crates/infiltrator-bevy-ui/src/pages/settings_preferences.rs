@@ -120,7 +120,7 @@ pub fn preference_row_scene(
                 --
                 Node {
                     width: rem(38.0), height: rem(22.0), border: UiRect::all(px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(rem(11.0)), position_type: PositionType::Relative,
+                    border_radius: BorderRadius::MAX, position_type: PositionType::Relative,
                     align_items: AlignItems::Center,
                 }
                 BackgroundColor(fill) BorderColor::all(edge)
@@ -129,8 +129,8 @@ pub fn preference_row_scene(
                 Children [
                     Node {
                         position_type: PositionType::Absolute,
-                        left: { if enabled { rem(18.0) } else { px(2.0) } },
-                        width: rem(16.0), height: rem(16.0), border_radius: BorderRadius::all(rem(8.0)),
+                        left: { if enabled { rem(18.0) } else { rem(space::S2) } },
+                        width: rem(space::S16), height: rem(space::S16), border_radius: BorderRadius::MAX,
                     }
                     BackgroundColor(knob) PreferenceKnob(kind)
                     visibility
@@ -234,7 +234,7 @@ pub fn replay(
             }
         } else if view.knob.is_some() {
             if let Some(node) = &mut view.node {
-                node.left = if enabled { rem(18.0) } else { px(2.0) };
+                node.left = if enabled { rem(18.0) } else { rem(space::S2) };
             }
             if let Some(fill) = &mut view.fill {
                 fill.0 = if enabled {

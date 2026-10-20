@@ -28,7 +28,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
@@ -153,12 +153,12 @@ pub fn pin_label(model: &MiniHudReadModel) -> String {
 }
 
 fn down_waveform_slot_scene() -> impl Scene + use<> {
-    let width = MiniHudWaveformStrip::WIDTH_PX as f32;
-    let height = MiniHudWaveformStrip::HEIGHT_PX as f32;
+    let raster_width_px = MiniHudWaveformStrip::WIDTH_PX as f32;
+    let raster_height_px = MiniHudWaveformStrip::HEIGHT_PX as f32;
     bsn! {
             Node {
-                width: px(width),
-                height: px(height),
+                width: px(raster_width_px),
+                height: px(raster_height_px),
                 overflow: Overflow::clip(),
                 flex_shrink: 0.0,
             }
@@ -167,12 +167,12 @@ fn down_waveform_slot_scene() -> impl Scene + use<> {
 }
 
 fn up_waveform_slot_scene() -> impl Scene + use<> {
-    let width = MiniHudWaveformStrip::WIDTH_PX as f32;
-    let height = MiniHudWaveformStrip::HEIGHT_PX as f32;
+    let raster_width_px = MiniHudWaveformStrip::WIDTH_PX as f32;
+    let raster_height_px = MiniHudWaveformStrip::HEIGHT_PX as f32;
     bsn! {
             Node {
-                width: px(width),
-                height: px(height),
+                width: px(raster_width_px),
+                height: px(raster_height_px),
                 overflow: Overflow::clip(),
                 flex_shrink: 0.0,
             }
@@ -269,8 +269,8 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             Text({ "Mini HUD".to_owned() }) TextRole(Role::Caption)
                             --
                             Node {
-                                padding: UiRect::axes(rem(space::S6), Val::Px(2.0)),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                padding: UiRect::axes(rem(space::S6), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             ThemeBackgroundColor({ Token::SurfaceElevated })
                             MiniHudText(MiniHudTextKind::RoutingIntent)
@@ -287,12 +287,12 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         }
                         Children [
                             Node {
-                                min_height: rem(20.0),
+                                min_height: rem(space::S20),
                                 padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
-                                border: UiRect::all(Val::Px(1.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
+                                border: UiRect::all(Val::Px(palette.hairline_px)),
                             }
                             ThemeBackgroundColor({ Token::SurfaceElevated })
                             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -303,11 +303,11 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             ]
                             --
                             Node {
-                                min_height: rem(20.0),
+                                min_height: rem(space::S20),
                                 padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             ThemeBackgroundColor({ Token::Accent })
                             Button
@@ -391,8 +391,8 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                     }
                     Children [
                         Node {
-                            padding: UiRect::axes(rem(space::S8), Val::Px(2.0)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
+                            padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                            border_radius: BorderRadius::all(rem(radius::XS)),
                         }
                         BackgroundColor({ palette.accent.with_alpha(0.14) })
                         MiniHudText(MiniHudTextKind::Node)

@@ -30,7 +30,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition,
     ProfileMixinPreflight, ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleObservation,
@@ -179,8 +179,10 @@ pub fn mixin_studio_scene(
                 }
                 Children [
                     Node {
-                        padding: UiRect::new(Val::Px(4.0), Val::Px(4.0), Val::Px(1.0), Val::Px(1.0)),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        // 4px sides / 1px vertical chip padding: no spacing token
+                        // carries 1px, so the baseline magnitude is kept as-is.
+                        padding: UiRect::new(rem(space::S4), rem(space::S4), rem(1.0), rem(1.0)),
+                        border_radius: BorderRadius::all(rem(radius::XS)),
                     }
                     BackgroundColor({ preflight_pill.1 })
                     Children [
@@ -205,7 +207,7 @@ pub fn mixin_studio_scene(
                 --
                 Text(cascade_text) MixinCascadeText cascade_role TextRole(Role::Mono)
                 --
-                { columns.map(|scene| vec![scene]).unwrap_or_default() }
+                @{ columns }
             ]
     })
 }

@@ -18,6 +18,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_presentation::rule_condition_projection::field_key;
@@ -57,7 +58,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
         Children [
             @{ (localized_button_scene(LocalizedText::plain("rule_trace_sandbox_toggle"), ButtonVariant::Default, palette), bsn! { TracerSandboxToggle }) }
             --
-            Node { width: percent(100), height: rem(180.0), min_height: px(0.0), display: Display::None, flex_direction: FlexDirection::Column, row_gap: rem(8.0), overflow: Overflow::scroll_y(), padding: UiRect::all(rem(4.0)) }
+            Node { width: percent(100), height: rem(180.0), min_height: px(0.0), display: Display::None, flex_direction: FlexDirection::Column, row_gap: rem(space::S8), overflow: Overflow::scroll_y(), padding: UiRect::all(rem(space::S4)) }
             TracerSandboxRoot ScrollArea
             Children [
                 LocalizedText::plain("rule_trace_sandbox_notice") TextRole(Role::Caption)

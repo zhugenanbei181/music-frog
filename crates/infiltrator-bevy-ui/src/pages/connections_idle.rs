@@ -19,7 +19,7 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val, percent,
+    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -28,7 +28,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_domain::connection_activity::{
     ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS, IDLE_TIMEOUT_CHOICES,
     idle_timeout_minutes_label,
@@ -126,7 +126,7 @@ fn conn_idle_timeout_pill(secs: u64, active: bool, palette: &UiPalette) -> impl 
     bsn! {
             Node {
                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
                 align_items: AlignItems::Center,
             }
             BackgroundColor({ bg })

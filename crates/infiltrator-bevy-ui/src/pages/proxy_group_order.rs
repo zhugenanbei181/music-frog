@@ -31,6 +31,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -119,29 +120,29 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) Button GroupOrderAction::Cancel ButtonDisabled(false)
             --
-            Node { width: percent(90), max_width: rem(520.0), max_height: percent(90), padding: UiRect::all(rem(16.0)), flex_direction: FlexDirection::Column, row_gap: rem(12.0) }
+            Node { width: percent(90), max_width: rem(520.0), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard GroupOrderCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("proxies_reorder_title")
             Children [
                 LocalizedText::plain("proxies_reorder_title") TextRole(Role::Heading)
                 --
                 LocalizedText::plain("proxies_reorder_description") TextRole(Role::Caption)
                 --
-                Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(8.0), overflow: Overflow::scroll_y() }
+                Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S8), overflow: Overflow::scroll_y() }
                 ScrollArea GroupOrderList
                 --
                 Text(String::new()) GroupOrderStatus TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: rem(8.0), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
+                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
                 Children [
-                    Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                    Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                     Button GroupOrderAction::Cancel ButtonDisabled(false)
                     Children [ LocalizedText::plain("modal_cancel") TextRole(Role::Body) ]
                     --
-                    Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                    Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                     Button GroupOrderAction::Reset ButtonDisabled(false)
                     Children [ LocalizedText::plain("proxies_reorder_reset") TextRole(Role::Body) ]
                     --
-                    Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                    Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                     Button GroupOrderAction::Apply GroupOrderApply ButtonDisabled(true)
                     Children [ LocalizedText::plain("proxies_reorder_apply") TextRole(Role::BodyStrong) ]
                 ]
@@ -152,18 +153,18 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
 
 fn row_scene(id: OutboundId, label: String, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), column_gap: rem(8.0), align_items: AlignItems::Center, flex_shrink: 0.0 }
+        Node { width: percent(100), column_gap: rem(space::S8), align_items: AlignItems::Center, flex_shrink: 0.0 }
         GroupOrderRow { id: { id.clone() }, label: { label.clone() } }
         Children [
             Node { flex_grow: 1.0, min_width: px(0.0) }
             Children [ Text({ label.clone() }) TextRole(Role::Body) ]
             --
-            Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+            Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
             Button GroupOrderAction::Move { group_id: { id.clone() }, direction: GroupMove::Up } ButtonDisabled(false)
             LocalizedLabel({ LocalizedText::new("proxies_reorder_up_label", vec![("name", label.clone())]) })
             Children [ Text::new("▲") TextRole(Role::Caption) ]
             --
-            Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+            Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
             Button GroupOrderAction::Move { group_id: { id.clone() }, direction: GroupMove::Down } ButtonDisabled(false)
             LocalizedLabel({ LocalizedText::new("proxies_reorder_down_label", vec![("name", label.clone())]) })
             Children [ Text::new("▼") TextRole(Role::Caption) ]

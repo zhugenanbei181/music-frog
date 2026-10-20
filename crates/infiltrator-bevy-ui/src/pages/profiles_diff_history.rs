@@ -24,8 +24,7 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -34,7 +33,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_presentation::snapshot_presentation;
@@ -81,11 +80,11 @@ pub(super) fn backup_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: rem(24.0),
+                min_height: rem(space::S24),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ background })
             Button
@@ -100,11 +99,11 @@ pub(super) fn history_refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: rem(24.0),
+                min_height: rem(space::S24),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ background })
             Button
@@ -121,11 +120,11 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
     for keep in [5usize, 10, 20, 50] {
         chips.push(Box::new(bsn! {
                     Node {
-                        min_height: rem(24.0),
+                        min_height: rem(space::S24),
                         padding: UiRect::horizontal(rem(space::S4)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        border_radius: BorderRadius::all(rem(radius::XS)),
                     }
                     BackgroundColor({ background })
                     Button
@@ -152,11 +151,11 @@ pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: rem(24.0),
+                min_height: rem(space::S24),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ background })
             Button
@@ -182,17 +181,17 @@ fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette)
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                min_height: rem(20.0),
+                min_height: rem(space::S20),
                 align_items: AlignItems::Center,
                 column_gap: rem(space::S4),
             }
             Children [
                 Node {
                     width: percent(70),
-                    min_height: rem(20.0),
+                    min_height: rem(space::S20),
                     padding: UiRect::horizontal(rem(space::S4)),
                     align_items: AlignItems::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ if selected { Token::SurfaceElevated } else { Token::WindowClear } })
                 Button
@@ -202,11 +201,11 @@ fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette)
                 ]
                 --
                 Node {
-                    min_height: rem(20.0),
+                    min_height: rem(space::S20),
                     padding: UiRect::horizontal(rem(space::S4)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ restore_color })
                 Button

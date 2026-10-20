@@ -16,6 +16,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::rule_statistics_inspector_projection::{
     StatisticsRowKey, StatisticsRowProjection, project_inspector,
 };
@@ -180,7 +181,7 @@ fn row_scene(row: &StatisticsRowProjection) -> impl Scene + use<> {
     let count = format!("#{} · {}", row.ordinal, row.count);
     let detail = row.detail.clone();
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(4.0) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [
             Text(count) StatisticsRow({key.clone()}) StatisticsRowLine::Count TextRole(Role::Caption)
             --

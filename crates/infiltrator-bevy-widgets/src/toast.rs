@@ -27,7 +27,7 @@ use bevy::ui::BorderColor;
 use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val,
+    UiRect,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -208,7 +208,7 @@ pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 column_gap: rem(space::S8),
-                border: UiRect::left(Val::Px(4.0)),
+                border: UiRect::left(rem(space::S4)),
                 border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ palette.surface })

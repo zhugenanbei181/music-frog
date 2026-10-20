@@ -30,13 +30,25 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandEntry};
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_presentation::command_palette_projection::{filtered_indices, localized_title};
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// One-off layout value (not a ladder rung): the height of one command row in
+/// the palette list. The shared `space` ladder carries no row height.
+const COMMAND_ROW_HEIGHT_PX: f32 = 40.0;
+
+/// One-off layout value (not a ladder rung): the height of the palette query
+/// row (the search field plus its dismiss button).
+const QUERY_ROW_HEIGHT_PX: f32 = 44.0;
+
+/// One-off layout value (not a ladder rung): the width of the floating palette
+/// panel. The shared `metrics` carry no panel width.
+const PALETTE_PANEL_WIDTH_PX: f32 = 560.0;
 
 /// The palette's pure state: the shared catalogue plus the query/selection
 /// cursor. Arrow navigation wraps; an empty query keeps every row.
@@ -252,14 +264,16 @@ pub fn command_palette_item_scene(
     bsn! {
             Node {
                 width: percent(100),
-                height: rem(40.0),
-                min_height: rem(40.0),
+                height: rem(COMMAND_ROW_HEIGHT_PX),
+                min_height: rem(COMMAND_ROW_HEIGHT_PX),
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
                 padding: UiRect::axes(rem(space::S12), rem(space::S4)),
-                border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(6.0)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                // A command row is a secondary button (the same row the Iced
+                // palette draws with `R_SM`).
+                border_radius: BorderRadius::all(rem(radius::SM)),
             }
             BackgroundColor(bg)
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -279,8 +293,8 @@ pub fn command_palette_item_scene(
                 ]
                 --
                 Node {
-                    padding: UiRect::axes(Val::Px(6.0), Val::Px(2.0)),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    padding: UiRect::axes(rem(space::S6), rem(space::S2)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
@@ -350,7 +364,7 @@ pub fn command_palette_modal_scene(
                 min_height: px(0.0), max_height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::all(rem(16.0)),
+                padding: UiRect::all(rem(space::S16)),
             }
             ThemeBackgroundColor({ Token::Scrim })
             ThemeContext(SurfaceLevel::Floating)
@@ -359,14 +373,16 @@ pub fn command_palette_modal_scene(
             semantic
             Children [
                 Node {
-                    width: rem(560.0),
+                    width: rem(PALETTE_PANEL_WIDTH_PX),
                     max_width: percent(92),
                     max_height: percent(90), min_height: px(0.0),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(rem(space::S16)),
                     row_gap: rem(space::S12),
-                    border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(12.0)),
+                    border: UiRect::all(Val::Px(palette.hairline_px)),
+                    // The palette is a centered modal dialog: the contract's
+                    // MODAL rung names the command palette by role.
+                    border_radius: BorderRadius::all(rem(radius::MODAL)),
                 }
                 CommandPaletteCard
                 ThemeBackgroundColor({ Token::Surface })
@@ -375,11 +391,11 @@ pub fn command_palette_modal_scene(
                     // Search bar row
                     Node {
                         width: percent(100),
-                        height: rem(44.0),
+                        height: rem(QUERY_ROW_HEIGHT_PX),
                         align_items: AlignItems::Center,
                         padding: UiRect::axes(rem(space::S12), rem(space::S8)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        border_radius: BorderRadius::all(Val::Px(8.0)),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(rem(radius::SM)),
                         column_gap: rem(space::S8),
                     }
                     ThemeBackgroundColor({ Token::SurfaceElevated })

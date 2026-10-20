@@ -9,7 +9,7 @@ use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::text::{Role, TextRole};
-use crate::theme::space;
+use crate::theme::{metrics, radius, space};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -151,16 +151,16 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                height: rem(32.0),
+                                height: rem(space::S32),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::FlexStart,
                                 padding: UiRect::horizontal(rem(space::S8)),
                                 column_gap: rem(space::S8),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             Button
                             Children [
-                                { icon_node.into_iter().collect::<Vec<_>>() }
+                                @{ icon_node }
                                 --
                                 Text({ label })
                                 TextRole(Role::Body)
@@ -184,8 +184,8 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
                     width: rem(180.0),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(rem(space::S4)),
-                    row_gap: Val::Px(2.0),
-                    border: UiRect::all(Val::Px(1.0)),
+                    row_gap: rem(space::S2),
+                    border: UiRect::all(Val::Px(metrics::HAIRLINE)),
                     border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 }
                 ThemeBackgroundColor({ Token::SurfaceElevated })

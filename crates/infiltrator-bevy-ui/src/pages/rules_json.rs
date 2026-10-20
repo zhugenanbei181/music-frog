@@ -30,7 +30,7 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Ready, Scene, SceneList, bsn, bsn_list, on};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
@@ -371,12 +371,18 @@ fn save_button_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn 
     })
 }
 
-/// Scene constructor for the JSON partition of the rules workspace.
-pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Scene + use<> {
+/// The section chips as one scene list: a repeated group, so it is authored as
+/// a [`SceneList`] instead of an inline `Children [...]` enumeration.
+fn section_chip_scenes(palette: &UiPalette) -> impl SceneList + use<> {
     let chips: Vec<Box<dyn Scene>> = RulesJsonSection::ALL
         .iter()
         .map(|section| section_chip_scene(*section, palette))
         .collect();
+    bsn_list! { { chips } }
+}
+
+/// Scene constructor for the JSON partition of the rules workspace.
+pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Scene + use<> {
     let status = state.status_label("en-US");
     let body: Box<dyn Scene> = code_editor_scene(state.buffer(), palette);
     let edit_button = edit_button_scene(palette);
@@ -414,7 +420,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     column_gap: rem(space::S8),
                 }
                 Children [
-                    { chips }
+                    { section_chip_scenes(palette) }
                 ]
                 --
                 Text({ status }) RulesJsonStatusText TextRole(Role::Caption)
@@ -434,12 +440,35 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                         flex_direction: FlexDirection::Column,
                     }
                     RulesJsonEditorBody
+                    on(render_editor_body)
                     Children [
                         { vec![body] }
                     ]
                 ]
             ]
     }
+}
+
+/// Project the active buffer into a freshly mounted editor body.
+///
+/// The partition scene is built from a default state, so a mounted body starts
+/// out empty; [`bevy_scene::Ready`] is the seam that says "this body and its
+/// whole subtree exist now". Waiting for the body to be mounted in the same
+/// frame the buffer changed would leave the editor showing stale content.
+fn render_editor_body(
+    ready: On<Ready>,
+    mut state: Option<ResMut<RulesJsonState>>,
+    palette: Res<UiPalette>,
+    mut commands: Commands,
+) {
+    let Some(state) = state.as_deref_mut() else {
+        return;
+    };
+    commands.entity(ready.entity).despawn_children();
+    commands
+        .spawn_scene(code_editor_scene(state.buffer(), &palette))
+        .insert(ChildOf(ready.entity));
+    state.last_rendered = state.generation;
 }
 
 /// DUAL-11-14: restamp the partition chrome (status line, save label, section

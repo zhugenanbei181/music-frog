@@ -20,6 +20,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use lurker_core_contract::page::PageStatus;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -63,7 +64,7 @@ pub fn launcher_scene(kind: PanelKind, palette: &UiPalette) -> impl Scene + use<
     let title = LocalizedText::plain(kind.title_key());
     bsn! {
         Node {
-            padding: UiRect::axes(rem(16.0), rem(12.0)),
+            padding: UiRect::axes(rem(space::S16), rem(space::S12)),
             min_height: rem(palette.control_height_px), align_items: AlignItems::Center,
             border_radius: BorderRadius::all(rem(palette.control_radius_px)),
         }
@@ -99,7 +100,7 @@ pub fn panel_scene(
             Node {
                 width: percent(90), max_width: rem(960.0), max_height: percent(90),
                 min_width: px(0.0), flex_direction: FlexDirection::Column,
-                padding: UiRect::all(rem(16.0)), row_gap: rem(12.0),
+                padding: UiRect::all(rem(space::S16)), row_gap: rem(space::S12),
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
             ThemeBackgroundColor({ Token::Surface })
@@ -109,7 +110,7 @@ pub fn panel_scene(
                 Children [
                     title TextRole(Role::Heading)
                     --
-                    Node { padding: UiRect::axes(rem(12.0), rem(8.0)), min_height: rem(palette.control_height_px) }
+                    Node { padding: UiRect::axes(rem(space::S12), rem(space::S8)), min_height: rem(palette.control_height_px) }
                     Button CloseBusinessPanel(kind)
                     Children [ close TextRole(Role::Body) ]
                 ]

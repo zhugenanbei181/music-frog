@@ -40,6 +40,8 @@ impl Focusable {
 pub struct Focused;
 
 /// Component on focus ring container describing outline geometry and active styling.
+/// The widths are the baseline-pixel values: the ring itself is stamped
+/// through the rem channel, so it grows with the root font size.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct FocusRingStyle {
     pub width_px: f32,
@@ -128,9 +130,11 @@ pub fn sync_focus_rings(
 }
 
 use crate::palette::UiPalette;
+use crate::palette::rem;
+use crate::theme::space;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
-use bevy::ui::prelude::{BorderRadius, Node, PositionType, UiRect, Val, percent};
+use bevy::ui::prelude::{BorderRadius, Node, PositionType, UiRect, percent};
 
 /// Construct an explicit focus outline box scene.
 pub fn focus_ring_scene(palette: &UiPalette) -> Box<dyn Scene> {
@@ -140,8 +144,8 @@ pub fn focus_ring_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 position_type: PositionType::Absolute,
                 width: percent(100),
                 height: percent(100),
-                border: UiRect::all(Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px + 2.0)),
+                border: UiRect::all(rem(space::S2)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px + 2.0)),
             }
             BorderColor { top: ring, right: ring, bottom: ring, left: ring }
             FocusRingStyle { width_px: 2.0, offset_px: 2.0 }

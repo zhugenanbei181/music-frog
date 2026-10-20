@@ -123,7 +123,7 @@ pub fn tooltip_scene(
                 top: px(rect.y),
                 padding: UiRect::new(rem(space::S8), rem(space::S8), rem(space::S4), rem(space::S4)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px * 0.75)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
             }

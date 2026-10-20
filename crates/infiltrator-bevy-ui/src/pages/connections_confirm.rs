@@ -18,6 +18,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(Event, Clone, Copy, Debug)]
@@ -77,7 +78,7 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                 width: rem(420.0), max_width: percent(90),
                 max_height: percent(90),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(rem(20.0)), row_gap: rem(16.0),
+                padding: UiRect::all(rem(space::S20)), row_gap: rem(space::S16),
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 overflow: Overflow::scroll_y(),
             }
@@ -91,13 +92,13 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Text(detail) TextRole(Role::Body)
                 --
                 Node {
-                    width: percent(100), column_gap: rem(12.0),
+                    width: percent(100), column_gap: rem(space::S12),
                     justify_content: JustifyContent::FlexEnd,
                 }
                 Children [
                     Node {
                         min_height: rem(palette.control_height_px),
-                        padding: UiRect::axes(rem(16.0), rem(8.0)),
+                        padding: UiRect::axes(rem(space::S16), rem(space::S8)),
                         align_items: AlignItems::Center,
                     }
                     ThemeBackgroundColor({ Token::SurfaceElevated })
@@ -106,7 +107,7 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                     --
                     Node {
                         min_height: rem(palette.control_height_px),
-                        padding: UiRect::axes(rem(16.0), rem(8.0)),
+                        padding: UiRect::axes(rem(space::S16), rem(space::S8)),
                         align_items: AlignItems::Center,
                     }
                     ThemeBackgroundColor({ Token::Danger })

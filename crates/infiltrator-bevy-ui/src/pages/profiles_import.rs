@@ -50,7 +50,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::subscription_filter_form::FilterField;
 
 /// Marker for the profiles import card root.
@@ -230,7 +230,9 @@ pub fn profiles_import_card_scene(
                                         width: rem(38.0),
                                         height: rem(22.0),
                                         border: UiRect::all(Val::Px(palette.hairline_px)),
-                                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                                        // Capsule track: 11px is half the 22px track
+                                        // height, and no radius token carries it.
+                                        border_radius: BorderRadius::MAX,
                                         position_type: PositionType::Relative,
                                         align_items: AlignItems::Center,
                                     }
@@ -244,10 +246,10 @@ pub fn profiles_import_card_scene(
                                     Children [
                                         Node {
                                             position_type: PositionType::Absolute,
-                                            left: Val::Px(18.0),
-                                            width: rem(16.0),
-                                            height: rem(16.0),
-                                            border_radius: BorderRadius::all(Val::Px(8.0)),
+                                            left: rem(18.0),
+                                            width: rem(space::S16),
+                                            height: rem(space::S16),
+                                            border_radius: BorderRadius::all(rem(radius::SM)),
                                         }
                                         ThemeBackgroundColor({ Token::OnAccent })
                                     ]
@@ -360,7 +362,7 @@ pub fn profiles_import_card_scene(
                                 --
                                 Node {
                                     padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                    border_radius: BorderRadius::all(rem(radius::XS)),
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
@@ -369,7 +371,7 @@ pub fn profiles_import_card_scene(
                                 --
                                 Node {
                                     padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                    border_radius: BorderRadius::all(rem(radius::XS)),
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
@@ -378,7 +380,7 @@ pub fn profiles_import_card_scene(
                                 --
                                 Node {
                                     padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                    border_radius: BorderRadius::all(rem(radius::XS)),
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [

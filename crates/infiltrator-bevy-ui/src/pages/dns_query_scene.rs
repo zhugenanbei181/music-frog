@@ -24,6 +24,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 
@@ -89,8 +90,8 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             --
             Node {
                 width: percent(90), max_width: rem(640.0), height: percent(90), max_height: rem(640.0),
-                padding: UiRect::all(rem(12.0)),
-                flex_direction: FlexDirection::Column, row_gap: rem(6.0),
+                padding: UiRect::all(rem(space::S12)),
+                flex_direction: FlexDirection::Column, row_gap: rem(space::S6),
             }
             ModalDialogCard QueryModalCard ThemeBackgroundColor({ Token::Surface })
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_query_title")
@@ -100,7 +101,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_query_name"), palette),
                     bsn! { QueryNameField NativeTextField(0) }) }
                 --
-                Node { width: percent(100), column_gap: rem(8.0), align_items: AlignItems::Center }
+                Node { width: percent(100), column_gap: rem(space::S8), align_items: AlignItems::Center }
                 Children [
                     @{ query_button(QueryAction::TypePicker, LocalizedText::plain("dns_query_record_type"), palette) }
                     --
@@ -108,22 +109,22 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 ]
                 --
                 Node {
-                    position_type: PositionType::Absolute, top: rem(100.0), left: rem(12.0), right: rem(12.0),
-                    flex_wrap: FlexWrap::Wrap, column_gap: rem(4.0), row_gap: rem(4.0),
-                    padding: UiRect::all(rem(8.0)), display: Display::None,
+                    position_type: PositionType::Absolute, top: rem(100.0), left: rem(space::S12), right: rem(space::S12),
+                    flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S4), row_gap: rem(space::S4),
+                    padding: UiRect::all(rem(space::S8)), display: Display::None,
                 }
                 QueryTypeMenu GlobalZIndex(117) ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [ { types } ]
                 --
                 Text(String::new()) QueryLine::Status TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: rem(8.0) }
+                Node { width: percent(100), column_gap: rem(space::S8) }
                 Children [ { sections } ]
                 --
                 Node {
                     width: percent(100), flex_grow: 1.0, min_height: px(0.0),
                     overflow: Overflow::scroll_y(), flex_direction: FlexDirection::Column,
-                    row_gap: rem(6.0),
+                    row_gap: rem(space::S6),
                 }
                 ScrollArea
                 Children [
@@ -136,7 +137,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     Text(String::new()) QueryLine::Records TextRole(Role::Mono)
                 ]
                 --
-                Node { width: percent(100), column_gap: rem(8.0), align_items: AlignItems::Center }
+                Node { width: percent(100), column_gap: rem(space::S8), align_items: AlignItems::Center }
                 Children [
                     @{ query_button(QueryAction::Previous, LocalizedText::plain("dns_query_previous_page"), palette) }
                     --
@@ -145,7 +146,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     @{ query_button(QueryAction::Next, LocalizedText::plain("dns_query_next_page"), palette) }
                 ]
                 --
-                Node { width: percent(100), column_gap: rem(8.0), justify_content: JustifyContent::FlexEnd }
+                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::FlexEnd }
                 Children [
                     @{ query_button(QueryAction::Cancel, LocalizedText::plain("dns_query_close"), palette) }
                     --

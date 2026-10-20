@@ -4,6 +4,7 @@
 //! counts and item basis based on the 4-tier breakpoint context.
 
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::responsive::ResponsiveContext;
 use crate::theme::{Breakpoint, space};
 use bevy::ecs::component::Component;
@@ -11,7 +12,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{QueryData, QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{ComputedNode, FlexDirection, FlexWrap, Node, Val, percent, px};
+use bevy::ui::prelude::{ComputedNode, FlexDirection, FlexWrap, Node, percent};
 
 /// Configuration for a fluid card grid.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -126,7 +127,7 @@ pub fn fluid_card_grid_scene(
                                 flex_grow: 1.0,
                                 flex_shrink: 1.0,
                                 flex_basis: percent(100),
-                                min_width: px(min_w),
+                                min_width: rem(min_w),
                             }
                             FluidGridItem
                             Children [
@@ -141,8 +142,8 @@ pub fn fluid_card_grid_scene(
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
-                column_gap: Val::Px(gap),
-                row_gap: Val::Px(r_gap),
+                column_gap: rem(gap),
+                row_gap: rem(r_gap),
             }
             FluidCardGrid
             FluidGridConfig {
@@ -180,11 +181,11 @@ pub fn sync_fluid_grid_layout(
         let gap = density.gap(config.gap_px);
         let row_gap = density.gap(config.row_gap_px);
 
-        if grid_node.column_gap != Val::Px(gap) {
-            grid_node.column_gap = Val::Px(gap);
+        if grid_node.column_gap != rem(gap) {
+            grid_node.column_gap = rem(gap);
         }
-        if grid_node.row_gap != Val::Px(row_gap) {
-            grid_node.row_gap = Val::Px(row_gap);
+        if grid_node.row_gap != rem(row_gap) {
+            grid_node.row_gap = rem(row_gap);
         }
 
         // An explicit per-tier column count wins over the fit heuristic so
@@ -206,7 +207,7 @@ pub fn sync_fluid_grid_layout(
             if measured_w > 100.0 {
                 let layout =
                     compute_ideal_column_layout(measured_w, config.min_card_width_px, gap, columns);
-                Val::Px(layout.item_width_px)
+                rem(layout.item_width_px)
             } else {
                 fallback_basis
             }

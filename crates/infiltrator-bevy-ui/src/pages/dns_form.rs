@@ -16,7 +16,7 @@ use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent, px,
+    UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -60,7 +60,7 @@ fn dns_switch_row_scene(
     } else {
         palette.surface_elevated
     };
-    let knob_left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };
+    let knob_left = if enabled { rem(18.0) } else { rem(space::S2) };
     let knob_color = if enabled {
         palette.on_accent
     } else {
@@ -104,7 +104,7 @@ fn dns_switch_row_scene(
                         width: rem(38.0),
                         height: rem(22.0),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                        border_radius: BorderRadius::MAX,
                         position_type: PositionType::Relative,
                         align_items: AlignItems::Center,
                     }
@@ -123,9 +123,9 @@ fn dns_switch_row_scene(
                         Node {
                             position_type: PositionType::Absolute,
                             left: { knob_left },
-                            width: rem(16.0),
-                            height: rem(16.0),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
+                            width: rem(space::S16),
+                            height: rem(space::S16),
+                            border_radius: BorderRadius::MAX,
                         }
                         BackgroundColor({ knob_color })
                         DnsSwitchKnob(field)
@@ -154,11 +154,11 @@ fn enhanced_mode_pill(
     Box::new(bsn! {
             Node {
                 flex_grow: 1.0,
-                height: px(palette.control_height_px * 0.8),
+                height: rem(palette.control_height_px * 0.8),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 padding: UiRect::horizontal(rem(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px * 0.75)),
             }
             BackgroundColor({ bg })
             Button
@@ -191,11 +191,11 @@ fn filter_mode_pill(
     Box::new(bsn! {
             Node {
                 flex_grow: 1.0,
-                height: px(palette.control_height_px * 0.8),
+                height: rem(palette.control_height_px * 0.8),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 padding: UiRect::horizontal(rem(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px * 0.75)),
             }
             BackgroundColor({ bg })
             Button

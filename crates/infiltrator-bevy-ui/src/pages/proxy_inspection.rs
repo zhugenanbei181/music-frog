@@ -19,7 +19,7 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
-use bevy::scene::{Scene, bsn};
+use bevy::scene::{Scene, SceneList, bsn, bsn_list};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow,
@@ -29,6 +29,7 @@ use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
 use infiltrator_bevy_widgets::chart::{ChartPlate, chart_scene_with_smooth};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
@@ -613,12 +614,14 @@ fn history_listing(detail: Option<&OutboundDetail>, tr: &impl Fn(&str) -> String
     lines.join("\n")
 }
 
-pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
+/// The detail field rows as one scene list: a repeated group, so it is
+/// authored as a [`SceneList`] instead of an inline `Children [...]` enumeration.
+fn inspection_field_scenes() -> impl SceneList + use<> {
     let fields: Vec<Box<dyn Scene>> = ProxyDetailField::ALL
         .into_iter()
         .map(|field| {
             Box::new(bsn! {
-                Node { width:percent(100), column_gap:rem(12.0), align_items:AlignItems::Start }
+                Node { width:percent(100), column_gap:rem(space::S12), align_items:AlignItems::Start }
                 Children [
                     Node { width:percent(35), min_width:px(0.0) }
                     Children [ LocalizedText::plain(field.key()) TextRole(Role::Caption) ]
@@ -629,6 +632,10 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
             }) as Box<dyn Scene>
         })
         .collect();
+    bsn_list! { { fields } }
+}
+
+pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
     let semantic = accesskit::Node::new(accesskit::Role::Dialog);
     bsn! {
         Node { position_type:PositionType::Absolute, left:px(0.0), top:px(0.0), width:percent(100), height:percent(100), align_items:AlignItems::Center, justify_content:JustifyContent::Center, display:Display::None }
@@ -637,7 +644,7 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type:PositionType::Absolute, width:percent(100),height:percent(100) }
             ThemeBackgroundColor({Token::Scrim}) ModalScrim Button CloseProxyInspection
             --
-            Node { width:percent(92),max_width:rem(650.0),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(12.0),padding:UiRect::all(rem(16.0)),border_radius:BorderRadius::all(rem(palette.card_radius_px)) }
+            Node { width:percent(92),max_width:rem(650.0),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(space::S12),padding:UiRect::all(rem(space::S16)),border_radius:BorderRadius::all(rem(palette.card_radius_px)) }
             ThemeBackgroundColor({Token::Surface}) ProxyInspectionCard ModalDialogCard
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_inspection_title")
             Children [
@@ -647,27 +654,27 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 LocalizedText::new("common_message",vec![("message",String::new())]) ProxyProbeStatus TextRole(Role::Caption)
                 --
-                Node { width:percent(100),min_width:px(0.0),min_height:px(0.0),flex_shrink:1.0,flex_direction:FlexDirection::Column,row_gap:rem(12.0),overflow:Overflow::scroll_y() }
+                Node { width:percent(100),min_width:px(0.0),min_height:px(0.0),flex_shrink:1.0,flex_direction:FlexDirection::Column,row_gap:rem(space::S12),overflow:Overflow::scroll_y() }
                 ScrollArea ProxyInspectionScrollArea
                 Children [
                     LocalizedText::plain("proxy_inspection_history") TextRole(Role::BodyStrong)
                     --
                     @{ chart_scene_with_smooth(Vec::new(),Vec::new(),560.0,90.0,false) } ProxyInspectionChart
                     --
-                    {fields}
+                    { inspection_field_scenes() }
                     --
                     LocalizedText::plain("proxy_inspection_timing_unavailable") TextRole(Role::Caption)
                     --
                     Text::new("") ProxyHistoryText TextRole(Role::Body)
                 ]
                 --
-                Node { width:percent(100),column_gap:rem(12.0),align_items:AlignItems::Center,flex_shrink:0.0 }
+                Node { width:percent(100),column_gap:rem(space::S12),align_items:AlignItems::Center,flex_shrink:0.0 }
                 Children [
-                    Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(12.0),rem(8.0)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }
+                    Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(space::S12),rem(space::S8)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }
                     ThemeBackgroundColor({Token::SurfaceElevated}) Button CloseProxyInspection
                     Children [ LocalizedText::plain("modal_close") TextRole(Role::BodyStrong) ]
                     --
-                    Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(12.0),rem(8.0)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }
+                    Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(space::S12),rem(space::S8)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }
                     ThemeBackgroundColor({Token::AccentContainer}) Button ButtonDisabled(true) ProbeInspectedProxy
                     Children [ LocalizedText::plain("modal_speed_test_now") ProxyProbeCaption TextRole(Role::BodyStrong) ]
                 ]

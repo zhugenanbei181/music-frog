@@ -123,6 +123,72 @@ STRUCTURE_TEMP_CONSTRUCTOR = re.compile(
 CHILDOF_MOUNT = re.compile(
     r"\.\s*insert\(\s*\(?\s*(?:\w+\s*::\s*)*ChildOf\b"
 )
+# `template_value` is a hard-zero placeholder: the shared upstream scene law
+# (UIK-BSN-005) bans it, and the product guard mirrors that rule.
+TEMPLATE_VALUE = re.compile(r"\btemplate_value\b|\bTemplateValue\b")
+# A repeated group is a scene list, not an inline child enumeration.
+LIST_ENUMERATION = re.compile(
+    r"\.(?:collect|map|filter_map|flat_map)\s*(?:::<[^>]*>)?\s*\(|into_iter\s*\("
+)
+# Batch retirement by marker: `commands.despawn_all::<With<Marker>>()`.
+CHILD_DESPAWN_LOOP = re.compile(
+    r"\bfor\s+\w+\s+in\s+[\w:.]*children[\w:.]*\s*(?:\.iter\(\))?"
+)
+# A capsule radius computed by hand (`height / 2`) breaks under rem scaling.
+CAPSULE_RADIUS = re.compile(
+    r"BorderRadius::(?:all|new)\s*\("
+)
+CAPSULE_HALF = re.compile(r"/\s*2(?:\.0)?\b")
+
+
+def matching_brace(masked: str, start: int) -> int:
+    """Index of the closing brace of the block that starts at/after `start`."""
+    opening = masked.find("{", start)
+    if opening < 0:
+        return len(masked)
+    depth = 0
+    for index in range(opening, len(masked)):
+        if masked[index] == "{":
+            depth += 1
+        elif masked[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    return len(masked)
+
+
+def list_enumeration_spans(masked: str) -> list[tuple[int, int]]:
+    """`Children [...]` enumerations whose content is built from an iterator.
+
+    A repeated group is a scene list (`bsn_list!`); the innermost offender is
+    reported so one site yields one violation.
+    """
+    spans: list[tuple[int, int]] = []
+    for match in re.finditer(r"\bChildren\s*\[", masked):
+        opening = masked.index("[", match.start(), match.end())
+        depth = 0
+        closing = len(masked)
+        for index in range(opening, len(masked)):
+            if masked[index] == "[":
+                depth += 1
+            elif masked[index] == "]":
+                depth -= 1
+                if depth == 0:
+                    closing = index
+                    break
+        content = masked[opening + 1 : closing]
+        if LIST_ENUMERATION.search(content):
+            spans.append((match.start(), closing))
+    # Keep the innermost match only: an outer enumeration that contains an
+    # inner one is reported at the inner site.
+    return [
+        span
+        for span in spans
+        if not any(
+            other is not span and span[0] < other[0] and other[1] <= span[1]
+            for other in spans
+        )
+    ]
 
 
 @dataclass(frozen=True)
@@ -368,6 +434,59 @@ def analyze(rel_path: str, text: str) -> list[Violation]:
                 line_number(original, match.start()),
                 "BEVY-BSN-003",
                 "direct entity spawn is forbidden; mount UI through spawn_scene",
+            )
+        )
+
+    for match in TEMPLATE_VALUE.finditer(masked):
+        violations.append(
+            Violation(
+                rel_path,
+                line_number(original, match.start()),
+                "BEVY-BSN-007",
+                "template_value is a hard-zero placeholder; declare the value"
+                " structurally in the scene",
+            )
+        )
+
+    for offset, end in list_enumeration_spans(masked):
+        violations.append(
+            Violation(
+                rel_path,
+                line_number(original, offset),
+                "BEVY-BSN-008",
+                "a repeated group must be authored as a bsn_list! scene list,"
+                " not an inline Children [...] enumeration",
+            )
+        )
+
+    for match in CHILD_DESPAWN_LOOP.finditer(masked):
+        block = matching_brace(masked, match.end())
+        body = masked[match.end() : block]
+        if ".despawn(" not in body:
+            continue
+        violations.append(
+            Violation(
+                rel_path,
+                line_number(original, match.start()),
+                "BEVY-BSN-009",
+                "batch retirement must use commands.despawn_all::<With<Marker>>(),"
+                " not a hand-written child despawn loop",
+            )
+        )
+
+    for match in CAPSULE_RADIUS.finditer(masked):
+        opening = masked.find("(", match.start(), match.end())
+        closing = matching_paren(masked, opening)
+        argument = masked[opening + 1 : closing]
+        if not CAPSULE_HALF.search(argument):
+            continue
+        violations.append(
+            Violation(
+                rel_path,
+                line_number(original, match.start()),
+                "BEVY-BSN-010",
+                "a capsule radius must be BorderRadius::MAX; a hand-computed"
+                " half-height breaks under rem scaling",
             )
         )
     runtime = mask_test_items(mask_noncode(text))
@@ -683,6 +802,58 @@ def self_test() -> int:
         "unbalanced bsn! brace fails safe",
         "fn broken() { bsn! {\n",
         ["BEVY-BSN-004"],
+    )
+    expect(
+        "template_value is a hard-zero placeholder",
+        "fn scene() { let value = template_value!(42); }",
+        ["BEVY-BSN-007"],
+    )
+    expect(
+        "an inline iterator enumeration must be a bsn_list! scene list",
+        """
+        fn scene() -> impl Scene {
+            bsn! { Node { Children [ { items().collect::<Vec<_>>() } ] } }
+        }
+        """,
+        ["BEVY-BSN-008"],
+    )
+    expect(
+        "a static child enumeration is not a list scenario",
+        """
+        fn scene() -> impl Scene {
+            bsn! { Node { Children [ Text("a") -- Text("b") ] } }
+        }
+        """,
+        [],
+    )
+    expect(
+        "batch retirement must use despawn_all",
+        """
+        fn retire(mut commands: Commands, children: &Children) {
+            for child in children.iter() {
+                commands.entity(*child).despawn();
+            }
+        }
+        """,
+        ["BEVY-BSN-009"],
+    )
+    expect(
+        "a hand-computed capsule radius is forbidden",
+        """
+        fn scene(height: f32) -> impl Scene {
+            bsn! { Node { height: px(height), border_radius: BorderRadius::all(Val::Px(height / 2)) } }
+        }
+        """,
+        ["BEVY-BSN-010"],
+    )
+    expect(
+        "the adaptive capsule radius is the sanctioned form",
+        """
+        fn scene(height: f32) -> impl Scene {
+            bsn! { Node { height: px(height), border_radius: BorderRadius::MAX } }
+        }
+        """,
+        [],
     )
 
     # The real production trees must stay clean — this is the same scan CI

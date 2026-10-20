@@ -64,7 +64,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
@@ -286,7 +286,7 @@ fn header_card_scene(
                                 Children [
                                     Node {
                                         align_items: AlignItems::Center,
-                                        padding: UiRect::all(Val::Px(2.0)),
+                                        padding: UiRect::all(rem(space::S2)),
                                         border: UiRect::all(Val::Px(palette.hairline_px)),
                                         border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                         column_gap: rem(space::S4),
@@ -349,7 +349,7 @@ fn conn_aggregation_pill(
     bsn! {
             Node {
                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
                 align_items: AlignItems::Center,
             }
             BackgroundColor({ bg })

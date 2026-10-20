@@ -26,6 +26,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_presentation::rule_condition_projection::location_text;
 use infiltrator_shared::locales::Lang;
@@ -57,14 +58,14 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({ Token::Scrim }) TraceConfirmationAction::Cancel
             --
-            Node { width: percent(90), max_width: rem(560.0), padding: UiRect::all(rem(16.0)), flex_direction: FlexDirection::Column, row_gap: rem(12.0) }
+            Node { width: percent(90), max_width: rem(560.0), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
             Children [
                 LocalizedText::plain("rule_trace_confirm_title") TextRole(Role::Heading)
                 --
                 Text(String::new()) TraceConfirmationCopy TextRole(Role::Body)
                 --
-                Node { width: percent(100), column_gap: rem(12.0) }
+                Node { width: percent(100), column_gap: rem(space::S12) }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("modal_cancel"), ButtonVariant::Default, palette), bsn! { TraceConfirmationAction::Cancel }) }
                     --

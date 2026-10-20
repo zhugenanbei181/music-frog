@@ -408,10 +408,10 @@ pub fn combobox_dropdown_scene(
             Box::new(bsn! {
                 Node {
                     width: percent(100),
-                    height: px(palette.control_height_px * 0.85),
+                    height: rem(palette.control_height_px * 0.85),
                     padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.5)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px * 0.5)),
                 }
                 BackgroundColor({ bg_color })
                 Button

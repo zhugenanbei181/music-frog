@@ -29,7 +29,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Scene, SceneList, bsn, bsn_list};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
@@ -371,11 +371,13 @@ pub(super) fn diff_notice_scene(key: &'static str) -> Box<dyn Scene> {
     })
 }
 
-fn diff_rows_scene(
+/// The diff lines as one scene list: a repeated group, so it is authored as a
+/// [`SceneList`] instead of an inline `Children [...]` enumeration.
+fn diff_row_scenes(
     diff: Option<&YamlAstDiffSnapshot>,
     mode: SnapshotDiffViewMode,
     palette: &UiPalette,
-) -> Box<dyn Scene> {
+) -> impl SceneList + use<> {
     let rows: Vec<Box<dyn Scene>> = match diff {
         Some(diff) if diff.has_differences() => match mode {
             SnapshotDiffViewMode::Inline => diff
@@ -398,6 +400,14 @@ fn diff_rows_scene(
         Some(_) => vec![diff_notice_scene("snapshot_diff_identical")],
         None => vec![diff_notice_scene("snapshot_diff_unobserved")],
     };
+    bsn_list! { { rows } }
+}
+
+fn diff_rows_scene(
+    diff: Option<&YamlAstDiffSnapshot>,
+    mode: SnapshotDiffViewMode,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -405,7 +415,7 @@ fn diff_rows_scene(
                 row_gap: rem(space::S2),
             }
             Children [
-                { rows }
+                { diff_row_scenes(diff, mode, palette) }
             ]
     })
 }

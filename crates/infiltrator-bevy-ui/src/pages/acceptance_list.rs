@@ -217,7 +217,7 @@ pub fn acceptance_row_scene(item: &AcceptanceItem) -> impl Scene + use<> {
         Node {
             width: percent(100),
             height: px(ACCEPTANCE_ROW_HEIGHT_PX),
-            padding: UiRect::axes(px(12.0), px(0.0)),
+            padding: UiRect::axes(rem(space::S12), px(0.0)),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,

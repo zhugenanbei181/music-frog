@@ -1,6 +1,7 @@
 //! Headless tests for polymorphic buttons: Primary, Default, Secondary, Ghost,
 //! Danger, Outline variants, size ladders, and loading/disabled state sync.
 
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use bevy::MinimalPlugins;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Startup, Update};
@@ -145,11 +146,11 @@ fn button_sized_scene_sets_correct_metrics() {
         match size.0 {
             ButtonSize::Sm => {
                 assert_eq!(variant.0, ButtonVariant::Default);
-                assert!(matches!(node.height, Val::Px(h) if h < 36.0));
+                assert!(matches!(node.height, Val::Rem(h) if h * REM_BASE < 36.0));
             }
             ButtonSize::Lg => {
                 assert_eq!(variant.0, ButtonVariant::Primary);
-                assert!(matches!(node.height, Val::Px(h) if h > 36.0));
+                assert!(matches!(node.height, Val::Rem(h) if h * REM_BASE > 36.0));
             }
             _ => {}
         }

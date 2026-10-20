@@ -61,10 +61,10 @@ class RemRules(unittest.TestCase):
             ["BEVY-REM-001"],
         )
 
-    def test_a_hardcoded_px_literal_belongs_to_the_shared_kit_scene_gate(self):
+    def test_a_hardcoded_px_literal_is_rejected(self):
         self.assertEqual(
             self.scan({"card.rs": "fn card() { let radius = Val::Px(4.0); }"})[0],
-            [],
+            ["BEVY-REM-001"],
         )
 
     def test_a_registered_legacy_site_is_allowed_until_it_is_migrated(self):

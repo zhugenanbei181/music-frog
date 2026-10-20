@@ -232,7 +232,7 @@ impl OklchColor {
 use crate::palette::{UiPalette, rem};
 use crate::surface::SurfacePanel;
 use crate::theme::CornerCurvature;
-use crate::theme::space;
+use crate::theme::{radius, space};
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
@@ -240,7 +240,7 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::ComputedNode;
 use bevy::ui::prelude::{
-    BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent, px,
+    BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent,
 };
 
 /// Specification for moving shimmer gradient waves on skeleton loading placeholders.
@@ -288,7 +288,7 @@ pub fn skeleton_card_scene(height_px: f32, palette: &UiPalette) -> Box<dyn Scene
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                height: px(height_px),
+                height: rem(height_px),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(rem(space::S16)),
                 row_gap: rem(space::S12),
@@ -298,22 +298,22 @@ pub fn skeleton_card_scene(height_px: f32, palette: &UiPalette) -> Box<dyn Scene
             Children [
                 Node {
                     width: percent(40),
-                    height: rem(16.0),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    height: rem(space::S16),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
                 --
                 Node {
                     width: percent(80),
-                    height: rem(12.0),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    height: rem(space::S12),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
                 --
                 Node {
                     flex_grow: 1.0,
                     width: percent(100),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
             ]

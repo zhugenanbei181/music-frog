@@ -18,13 +18,15 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::{BackgroundColor, Node, UiRect, Val};
+use bevy::ui::{BackgroundColor, Node, UiRect};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::{metrics, space};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_presentation::profile_edit_session::{
@@ -233,7 +235,7 @@ pub struct EditorDiscardButton {
 pub fn discard_scene(mixin: bool, palette: &UiPalette) -> impl Scene {
     let background = palette.surface_elevated;
     bsn! {
-        Node { min_height: Val::Px(28.0), padding: UiRect::horizontal(Val::Px(8.0)) }
+        Node { min_height: rem(metrics::CONTROL_HEIGHT_COMPACT), padding: UiRect::horizontal(rem(space::S8)) }
         BackgroundColor({ background }) Button EditorMutationControl EditorDiscardButton { mixin }
         Children [ LocalizedText::plain("editor_discard_draft") TextRole(Role::Caption) ]
     }

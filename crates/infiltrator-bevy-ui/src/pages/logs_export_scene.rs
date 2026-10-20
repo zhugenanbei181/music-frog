@@ -20,6 +20,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 pub fn spawn(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(scene(&palette));
 }
@@ -34,15 +35,15 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({Token::Scrim}) LogsExportAction::Cancel
             --
-            Node { width: percent(90), max_width: rem(560.0), max_height: percent(85), padding: UiRect::all(rem(16.0)),
-                flex_direction: FlexDirection::Column, row_gap: rem(12.0), border: UiRect::all(px(1.0)) }
+            Node { width: percent(90), max_width: rem(560.0), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+                flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border: UiRect::all(px(palette.hairline_px)) }
             ModalDialogCard LogsExportCard ThemeBackgroundColor({Token::Surface}) BorderColor::all(edge)
             AccessibilityNode(semantic) LocalizedLabel::plain("logs_export_title")
             Children [
                 LocalizedText::plain("logs_export_title") TextRole(Role::Heading)
                 --
                 Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0,
-                    flex_direction: FlexDirection::Column, row_gap: rem(12.0), overflow: Overflow::scroll_y() }
+                    flex_direction: FlexDirection::Column, row_gap: rem(space::S12), overflow: Overflow::scroll_y() }
                 ScrollArea
                 Children [
                     Text(String::new()) LogsExportLine::Status TextRole(Role::Body)
@@ -53,7 +54,7 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
                     TextLayout::linebreak(LineBreak::WordOrCharacter)
                 ]
                 --
-                Node { width: percent(100), column_gap: rem(12.0), row_gap: rem(8.0),
+                Node { width: percent(100), column_gap: rem(space::S12), row_gap: rem(space::S8),
                     flex_wrap: FlexWrap::Wrap, flex_shrink: 0.0, justify_content: JustifyContent::FlexEnd }
                 Children [
                     @{(localized_button_scene(LocalizedText::plain("logs_export_cancel"), ButtonVariant::Default, palette), bsn! { LogsExportAction::Cancel })}

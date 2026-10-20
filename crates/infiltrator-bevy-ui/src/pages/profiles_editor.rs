@@ -53,7 +53,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
-    Node, Overflow, UiRect, Val, percent, px,
+    Node, Overflow, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -66,13 +66,17 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{metrics, radius, space};
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditObservation, ProfileEditReadTarget,
 };
 use infiltrator_presentation::profile_editor_projection;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
+
+/// One-off layout value (not a ladder rung): the height of one snippet chip in
+/// the quick-insert bar. The shared `metrics` carry no chip height.
+const SNIPPET_CHIP_HEIGHT_PX: f32 = 22.0;
 
 /// Marker for the editor card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -271,7 +275,7 @@ pub fn profile_editor_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                max_height: px(PROFILE_EDITOR_RENDER_LIMIT as f32 * 18.0),
+                                max_height: rem(PROFILE_EDITOR_RENDER_LIMIT as f32 * 18.0),
                                 padding: UiRect::all(rem(space::S8)),
                                 border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 overflow: Overflow::scroll_y(),
@@ -329,11 +333,11 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
             let background = palette.surface_elevated;
             Box::new(bsn! {
                             Node {
-                                min_height: rem(22.0),
+                                min_height: rem(SNIPPET_CHIP_HEIGHT_PX),
                                 padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             BackgroundColor({ background })
                             Button
@@ -351,11 +355,13 @@ fn action_button(label: &'static str, background: Color) -> Box<dyn Scene> {
     let label = LocalizedText::plain(label);
     Box::new(bsn! {
             Node {
-                min_height: rem(28.0),
+                min_height: rem(metrics::CONTROL_HEIGHT_COMPACT),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(6.0)),
+                // A standard editor control (the same radius the Iced editor
+                // toolbar and the shared widget button draw with).
+                border_radius: BorderRadius::all(rem(radius::CONTROL)),
             }
             BackgroundColor({ background })
             Button
@@ -375,11 +381,11 @@ fn protection_toggle(protection: ProfileWriteProtection, palette: &UiPalette) ->
         protection_toggle_visual(protection, false, palette, UiLocale::default().code());
     Box::new(bsn! {
             Node {
-                min_height: rem(28.0),
+                min_height: rem(metrics::CONTROL_HEIGHT_COMPACT),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(6.0)),
+                border_radius: BorderRadius::all(rem(radius::CONTROL)),
             }
             BackgroundColor({ background })
             Button
@@ -399,11 +405,11 @@ fn reload_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: rem(28.0),
+                min_height: rem(metrics::CONTROL_HEIGHT_COMPACT),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(6.0)),
+                border_radius: BorderRadius::all(rem(radius::CONTROL)),
             }
             BackgroundColor({ background })
             Button
@@ -418,11 +424,11 @@ fn format_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: rem(28.0),
+                min_height: rem(metrics::CONTROL_HEIGHT_COMPACT),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(6.0)),
+                border_radius: BorderRadius::all(rem(radius::CONTROL)),
             }
             BackgroundColor({ background })
             Button
@@ -438,11 +444,11 @@ fn save_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.accent;
     Box::new(bsn! {
             Node {
-                min_height: rem(28.0),
+                min_height: rem(metrics::CONTROL_HEIGHT_COMPACT),
                 padding: UiRect::horizontal(rem(space::S12)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(6.0)),
+                border_radius: BorderRadius::all(rem(radius::CONTROL)),
             }
             BackgroundColor({ background })
             Button
@@ -463,8 +469,8 @@ fn diagnostic_pill(
     let background = diagnostic_color(status, palette);
     Box::new(bsn! {
             Node {
-                padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                padding: UiRect::new(rem(space::S6), rem(space::S6), rem(space::S2), rem(space::S2)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ background })
             Children [

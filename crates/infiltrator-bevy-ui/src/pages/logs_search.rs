@@ -13,7 +13,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, Display, FlexDirection, FlexWrap, Node, UiRect, Val, percent};
+use bevy::ui::prelude::{AlignItems, Display, FlexDirection, FlexWrap, Node, UiRect, percent};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText};
@@ -48,7 +48,7 @@ pub fn logs_search_scene(palette: &UiPalette) -> impl Scene + use<> {
         Children [
             Node { width: percent(100), align_items: AlignItems::Center, flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S4) }
             Children [
-                Node { width: percent(80), min_width: Val::Px(180.0) } LogsSearchField
+                Node { width: percent(80), min_width: rem(180.0) } LogsSearchField
                 Children [
                     @{ text_field_with_placeholder_scene(String::new(), String::new(), palette) } NativeTextField(11) LocalizedPlaceholder::plain("logs_regex_placeholder")
                 ]

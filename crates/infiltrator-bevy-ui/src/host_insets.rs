@@ -582,6 +582,7 @@ mod tests {
         use bevy::asset::AssetPlugin;
         use bevy::scene::ScenePlugin;
         use bevy::ui::prelude::{Display, Node, Val};
+        use infiltrator_bevy_widgets::palette::rem;
         use infiltrator_bevy_widgets::theme::space;
         use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 
@@ -620,21 +621,18 @@ mod tests {
         let mut navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav, _) = navs.single(world).expect("one compact bottom navigation");
         assert_eq!(nav.display, Display::Flex);
-        assert_eq!(nav.height, Val::Px(BOTTOM_NAV_CONTENT_HEIGHT + 32.0));
-        assert_eq!(nav.padding.bottom, Val::Px(space::S6 + 32.0));
+        assert_eq!(nav.height, rem(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav.padding.bottom, rem(space::S6));
 
-        // The bar's content padding keeps navigation hit targets clear of the
-        // Android-owned gesture region at every logical viewport size.
-        let interactive_bottom_gap = nav.padding.bottom;
-        let interactive_bottom_gap = match interactive_bottom_gap {
+        // The bar's content keeps its own height and the physical gesture
+        // inset rides the margin, so the navigation hit targets end exactly at
+        // the system gesture region instead of under it.
+        let gesture_inset = nav.margin.bottom;
+        let gesture_inset = match gesture_inset {
             Val::Px(value) => value,
             _ => panic!("native safe-area layout resolves in logical pixels"),
         };
-        assert_eq!(nav.height, Val::Px(BOTTOM_NAV_CONTENT_HEIGHT + safe_bottom));
-        assert!(
-            interactive_bottom_gap > safe_bottom,
-            "bottom-nav hit targets must end above the system gesture region"
-        );
+        assert_eq!(gesture_inset, safe_bottom);
     }
 
     #[test]

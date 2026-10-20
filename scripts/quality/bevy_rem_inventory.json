@@ -1,77 +1,15 @@
 {
   "version": 1,
   "debt": {
-    "crates/infiltrator-bevy-ui/src/app.rs": {
-      "BOTTOM_NAV_CONTENT_HEIGHT + avoidance_bottom": 1,
-      "root_bottom_pad": 1,
-      "root_top_pad": 1,
-      "space::S6 + avoidance_bottom": 1
+    "crates/infiltrator-bevy-ui/src/pages/connections_view.rs": {
+      "4.0": 1
     },
-    "crates/infiltrator-bevy-ui/src/gesture.rs": {
-      "display_height": 1,
-      "display_x": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/dns_fakeip.rs": {
-      "palette.control_radius_px": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/dns_form.rs": {
-      "palette.control_radius_px * 0.75": 2
-    },
-    "crates/infiltrator-bevy-ui/src/pages/dns_leak.rs": {
-      "palette.control_radius_px": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/dns_self_heal.rs": {
-      "palette.control_radius_px": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/dns_stun.rs": {
-      "palette.control_radius_px": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/overview.rs": {
-      "layout.item_width_px": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/proxies.rs": {
-      "layout.item_width_px": 1
-    },
-    "crates/infiltrator-bevy-ui/src/pages/proxies_preferences.rs": {
-      "if context.height_px < 600.0 { space::S8 } else { space::S16 }": 1
-    },
-    "crates/infiltrator-bevy-widgets/src/button.rs": {
-      "padding_h": 1
-    },
-    "crates/infiltrator-bevy-widgets/src/checkbox.rs": {
-      "palette.control_square_px * 0.5": 3
-    },
-    "crates/infiltrator-bevy-widgets/src/combobox.rs": {
-      "palette.control_radius_px * 0.5": 1
-    },
-    "crates/infiltrator-bevy-widgets/src/density.rs": {
-      "gap": 4,
-      "h": 2,
-      "pad": 2
-    },
-    "crates/infiltrator-bevy-widgets/src/fluid_grid.rs": {
-      "gap": 3,
-      "layout.item_width_px": 1,
-      "r_gap": 1,
-      "row_gap": 2
-    },
-    "crates/infiltrator-bevy-widgets/src/focus.rs": {
-      "palette.control_radius_px + 2.0": 1
-    },
-    "crates/infiltrator-bevy-widgets/src/motion.rs": {
-      "translation_y": 1,
-      "x": 1,
-      "y": 2
-    },
-    "crates/infiltrator-bevy-widgets/src/radio.rs": {
-      "palette.control_square_px * 0.5": 4
-    },
-    "crates/infiltrator-bevy-widgets/src/slider.rs": {
-      "palette.control_square_px * 0.5": 3,
-      "palette.track_height_px * 0.5": 4
-    },
-    "crates/infiltrator-bevy-widgets/src/tooltip.rs": {
-      "palette.control_radius_px * 0.75": 1
+    "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs": {
+      "11.0": 1,
+      "18.0": 1,
+      "2.0": 1,
+      "4.0": 1,
+      "8.0": 1
     }
   }
 }

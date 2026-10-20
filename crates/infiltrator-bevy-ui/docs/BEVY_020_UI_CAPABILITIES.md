@@ -34,6 +34,32 @@
 - **存量台账**：`scripts/quality/bevy_rem_inventory.json` 登记当前 32 个表达式 / 52 处命名 px 存量；台账**只允许缩小**（`--prune-inventory` 拒绝登记新债），白名单外新增即失败。
 - **边界说明**：本守卫不判定视觉像素是否正确，只判定尺寸是否走对通道；字号档位下的真实缩放仍需截图回执（`BEVYCAP-001.2`）。
 
+### 场景律法覆盖差表（`BEVYCAP-003.1` 裁决：产品守卫 = 唯一阻塞执行器，且是上游律法的严格超集）
+
+共享包 `zhuge-ui-kit` 0.1.0 的 README 明确「products choose rem/em/px and native scaling policy explicitly」——**单位与构造策略属产品权威**；上游律法是跨产品共享的**下限**，产品律法在其之上收紧。因此：产品自有守卫是唯一阻塞执行器并覆盖上游全部规则，共享包场景门禁降为**上游律法镜像（advisory）**，只报差集、不阻塞、不作产品放行依据，也不存在两份台账同时放行同一站点。
+
+| 事实 | 产品守卫（阻塞） | 共享包门禁（镜像） | 裁决 |
+| --- | --- | --- | --- |
+| 结构原语/遗留 bundle 只能在 `bsn!` 内 | `BEVY-BSN-001` | `UIK-BSN-001` | 同义，产品阻塞 |
+| 手动挂子 API 禁止 | `BEVY-BSN-002`（另含 `add_related`/`insert_related` 与 spawner 类型） | `UIK-BSN-002`（子集） | 产品更严，产品阻塞 |
+| 直接 spawn 禁止（`Camera2d`/`Observer::new` 豁免） | `BEVY-BSN-003` | `UIK-BSN-003` | 同义，产品阻塞 |
+| `bsn!` 括号失衡 | `BEVY-BSN-004` | `UIK-BSN-004` | 同义，产品阻塞 |
+| `template_value` 硬零 | `BEVY-BSN-007` | `UIK-BSN-005` | 同义，产品阻塞（对齐实现） |
+| 结构临时值（`Node::default()`/`Text::new`/`Children::from_*`） | `BEVY-BSN-005` | `UIK-BSN-006` | 同义，产品阻塞 |
+| 裸 `ChildOf` 重挂 | `BEVY-BSN-006` | 未覆盖 | 产品独占 |
+| ECS 访问边界与 lint 抑制 | `BEVY-ECS-007`～`009` | 未覆盖 | 产品独占 |
+| 硬编码 px 字面量 | `BEVY-REM-001` | `UIK-REM-001` | 同义，产品阻塞 |
+| `FontSize::Px` | `BEVY-REM-002` | `UIK-REM-002` | 同义，产品阻塞 |
+| 视口相对字号（`Vw`/`Vh`/`VMin`/`VMax`） | `BEVY-REM-002` | 未覆盖 | 产品独占 |
+| 命名/派生 px 值越出物理白名单 | `BEVY-REM-001` | 未覆盖（上游允许命名 token） | 产品独占 |
+| 字面量 `Val::Em` | `BEVY-REM-003` | 未覆盖 | 产品独占 |
+| 列表场景必须用 `bsn_list!` | `BEVY-BSN-008` | 未覆盖 | 产品独占（⑦） |
+| 批量退役必须用 `despawn_all` | `BEVY-BSN-009` | 未覆盖 | 产品独占（⑦） |
+| 胶囊圆角必须 `BorderRadius::MAX` | `BEVY-BSN-010` | 未覆盖 | 产品独占（⑦） |
+| 挂载后初始化订阅 `bevy_scene::Ready` | 不可机械判定 | 未覆盖 | 评审口径（`Ready` 事件语义无法词法判定） |
+
+**台账口径**：权威台账唯一——`scripts/quality/bevy_rem_inventory.json`（产品库存，只允许缩小，`--prune-inventory` 拒绝登记新债）；共享包棘轮 `scripts/quality/bevy_scene_ratchet.json` 归其 owner，是上游镜像，只读参考，不作为产品的放行依据。
+
 **硬结论：**"`bsn!` 已强制"成立（机器红线、CI 生效）；**"rem 已强制"现已成立为机器红线**——硬编码 px 字面量与 `FontSize::Px` 由共享包场景门禁拦截，命名/派生 px 值由产品守卫拦截，两段互补成本文①的闭集白名单；**"rem 通道已清零"尚未成立**：存量 180 处非白名单 px 仍让"根字号是全 UI 唯一缩放入口"在这些节点上失效（用户字号偏好不会缩放它们），由 `BEVYCAP-001.2` 收口。
 
 ## ① rem/em 动态字号与尺寸（`Val::Rem`/`Val::Em`、`FontSize::Rem`、`RemSize`/`EmSize`）
@@ -87,7 +113,7 @@
 - **`Ready` 事件**：依赖"子树完全生成"的挂载后初始化（投影首帧、焦点落点、测量）必须订阅 `bevy_scene::Ready` 实体事件，禁止依赖 spawn 同帧可见性。
 - **胶囊圆角**：胶囊/药丸形一律 `BorderRadius::MAX`（圆形、半短边自适应），椭圆轮廓用 `CornerRadius::new(x, y)`/`MAX_ELLIPTICAL`；禁止手算 `px(高度/2)` 冒充胶囊（rem 缩放后失真）。`radius::PILL` 数值 token 保留给非自适应场景。
 - **`despawn_all::<F>`**：按标记批量退役（toast 栈、HUD、沙盒）用 `commands.despawn_all::<With<标记>>()`；清子树用 `despawn_children()`；禁止手写遍历 `Children` 逐个 despawn 的循环。
-- 强制状态：见[强制化台账](#强制化台账2026-10-20-实测)。本条目前**仅人工评审**（`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处），守卫与存量迁移由 `BEVYCAP-002.1` 收口。
+- 强制状态：见[强制化台账](#强制化台账2026-10-20-实测)与[覆盖差表](#场景律法覆盖差表bevycap-0031-裁决产品守卫--唯一阻塞执行器且是上游律法的严格超集)。机器规则：`BEVY-BSN-008`（列表场景必须 `bsn_list!`）、`BEVY-BSN-009`（批量退役必须 `despawn_all`）、`BEVY-BSN-010`（胶囊圆角必须 `BorderRadius::MAX`）；`Ready` 事件语义无法词法判定，保持**评审口径**（人工核验挂载后初始化是否订阅 `Ready`）。
 
 ## 已评审的本地交互例外：ScrollArea 触摸拖动
 

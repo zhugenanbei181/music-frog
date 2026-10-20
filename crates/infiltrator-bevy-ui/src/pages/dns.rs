@@ -38,8 +38,7 @@ use bevy::ecs::system::{Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, UiRect, Val, percent,
-    px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -52,7 +51,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{metrics, space};
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag, DnsSettingsPatch,
     DnsSwitchField, FakeIpMappingPool,
@@ -702,7 +701,11 @@ pub(crate) fn apply_dns_projection(
         } else {
             palette.ink_dim
         };
-        node.left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };
+        node.left = if enabled {
+            rem(metrics::CONTROL_SQUARE)
+        } else {
+            rem(space::S2)
+        };
     }
 
     for (mut background, marker) in &mut enhanced_pills {

@@ -34,7 +34,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, FlexWrap,
-    JustifyContent, Node, UiRect, Val, percent, px,
+    JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -45,7 +45,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
@@ -263,11 +263,11 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             let pane = *pane;
             Box::new(bsn! {
                             Node {
-                                min_height: rem(24.0),
+                                min_height: rem(space::S24),
                                 padding: UiRect::horizontal(rem(space::S8)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             BackgroundColor({ background })
                             Button
@@ -339,8 +339,8 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                 }
                 Children [
                     Node {
-                        padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        padding: UiRect::new(rem(space::S6), rem(space::S6), rem(space::S2), rem(space::S2)),
+                        border_radius: BorderRadius::all(rem(radius::XS)),
                     }
                     BackgroundColor({ error_color })
                     Children [
@@ -367,11 +367,11 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
             }
             Children [
                 Node {
-                    min_height: rem(24.0),
+                    min_height: rem(space::S24),
                     padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ background })
                 Button
@@ -382,11 +382,11 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 ]
                 --
                 Node {
-                    min_height: rem(24.0),
+                    min_height: rem(space::S24),
                     padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ background })
                 Button
@@ -396,11 +396,11 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 ]
                 --
                 Node {
-                    min_height: rem(24.0),
+                    min_height: rem(space::S24),
                     padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ accent })
                 Button
@@ -424,11 +424,11 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
             let background = palette.surface_elevated;
             Box::new(bsn! {
                             Node {
-                                min_height: rem(20.0),
+                                min_height: rem(space::S20),
                                 padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             BackgroundColor({ background })
                             Button
@@ -483,7 +483,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 --
                 { fields }
                 --
-                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), border: UiRect::all(px(1.0)), padding: UiRect::all(rem(space::S6))}
+                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), border: UiRect::all(Val::Px(palette.hairline_px)), padding: UiRect::all(rem(space::S6))}
                 BorderColor::all(border)
                 EditorFilterTransaction
                 Children [

@@ -153,18 +153,16 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
                 Node {
                     width: percent(100),
                     height: rem(palette.track_height_px),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.track_height_px * 0.5,
-                    )),
+                    // The track is a capsule: its radius is half the height,
+                    // so bevy's adaptive capsule radius draws the same shape.
+                    border_radius: BorderRadius::MAX,
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Children [
                     Node {
                         width: Val::Percent(travel),
                         height: rem(palette.track_height_px),
-                        border_radius: BorderRadius::all(Val::Px(
-                                palette.track_height_px * 0.5,
-                        )),
+                        border_radius: BorderRadius::MAX,
                     }
                     BackgroundColor({ palette.accent })
                     SliderFill
@@ -176,9 +174,8 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
                     top: px(0.0),
                     width: rem(palette.control_square_px),
                     height: rem(palette.control_square_px),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The thumb is a circle: its radius is half the side.
+                    border_radius: BorderRadius::MAX,
                 }
                 SliderThumb
                 BackgroundColor({ palette.accent })
@@ -213,9 +210,9 @@ pub fn range_slider_scene(
                 Node {
                     width: percent(100),
                     height: rem(palette.track_height_px),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.track_height_px * 0.5,
-                    )),
+                    // The track is a capsule: its radius is half the height,
+                    // so bevy's adaptive capsule radius draws the same shape.
+                    border_radius: BorderRadius::MAX,
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Children [
@@ -224,9 +221,7 @@ pub fn range_slider_scene(
                         left: Val::Percent(fill_left),
                         width: Val::Percent(fill_width),
                         height: rem(palette.track_height_px),
-                        border_radius: BorderRadius::all(Val::Px(
-                                palette.track_height_px * 0.5,
-                        )),
+                        border_radius: BorderRadius::MAX,
                     }
                     BackgroundColor({ palette.accent })
                     RangeSliderFill
@@ -238,9 +233,8 @@ pub fn range_slider_scene(
                     top: px(0.0),
                     width: rem(palette.control_square_px),
                     height: rem(palette.control_square_px),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The thumb is a circle: its radius is half the side.
+                    border_radius: BorderRadius::MAX,
                 }
                 RangeSliderThumbMin
                 BackgroundColor({ palette.accent })
@@ -251,9 +245,8 @@ pub fn range_slider_scene(
                     top: px(0.0),
                     width: rem(palette.control_square_px),
                     height: rem(palette.control_square_px),
-                    border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                    )),
+                    // The thumb is a circle: its radius is half the side.
+                    border_radius: BorderRadius::MAX,
                 }
                 RangeSliderThumbMax
                 BackgroundColor({ palette.accent })

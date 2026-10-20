@@ -10,11 +10,12 @@ use bevy::ecs::query::{Has, Or, QueryData, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui::{BackgroundColor, Node, Val};
+use bevy::ui::{BackgroundColor, Node};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{breakpoint, space};
 
 /// Short windows reduce empty inter-card space while retaining every input and action.
 pub fn sync_proxy_vertical_spacing(
@@ -22,7 +23,7 @@ pub fn sync_proxy_vertical_spacing(
     mut scrolls: Query<&mut Node, With<ProxiesScrollArea>>,
 ) {
     let Some(context) = context else { return };
-    let gap = Val::Px(if context.height_px < 600.0 {
+    let gap = rem(if context.height_px < breakpoint::COMPACT_MAX_PX {
         space::S8
     } else {
         space::S16

@@ -8,7 +8,7 @@ use crate::pages::proxies_custom::{
 };
 use bevy::ecs::prelude::*;
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{Scene, bsn};
+use bevy::scene::{Scene, SceneList, bsn, bsn_list};
 use bevy::ui::prelude::*;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -20,6 +20,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, ValidationStatus};
 use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::{ProtocolField, ProtocolStudioSlot};
 use infiltrator_presentation::protocol_editor_operation::{
@@ -86,10 +87,12 @@ pub enum ProtocolFormTextKind {
 #[derive(Component, Clone, Copy, Default)]
 pub struct CustomNodeFormError;
 
-pub fn protocol_fields_scene(
+/// The protocol field rows as one scene list: a repeated group, so it is
+/// authored as a [`SceneList`] instead of an inline `Children [...]` enumeration.
+fn protocol_field_scenes(
     studio: &ProtocolStudioSnapshot,
     palette: &UiPalette,
-) -> impl Scene + use<> {
+) -> impl SceneList + use<> {
     let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
     let fallback = ProtocolDraft::new("vless");
@@ -101,13 +104,13 @@ pub fn protocol_fields_scene(
         let mut scene: Box<dyn Scene> = if field.toggle {
             Box::new(bsn! {
                 Node { width: percent(100), min_height: rem(palette.control_height_px), flex_shrink: 0.0,
-                    padding: UiRect::all(rem(8.0)), align_items: AlignItems::Center }
+                    padding: UiRect::all(rem(space::S8)), align_items: AlignItems::Center }
                 ThemeBackgroundColor({ Token::SurfaceElevated }) Button ProtocolToggle(id)
                 Children [ Text({ format!("{label}: {}", field.value) }) ProtocolFormText(ProtocolFormTextKind::Toggle(id)) TextRole(Role::Body) ]
             })
         } else {
             Box::new(bsn! {
-                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(4.0), flex_shrink: 0.0 }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4), flex_shrink: 0.0 }
                 Children [
                     Text(label) TextRole(Role::Caption)
                     --
@@ -118,7 +121,7 @@ pub fn protocol_fields_scene(
         };
         if id == ProtocolField::Dialer {
             scene = Box::new(bsn! {
-                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(4.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(space::S4) }
                 Children [ Text({ lang.tr("custom_node_dialer_proxy").into_owned() }) TextRole(Role::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 } CustomNodeDialerField CustomNodeInputField(CustomNodeInput::Dialer)
@@ -127,7 +130,7 @@ pub fn protocol_fields_scene(
             });
         } else if id == ProtocolField::CaPath {
             scene = Box::new(bsn! {
-                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(4.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(space::S4) }
                 Children [ Text({ lang.tr("custom_node_ca_path").into_owned() }) TextRole(Role::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 } CustomNodeCaField CustomNodeInputField(CustomNodeInput::Ca)
@@ -141,10 +144,17 @@ pub fn protocol_fields_scene(
             Children [ @{ scene } ]
         }) as Box<dyn Scene>
     }).collect();
-    // The editor is a full field list with native scrolling supplied by its modal body.
+    bsn_list! { { fields } }
+}
+
+/// The editor is a full field list with native scrolling supplied by its modal body.
+pub fn protocol_fields_scene(
+    studio: &ProtocolStudioSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     bsn! {
         Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(10.0), flex_shrink: 0.0 }
-        Children [ { fields } ]
+        Children [ { protocol_field_scenes(studio, palette) } ]
     }
 }
 

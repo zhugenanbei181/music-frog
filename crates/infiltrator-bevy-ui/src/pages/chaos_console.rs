@@ -184,7 +184,7 @@ pub fn chaos_console_scene(console: &ChaosConsole, palette: &UiPalette) -> impl 
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Column,
-                    row_gap: rem(2.0),
+                    row_gap: rem(space::S2),
                 }
                 Children [
                     { states }

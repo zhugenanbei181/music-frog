@@ -16,8 +16,7 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -29,7 +28,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::uwp::UwpPackageSnapshot;
 use infiltrator_presentation::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -229,8 +228,8 @@ fn package_row_scene(
                 Text({ package.display_name.clone() }) UwpPackageName(index) TextRole(Role::Caption)
                 --
                 Node {
-                    padding: UiRect::axes(rem(space::S6), Val::Px(2.0)),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    padding: UiRect::axes(rem(space::S6), rem(space::S2)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 BackgroundColor({ color })
                 Children [

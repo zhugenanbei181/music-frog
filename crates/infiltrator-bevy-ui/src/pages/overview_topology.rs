@@ -21,7 +21,7 @@ use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect,
     percent, px,
 };
 use bevy::ui::widget::Text;
@@ -35,7 +35,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
@@ -257,7 +257,7 @@ fn topology_stage_chip_scene(
                     --
                     Node {
                         padding: UiRect::axes(rem(space::S6), rem(space::S2)),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        border_radius: BorderRadius::all(rem(radius::XS)),
                     }
                     ThemeBackgroundColor({ Token::AccentContainer })
                     AccentContainerFill
@@ -269,7 +269,7 @@ fn topology_stage_chip_scene(
                 Node {
                     width: percent(100),
                     padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::Surface })
                 SurfaceFill

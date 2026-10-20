@@ -21,7 +21,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect,
     percent, px,
 };
 use bevy::ui::widget::Text;
@@ -36,7 +36,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::rule_edit::LogicalDraft;
 use infiltrator_domain::rules::{edit, logical};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
@@ -281,7 +281,7 @@ fn condition_row(index: usize, condition: String, _palette: &UiPalette) -> impl 
                 padding: UiRect::all(rem(space::S6)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             SubRuleConditionRow(index)
@@ -293,7 +293,7 @@ fn condition_row(index: usize, condition: String, _palette: &UiPalette) -> impl 
                     padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::Border })
                 Button
@@ -322,7 +322,7 @@ fn operator_chip(
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ fill })
             Button
@@ -336,11 +336,11 @@ fn operator_chip(
 fn preset_button(index: usize, preset: String, _palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
-                min_height: rem(24.0),
+                min_height: rem(space::S24),
                 padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Button

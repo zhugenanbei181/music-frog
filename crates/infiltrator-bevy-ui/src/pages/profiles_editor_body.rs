@@ -11,7 +11,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::editor::{SyntaxTokenKind, tokenize_yaml_line};
@@ -85,7 +85,7 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
                         width: percent(100),
                         flex_direction: FlexDirection::Row,
                         column_gap: rem(space::S8),
-                        min_height: rem(16.0),
+                        min_height: rem(space::S16),
                     }
                     BackgroundColor({ background })
                     Children [
@@ -133,9 +133,9 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
     for _ in 0..level {
         ticks.push(Box::new(bsn! {
                     Node {
-                        width: px(2.0),
+                        width: rem(space::S2),
                         height: rem(10.0),
-                        margin: UiRect::right(Val::Px(2.0)),
+                        margin: UiRect::right(rem(space::S2)),
                     }
                     BackgroundColor({ color })
         }) as Box<dyn Scene>);
@@ -143,7 +143,7 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 flex_direction: FlexDirection::Row,
-                min_width: rem(4.0),
+                min_width: rem(space::S4),
             }
             Children [
                 { ticks }

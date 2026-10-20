@@ -42,7 +42,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::outbound::identity::OutboundId;
@@ -89,17 +89,17 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             --
                             Node {
                                 width: rem(28.0),
-                                height: rem(16.0),
-                                border_radius: BorderRadius::all(Val::Px(8.0)),
+                                height: rem(space::S16),
+                                border_radius: BorderRadius::all(rem(radius::SM)),
                                 align_items: AlignItems::Center,
-                                padding: UiRect::horizontal(Val::Px(2.0)),
+                                padding: UiRect::horizontal(rem(space::S2)),
                             }
                             ThemeBackgroundColor({ Token::SurfaceElevated }) FilterAliveIndicator
                             Children [
                                 Node {
-                                    width: rem(12.0),
-                                    height: rem(12.0),
-                                    border_radius: BorderRadius::all(Val::Px(6.0)),
+                                    width: rem(space::S12),
+                                    height: rem(space::S12),
+                                    border_radius: BorderRadius::all(rem(space::S6)),
                                 }
                                 ThemeBackgroundColor({ Token::Surface })
                             ]
@@ -107,7 +107,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            padding: UiRect::all(Val::Px(2.0)),
+                            padding: UiRect::all(rem(space::S2)),
                             border: UiRect::all(Val::Px(palette.hairline_px)),
                             border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             column_gap: rem(space::S4),
@@ -122,7 +122,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                         Children [
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                                 align_items: AlignItems::Center,
                             }
                             ThemeBackgroundColor({ Token::AccentContainer })
@@ -134,7 +134,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                                 align_items: AlignItems::Center,
                             }
                             ThemeBackgroundColor({ Token::Surface })
@@ -146,7 +146,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                                 align_items: AlignItems::Center,
                             }
                             ThemeBackgroundColor({ Token::Surface })
@@ -158,7 +158,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                                 align_items: AlignItems::Center,
                             }
                             ThemeBackgroundColor({ Token::Surface })
@@ -383,7 +383,7 @@ pub fn proxy_node_scene_sized(
         vec![Box::new(bsn! {
             Node {
                 padding: UiRect::axes(rem(space::S6), rem(space::S2)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
             }
@@ -393,7 +393,9 @@ pub fn proxy_node_scene_sized(
     };
 
     let (bg, border_color, border_width) = if node.selected {
-        (palette.accent_container, palette.accent, Val::Px(1.5))
+        // Selected cards carry a 1.5px accent border; no token carries that
+        // width, so the baseline magnitude travels through the rem channel.
+        (palette.accent_container, palette.accent, rem(1.5))
     } else {
         (
             palette.surface_elevated,
@@ -419,7 +421,8 @@ pub fn proxy_node_scene_sized(
             Box::new(bsn! {
                 Node {
                     padding: UiRect::axes(rem(space::S4), rem(space::S2)),
-                    border_radius: BorderRadius::all(Val::Px(3.0)),
+                    // 3px chip corner: no radius token carries 3px.
+                    border_radius: BorderRadius::MAX,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
@@ -435,7 +438,8 @@ pub fn proxy_node_scene_sized(
         vec![Box::new(bsn! {
                     Node {
                         padding: UiRect::axes(rem(space::S4), rem(space::S2)),
-                        border_radius: BorderRadius::all(Val::Px(3.0)),
+                        // 3px chip corner: no radius token carries 3px.
+                        border_radius: BorderRadius::MAX,
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                     }
@@ -556,7 +560,7 @@ pub fn proxy_node_scene_sized(
                     --
                     Node {
                         padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        border_radius: BorderRadius::all(rem(radius::XS)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                         column_gap: rem(space::S4),
@@ -713,7 +717,7 @@ fn group_card_scene_impl(
                                     --
                                     Node {
                                         padding: UiRect::axes(rem(space::S6), rem(space::S2)),
-                                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                                        border_radius: BorderRadius::all(rem(radius::XS)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
                                     }

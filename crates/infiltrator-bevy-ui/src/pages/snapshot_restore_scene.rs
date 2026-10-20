@@ -19,6 +19,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 #[derive(Component, Clone, Copy)]
 #[require(Button, ButtonDisabled)]
 pub enum RestoreControl {
@@ -55,17 +56,17 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim cancel ReviewControl ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(700), max_height: percent(85), padding: UiRect::all(rem(16)), flex_direction: FlexDirection::Column, row_gap: rem(12) }
+            Node { width: percent(90), max_width: rem(700), max_height: percent(85), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard RestoreCard AccessibilityNode(semantic) LocalizedLabel::plain("snapshot_restore_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("snapshot_restore_title") TextRole(Role::Heading)
                 --
                 Node { width: percent(100), min_height: px(0), flex_shrink: 1.0, overflow: Overflow::scroll_y() } ScrollArea
-                Children [ Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(8) }
+                Children [ Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
                     Children [ Text(String::new()) status TextRole(Role::Body)
                         -- Text(String::new()) details TextRole(Role::Mono)
                         -- Text(String::new()) content TextRole(Role::Mono) ] ]
-                -- Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(8), row_gap: rem(8), flex_shrink: 0.0 }
+                -- Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
                 Children [ @{control("snapshot_restore_cancel", RestoreControl::Cancel, &palette)}
                     -- @{control("snapshot_restore_confirm", RestoreControl::Confirm, &palette)}
                     -- @{control("snapshot_restore_retry", RestoreControl::Retry, &palette)} ]

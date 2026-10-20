@@ -7,6 +7,7 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use infiltrator_bevy_widgets::theme::radius;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexWrap, Node, UiRect, percent, px,
@@ -41,7 +42,7 @@ fn row_scene(row: &ConnectionGroupRow, palette: &UiPalette) -> impl Scene + use<
     let row = row.clone();
     let bg = palette.surface;
     bsn! {
-        Node {width:percent(100),flex_wrap:FlexWrap::Wrap,align_items:AlignItems::Center,column_gap:rem(space::S12),row_gap:rem(space::S4),padding:UiRect::all(rem(space::S8)),border_radius:BorderRadius::all(rem(4.0))}
+        Node {width:percent(100),flex_wrap:FlexWrap::Wrap,align_items:AlignItems::Center,column_gap:rem(space::S12),row_gap:rem(space::S4),padding:UiRect::all(rem(space::S8)),border_radius:BorderRadius::all(rem(radius::XS))}
         BackgroundColor(bg) SurfacePanel
         ConnectionGroupCard({row.key.clone()})
         Children [

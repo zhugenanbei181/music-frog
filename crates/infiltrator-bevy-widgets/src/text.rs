@@ -95,6 +95,7 @@ pub fn style_text_roles(
 }
 
 use crate::palette::rem;
+use crate::theme::radius;
 use crate::theme::space;
 use bevy::scene::Scene;
 
@@ -133,7 +134,7 @@ pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Bo
     use bevy::ecs::hierarchy::Children;
     use bevy::scene::{Scene, bsn};
     use bevy::ui::prelude::{
-        AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+        AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect,
     };
     use bevy::ui::widget::Text;
 
@@ -146,7 +147,7 @@ pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Bo
                 Box::new(bsn! {
                                     Node {
                                         padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                                        border_radius: BorderRadius::all(rem(radius::XS)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
                                     }

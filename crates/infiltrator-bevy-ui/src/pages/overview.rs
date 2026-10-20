@@ -625,7 +625,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                             width: rem(10.0),
                             height: rem(10.0),
                             flex_shrink: 0.0,
-                            border_radius: BorderRadius::all(Val::Px(5.0)),
+                            border_radius: BorderRadius::MAX,
                         }
                         BackgroundColor({ status_dot_color(Some(projection), palette) })
                         StatusDot
@@ -800,7 +800,7 @@ fn scale_line_scene(scale: &TrafficScaleSnapshot) -> impl Scene + use<> {
     bsn! {
             Node {
                 width: percent(100),
-                min_height: rem(16.0),
+                min_height: rem(space::S16),
             }
             Children [
                 Text({ label }) OverviewLine(OverviewLineKind::Scale) TextRole(Role::Mono)

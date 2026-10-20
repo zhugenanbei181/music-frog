@@ -12,17 +12,17 @@
 //! [`PROXIES_VIRTUAL_THRESHOLD`]; below it the page keeps its full-mount
 //! vocabulary (and its stable-identity reconcile contract).
 
-use crate::pages::proxies::{LastProxiesProjection, ProxiesProjection, ProxiesScrollArea};
+use crate::pages::proxies::{LastProxiesProjection, ProxiesProjection, ProxiesScrollArea, ProxyGroup};
 use crate::pages::proxies_card::{
     ProxyNodeSceneContext, group_header_scene, proxy_node_scene_sized,
 };
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{Or, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Scene, SceneList, bsn, bsn_list};
 use bevy::ui::prelude::{
     ComputedNode, FlexDirection, FlexWrap, Node, Overflow, ScrollPosition, Val, percent, px,
 };
@@ -225,6 +225,38 @@ fn spacer_scene() -> impl Scene {
     }
 }
 
+/// The node cards of one wrapped grid row as a single scene list: a repeated
+/// group, so it is authored as a [`SceneList`] instead of an inline
+/// `Children [...]` enumeration.
+fn proxy_card_scenes(
+    group: &ProxyGroup,
+    group_idx: usize,
+    node_indices: &[usize],
+    width: Val,
+    palette: &UiPalette,
+) -> impl SceneList + use<> {
+    let cards: Vec<Box<dyn Scene>> = node_indices
+        .iter()
+        .filter_map(|node_idx| {
+            group.proxies.get(*node_idx).map(|node| {
+                Box::new(proxy_node_scene_sized(
+                    ProxyNodeSceneContext {
+                        group_idx,
+                        node_idx: *node_idx,
+                        group_name: &group.name,
+                        collection_id: group.collection_id.clone(),
+                        selection_available: group.outbound_selection_available,
+                    },
+                    node,
+                    width,
+                    palette,
+                )) as Box<dyn Scene>
+            })
+        })
+        .collect();
+    bsn_list! { { cards } }
+}
+
 /// Build the scene for one flattened row.
 fn row_scene(
     row: &ProxiesVirtualRow,
@@ -247,25 +279,6 @@ fn row_scene(
                 return Box::new(bsn! { Node { width: percent(100) } });
             };
             let width = Val::Percent(FluidCardGrid::wrapped_item_percent(columns));
-            let cards: Vec<Box<dyn Scene>> = node_indices
-                .iter()
-                .filter_map(|node_idx| {
-                    group.proxies.get(*node_idx).map(|node| {
-                        Box::new(proxy_node_scene_sized(
-                            ProxyNodeSceneContext {
-                                group_idx: *group_idx,
-                                node_idx: *node_idx,
-                                group_name: &group.name,
-                                collection_id: group.collection_id.clone(),
-                                selection_available: group.outbound_selection_available,
-                            },
-                            node,
-                            width,
-                            palette,
-                        )) as Box<dyn Scene>
-                    })
-                })
-                .collect();
             Box::new(bsn! {
                     Node {
                         width: percent(100),
@@ -274,7 +287,7 @@ fn row_scene(
                         column_gap: rem(space::S8),
                         row_gap: rem(space::S8),
                     }
-                    Children [ { cards } ]
+                    Children [ { proxy_card_scenes(group, *group_idx, node_indices, width, palette) } ]
             })
         }
     }
@@ -287,7 +300,10 @@ fn spawn_slots(
     container: Entity,
     capacity: usize,
 ) {
-    commands.entity(container).despawn_children();
+    // Batch retirement by marker: the pool is identified by its own typed
+    // markers, so it retires in one typed operation instead of a hand-written
+    // walk over `Children`.
+    commands.despawn_all::<Or<(With<ProxiesVirtualSlot>, With<ProxiesVirtualSpacer>)>>();
     let top = commands
         .spawn_scene(spacer_scene())
         .insert((ProxiesVirtualSpacer { top: true }, ChildOf(container)))

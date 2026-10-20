@@ -143,7 +143,7 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     --
                     Node {
                         min_width: rem(26.0),
-                        min_height: rem(24.0),
+                        min_height: rem(space::S24),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                         flex_shrink: 0.0,
@@ -161,7 +161,7 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     --
                     Node {
                         min_width: rem(26.0),
-                        min_height: rem(24.0),
+                        min_height: rem(space::S24),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                         flex_shrink: 0.0,
@@ -203,7 +203,7 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                 }
                 Children [
                     Node {
-                        min_height: rem(24.0),
+                        min_height: rem(space::S24),
                         padding: UiRect::horizontal(rem(space::S8)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,

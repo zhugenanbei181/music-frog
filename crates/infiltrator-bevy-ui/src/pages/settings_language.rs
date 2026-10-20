@@ -9,7 +9,7 @@ use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{Scene, bsn};
+use bevy::scene::{Scene, SceneList, bsn, bsn_list};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{
@@ -22,6 +22,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_presentation::language_choice::{
@@ -53,7 +54,7 @@ enum LanguageChoiceAdmission {
 }
 pub fn language_card(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), flex_shrink: 0.0, padding: UiRect::all(rem(16.0)), flex_direction: FlexDirection::Column, row_gap: rem(12.0), border_radius: BorderRadius::all(rem(palette.card_radius_px)) }
+        Node { width: percent(100), flex_shrink: 0.0, padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.card_radius_px)) }
         LanguageChoiceCard ThemeBackgroundColor({ Token::Surface })
         Children [
             LocalizedText::plain("settings_language_title") TextRole(Role::BodyStrong)
@@ -62,25 +63,30 @@ pub fn language_card(palette: &UiPalette) -> impl Scene + use<> {
         ]
     }
 }
-pub fn choices_scene(palette: &UiPalette) -> impl Scene + use<> {
+/// The language buttons as one scene list: a repeated group, so it is authored
+/// as a [`SceneList`] instead of an inline `Children [...]` enumeration.
+fn language_choice_scenes(palette: &UiPalette) -> impl SceneList + use<> {
     let choices: Vec<Box<dyn Scene>> = LanguagePreference::ALL.into_iter().map(|preference| Box::new(bsn! {
-        Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)), align_items: AlignItems::Center }
+        Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)), align_items: AlignItems::Center }
         Button LanguageChoiceButton(preference) ButtonDisabled(true) ThemeBackgroundColor({ Token::SurfaceElevated })
         LocalizedLabel::plain(preference.label_key())
         Children [ LocalizedText::plain(preference.label_key()) TextRole(Role::Body) ]
     }) as Box<dyn Scene>).collect();
+    bsn_list! { { choices } }
+}
+pub fn choices_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         LanguageChoices
         Children [
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0) }
-            Children [ { choices } ]
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
+            Children [ { language_choice_scenes(palette) } ]
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, align_items: AlignItems::Center, column_gap: rem(8.0) }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, align_items: AlignItems::Center, column_gap: rem(space::S8) }
             Children [
                 Text(String::new()) LanguageChoiceStatus TextRole(Role::Caption)
                 --
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 Button RetryLanguageChoice ButtonDisabled(true)
                 Children [ LocalizedText::plain("language_retry") TextRole(Role::Body) ]
             ]

@@ -62,7 +62,7 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -76,7 +76,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::{
     KernelEtagSupportSnapshot, ProviderCacheFingerprint, RuleProviderCacheSnapshot,
@@ -679,12 +679,12 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
     bsn! {
             Node {
                 flex_shrink: 0.0,
-                min_width: rem(8.0),
+                min_width: rem(space::S8),
                 min_height: rem(18.0),
                 padding: UiRect::horizontal(rem(space::S6)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ fill })
             RuleTypeBadge(idx)
@@ -708,11 +708,11 @@ fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl S
             }
             Children [
                 Node {
-                    min_height: rem(24.0),
+                    min_height: rem(space::S24),
                     padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::SurfaceElevated })
                 Button
@@ -723,11 +723,11 @@ fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl S
                 ]
                 --
                 Node {
-                    min_height: rem(24.0),
+                    min_height: rem(space::S24),
                     padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::Border })
                 Button
@@ -738,11 +738,11 @@ fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl S
                 ]
                 --
                 Node {
-                    min_height: rem(24.0),
+                    min_height: rem(space::S24),
                     padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::Border })
                 Button

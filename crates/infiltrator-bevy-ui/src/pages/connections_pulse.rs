@@ -23,7 +23,7 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_rate;
 
@@ -61,7 +61,7 @@ pub fn connection_pulse_scene(
                 display: { if visible { Display::Flex } else { Display::None } },
                 align_items: AlignItems::Center,
                 padding: UiRect::axes(rem(space::S4), Val::Px(0.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
+                border_radius: BorderRadius::all(rem(radius::XS)),
             }
             BackgroundColor({ glow })
             ConnHighThroughputPulse(row)

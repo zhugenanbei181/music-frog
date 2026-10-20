@@ -85,7 +85,7 @@ pub fn shell_scene_with_toggles(
                 flex_direction: FlexDirection::Column,
                 overflow: Overflow::clip(),
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),
-                border: UiRect::all(Val::Px(1.0)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
             }
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             ShellRoot
@@ -562,8 +562,8 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node {
                     width: percent(100),
-                    height: rem(4.0),
-                    border_radius: BorderRadius::all(Val::Px(2.0)),
+                    height: rem(space::S4),
+                    border_radius: BorderRadius::all(rem(space::S2)),
                     overflow: Overflow::clip(),
                 }
                 ThemeBackgroundColor({ Token::AccentContainer }) ShellQuotaTrack
@@ -571,7 +571,7 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Node {
                         width: percent(0),
                         height: percent(100),
-                        border_radius: BorderRadius::all(Val::Px(2.0)),
+                        border_radius: BorderRadius::all(rem(space::S2)),
                     }
                     ThemeBackgroundColor({ Token::Accent }) ShellQuotaFill
                 ]
@@ -701,7 +701,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
             SidebarExpandedOnly
             rate_node
             Children [
-                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(2.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S2) }
                 Children [
                 Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
                 Children [
@@ -735,7 +735,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                     ]
                 ]
                 --
-                Node { width: rem(60.0), height: rem(24.0) }
+                Node { width: rem(60.0), height: rem(space::S24) }
                 ShellWaveform
 
                 ]

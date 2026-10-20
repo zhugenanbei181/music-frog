@@ -78,7 +78,7 @@ pub(crate) fn servers_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: rem(32.0),
+                                min_height: rem(space::S32),
                                 flex_direction: FlexDirection::Column,
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
