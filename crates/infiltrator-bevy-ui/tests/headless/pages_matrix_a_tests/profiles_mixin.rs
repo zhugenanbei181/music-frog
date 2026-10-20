@@ -133,7 +133,7 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
         Some(reason)
     );
     assert!(
-        subtree_has_text(app.world(), root, &reason),
+        subtree_has_text(app.world(), root, reason),
         "the actual shared failure must be visible in the pane"
     );
 }

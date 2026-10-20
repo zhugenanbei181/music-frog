@@ -355,7 +355,7 @@ fn the_pip_controls_bind_to_the_shared_overlay_session() {
 
     let session = app.world().resource::<PipOverlaySession>();
     let id = session.window.expect("the HUD opens the PiP window");
-    assert!(session.state.is_active);
+    assert!(session.is_active());
     assert!(
         app.world()
             .resource::<WindowRegistry>()

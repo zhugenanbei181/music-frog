@@ -6,6 +6,7 @@ use crate::command_palette::{CommandPaletteCard, CommandPaletteOverlayRoot, Comm
 use crate::pages::business_panel::{
     BusinessPanelCard, BusinessPanelRoot, BusinessPanelState, PanelKind,
 };
+use crate::pages::connections::LastConnectionsProjection;
 use crate::pages::connections_confirm::{CloseAllConfirmationCard, CloseAllConfirmationRoot};
 use crate::pages::connections_drawer::{ConnectionDrawerLayer, ConnectionsDrawerState};
 use crate::pages::connections_view::ConnectionsCloseAllState;
@@ -52,7 +53,7 @@ pub fn close_all_observation(
 ) {
     let bounds = (|| {
         if !marker.feature.activated
-            || !surface.state.armed
+            || !surface.state.is_armed()
             || !geometry.visible(surface.roots.iter().next()?)
         {
             return None;
@@ -64,6 +65,7 @@ pub fn close_all_observation(
 #[derive(SystemParam)]
 pub struct DrawerSurface<'w, 's> {
     state: Res<'w, ConnectionsDrawerState>,
+    projection: Option<Res<'w, LastConnectionsProjection>>,
     roots: Query<'w, 's, Entity, With<ConnectionDrawerLayer>>,
     panels: Query<'w, 's, Entity, With<DrawerPanel>>,
 }
@@ -73,9 +75,13 @@ pub fn drawer_observation(
     mut marker: ObservationMarker,
 ) {
     let bounds = (|| {
+        let projection = surface
+            .projection
+            .as_deref()
+            .and_then(|last| last.0.as_ref())?;
         if !marker.feature.activated
-            || !surface.state.open
-            || surface.state.selected != Some(0)
+            || !surface.state.is_open()
+            || surface.state.inspected_index(projection) != Some(0)
             || !geometry.visible(surface.roots.iter().next()?)
         {
             return None;

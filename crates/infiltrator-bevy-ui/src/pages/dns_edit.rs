@@ -41,14 +41,66 @@ use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchFor
 use infiltrator_presentation::dns_settings_projection::{field_label_key, form_status};
 use infiltrator_shared::locales::{Lang, Localizer};
 
+/// The DNS workbench submission stage.
+///
+/// One apply attempt has two exclusive outcomes: the host command service
+/// takes the patch, or it is not composed and refuses it. The typed stage
+/// carries that table, so a queued patch and a refused patch can never be
+/// recorded at the same time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DnsFormSubmission {
+    /// No patch is queued and none was refused.
+    #[default]
+    Idle,
+    /// The host command service took the patch.
+    Queued,
+    /// The host command service is not composed, so it refused the patch.
+    HostUnavailable,
+}
+
+/// Whether the host command service could take the DNS patch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DnsCommandService {
+    /// The host command service is composed and takes the patch.
+    Composed,
+    /// The host command service is not composed, so it refuses the patch.
+    Absent,
+}
+
 /// Shared workbench draft plus the honest local validation state.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct DnsFormState {
     pub form: DnsWorkbenchForm,
+    /// The mounted text differs from the draft: an independent binary fact
+    /// about the widgets, not a stage of the apply process.
     pub dirty: bool,
     pub issues: Vec<DnsFormIssue>,
-    pub submitted: bool,
-    pub host_missing: bool,
+    /// The single stage of the last apply attempt.
+    pub submission: DnsFormSubmission,
+}
+
+impl DnsFormState {
+    /// The draft changed, so a queued patch no longer describes it, while a
+    /// refused patch stays refused until the host command service composes.
+    pub fn draft_changed(&mut self) -> DnsFormSubmission {
+        self.submission = match self.submission {
+            DnsFormSubmission::Idle => DnsFormSubmission::Idle,
+            DnsFormSubmission::Queued => DnsFormSubmission::Idle,
+            DnsFormSubmission::HostUnavailable => DnsFormSubmission::HostUnavailable,
+        };
+        self.submission
+    }
+
+    /// Record the outcome of one apply attempt. Only a composed service can
+    /// queue a patch and only an absent one can refuse it, so the two
+    /// outcomes stay exclusive.
+    pub fn record_apply(&mut self, service: DnsCommandService) -> DnsFormSubmission {
+        self.submission = match service {
+            DnsCommandService::Composed => DnsFormSubmission::Queued,
+            DnsCommandService::Absent => DnsFormSubmission::HostUnavailable,
+        };
+        self.submission
+    }
 }
 
 /// Parent marker on the text-field node of one raw workbench field.
@@ -398,11 +450,18 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
 
 /// Replay only the shared fold; queued is not an applied acknowledgement.
 pub fn dns_edit_status_label(state: &DnsFormState, code: &str) -> String {
+    // The shared formatter takes the two exclusive outcomes as flags; the
+    // typed stage is the single source, so the pair can never disagree.
+    let (queued, host_missing) = match state.submission {
+        DnsFormSubmission::Idle => (false, false),
+        DnsFormSubmission::Queued => (true, false),
+        DnsFormSubmission::HostUnavailable => (false, true),
+    };
     form_status(
         &state.issues,
         state.dirty,
-        state.submitted,
-        state.host_missing,
+        queued,
+        host_missing,
         &Lang(code),
     )
 }
@@ -574,7 +633,7 @@ pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInte
             .to_owned();
         let next = append_server(&current, template.server);
         state.form.set_raw(template.field, next);
-        state.submitted = false;
+        state.draft_changed();
         restamp_fields(&fields, &mut text_fields, &state.form);
         restamp_status(state, &mut status_lines, locale.code());
         return;
@@ -582,7 +641,7 @@ pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInte
     if let Ok(toggle) = geoip_toggles.get(activate.entity) {
         let enabled = !toggle.0;
         state.form.fallback_policy.geoip = enabled;
-        state.submitted = false;
+        state.draft_changed();
         for mut text in &mut geoip_status {
             text.0 = geoip_status_label(enabled, locale.code());
         }
@@ -610,11 +669,12 @@ pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInte
             handle.submit(UiCommand::ApplyDnsSettings {
                 patch: state.form.patch(),
             });
+            state.record_apply(DnsCommandService::Composed);
+        } else {
+            state.record_apply(DnsCommandService::Absent);
         }
-        state.host_missing = handle.is_none();
-        state.submitted = handle.is_some();
     } else {
-        state.submitted = false;
+        state.draft_changed();
     }
     restamp_status(state, &mut status_lines, locale.code());
 }
@@ -654,7 +714,7 @@ pub(crate) fn apply_dns_edit_projection(update: On<DnsProjectionUpdated>, surfac
     if !state.dirty {
         state.form = update.0.form.clone();
         state.issues.clear();
-        state.submitted = false;
+        state.draft_changed();
         restamp_fields(&fields, &mut text_fields, &state.form);
     }
     let enabled = state.form.fallback_policy.geoip;
@@ -703,12 +763,39 @@ mod tests {
         state.dirty = true;
         assert!(dns_edit_status_label(&state, "zh-CN").contains("未应用"));
         state.dirty = false;
-        state.submitted = true;
+        state.submission = DnsFormSubmission::Queued;
         assert!(dns_edit_status_label(&state, "zh-CN").contains("已提交"));
-        state.submitted = false;
+        state.submission = DnsFormSubmission::Idle;
         state.form.nameserver = "ftp://dns.example".to_owned();
         state.issues = state.form.validate();
         assert!(dns_edit_status_label(&state, "zh-CN").contains("本地校验未通过"));
+    }
+
+    #[test]
+    fn the_submission_stage_is_exclusive_and_typed() {
+        let mut state = DnsFormState::default();
+        assert_eq!(state.submission, DnsFormSubmission::Idle);
+
+        // A composed service queues the patch; an absent one refuses it.
+        // The two outcomes are one stage, so they can never coexist.
+        assert_eq!(
+            state.record_apply(DnsCommandService::Composed),
+            DnsFormSubmission::Queued
+        );
+        assert_eq!(state.submission, DnsFormSubmission::Queued);
+        assert_eq!(
+            state.record_apply(DnsCommandService::Absent),
+            DnsFormSubmission::HostUnavailable
+        );
+        assert_eq!(state.submission, DnsFormSubmission::HostUnavailable);
+
+        // A draft change drops the queued acknowledgement, but a refused
+        // patch stays refused until the host command service composes.
+        assert_eq!(state.draft_changed(), DnsFormSubmission::HostUnavailable);
+        assert_eq!(state.submission, DnsFormSubmission::HostUnavailable);
+        state.record_apply(DnsCommandService::Composed);
+        assert_eq!(state.draft_changed(), DnsFormSubmission::Idle);
+        assert_eq!(state.submission, DnsFormSubmission::Idle);
     }
 
     #[test]

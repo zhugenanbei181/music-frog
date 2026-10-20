@@ -46,6 +46,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::connection::timing_availability;
+use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -108,12 +109,102 @@ pub struct ConnDrawerHopSlot(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnDrawerRuleDraft;
 
-/// Which connection the drawer shows and whether it is open.
+/// The connections drawer is either closed or inspecting exactly one
+/// connection.
+///
+/// The inspected connection is identified by its stable projection id, so the
+/// drawer never keeps a second copy of the same selection: the row index is
+/// derived from the id whenever a consumer needs it, and an open drawer
+/// always carries the connection it inspects.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ConnectionsDrawerState {
-    pub selected_id: Option<String>,
-    pub selected: Option<usize>,
-    pub open: bool,
+pub enum ConnectionsDrawerState {
+    /// The drawer is hidden and inspects nothing.
+    #[default]
+    Closed,
+    /// The drawer is open and inspects the connection with this id.
+    Open(InspectedConnection),
+}
+
+/// The connection the drawer inspects.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InspectedConnection {
+    id: String,
+}
+
+/// Why one drawer stage transition was refused.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DrawerRefusal {
+    /// The drawer is already closed; there is no inspection to dismiss.
+    AlreadyClosed,
+}
+
+/// The outcome of one drawer stage transition.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DrawerTransition {
+    /// The stage changed; the payload is the stage that is now running.
+    Applied(ConnectionsDrawerState),
+    /// The transition is not legal in the running stage; the payload is that
+    /// stage together with the reason it was refused.
+    Refused(ConnectionsDrawerState, DrawerRefusal),
+}
+
+impl InspectedConnection {
+    /// A connection identified by its stable projection id.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+
+    /// The inspected connection's stable projection id.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl ConnectionsDrawerState {
+    /// Whether the drawer is open.
+    pub const fn is_open(&self) -> bool {
+        matches!(self, Self::Open(_))
+    }
+
+    /// The inspected connection's id, if the drawer is open.
+    pub fn inspected_id(&self) -> Option<&str> {
+        match self {
+            Self::Closed => None,
+            Self::Open(open) => Some(open.id()),
+        }
+    }
+
+    /// The row of the inspected connection in the given projection, if it is
+    /// still listed.
+    pub fn inspected_index(&self, projection: &ConnectionsProjection) -> Option<usize> {
+        match self {
+            Self::Closed => None,
+            Self::Open(open) => projection
+                .connections
+                .iter()
+                .position(|item| item.id == open.id()),
+        }
+    }
+
+    /// Inspect the connection with this id.
+    ///
+    /// Legal from every stage: the drawer follows the selection, so a second
+    /// inspected row replaces the first one.
+    pub fn inspect(&mut self, id: String) -> DrawerTransition {
+        *self = Self::Open(InspectedConnection::new(id));
+        DrawerTransition::Applied(self.clone())
+    }
+
+    /// Close the drawer. Only an open drawer can be closed.
+    pub fn close(&mut self) -> DrawerTransition {
+        match self {
+            Self::Closed => DrawerTransition::Refused(self.clone(), DrawerRefusal::AlreadyClosed),
+            Self::Open(_) => {
+                *self = Self::Closed;
+                DrawerTransition::Applied(self.clone())
+            }
+        }
+    }
 }
 
 /// Shared reverse-rule draft store for the Bevy connections surface
@@ -297,7 +388,7 @@ pub(crate) fn sync_connections_drawer(
     state: Option<Res<ConnectionsDrawerState>>,
     mut layers: Query<&mut Node, With<ConnectionDrawerLayer>>,
 ) {
-    let open = state.map(|state| state.open).unwrap_or(false);
+    let open = state.map(|state| state.is_open()).unwrap_or(false);
     for mut node in &mut layers {
         node.display = if open { Display::Flex } else { Display::None };
     }
@@ -324,39 +415,23 @@ pub(crate) fn on_connections_drawer_activated(
     } = targets;
 
     if let Ok(inspect) = inspect_buttons.get(activate.entity) {
-        let valid = last
+        let Some(item) = last
             .as_ref()
             .and_then(|last| last.0.as_ref())
-            .is_some_and(|projection| projection.connections.get(inspect.0).is_some());
-        if !valid {
+            .and_then(|projection| projection.connections.get(inspect.0))
+        else {
             return;
-        }
+        };
         if let Some(state) = drawer.as_deref_mut() {
-            state.selected_id = last
-                .as_ref()
-                .and_then(|last| last.0.as_ref())
-                .and_then(|projection| projection.connections.get(inspect.0))
-                .map(|item| item.id.clone());
-            state.selected = Some(inspect.0);
-            state.open = true;
+            state.inspect(item.id.clone());
         }
-        if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
-            restamp_drawer(
-                projection,
-                inspect.0,
-                &mut fields,
-                &mut hops,
-                &mut hop_slots,
-            );
-        }
+        restamp_drawer(item, &mut fields, &mut hops, &mut hop_slots);
         return;
     }
 
     if close_buttons.contains(activate.entity) {
         if let Some(state) = drawer.as_deref_mut() {
-            state.open = false;
-            state.selected = None;
-            state.selected_id = None;
+            state.close();
         }
         return;
     }
@@ -364,15 +439,15 @@ pub(crate) fn on_connections_drawer_activated(
     if add_rule_buttons.contains(activate.entity) {
         let Some(id) = drawer
             .as_ref()
-            .filter(|state| state.open)
-            .and_then(|state| state.selected_id.as_ref())
+            .filter(|state| state.is_open())
+            .and_then(|state| state.inspected_id())
         else {
             return;
         };
         let Some(item) = last
             .as_ref()
             .and_then(|last| last.0.as_ref())
-            .and_then(|projection| projection.connections.iter().find(|item| &item.id == id))
+            .and_then(|projection| projection.connections.iter().find(|item| item.id == id))
         else {
             return;
         };
@@ -403,15 +478,15 @@ pub(crate) fn on_connections_drawer_activated(
         };
         let Some(id) = drawer
             .as_ref()
-            .filter(|state| state.open)
-            .and_then(|state| state.selected_id.as_ref())
+            .filter(|state| state.is_open())
+            .and_then(|state| state.inspected_id())
         else {
             return;
         };
         let Some(item) = last
             .as_ref()
             .and_then(|last| last.0.as_ref())
-            .and_then(|projection| projection.connections.iter().find(|item| &item.id == id))
+            .and_then(|projection| projection.connections.iter().find(|item| item.id == id))
         else {
             return;
         };
@@ -419,16 +494,13 @@ pub(crate) fn on_connections_drawer_activated(
             id: item.id.clone(),
         });
         if let Some(state) = drawer.as_deref_mut() {
-            state.open = false;
-            state.selected = None;
-            state.selected_id = None;
+            state.close();
         }
     }
 }
 
 fn restamp_drawer<F, H, S>(
-    projection: &ConnectionsProjection,
-    index: usize,
+    item: &ConnectionSnapshot,
     fields: &mut Query<(&mut Text, &ConnDrawerField), F>,
     hops: &mut Query<(&mut Text, &ConnDrawerHopText), H>,
     hop_slots: &mut Query<(&mut Node, &ConnDrawerHopSlot), S>,
@@ -437,9 +509,6 @@ fn restamp_drawer<F, H, S>(
     H: QueryFilter,
     S: QueryFilter,
 {
-    let Some(item) = projection.connections.get(index) else {
-        return;
-    };
     let chain = connection_view::route_chain(item);
     let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
@@ -536,25 +605,21 @@ pub fn reconcile_connection_inspection(
     let Some(last) = last else {
         return;
     };
-    if !state.open || (!last.is_changed() && !state.is_changed()) {
+    if !state.is_open() || (!last.is_changed() && !state.is_changed()) {
         return;
     }
-    let selected = state.selected_id.as_ref().and_then(|id| {
-        last.0.as_ref().and_then(|projection| {
-            projection
-                .connections
-                .iter()
-                .position(|item| &item.id == id)
-        })
-    });
-    let Some(index) = selected else {
+    let Some(projection) = last.0.as_ref() else {
         *state = ConnectionsDrawerState::default();
         return;
     };
-    state.selected = Some(index);
+    // The inspected identity is the only source: a connection that vanished
+    // from the projection closes the drawer instead of leaving a stale row.
+    let Some(index) = state.inspected_index(projection) else {
+        *state = ConnectionsDrawerState::default();
+        return;
+    };
     restamp_drawer(
-        last.0.as_ref().expect("selected connection projection"),
-        index,
+        &projection.connections[index],
         &mut fields,
         &mut hops,
         &mut slots,
@@ -567,12 +632,10 @@ pub fn dismiss_connection_inspection(
     keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<ConnectionsDrawerState>,
 ) {
-    if state.open
+    if state.is_open()
         && (route.0 != Some(Route::Connections)
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
     {
-        state.open = false;
-        state.selected = None;
-        state.selected_id = None;
+        state.close();
     }
 }

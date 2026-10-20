@@ -39,8 +39,10 @@ fn connection_drawer_close_escape_navigation_and_stale_disconnect_are_safe() {
         .clone();
     open(&mut app);
     assert_eq!(
-        app.world().resource::<ConnectionsDrawerState>().selected,
-        Some(0)
+        app.world()
+            .resource::<ConnectionsDrawerState>()
+            .inspected_id(),
+        Some("c-1")
     );
     let layer = app
         .world_mut()
@@ -106,6 +108,46 @@ fn connection_drawer_close_escape_navigation_and_stale_disconnect_are_safe() {
         original
     );
     assert!(sink.submitted().is_empty());
+}
+
+#[test]
+fn connection_drawer_state_is_one_typed_stage_and_refuses_a_second_close() {
+    let mut state = ConnectionsDrawerState::default();
+    assert!(!state.is_open());
+    assert_eq!(state.inspected_id(), None);
+    assert_eq!(
+        state.inspected_index(&ConnectionsProjection::demo()),
+        None
+    );
+
+    // Closing a closed drawer is refused: the stage that is already running
+    // is closed, and there is no inspection to dismiss.
+    assert_eq!(
+        state.close(),
+        DrawerTransition::Refused(ConnectionsDrawerState::Closed, DrawerRefusal::AlreadyClosed)
+    );
+
+    // Inspecting carries exactly one identity; the row index is derived from
+    // it, so the illegal "open without a selection" has no representation.
+    assert_eq!(
+        state.inspect("c-1".to_owned()),
+        DrawerTransition::Applied(ConnectionsDrawerState::Open(InspectedConnection::new(
+            "c-1"
+        )))
+    );
+    assert!(state.is_open());
+    assert_eq!(state.inspected_id(), Some("c-1"));
+    assert_eq!(
+        state.inspected_index(&ConnectionsProjection::demo()),
+        Some(0)
+    );
+
+    assert_eq!(
+        state.close(),
+        DrawerTransition::Applied(ConnectionsDrawerState::Closed)
+    );
+    assert!(!state.is_open());
+    assert_eq!(state.inspected_id(), None);
 }
 
 #[test]
@@ -178,8 +220,16 @@ fn connection_drawer_refresh_follows_identity_through_reorder() {
     app.update();
     app.update();
     let state = app.world().resource::<ConnectionsDrawerState>();
-    assert_eq!(state.selected_id.as_deref(), Some("c-1"));
-    assert_eq!(state.selected, Some(1));
+    assert_eq!(state.inspected_id(), Some("c-1"));
+    // The row follows the identity through the reorder: the index is
+    // derived from the inspected id, never a second stored selection.
+    let projection = app
+        .world()
+        .resource::<LastConnectionsProjection>()
+        .0
+        .as_ref()
+        .expect("the reordered projection");
+    assert_eq!(state.inspected_index(projection), Some(1));
     let host = app
         .world_mut()
         .query::<(&Text, &ConnDrawerField)>()

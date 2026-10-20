@@ -81,13 +81,13 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
         .commands()
         .trigger(Activate { entity: opener });
     app.update();
-    assert!(app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(app.world().resource::<ConnectionsCloseAllState>().is_armed());
     let cancel = confirmation_action(&mut app, CloseAllConfirmationAction::Cancel);
     app.world_mut()
         .commands()
         .trigger(Activate { entity: cancel });
     app.update();
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
     app.world_mut()
         .commands()
@@ -97,7 +97,7 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
     keys.press(KeyCode::Escape);
     app.world_mut().insert_resource(keys);
     app.update();
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
     app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
@@ -106,9 +106,9 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
         .commands()
         .trigger(Activate { entity: opener });
     app.update();
-    assert!(app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(app.world().resource::<ConnectionsCloseAllState>().is_armed());
     navigate_to(&mut app, Route::Logs);
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
 }
 
@@ -153,12 +153,79 @@ fn command_palette_close_all_opens_confirmation_on_its_real_route() {
         Some(Route::Connections)
     );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
-    assert!(app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(app.world().resource::<ConnectionsCloseAllState>().is_armed());
     let cancel = confirmation_action(&mut app, CloseAllConfirmationAction::Cancel);
     app.world_mut()
         .commands()
         .trigger(Activate { entity: cancel });
     app.update();
-    assert!(!app.world().resource::<ConnectionsCloseAllState>().armed);
+    assert!(!app.world().resource::<ConnectionsCloseAllState>().is_armed());
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
+}
+
+#[test]
+fn close_all_confirmation_is_one_typed_stage_and_refuses_a_request_while_armed() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Connections);
+    let opener = app
+        .world_mut()
+        .query_filtered::<Entity, With<CloseAllConnectionsButton>>()
+        .single(app.world())
+        .unwrap();
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: opener });
+    app.update();
+    assert_eq!(
+        *app.world().resource::<ConnectionsCloseAllState>(),
+        ConnectionsCloseAllState::Armed
+    );
+
+    // A request that arrives while the modal is already open is refused: the
+    // open modal is the stage that is already running, so the illegal
+    // "armed and still waiting" combination has no representation at all.
+    app.world_mut()
+        .commands()
+        .trigger(RequestCloseAllConfirmation);
+    app.update();
+    assert_eq!(
+        *app.world().resource::<ConnectionsCloseAllState>(),
+        ConnectionsCloseAllState::Armed
+    );
+    assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
+
+    // The same refusal is observable on the transition itself.
+    let mut stage = ConnectionsCloseAllState::default();
+    assert_eq!(
+        stage.request(),
+        CloseAllTransition::Applied(ConnectionsCloseAllState::Requested)
+    );
+    assert_eq!(
+        stage.request(),
+        CloseAllTransition::Refused(
+            ConnectionsCloseAllState::Requested,
+            CloseAllRefusal::AlreadyRequested
+        )
+    );
+    assert_eq!(
+        stage.arm(),
+        CloseAllTransition::Applied(ConnectionsCloseAllState::Armed)
+    );
+    assert_eq!(
+        stage.request(),
+        CloseAllTransition::Refused(
+            ConnectionsCloseAllState::Armed,
+            CloseAllRefusal::AlreadyArmed
+        )
+    );
+    assert_eq!(stage, ConnectionsCloseAllState::Armed);
+    assert_eq!(
+        stage.disarm(),
+        CloseAllTransition::Applied(ConnectionsCloseAllState::Idle)
+    );
+    assert_eq!(
+        stage.disarm(),
+        CloseAllTransition::Refused(ConnectionsCloseAllState::Idle, CloseAllRefusal::NotPending)
+    );
 }

@@ -10,8 +10,9 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{Ime, PrimaryWindow, Window};
 use infiltrator_bevy_ui::app::ShellPlugin;
+use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommandSink};
 use infiltrator_bevy_ui::pages::dns_edit::{
-    DnsEditApplyButton, DnsEditField, DnsEditStatusLine, DnsFormState,
+    DnsEditApplyButton, DnsEditField, DnsEditStatusLine, DnsFormState, DnsFormSubmission,
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -19,6 +20,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::dns_form::DnsFormField;
+use std::sync::Arc;
 
 fn field(app: &mut App, kind: DnsFormField) -> Entity {
     let children = app
@@ -80,7 +82,10 @@ fn actual_dns_form_locale_keeps_native_input_identity_and_missing_host_cannot_qu
         "{observed}; {:?}",
         app.world().resource::<DnsFormState>()
     );
-    assert!(!app.world().resource::<DnsFormState>().submitted);
+    assert_eq!(
+        app.world().resource::<DnsFormState>().submission,
+        DnsFormSubmission::Idle
+    );
     press(&mut app, entity);
     let before = app.world().get::<TextField>(entity).unwrap().0.clone();
     app.insert_resource(UiLocale::new("en-US"));
@@ -110,8 +115,10 @@ fn actual_dns_form_locale_keeps_native_input_identity_and_missing_host_cannot_qu
     assert!(app.world().get::<ButtonDisabled>(apply).unwrap().0);
     assert!(app.world().get::<InteractionDisabled>(apply).is_some());
     click_entity(&mut app, apply);
-    assert!(!app.world().resource::<DnsFormState>().host_missing);
-    assert!(!app.world().resource::<DnsFormState>().submitted);
+    assert_eq!(
+        app.world().resource::<DnsFormState>().submission,
+        DnsFormSubmission::Idle
+    );
     app.world_mut().write_message(Ime::Disabled { window });
     app.update();
     assert_eq!(
@@ -122,11 +129,65 @@ fn actual_dns_form_locale_keeps_native_input_identity_and_missing_host_cannot_qu
 
     click_entity(&mut app, apply);
     let state = app.world().resource::<DnsFormState>();
-    assert!(state.host_missing);
-    assert!(!state.submitted);
+    assert_eq!(state.submission, DnsFormSubmission::HostUnavailable);
     assert!(state.issues.is_empty());
     assert_eq!(
         status(&mut app),
         "Command service is not composed; DNS patch was not submitted"
     );
+}
+
+#[test]
+fn dns_form_submission_is_one_typed_stage_that_never_queues_and_refuses_together() {
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins((
+        ButtonPlugin,
+        ShellPlugin::default(),
+        PagesPlugin::new(DemoOverviewSource::running()),
+    ));
+    let demo = Arc::new(DemoCommandSink::accepting());
+    let sink: Arc<dyn UiCommandSink> = demo.clone();
+    app.insert_resource(CommandSinkHandle(sink));
+    app.update();
+    app.world_mut().trigger(RouteChanged(Route::Dns));
+    app.update();
+    app.insert_resource(UiLocale::new("en-US"));
+    app.update();
+
+    let entity = field(&mut app, DnsFormField::Nameserver);
+    press(&mut app, entity);
+    replace_text(&mut app, "https://dns.example.test/query");
+    let apply = app
+        .world_mut()
+        .query::<(Entity, &DnsEditApplyButton)>()
+        .single(app.world())
+        .unwrap()
+        .0;
+    click_entity(&mut app, apply);
+    app.update();
+
+    // A composed host command service queues the patch: the stage is the
+    // queued one, and the "queued" and "refused" outcomes can never both be
+    // recorded because they are one typed stage.
+    assert_eq!(
+        app.world().resource::<DnsFormState>().submission,
+        DnsFormSubmission::Queued
+    );
+    assert!(status(&mut app).contains("DNS workbench patch queued"));
+    assert_eq!(demo.submitted().len(), 1);
+
+    // The host command service goes away: the same apply action is now
+    // refused, and the stage moves to the refusal — never to a pair.
+    app.world_mut().remove_resource::<CommandSinkHandle>();
+    click_entity(&mut app, apply);
+    app.update();
+    let state = app.world().resource::<DnsFormState>();
+    assert_eq!(state.submission, DnsFormSubmission::HostUnavailable);
+    assert!(state.issues.is_empty());
+    assert_eq!(
+        status(&mut app),
+        "Command service is not composed; DNS patch was not submitted"
+    );
+    assert_eq!(demo.submitted().len(), 1, "the refusal submits no command");
 }

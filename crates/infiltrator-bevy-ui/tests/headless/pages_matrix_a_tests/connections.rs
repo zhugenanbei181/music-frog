@@ -355,8 +355,8 @@ fn test_connections_inspect_opens_shared_drawer() {
     app.update();
 
     let state = app.world().resource::<ConnectionsDrawerState>();
-    assert!(state.open);
-    assert_eq!(state.selected, Some(0));
+    assert!(state.is_open());
+    assert_eq!(state.inspected_id(), Some("c-1"));
 
     let layer_display = app
         .world_mut()
@@ -692,7 +692,7 @@ fn test_connections_drawer_parity_exposes_shared_fields_and_close_action() {
             id: "c-1".to_owned(),
         }]
     );
-    assert!(!app.world().resource::<ConnectionsDrawerState>().open);
+    assert!(!app.world().resource::<ConnectionsDrawerState>().is_open());
 }
 
 #[test]

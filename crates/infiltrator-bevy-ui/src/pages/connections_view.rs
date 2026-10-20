@@ -247,11 +247,102 @@ fn row_index_of(
         .find_map(|child| row_index_of(row_subtrees, rows, *child))
 }
 
-/// Pending navigation and visible confirmation state for close-all.
+/// The close-all confirmation is one typed stage table.
+///
+/// The destructive action always passes through a visible modal: a request
+/// waits for the connections route, an armed modal waits for the user's
+/// decision, and the idle stage has nothing pending. The stages are
+/// exclusive, so a confirmation that is already open can never also be
+/// waiting for a route.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ConnectionsCloseAllState {
-    pub armed: bool,
-    pub requested: bool,
+pub enum ConnectionsCloseAllState {
+    /// Nothing is pending; the confirmation modal is closed.
+    #[default]
+    Idle,
+    /// A confirmation was requested and waits for the connections route.
+    Requested,
+    /// The confirmation modal is open and waits for the user's decision.
+    Armed,
+}
+
+/// Why one close-all stage transition was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseAllRefusal {
+    /// The confirmation modal is already open.
+    AlreadyArmed,
+    /// A confirmation request is already waiting.
+    AlreadyRequested,
+    /// No confirmation is pending.
+    NotPending,
+}
+
+/// The outcome of one close-all stage transition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseAllTransition {
+    /// The stage changed; the payload is the stage that is now running.
+    Applied(ConnectionsCloseAllState),
+    /// The transition is not legal in the running stage; the payload is that
+    /// stage together with the reason it was refused.
+    Refused(ConnectionsCloseAllState, CloseAllRefusal),
+}
+
+impl ConnectionsCloseAllState {
+    /// Whether the confirmation modal is open.
+    pub const fn is_armed(self) -> bool {
+        matches!(self, Self::Armed)
+    }
+
+    /// Whether a confirmation request waits for the connections route.
+    pub const fn is_requested(self) -> bool {
+        matches!(self, Self::Requested)
+    }
+
+    /// Raise a request to show the confirmation modal.
+    ///
+    /// A request that arrives while the modal is open is refused: the open
+    /// modal is the stage that is already running, and a second pending
+    /// request could never be honoured.
+    pub fn request(&mut self) -> CloseAllTransition {
+        match self {
+            Self::Idle => {
+                *self = Self::Requested;
+                CloseAllTransition::Applied(*self)
+            }
+            Self::Requested => {
+                CloseAllTransition::Refused(*self, CloseAllRefusal::AlreadyRequested)
+            }
+            Self::Armed => CloseAllTransition::Refused(*self, CloseAllRefusal::AlreadyArmed),
+        }
+    }
+
+    /// Open the confirmation modal.
+    ///
+    /// The modal opens straight from a click and from a pending request; an
+    /// already open modal keeps its stage.
+    pub fn arm(&mut self) -> CloseAllTransition {
+        match self {
+            Self::Idle | Self::Requested => {
+                *self = Self::Armed;
+                CloseAllTransition::Applied(*self)
+            }
+            Self::Armed => CloseAllTransition::Refused(*self, CloseAllRefusal::AlreadyArmed),
+        }
+    }
+
+    /// Close the confirmation modal.
+    ///
+    /// Only an armed modal can be closed; nothing else is pending.
+    pub fn disarm(&mut self) -> CloseAllTransition {
+        match self {
+            Self::Armed => {
+                *self = Self::Idle;
+                CloseAllTransition::Applied(*self)
+            }
+            Self::Idle | Self::Requested => {
+                CloseAllTransition::Refused(*self, CloseAllRefusal::NotPending)
+            }
+        }
+    }
 }
 
 /// Read the live keyword from the mounted search field, if any.

@@ -28,7 +28,7 @@ pub(crate) fn request_confirmation(
     mut state: ResMut<ConnectionsCloseAllState>,
     mut commands: Commands,
 ) {
-    state.requested = true;
+    state.request();
     commands.trigger(RouteChanged(Route::Connections));
 }
 
@@ -134,13 +134,12 @@ pub(crate) fn on_confirmation_activated(
         return;
     };
     if open_buttons.contains(activate.entity) {
-        state.requested = false;
-        state.armed = true;
+        state.arm();
         root.display = Display::Flex;
-    } else if state.armed
+    } else if state.is_armed()
         && let Ok(action) = actions.get(activate.entity)
     {
-        state.armed = false;
+        state.disarm();
         root.display = Display::None;
         if *action == CloseAllConfirmationAction::Confirm
             && let Some(handle) = handle
@@ -156,20 +155,18 @@ pub(crate) fn cancel_on_escape_or_navigation(
     mut state: ResMut<ConnectionsCloseAllState>,
     mut roots: Query<&mut Node, With<CloseAllConfirmationRoot>>,
 ) {
-    if state.requested
+    if state.is_requested()
         && route.0 == Some(Route::Connections)
         && let Ok(mut root) = roots.single_mut()
     {
-        state.requested = false;
-        state.armed = true;
+        state.arm();
         root.display = Display::Flex;
     }
-    if state.armed
+    if state.is_armed()
         && (route.0 != Some(Route::Connections)
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
     {
-        state.armed = false;
-        state.requested = false;
+        state.disarm();
         for mut root in &mut roots {
             root.display = Display::None;
         }

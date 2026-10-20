@@ -28,7 +28,7 @@ use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::connections::*;
 use infiltrator_bevy_ui::pages::connections_confirm::{
-    CloseAllConfirmationAction, CloseAllConfirmationRoot,
+    CloseAllConfirmationAction, CloseAllConfirmationRoot, RequestCloseAllConfirmation,
 };
 use infiltrator_bevy_ui::pages::connections_drawer::*;
 use infiltrator_bevy_ui::pages::connections_idle::*;

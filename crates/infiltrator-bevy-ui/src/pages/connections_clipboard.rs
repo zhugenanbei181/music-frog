@@ -207,14 +207,14 @@ pub(crate) fn copy_connection_host(
     mut clipboard: Option<ResMut<Clipboard>>,
     mut toasts: MessageWriter<ShellToast>,
 ) {
-    if !buttons.contains(activation.entity) || !state.open {
+    if !buttons.contains(activation.entity) || !state.is_open() {
         return;
     }
-    let Some(item) = state.selected_id.as_ref().and_then(|id| {
+    let Some(item) = state.inspected_id().and_then(|id| {
         projection
             .0
             .as_ref()
-            .and_then(|projection| projection.connections.iter().find(|item| &item.id == id))
+            .and_then(|projection| projection.connections.iter().find(|item| item.id == id))
     }) else {
         return;
     };
