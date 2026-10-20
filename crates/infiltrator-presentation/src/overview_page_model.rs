@@ -17,9 +17,11 @@ use crate::system_toggle_projection;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
 };
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use lurker_core_contract::error::Failure;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 
@@ -239,27 +241,31 @@ impl OverviewPageModel {
 
 /// The run state the owner's lifecycle and failure express.
 fn run_state(snapshot: &SurfaceSnapshot) -> OverviewRunState {
-    match snapshot.core.lifecycle {
+    core_run_state(
+        &snapshot.core,
+        snapshot.core.routing_intent.failure.as_ref(),
+    )
+}
+
+/// The run state of one core observation.
+///
+/// A core that is starting or stopping is not available yet, and a core that
+/// failed is not available either: both carry the reason in the variant
+/// instead of claiming a stopped core.
+pub fn core_run_state(core: &CoreSnapshot, routing_failure: Option<&Failure>) -> OverviewRunState {
+    match core.lifecycle {
         CoreLifecycle::Running | CoreLifecycle::Ready => OverviewRunState::Running,
-        CoreLifecycle::Stopped | CoreLifecycle::Starting | CoreLifecycle::Stopping => {
-            OverviewRunState::Stopped
+        CoreLifecycle::Stopped => OverviewRunState::Stopped,
+        CoreLifecycle::Starting | CoreLifecycle::Stopping | CoreLifecycle::Failed => {
+            OverviewRunState::Unavailable {
+                reason: core
+                    .failure
+                    .as_ref()
+                    .map(|failure| failure.message.clone())
+                    .or_else(|| routing_failure.map(|failure| failure.message.clone()))
+                    .unwrap_or_else(|| "the core is not available".to_owned()),
+            }
         }
-        CoreLifecycle::Failed => OverviewRunState::Unavailable {
-            reason: snapshot
-                .core
-                .failure
-                .as_ref()
-                .map(|failure| failure.message.clone())
-                .or_else(|| {
-                    snapshot
-                        .core
-                        .routing_intent
-                        .failure
-                        .as_ref()
-                        .map(|failure| failure.message.clone())
-                })
-                .unwrap_or_else(|| "the core failed".to_owned()),
-        },
     }
 }
 

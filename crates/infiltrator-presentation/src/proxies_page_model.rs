@@ -122,10 +122,14 @@ impl ProxyFilterQuery {
         if trimmed.is_empty() {
             return Self::MatchAll;
         }
-        let (operator, rest) = trimmed.split_at(1);
-        if matches!(operator, "<" | ">") {
+        // The operator is one character, not one byte: a name or a query may
+        // start with a character that is not ASCII.
+        let mut characters = trimmed.chars();
+        let operator = characters.next();
+        let rest = characters.as_str();
+        if matches!(operator, Some('<' | '>')) {
             if let Ok(milliseconds) = rest.trim().parse::<u32>() {
-                return Self::Latency(if operator == "<" {
+                return Self::Latency(if operator == Some('<') {
                     LatencyBound::FasterThan(milliseconds)
                 } else {
                     LatencyBound::SlowerThan(milliseconds)

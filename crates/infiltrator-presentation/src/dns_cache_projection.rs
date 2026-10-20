@@ -48,7 +48,10 @@ pub fn project_cache(state: &DnsCacheActions, catalog: &dyn TextCatalog) -> Cach
     let requested = state.requested_operation();
     let confirmed = state.is_confirmed();
     let pending = state.is_pending();
-    let key = if pending {
+    // The readback is the fact the panel shows. A report that arrived while
+    // the command receipt is still outstanding must not read as "running".
+    let observed = requested.is_some_and(|operation| state.snapshot.report_id == Some(operation));
+    let key = if pending && !observed {
         "dns_cache_running"
     } else if !confirmed {
         "dns_cache_confirm_detail"

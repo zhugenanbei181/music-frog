@@ -36,7 +36,14 @@ pub fn project_query(state: &DnsQueryActions, catalog: &dyn TextCatalog) -> DnsQ
                 DnsObservationTone::Danger
             },
         )
-    } else if state.is_pending() {
+    } else if state.is_pending()
+        && !state
+            .requested_operation()
+            .is_some_and(|operation| state.snapshot.report_id == Some(operation))
+    {
+        // The readback is the fact the panel shows. A report that arrived
+        // while the command receipt is still outstanding must not read as
+        // "running".
         (
             localize(catalog, "dns_query_running", &[]),
             DnsObservationTone::Neutral,
