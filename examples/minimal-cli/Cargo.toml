@@ -1,0 +1,18 @@
+[package]
+name = "lurker-example-minimal-cli"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Minimal Lurker CLI example: the neutral contract plus the shared presentation kernel."
+license = "MIT OR Apache-2.0"
+
+# The gallery example may only use the published neutral Lurker crates. There is
+# no UI toolkit in a terminal program, so the dependency set is exactly the
+# contract (the vocabulary) and the presentation kernel (the projection).
+[dependencies]
+lurker-core-contract = { path = "../../crates/lurker-core-contract" }
+lurker-ui-presentation = { path = "../../crates/lurker-ui-presentation" }
+
+[[example]]
+name = "minimal-cli"
+path = "main.rs"

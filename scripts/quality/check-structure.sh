@@ -78,3 +78,19 @@ python3 scripts/quality/implicit-state-audit.py --mode enforce
 python3 -m unittest discover -s scripts/parity -p 'test_*.py'
 python3 scripts/parity/resolve_surface_evidence.py --structure-only --report-json target/parity/structure.json
 
+# ---------------------------------------------------------------------------
+# Ecosystem and release pipeline gates (PUB-006.7, PUB-006.9, PUB-006.10,
+# PUB-006.11). Every gate below is offline: the structure gate never
+# compiles, never downloads and never starts a Core.
+# ---------------------------------------------------------------------------
+python3 scripts/quality/examples-guard.py --self-test
+python3 scripts/quality/examples-guard.py --mode structure
+python3 scripts/quality/sandbox-chaos-guard.py --self-test
+python3 scripts/quality/sandbox-chaos-guard.py --mode structure
+python3 scripts/quality/semver-compat-guard.py --self-test
+python3 scripts/quality/semver-compat-guard.py --mode check
+python3 scripts/quality/semver-compat-guard.py --mode negative
+python3 scripts/quality/cross-build-guard.py --self-test
+python3 scripts/quality/cross-build-guard.py --mode enforce
+python3 scripts/quality/journey-rehearsal-guard.py --self-test
+python3 scripts/quality/journey-rehearsal-guard.py --mode enforce

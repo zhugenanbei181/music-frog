@@ -1,0 +1,20 @@
+[package]
+name = "lurker-example-minimal-bevy"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Minimal Lurker Bevy example: a neutral lifecycle rendered by a Bevy 0.20 surface."
+license = "MIT OR Apache-2.0"
+
+# The gallery example may only use the published neutral Lurker crates plus the
+# one UI toolkit it demonstrates. The Bevy feature set is identical to the one
+# the Bevy product template uses, so the workspace lock file stays the single
+# source of truth for the dependency graph.
+[dependencies]
+lurker-core-contract = { path = "../../crates/lurker-core-contract" }
+lurker-ui-presentation = { path = "../../crates/lurker-ui-presentation" }
+bevy = { version = "0.20", default-features = false, features = ["bevy_ui", "bevy_ui_widgets", "bevy_winit", "bevy_render", "bevy_core_pipeline", "x11"] }
+
+[[example]]
+name = "minimal-bevy"
+path = "main.rs"

@@ -1,0 +1,23 @@
+[package]
+name = "lurker-example-minimal-slint"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Minimal Lurker Slint example: a neutral lifecycle rendered by a Slint surface."
+license = "MIT OR Apache-2.0"
+
+# The gallery example may only use the published neutral Lurker crates plus the
+# one UI toolkit it demonstrates. The Slint feature set is identical to the one
+# the Slint product template uses, so the workspace lock file stays the single
+# source of truth for the dependency graph.
+[dependencies]
+lurker-core-contract = { path = "../../crates/lurker-core-contract" }
+lurker-ui-presentation = { path = "../../crates/lurker-ui-presentation" }
+slint = { workspace = true, features = ["backend-winit"] }
+
+[build-dependencies]
+slint-build = { workspace = true }
+
+[[example]]
+name = "minimal-slint"
+path = "main.rs"

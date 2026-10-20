@@ -1,0 +1,22 @@
+[package]
+name = "lurker-sandbox"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Headless sandbox and chaos fault injection suite for the neutral Lurker runtime."
+license = "MIT OR Apache-2.0"
+
+# The sandbox owns the deterministic fault injection over the neutral ports.
+# It depends on the neutral crates only: no product crate, no UI toolkit and
+# no engine binary. The injected faults are deterministic, so every assertion
+# is about the typed failure and the recovery, never about a timing.
+[dependencies]
+async-trait = { workspace = true }
+lurker-core-contract = { path = "../crates/lurker-core-contract" }
+lurker-core-ports = { path = "../crates/lurker-core-ports" }
+lurker-engine-runtime = { path = "../crates/lurker-engine-runtime" }
+lurker-profile-store = { path = "../crates/lurker-profile-store" }
+tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

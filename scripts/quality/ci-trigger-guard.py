@@ -14,6 +14,10 @@ EXPECTED_EVENTS = {
     "bevy.yml": {"workflow_dispatch"},
     "parity.yml": {"workflow_dispatch"},
     "release.yml": {"push"},
+    # The ecosystem gate compiles the neutral gallery and runs the
+    # type-checked SemVer analysis plus the headless chaos matrix. It
+    # is expensive, so only a controlled `v*` tag starts a job.
+    "ecosystem-gate.yml": {"workflow_dispatch"},
     "release-neutral-crates.yml": {"push", "workflow_dispatch"},
     "test.yml": {"workflow_call"},
     "main-gate.yml": {"push"},

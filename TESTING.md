@@ -2,7 +2,7 @@
 
 > 层级：L1
 
-本文件是全仓验证命令和阶段门的唯一入口。Android 产品细节见 [Android 文档](android/docs/README.md)，平台现状见 [平台矩阵](docs/PLATFORM_MATRIX.md)，后端共用契约见 [CORE_BACKENDS.md](docs/CORE_BACKENDS.md)。
+本文件是全仓验证命令和阶段门的唯一入口。Android 产品细节见 [Android 文档](android/docs/README.md)，平台现状见 [平台矩阵](docs/PLATFORM_MATRIX.md)，后端共用契约见 [CORE_BACKENDS.md](docs/CORE_BACKENDS.md)，发布生态门禁见 [RELEASE_ECOSYSTEM.md](docs/RELEASE_ECOSYSTEM.md)。
 
 ## 命令入口
 
@@ -13,6 +13,10 @@
 - focused Rust 回归使用 `cargo nextest run --offline --locked -p <package> [test-filter]`。禁止使用裸 `cargo test`；test policy 会扫描并拒绝。
 - Android flavors 在一个 Gradle 调用中验证，命令以 [Android 文档](android/docs/BEVY_ANDROID_PRODUCT.md) 为准；禁止把一次 flavor 的构建结果用于证明另一个 flavor。
 - Android Core host mock/JVM 回归使用 `(cd android && ./gradlew :core-host-tests:test)`；该测试源集直接编译 app 中的 Core host 实现，不编译 Compose/Bevy/Slint UI。
+- `cargo nextest run --locked -p lurker-sandbox`：中性运行时的无头沙盒混沌矩阵，在四类确定性故障下断言 fail-closed、租约回收与自愈。
+- `python3 scripts/quality/examples-guard.py --mode compile`：中性用例展厅的 CI 编译门，四套极简用例逐个编译；`--mode smoke` 运行唯一无显示依赖的终端用例。
+- `python3 scripts/quality/semver-compat-guard.py --mode check`：已发布中性 crate 的 SemVer 兼容门（源码层）；`--mode tool` 追加 `cargo-semver-checks` 的类型检查分析；`--mode negative` 是守门负例。
+- `python3 scripts/developer-journey-rehearsal.py --profile fast`：开发者全旅程演练与干跑审计，全链路预算五分钟。
 
 CI 对 macOS 和 iOS 目标暂时不编译、不打包；用户解除暂缓并更新平台矩阵/门禁之前，不得恢复 Apple matrix。
 

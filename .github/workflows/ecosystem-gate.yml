@@ -1,0 +1,132 @@
+name: ecosystem-gate
+
+# CI gate of the open-source ecosystem (PUB-006.9, PUB-006.10, PUB-006.7).
+#
+# Two jobs, both tag-gated:
+#
+#   * compile-examples builds every example of the neutral gallery against
+#     the neutral crates and its toolkit, so a gallery entry that stops
+#     compiling is caught before a release and not by a third-party
+#     developer;
+#   * semver-and-chaos runs the type-checked SemVer analysis of
+#     `cargo-semver-checks` against the committed baseline and executes the
+#     headless chaos matrix of the neutral runtime.
+#
+# Trigger policy (enforced by scripts/quality/ci-trigger-guard.py):
+#   * a manual dispatch is the only automatic start;
+#   * every job skips every ref that is not a `v*` tag before it assigns a
+#     runner, so an ordinary commit never pays for the compile.
+#
+# The trigger policy of this workflow is registered in
+# `scripts/quality/ci-trigger-guard.py`, and `scripts/quality/examples-guard.py`
+# verifies this file in its `structure` mode, so the policy of the gate is
+# machine checked on every push.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecosystem-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  compile-examples:
+    name: Compile the neutral examples gallery
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # The guards need Python 3.11+ (tomllib); pin the version explicitly.
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      # The gallery ships the Slint, Iced and Bevy surfaces, so the runner
+      # needs the same system libraries the product pipelines install.
+      - name: Install Linux build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libfontconfig1-dev \
+            libudev-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libgtk-3-dev \
+            libglib2.0-dev \
+            libssl-dev \
+            libasound2-dev \
+            pkg-config
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ecosystem-gate
+
+      # The compile guard builds every gallery example with the committed lock
+      # file, so the gallery can never drift away from the dependency graph the
+      # workspace lock pins.
+      - name: Compile every gallery example
+        shell: bash
+        run: python3 scripts/quality/examples-guard.py --mode compile
+
+      # The terminal example is the only headless one, so it is the only one
+      # that may run in CI.
+      - name: Run the headless CLI example
+        shell: bash
+        run: python3 scripts/quality/examples-guard.py --mode smoke
+
+  semver-and-chaos:
+    name: SemVer compatibility and the headless chaos matrix
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ecosystem-gate
+
+      # The type-checked SemVer analysis of the ecosystem tool. The source
+      # layer of the same guard runs in the structure gate on every push;
+      # this job adds the type-checked analysis of `cargo-semver-checks`.
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks@latest
+
+      - name: Enforce the SemVer compatibility of the neutral crates
+        shell: bash
+        run: python3 scripts/quality/semver-compat-guard.py --mode tool --require-tool
+
+      # The headless chaos matrix: the typed failures and the typed recoveries
+      # of the neutral runtime under deterministic fault injection.
+      - name: Run the headless chaos matrix
+        shell: bash
+        run: python3 scripts/quality/sandbox-chaos-guard.py --mode run

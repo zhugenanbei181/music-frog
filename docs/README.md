@@ -13,6 +13,8 @@
 | 分层与依赖边界 | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 功能域 owner | [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md) |
 | Core 后端中性契约 | [CORE_BACKENDS.md](CORE_BACKENDS.md) |
+| 发布生态门禁（SemVer / 交叉构建 / 无头沙盒 / 开发者旅程） | [RELEASE_ECOSYSTEM.md](RELEASE_ECOSYSTEM.md) |
+| 中性 crate 用例展厅 | [EXAMPLES_GALLERY.md](EXAMPLES_GALLERY.md) |
 | 平台能力与交付状态 | [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md) |
 | 代码与仓库质量底线 | [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md) |
 | 跨产品共享 UI 包与资源 | [SHARED_UI_PACKAGES.md](SHARED_UI_PACKAGES.md) |

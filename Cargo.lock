@@ -6892,10 +6892,12 @@ dependencies = [
  "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-desktop",
+ "infiltrator-domain",
  "infiltrator-presentation",
  "infiltrator-shared",
  "infiltrator-test-support",
  "lurker-core-contract",
+ "lurker-ui-presentation",
  "openssl",
  "rfd",
  "serde_json",
@@ -7668,6 +7670,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "lurker-example-minimal-bevy"
+version = "0.50.0"
+dependencies = [
+ "bevy",
+ "lurker-core-contract",
+ "lurker-ui-presentation",
+]
+
+[[package]]
+name = "lurker-example-minimal-cli"
+version = "0.50.0"
+dependencies = [
+ "lurker-core-contract",
+ "lurker-ui-presentation",
+]
+
+[[package]]
+name = "lurker-example-minimal-iced"
+version = "0.50.0"
+dependencies = [
+ "iced",
+ "lurker-core-contract",
+ "lurker-ui-presentation",
+]
+
+[[package]]
+name = "lurker-example-minimal-slint"
+version = "0.50.0"
+dependencies = [
+ "lurker-core-contract",
+ "lurker-ui-presentation",
+ "slint",
+ "slint-build",
+]
+
+[[package]]
 name = "lurker-profile-store"
 version = "0.50.0"
 dependencies = [
@@ -7684,6 +7722,19 @@ dependencies = [
  "tokio",
  "toml 1.1.8+spec-1.1.0",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "lurker-sandbox"
+version = "0.50.0"
+dependencies = [
+ "async-trait",
+ "lurker-core-contract",
+ "lurker-core-ports",
+ "lurker-engine-runtime",
+ "lurker-profile-store",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

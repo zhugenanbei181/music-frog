@@ -1,0 +1,50 @@
+import { Button, VerticalBox, HorizontalBox, GroupBox } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "Lurker minimal Slint example";
+    preferred-width: 480px;
+    preferred-height: 320px;
+    min-width: 400px;
+    min-height: 260px;
+
+    in-out property <string> core_status: "Stopped";
+    in-out property <string> banner_verdict: "core stopped";
+
+    callback start_core();
+    callback stop_core();
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 16px;
+
+        GroupBox {
+            title: "Core Status";
+            VerticalBox {
+                spacing: 8px;
+                HorizontalBox {
+                    Text { text: "Status:"; font-size: 14px; width: 120px; }
+                    Text { text: root.core_status; font-size: 14px; font-weight: 700; }
+                }
+                HorizontalBox {
+                    Text { text: "Banner:"; font-size: 14px; width: 120px; }
+                    Text { text: root.banner_verdict; font-size: 14px; }
+                }
+            }
+        }
+
+        GroupBox {
+            title: "Actions";
+            HorizontalBox {
+                spacing: 12px;
+                Button {
+                    text: "Start core";
+                    clicked => { root.start_core(); }
+                }
+                Button {
+                    text: "Stop core";
+                    clicked => { root.stop_core(); }
+                }
+            }
+        }
+    }
+}
