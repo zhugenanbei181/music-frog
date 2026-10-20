@@ -19,8 +19,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v238`：现在佛 68 pt（29 条）/ 过去佛 27 pt（12 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 167 pt；已归档交付 682 pt（263 条）；累计 849 pt，严格归档完成率 80.3%。
-- 本板 29 条 = 原未来佛 16 条 + 截图认证与平台覆盖 6 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）；`PUB-006.1` 与 `PARITY-001.1` 已交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261020-v238`：现在佛 66 pt（28 条）/ 过去佛 29 pt（13 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 167 pt；已归档交付 682 pt（263 条）；累计 849 pt，严格归档完成率 80.3%。
+- 本板 28 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）；`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 已交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 <!-- POINT_LEDGER:END -->
 
@@ -132,12 +132,6 @@
   - 验收：Linux/Windows/Android 有本机或 CI 回执；macOS/iOS 显式 `Unsupported` 且阻塞方登记；矩阵无「以旧 commit 回执冒充当前源码」。
   - 计划：① 固化矩阵文件与生成脚本；② 本机跑 Linux 腿与交叉检查；③ 逐平台绑定证据身份。
   - 证据：矩阵文件 + 逐平台 run ID。
-- [ ] PLATFORM-001.2 [kind: mechanism] [priority: P0] [points: 2] [owner: scripts/quality] [status: Planned] 五大平台 × 三大 UI 业务覆盖守卫
-  - 产物：守卫脚本比对「业务 × 平台 × UI」覆盖矩阵，任何未指派 owner 的单元格或未认证截图一律失败。
-  - 依赖：PARITY-001.1、PLATFORM-001.1。
-  - 验收：正例通过、缺格负例被拒；矩阵变更必须同时改守卫期望。
-  - 计划：① 定义矩阵 schema 与生成物；② 实现守卫并接入 `scripts/quality/check-structure.sh`；③ 补正反例测试。
-  - 证据：守卫 run ID + 负例回执。
 - [ ] GAP-4.1 [kind: evidence] [priority: P1] [points: 3] [owner: slint] [status: Planned] Slint 功能验收与 parity
   - 产物：Slint 六个页面回调对应的功能验收与 parity cell 证据（含 `capture-slint-matrix.sh` 24 场景结果）。
   - 依赖：目标产物与交互证据。
