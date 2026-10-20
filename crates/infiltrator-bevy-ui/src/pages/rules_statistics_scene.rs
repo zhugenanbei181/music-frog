@@ -15,8 +15,8 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
-    PositionType, UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent,
+    Node, Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
@@ -156,7 +156,7 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
             }
         })
         Children [
-            Node { width: percent(90), max_width: rem(STATISTICS_CLEANUP_DIALOG_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+            Node { width: percent(90), max_width: rem(STATISTICS_CLEANUP_DIALOG_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), border_radius: BorderRadius::all(rem(palette.modal_radius_px))
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             StatisticsConfirmationCard ModalDialogCard ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") ThemeBackgroundColor({Token::Surface})
             Children [

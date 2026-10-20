@@ -11,8 +11,8 @@ use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::text::{LineBreak, TextLayout};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BorderColor, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node,
-    Overflow, PositionType, UiRect, percent, px,
+    AlignItems, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex,
+    JustifyContent, Node, Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
@@ -65,7 +65,7 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(LOGS_EXPORT_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+            Node { width: percent(90), max_width: rem(LOGS_EXPORT_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), border_radius: BorderRadius::all(rem(palette.modal_radius_px))
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border: UiRect::all(px(palette.hairline_px)) }
             ModalDialogCard LogsExportCard ThemeBackgroundColor({Token::Surface}) BorderColor::all(edge)
             ModalDialog

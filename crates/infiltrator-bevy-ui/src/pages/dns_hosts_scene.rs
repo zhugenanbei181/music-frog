@@ -12,8 +12,8 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow, PositionType,
-    UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
+    Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
@@ -70,7 +70,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ThemeBackgroundColor({ Token::Scrim })
             --
-            Node { width: percent(90), max_width: rem(DNS_HOSTS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
+            Node { width: percent(90), max_width: rem(DNS_HOSTS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ModalDialogCard HostsModalCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("dns_hosts_title")
             Children [
                 LocalizedText::plain("dns_hosts_title") TextRole(Role::Heading)

@@ -20,8 +20,8 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow, PositionType,
-    UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
+    Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::{
     Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
@@ -142,7 +142,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             }
         })
         Children [
-            Node { width: percent(90), max_width: rem(GROUP_ORDER_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(GROUP_ORDER_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ModalDialogCard GroupOrderCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("proxies_reorder_title")
             Children [
                 LocalizedText::plain("proxies_reorder_title") TextRole(Role::Heading)

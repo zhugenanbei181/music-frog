@@ -17,8 +17,8 @@ use bevy::picking::events::PointerClick;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, PositionType, UiRect,
-    percent,
+    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
+    PositionType, UiRect, percent,
 };
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
@@ -76,7 +76,7 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             }
         })
         Children [
-            Node { width: percent(90), max_width: rem(TRACE_CONFIRMATION_MODAL_MAX_WIDTH_PX), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(TRACE_CONFIRMATION_MODAL_MAX_WIDTH_PX), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
             Children [
                 LocalizedText::plain("rule_trace_confirm_title") TextRole(Role::Heading)

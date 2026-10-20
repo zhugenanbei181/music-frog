@@ -16,6 +16,7 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{Scene, bsn, on};
 use bevy::ui::GlobalZIndex;
 use bevy::ui::prelude::{
+    BorderRadius,
     AlignItems, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect,
     percent, px,
 };
@@ -138,7 +139,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             }
         })
         Children [
-            Node { width: percent(90), max_width: rem(PROBE_SETTINGS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(PROBE_SETTINGS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ThemeBackgroundColor({ Token::Surface }) ModalDialogCard ProbeSettingsCard ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_probe_settings_title")
             Children [

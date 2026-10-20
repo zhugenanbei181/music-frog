@@ -10,8 +10,8 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, PositionType, UiRect,
-    percent,
+    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
+    PositionType, UiRect, percent,
 };
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
 use infiltrator_bevy_widgets::button::ButtonVariant;
@@ -72,6 +72,8 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 padding: UiRect::all(rem(space::S20)),
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S12),
+                // The centered dialog takes the contract's modal rung.
+                border_radius: BorderRadius::all(rem(palette.modal_radius_px)),
             }
             ModalDialogCard CacheModalCard ThemeBackgroundColor({ Token::Surface })
             ModalDialog

@@ -12,8 +12,8 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
-    PositionType, UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node,
+    Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
@@ -126,6 +126,8 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 width: percent(90), max_width: rem(DNS_QUERY_MODAL_MAX_WIDTH_PX), height: percent(90), max_height: rem(DNS_QUERY_MODAL_MAX_HEIGHT_PX),
                 padding: UiRect::all(rem(space::S12)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S6),
+                // The centered dialog takes the contract's modal rung.
+                border_radius: BorderRadius::all(rem(palette.modal_radius_px)),
             }
             ModalDialogCard QueryModalCard ThemeBackgroundColor({ Token::Surface })
             ModalDialog

@@ -11,8 +11,8 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
-    PositionType, UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent,
+    Node, Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
@@ -137,7 +137,7 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
             ModalScrim ScriptReviewControl ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: rem(SCRIPT_REVIEW_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
+            Node { width: percent(90), max_width: rem(SCRIPT_REVIEW_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), border_radius: BorderRadius::all(rem(palette.modal_radius_px))
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("script_export_title") ThemeBackgroundColor({Token::Surface})
             ModalDialog

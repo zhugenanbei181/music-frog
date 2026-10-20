@@ -12,8 +12,8 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
-    PositionType, UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent,
+    Node, Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::{
     Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
@@ -97,7 +97,7 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             }
         })
         Children [
-            Node { width: percent(90), max_width: rem(SNAPSHOT_RESTORE_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+            Node { width: percent(90), max_width: rem(SNAPSHOT_RESTORE_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ModalDialogCard RestoreCard ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("snapshot_restore_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("snapshot_restore_title") TextRole(Role::Heading)
