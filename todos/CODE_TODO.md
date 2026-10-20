@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v247`：现在佛 53 pt（22 条）/ 过去佛 69 pt（29 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
-- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261020-v248`：现在佛 46 pt（18 条）/ 过去佛 76 pt（33 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
+- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -72,36 +72,12 @@
 
 ## 五、A 主线：crates.io 发布流水线与开发者生态
 
-- [ ] PUB-006.7 [kind: mechanism] [priority: P1] [points: 2] [owner: test-infra] [status: Planned] 无头沙盒集成测试与混沌容错验证
-  - 产物：针对中性运行时的无头 CI 集成沙盒与混沌套件；覆盖网络波动、内核猝死拉起、锁竞争与损坏配置热恢复。
-  - 依赖：PUB-003.4、PUB-006.1。
-  - 验收：异常注入下状态机 100% fail-closed、租约安全回收、无内存泄漏且能自愈。
-  - 计划：① 定义故障注入矩阵（进程猝死/锁竞争/配置损坏/网络抖动）；② 实现注入式 harness；③ 接入统一批次并固化 fail-closed 断言。
-  - 证据：混沌套件 nextest run ID + 内存曲线回执。
 - [ ] PUB-006.8 [kind: evidence] [priority: P1] [points: 2] [owner: core/drivers] [status: Planned] 双引擎驱动真实二进制本地 Smoke 取证
   - 产物：激活 `mihomo-driver`/`singbox-driver` 的真实二进制 smoke 套件并固化本地可复跑入口。
   - 依赖：PUB-002.1、PUB-002.3、PUB-006.1。
   - 验收：真实进程下完成 API 握手、配置写入、节点测速与流量分发冒烟验证。
   - 计划：① 跑 `scripts/core-backend-smoke-mihomo.sh` 与 `scripts/core-backend-smoke-singbox.sh` 取得真实二进制回执；② 把被 `#[ignore]` 的真进程测试改为显式环境契约入口；③ 归档 Linux x86_64 证据。
   - 证据：真实二进制执行日志 + 摘要回执；Windows 腿在斗战胜佛。
-- [ ] PUB-006.9 [kind: mechanism] [priority: P1] [points: 2] [owner: examples] [status: Planned] 最小化用例展厅 (Examples Gallery)
-  - 产物：`examples/` 下 4 套独立极简用例（minimal-cli / minimal-slint / minimal-iced / minimal-bevy），各 ≤200 行、无多余依赖。
-  - 依赖：PUB-005.1～PUB-005.3、PUB-004.2。
-  - 验收：四套 example 独立 `cargo run --example` 成功并接入 CI 编译守卫。
-  - 计划：① 逐套按 ≤200 行预算实现；② 独立工程运行验证；③ 接入 CI 编译守卫与行数门禁。
-  - 证据：四个 example 的运行回执 + 行数门禁回执。
-- [ ] PUB-006.10 [kind: infra] [priority: P1] [points: 2] [owner: CI] [status: Planned] 多架构交叉构建自动化与 SemVer 兼容守卫
-  - 产物：Linux/Windows/Android aarch64 与 x86_64 交叉编译流水线 + `cargo-semver-checks` 门禁。
-  - 依赖：GAP-1.1、PUB-006.1。
-  - 验收：四大目标架构交叉编译 100% 通过；SemVer 门禁能拦截中性 crate 公开 API 的破坏性变更。
-  - 计划：① 固化 `scripts/cross-check.sh` 组合进 CI；② 接入 semver-checks 并登记基线；③ 用一次故意破坏验证门禁确实拒绝。
-  - 证据：交叉编译 job 回执 + semver 负例回执。
-- [ ] PUB-006.11 [kind: evidence] [priority: P1] [points: 1] [owner: docs/qa] [status: Planned] 开发者全生命周期演练与干跑审计
-  - 产物：在纯净克隆环境模拟外部开发者全旅程（克隆 → 看文档 → 脚手架生成 → 运行 → 接驱动 → 调配置）并输出审计报告。
-  - 依赖：PUB-005.5、PUB-006.4、PUB-006.9。
-  - 验收：旅程零阻滞，全链路 ≤5 分钟，体验毛刺清零并归档回执。
-  - 计划：① 纯净克隆跑 `cargo-generate` 生成四类工程；② 逐类构建并运行；③ 记录每步耗时与毛刺。
-  - 证据：审计报告 + 各步耗时回执。
 
 ## 六、B 主线：截图认证与平台证据（每个业务都真跑过）
 
@@ -204,6 +180,10 @@
   - 依赖：GAP-5.2 完成后评估。
   - 验收：同一页面在三个表面只保留一份状态推导；UI 只做渲染与事件投递。
   - 计划：① 盘点三端重复状态机清单；② 逐页下沉到 presentation 共享层；③ 每迁完一页即删旧实现并跑三端回归。
+  - 盘点（2026-10-20 实测，证据等级 L）：owner 裁决为 `crates/infiltrator-presentation`（上位架构契约已定「跨表面的纯文案、状态展示折叠与快照到视图模型映射完全由 `infiltrator-presentation` 持有」；`lurker-ui-presentation` 不得持有依赖产品契约的页面模型）。根因是**页面模型写在了 Bevy 私有层**（`infiltrator-bevy-ui/src/surface_projection.rs` 773 行，11 个页面的投影全在这里），Iced 与 Slint 只好各自重推。
+  - 迁移序（高重复、低影响在前）：① 日志页（共享 owner `log_search::LogSearchState` 与 `log_projection::project_log_facts` 已完备且 Bevy 已在用，Slint 的 `project_logs`/`log_level_key`/`log_stream_status` 是私有第二实现且**没有正则与非法模式态**，属真实行为分歧）→ ② 连接页（分组/搜索已共享，仅排序键三写：Iced `String`、Bevy `ConnectionSortKey`、Slint 字符串匹配）→ ③ 代理页（三份私有过滤/排序：Bevy `matches_proxy_filter` 与 Iced `member_matches` 规则已经不一致，Bevy 匹配 `features` 标签而 Iced 匹配 `udp`；先把 Bevy 页面模型搬进 presentation 再改指 Iced/Slint）→ ④ 概览页（`OverviewProjection` 为 Bevy 私有结构，Slint 私有重推 `route_mode`/`network_mode`/`network_mode_status`/`network_mode_warning`）→ ⑤ 设置页（Iced 私存 `PacManagerConfig`/`LanSharingConfig`/`LanSecurityConfig`/`UwpLoopbackState` 四份契约快照副本，外加 `lan_sharing_dirty`/`lan_security_dirty` 两个隐式状态 bool）→ ⑥ 规则页（tab/行投影已共享，仅 8 个保存/加载阶段机两写）→ ⑦ 订阅/体检/DNS/路由/同步页（动作折已共享，逐页跟进前六页的迁移机制）。
+  - 必须清零的第二真源（清零搜索回执为验收件）：Slint 的 `project_logs` 私有正则/等级过滤、`project_connections` 私有过滤与排序、`project_proxies` 私有过滤与排序、`lumen_projection.rs` 的 `route_mode`/`network_mode`/`network_mode_status`/`network_mode_warning`；Iced 的 `LogFilterState`（与共享 `LogSearchState` 并存）、`types/app.rs` 的四个契约快照私有副本与两个 `*_dirty` bool、`types/doctor.rs` 的 `DoctorPanelOperation`（与共享 `DoctorActionState` 并行跑两台阶段机）；Bevy 的 `surface_projection.rs` 与 `pages/proxies_filter.rs` 迁入共享层。
+  - 不迁：About/Licenses（仅 Slint 有）、Slint 独立 `Network` 路由（与设置页同事实，应折进共享设置页模型而不是再加第三份）。
   - 证据：每页一次迁移的 nextest run ID + 旧符号清零搜索回执。
 - [ ] BANDROID-016.2 [kind: mechanism] [priority: P1] [points: 3] [owner: bevy-widgets::chart] [status: Planned] 按需 3D/2.5D 地球与流量弧线
   - 产物：拖拽、节点地理标记、流量弧线；保留二维与 Eco 回退、低电量/热状态/减少动效降级。

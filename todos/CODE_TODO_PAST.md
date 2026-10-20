@@ -250,7 +250,41 @@
   - 待验证：统一验证批次复跑结构门，确认门禁在当前代码上仍零告警。
   - 本机可执行动作：跑统一验证批次。
 
-## 十、登记说明
+## 十、开源生态与发布门禁（已交付，4条 / 7pt）
+
+- [ ] PUB-006.7 [kind: mechanism] [priority: P1] [points: 2] [owner: test-infra] [status: Integrated] 无头沙盒集成测试与混沌容错验证
+  - 产物：针对中性运行时的无头 CI 集成沙盒与混沌套件；覆盖网络波动、内核猝死拉起、锁竞争与损坏配置热恢复。
+  - 依赖：PUB-003.4、PUB-006.1。
+  - 验收：异常注入下状态机 100% fail-closed、租约安全回收、无内存泄漏且能自愈。
+  - 当前证据（L）：新包 `sandbox`（`lurker-sandbox`，publish=false）注入四类确定性故障——网络抖动、内核进程猝死、锁竞争、配置损坏——每类一条场景，断言全部是 typed 结果：`RuntimeError::Port(PortError::Network(_))` 与 `Failed { phase: Readiness }`（进程起停配平）、`PortError::Failed` 与 `Failed { phase: StartProcess }`（无残留 running 声明）、真实 `flock` 争用被拒且写栅栏可再次获取、`DocumentValidation::Invalid { diagnostics }` 且耐久写回逐字节一致；租约腿证明外来终态被拒而绑定仍在、精确终态释放租约且日志改绑新 owner；资源腿证明取得的每份资源都被归还；故障模型用穷尽匹配，新增故障类必须同时新增场景；混沌套件 nextest `8f00c3f7-19a1-421f-a3f8-bebada50dbf8` 7/7 全绿；守卫 `sandbox-chaos-guard.py` 拒绝套件里的随机与计时（`rand`/`sleep(`/`Instant::now` 等）。
+  - 待验证：统一验证批次复跑混沌矩阵与守卫，确认新合入代码未引入新故障类。
+  - 本机可执行动作：跑统一验证批次 `cargo nextest run -p lurker-sandbox`。
+
+- [ ] PUB-006.9 [kind: mechanism] [priority: P1] [points: 2] [owner: examples] [status: Integrated] 最小化用例展厅 (Examples Gallery)
+  - 产物：`examples/` 下 4 套独立极简用例（minimal-cli / minimal-slint / minimal-iced / minimal-bevy），各 ≤200 行、无多余依赖。
+  - 依赖：PUB-005.1～PUB-005.3、PUB-004.2。
+  - 验收：四套 example 独立 `cargo run --example` 成功并接入 CI 编译守卫。
+  - 当前证据（L）：四套用例各为独立 workspace 包并只声明一个同名 `[[example]]` 目标：minimal-cli 53 行、minimal-slint 64 行（+50 行 slint 文件）、minimal-iced 103 行、minimal-bevy 160 行，全部 ≤200 行；依赖只有中性 crate 加各自展示的一套工具链，工具链需求与产品模板逐字节比对（版本与 feature 只有一个真源）；`examples-guard.py --mode compile` 四例全部编译通过（`--mode smoke` 无头 CLI 例运行通过），`--mode structure` 校验目录、目标、白名单、模板一致与行数预算；CI 编译守卫落在已登记触发策略的 `.github/workflows/ecosystem-gate.yml`。
+  - 待验证：受控 tag 的生态门禁 workflow run 回执（CI 腿在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
+  - 本机可执行动作：跑统一验证批次。
+
+- [ ] PUB-006.10 [kind: infra] [priority: P1] [points: 2] [owner: CI] [status: Integrated] 多架构交叉构建自动化与 SemVer 兼容守卫
+  - 产物：Linux/Windows/Android aarch64 与 x86_64 交叉编译流水线 + `cargo-semver-checks` 门禁。
+  - 依赖：GAP-1.1、PUB-006.1。
+  - 验收：四大目标架构交叉编译 100% 通过；SemVer 门禁能拦截中性 crate 公开 API 的破坏性变更。
+  - 当前证据（L）：`semver-compat-guard.py` 锁定七个中性 crate 的公开 API 基线（1182 项，登记在 `semver-baseline.json`）并逐项比对；`--mode check` 报 0 差异 0 新增；**负例证明门禁会失败**——删除一个公开函数后门禁拒绝（`the gate rejected the deliberate break`），负例已接入结构门，所以一个不会失败的门禁会直接让构建红；`cross-build-guard.py` 证明四条桌面 triple、`scripts/cross-check.sh` 的两条 aarch64 腿与 `scripts/android-check.sh` 的两条 Android 腿都在位且没有 Apple 目标混入；类型检查版的 `cargo-semver-checks` 分析在生态门禁 workflow 里跑（`--mode tool --require-tool`）。
+  - 待验证：受控 tag 的生态门禁 workflow run 回执与真实 `cargo-semver-checks` 工具层回执（CI 腿在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
+  - 本机可执行动作：跑统一验证批次（含 `scripts/cross-check.sh` 交叉腿）。
+
+- [ ] PUB-006.11 [kind: evidence] [priority: P1] [points: 1] [owner: docs/qa] [status: Integrated] 开发者全生命周期演练与干跑审计
+  - 产物：在纯净克隆环境模拟外部开发者全旅程（克隆 → 看文档 → 脚手架生成 → 运行 → 接驱动 → 调配置）并输出审计报告。
+  - 依赖：PUB-005.5、PUB-006.4、PUB-006.9。
+  - 验收：旅程零阻滞，全链路 ≤5 分钟，体验毛刺清零并归档回执。
+  - 当前证据（L）：`developer-journey-rehearsal.py` 走完克隆 → 读文档 → 脚手架 → 构建 → 运行 → 接驱动 → 调配置七步，逐步计时并给出 `ok`/`blocked`/`failed` 判定，总预算 300 秒；干跑实测产出完整审计报告（无占位符残留，模板 20 个占位符与 8 个审计问题全覆盖），守卫 `journey-rehearsal-guard.py` 校验步骤顺序、预算与报告完整性。
+  - 待验证：纯净克隆的真实演练（需要 `cargo-generate` 与一次真实编译），随统一批次执行。
+  - 本机可执行动作：跑统一验证批次 `python3 scripts/developer-journey-rehearsal.py --profile fast`。
+
+## 十一、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。
