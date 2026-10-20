@@ -227,11 +227,35 @@ impl GridFocusNavigator {
     }
 }
 
+/// The stage a [`FocusTrapManager`] is in.
+///
+/// The trap is either released or engaged around one root. The old design kept
+/// a boolean and the root in two fields, so "trapped without a root" was
+/// representable and only the setters kept the two apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FocusTrapStage {
+    /// No trap is engaged; focus moves freely.
+    #[default]
+    Released,
+    /// A trap is engaged around a modal root.
+    Trapped {
+        /// The entity the trap is rooted at.
+        root: Entity,
+    },
+}
+
+/// Typed refusal of a focus trap move the current stage forbids.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FocusTrapTransitionError {
+    /// The stage that was already running when the move was refused.
+    pub from: FocusTrapStage,
+}
+
 /// Modal dialog focus trap manager enforcing WAI-ARIA accessibility constraints.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct FocusTrapManager {
-    pub is_trapped: bool,
-    pub trap_root: Option<Entity>,
+    /// The single stage the trap is in.
+    pub stage: FocusTrapStage,
     pub focusable_entities: Vec<Entity>,
     pub current_focus_idx: usize,
     pub restored_focus_target: Option<Entity>,
@@ -242,18 +266,50 @@ impl FocusTrapManager {
         Self::default()
     }
 
+    /// The stage the trap is in.
+    pub fn stage(&self) -> &FocusTrapStage {
+        &self.stage
+    }
+
+    /// Whether a trap is engaged.
+    pub fn is_trapped(&self) -> bool {
+        matches!(self.stage, FocusTrapStage::Trapped { .. })
+    }
+
+    /// The entity the trap is rooted at, if a trap is engaged.
+    pub fn trap_root(&self) -> Option<Entity> {
+        match self.stage {
+            FocusTrapStage::Released => None,
+            FocusTrapStage::Trapped { root } => Some(root),
+        }
+    }
+
     /// Engage focus trap for a modal dialog, remembering previous focus target.
-    pub fn engage(&mut self, root: Entity, focusables: Vec<Entity>, prev_focus: Option<Entity>) {
-        self.is_trapped = true;
-        self.trap_root = Some(root);
+    ///
+    /// Engaging while a trap is already engaged is refused: the running stage
+    /// comes back in [`FocusTrapTransitionError::from`], so one manager never
+    /// traps two modals at once.
+    pub fn engage(
+        &mut self,
+        root: Entity,
+        focusables: Vec<Entity>,
+        prev_focus: Option<Entity>,
+    ) -> Result<(), FocusTrapTransitionError> {
+        if let FocusTrapStage::Trapped { .. } = self.stage {
+            return Err(FocusTrapTransitionError { from: self.stage });
+        }
+        self.stage = FocusTrapStage::Trapped { root };
         self.focusable_entities = focusables;
         self.current_focus_idx = 0;
         self.restored_focus_target = prev_focus;
+        Ok(())
     }
 
     /// Advance to next focusable entity within the trap, wrapping to beginning.
+    ///
+    /// A released trap has no focusables to cycle, so the move is refused.
     pub fn cycle_next(&mut self) -> Option<Entity> {
-        if self.focusable_entities.is_empty() {
+        if !self.is_trapped() || self.focusable_entities.is_empty() {
             return None;
         }
         self.current_focus_idx = (self.current_focus_idx + 1) % self.focusable_entities.len();
@@ -261,8 +317,10 @@ impl FocusTrapManager {
     }
 
     /// Step to previous focusable entity within the trap, wrapping to end.
+    ///
+    /// A released trap has no focusables to cycle, so the move is refused.
     pub fn cycle_prev(&mut self) -> Option<Entity> {
-        if self.focusable_entities.is_empty() {
+        if !self.is_trapped() || self.focusable_entities.is_empty() {
             return None;
         }
         if self.current_focus_idx == 0 {
@@ -275,8 +333,7 @@ impl FocusTrapManager {
 
     /// Release focus trap, returning the entity that should restore focus.
     pub fn release(&mut self) -> Option<Entity> {
-        self.is_trapped = false;
-        self.trap_root = None;
+        self.stage = FocusTrapStage::Released;
         self.focusable_entities.clear();
         self.current_focus_idx = 0;
         self.restored_focus_target.take()
@@ -321,8 +378,10 @@ mod tests {
         let e2 = Entity::from_raw_u32(3).unwrap();
         let root = Entity::from_raw_u32(4).unwrap();
 
-        trap.engage(root, vec![e1, e2], Some(e_bg));
-        assert!(trap.is_trapped);
+        trap.engage(root, vec![e1, e2], Some(e_bg))
+            .expect("released trap engages");
+        assert!(trap.is_trapped());
+        assert_eq!(trap.trap_root(), Some(root));
         assert_eq!(trap.focusable_entities.len(), 2);
 
         // Next wraps around [e1 -> e2 -> e1]
@@ -334,7 +393,8 @@ mod tests {
 
         // Release restores previous background target
         let restored = trap.release();
-        assert!(!trap.is_trapped);
+        assert!(!trap.is_trapped());
+        assert_eq!(trap.trap_root(), None);
         assert_eq!(restored, Some(e_bg));
     }
 }

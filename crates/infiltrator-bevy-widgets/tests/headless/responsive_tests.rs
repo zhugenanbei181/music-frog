@@ -406,6 +406,7 @@ fn master_detail_split_and_stacked_navigation() {
         let state = world.resource::<MasterDetailState>();
         assert_eq!(state.selected_item_id, Some("item-42".to_owned()));
         assert_eq!(state.active_view, MasterDetailView::Detail);
+        assert!(state.is_showing_detail());
 
         let world_mut = app.world_mut();
         let mut master = world_mut.query_filtered::<&Node, With<MasterPane>>();
@@ -429,6 +430,7 @@ fn master_detail_split_and_stacked_navigation() {
         let world = app.world();
         let state = world.resource::<MasterDetailState>();
         assert_eq!(state.active_view, MasterDetailView::Master);
+        assert!(!state.is_showing_detail());
 
         let world_mut = app.world_mut();
         let mut master = world_mut.query_filtered::<&Node, With<MasterPane>>();

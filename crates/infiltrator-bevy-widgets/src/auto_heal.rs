@@ -445,24 +445,52 @@ impl RootCauseInferenceEngine {
     }
 }
 
+/// The one stage a [`HealingWatchdog`] is in.
+///
+/// The stage is a single enum because "a repair runs" and "the watchdog
+/// tripped" are mutually exclusive: the old flag pair could express both at
+/// once, and only an implicit guard kept the impossible combination out.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum WatchdogStage {
+    /// No repair is under the watchdog.
+    #[default]
+    Idle,
+    /// A repair action runs; the deadlock timer counts up.
+    Repairing {
+        /// Name of the repair action under the watchdog.
+        action_name: String,
+    },
+    /// The deadlock limit elapsed; the repair was forcibly aborted.
+    Tripped {
+        /// Name of the repair action that was aborted.
+        action_name: String,
+    },
+}
+
+/// Typed refusal of a watchdog move the current stage forbids.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WatchdogTransitionError {
+    /// The stage that was already running when the move was refused.
+    pub from: WatchdogStage,
+}
+
 /// Watchdog timer monitoring auto-repair operations and forcibly aborting hung actions.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct HealingWatchdog {
-    pub is_repairing: bool,
-    pub active_action_name: Option<String>,
+    /// The single stage the watchdog is in.
+    pub stage: WatchdogStage,
+    /// Time the current stage has been running.
     pub elapsed_time: Duration,
+    /// Deadlock budget one repair may spend before the watchdog aborts it.
     pub deadlock_limit: Duration,
-    pub has_tripped: bool,
 }
 
 impl Default for HealingWatchdog {
     fn default() -> Self {
         Self {
-            is_repairing: false,
-            active_action_name: None,
+            stage: WatchdogStage::Idle,
             elapsed_time: Duration::ZERO,
             deadlock_limit: Duration::from_secs(10),
-            has_tripped: false,
         }
     }
 }
@@ -475,31 +503,68 @@ impl HealingWatchdog {
         }
     }
 
+    /// The stage the watchdog is in.
+    pub fn stage(&self) -> &WatchdogStage {
+        &self.stage
+    }
+
+    /// Whether a repair action is currently under the watchdog.
+    pub fn is_repairing(&self) -> bool {
+        matches!(self.stage, WatchdogStage::Repairing { .. })
+    }
+
+    /// Whether the watchdog tripped and aborted the repair.
+    pub fn has_tripped(&self) -> bool {
+        matches!(self.stage, WatchdogStage::Tripped { .. })
+    }
+
+    /// Name of the action under the watchdog, if any.
+    pub fn active_action_name(&self) -> Option<&str> {
+        match &self.stage {
+            WatchdogStage::Idle => None,
+            WatchdogStage::Repairing { action_name }
+            | WatchdogStage::Tripped { action_name } => Some(action_name),
+        }
+    }
+
     /// Arm watchdog for a new repair action.
-    pub fn arm(&mut self, action_name: impl Into<String>) {
-        self.is_repairing = true;
-        self.active_action_name = Some(action_name.into());
+    ///
+    /// Arming while a repair is already running is refused: the running stage
+    /// comes back in [`WatchdogTransitionError::from`], so one watchdog never
+    /// tracks two actions at once. Arming after a trip restarts the watchdog
+    /// for the next action.
+    pub fn arm(&mut self, action_name: impl Into<String>) -> Result<(), WatchdogTransitionError> {
+        if let WatchdogStage::Repairing { .. } = &self.stage {
+            return Err(WatchdogTransitionError {
+                from: self.stage.clone(),
+            });
+        }
+        self.stage = WatchdogStage::Repairing {
+            action_name: action_name.into(),
+        };
         self.elapsed_time = Duration::ZERO;
-        self.has_tripped = false;
+        Ok(())
     }
 
     /// Disarm watchdog upon clean action completion.
     pub fn disarm(&mut self) {
-        self.is_repairing = false;
-        self.active_action_name = None;
+        self.stage = WatchdogStage::Idle;
         self.elapsed_time = Duration::ZERO;
-        self.has_tripped = false;
     }
 
     /// Step watchdog timer. Returns true if deadlock limit reached, forcibly aborting repair.
+    ///
+    /// Only the [`WatchdogStage::Repairing`] stage has a running timer; every
+    /// other stage refuses the tick.
     pub fn tick(&mut self, dt: Duration) -> bool {
-        if !self.is_repairing || self.has_tripped {
+        let WatchdogStage::Repairing { action_name } = &self.stage else {
             return false;
-        }
+        };
         self.elapsed_time += dt;
         if self.elapsed_time >= self.deadlock_limit {
-            self.has_tripped = true;
-            self.is_repairing = false;
+            self.stage = WatchdogStage::Tripped {
+                action_name: action_name.clone(),
+            };
             true
         } else {
             false
@@ -988,18 +1053,21 @@ mod tests {
     #[test]
     fn test_healing_watchdog_timeout_trip() {
         let mut watchdog = HealingWatchdog::new(Duration::from_secs(4));
-        assert!(!watchdog.is_repairing);
+        assert!(!watchdog.is_repairing());
+        assert_eq!(watchdog.stage(), &WatchdogStage::Idle);
 
-        watchdog.arm("rebind_tun");
-        assert!(watchdog.is_repairing);
+        watchdog.arm("rebind_tun").expect("idle watchdog arms");
+        assert!(watchdog.is_repairing());
+        assert_eq!(watchdog.active_action_name(), Some("rebind_tun"));
 
         // Advance 2s -> does not trip
         assert!(!watchdog.tick(Duration::from_secs(2)));
-        assert!(watchdog.is_repairing);
+        assert!(watchdog.is_repairing());
 
         // Advance 3s more (5s total >= 4s limit) -> trips watchdog
         assert!(watchdog.tick(Duration::from_secs(3)));
-        assert!(watchdog.has_tripped);
-        assert!(!watchdog.is_repairing);
+        assert!(watchdog.has_tripped());
+        assert!(!watchdog.is_repairing());
+        assert_eq!(watchdog.active_action_name(), Some("rebind_tun"));
     }
 }

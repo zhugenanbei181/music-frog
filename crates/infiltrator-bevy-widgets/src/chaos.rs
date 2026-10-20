@@ -134,12 +134,31 @@ impl ChaosFaultScenario {
     }
 }
 
+/// The stage a [`ChaosSimulationRunner`] is in.
+///
+/// A runner either idles or injects exactly one scenario. The old design kept
+/// the running flag and the scenario in two separate fields, so "running
+/// without a scenario" was representable and only an implicit fallback kept
+/// that combination from being observed.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum ChaosRunStage {
+    /// No fault scenario is being injected.
+    #[default]
+    Idle,
+    /// A fault scenario is being injected.
+    Running {
+        /// The scenario under injection.
+        scenario: ChaosFaultScenario,
+    },
+}
+
 /// Interactive chaos simulation runner managing scheduled fault injections.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct ChaosSimulationRunner {
-    pub active_scenario: Option<ChaosFaultScenario>,
+    /// The single stage the runner is in.
+    pub stage: ChaosRunStage,
+    /// Time the running scenario has been injected for.
     pub elapsed_secs: f32,
-    pub is_running: bool,
 }
 
 impl ChaosSimulationRunner {
@@ -147,31 +166,48 @@ impl ChaosSimulationRunner {
         Self::default()
     }
 
-    pub fn inject(&mut self, scenario: ChaosFaultScenario) {
-        self.active_scenario = Some(scenario);
-        self.elapsed_secs = 0.0;
-        self.is_running = true;
+    /// The stage the runner is in.
+    pub fn stage(&self) -> &ChaosRunStage {
+        &self.stage
     }
 
-    pub fn stop(&mut self) {
-        self.active_scenario = None;
-        self.elapsed_secs = 0.0;
-        self.is_running = false;
+    /// Whether a scenario is currently being injected.
+    pub fn is_running(&self) -> bool {
+        matches!(self.stage, ChaosRunStage::Running { .. })
     }
 
-    pub fn tick(&mut self, dt_secs: f32) -> Option<DiagnosticAnomaly> {
-        if !self.is_running {
-            return None;
+    /// The scenario under injection, if any.
+    pub fn active_scenario(&self) -> Option<&ChaosFaultScenario> {
+        match &self.stage {
+            ChaosRunStage::Idle => None,
+            ChaosRunStage::Running { scenario } => Some(scenario),
         }
+    }
+
+    /// Start injecting a scenario, replacing any previous one.
+    pub fn inject(&mut self, scenario: ChaosFaultScenario) {
+        self.stage = ChaosRunStage::Running { scenario };
+        self.elapsed_secs = 0.0;
+    }
+
+    /// Stop the injection and return to the idle stage.
+    pub fn stop(&mut self) {
+        self.stage = ChaosRunStage::Idle;
+        self.elapsed_secs = 0.0;
+    }
+
+    /// Advance the injection by `dt_secs`, emitting the expected anomaly while
+    /// the scenario is still inside its duration. An idle runner emits
+    /// nothing.
+    pub fn tick(&mut self, dt_secs: f32) -> Option<DiagnosticAnomaly> {
+        let ChaosRunStage::Running { scenario } = &self.stage else {
+            return None;
+        };
         self.elapsed_secs += dt_secs;
-        if let Some(ref scenario) = self.active_scenario {
-            if self.elapsed_secs <= scenario.duration_secs {
-                Some(scenario.expected_anomaly)
-            } else {
-                self.stop();
-                None
-            }
+        if self.elapsed_secs <= scenario.duration_secs {
+            Some(scenario.expected_anomaly)
         } else {
+            self.stop();
             None
         }
     }
@@ -360,11 +396,13 @@ mod tests {
     #[test]
     fn test_chaos_scenario_injection_and_auto_heal_mapping() {
         let mut runner = ChaosSimulationRunner::new();
-        assert!(!runner.is_running);
+        assert!(!runner.is_running());
+        assert_eq!(runner.stage(), &ChaosRunStage::Idle);
 
         let scenario = ChaosFaultScenario::port_conflict(9099);
-        runner.inject(scenario);
-        assert!(runner.is_running);
+        runner.inject(scenario.clone());
+        assert!(runner.is_running());
+        assert_eq!(runner.active_scenario(), Some(&scenario));
 
         // First tick returns expected anomaly
         let anomaly = runner.tick(1.0).expect("anomaly emitted");
@@ -373,7 +411,8 @@ mod tests {
         // Advance past duration (15s)
         let end = runner.tick(16.0);
         assert!(end.is_none());
-        assert!(!runner.is_running);
+        assert!(!runner.is_running());
+        assert_eq!(runner.stage(), &ChaosRunStage::Idle);
     }
 
     #[test]

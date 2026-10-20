@@ -15,7 +15,7 @@ use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::list::scroll_core::{
-    VirtualEntityPool, VirtualSlot, clamp_scroll_offset, visible_window,
+    SlotBinding, VirtualEntityPool, VirtualSlot, clamp_scroll_offset, visible_window,
     visible_window_with_overscan,
 };
 use infiltrator_bevy_widgets::list::{
@@ -714,8 +714,8 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     assert_eq!(actions.len(), 5);
     assert_eq!(pool.active_count(), 5);
 
-    // Check slot 2: bound to item 2, active, generation 1
-    assert_eq!(pool.slot_binding(2), Some((Some(2), true, 1)));
+    // Check slot 2: bound to item 2, generation 1
+    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Bound { item_idx: 2 }, 1)));
     assert!(pool.is_receipt_valid(2, 2, 1));
     assert!(!pool.is_receipt_valid(2, 2, 0)); // stale generation rejected
     assert!(!pool.is_receipt_valid(2, 3, 1)); // wrong item rejected
@@ -723,6 +723,8 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     let mut slot_comp = VirtualSlot::new(2);
     slot_comp.apply_rebind(2, 1);
     assert!(slot_comp.is_bound_to(2));
+    assert_eq!(slot_comp.bound_item_idx(), Some(2));
+    assert!(slot_comp.is_active());
     assert!(slot_comp.is_valid_receipt(2, 1));
     assert!(!slot_comp.is_valid_receipt(2, 0));
 
@@ -734,7 +736,7 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     let rebind_actions = pool.sync_window(10, 15, |idx| idx as f32 * 40.0);
     assert_eq!(rebind_actions.len(), 5);
     // Slot 2 is now rebound to item 12 at generation 2
-    assert_eq!(pool.slot_binding(2), Some((Some(12), true, 2)));
+    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Bound { item_idx: 12 }, 2)));
     slot_comp.apply_rebind(12, 2);
 
     // The delayed receipt / queued click from the earlier interaction arrives!
@@ -759,9 +761,12 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     // Deactivate slots when window shrinks to [10, 12) (only 2 active slots)
     let _deact_actions = pool.sync_window(10, 12, |idx| idx as f32 * 40.0);
     assert_eq!(pool.active_count(), 2);
-    // Slot 2 was deactivated: generation advanced to 3, is_active is false
-    assert_eq!(pool.slot_binding(2), Some((None, false, 3)));
+    // Slot 2 was deactivated: generation advanced to 3, the slot is free
+    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Free, 3)));
     slot_comp.apply_deactivate(3);
+    // One binding, one truth: a free slot has no item and is not active.
+    assert_eq!(slot_comp.bound_item_idx(), None);
+    assert!(!slot_comp.is_active());
     assert!(!pool.is_receipt_valid(2, 12, 2));
     assert!(!pool.is_receipt_valid(2, 12, 3));
     assert!(!slot_comp.is_valid_receipt(12, 2));
@@ -769,7 +774,7 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
 
     // Scrolling back so slot 2 rebinds to item 2 again: generation is now 4!
     let _scroll_back_actions = pool.sync_window(0, 5, |idx| idx as f32 * 40.0);
-    assert_eq!(pool.slot_binding(2), Some((Some(2), true, 4)));
+    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Bound { item_idx: 2 }, 4)));
     slot_comp.apply_rebind(2, 4);
 
     // Even though slot 2 is once again bound to item 2, the old delayed click from generation 1 is STILL rejected!

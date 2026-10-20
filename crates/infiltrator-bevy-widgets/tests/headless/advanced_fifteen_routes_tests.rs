@@ -17,7 +17,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::sandbox::SandboxedWidgetInstance;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_bevy_widgets::theme_export::{ThemeExportFormat, export_palette_tokens};
-use infiltrator_bevy_widgets::windowing::{DockPanel, DockSlot, PipOverlayState};
+use infiltrator_bevy_widgets::windowing::{
+    DockPanel, DockSlot, PipOverlaySession, PipOverlayState, WindowRegistry,
+};
 use std::time;
 
 #[test]
@@ -371,6 +373,28 @@ fn test_windowing_dock_and_pip_overlay() {
     // Bottom Left
     pip.snap_to_corner(Vec2::new(1920.0, 1080.0), false);
     assert_eq!(pip.position, Vec2::new(20.0, 1080.0 - 64.0 - 20.0));
+
+    // The session stage lives in exactly one place: the bound window handle.
+    let mut registry = WindowRegistry::new();
+    let mut session = PipOverlaySession::new(PipOverlayState::default());
+    assert!(!session.is_active());
+    let id = session.open(&mut registry, "Mini HUD").expect("opened");
+    assert!(session.is_active());
+    assert_eq!(session.window, Some(id));
+
+    // A descriptor retired underneath the session leaves no "active but
+    // windowless" overlay behind: the handle is the only stage there is.
+    registry.remove(id).expect("descriptor retired");
+    assert!(!session.move_to(&mut registry, Vec2::new(1.0, 2.0)));
+    assert!(session.window.is_none());
+    assert!(!session.is_active());
+
+    // The window-manager attributes stay independent facts of the overlay.
+    let mut overlay = PipOverlayState::default();
+    overlay.toggle_pin();
+    overlay.set_click_through(true);
+    assert!(!overlay.is_pinned_top);
+    assert!(overlay.is_click_through);
 }
 
 #[test]
@@ -434,12 +458,89 @@ fn test_advanced_ecosystem_round_two_capabilities() {
     // 5. Chaos simulation runner
     let mut runner = ChaosSimulationRunner::new();
     runner.inject(ChaosFaultScenario::tun_failure());
-    assert!(runner.is_running);
+    assert!(runner.is_running());
 
     // 6. Host capabilities
     let mut caps = HostCapabilities::none();
     caps.enable(WidgetCapability::GpuShaders);
     assert!(caps.has(WidgetCapability::GpuShaders));
+}
+
+#[test]
+fn test_focus_trap_stage_is_typed_and_refuses_a_second_engage() {
+    use bevy::ecs::entity::Entity;
+    use infiltrator_bevy_widgets::focus::{FocusTrapManager, FocusTrapStage};
+
+    let root = Entity::from_raw_u32(30).unwrap();
+    let other_root = Entity::from_raw_u32(31).unwrap();
+    let focusable = Entity::from_raw_u32(32).unwrap();
+
+    let mut trap = FocusTrapManager::new();
+    assert_eq!(trap.stage(), &FocusTrapStage::Released);
+    assert!(!trap.is_trapped());
+    assert_eq!(trap.trap_root(), None);
+    assert!(
+        trap.cycle_next().is_none(),
+        "a released trap has no focusable to move to"
+    );
+
+    trap.engage(root, vec![focusable], None)
+        .expect("released trap engages");
+    assert_eq!(trap.stage(), &FocusTrapStage::Trapped { root });
+    assert!(trap.is_trapped());
+    assert_eq!(trap.trap_root(), Some(root));
+    assert_eq!(trap.cycle_next(), Some(focusable));
+
+    // Engaging a second modal while the trap runs is refused; the running
+    // stage comes back and the trap keeps its own root.
+    let refusal = trap
+        .engage(other_root, vec![focusable], None)
+        .expect_err("a second engage is refused while a trap is engaged");
+    assert_eq!(refusal.from, FocusTrapStage::Trapped { root });
+    assert_eq!(trap.stage(), &FocusTrapStage::Trapped { root });
+    assert_eq!(trap.trap_root(), Some(root));
+
+    // Releasing returns to the single released stage and drops the root.
+    assert_eq!(trap.release(), None);
+    assert_eq!(trap.stage(), &FocusTrapStage::Released);
+    assert!(!trap.is_trapped());
+    assert_eq!(trap.trap_root(), None);
+}
+
+#[test]
+fn test_chaos_runner_stage_is_typed_and_refuses_to_tick_when_idle() {
+    use infiltrator_bevy_widgets::chaos::{ChaosFaultScenario, ChaosRunStage, ChaosSimulationRunner};
+
+    let mut runner = ChaosSimulationRunner::new();
+    assert_eq!(runner.stage(), &ChaosRunStage::Idle);
+    assert!(!runner.is_running());
+    assert_eq!(runner.active_scenario(), None);
+    assert!(
+        runner.tick(1.0).is_none(),
+        "an idle runner has no scenario to inject"
+    );
+
+    let scenario = ChaosFaultScenario::dns_pollution();
+    runner.inject(scenario.clone());
+    assert_eq!(
+        runner.stage(),
+        &ChaosRunStage::Running {
+            scenario: scenario.clone()
+        }
+    );
+    assert!(runner.is_running());
+    assert_eq!(runner.active_scenario(), Some(&scenario));
+
+    // The scenario lives inside the stage, so "running without a scenario" is
+    // not a state that can be observed at all.
+    assert_eq!(runner.tick(1.0), Some(DiagnosticAnomaly::DnsLeakDetected));
+    assert!(runner.is_running());
+
+    // Past the scenario duration the runner returns to the single idle stage.
+    assert_eq!(runner.tick(20.0), None);
+    assert_eq!(runner.stage(), &ChaosRunStage::Idle);
+    assert!(!runner.is_running());
+    assert_eq!(runner.active_scenario(), None);
 }
 
 #[test]
@@ -661,6 +762,34 @@ fn test_advanced_ecosystem_round_six_capabilities() {
 }
 
 #[test]
+fn test_reorder_drag_stage_is_typed_and_refuses_a_drop_without_a_drag() {
+    use infiltrator_bevy_widgets::reorderable::{ReorderDragStage, ReorderableListState};
+
+    let mut list = ReorderableListState::new(vec!["A".into(), "B".into(), "C".into()]);
+    assert_eq!(list.drag_stage(), ReorderDragStage::Idle);
+    assert_eq!(list.dragged_item_index(), None);
+    assert_eq!(list.target_drop_index(), None);
+
+    // A drop position without a dragged item is not a state the list can hold.
+    assert!(
+        list.set_drop_target(2).is_err(),
+        "a drop position needs a dragged item"
+    );
+
+    list.start_drag(0).expect("idle list starts a drag");
+    assert_eq!(list.dragged_item_index(), Some(0));
+
+    // A second drag while one runs is refused.
+    assert!(list.start_drag(1).is_err());
+
+    list.set_drop_target(2).expect("running drag takes a drop position");
+    assert_eq!(list.target_drop_index(), Some(2));
+    assert_eq!(list.end_drag(), Some(2));
+    assert_eq!(list.drag_stage(), ReorderDragStage::Idle);
+    assert_eq!(list.target_drop_index(), None);
+}
+
+#[test]
 fn test_advanced_ecosystem_round_seven_capabilities() {
     use infiltrator_bevy_widgets::auto_heal::RootCauseInferenceEngine;
     use infiltrator_bevy_widgets::cadence::FrameTimingProbe;
@@ -709,8 +838,9 @@ fn test_advanced_ecosystem_round_eight_capabilities() {
     let mut trap = FocusTrapManager::new();
     let e1 = Entity::from_raw_u32(10).unwrap();
     let e2 = Entity::from_raw_u32(20).unwrap();
-    trap.engage(e1, vec![e1, e2], None);
-    assert!(trap.is_trapped);
+    trap.engage(e1, vec![e1, e2], None)
+        .expect("released trap engages");
+    assert!(trap.is_trapped());
     assert_eq!(trap.cycle_next(), Some(e2));
 
     // 2. Card parallax tilt
@@ -727,10 +857,10 @@ fn test_advanced_ecosystem_round_eight_capabilities() {
 
     // 4. Healing watchdog
     let mut watchdog = HealingWatchdog::new(Duration::from_secs(3));
-    watchdog.arm("heal_test");
+    watchdog.arm("heal_test").expect("idle watchdog arms");
     assert!(!watchdog.tick(Duration::from_secs(1)));
     assert!(watchdog.tick(Duration::from_secs(3)));
-    assert!(watchdog.has_tripped);
+    assert!(watchdog.has_tripped());
 
     // 5. Platform view lifecycle host
     let mut pv = PlatformViewLifecycleHost::new("view1");
@@ -741,6 +871,81 @@ fn test_advanced_ecosystem_round_eight_capabilities() {
             released_handle_id: 999,
         })
     );
+}
+
+#[test]
+fn test_healing_watchdog_stage_is_typed_and_refuses_double_arm() {
+    use infiltrator_bevy_widgets::auto_heal::{HealingWatchdog, WatchdogStage};
+    use std::time::Duration;
+
+    let mut watchdog = HealingWatchdog::new(Duration::from_secs(2));
+
+    // Idle: no repair runs and no trip is latched.
+    assert_eq!(watchdog.stage(), &WatchdogStage::Idle);
+    assert!(!watchdog.is_repairing());
+    assert!(!watchdog.has_tripped());
+    assert!(
+        !watchdog.tick(Duration::from_secs(5)),
+        "an idle watchdog has no running timer to step"
+    );
+
+    // Repairing: the running stage names the action under the watchdog.
+    watchdog.arm("rebind_tun").expect("idle watchdog arms");
+    assert_eq!(
+        watchdog.stage(),
+        &WatchdogStage::Repairing {
+            action_name: "rebind_tun".to_string()
+        }
+    );
+
+    // Arming again while a repair runs is refused; the running stage comes back.
+    let refusal = watchdog
+        .arm("other_action")
+        .expect_err("a second arm is refused while a repair runs");
+    assert_eq!(
+        refusal.from,
+        WatchdogStage::Repairing {
+            action_name: "rebind_tun".to_string()
+        }
+    );
+    assert_eq!(
+        watchdog.stage(),
+        &WatchdogStage::Repairing {
+            action_name: "rebind_tun".to_string()
+        },
+        "a refused arm must not replace the running repair"
+    );
+
+    // The deadline trips the watchdog into the exclusive Tripped stage.
+    assert!(watchdog.tick(Duration::from_secs(2)));
+    assert_eq!(
+        watchdog.stage(),
+        &WatchdogStage::Tripped {
+            action_name: "rebind_tun".to_string()
+        }
+    );
+    assert!(watchdog.has_tripped());
+    assert!(!watchdog.is_repairing(), "a tripped watchdog is not repairing");
+
+    // A tripped watchdog refuses further ticks and can be re-armed for the next action.
+    assert!(
+        !watchdog.tick(Duration::from_secs(10)),
+        "a tripped watchdog refuses to step its timer"
+    );
+    watchdog
+        .arm("next_action")
+        .expect("a tripped watchdog re-arms for the next action");
+    assert_eq!(
+        watchdog.stage(),
+        &WatchdogStage::Repairing {
+            action_name: "next_action".to_string()
+        }
+    );
+
+    // Disarming returns to the single idle stage.
+    watchdog.disarm();
+    assert_eq!(watchdog.stage(), &WatchdogStage::Idle);
+    assert_eq!(watchdog.active_action_name(), None);
 }
 
 #[test]

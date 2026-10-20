@@ -142,9 +142,14 @@ impl DockLayout {
 }
 
 /// Picture-in-Picture (PiP) floating mini-window state machine.
+///
+/// The two flags are independent window-manager attributes: an overlay can be
+/// always-on-top while still swallowing pointer events, and vice versa. The
+/// "is the overlay on screen" fact is **not** stored here — it belongs to the
+/// owning [`PipOverlaySession`], which is the only place that can bind and
+/// retire a real window.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct PipOverlayState {
-    pub is_active: bool,
     pub is_pinned_top: bool,
     pub is_click_through: bool,
     pub position: Vec2,
@@ -155,7 +160,6 @@ pub struct PipOverlayState {
 impl Default for PipOverlayState {
     fn default() -> Self {
         Self {
-            is_active: false,
             is_pinned_top: true,
             is_click_through: false,
             position: Vec2::new(20.0, 20.0),
@@ -337,6 +341,12 @@ pub enum WindowLifecycle {
 /// PiP overlay session: binds the overlay state machine to its registry
 /// window and records the typed lifecycle. Closing always retires the
 /// descriptor, so the session never leaves an orphaned window behind.
+///
+/// The bound window is the single source of truth for the session stage: a
+/// session is open exactly while it holds a window handle. The old design kept
+/// a second copy of that fact as a boolean on the overlay state, and the two
+/// copies could disagree — a descriptor retired underneath the session left
+/// the overlay marked active with no window behind it.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct PipOverlaySession {
     pub state: PipOverlayState,
@@ -351,6 +361,11 @@ impl PipOverlaySession {
             window: None,
             last_event: None,
         }
+    }
+
+    /// Whether the session currently holds a live overlay window.
+    pub fn is_active(&self) -> bool {
+        self.window.is_some()
     }
 
     /// Open the PiP window, mirroring the overlay's size and flags onto the
@@ -370,7 +385,6 @@ impl PipOverlaySession {
             descriptor.always_on_top = self.state.is_pinned_top;
             descriptor.click_through = self.state.is_click_through;
         }
-        self.state.is_active = true;
         self.window = Some(id);
         self.last_event = Some(WindowLifecycle::Spawned(id));
         Some(id)
@@ -415,7 +429,6 @@ impl PipOverlaySession {
     pub fn close(&mut self, registry: &mut WindowRegistry) -> Option<WindowLifecycle> {
         let id = self.window.take()?;
         registry.remove(id);
-        self.state.is_active = false;
         let event = WindowLifecycle::Closed(id);
         self.last_event = Some(event);
         Some(event)
@@ -840,8 +853,33 @@ mod tests {
         );
         assert!(session.window.is_none());
         assert!(!registry.contains(id));
-        assert!(!session.state.is_active);
+        assert!(!session.is_active());
         assert!(session.close(&mut registry).is_none());
+    }
+
+    #[test]
+    fn pip_session_stage_is_the_window_handle_only() {
+        let mut registry = WindowRegistry::new();
+        let mut session = PipOverlaySession::new(PipOverlayState::default());
+
+        // A fresh session is closed: the stage is the window handle, nothing else.
+        assert!(!session.is_active());
+
+        let id = session.open(&mut registry, "Mini HUD").expect("opened");
+        assert!(session.is_active());
+        assert_eq!(session.window, Some(id));
+
+        // The descriptor is retired underneath the session: the handle drops and
+        // the session reads as closed, with no second "active" copy to disagree.
+        registry.remove(id).expect("descriptor retired");
+        assert!(!session.move_to(&mut registry, Vec2::new(1.0, 2.0)));
+        assert!(session.window.is_none());
+        assert!(!session.is_active());
+
+        // A closed session can be opened again and reports the new window.
+        let reopened = session.open(&mut registry, "Mini HUD").expect("reopened");
+        assert!(session.is_active());
+        assert_eq!(session.window, Some(reopened));
     }
 
     #[test]

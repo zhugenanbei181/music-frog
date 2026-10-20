@@ -140,15 +140,31 @@ pub fn clamp_scroll_offset(
 // 3. Zero-Allocation Virtual Entity Pool & Recycler
 // ===========================================================================
 
+/// What a recycled pool slot currently displays.
+///
+/// The old design kept "which item is bound" and "is the slot active" in two
+/// fields that were always written together, so "active but unbound" was
+/// representable and only an implicit guard kept it from being observed. The
+/// pool kept a second copy of the same pair in its slot tuple.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SlotBinding {
+    /// The slot is free: it displays no dataset item.
+    #[default]
+    Free,
+    /// The slot displays one dataset item.
+    Bound {
+        /// The dataset item index the slot displays.
+        item_idx: usize,
+    },
+}
+
 /// A recycled pool slot entity tracking its bound dataset index.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VirtualSlot {
     /// Slot index in the pre-allocated pool `0..capacity`.
     pub slot_idx: usize,
-    /// Currently bound data item index.
-    pub bound_item_idx: Option<usize>,
-    /// Whether this slot is actively visible in the current viewport window.
-    pub is_active: bool,
+    /// What the slot currently displays.
+    pub binding: SlotBinding,
     /// Monotonically increasing generation number tracking rebind events.
     pub generation: u64,
 }
@@ -157,37 +173,45 @@ impl VirtualSlot {
     pub const fn new(slot_idx: usize) -> Self {
         Self {
             slot_idx,
-            bound_item_idx: None,
-            is_active: false,
+            binding: SlotBinding::Free,
             generation: 0,
         }
     }
 
+    /// The dataset item the slot displays, if any.
+    pub fn bound_item_idx(&self) -> Option<usize> {
+        match self.binding {
+            SlotBinding::Free => None,
+            SlotBinding::Bound { item_idx } => Some(item_idx),
+        }
+    }
+
+    /// Whether the slot currently displays a dataset item.
+    pub fn is_active(&self) -> bool {
+        matches!(self.binding, SlotBinding::Bound { .. })
+    }
+
     /// Whether this slot is actively bound to `item_idx`.
     pub fn is_bound_to(&self, item_idx: usize) -> bool {
-        self.is_active && self.bound_item_idx == Some(item_idx)
+        matches!(self.binding, SlotBinding::Bound { item_idx: bound } if bound == item_idx)
     }
 
     /// Strict guard against stale / queued clicks or delayed command receipts:
-    /// returns true only if the slot is currently active, bound to `expected_item_idx`,
+    /// returns true only if the slot is currently bound to `expected_item_idx`,
     /// and has not been rebound since `expected_generation`.
     pub fn is_valid_receipt(&self, expected_item_idx: usize, expected_generation: u64) -> bool {
-        self.is_active
-            && self.bound_item_idx == Some(expected_item_idx)
-            && self.generation == expected_generation
+        self.is_bound_to(expected_item_idx) && self.generation == expected_generation
     }
 
     /// Apply rebind action to update the slot's tracking state.
     pub fn apply_rebind(&mut self, item_idx: usize, generation: u64) {
-        self.bound_item_idx = Some(item_idx);
-        self.is_active = true;
+        self.binding = SlotBinding::Bound { item_idx };
         self.generation = generation;
     }
 
     /// Apply deactivation to clear the slot's tracking state.
     pub fn apply_deactivate(&mut self, generation: u64) {
-        self.bound_item_idx = None;
-        self.is_active = false;
+        self.binding = SlotBinding::Free;
         self.generation = generation;
     }
 }
@@ -231,13 +255,21 @@ impl SlotRebindAction {
     }
 }
 
+/// One slot of the entity pool: the entity plus what it currently displays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PoolSlot {
+    entity: Entity,
+    binding: SlotBinding,
+    generation: u64,
+}
+
 /// Entity object pool manager for virtual lists.
 ///
 /// Ensures exactly `pool_capacity` entities are spawned once and perpetually recycled.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VirtualEntityPool {
     capacity: usize,
-    slots: Vec<(Entity, Option<usize>, bool, u64)>, // (Entity, bound_item_idx, is_active, generation)
+    slots: Vec<PoolSlot>,
 }
 
 impl VirtualEntityPool {
@@ -246,7 +278,11 @@ impl VirtualEntityPool {
         let capacity = slot_entities.len();
         let slots = slot_entities
             .into_iter()
-            .map(|e| (e, None, false, 0))
+            .map(|entity| PoolSlot {
+                entity,
+                binding: SlotBinding::Free,
+                generation: 0,
+            })
             .collect();
         Self { capacity, slots }
     }
@@ -256,26 +292,24 @@ impl VirtualEntityPool {
         self.capacity
     }
 
-    /// Number of currently active bound slots.
+    /// Number of currently bound slots.
     pub fn active_count(&self) -> usize {
         self.slots
             .iter()
-            .filter(|(_, _, active, _)| *active)
+            .filter(|slot| matches!(slot.binding, SlotBinding::Bound { .. }))
             .count()
     }
 
-    /// Return the bound item index and generation of a slot by its slot_idx.
-    pub fn slot_binding(&self, slot_idx: usize) -> Option<(Option<usize>, bool, u64)> {
+    /// Return the binding and generation of a slot by its slot_idx.
+    pub fn slot_binding(&self, slot_idx: usize) -> Option<(SlotBinding, u64)> {
         self.slots
             .get(slot_idx)
-            .map(|(_, bound, active, generation)| (*bound, *active, *generation))
+            .map(|slot| (slot.binding, slot.generation))
     }
 
     /// Return the current generation of a slot.
     pub fn generation(&self, slot_idx: usize) -> Option<u64> {
-        self.slots
-            .get(slot_idx)
-            .map(|(_, _, _, generation)| *generation)
+        self.slots.get(slot_idx).map(|slot| slot.generation)
     }
 
     /// Whether a queued click / late receipt for `(slot_idx, expected_item_idx, expected_generation)` is valid.
@@ -285,10 +319,14 @@ impl VirtualEntityPool {
         expected_item_idx: usize,
         expected_generation: u64,
     ) -> bool {
-        if let Some((_, Some(bound), true, generation)) = self.slots.get(slot_idx) {
-            *bound == expected_item_idx && *generation == expected_generation
-        } else {
-            false
+        match self.slots.get(slot_idx) {
+            Some(slot) => {
+                matches!(
+                    slot.binding,
+                    SlotBinding::Bound { item_idx } if item_idx == expected_item_idx
+                ) && slot.generation == expected_generation
+            }
+            None => false,
         }
     }
 
@@ -308,32 +346,32 @@ impl VirtualEntityPool {
         for slot_idx in 0..self.capacity {
             if slot_idx < needed_count {
                 let item_idx = window_start + slot_idx;
-                let (entity, ref mut bound_idx, ref mut is_active, ref mut generation) =
-                    self.slots[slot_idx];
+                let slot = &mut self.slots[slot_idx];
 
-                if *bound_idx != Some(item_idx) || !*is_active {
-                    *bound_idx = Some(item_idx);
-                    *is_active = true;
-                    *generation = generation.wrapping_add(1);
+                let already_bound = matches!(
+                    slot.binding,
+                    SlotBinding::Bound { item_idx: bound } if bound == item_idx
+                );
+                if !already_bound {
+                    slot.binding = SlotBinding::Bound { item_idx };
+                    slot.generation = slot.generation.wrapping_add(1);
                     actions.push(SlotRebindAction::Rebind {
                         slot_idx,
-                        entity,
+                        entity: slot.entity,
                         item_idx,
                         top_offset_px: offset_fn(item_idx),
-                        generation: *generation,
+                        generation: slot.generation,
                     });
                 }
             } else {
-                let (entity, ref mut bound_idx, ref mut is_active, ref mut generation) =
-                    self.slots[slot_idx];
-                if *is_active {
-                    *bound_idx = None;
-                    *is_active = false;
-                    *generation = generation.wrapping_add(1);
+                let slot = &mut self.slots[slot_idx];
+                if matches!(slot.binding, SlotBinding::Bound { .. }) {
+                    slot.binding = SlotBinding::Free;
+                    slot.generation = slot.generation.wrapping_add(1);
                     actions.push(SlotRebindAction::Deactivate {
                         slot_idx,
-                        entity,
-                        generation: *generation,
+                        entity: slot.entity,
+                        generation: slot.generation,
                     });
                 }
             }

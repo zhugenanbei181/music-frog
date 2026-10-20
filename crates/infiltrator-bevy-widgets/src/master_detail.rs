@@ -35,10 +35,13 @@ pub enum MasterDetailView {
 }
 
 /// Active selection and view state in master-detail layout.
+///
+/// The view stage lives in exactly one place: [`MasterDetailView`]. The old
+/// design also carried a `showing_detail_mobile` boolean that mirrored the
+/// enum, so the two copies of the same fact could drift apart.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct MasterDetailState {
     pub selected_item_id: Option<String>,
-    pub showing_detail_mobile: bool,
     pub active_view: MasterDetailView,
 }
 
@@ -47,23 +50,23 @@ impl MasterDetailState {
         Self::default()
     }
 
+    /// Whether the detail view is the active one.
+    pub fn is_showing_detail(&self) -> bool {
+        self.active_view == MasterDetailView::Detail
+    }
+
     pub fn select(&mut self, id: impl Into<String>) {
         self.selected_item_id = Some(id.into());
-        self.showing_detail_mobile = true;
         self.active_view = MasterDetailView::Detail;
     }
 
     pub fn back(&mut self) {
         self.active_view = MasterDetailView::Master;
-        self.showing_detail_mobile = false;
-        self.showing_detail_mobile = false;
     }
 
     pub fn clear(&mut self) {
         self.selected_item_id = None;
         self.active_view = MasterDetailView::Master;
-        self.showing_detail_mobile = false;
-        self.showing_detail_mobile = false;
     }
 }
 
@@ -221,9 +224,7 @@ pub fn sync_master_detail_layout(
     let mode = ctx
         .map(|c| c.master_detail_mode())
         .unwrap_or(MasterDetailMode::Split);
-    let showing_detail = state
-        .as_ref()
-        .is_some_and(|s| s.active_view == MasterDetailView::Detail);
+    let showing_detail = state.as_ref().is_some_and(|s| s.is_showing_detail());
 
     for mut master in &mut masters {
         match mode {
