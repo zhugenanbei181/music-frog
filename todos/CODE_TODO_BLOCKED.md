@@ -107,7 +107,7 @@
 
 ## 二、受控 tag CI 回执（用户选择不打 tag，5 条 / 7 pt）
 
-> 本节的共同前置：远端默认分支仍停在 `58158da6`（即既有 `v0.50.0` tag 指向的提交），本地 `main` 已领先 43 个提交。因此任何绑定当前代码的 tag 回执都以「先把 `main` 推到远端、再打一个新的受控 `v*` tag」为前提；`release-neutral-crates.yml` 也随这次推送才在默认分支可见。用户已明确选择不为凑 CI 证据打 tag，故本板条目在环境到位前保持阻塞。
+> 本节的共同前置：**`main` 已于 2026-10-20 推送到远端**（`58158da6..04f9b44`），因此 `release-neutral-crates.yml` 已在默认分支可见，绑定当前代码的 tag 回执只差「打一个新的受控 `v*` tag」这一步；既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，它的 run 回执绑定的是旧代码，不覆盖当前代码。用户已明确选择不为凑 CI 证据打 tag，故本板条目在环境到位前保持阻塞。
 
 - [ ] BANDROID-018.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] tag-only CI 实际全绿回执
   - 产物：受控 `v*` tag release 与 Android workflow 的完整 run 链接和分项证据；普通 push/PR 不运行。
