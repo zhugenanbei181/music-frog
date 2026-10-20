@@ -72,12 +72,6 @@
 
 ## 五、A 主线：crates.io 发布流水线与开发者生态
 
-- [ ] PUB-006.8 [kind: evidence] [priority: P1] [points: 2] [owner: core/drivers] [status: Planned] 双引擎驱动真实二进制本地 Smoke 取证
-  - 产物：激活 `mihomo-driver`/`singbox-driver` 的真实二进制 smoke 套件并固化本地可复跑入口。
-  - 依赖：PUB-002.1、PUB-002.3、PUB-006.1。
-  - 验收：真实进程下完成 API 握手、配置写入、节点测速与流量分发冒烟验证。
-  - 计划：① 跑 `scripts/core-backend-smoke-mihomo.sh` 与 `scripts/core-backend-smoke-singbox.sh` 取得真实二进制回执；② 把被 `#[ignore]` 的真进程测试改为显式环境契约入口；③ 归档 Linux x86_64 证据。
-  - 证据：真实二进制执行日志 + 摘要回执；Windows 腿在斗战胜佛。
 
 ## 六、B 主线：截图认证与平台证据（每个业务都真跑过）
 
@@ -89,12 +83,13 @@
   - 证据：`.evidence/visual_receipts.json` 全绿 + 每业务截图清单。
   - 已验证能力（2026-10-20）：本机 `kwin_wayland --virtual` + 嵌套 `niri` 私有合成器可正常起栈，应用能写出 `CAPTURE_READY` 标记并落 PNG/manifest，截图取证在本机可复跑；缺的是逐业务的 demo 交互实现与「无载体页面不得锚定」之外的覆盖补齐。
   - 第一批可取证清单：Iced demo 已实现交互的 21 条业务（`RuntimeTelemetryObservation`、`LogsRedactedExport`、`LogsScrollLock`、`LogsSearchHighlight`、`ShellRoutingIntentControl`、`ShellRoutingIntentAuthentication`、`ProfilesSnapshotRestoreConfirm`、`ProfilesFilterEditor`、`RulesStatisticsInspector`、`RulesListEditor`、`RulesOverrideEditor`、`RulesTracerDrawer`、`DnsQueryDetails`、`DnsFakeIpFlushConfirm`、`DnsHostsEditor`、`DnsLeakAlert`、`DoctorFailureRecovery`、`SettingsLanguageChoice`、`ConnectionsCloseAllConfirm`、`ConnectionsSearchHighlight`、`ConnectionsGrouping`）× standard/compact 双视口 = 42 个像素回执单元格；其余 37 条业务要么缺 demo 交互、要么 Slint 无载体，按缺口逐条立项。
-- [ ] PARITY-001.4 [kind: evidence] [priority: P0] [points: 3] [owner: android 三 flavor] [status: Planned] Android 三 flavor 实际交互截图与行为认证
-  - 产物：Compose / Bevy / Slint 三个 flavor 在模拟器上的真实交互截图与行为回执（启动、导航、列表滚动、权限与 VPN consent 终态）。
-  - 依赖：模拟器 M1 腿（BANDROID-002.1/002.2 在过去佛）、`scripts/android-emulator-tests.sh`、APK identity 守卫。
-  - 验收：三 flavor 各绑定同一候选源码 APK 的 SHA-256 与截图清单；安全区、键盘与滚动命中区取证完整。
-  - 计划：① 构建三 flavor 候选 APK 并过 identity/aapt；② 用 Gradle Managed Device 跑交互脚本取截图；③ 把回执绑定到 parity 业务域。
-  - 证据：APK SHA-256 + 截图清单 + logcat 摘要；真机腿在斗战胜佛 §一。
+- [ ] PUB-006.13 [kind: mechanism] [priority: P1] [points: 2] [owner: singbox-driver] [status: Planned] sing-box 驱动的节点测速 typed port 未实现
+  - 产物：`singbox-driver` 的 typed `OutboundPort::probe` 真正实现节点测速并回报 `OutboundProbeState` 的实测值，而不是 `Unsupported`。
+  - 依赖：PUB-002.3、PUB-006.8（真实二进制取证暴露的缺口）。
+  - 验收：真实 sing-box 二进制下测速返回实测延迟（typed 状态而非字符串），失败/不支持/超时各有自己的 typed 结局，驱动与真实引擎的语义一致。
+  - 计划：① 对齐 mihomo 驱动的 typed 测速实现与引擎的 delay 接口语义 ② 实现 sing-box 的 typed 测速并补单测 ③ 用 `scripts/core-backend-smoke-singbox.sh` 复跑，回执从 `unsupported_proof` 转为 `complete`。
+  - 证据：驱动单测 run ID + 真实二进制回执里 sing-box 的测速证明转为已证明。
+
 - [ ] GAP-4.1 [kind: evidence] [priority: P1] [points: 3] [owner: slint] [status: Planned] Slint 功能验收与 parity
   - 产物：Slint 六个页面回调对应的功能验收与 parity cell 证据（含 `capture-slint-matrix.sh` 24 场景结果）。
   - 依赖：目标产物与交互证据。

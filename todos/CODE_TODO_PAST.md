@@ -331,7 +331,29 @@
   - 待验证：统一验证批次复跑 resolver，确认四格在当前代码上仍 anchored 且没有 dangling 锚点。
   - 本机可执行动作：跑统一验证批次。
 
-## 十四、登记说明
+## 十四、真实二进制与 Android 取证（已交付，2条 / 5pt）
+
+- [ ] PUB-006.8 [kind: evidence] [priority: P1] [points: 2] [owner: core/drivers] [status: Integrated] 双引擎驱动真实二进制本地 Smoke 取证
+  - 产物：激活 `mihomo-driver`/`singbox-driver` 的真实二进制 smoke 套件并固化本地可复跑入口。
+  - 依赖：PUB-002.1、PUB-002.3、PUB-006.1。
+  - 验收：真实进程下完成 API 握手、配置写入、节点测速与流量分发冒烟验证。
+  - 当前证据（L）：两个驱动各有一个具名入口 `real_process_evidence` 与一个 **typed 环境契约**（`Absent{missing}` / `Present(target)` / `Invalid{reason}` 三种互斥结局，绝不是 flag 组合）：二进制缺失时产出 `environment_absent` 回执**并且让测试失败**，绝不静默变绿；四项证明都是 typed——API 握手（`CoreReadiness::probe` + `active_core_version`）、配置写入与回读、节点测速（typed `OutboundPort::probe` → `OutboundProbeState`）、经引擎自带 SOCKS5 监听器的真实流量分发（回环夹具回显载荷）；回执的总体结论**由证明记录推导**（`complete` / `unsupported_proof` / `defect`），回执不可能声称比它的证明更多。
+  - 当前证据：三个 smoke 脚本打印一行机器可读摘要 `MUSIC_FROG_SMOKE_SUMMARY <json>`（schema `music-frog.core-backend-smoke/1`，含 binary 路径/sha256/版本/来源、proven/not_proven/skipped（各带原因）、defects、driver_receipts），并从 **Rust 契约**推导环境变量名（不是再抄一份）；退出码 0 = proven/incomplete/environment_absent，1 = 真缺陷，2 = 用法错误。
+  - 当前证据：新增守卫 `real-process-evidence-guard.py`（入口必须保持 `#[ignore]` 且可用 `--run-ignored` 触达、契约必须保持三态枚举、回执必须保留四项证明与 `environment_absent` 结局、脚本必须打印摘要且不得硬编码契约键），自测 8 条负例 + 11 条单测全绿并接入结构门。
+  - 待验证：**sing-box 的节点测速仍未证明**——sing-box 驱动的 typed `OutboundPort::probe` 返回 `OutboundProbeState::Unsupported`，回执如实记为 `unsupported_proof`（引擎本身不是瓶颈：真实二进制上 sing-box 的 delay 接口确实返回 `{"delay": N}`，缺口在驱动的 typed port，已回流为现在佛 `PUB-006.13`）；mihomo 的测速只能经 HTTP-proxy 出站完成（`DIRECT` 出站的 delay 测试返回 503），脚本的探针出站指向本机 HTTP 代理夹具。
+  - 待验证：统一验证批次跑一次真实二进制回执（`bash scripts/core-backend-smoke-mihomo.sh` / `-singbox.sh` / `-conformance.sh`，可用 `MIHOMO_REAL_BINARY` / `SINGBOX_REAL_BINARY` 指向本机二进制）；Windows 腿在斗战胜佛。
+  - 本机可执行动作：跑统一验证批次与真实二进制 smoke。
+
+- [ ] PARITY-001.4 [kind: evidence] [priority: P0] [points: 3] [owner: android 三 flavor] [status: Integrated] Android 三 flavor 实际交互截图与行为认证
+  - 产物：Compose / Bevy / Slint 三个 flavor 在模拟器上的真实交互截图与行为回执（启动、导航、列表滚动、权限与 VPN consent 终态）。
+  - 依赖：模拟器 M1 腿（BANDROID-002.1/002.2 在过去佛）、`scripts/android-emulator-tests.sh`、APK identity 守卫。
+  - 验收：三 flavor 各绑定同一候选源码 APK 的 SHA-256 与截图清单；安全区、键盘与滚动命中区取证完整。
+  - 当前证据（L）：新增 `scripts/android/` 取证流（13 个文件）：按 flavor 驱动一次模拟器取证并写回执与报告；`capture_device.py` **只接受 `emulator-<port>` 序列**，永不选中物理设备；`capture_actions.py` 是 typed 动作词汇表（launch / tap_text / tap_nav / tap_anchor / swipe_up / wait_text / tap_dialog / revoke_permission）；`capture_pixels.py` **复用** `scripts/parity/interaction_delta.py` 作为唯一像素判决来源，桌面与 Android 对「交互是否真的发生」用同一把尺子。
+  - 当前证据：每个步骤的回执绑定 APK 摘要、所属业务 id、截图与其摘要、证明该步发生过的 logcat 片段，以及相对噪声地板的实测像素差；**无法观测的步骤不产回执**，如实记为 unproven 并写明原因，依赖它的步骤记为 blocked（绝不伪造回执）；守卫 `android-interaction-receipt-guard.py` 拒绝：缺 APK 摘要 / 缺业务 id / 业务 id 不在 `feature_evidence.tsv` / 缺 logcat 证据 / 标记从未出现过 / 像素差未过噪声地板 / 未解析的动作被报成 proven / 空回执集 / 截图全同（什么都没证明）；守卫与取样表的负例用例全绿并接入结构门。
+  - 待验证：真实回执需要一次三 flavor 候选 APK 构建 + 一次性模拟器 + 三个 flavor 的取证运行（收口批次执行）；**Bevy 与 Slint flavor 在 Android 上不发布无障碍树**，所以 Overview 电源控件没有标签，这两条 flavor 的 VPN consent / 通知授权 / 终态步骤如实报 unproven（锚点表补标后即可自动化，Compose 已原生证明这三步）；模拟器上没有可用内核时 VPN 终态回读为 `not-established`，回执如实记录而不谎称 running；真机腿在斗战胜佛 §一。
+  - 本机可执行动作：跑统一验证批次：构建三 flavor Debug APK → identity 守卫 → 起一次性模拟器 → 三个 flavor 取证 → 合并与守卫校验。
+
+## 十五、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。
