@@ -63,7 +63,7 @@ fn native_history_scroll_lock_growth_and_resume_move_only_the_real_scroll_surfac
         !app.world()
             .resource::<LogsViewState>()
             .0
-            .follow
+            .follow()
             .should_follow()
     );
     app.world_mut()
@@ -85,7 +85,7 @@ fn native_history_scroll_lock_growth_and_resume_move_only_the_real_scroll_surfac
         app.world()
             .resource::<LogsViewState>()
             .0
-            .follow
+            .follow()
             .should_follow()
     );
     click_entity(&mut app, toggle);
@@ -100,7 +100,7 @@ fn native_history_scroll_lock_growth_and_resume_move_only_the_real_scroll_surfac
         !app.world()
             .resource::<LogsViewState>()
             .0
-            .follow
+            .follow()
             .should_follow()
     );
     assert_eq!(app.world().resource::<LogsViewState>().0.source_count(), 5);
