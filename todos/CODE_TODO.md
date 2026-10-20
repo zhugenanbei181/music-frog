@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v246`：现在佛 58 pt（24 条）/ 过去佛 64 pt（27 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
-- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261020-v247`：现在佛 53 pt（22 条）/ 过去佛 69 pt（29 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
+- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -69,22 +69,9 @@
 
 ## 四、质量红线：隐式状态机全量审计与逐条改写
 
-- [ ] STATE-001.1 [kind: mechanism] [priority: P0] [points: 3] [owner: 全体 crate owner] [status: InProgress] 隐式状态机全量审计与逐条改写
-  - 产物：语义审计器 `scripts/quality/implicit-state-audit.py`（识别 phase carrier 上的多 bool 与 Option-as-stage）+ 判决台账 `scripts/quality/implicit-state-verdicts.json`；每条候选必须有人工判决（`legitimate` 独立事实 / `fixed` 已改写 / `open` 仍待改），未判决或 `open` 即门禁失败。
-  - 依赖：无；与并行工流按文件所有权切分（Bevy UI / Bevy widgets / Iced runtime 三簇）。
-  - 验收：候选全部判决完毕；`--mode enforce` 通过；真实违规全部改写为 typed enum + typed transition，并有行为测试证明非法组合不再可表示。
-  - 计划：① 审计器与台账入仓并接进结构门（report 模式，已做）；② 三簇并行逐条改写，发现一处改一处；③ 逐条判决并把 enforce 打开。
-  - 进度：26 条候选在台账（15 条 multi-bool、11 条 option-as-stage），已判决 8 条：6 条判定为**合法独立事实**（admin 作业的 `last_error`、Iced diagnostics、editor 的逐区 dirty/loaded 标记、profile 聚合向导草稿选项、shell 独立标志），2 条已改写（`ProviderUnpackState` 的两个 flag → `ProviderMaintenanceStage`；快照差异弹窗的 4 个字段 → `SnapshotDiffModalState`）；Bevy UI / Bevy widgets / Iced runtime 三簇并行改写中，台账未判决或 `open` 即门禁失败。
-  - 证据：审计器 self-test PASS；首条改写后 Iced 538/538 全绿 + 新增互斥用例通过（nextest `d73f34dc-1650-4a56-a615-82dcaf7e0435`）。
 
 ## 五、A 主线：crates.io 发布流水线与开发者生态
 
-- [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] [status: Planned] Docs.rs 预览与公共 API 文档质量门
-  - 产物：docs.rs 渲染模拟配置与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]` 并提供标准 Rustdoc 与 doctest。
-  - 依赖：PUB-006.1、PUB-006.2。
-  - 验收：`cargo doc --all-features --no-deps` 零警告，intra-doc links 全部校验；公开 API 文档覆盖率 100% 且含可执行 doctest。
-  - 计划：① 逐 crate 跑 doc 收集零告警缺口；② 补 missing_docs 与 doctest；③ 接入 `scripts/test.sh` 结构门。
-  - 证据：`cargo doc` 零告警回执 + 门禁 run ID。
 - [ ] PUB-006.7 [kind: mechanism] [priority: P1] [points: 2] [owner: test-infra] [status: Planned] 无头沙盒集成测试与混沌容错验证
   - 产物：针对中性运行时的无头 CI 集成沙盒与混沌套件；覆盖网络波动、内核猝死拉起、锁竞争与损坏配置热恢复。
   - 依赖：PUB-003.4、PUB-006.1。

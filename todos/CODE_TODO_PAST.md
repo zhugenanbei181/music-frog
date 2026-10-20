@@ -232,7 +232,25 @@
   - 待验证：受控 CI runner 的真实回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
   - 本机可执行动作：跑统一验证批次 `bash scripts/quality/check-structure.sh`。
 
-## 九、登记说明
+## 九、文档与状态表达红线（已交付，2条 / 5pt）
+
+- [ ] STATE-001.1 [kind: mechanism] [priority: P0] [points: 3] [owner: 全体 crate owner] [status: Integrated] 隐式状态机全量审计与逐条改写
+  - 产物：语义审计器 `scripts/quality/implicit-state-audit.py`（识别 phase carrier 上的多 bool 与 Option-as-stage）+ 判决台账 `scripts/quality/implicit-state-verdicts.json`；每条候选必须有人工判决（`legitimate` 独立事实 / `fixed` 已改写 / `open` 仍待改），未判决或 `open` 即门禁失败。
+  - 依赖：无；与并行工流按文件所有权切分（Bevy UI / Bevy widgets / Iced runtime 三簇）。
+  - 验收：候选全部判决完毕；`--mode enforce` 通过；真实违规全部改写为 typed enum + typed transition，并有行为测试证明非法组合不再可表示。
+  - 当前证据（L）：审计器 `candidates=22 undecided=0 open=0 stale_verdicts=0`（enforce 通过）；台账 22 条全部判决——16 条判为 `fixed`（真实阶段表改写为 typed enum + typed transition，含 3 处原本可表示非法组合者：Iced 供应商维护/快照差异弹窗/探针/系统代理/生命周期/运行期补丁、Bevy UI 的确认/DNS 表单/连接抽屉、Bevy widgets 的看门狗/混沌/焦点陷阱/主从视图/拖拽/虚拟槽/PIP 激活），9 条判为 `legitimate`（真实二值独立事实，逐条写明理由）；`scripts/quality/typed-state-guard.py` 0 findings。
+  - 待验证：统一验证批次复跑审计器与结构门（`--mode enforce` + 结构门），确认新合入代码未引入新候选。
+  - 本机可执行动作：跑统一验证批次。
+
+- [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] [status: Integrated] Docs.rs 预览与公共 API 文档质量门
+  - 产物：docs.rs 渲染模拟配置与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]` 并提供标准 Rustdoc 与 doctest。
+  - 依赖：PUB-006.1、PUB-006.2。
+  - 验收：`cargo doc --all-features --no-deps` 零警告，intra-doc links 全部校验；公开 API 文档覆盖率 100% 且含可执行 doctest。
+  - 当前证据（L）：`scripts/quality/rustdoc-guard.py` 是 docs.rs 等价门禁——`--mode structure` 校验七个 crate 的公开项全部带文档、每个 crate 至少一条可执行 doctest、docs.rs 元数据齐备，`--mode docs` 跑 `cargo doc --all-features --no-deps` 取零告警并跑 `cargo test --doc` 证明示例可执行；1436 个公开项已补齐真实 Rustdoc，7 条可执行 doctest 353/353 全绿；门禁已接入 `scripts/quality/check-structure.sh`（structure + docs 两种模式）。
+  - 待验证：统一验证批次复跑结构门，确认门禁在当前代码上仍零告警。
+  - 本机可执行动作：跑统一验证批次。
+
+## 十、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。
