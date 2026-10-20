@@ -269,3 +269,19 @@
   - 计划：① 在 widgets 建 `switch` 场景与常量 ② 四个调用点改消费共享场景并删本地常量 ③ 补 headless 行为测试 ④ 清零搜索回执。
   - 证据：共享场景单测 run ID + 清零搜索回执 + 页面回归 run ID。
 
+### 7.3 浮层主题层级补齐（能力规范②的存量缺口）
+
+- [ ] BEVYCAP-004.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: Planned] 浮层根补 `ThemeContext(SurfaceLevel::Floating)` 并机器化
+  - 产物：能力规范②要求「悬浮/浮层容器（modal、菜单、popover、下拉、toast、命令面板）根必须声明 `ThemeContext(SurfaceLevel::Floating)`」，实测**只有 toast 栈与命令面板声明**，modal / 菜单 / popover / combobox / 上下文菜单 / mini HUD 的浮层根**尚未声明**（官方 `bevy::feathers::theme::ThemeContext` 机制已在项目里可用）；须给这些浮层根补声明，并加一条守卫规则（声明浮层标记的文件必须同时声明 `ThemeContext(SurfaceLevel::Floating)`），把 ② 从评审口径变机器红线。
+  - 依赖：无（官方机制已在依赖里，widgets 与 bevy-ui 各自补声明）。
+  - 验收：六个浮层根全部声明 `ThemeContext(SurfaceLevel::Floating)`（清零搜索）；守卫规则生效且生产树零违例；浮层换肤行为回归（headless 断言浮层拿到 Floating 层级的语义色）。
+  - 计划：① 盘点浮层根与各自标记 ② 逐个补声明 ③ 加守卫规则 ④ 补 headless 行为断言。
+  - 证据：守卫 run ID + 清零搜索回执 + 行为断言 run ID。
+
+- [ ] BEVYCAP-004.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets::modal + infiltrator-bevy-ui] [status: InProgress] modal 层迁到官方 `Dialog`/`ModalDialog`/`RequestClose`
+  - 产物：能力规范⑥要求对话框用 `bevy_ui_widgets::Dialog`/`ModalDialog` + `RequestClose` + 官方 barrier/焦点圈闭/`DialogStack`，禁止手写 barrier 点击外关闭、Esc 拦截与焦点圈闭；实测共享层仍是**自建** modal（`ModalState{is_open,dismiss_on_scrim,...}` + `ModalScrim`/`ModalDialogCard` + 本地 `modal_scene`），须迁到官方行为层，并把 `is_open`/`dismiss_on_scrim` 这对 bool 换成**一个 typed stage**（多阶段必须是 typed enum，禁止 bool 组合）。
+  - 依赖：Bevy 0.20 `bevy::ui_widgets` 官方 `Dialog`/`ModalDialog`/`RequestClose`/`DialogStack` 已在依赖里；`menu` 层是已评审的本地例外（键盘优先 + headless 可组合），不在本条范围。
+  - 验收：共享 modal 挂载官方组件，barrier/Esc/焦点圈闭由官方提供；`ModalState` 只剩 typed stage（无 bool 组合）；弹窗行为 headless 回归（开/关/取消/确认/焦点圈闭）全绿；`implicit-state-audit` 判决台账同步（`ModalState` 候选改写后必须重新判决或撤销）。
+  - 计划：① 读官方 API 并盘点本地自建行为 ② 挂官方组件并移除本地手写行为 ③ bool 对改 typed stage ④ 判决台账与 headless 回归同步。
+  - 证据：headless run ID + 判决台账 diff + 守卫 run ID。
+

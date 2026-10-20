@@ -14,10 +14,11 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{SurfaceLevel, ThemeBackgroundColor, ThemeContext};
 use bevy::math::Vec2;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, PositionType, UiRect, Val,
     percent, px,
@@ -131,6 +132,10 @@ pub struct ContextMenuRoot;
 pub struct ContextMenuCard;
 
 /// Construct a declarative context menu overlay scene.
+///
+/// The root is the context-menu layer's root: it declares the floating
+/// surface level and mounts `FixedNode`, so the clamped viewport-space
+/// placement of the card stays correct wherever the host mounts the scene.
 pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<dyn Scene> {
     let edge = palette.border;
     let pos_x = state.position.x;
@@ -180,6 +185,8 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
                 height: percent(100),
             }
             ContextMenuRoot
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             Children [
                 Node {
                     position_type: PositionType::Absolute,

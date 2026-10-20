@@ -125,8 +125,12 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius {
-                        top_left: theme::R_CARD,
-                        top_right: theme::R_CARD,
+                        // The query band is the palette's own top edge, not a
+                        // card inside it: its outer corners are the dialog's
+                        // corners, so they carry the MODAL rung the contract
+                        // names the command palette by.
+                        top_left: theme::R_MODAL,
+                        top_right: theme::R_MODAL,
                         bottom_right: 0.0,
                         bottom_left: 0.0,
                     },
@@ -307,8 +311,11 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                     radius: border::Radius {
                         top_left: 0.0,
                         top_right: 0.0,
-                        bottom_right: theme::R_CARD,
-                        bottom_left: theme::R_CARD,
+                        // The hint band is the palette's own bottom edge: its
+                        // outer corners are the dialog's corners, so they
+                        // carry the MODAL rung too.
+                        bottom_right: theme::R_MODAL,
+                        bottom_left: theme::R_MODAL,
                     },
                     width: 0.0,
                     color: Color::TRANSPARENT,
@@ -333,7 +340,10 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             container::Style {
                 background: Some(tk.card_bg.into()),
                 border: Border {
-                    radius: border::Radius::from(theme::R_CARD),
+                    // The palette is a centered modal dialog: the contract's
+                    // MODAL rung names the command palette by role, and the
+                    // Bevy surface paints the same panel with `radius::MODAL`.
+                    radius: border::Radius::from(theme::R_MODAL),
                     width: theme::HAIRLINE,
                     color: tk.card_border,
                 },

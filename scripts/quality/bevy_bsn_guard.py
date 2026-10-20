@@ -140,6 +140,23 @@ CAPSULE_RADIUS = re.compile(
 )
 CAPSULE_HALF = re.compile(r"/\s*2(?:\.0)?\b")
 
+# Capability spec ②: a floating layer's own root declares the official
+# `ThemeContext(SurfaceLevel::Floating)`. The owner of a floating layer is the
+# module that *defines* its root marker, so the rule stays self-maintaining
+# instead of hard-coding a file list.
+FLOATING_LAYER_ROOTS = (
+    "ModalDialogCard",
+    "PopoverPanel",
+    "ContextMenuCard",
+    "MenuPanel",
+    "ComboboxDropdownPanel",
+    "MiniHudRoot",
+    "ToastContainer",
+    "CommandPaletteOverlayRoot",
+)
+FLOATING_DECLARATION = "ThemeContext(SurfaceLevel::Floating)"
+MARKER_DEFINITION = re.compile(r"pub\s+struct\s+(\w+)\s*;")
+
 
 def matching_brace(masked: str, start: int) -> int:
     """Index of the closing brace of the block that starts at/after `start`."""
@@ -487,6 +504,21 @@ def analyze(rel_path: str, text: str) -> list[Violation]:
                 "BEVY-BSN-010",
                 "a capsule radius must be BorderRadius::MAX; a hand-computed"
                 " half-height breaks under rem scaling",
+            )
+        )
+
+    # Capability spec ②: the module that owns a floating layer declares the
+    # official floating surface level on that layer's root.
+    if MARKER_DEFINITION.findall(masked) and (
+        set(MARKER_DEFINITION.findall(masked)) & set(FLOATING_LAYER_ROOTS)
+    ) and FLOATING_DECLARATION not in masked:
+        violations.append(
+            Violation(
+                rel_path,
+                1,
+                "BEVY-BSN-011",
+                "a floating layer's owner must declare"
+                " ThemeContext(SurfaceLevel::Floating) on the layer root",
             )
         )
     runtime = mask_test_items(mask_noncode(text))
@@ -851,6 +883,26 @@ def self_test() -> int:
         """
         fn scene(height: f32) -> impl Scene {
             bsn! { Node { height: px(height), border_radius: BorderRadius::MAX } }
+        }
+        """,
+        [],
+    )
+    expect(
+        "a floating layer owner must declare the floating surface level",
+        """
+        pub struct ModalDialogCard;
+        fn scene() -> impl Scene {
+            bsn! { Node { ThemeBackgroundColor({Token::Surface}) ModalDialogCard } }
+        }
+        """,
+        ["BEVY-BSN-011"],
+    )
+    expect(
+        "a floating layer owner that declares the level is allowed",
+        """
+        pub struct ModalDialogCard;
+        fn scene() -> impl Scene {
+            bsn! { Node { ThemeContext(SurfaceLevel::Floating) ModalDialogCard } }
         }
         """,
         [],

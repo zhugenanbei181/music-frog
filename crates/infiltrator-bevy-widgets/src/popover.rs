@@ -22,8 +22,10 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, PositionType, UiRect, Val,
     percent, px,
@@ -154,6 +156,10 @@ pub struct PopoverPanel;
 /// plus the panel at the stamped placement hosting the caller's content.
 /// The geometry is frozen at spawn — a popover that must follow a moving
 /// anchor is remounted by the host (mount / unmount is host law here).
+///
+/// The scrim is the layer's root: it declares the floating surface level and
+/// mounts `FixedNode`, so the stamped viewport-space placement stays correct
+/// wherever the host mounts the scene.
 pub fn popover_scene(
     hint: AnchorHint,
     content: Box<dyn Scene>,
@@ -169,6 +175,8 @@ pub fn popover_scene(
             }
             BackgroundColor({ palette.scrim })
             PopoverScrim
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             Children [
                 Node {
                     position_type: PositionType::Absolute,

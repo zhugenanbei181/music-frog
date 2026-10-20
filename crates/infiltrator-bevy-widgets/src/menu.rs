@@ -32,8 +32,10 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
     percent, px,
@@ -251,6 +253,10 @@ pub fn menu_row_fill(highlighted: bool, palette: &UiPalette) -> Color {
 /// filled at spawn (the state's own highlight decides — callers never pass a
 /// separate index to drift out of sync). Runtime highlight moves flow
 /// through [`MenuNavEvent`] → [`advance_menus`] → [`sync_menu_visuals`].
+///
+/// The scrim is the menu layer's root: it declares the floating surface level
+/// and mounts `FixedNode`, so the overlay is centred on the camera viewport
+/// instead of a host container's box.
 pub fn menu_overlay_scene(entries: Vec<MenuEntry>, palette: &UiPalette) -> impl Scene + use<> {
     let state = MenuState::new(entries);
     let rows: Vec<Box<dyn Scene>> = state
@@ -269,6 +275,8 @@ pub fn menu_overlay_scene(entries: Vec<MenuEntry>, palette: &UiPalette) -> impl 
             }
             BackgroundColor({ palette.scrim })
             MenuScrim
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             Children [
                 Node {
                     min_width: rem(MENU_WIDTH),

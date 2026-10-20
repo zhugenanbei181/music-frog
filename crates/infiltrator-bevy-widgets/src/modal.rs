@@ -19,8 +19,10 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::Message;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
     UiRect, Val, percent,
@@ -73,7 +75,6 @@ impl ModalState {
         self.kind = kind;
         self
     }
-
 }
 
 /// Marker component on full-screen scrim.
@@ -128,6 +129,11 @@ pub struct ModalDialogCardFilter {
 }
 
 /// Construct a general modal dialog scene.
+///
+/// The scrim is the modal layer's root: it declares the floating surface level
+/// (`ThemeContext(SurfaceLevel::Floating)`) and mounts `FixedNode`, so the
+/// overlay is positioned against the camera viewport instead of inheriting a
+/// host container's layout, clipping or transform.
 pub fn modal_scene(
     title: String,
     content: Box<dyn Scene>,
@@ -147,6 +153,8 @@ pub fn modal_scene(
             }
             BackgroundColor({ palette.scrim })
             ModalScrim
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             Children [
                 Node {
                     width: rem(MODAL_DIALOG_WIDTH_PX),

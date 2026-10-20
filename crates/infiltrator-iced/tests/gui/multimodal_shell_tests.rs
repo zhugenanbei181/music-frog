@@ -505,6 +505,37 @@ fn the_iced_tokens_resolve_the_shared_design_contract() {
     assert_eq!(theme::HAIRLINE, metrics::HAIRLINE);
 }
 
+/// DUAL-15-14: the contract names the command palette by role under the MODAL
+/// rung ("Centered modal dialog, command palette (24px)"), and the Bevy
+/// surface paints the palette panel with `radius::MODAL`. The Iced palette
+/// must paint the same rungs — the centered dialog (its panel and its own
+/// top/bottom edge bands) with MODAL, the command rows with SM ("Secondary
+/// button, input inner chip, segmented control pill (8px)") — or the two
+/// surfaces draw the same palette with different corners.
+///
+/// The palette module is private to `view_root` and the widget tree carries
+/// structure, not the style closures that hold the radii, so the painted
+/// rungs are pinned from the module source.
+#[test]
+fn the_iced_command_palette_paints_the_rungs_the_contract_names() {
+    let palette = include_str!("../../src/view_root/command_palette.rs");
+    assert!(
+        palette.contains("border::Radius::from(theme::R_MODAL)"),
+        "the command palette panel must paint the contract's MODAL rung"
+    );
+    for corner in ["top_left", "top_right", "bottom_left", "bottom_right"] {
+        assert!(
+            palette.contains(&format!("{corner}: theme::R_MODAL")),
+            "the command palette's own edge bands must paint the dialog's \
+             MODAL corners (missing {corner})"
+        );
+    }
+    assert!(
+        palette.contains("border::Radius::from(theme::R_SM)"),
+        "the command palette rows must paint the contract's SM rung"
+    );
+}
+
 /// DUAL-15-08: the shell tracks the only window power fact Iced exposes and
 /// resolves it through the shared cadence policy.
 #[test]

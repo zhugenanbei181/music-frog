@@ -24,9 +24,11 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::Changed;
 use bevy::ecs::system::{Commands, Query, Res};
+use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
     UiRect, Val, percent, px,
@@ -380,6 +382,10 @@ pub fn combobox_scene(
 }
 
 /// Construct the floating dropdown popover panel for combobox options.
+///
+/// The panel is the dropdown layer's root: it declares the floating surface
+/// level and mounts `FixedNode`, so the viewport-space placement stamped by
+/// [`placement`] stays correct wherever the host mounts the scene.
 pub fn combobox_dropdown_scene(
     hint: AnchorHint,
     options: &[ComboboxOption],
@@ -439,6 +445,8 @@ pub fn combobox_dropdown_scene(
             BackgroundColor({ palette.surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             ComboboxDropdownPanel
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             Children [
                 { items }
             ]

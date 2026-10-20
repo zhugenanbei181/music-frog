@@ -11,7 +11,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{SurfaceLevel, ThemeBackgroundColor, ThemeContext};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
@@ -204,6 +204,10 @@ pub fn format_rate(bytes_per_second: u64) -> String {
 
 /// Mini HUD scene: compact 260x90 dashboard, every value from the shared read
 /// model (no baked mode/status literals).
+///
+/// The root is the mini-HUD layer's root: it declares the floating surface
+/// level and mounts `FixedNode`, so the always-on-top overlay is positioned
+/// against the camera viewport instead of a host container's box.
 pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Scene + use<> {
     let up_rate = format_rate(model.up_bytes_per_sec);
     let down_rate = format_rate(model.down_bytes_per_sec);
@@ -242,6 +246,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
             }
             BackgroundColor(scrim)
             MiniHudRoot
+            ThemeContext(SurfaceLevel::Floating)
             FixedNode
             Children [
                 Node {
