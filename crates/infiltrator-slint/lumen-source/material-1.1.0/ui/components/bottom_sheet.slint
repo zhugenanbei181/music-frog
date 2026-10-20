@@ -80,6 +80,29 @@ export component ModalBottomSheet inherits PopupWindow {
     in property <int> sheet_elevation_level: 3;
     in property <bool> show_layout_bounds: false;
 
+    // The visible sheet surface in window coordinates. The PopupWindow covers
+    // the whole app window, so the sheet surface geometry is the real
+    // on-screen geometry of the sheet and can be published as the interaction
+    // bounds of an activated bottom sheet.
+    out property <length> surface-x: sheet.x;
+    out property <length> surface-y: sheet.y;
+    out property <length> surface-width: sheet.width;
+    out property <length> surface-height: sheet.height;
+
+    // Reports the visible sheet surface geometry to the enclosing window. The
+    // popup owns the sheet, so the surface can only leave the popup through a
+    // callback.
+    callback surface-reported(length, length, length, length);
+
+    changed surface-x => { root.publish-surface(); }
+    changed surface-y => { root.publish-surface(); }
+    changed surface-width => { root.publish-surface(); }
+    changed surface-height => { root.publish-surface(); }
+
+    function publish-surface() {
+        root.surface-reported(root.surface-x, root.surface-y, root.surface-width, root.surface-height);
+    }
+
     property <length> drag_margin: MaterialStyleMetrics.padding_56;
 
         modal := Modal {

@@ -1,0 +1,5 @@
+name	page	skin	window_size
+profiles-import-modal-standard	profiles	dark	1180x780
+profiles-import-modal-compact	profiles	dark	720x480
+profiles-delete-confirm-standard	profiles	dark	1180x780
+profiles-delete-confirm-compact	profiles	dark	720x480

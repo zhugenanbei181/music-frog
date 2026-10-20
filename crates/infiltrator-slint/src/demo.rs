@@ -5,6 +5,7 @@
 //! and writes the `CAPTURE_READY` marker for background virtual compositor screenshots.
 
 use super::*;
+use crate::capture_scenario::{self, CaptureBounds};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::logs::LogStreamState;
@@ -40,10 +41,12 @@ use lurker_core_contract::outbound::preferences::{
 use lurker_core_contract::page::{PageData, SurfaceOrigin};
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
+use std::cell::Cell;
 use std::env;
 use std::fs::{OpenOptions, create_dir_all};
 use std::io::Write as _;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -588,7 +591,12 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
 
 static CAPTURE_MARKER_WRITTEN: AtomicBool = AtomicBool::new(false);
 
-pub fn write_capture_marker(settings: &DemoSettings, _window: &AppWindow) {
+pub fn write_capture_marker(
+    settings: &DemoSettings,
+    _window: &AppWindow,
+    activated: bool,
+    bounds: Option<CaptureBounds>,
+) {
     if !settings.enabled || CAPTURE_MARKER_WRITTEN.load(Ordering::SeqCst) {
         return;
     }
@@ -617,7 +625,28 @@ pub fn write_capture_marker(settings: &DemoSettings, _window: &AppWindow) {
     );
 
     if let Some(scenario) = &settings.scenario {
-        line = format!("{} scenario={} activated=true\n", line.trim_end(), scenario);
+        // A scenario is only published as activated when the surface really
+        // opened it and its real geometry is known.
+        match (activated, bounds) {
+            (true, Some(bounds)) => {
+                line = format!(
+                    "{} scenario={} activated=true bounds={},{},{},{}\n",
+                    line.trim_end(),
+                    scenario,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height
+                );
+            }
+            _ => {
+                line = format!(
+                    "{} scenario={} activated=false\n",
+                    line.trim_end(),
+                    scenario
+                );
+            }
+        }
     }
 
     if let Some(parent) = path.parent() {
@@ -656,14 +685,55 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
     window.set_application_dark_mode(is_dark);
     window.set_notice("".into());
 
-    // Schedule marker write after window mounts and paints
+    // The capture marker is published once the window mounted, the scenario
+    // really opened and the activated surface stopped moving.
     let marker_settings = settings.clone();
+    let scenario = settings.scenario.clone();
+    let scenario_snapshot = snapshot.clone();
     let weak_window = window.as_weak();
-    slint::Timer::single_shot(Duration::from_millis(500), move || {
-        if let Some(w) = weak_window.upgrade() {
-            write_capture_marker(&marker_settings, &w);
-        }
-    });
+    let activated = Cell::new(false);
+    let previous_bounds = Cell::new(None::<CaptureBounds>);
+    let ticks = Cell::new(0u32);
+    let timer = Rc::new(slint::Timer::default());
+    let timer_for_callback = Rc::clone(&timer);
+    timer.start(
+        slint::TimerMode::Repeated,
+        Duration::from_millis(100),
+        move || {
+            let Some(window) = weak_window.upgrade() else {
+                timer_for_callback.stop();
+                return;
+            };
+            ticks.set(ticks.get() + 1);
+            if let Some(scenario) = &scenario
+                && !activated.get()
+            {
+                activated.set(capture_scenario::activate(
+                    &window,
+                    scenario,
+                    &scenario_snapshot,
+                ));
+            }
+            let bounds = capture_scenario::bounds(&window);
+            let stable = bounds.is_some() && previous_bounds.get() == bounds;
+            previous_bounds.set(bounds);
+            // The window needs a few frames before its first paint, and a
+            // scenario needs a settled sheet before its bounds are real.
+            if ticks.get() < 5 || (scenario.is_some() && !stable) {
+                return;
+            }
+            write_capture_marker(
+                &marker_settings,
+                &window,
+                activated.get(),
+                bounds,
+            );
+            timer_for_callback.stop();
+        },
+    );
 
-    window.run()
+    let result = window.run();
+    timer.stop();
+    drop(timer);
+    result
 }

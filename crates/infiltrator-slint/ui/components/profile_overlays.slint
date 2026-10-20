@@ -1,5 +1,6 @@
 import { ProfileOverrideChoice } from "./models.slint";
 import { ProfileAddSheet, ProfileActionSheet, ProfileShareSheet, ProfileDeleteSheet, ProfileSettingsSheet } from "./profile_sheets.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
 
 export component ProfileOverlays inherits Rectangle {
     in property <length> profile-dialog-content-width;
@@ -48,6 +49,28 @@ export component ProfileOverlays inherits Rectangle {
 
     background: transparent;
 
+    // The real on-screen geometry of the sheets this overlay owns. The
+    // parity capture path publishes the bounds of the sheet it activated, so
+    // the receipt is bound to the pixels of the surface that was opened.
+    in-out property <length> add-sheet-x: 0px * LumenUiScale.factor;
+    in-out property <length> add-sheet-y: 0px * LumenUiScale.factor;
+    in-out property <length> add-sheet-width: 0px * LumenUiScale.factor;
+    in-out property <length> add-sheet-height: 0px * LumenUiScale.factor;
+    in-out property <length> delete-sheet-x: 0px * LumenUiScale.factor;
+    in-out property <length> delete-sheet-y: 0px * LumenUiScale.factor;
+    in-out property <length> delete-sheet-width: 0px * LumenUiScale.factor;
+    in-out property <length> delete-sheet-height: 0px * LumenUiScale.factor;
+
+    callback add-sheet-reported(length, length, length, length);
+    callback delete-sheet-reported(length, length, length, length);
+
+    add-sheet-reported(x, y, w, h) => {
+        root.add-sheet-x = x; root.add-sheet-y = y; root.add-sheet-width = w; root.add-sheet-height = h;
+    }
+    delete-sheet-reported(x, y, w, h) => {
+        root.delete-sheet-x = x; root.delete-sheet-y = y; root.delete-sheet-width = w; root.delete-sheet-height = h;
+    }
+
     public function show-add() { profile-add-sheet.show(); }
     public function close-add() { profile-add-sheet.close(); }
     public function show-action() { profile-action-sheet.show(); }
@@ -75,6 +98,7 @@ export component ProfileOverlays inherits Rectangle {
         profile-age-key <=> root.profile-age-key;
         dismiss => { root.close-profile-add(); }
         confirm => { root.confirm-add(); }
+        surface-reported(x, y, w, h) => { root.add-sheet-reported(x, y, w, h); }
         toggle-type-menu => { root.toggle-type-menu(); }
         select-kind(k) => { root.select-kind(k); }
         choose-file => { root.choose-file(); }
@@ -111,6 +135,7 @@ export component ProfileOverlays inherits Rectangle {
         pending-delete-name: root.pending-delete-name;
         dismiss => { root.close-profile-delete(); }
         confirm-delete => { root.confirm-delete(); }
+        surface-reported(x, y, w, h) => { root.delete-sheet-reported(x, y, w, h); }
     }
 
     profile-settings-sheet := ProfileSettingsSheet {

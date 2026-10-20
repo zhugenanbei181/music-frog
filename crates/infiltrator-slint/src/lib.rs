@@ -15,6 +15,7 @@
 )]
 
 pub mod age_action;
+pub mod capture_scenario;
 mod callbacks;
 #[cfg(feature = "capture-tools")]
 pub mod demo;
@@ -285,13 +286,7 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
                         window.set_notice("".into());
                     }
                     WorkerEvent::ActionFinished(Err(failure)) => {
-                        let user_agent_save_failed = window.get_user_agent_saving();
-                        clear_pending_ui(&window);
-                        window.set_profile_settings_age_key("".into());
-                        if user_agent_save_failed {
-                            window.set_user_agent_error(failure.message.clone().into());
-                        }
-                        window.set_notice(failure.message.into());
+                        project_action_failure(&window, &failure);
                     }
                     WorkerEvent::AgeCredentialRead { profile_id, result } => {
                         if window.get_profile_settings_id().as_str() == profile_id {
@@ -453,6 +448,21 @@ fn clear_pending_ui(window: &AppWindow) {
     window.set_rule_pending_index("".into());
     window.set_connection_breaking_id("".into());
     window.set_override_importing(false);
+}
+
+/// Projects the typed failure of a refused owner action onto the surface.
+///
+/// The owner worker and the headless surface harness share this projection,
+/// so a refused command is presented the same way in the product and in a
+/// driven surface test.
+pub(crate) fn project_action_failure(window: &AppWindow, failure: &Failure) {
+    let user_agent_save_failed = window.get_user_agent_saving();
+    clear_pending_ui(window);
+    window.set_profile_settings_age_key("".into());
+    if user_agent_save_failed {
+        window.set_user_agent_error(failure.message.clone().into());
+    }
+    window.set_notice(failure.message.clone().into());
 }
 
 fn refresh_projection(weak: &slint::Weak<AppWindow>, latest: &Arc<Mutex<Option<SurfaceSnapshot>>>) {

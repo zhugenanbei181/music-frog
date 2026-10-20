@@ -97,6 +97,15 @@ impl SurfaceHarness {
         lumen_projection::project_snapshot(&self.window, &snapshot, None);
     }
 
+    /// The window the harness drives.
+    ///
+    /// A test that needs the surface state a capture path publishes reads it
+    /// from this window, so the capture path and the test observe the same
+    /// surface.
+    pub fn window(&self) -> &AppWindow {
+        &self.window
+    }
+
     /// Drives the real `navigate` callback.
     pub fn navigate(&self, page: &str) -> SurfaceOutcome {
         let window = &self.window;
@@ -187,6 +196,16 @@ impl SurfaceHarness {
         self.drive(|| window.invoke_set_rule_enabled(index.into(), enabled))
     }
 
+    /// Drives the real `search-rules` callback.
+    ///
+    /// The widget binds the typed text to the window property before it
+    /// calls the callback, so the harness does the same.
+    pub fn search_rules(&self, query: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        window.set_rule_search(query.into());
+        self.drive(|| window.invoke_search_rules(query.into()))
+    }
+
     /// Drives the real `update-provider` callback.
     pub fn update_provider(&self, name: &str) -> SurfaceOutcome {
         let window = &self.window;
@@ -209,6 +228,102 @@ impl SurfaceHarness {
     pub fn set_application_language(&self, language: &str) -> SurfaceOutcome {
         let window = &self.window;
         self.drive(|| window.invoke_set_application_language(language.into()))
+    }
+
+    /// Opens the add-profile sheet, exactly as the "添加配置" tile does.
+    ///
+    /// The sheet is opened by the surface itself, so the owner-visible
+    /// projection reports the open sheet and no owner command is dispatched.
+    pub fn open_profile_add(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.set_profile_add_open(true))
+    }
+
+    /// Dismisses the add-profile sheet, exactly as its close button does.
+    pub fn cancel_profile_add(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.set_profile_add_open(false))
+    }
+
+    /// Fills the add-profile sheet draft, exactly as its fields do.
+    pub fn fill_profile_add(&self, name: &str, url: &str, age_key: &str) {
+        self.window.set_profile_name(name.into());
+        self.window.set_profile_url(url.into());
+        self.window.set_profile_age_key(age_key.into());
+    }
+
+    /// Confirms the add-profile sheet with the draft the sheet holds.
+    ///
+    /// The sheet passes its own draft to the product callback, so the test
+    /// observes the command the surface really sends.
+    pub fn confirm_profile_add(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| {
+            let name = window.get_profile_name();
+            let url = window.get_profile_url();
+            let age_key = window.get_profile_age_key();
+            window.invoke_add_url_profile(name, url, age_key);
+        })
+    }
+
+    /// Requests the deletion of a profile, exactly as the profile card's
+    /// delete button does.
+    pub fn request_delete_profile(&self, profile_id: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_delete_profile(profile_id.into()))
+    }
+
+    /// Confirms the pending deletion, exactly as the delete sheet does.
+    pub fn confirm_delete_profile(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| {
+            let profile_id = window.get_pending_delete_id();
+            window.set_pending_delete_id("".into());
+            window.set_pending_delete_name("".into());
+            window.invoke_confirm_delete_profile(profile_id);
+        })
+    }
+
+    /// Dismisses the delete sheet, exactly as its cancel button does.
+    pub fn cancel_delete_profile(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| {
+            window.set_pending_delete_id("".into());
+            window.set_pending_delete_name("".into());
+        })
+    }
+
+    /// Publishes the typed failure of an owner action the owner refused.
+    ///
+    /// The owner worker reports a refused command to the surface with this
+    /// projection, so a driven surface test observes the same notice the
+    /// product shows.
+    pub fn publish_owner_failure(&self, failure: &Failure) {
+        crate::project_action_failure(&self.window, failure);
+    }
+
+    /// Whether the add-profile sheet is open.
+    pub fn profile_add_open(&self) -> bool {
+        self.window.get_profile_add_open()
+    }
+
+    /// The draft the add-profile sheet holds.
+    pub fn profile_add_draft(&self) -> (String, String, String) {
+        (
+            self.window.get_profile_name().to_string(),
+            self.window.get_profile_url().to_string(),
+            self.window.get_profile_age_key().to_string(),
+        )
+    }
+
+    /// The profile the delete sheet is waiting for.
+    pub fn pending_delete_id(&self) -> String {
+        self.window.get_pending_delete_id().to_string()
+    }
+
+    /// The profile name the delete sheet shows.
+    pub fn pending_delete_name(&self) -> String {
+        self.window.get_pending_delete_name().to_string()
     }
 
     /// The owner-visible notice the surface last projected.

@@ -275,3 +275,35 @@ fn the_rule_rows_come_from_the_shared_snapshot_projection() {
     assert_eq!(rows[0].id, "7");
     assert_eq!(rows[0].title, "DOMAIN,example.com,PROXIES");
 }
+
+#[test]
+fn the_rule_search_narrows_the_published_window_and_leaves_an_empty_result() {
+    let surface = harness::SurfaceHarness::new(Some(desktop_snapshot())).unwrap();
+
+    // A keyword that matches one rule keeps exactly that rule.
+    match surface.search_rules("example.com") {
+        harness::SurfaceOutcome::Dispatched(actions) => assert!(
+            actions.is_empty(),
+            "the search narrows the published window and must not ask the owner for anything, got {actions:?}"
+        ),
+        harness::SurfaceOutcome::Rejected { failure, .. } => {
+            panic!("expected the search to run, got the failure {failure:?}")
+        }
+    }
+    let rows = surface.rule_rows();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, "0");
+    assert_eq!(rows[0].title, "DOMAIN,example.com,PROXIES");
+
+    // A keyword that matches nothing leaves the published window empty.
+    match surface.search_rules("no-such-rule") {
+        harness::SurfaceOutcome::Dispatched(actions) => assert!(
+            actions.is_empty(),
+            "the search narrows the published window and must not ask the owner for anything, got {actions:?}"
+        ),
+        harness::SurfaceOutcome::Rejected { failure, .. } => {
+            panic!("expected the search to run, got the failure {failure:?}")
+        }
+    }
+    assert!(surface.rule_rows().is_empty());
+}

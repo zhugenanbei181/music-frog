@@ -2,7 +2,7 @@
   "source_archive": "re-Lumen (1).zip",
   "archive_sha256": "4a5195d205b8e23e00694764e8c5d105a6ba4d43085d6b5533de42d4cfa295e4",
   "imported_files": 718,
-  "imported_bytes": 8724347,
+  "imported_bytes": 8725428,
   "files": {
     "assets/flags/ac.svg": {
       "path": "assets/flags/ac.svg",
@@ -2986,8 +2986,8 @@
     },
     "material-1.1.0/ui/components/bottom_sheet.slint": {
       "path": "material-1.1.0/ui/components/bottom_sheet.slint",
-      "bytes": 6251,
-      "sha256": "48c3cc09b33e110c3aa1909518cecacdee343fb55d9452ddfa99add7940233b4",
+      "bytes": 7332,
+      "sha256": "d7bfcaa384240ab5ea6bfc357fde9b211118cb690cc5cefe762c5375155cc9bb",
       "original_bytes": 6252,
       "original_sha256": "466cc07a00f6da377ab5f1d2fb2b73cef284ea74d7f50c4558f6fcbd9ea10e49",
       "patched": true,

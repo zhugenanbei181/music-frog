@@ -16,6 +16,8 @@ Slint 及编译器 crate 固定为当前最新稳定版 `1.18.1`，并使用 `=1
 
 组件树遵循模块化架构，拆分为 `theme.slint`、`models.slint`、`base_widgets.slint` 与 `cards.slint`，由 `slint-syntax-guard.py` 执行行预算与语义色彩质量门禁。无感后台截图矩阵由 `scripts/capture-slint-matrix.sh` 执行，通过 `--demo` 与 `CAPTURE_READY` 契约提供像素级离线回执。
 
+平价业务取证通过 `INFILTRATOR_SCENARIO=<feature>` 激活：该场景会真的打开对应业务在 Slint 上的界面状态，并把该界面的真实窗口几何写进 `CAPTURE_READY ... scenario=<feature> activated=true bounds=<x>,<y>,<w>,<h>`；surface 未实现的业务只会写 `activated=false`，因此截图链路不能为不存在的实现背书。场景矩阵与已发布回执见 [表面契约](docs/SURFACE.md)。
+
 ## 文档
 
 - [SURFACE.md](docs/SURFACE.md)：前端边界、共享 owner 接入方式和当前功能范围。

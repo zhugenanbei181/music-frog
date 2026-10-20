@@ -1,0 +1,5 @@
+scenario	page	skin	requested_window	app_pid	window_id	width	height	bytes	sha256	status
+profiles-import-modal-standard	profiles	dark	1180x780	2385383	2	1180	780	46098	8112d9156bec9c86987781d3d0b69d8de06f2662eb476997e2436868bd4d900e	ok
+profiles-import-modal-compact	profiles	dark	720x480	2385507	3	720	480	21622	14d217573c744e65fa9f25ea0a4eeb22779362f2560028f45b82ce8a220fd918	ok
+profiles-delete-confirm-standard	profiles	dark	1180x780	2385600	4	1180	780	69210	b5e332c2996561f84f0dd6ca54759b74768cf98f1a5b490b74bdef2ec71f46d3	ok
+profiles-delete-confirm-compact	profiles	dark	720x480	2385701	5	720	480	31698	c070f1567d2c94d820cb2ab7d4b829336869e749c799eb8862f372847dc57405	ok

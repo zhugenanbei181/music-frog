@@ -80,6 +80,15 @@ export component AppWindow inherits MaterialWindow {
     in-out property <int> profile-add-kind-index: 0;
     in-out property <bool> profile-type-menu-open: false;
     in-out property <int> profile-count-at-open: 0;
+
+    // The real on-screen geometry of the sheet the surface opened. The parity
+    // capture path publishes these bounds with its activation marker, so a
+    // pixel receipt is bound to the surface that was actually activated.
+    out property <bool> capture-sheet-open: root.profile-add-open || root.pending-delete-id != "";
+    out property <length> capture-bounds-x: root.profile-add-open ? profile-overlays.add-sheet-x : profile-overlays.delete-sheet-x;
+    out property <length> capture-bounds-y: root.profile-add-open ? profile-overlays.add-sheet-y : profile-overlays.delete-sheet-y;
+    out property <length> capture-bounds-width: root.profile-add-open ? profile-overlays.add-sheet-width : profile-overlays.delete-sheet-width;
+    out property <length> capture-bounds-height: root.profile-add-open ? profile-overlays.add-sheet-height : profile-overlays.delete-sheet-height;
     in-out property <int> back-request-revision: 0;
     in-out property <float> back-gesture-progress: 0;
     in-out property <bool> back-gesture-active: false;
