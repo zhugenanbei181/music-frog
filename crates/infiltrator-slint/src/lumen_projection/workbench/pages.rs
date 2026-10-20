@@ -5,7 +5,6 @@
 
 use super::routing;
 use super::{Tone, button, header, lock, row, row_action, text};
-use crate::WorkbenchItem;
 use crate::surface::action::workbench::{
     AGGREGATE_CREATE, AGGREGATE_PREVIEW, APP_ROUTING_MODE_ALL, APP_ROUTING_MODE_BYPASS,
     APP_ROUTING_MODE_PROXY, APP_ROUTING_RULE, DIFF_CLOSE, DIFF_LOAD, DNS_CACHE_CANCEL,
@@ -16,6 +15,7 @@ use crate::surface::action::workbench::{
     SCRIPT_EXPORT_CANCEL, SCRIPT_EXPORT_PREPARE, SCRIPT_EXPORT_SAVE, SCRIPT_RETRY, SCRIPT_RUN,
     SYNC_BACKUP, SYNC_KEEP_LOCAL, SYNC_NOW, SYNC_TAKE_REMOTE,
 };
+use crate::WorkbenchItem;
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::sync::SyncStatus;
@@ -57,11 +57,7 @@ pub(super) fn dns_page(
     ));
     items.push(text(
         "dns-leak-detail",
-        &format!(
-            "{} {}",
-            leak.sources,
-            leak.feedback.clone().unwrap_or_default()
-        ),
+        &format!("{} {}", leak.sources, leak.feedback.clone().unwrap_or_default()),
     ));
     for observation in &leak.rows {
         items.push(row(

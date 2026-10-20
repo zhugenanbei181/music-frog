@@ -6,6 +6,12 @@
 //! to the shared projection in `infiltrator_slint::lumen_projection`; these
 //! tests assert the exact typed owner command the surface emits and the rows
 //! the surface projects.
+//!
+//! The log query is the shared page model's regular expression fold and the
+//! connection order is the shared reduction, so the cases below prove the
+//! shared behaviour instead of a surface-local copy of it: the regex case
+//! cannot pass with a literal substring search, and the order case cannot
+//! pass with a surface-local sort.
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -13,15 +19,23 @@ use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_contract::traffic_history::{ClosedConnectionSnapshot, ClosedConnectionsSnapshot};
+use infiltrator_domain::connection_view::{ConnectionSortKey, sort_connections};
 use infiltrator_slint::SlintAction;
 use infiltrator_slint::surface::harness;
+use infiltrator_slint::widget_vocabulary::connection_sort_key;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::page::PageData;
 
-fn connection(id: &str, host: &str, upload_total: u64, download_total: u64) -> ConnectionSnapshot {
+fn connection(
+    id: &str,
+    host: &str,
+    start: &str,
+    upload_total: u64,
+    download_total: u64,
+) -> ConnectionSnapshot {
     ConnectionSnapshot {
         id: id.into(),
-        start: "2026-10-16T12:00:00Z".into(),
+        start: start.into(),
         network: "tcp".into(),
         destination_host: host.into(),
         host: host.into(),
@@ -62,6 +76,49 @@ fn closed_connection(
     }
 }
 
+/// The log records the shared logs page publishes.
+///
+/// The set carries one record per search shape: a record no pattern of the
+/// differential case matches, a record the alternation matches, a record the
+/// escaped dot matches and a record that carries the bracket of the broken
+/// pattern.
+fn log_entries() -> Vec<LogSnapshot> {
+    vec![
+        LogSnapshot {
+            id: 1,
+            raw: None,
+            level: "info".into(),
+            message: "Proxy core started".into(),
+            tag: "core".into(),
+            timestamp: "2026-10-16T12:00:01Z".into(),
+        },
+        LogSnapshot {
+            id: 2,
+            raw: None,
+            level: "warn".into(),
+            message: "Connection timeout to upstream".into(),
+            tag: "dial".into(),
+            timestamp: "2026-10-16T12:00:05Z".into(),
+        },
+        LogSnapshot {
+            id: 3,
+            raw: None,
+            level: "info".into(),
+            message: "api.example handshake failed".into(),
+            tag: "tls".into(),
+            timestamp: "2026-10-16T12:00:07Z".into(),
+        },
+        LogSnapshot {
+            id: 4,
+            raw: None,
+            level: "info".into(),
+            message: "Policy group route match: HK IPLC 01 (38ms)".into(),
+            tag: "routing".into(),
+            timestamp: "2026-10-16T12:00:09Z".into(),
+        },
+    ]
+}
+
 fn observe_snapshot() -> SurfaceSnapshot {
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::SlintDesktop,
@@ -71,8 +128,8 @@ fn observe_snapshot() -> SurfaceSnapshot {
 
     snapshot.pages.connections = PageData::ready(ConnectionsPageSnapshot {
         connections: vec![
-            connection("conn-1", "a.example", 100, 5_000),
-            connection("conn-2", "b.example", 500, 1_000),
+            connection("conn-1", "b.example", "2026-10-16T12:00:00Z", 100, 5_000),
+            connection("conn-2", "a.example", "2026-10-16T12:05:00Z", 500, 1_000),
         ],
         // Exceeds the published window, so the surface must warn about it.
         total_connections: 150,
@@ -90,24 +147,7 @@ fn observe_snapshot() -> SurfaceSnapshot {
 
     snapshot.pages.logs = PageData::ready(LogsPageSnapshot {
         stream: Default::default(),
-        entries: vec![
-            LogSnapshot {
-                id: 1,
-                raw: None,
-                level: "info".into(),
-                message: "Proxy core started".into(),
-                tag: "core".into(),
-                timestamp: "2026-10-16T12:00:01Z".into(),
-            },
-            LogSnapshot {
-                id: 2,
-                raw: None,
-                level: "warn".into(),
-                message: "Connection timeout to upstream".into(),
-                tag: "dial".into(),
-                timestamp: "2026-10-16T12:00:05Z".into(),
-            },
-        ],
+        entries: log_entries(),
         // Exceeds the published window, so the surface must warn about it.
         total_entries: 500,
         active_level: None,
@@ -210,25 +250,8 @@ fn the_projection_filters_the_log_rows_by_the_owner_level() {
     let mut snapshot = observe_snapshot();
     snapshot.pages.logs = PageData::ready(LogsPageSnapshot {
         stream: Default::default(),
-        entries: vec![
-            LogSnapshot {
-                id: 1,
-                raw: None,
-                level: "info".into(),
-                message: "Proxy core started".into(),
-                tag: "core".into(),
-                timestamp: "2026-10-16T12:00:01Z".into(),
-            },
-            LogSnapshot {
-                id: 2,
-                raw: None,
-                level: "warn".into(),
-                message: "Connection timeout to upstream".into(),
-                tag: "dial".into(),
-                timestamp: "2026-10-16T12:00:05Z".into(),
-            },
-        ],
-        total_entries: 2,
+        entries: log_entries(),
+        total_entries: 4,
         active_level: Some("warning".into()),
     });
 
@@ -251,12 +274,89 @@ fn the_projection_narrows_the_log_window_by_the_search_text() {
     let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
     surface.publish_snapshot(snapshot.clone());
 
-    assert_eq!(surface.log_rows().len(), 2);
+    assert_eq!(surface.log_rows().len(), 4);
 
     surface.search_logs("timeout");
     let rows = surface.log_rows();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].id, "2");
+}
+
+#[test]
+fn the_log_search_folds_the_shared_regex_pattern_and_not_a_literal_substring() {
+    let snapshot = observe_snapshot();
+    let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
+    surface.publish_snapshot(snapshot.clone());
+
+    // The shared model folds the query as a regular expression: the
+    // alternation and the escaped dot are one pattern. The pattern text
+    // itself is in no record, so a literal substring search would have found
+    // nothing at all.
+    surface.search_logs("api\\.example|timeout");
+    let rows = surface.log_rows();
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.id.as_str())
+            .collect::<Vec<_>>(),
+        ["2", "3"],
+        "the alternation and the escaped dot must match, the other records must not"
+    );
+
+    // A broken pattern is not a literal search: the record that carries the
+    // bracket is not a match, because the pattern never compiled.
+    surface.search_logs("(");
+    assert!(
+        surface.log_rows().is_empty(),
+        "an invalid pattern must yield no rows instead of a literal match"
+    );
+}
+
+#[test]
+fn the_connection_rows_use_the_shared_sort_reduction() {
+    let snapshot = observe_snapshot();
+    let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
+    surface.publish_snapshot(snapshot.clone());
+
+    // The widget's vocabulary names one shared key per dimension.
+    assert_eq!(connection_sort_key("time"), ConnectionSortKey::LatestDesc);
+    assert_eq!(connection_sort_key("host"), ConnectionSortKey::HostAsc);
+    assert_eq!(connection_sort_key("upload"), ConnectionSortKey::UploadDesc);
+    assert_eq!(
+        connection_sort_key("download"),
+        ConnectionSortKey::DownloadDesc
+    );
+
+    // The rows are the shared reduction's order for the very same key.
+    let published = snapshot
+        .pages
+        .connections
+        .data
+        .as_ref()
+        .expect("connections page")
+        .connections
+        .clone();
+    for (widget_value, key) in [
+        ("time", ConnectionSortKey::LatestDesc),
+        ("host", ConnectionSortKey::HostAsc),
+        ("upload", ConnectionSortKey::UploadDesc),
+        ("download", ConnectionSortKey::DownloadDesc),
+    ] {
+        surface.set_connection_sort(widget_value);
+        let mut expected = published.clone();
+        sort_connections(&mut expected, key);
+        assert_eq!(
+            surface
+                .connection_rows()
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            expected
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            "the {widget_value} rows must be the shared {key:?} order"
+        );
+    }
 }
 
 #[test]

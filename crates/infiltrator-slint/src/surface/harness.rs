@@ -118,6 +118,14 @@ impl SurfaceHarness {
         &self.window
     }
 
+    /// The workbench reducers the surface owns.
+    ///
+    /// A capture activation projects the workbench page it opens, so a test
+    /// that activates a scenario drives the same reducers the product drives.
+    pub fn workbenches(&self) -> &Workbenches {
+        &self.workbenches
+    }
+
     /// Drives the real `navigate` callback.
     pub fn navigate(&self, page: &str) -> SurfaceOutcome {
         let window = &self.window;

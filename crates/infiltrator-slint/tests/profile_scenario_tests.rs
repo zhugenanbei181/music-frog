@@ -266,7 +266,8 @@ fn the_capture_scenario_opens_the_sheet_of_the_business_it_names() {
     assert!(capture_scenario::activate(
         window,
         "profiles-import-modal",
-        &snapshot
+        &snapshot,
+        surface.workbenches(),
     ));
     assert!(window.get_profile_add_open());
 
@@ -274,7 +275,8 @@ fn the_capture_scenario_opens_the_sheet_of_the_business_it_names() {
     assert!(capture_scenario::activate(
         window,
         "profiles-delete-confirm",
-        &snapshot
+        &snapshot,
+        surface.workbenches(),
     ));
     assert_eq!(window.get_pending_delete_id(), "profile-2");
     assert_eq!(window.get_pending_delete_name(), "Beta Local Direct");
@@ -285,6 +287,7 @@ fn the_capture_scenario_opens_the_sheet_of_the_business_it_names() {
     assert!(!capture_scenario::activate(
         window,
         "connections-details-drawer",
-        &snapshot
+        &snapshot,
+        surface.workbenches(),
     ));
 }

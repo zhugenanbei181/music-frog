@@ -622,6 +622,14 @@ pub fn write_capture_marker(
         "AppSettings" => "app_settings",
         "Traffic" => "traffic",
         "About" => "about",
+        // The workbench pages carry the parity businesses of the DNS, editor,
+        // filter, doctor, sync and routing panels.
+        "Dns" => "dns",
+        "Editor" => "editor",
+        "Filters" => "filters",
+        "Doctor" => "doctor",
+        "Sync" => "sync",
+        "AppRouting" => "app_routing",
         _ => "overview",
     };
 
@@ -682,7 +690,7 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
     lumen_projection::project_initial(&window, &initial_language, host.autostart_enabled());
 
     let snapshot = host.read_snapshot().unwrap();
-    let workbenches = Workbenches::default();
+    let workbenches = Rc::new(Workbenches::default());
     lumen_projection::project_snapshot(&window, &snapshot, host.autostart_enabled());
     lumen_projection::project_workbench(&window, &snapshot, &workbenches);
 
@@ -699,6 +707,7 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
     let marker_settings = settings.clone();
     let scenario = settings.scenario.clone();
     let scenario_snapshot = snapshot.clone();
+    let scenario_workbenches = Rc::clone(&workbenches);
     let weak_window = window.as_weak();
     let activated = Cell::new(false);
     let previous_bounds = Cell::new(None::<CaptureBounds>);
@@ -721,6 +730,7 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
                     &window,
                     scenario,
                     &scenario_snapshot,
+                    &scenario_workbenches,
                 ));
             }
             let bounds = capture_scenario::bounds(&window);

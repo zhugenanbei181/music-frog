@@ -23,6 +23,7 @@ mod flag_assets;
 mod lumen_projection;
 pub mod surface;
 pub mod theme_util;
+pub mod widget_vocabulary;
 
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::command::CommandIntent;

@@ -1,11 +1,16 @@
 //! Projections for proxy, observation, traffic, and license data.
+//!
+//! The logs page and the connections page are rendered from the shared page
+//! models and live in their own modules beside this one.
+
+mod connections;
+mod logs;
 
 use super::{THIRD_PARTY_NOTICES, flag_assets, snapshot_language};
 use crate::{
     AppWindow, HomeTrafficPoint, LicenseRow, ObservationRow, ProxyGroup, TrafficBar, slint_model,
 };
 use infiltrator_contract::active_exit::ActiveExitStatus;
-use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -18,7 +23,6 @@ use lurker_core_contract::outbound::inventory::{
 };
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 use lurker_core_contract::page::PageStatus;
-use std::cmp::Reverse;
 use std::collections::HashMap;
 
 pub(super) fn project_proxies(window: &AppWindow, snapshot: &SurfaceSnapshot) {
@@ -260,101 +264,12 @@ fn active_exit_matches(
     )
 }
 
+/// Projects the connections page from the shared page model.
+///
+/// The query fold, the sort key and the row order are the shared
+/// reduction; the surface only renders what the model reports.
 pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot) {
-    let query = window
-        .get_connection_search()
-        .to_string()
-        .trim()
-        .to_lowercase();
-    let sort_mode = window.get_connection_sort().to_string();
-    let show_closed = window.get_connection_show_closed();
-
-    let rows = if show_closed {
-        let mut connections = snapshot
-            .closed_connections
-            .records
-            .iter()
-            .collect::<Vec<_>>();
-        match sort_mode.as_str() {
-            "upload" => connections.sort_by_key(|connection| Reverse(connection.upload_bytes)),
-            "download" => connections.sort_by_key(|connection| Reverse(connection.download_bytes)),
-            "host" => connections.sort_by(|left, right| left.destination.cmp(&right.destination)),
-            "time" => connections.sort_by(|left, right| right.closed_at.cmp(&left.closed_at)),
-            _ => {}
-        }
-        connections
-            .into_iter()
-            .map(|connection| ObservationRow {
-                id: connection.id.clone().into(),
-                title: connection.destination.clone().into(),
-                accessible_title: connection.destination.clone().into(),
-                flag_code: "".into(),
-                flag_index: -1,
-                delay_ms: -1,
-                subtitle: format!("{} · {}", connection.outbound, connection.rule).into(),
-                trailing: format!(
-                    "↑ {} · ↓ {}",
-                    format_bytes(connection.upload_bytes),
-                    format_bytes(connection.download_bytes)
-                )
-                .into(),
-                active: false,
-            })
-            .filter(|row| {
-                query.is_empty()
-                    || row.title.to_string().to_lowercase().contains(&query)
-                    || row.subtitle.to_string().to_lowercase().contains(&query)
-                    || row.id.to_string().to_lowercase().contains(&query)
-            })
-            .collect::<Vec<_>>()
-    } else {
-        snapshot
-            .pages
-            .connections
-            .data
-            .as_ref()
-            .map(|page| {
-                let mut connections = page.connections.iter().collect::<Vec<_>>();
-                match sort_mode.as_str() {
-                    "upload" => {
-                        connections.sort_by_key(|connection| Reverse(connection.upload_total))
-                    }
-                    "download" => {
-                        connections.sort_by_key(|connection| Reverse(connection.download_total))
-                    }
-                    "host" => connections.sort_by(|left, right| left.host.cmp(&right.host)),
-                    "time" => connections.sort_by(|left, right| right.start.cmp(&left.start)),
-                    _ => {}
-                }
-                connections
-                    .into_iter()
-                    .map(|connection| ObservationRow {
-                        id: connection.id.clone().into(),
-                        title: connection.host.clone().into(),
-                        accessible_title: connection.host.clone().into(),
-                        flag_code: "".into(),
-                        flag_index: -1,
-                        delay_ms: -1,
-                        subtitle: format!("{} · {}", connection.network, connection.process).into(),
-                        trailing: format!(
-                            "↑ {} · ↓ {}",
-                            format_bytes(connection.upload_total),
-                            format_bytes(connection.download_total)
-                        )
-                        .into(),
-                        active: true,
-                    })
-                    .filter(|row| {
-                        query.is_empty()
-                            || row.title.to_string().to_lowercase().contains(&query)
-                            || row.subtitle.to_string().to_lowercase().contains(&query)
-                            || row.id.to_string().to_lowercase().contains(&query)
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default()
-    };
-    window.set_connections(slint_model(rows));
+    connections::project_connections(window, snapshot);
 }
 
 pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &SurfaceSnapshot) {
@@ -414,106 +329,13 @@ pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &Surface
     window.set_providers(slint_model(providers));
 }
 
+/// Projects the logs page from the shared page model.
+///
+/// The query fold, the level filter, the page status and the typed search
+/// outcome are the shared model's; the surface only renders what the model
+/// reports.
 pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
-    let language = snapshot_language(snapshot);
-    let lang = Lang(&language);
-    let query = window.get_log_search().to_string().trim().to_lowercase();
-    let selected_level = window.get_log_level().to_string();
-    let rows = snapshot
-        .pages
-        .logs
-        .data
-        .as_ref()
-        .map(|page| {
-            page.entries
-                .iter()
-                .filter(|entry| {
-                    let level_match = selected_level == "all"
-                        || log_level_key(&selected_level) == log_level_key(&entry.level);
-                    let text = format!("{} {} {}", entry.message, entry.tag, entry.level);
-                    level_match && (query.is_empty() || text.to_lowercase().contains(&query))
-                })
-                .map(|entry| ObservationRow {
-                    id: entry.id.to_string().into(),
-                    title: entry.message.clone().into(),
-                    accessible_title: entry.message.clone().into(),
-                    flag_code: "".into(),
-                    flag_index: -1,
-                    delay_ms: -1,
-                    subtitle: format!("{} · {}", entry.timestamp, entry.level).into(),
-                    trailing: entry.tag.clone().into(),
-                    active: false,
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let stream_status = log_stream_status(
-        snapshot.pages.logs.data.as_ref().map(|page| &page.stream),
-        &lang,
-    );
-    let owner_level = snapshot
-        .pages
-        .logs
-        .data
-        .as_ref()
-        .and_then(|page| page.active_level.as_deref())
-        .map(log_level_key)
-        .unwrap_or("all");
-    window.set_log_level(owner_level.into());
-    window.set_logs(slint_model(rows));
-    window.set_log_stream_status(stream_status.into());
-}
-
-fn log_stream_status(stream: Option<&LogStreamState>, lang: &Lang<'_>) -> String {
-    match stream {
-        Some(LogStreamState::Live) => lang.tr("已连接").into_owned(),
-        Some(LogStreamState::Reconnecting(_)) => lang.tr("正在重连").into_owned(),
-        Some(LogStreamState::Connecting) => lang.tr("正在连接").into_owned(),
-        Some(LogStreamState::Failed(_)) => lang.tr("读取失败").into_owned(),
-        Some(LogStreamState::Unsupported(_)) => lang.tr("日志流不支持").into_owned(),
-        Some(LogStreamState::Cancelled) => lang.tr("日志流已取消").into_owned(),
-        Some(LogStreamState::Idle) | None => lang.tr("未运行").into_owned(),
-    }
-}
-
-fn log_level_key(value: &str) -> &str {
-    match value.to_ascii_lowercase().as_str() {
-        "dbg" | "debug" => "debug",
-        "inf" | "info" => "info",
-        "warn" | "warning" | "wrn" => "warning",
-        "err" | "error" | "fatal" => "error",
-        _ => value,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::log_stream_status;
-    use infiltrator_contract::logs::LogStreamState;
-    use infiltrator_shared::locales::Lang;
-    use lurker_core_contract::error::Failure;
-
-    #[test]
-    fn unsupported_and_cancelled_log_streams_project_localized_terminal_copy() {
-        let unsupported = LogStreamState::Unsupported(Failure::unsupported("not available"));
-        assert_eq!(
-            log_stream_status(Some(&unsupported), &Lang("zh-CN")),
-            "日志流不支持"
-        );
-        assert_eq!(
-            log_stream_status(Some(&unsupported), &Lang("en-US")),
-            "Log stream is unsupported"
-        );
-
-        assert_eq!(
-            log_stream_status(Some(&LogStreamState::Cancelled), &Lang("zh-CN")),
-            "日志流已取消"
-        );
-        assert_eq!(
-            log_stream_status(Some(&LogStreamState::Cancelled), &Lang("en-US")),
-            "Log stream was cancelled"
-        );
-    }
+    logs::project_logs(window, snapshot);
 }
 
 pub(super) fn project_traffic(window: &AppWindow, snapshot: &SurfaceSnapshot) {

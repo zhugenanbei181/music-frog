@@ -33,18 +33,21 @@
 
 2. **平价场景取证（Parity Scenario Capture）**：
    - `INFILTRATOR_SCENARIO=<feature>` 不再只是把场景名写进标记：`infiltrator_slint::capture_scenario::activate` 会让 surface 打开该业务真实对应的界面状态（与用户手势走同一条路径），`infiltrator_slint::capture_scenario::bounds` 再读取该界面在窗口中的真实几何；
+   - surface 能承载的业务集合是**封闭且带类型**的：`infiltrator_slint::capture_scenario::CarriedScenario` 是唯一真源，`activate` 只认识这些变体；集合之外的业务名一律返回 `false`，标记因此永远不会为 surface 没有的业务背书；
    - 标记格式为 `CAPTURE_READY page=<p> skin=<s> scenario=<feature> activated=true bounds=<x>,<y>,<w>,<h>\n`。`bounds` 是被激活界面在窗口中的真实像素矩形，surface 未打开该界面时写 `activated=false` 且不带 `bounds`，因此截图链路无法为 surface 未实现的业务背书；
    - 视口沿用平价约定：`<feature>-standard` 为 1180×780，`<feature>-compact` 为 720×480；场景矩阵见 `docs/capture/parity_scenarios.tsv`，已发布的像素回执见 `docs/screenshots/parity/`；
-   - 单个业务的取证命令：`INFILTRATOR_CAPTURE_MATRIX=crates/infiltrator-slint/docs/capture/parity_scenarios.tsv bash scripts/capture-slint-matrix.sh <feature>-standard,<feature>-compact`。
+   - 单个业务的取证命令：`INFILTRATOR_CAPTURE_MATRIX=crates/infiltrator-slint/docs/capture/parity_scenarios.tsv bash scripts/capture-slint-matrix.sh <feature>-standard,<feature>-compact`；
+   - 全部 18 个承载业务的取证命令：`INFILTRATOR_CAPTURE_MATRIX=crates/infiltrator-slint/docs/capture/parity_scenarios.tsv INFILTRATOR_CAPTURE_OUT_DIR=crates/infiltrator-slint/docs/screenshots/parity bash scripts/capture-slint-matrix.sh`。
 
 3. **行为测试矩阵覆盖**：
    - 所有行为用例都通过 `infiltrator_slint::surface::harness::SurfaceHarness` 驱动**真实 Slint 回调**：harness 在无头软件渲染平台上注册生产回调、派发真实手势，并回报 surface 实际发出的 typed `CommandIntent`、typed `Failure` 与 owner 可见投影（notice、列表行、待定状态）。测试不再本地复刻路由映射、网络模式时序、主题白名单、十六进制解析或连接排序；
    - `infiltrator_slint::surface::action` 是这些行为的唯一实现：surface 回调与测试调用的是同一函数，测试无法与运行中的产品产生分叉；
    - `core_and_network_mode_tests`：覆盖路由意图分发、网络模式切换序列（系统代理/TUN/仅核心切换时的停机重启时序）、未知模式与缺失快照的 typed failure，以及 Core 生命周期投影标签；
    - `outbound_and_probe_tests`：覆盖代理组节点选择的 revision 强校验、单节点测速与整组批量测速（concurrency=8）意图、排序与搜索偏好分发，以及未知组/节点与探测设置缺失的 typed failure；
-   - `connections_and_logs_tests`：覆盖指定连接中断命令分发、活动与已关闭连接的四维排序投影、日志级别过滤投影，以及发布窗口截断告警；
+   - `connections_and_logs_tests`：覆盖指定连接中断命令分发、活动与已关闭连接的四维排序投影、日志级别过滤投影、发布窗口截断告警，以及**共享页面模型**的两条差分断言——日志查询按共享正则折叠（`api\.example|timeout` 命中「交替」与「转义点」，非法模式 `(` 命中零行，plain `contains` 实现无法通过），连接行序等于同一共享键的共享归约结果，控件词表 `"time"`→`LatestDesc`、`"host"`→`HostAsc`；
    - `rules_and_settings_tests`：覆盖规则开关幂等分发与待定行投影、Rule Provider 批量刷新、语言偏好解析、主题模式白名单、强调色合法性与反差度判定；
    - `profile_scenario_tests`：覆盖平价场景锚点的 surface 行为——添加配置弹层的成功导入、取消与非法 Age 私钥 typed failure，删除配置确认的成功分发、取消与 owner 拒绝的 typed failure 投影，以及取证场景确实打开对应弹层；
+   - `capture_scenario_tests`：覆盖取证场景集合——18 个承载业务逐个真的打开自己的载体页/弹层并投影出业务面板，集合之外的业务一律拒绝且不改变 surface 状态，取证矩阵表与 `CarriedScenario` 集合逐条一致；
    - `capture_marker_tests`：覆盖取证标记只在界面真的打开时写 `activated=true` 与真实 `bounds`；
    - `platform_adapter_tests` / `profile_catalog_action_tests` / `age_credential_tests` / `traffic_history_tests`：覆盖平台权限、窗口生命周期、配置管理与敏感凭据。
 
@@ -53,6 +56,21 @@
    - 锚点测试必须驱动真实 surface 回调并断言 typed owner 命令与 owner 可见投影，且 nextest id 必须可在 `cargo nextest list` 中发现；
    - 像素回执必须由上面的平价场景取证链路产生，标准与紧凑两个视口都要有真实像素；
    - 当前 Slint surface 已实现并可锚点的业务为 `profiles-import-modal`（`success`,`cancel`,`error`）与 `profiles-delete-confirm`（`success`,`cancel`,`error`）；其余业务在该 surface 上仍缺具体能力，其逐条缺口由平价登记表 `scripts/parity/feature_evidence.tsv` 记录，本文档不复制第二份。
+
+5. **Slint surface 承载的业务（scenario 名称）**：
+   - 承载集合由 `infiltrator_slint::capture_scenario::CarriedScenario` 唯一声明，`docs/capture/parity_scenarios.tsv` 按 `<feature>-standard` / `<feature>-compact` 两视口逐条列出；
+   - **DNS 页**（`Dns`）：`dns-leak-alert`、`dns-query-details`、`dns-fake-ip-flush-confirm`、`dns-hosts-editor`；
+   - **编辑器页**（`Editor`）：`profiles-script-sandbox`、`profiles-script-export-review`、`profiles-diff-viewer`、`profiles-snapshot-restore-confirm`；
+   - **过滤/聚合页**（`Filters`）：`profiles-filter-editor`、`profiles-aggregator-wizard`、`profiles-aggregator-preview`；
+   - **诊断页**（`Doctor`）：`doctor-failure-recovery`、`lifecycle-recovery-panel`；
+   - **同步页**（`Sync`）：`sync-conflict-resolver`、`sync-restore-confirm`；
+   - **应用路由页**（`AppRouting`）：`app-routing-policy-editor`；
+   - **配置弹层**：`profiles-import-modal`、`profiles-delete-confirm`。
+
+6. **在 Slint surface 上仍无承载载体的业务**：
+   - 下列业务在共享平价目录中存在，但 Slint surface 没有承载它们的界面状态，取证路径会拒绝它们，因此它们没有像素回执，也不能登记 Slint 的 scenario 锚点：
+   - `connections-close-all-confirm`、`connections-details-drawer`、`connections-grouping`、`connections-search-highlight`、`core-version-rollback-confirm`、`editor-large-document-window`、`editor-snippet-insertion`、`editor-yaml-error-navigation`、`logs-redacted-export`、`logs-scroll-lock`、`logs-search-highlight`、`overview-card-reorder`、`overview-reconnect-mask`、`overview-topology-drilldown`、`profiles-subscription-error`、`proxies-custom-node-modal`、`proxies-group-expanded`、`proxies-group-reorder`、`proxies-node-detail-drawer`、`proxies-probe-settings`、`proxies-search-highlight`、`proxies-uri-import-preview`、`rules-list-editor`、`rules-override-editor`、`rules-provider-refresh-error`、`rules-search-highlight`、`rules-statistics-inspector`、`rules-tracer-drawer`、`runtime-telemetry-observation`、`settings-language-choice`、`settings-lan-security`、`settings-permission-panel`、`settings-port-conflict-repair`、`settings-tun-permission`、`shell-command-palette`、`shell-keyboard-focus`、`shell-routing-intent-authentication`、`shell-routing-intent-control`、`speedtest-details-modal`、`speedtest-history-comparison`、`speedtest-progress-cancel`；
+   - 缺口随共享平价登记表 `scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 演进，本文档只声明「Slint 是否有承载载体」这一事实。
 
 
 3. **Lumen 组件树模块化与质量规范**：
