@@ -11,7 +11,16 @@ import tempfile
 from pathlib import Path
 
 PRODUCTS = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
-RUNTIME_ROOTS = {"iced": (), "bevy": ("crates/infiltrator-bevy-widgets/assets",), "slint": ()}
+# Runtime resources that belong to the product identity and are not compiled
+# into the binary. The shared asset tree is the current home of the fonts and
+# the Lumen icons; the Slint surface loads the icons at runtime through
+# `@image-url`, while Iced and Bevy embed their fonts into the binary and
+# therefore have no runtime root.
+RUNTIME_ROOTS = {
+    "iced": (),
+    "bevy": (),
+    "slint": ("crates/infiltrator-shared/assets",),
+}
 
 
 def digest(path):

@@ -118,17 +118,19 @@ class ProductBuildTests(unittest.TestCase):
         self.assertEqual(impact(self.root, record)['changed_inputs'], ['Cargo.toml'])
 
     def test_runtime_resource_is_archived_and_changes_only_request_reverification(self):
-        self.binary = self.binary.with_name('infiltrator-bevy-ui')
-        icon = self.root / 'crates/infiltrator-bevy-widgets/assets/icons/one.png'
+        # The Slint surface is the one that loads runtime resources: the Lumen
+        # icons are read through `@image-url` from the shared asset tree.
+        self.binary = self.binary.with_name('infiltrator-slint')
+        icon = self.root / 'crates/infiltrator-shared/assets/ui/lumen/svg/one.png'
         icon.parent.mkdir(parents=True)
         icon.write_bytes(b'original icon')
         self.binary.write_bytes(b'bevy executable')
-        self.binary.with_suffix('.d').write_text(f'bevy: {str(self.source).replace(" ", chr(92)+" ")}\n')
-        record = archive(self.root, 'bevy', self.binary, self.manifest)
+        self.binary.with_suffix('.d').write_text(f'slint: {str(self.source).replace(" ", chr(92)+" ")}\n')
+        record = archive(self.root, 'slint', self.binary, self.manifest)
         icon.write_bytes(b'new runtime icon')
         self.assertEqual(impact(self.root, record)['changed_inputs'], [str(icon.relative_to(self.root))])
         self.assertEqual(verify(self.root, self.manifest)['build_id'], record['build_id'])
-        frozen_icon = self.root / record['runtime'] / 'assets/icons/one.png'
+        frozen_icon = self.root / record['runtime'] / 'assets/ui/lumen/svg/one.png'
         frozen_icon.write_bytes(b'forged frozen icon')
         with self.assertRaisesRegex(ValueError, 'runtime resource'):
             verify(self.root, self.manifest)
