@@ -345,3 +345,26 @@
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。
 - 环境阻塞条目统一在[斗战胜佛](CODE_TODO_BLOCKED.md)；本板不再持有「下一个动作无法在本机执行」的条目。
+
+## 十、跨表面页面模型与像素认证（2026-10-21 批次交付）
+
+- [ ] PARITY-001.2 [kind: evidence] [priority: P0] [points: 5] [owner: scripts/parity + 三大 UI] [status: Integrated] 三大桌面 UI 全业务双视口像素认证闭环
+  - 产物：59 业务 × 3 表面 × standard/compact 双视口的真实像素回执全量归档，覆盖率 100%。
+  - 依赖：PARITY-001.1。
+  - 验收：`visual_receipts.py` 输出的待回执单元格全部转绿，无「以静态页面截图冒充平权通过」。
+  - 当前证据：黑盒像素差判据进 `scripts/parity/interaction_delta.py`（未激活基线与激活截图在交互区内做像素差，噪声地板由两次基线差测得）；批量验收 `scripts/parity/accept_surface_interactions.py` 逐格给出 certified/uncertified 与原因，编译失败的包不再被记成「通过」；Iced 与 Bevy 的 demo/捕获层已按业务补齐真实交互（Iced 的 5 个 panic 根因是共享能力门未发布能力矩阵，Bevy 的 4 个 panic 根因是捕获应用无能力矩阵，另有代理组折叠、代理搜索高亮、规则搜索、聚合向导、删除确认、概览卡片重排、路由意图 control 与 authentication 等真实交互）。
+  - 待验证：① 全量重跑 `python3 scripts/parity/accept_surface_interactions.py --all --surfaces iced,bevy,slint`，把 certified 格按 PNG 摘要与原生 bounds 登记为 `ready`；② 仍无载体或缺可滚动身份的业务逐条登记（缺的是业务自己的交互区域或 owner 端口，不是「路由到页面」）；③ Android 三 flavor 的实际交互截图回执随取证批次产出。
+
+- [ ] GAP-4.1 [kind: evidence] [priority: P1] [points: 3] [owner: slint] [status: Integrated] Slint 功能验收与 parity
+  - 产物：Slint 承载业务的交互路径覆盖与 parity cell 证据（含 `capture-slint-matrix.sh` 场景结果）。
+  - 依赖：SLINT-001.1、PARITY-001.1。
+  - 验收：每条承载业务的目录路径全部有行为测试证明，scenario 级锚点与双视口像素回执齐备；只派发命令不算已认证 scenario。
+  - 当前证据：18 条承载业务的交互路径全部补齐（42 个新行为测试：DNS 泄漏/查询/缓存冲刷/hosts 编辑、脚本沙箱与导出评审、差异视图、快照恢复、过滤编辑、聚合向导与预览、诊断失败恢复、生命周期恢复、同步冲突与恢复、应用路由策略）；demo fixture 现已发布全部 workbench 读模型（此前每个工作台截图都是空面板）；共享 workbench 补上在途台账与 typed 终态（`Workbenches::settle`），owner 的失败/重试/取消路径第一次真正可达。
+  - 待验证：① 按 18 条业务重跑 Slint 场景矩阵并把像素回执登记进 `scripts/parity/feature_evidence.tsv` 的 scenario 级锚点；② Android host 侧迁移到 `execute_typed`（当前 Android 仍只发 `CommandOutput::Unit`，带 identity 的评审类业务在 Android 上只能到「已派发」）；③ 四条被收窄含义的路径（泄漏探测的真实 echo 源、冲突备份文件的删除、读取应用路由策略的命令、过滤器的重命名/高级策略字段）要么补 owner 能力，要么在目录里显式写明「该表面不具备」。
+
+- [ ] GAP-7.1 [kind: mechanism] [priority: P1] [points: 5] [owner: presentation] [status: Integrated] 跨 UI 页面模型去重
+  - 产物：Iced/Bevy/Slint 共享的页面模型层，消灭各自实现的同义状态机。
+  - 依赖：GAP-5.2 完成后评估。
+  - 验收：同一页面在三个表面只保留一份状态推导；UI 只做渲染与事件投递；旧符号清零搜索为空。
+  - 当前证据：共享层新增九个页面模型（代理/概览/设置/规则/订阅/诊断/DNS/应用路由/同步）与两个共用基座（`OperationPhase` 带提交令牌，被取代的答复不移动任何状态；`EditableDraft` 的「已修改」由草稿与基线推导，不再是 flag）。三端删除各自的私有推导：Iced 的 `member_matches`/`sort_members`/`highlight_runs`/`format_protocol_chip`、四份契约快照副本与两个 `*_dirty` bool、八个规则阶段机、十个订阅阶段机、`DoctorPanelOperation`、`DnsTab`/`AdvancedEditMode`、`UwpLoopbackState`；Bevy 的 `matches_proxy_filter`/`name_runs`/`format_protocol_chip`/`sort_outbound_nodes` 与私有 `OverviewProjection`；Slint 的私有过滤与排序、`route_mode`/`network_mode`/`network_mode_status`/`network_mode_warning`。共享层裁决的差异一次写定：过滤规则取三端并集（名称/身份/协议与别名/feature 标签/UDP/延迟/拼音）、收藏恒排最前、未知延迟恒排最后。批次证据：全仓 nextest **5534/5534 通过（15 skipped）**、`check-structure.sh` **exit 0**、`cargo fmt --all --check` 通过。
+  - 待验证：① 共享模型仍缺的契约事实（LAN 共享快照、PAC `bypass_lan`/`minify` 读回、规则页过滤 API、应用路由「未观测」文案键、闭合连接 `ConnectionView`）按现在佛 `GAP-7.2` 收口；② 三端各自的「无消费者」字段（Slint 的设置与订阅页无载体、Bevy 的应用路由无过滤控件、Iced 的设置文本缓冲仍在 widget）随 `GAP-7.2` 逐条清零；③ 共享模型的阶段机与草稿在三端的失败/取消/恢复路径上各补一条端到端行为测试。

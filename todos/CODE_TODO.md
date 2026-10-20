@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v256`：现在佛 13 pt（3 条）/ 过去佛 81 pt（35 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 166 pt；已归档交付 712 pt（277 条）；累计 878 pt，严格归档完成率 81.1%。
-- 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261021-v257`：现在佛 3 pt（1 条）/ 过去佛 94 pt（38 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 169 pt；已归档交付 712 pt（277 条）；累计 881 pt，严格归档完成率 80.8%。
+- 本板 1 条 = 页面模型最后一公里的契约缺口（`GAP-7.2`，本批新增 3 pt）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -75,24 +75,6 @@
 
 ## 六、B 主线：截图认证与平台证据（每个业务都真跑过）
 
-- [ ] PARITY-001.2 [kind: evidence] [priority: P0] [points: 5] [owner: scripts/parity + 三大 UI] [status: Planned] 三大桌面 UI 全业务双视口像素认证闭环
-  - 产物：59 业务 × 3 表面 × standard/compact 双视口的真实像素回执全量归档，覆盖率 100%。
-  - 依赖：PARITY-001.1。
-  - 验收：`visual_receipts.py` 输出的 118 个待回执单元格全部转绿，无「以静态页面截图冒充平权通过」。
-  - 计划：① 用 `scripts/capture-{iced,bevy,slint}-matrix.sh` 跑标准/紧凑两视口；② 逐业务比对几何与交互断言；③ 失败业务回流对应 UI 修缺陷再重取。
-  - 证据：`.evidence/visual_receipts.json` 全绿 + 每业务截图清单。
-  - 已验证能力（2026-10-20）：本机 `kwin_wayland --virtual` + 嵌套 `niri` 私有合成器可正常起栈，应用能写出 `CAPTURE_READY` 标记并落 PNG/manifest，截图取证在本机可复跑；缺的是逐业务的 demo 交互实现与「无载体页面不得锚定」之外的覆盖补齐。
-  - 第一批可取证清单：Iced demo 已实现交互的 21 条业务（`RuntimeTelemetryObservation`、`LogsRedactedExport`、`LogsScrollLock`、`LogsSearchHighlight`、`ShellRoutingIntentControl`、`ShellRoutingIntentAuthentication`、`ProfilesSnapshotRestoreConfirm`、`ProfilesFilterEditor`、`RulesStatisticsInspector`、`RulesListEditor`、`RulesOverrideEditor`、`RulesTracerDrawer`、`DnsQueryDetails`、`DnsFakeIpFlushConfirm`、`DnsHostsEditor`、`DnsLeakAlert`、`DoctorFailureRecovery`、`SettingsLanguageChoice`、`ConnectionsCloseAllConfirm`、`ConnectionsSearchHighlight`、`ConnectionsGrouping`）× standard/compact 双视口 = 42 个像素回执单元格；其余 37 条业务要么缺 demo 交互、要么 Slint 无载体，按缺口逐条立项。
-
-- [ ] GAP-4.1 [kind: evidence] [priority: P1] [points: 3] [owner: slint] [status: Planned] Slint 功能验收与 parity
-  - 产物：Slint 六个页面回调对应的功能验收与 parity cell 证据（含 `capture-slint-matrix.sh` 24 场景结果）。
-  - 依赖：目标产物与交互证据。
-  - 验收：parity 锚点 + 屏幕回执；否则在八问表保持「部分」。
-  - 计划：① 跑 Slint 场景矩阵并绑定像素回执；② 补六页回调功能验收；③ 与 PARITY-001.1 的 slint 注册表合并取证。
-  - 进度（2026-10-20，证据等级 L）：**Slint 场景矩阵整轮跑通**——`bash scripts/capture-slint-matrix.sh` 一次跑完 **60 个场景（标准/紧凑双视口）全部通过**（98 秒），每个场景都绑定进程 PID、窗口 id、请求尺寸、字节数与图片 SHA-256，清单写进 `crates/infiltrator-slint/docs/screenshots/manifest.tsv`，60 张真实像素图入库；其中 36 张是本批新增的六类页面载体（DNS 4、编辑器 4、过滤与聚合 3、诊断 2、同步 2、应用路由 1）的标准/紧凑双视口。
-  - 进度：取证的**载体闭集**是 typed 的 `CarriedScenario`（18 个变体）：能打开载体页的场景才会被激活并投影业务面板，**表面没有载体的业务不产标记、不出图**，所以「有图」就等于「表面真的承载了这个业务」；`capture_scenarios_tests` 用例证明 18 个场景都真的打开了非空面板，12 个表面没有的业务一律被拒。
-  - 待验证：像素回执的**登记**（`scripts/parity/visual_receipts.py` 需同时读三表面 run 目录）与 `PARITY-001.2` 的桌面全量验收同批进行；本条的 18 条业务的**交互路径覆盖仍不全**（每条业务只证明了已实现的那几条路径），因此注册表里这 18 格仍为 `pending` 并逐条列出已证明与仍缺的路径——**只派发命令不算已认证 scenario**。
-  - 证据：截图清单 + parity 报告。
 
 ### 5.1 Slint 第三 UI 的 360° 补齐（7条 / 16pt）
 
@@ -106,19 +88,13 @@
 
 立项依据（2026-10-20 实测审计，证据等级 L）：场景结构口径已闭合——`scripts/quality/bevy_bsn_guard.py` 扫描两个 Bevy crate 生产树 349 文件零违例并接入 `scripts/quality/check-structure.sh` 与 CI；rem/em 尺寸通道同批由共享包执行器 `scripts/quality/bevy_scene_gate.py` 接上机器红线（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记），但 token/计算值通道的白名单边界与能力规范 ⑦ 小件收敛**仍仅人工评审**，生产树另有 263 处 `Val::Px` 写入（其中初筛 183 处非白名单、字号通道已全量 `FontSize::Rem`）、`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处。执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 
-- [ ] GAP-7.1 [kind: mechanism] [priority: P1] [points: 5] [owner: presentation] [status: Planned] 跨 UI 页面模型去重
-  - 产物：Iced/Bevy/Slint 共享的页面模型层，消灭各自实现的同义状态机。
-  - 依赖：GAP-5.2 完成后评估。
-  - 验收：同一页面在三个表面只保留一份状态推导；UI 只做渲染与事件投递。
-  - 计划：① 盘点三端重复状态机清单；② 逐页下沉到 presentation 共享层；③ 每迁完一页即删旧实现并跑三端回归。
-  - 盘点（2026-10-20 实测，证据等级 L）：owner 裁决为 `crates/infiltrator-presentation`（上位架构契约已定「跨表面的纯文案、状态展示折叠与快照到视图模型映射完全由 `infiltrator-presentation` 持有」；`lurker-ui-presentation` 不得持有依赖产品契约的页面模型）。根因是**页面模型写在了 Bevy 私有层**（`infiltrator-bevy-ui/src/surface_projection.rs` 773 行，11 个页面的投影全在这里），Iced 与 Slint 只好各自重推。
-  - 迁移序（高重复、低影响在前）：① 日志页（共享 owner `log_search::LogSearchState` 与 `log_projection::project_log_facts` 已完备且 Bevy 已在用，Slint 的 `project_logs`/`log_level_key`/`log_stream_status` 是私有第二实现且**没有正则与非法模式态**，属真实行为分歧）→ ② 连接页（分组/搜索已共享，仅排序键三写：Iced `String`、Bevy `ConnectionSortKey`、Slint 字符串匹配）→ ③ 代理页（三份私有过滤/排序：Bevy `matches_proxy_filter` 与 Iced `member_matches` 规则已经不一致，Bevy 匹配 `features` 标签而 Iced 匹配 `udp`；先把 Bevy 页面模型搬进 presentation 再改指 Iced/Slint）→ ④ 概览页（`OverviewProjection` 为 Bevy 私有结构，Slint 私有重推 `route_mode`/`network_mode`/`network_mode_status`/`network_mode_warning`）→ ⑤ 设置页（Iced 私存 `PacManagerConfig`/`LanSharingConfig`/`LanSecurityConfig`/`UwpLoopbackState` 四份契约快照副本，外加 `lan_sharing_dirty`/`lan_security_dirty` 两个隐式状态 bool）→ ⑥ 规则页（tab/行投影已共享，仅 8 个保存/加载阶段机两写）→ ⑦ 订阅/体检/DNS/路由/同步页（动作折已共享，逐页跟进前六页的迁移机制）。
-  - 必须清零的第二真源（清零搜索回执为验收件）：Slint 的 `project_logs` 私有正则/等级过滤、`project_connections` 私有过滤与排序、`project_proxies` 私有过滤与排序、`lumen_projection.rs` 的 `route_mode`/`network_mode`/`network_mode_status`/`network_mode_warning`；Iced 的 `LogFilterState`（与共享 `LogSearchState` 并存）、`types/app.rs` 的四个契约快照私有副本与两个 `*_dirty` bool、`types/doctor.rs` 的 `DoctorPanelOperation`（与共享 `DoctorActionState` 并行跑两台阶段机）；Bevy 的 `surface_projection.rs` 与 `pages/proxies_filter.rs` 迁入共享层。
-  - 不迁：About/Licenses（仅 Slint 有）、Slint 独立 `Network` 路由（与设置页同事实，应折进共享设置页模型而不是再加第三份）。
-  - 进度（2026-10-20，证据等级 L）：**第一页与第二页已完成三端迁移**——共享层新增 `log_page_model::LogsPageModel`（typed 页面状态 `LogPageStatus`、typed 等级过滤 `LogLevelFilter`／`LogLevelSelection`（保留来源权威）、typed 搜索结局 `LogSearchOutcome`（非法模式与空结果分开））与 `connection_page_model::ConnectionsPageModel<C>`（组合既有分组折叠 + 唯一排序选项表 `CONNECTION_SORT_OPTIONS`）；Iced 侧删除第二份日志查询状态 `LogFilterState`、字符串排序键与本地排序归一化与视图本地排序；Bevy 侧删除 `LogsViewState(LogSearchState)` 与 `ConnectionsViewState{groups,sort}`，虚拟列表的手写排序镜像改为共享归约的置换；Slint 侧删除私有 `contains` 日志过滤、私有 `log_level_key`／`log_stream_status` 与私有连接排序字符串匹配，改为共享模型 + 唯一词汇适配器 `widget_vocabulary`。
-  - 进度：三端回归全绿（`infiltrator-presentation`+`infiltrator-iced` 700/700、`infiltrator-bevy-ui` 722/722、`infiltrator-slint` 122/122）；清零搜索证明三端的旧推导已消失（Iced 无 `LogFilterState`／`runtime_connection_sort`／`sort_rated_connections`／`normalize_connection_sort_key`；Bevy 无 `LogSearchState`／`ConnectionGroupingState`／手写排序分支；Slint 的排序词汇只存在于唯一适配器）。
-  - 进度：**尚未迁移的页面**见上方的迁移序 ③～⑦（代理三份私有过滤/排序且 Bevy 与 Iced 的匹配规则已经不一致；概览为 Bevy 私有页面投影 + Slint 私有路由/网络模式推导；设置为 Iced 四份契约快照私有副本 + 两个 `*_dirty` bool；规则为 Iced 与 Bevy 各一套保存/加载阶段机；订阅/体检/DNS/路由/同步的动作折已共享但页面阶段机仍各写一份）。**闭合连接列表**另有一处契约缺口：`ClosedConnectionSnapshot` 没有 `ConnectionView` 实现，需在 `infiltrator-domain`（域↔契约缝的 owner）补上，闭合历史才能并入共享模型。
-  - 证据：每页一次迁移的 nextest run ID + 旧符号清零搜索回执。
+
+- [ ] GAP-7.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-presentation] [status: Planned] 页面模型最后一公里的契约缺口
+  - 产物：共享页面模型需要的契约事实由契约层补齐，三端不再各留一份降级事实或私有过滤。
+  - 依赖：GAP-7.1（共享层已就位并三端在用）。
+  - 验收：契约有字段或读回，共享模型有消费面，三端的降级分支清零搜索为空。
+  - 计划：① 契约补 LAN 共享快照（现只有 runtime-control 的 `allow_lan`/`mixed_port`/`lan_bind_address`，无 revision，写入无法按版本围栏）；② 契约补 PAC 的 `bypass_lan`/`minify` 读回（`PacRequest` 有、`PacSnapshot` 无，模型只能永远读到 `false`）；③ 共享层补规则页过滤 API（当前三端各留一份私有字符串过滤，Slint 的仍未清零）；④ 契约与文案补应用路由「未观测」文案键（`Option<AppRoutingMode>` 现在只能回落到 `ProxyAll`）；⑤ `infiltrator-domain` 补 `ClosedConnectionSnapshot` 的 `ConnectionView` 实现，闭合历史才能并入共享连接页模型。
+  - 缺口来源：GAP-7.1 三端迁移实测报告逐条列出（每条都带文件与行号），已按 owner 归并为上述五项。
 
 ## 九、办结与登记
 
