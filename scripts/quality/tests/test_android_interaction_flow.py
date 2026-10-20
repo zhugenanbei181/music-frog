@@ -234,6 +234,9 @@ class AndroidInteractionFlowTests(unittest.TestCase):
         self.adb.write_text(FAKE_ADB)
         self.adb.chmod(self.adb.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
         self.apk = self.output.parent / "candidate.apk"
+        # The evidence directory lives inside the repository, so its parent has
+        # to exist before the candidate is written.
+        self.apk.parent.mkdir(parents=True, exist_ok=True)
         self.apk.write_bytes(b"not a real apk, the fake device accepts it")
         os.environ["FAKE_ADB_STATE"] = str(self.state)
         self.addCleanup(os.environ.pop, "FAKE_ADB_STATE", None)
