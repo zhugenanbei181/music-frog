@@ -51,7 +51,8 @@ def discovered_tests(payload):
     return found
 
 
-def validate(manifest, evidence, catalogue=None, discovery=None, require_complete=False, receipts=None, require_features=()):
+def validate(manifest, evidence, catalogue=None, discovery=None, require_complete=False, receipts=None,
+             require_features=(), require_surfaces=(), accepted_surfaces=None):
     invalid, dangling, pending = [], [], []
     cells, anchors = {}, {}
     specs = {spec["id"]: spec for spec in catalogue} if catalogue is not None else None
@@ -124,16 +125,24 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
     unclosed = set(cells) - aligned
     if require_complete and unclosed:
         invalid.append(f"complete parity required: {len(unclosed)} unclosed surface cells")
+    # An acceptance may cover a subset of the surfaces (a peer that is not
+    # certifiable yet must not silently pass as closed).  The scope decides
+    # which closed cells count for the acceptance; the global picture stays.
+    scope = set(accepted_surfaces) if accepted_surfaces else set(SURFACES)
+    scope_aligned = {key for key in aligned if key[1] in scope}
+    required_surfaces = tuple(require_surfaces) if require_surfaces else tuple(SURFACES)
     for feature in require_features:
         if specs is None or feature not in specs:
             invalid.append(f"unknown required feature: {feature}")
-        for surface in SURFACES:
-            if (feature, surface) not in aligned:
+        for surface in required_surfaces:
+            if (feature, surface) not in scope_aligned:
                 invalid.append(f"required feature lacks L1/L2/L3 closure: {(feature, surface)}")
     return {"status": "fail" if invalid or dangling else "pass", "invalid": sorted(invalid),
             "dangling": sorted(dangling), "pending": sorted(pending),
             "cells": len(cells), "anchored": sum(row["status"] == "anchored" for row in evidence),
             "aligned": sorted([list(key) for key in aligned]), "unclosed": len(unclosed),
+            "accepted_surfaces": sorted(scope),
+            "scope_aligned": sorted([list(key) for key in scope_aligned]),
             "complete": not unclosed and not invalid and not dangling,
             "discovery_verified": discovery is not None, "registry_verified": specs is not None}
 
@@ -154,8 +163,17 @@ def main():
     parser.add_argument("--product-builds", type=Path, help="explicit iced/bevy build IDs selected for this acceptance")
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--require-features", default="", help="comma-separated features requiring both peers and both viewports")
+    parser.add_argument("--require-surfaces", default="",
+                        help="comma-separated surfaces a required feature must close on (default: every surface)")
+    parser.add_argument("--accepted-surfaces", default="",
+                        help="comma-separated surfaces inside this acceptance scope (default: every surface)")
     parser.add_argument("--report-json", type=Path)
     args = parser.parse_args()
+    accepted_surfaces = tuple(filter(None, args.accepted_surfaces.split(",")))
+    require_surfaces = tuple(filter(None, args.require_surfaces.split(",")))
+    unknown = (set(accepted_surfaces) | set(require_surfaces)) - set(SURFACES)
+    if unknown:
+        parser.error(f"unknown surface: {sorted(unknown)}")
     if args.require_complete and args.product_builds is None:
         parser.error("release acceptance requires explicit --product-builds; baseline coverage is a separate result")
     if args.product_builds and not args.receipts:
@@ -173,16 +191,20 @@ def main():
             if args.receipts:
                 from visual_receipts import verified_receipts
                 selected_builds = json.loads(args.product_builds.read_text()) if args.product_builds else None
-                if selected_builds is not None and (set(selected_builds) != set(SURFACES) or
-                    any(not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value)
-                        for value in selected_builds.values())):
-                    raise ValueError("product selection must bind both peers to concrete build IDs")
+                if selected_builds is not None:
+                    scope = set(accepted_surfaces) if accepted_surfaces else set(SURFACES)
+                    if not set(selected_builds) <= set(SURFACES) or not scope <= set(selected_builds):
+                        raise ValueError(f"product selection must bind every accepted surface ({sorted(scope)}) to concrete build IDs")
+                    if any(not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value)
+                           for value in selected_builds.values()):
+                        raise ValueError("product selection must bind every accepted surface to concrete build IDs")
                 receipts = verified_receipts(args.receipts, ROOT, selected_builds)
         manifest = read_table(args.manifest, MANIFEST_FIELDS)
         evidence = read_table(args.evidence, EVIDENCE_FIELDS)
         report = validate(manifest, evidence,
                           catalogue, discovery, args.require_complete, receipts,
-                          tuple(filter(None, args.require_features.split(","))))
+                          tuple(filter(None, args.require_features.split(","))),
+                          require_surfaces, accepted_surfaces)
         report["acceptance_scope"] = "selected-products" if args.product_builds else "baseline-coverage"
         report["release_complete"] = bool(args.product_builds and report["complete"])
         if catalogue is not None:
@@ -194,6 +216,7 @@ def main():
         print(f"evidence: status={report['status']} registry={report['registry_verified']} "
               f"discovery={report['discovery_verified']} anchors={report['anchored']} "
               f"cells={report['cells']} aligned={len(report['aligned'])} unclosed={report['unclosed']} "
+              f"scope={','.join(report['accepted_surfaces'])} scope_aligned={len(report['scope_aligned'])} "
               f"complete={report['complete']}")
         for finding in report["invalid"] + report["dangling"]:
             print(f"  {finding}", file=sys.stderr)
