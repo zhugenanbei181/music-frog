@@ -107,14 +107,14 @@
 
 ## 二、受控 tag CI 回执（用户选择不打 tag，5 条 / 7 pt）
 
-> 本节的共同前置：**`main` 已于 2026-10-20 推送到远端**（`58158da6..04f9b44`），因此 `release-neutral-crates.yml` 已在默认分支可见，绑定当前代码的 tag 回执只差「打一个新的受控 `v*` tag」这一步；既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，它的 run 回执绑定的是旧代码，不覆盖当前代码。用户已明确选择不为凑 CI 证据打 tag，故本板条目在环境到位前保持阻塞。
+> 本节的共同前置已满足：**`v0.51.0` tag 已于 2026-10-21 推到远端，指向 `09e9387`**（页面模型收编批次的收口提交），`main` 同步在该提交。三条流水线同时起跑：`release` run `39465522369`（tag-only，validate → test-gate → 桌面构建 → Android 腿）、`release-neutral-crates` run `39465522116`、`main-gate` run `39465486110`。**Android 腿按设计 fail closed**：`release.yml` 的签名前置要求四个用户 keystore secret（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），缺失时在 Gradle 配置期即以缺失清单失败，debug key 不再为任何 release 产物背书。因此本节条目的剩余阻塞方是**用户 secrets 与受控 runner 的真实产物**，而不是「尚未打 tag」。既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，其 run 回执绑定的是旧代码，不覆盖当前代码。
 
 - [ ] BANDROID-018.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] tag-only CI 实际全绿回执
   - 产物：受控 `v*` tag release 与 Android workflow 的完整 run 链接和分项证据；普通 push/PR 不运行。
   - 依赖：高成本 tag-only 工作流；CI-QUALITY-001～005；CORE-UI-002（全仓绿）。
   - 验收：tag run 中 nextest、构建、Clippy、APK identity 与 Android tests 全绿并归档。
   - 当前证据：本地 5200+ nextest 与 Clippy 0 警告全绿；受控 tag 流水线定义在 `.github/workflows/` 已对齐。
-  - 阻塞方：受控 tag release runner（用户明确选择不为凑 CI 证据打 tag）。
+  - 阻塞方：受控 tag release runner 的 **Android 腿缺用户 keystore secrets**（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），签名前置因此 fail closed；`v0.51.0` tag 本身已打好（run `39465522369`）。
   - 解锁条件：用户授权打受控 `v*` tag 后取得的 workflow run 回执；取得后同次迁回过去佛办结。
   - 本板停留期间：本地全量门禁已闭环，无剩余本机可执行动作。
 - [ ] BANDROID-019.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] manifest/aapt 守卫 CI 回执
