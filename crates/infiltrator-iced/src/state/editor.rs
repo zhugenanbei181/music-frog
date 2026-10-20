@@ -137,17 +137,72 @@ impl RuleAddPhase {
     }
 }
 
-/// Load phase for snapshot diff modal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SnapshotDiffLoadPhase {
+/// The stage of the snapshot-diff modal.
+///
+/// The modal is one process: it is closed, it is loading the shared diff, it
+/// shows the loaded diff, or it shows the typed failure. The stage carries the
+/// selected snapshot and the loaded diff, so an open modal without a snapshot,
+/// a stale selection while the modal is closed, or a failure next to a loaded
+/// diff are no longer representable.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum SnapshotDiffModalState {
+    /// The modal is closed and no snapshot is selected.
     #[default]
-    Idle,
-    Loading,
+    Closed,
+    /// The modal is open and the shared diff is still loading.
+    Loading { snapshot_id: String },
+    /// DUAL-09-08: the real snapshot-vs-current diff rendered by the modal.
+    /// Computed through the shared `SnapshotApplication`, never fabricated.
+    Loaded {
+        snapshot_id: String,
+        diff: YamlAstDiffSnapshot,
+    },
+    /// The modal is open and the load failed with the typed reason.
+    Failed {
+        snapshot_id: String,
+        reason: String,
+    },
 }
 
-impl SnapshotDiffLoadPhase {
-    pub const fn is_loading(self) -> bool {
-        matches!(self, Self::Loading)
+impl SnapshotDiffModalState {
+    /// The snapshot the open modal is about.
+    pub fn snapshot_id(&self) -> Option<&str> {
+        match self {
+            SnapshotDiffModalState::Closed => None,
+            SnapshotDiffModalState::Loading { snapshot_id }
+            | SnapshotDiffModalState::Loaded { snapshot_id, .. }
+            | SnapshotDiffModalState::Failed { snapshot_id, .. } => Some(snapshot_id),
+        }
+    }
+
+    /// The loaded shared diff, when the modal shows it.
+    pub fn diff(&self) -> Option<&YamlAstDiffSnapshot> {
+        match self {
+            SnapshotDiffModalState::Loaded { diff, .. } => Some(diff),
+            SnapshotDiffModalState::Closed
+            | SnapshotDiffModalState::Loading { .. }
+            | SnapshotDiffModalState::Failed { .. } => None,
+        }
+    }
+
+    /// The typed failure, when the load failed.
+    pub fn failure(&self) -> Option<&str> {
+        match self {
+            SnapshotDiffModalState::Failed { reason, .. } => Some(reason),
+            SnapshotDiffModalState::Closed
+            | SnapshotDiffModalState::Loading { .. }
+            | SnapshotDiffModalState::Loaded { .. } => None,
+        }
+    }
+
+    /// True while the shared diff is loading.
+    pub fn is_loading(&self) -> bool {
+        matches!(self, SnapshotDiffModalState::Loading { .. })
+    }
+
+    /// True when the modal is open in any stage.
+    pub fn is_open(&self) -> bool {
+        !matches!(self, SnapshotDiffModalState::Closed)
     }
 }
 
@@ -392,14 +447,9 @@ pub struct ConfigEditorState {
     pub snapshot_restore: SnapshotRestoreWorkbench,
     pub script_code_content: text_editor::Content,
     pub script_yaml_content: text_editor::Content,
-    pub snapshot_diff_modal_open: bool,
-    pub snapshot_diff_selected_id: Option<String>,
-    /// DUAL-09-08: the real snapshot-vs-current diff rendered by the modal.
-    /// Computed through the shared `SnapshotApplication`, never fabricated.
-    pub snapshot_diff: Option<YamlAstDiffSnapshot>,
+    /// The snapshot-diff modal is one process with one stage.
+    pub snapshot_diff_modal: SnapshotDiffModalState,
     pub snapshot_diff_mode: SnapshotDiffMode,
-    pub snapshot_diff_load_phase: SnapshotDiffLoadPhase,
-    pub snapshot_diff_error: Option<String>,
     /// DUAL-09-09: two-step rollback confirmation; the first click arms.
     /// DUAL-09-12: session-local unlock for direct edits of a protected
     /// remote subscription. The application still enforces the rule.

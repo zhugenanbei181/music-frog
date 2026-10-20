@@ -10,8 +10,8 @@ use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
 use crate::state::proxy_probe;
 use crate::state::runtime::{
-    CustomNodeSaveState, ProbeSettingsDialogState, ProxyGroupOrderDialogState, RuntimeState,
-    TunServiceInstallState,
+    CoreLifecycleStage, CustomNodeSaveState, ProbeSettingsDialogState, ProxyGroupOrderDialogState,
+    RuntimePatchStage, RuntimeState, TunServiceInstallState,
 };
 use crate::state::shell::ShellState;
 use crate::types::app::{RouteHistory, Transition};
@@ -151,8 +151,7 @@ impl AppState {
                 system_proxy_application: Some(system_proxy_application),
                 system_proxy_last_repair_count: 0,
                 lifecycle_token: 0,
-                lifecycle_pending: None,
-                lifecycle_failure: None,
+                lifecycle: CoreLifecycleStage::Idle,
                 status: RuntimeStatus::Stopped,
                 routing_intent: None,
                 routing_intent_state: Default::default(),
@@ -203,7 +202,7 @@ impl AppState {
                 runtime_prev_upload_total: None,
                 runtime_prev_download_total: None,
                 runtime_prev_snapshot_at: None,
-                pending_runtime_patch: None,
+                runtime_patch_stage: RuntimePatchStage::Idle,
                 runtime_patch_token: 0,
                 outbound_inventory: PageData::unavailable(Failure::new(
                     ErrorCode::NotReady,
@@ -401,12 +400,9 @@ impl AppState {
                 snapshot_restore: Default::default(),
                 script_code_content: Content::new(),
                 script_yaml_content: Content::new(),
-                snapshot_diff_modal_open: false,
-                snapshot_diff_selected_id: None,
-                snapshot_diff: None,
+                snapshot_diff_modal: Default::default(),
                 snapshot_diff_mode: Default::default(),
-                snapshot_diff_load_phase: Default::default(),
-                snapshot_diff_error: None,
+
                 profile_write_authorization: Default::default(),
                 subrule_draft: default_logical_draft(DEFAULT_RULE_TARGET),
                 geodata_status: Default::default(),

@@ -5,7 +5,7 @@
 //! tests pin the state machine around it and the shared protection read model.
 
 use super::*;
-use crate::state::editor::SnapshotDiffLoadPhase;
+use crate::state::editor::SnapshotDiffModalState;
 use crate::types::app::SnapshotDiffMode;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_presentation::profile_editor_projection::protection_label;
@@ -21,9 +21,10 @@ fn fixture() -> YamlAstDiffSnapshot {
 fn open_modal_state() -> AppState {
     let (mut state, _) = AppState::new();
     state.editor.editor_path = Some(PathBuf::from("/memory/configs/main.yaml"));
-    state.editor.snapshot_diff_modal_open = true;
-    state.editor.snapshot_diff_selected_id = Some("1-deadbeef.yaml".to_string());
-    state.editor.snapshot_diff = Some(fixture());
+    state.editor.snapshot_diff_modal = SnapshotDiffModalState::Loaded {
+        snapshot_id: "1-deadbeef.yaml".to_string(),
+        diff: fixture(),
+    };
     state
 }
 #[test]
@@ -37,7 +38,7 @@ fn rollback_never_executes_before_the_second_confirmation() {
         "the launcher opens an independent review surface"
     );
     assert!(
-        state.editor.snapshot_diff_modal_open,
+        state.editor.snapshot_diff_modal.is_open(),
         "opening review preserves the diff inspector"
     );
     assert_eq!(state.editor.editor_content.text(), before);
@@ -54,9 +55,9 @@ fn rollback_never_executes_before_the_second_confirmation() {
 fn closing_the_modal_drops_the_diff_and_the_confirmation() {
     let mut state = open_modal_state();
     let _ = state.update(Message::CloseSnapshotDiff);
-    assert!(!state.editor.snapshot_diff_modal_open);
-    assert!(state.editor.snapshot_diff.is_none());
-    assert!(state.editor.snapshot_diff_error.is_none());
+    assert_eq!(state.editor.snapshot_diff_modal, SnapshotDiffModalState::Closed);
+    assert!(state.editor.snapshot_diff_modal.diff().is_none());
+    assert!(state.editor.snapshot_diff_modal.failure().is_none());
 }
 
 #[test]
@@ -65,21 +66,22 @@ fn opening_a_diff_without_an_open_profile_reports_an_honest_error() {
     state.editor.editor_path = None;
     let _ = state.update(Message::OpenSnapshotDiff("/tmp/x.yaml".to_string()));
     assert!(
-        state.editor.snapshot_diff_error.is_some(),
+        state.editor.snapshot_diff_modal.failure().is_some(),
         "no open profile means a typed error, never a fabricated diff"
     );
-    assert!(!state.editor.snapshot_diff_load_phase.is_loading());
-    assert!(state.editor.snapshot_diff.is_none());
+    assert!(!state.editor.snapshot_diff_modal.is_loading());
+    assert!(state.editor.snapshot_diff_modal.diff().is_none());
 }
 
 #[test]
 fn mode_changes_do_not_touch_the_shared_diff() {
     let mut state = open_modal_state();
-    let before = state.editor.snapshot_diff.clone();
+    let before = state.editor.snapshot_diff_modal.diff().cloned();
     let _ = state.update(Message::SetSnapshotDiffMode(SnapshotDiffMode::Split));
     assert_eq!(state.editor.snapshot_diff_mode, SnapshotDiffMode::Split);
     assert_eq!(
-        state.editor.snapshot_diff, before,
+        state.editor.snapshot_diff_modal.diff().cloned(),
+        before,
         "layout is presentation only"
     );
 }
@@ -160,20 +162,20 @@ fn refresh_recomputes_the_open_diff_through_the_shared_application() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RefreshSnapshotDiff);
     assert!(
-        !state.editor.snapshot_diff_load_phase.is_loading(),
+        !state.editor.snapshot_diff_modal.is_loading(),
         "nothing is open, so refresh is an inert no-op"
     );
+    assert_eq!(state.editor.snapshot_diff_modal, SnapshotDiffModalState::Closed);
 
     let mut state = open_modal_state();
     state.editor.editor_path = Some(PathBuf::from("/fake/configs/main.yaml"));
-    state.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
     let _ = state.update(Message::RefreshSnapshotDiff);
     assert!(
-        state.editor.snapshot_diff_load_phase.is_loading(),
+        state.editor.snapshot_diff_modal.is_loading(),
         "refresh re-enters the shared loading path for the selected snapshot"
     );
     assert_eq!(
-        state.editor.snapshot_diff_selected_id.as_deref(),
+        state.editor.snapshot_diff_modal.snapshot_id(),
         Some("1-deadbeef.yaml"),
         "the refreshed target is the snapshot the modal already shows"
     );

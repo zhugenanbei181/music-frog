@@ -345,8 +345,8 @@ impl AppState {
             layers.push(aggregator_modal::aggregator_modal(self));
         }
 
-        if let Some(snap_id) = &self.editor.snapshot_diff_selected_id
-            && self.editor.snapshot_diff_modal_open
+        if let Some(snap_id) = self.editor.snapshot_diff_modal.snapshot_id()
+            && self.editor.snapshot_diff_modal.is_open()
         {
             layers.push(snapshot_diff_modal::snapshot_diff_modal(self, snap_id));
         }

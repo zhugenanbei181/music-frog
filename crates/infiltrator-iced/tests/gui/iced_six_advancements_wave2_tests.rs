@@ -424,22 +424,22 @@ fn test_advancement_w2_5_snapshot_diff_and_rollback_dialog() {
     let (mut state, _) = AppState::new();
 
     // Initial state
-    assert!(!state.editor.snapshot_diff_modal_open);
-    assert!(state.editor.snapshot_diff_selected_id.is_none());
+    assert!(!state.editor.snapshot_diff_modal.is_open());
+    assert!(state.editor.snapshot_diff_modal.snapshot_id().is_none());
 
     // Open snapshot diff dialog
     let snapshot_id = "snap-20260903T120000Z-a77ce0";
     let _ = state.update(Message::OpenSnapshotDiff(snapshot_id.to_string()));
-    assert!(state.editor.snapshot_diff_modal_open);
+    assert!(state.editor.snapshot_diff_modal.is_open());
     assert_eq!(
-        state.editor.snapshot_diff_selected_id.as_deref(),
+        state.editor.snapshot_diff_modal.snapshot_id(),
         Some(snapshot_id)
     );
 
     // Close diff dialog
     let _ = state.update(Message::CloseSnapshotDiff);
-    assert!(!state.editor.snapshot_diff_modal_open);
-    assert!(state.editor.snapshot_diff_selected_id.is_none());
+    assert!(!state.editor.snapshot_diff_modal.is_open());
+    assert!(state.editor.snapshot_diff_modal.snapshot_id().is_none());
 }
 
 #[test]

@@ -7,6 +7,7 @@
 //! transaction.
 
 use crate::state::AppState;
+use crate::state::editor::SnapshotDiffModalState;
 use crate::types::app::SnapshotDiffMode;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_ghost};
@@ -45,7 +46,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     // source → target pair the Bevy card renders; before that it falls back to
     // the requested snapshot id.
     let subtitle = text(snapshot_presentation::diff_summary(
-        state.editor.snapshot_diff.as_ref(),
+        state.editor.snapshot_diff_modal.diff(),
         &Lang(&state.shell.lang),
     ))
     .size(12)
@@ -53,28 +54,31 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         color: Some(tokens(t).text_secondary),
     });
 
-    let body = match &state.editor.snapshot_diff {
-        _ if state.editor.snapshot_diff_load_phase.is_loading() => {
+    let body = match &state.editor.snapshot_diff_modal {
+        SnapshotDiffModalState::Loading { .. } => {
             message_block(lang.tr("snapshot_diff_loading").to_string(), |t: &Theme| {
                 tokens(t).text_tertiary
             })
         }
-        _ if state.editor.snapshot_diff_error.is_some() => message_block(
-            state.editor.snapshot_diff_error.clone().unwrap_or_default(),
-            |t: &Theme| tokens(t).danger,
-        ),
-        Some(diff) if diff.is_empty() => {
+        SnapshotDiffModalState::Failed { reason, .. } => {
+            message_block(reason.clone(), |t: &Theme| tokens(t).danger)
+        }
+        SnapshotDiffModalState::Loaded { diff, .. } if diff.is_empty() => {
             message_block(lang.tr("snapshot_diff_empty").to_string(), |t: &Theme| {
                 tokens(t).text_tertiary
             })
         }
-        Some(diff) => diff_body(diff, state.editor.snapshot_diff_mode),
-        None => message_block(lang.tr("snapshot_diff_empty").to_string(), |t: &Theme| {
-            tokens(t).text_tertiary
-        }),
+        SnapshotDiffModalState::Loaded { diff, .. } => {
+            diff_body(diff, state.editor.snapshot_diff_mode)
+        }
+        SnapshotDiffModalState::Closed => {
+            message_block(lang.tr("snapshot_diff_empty").to_string(), |t: &Theme| {
+                tokens(t).text_tertiary
+            })
+        }
     };
 
-    let stats_row = state.editor.snapshot_diff.as_ref().map(|diff| {
+    let stats_row = state.editor.snapshot_diff_modal.diff().map(|diff| {
         row![
             badge(diff.change_summary(), BadgeKind::Neutral),
             Space::new().width(theme::SP_SM),

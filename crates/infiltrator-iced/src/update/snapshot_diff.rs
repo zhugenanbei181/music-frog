@@ -6,7 +6,7 @@
 
 use crate::snapshot_commands::execute;
 use crate::state::AppState;
-use crate::state::editor::SnapshotDiffLoadPhase;
+use crate::state::editor::SnapshotDiffModalState;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
 use iced::Task;
@@ -18,10 +18,9 @@ impl AppState {
     pub(super) fn update_snapshot_diff(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::OpenSnapshotDiff(id) => {
-                self.editor.snapshot_diff_modal_open = true;
-                self.editor.snapshot_diff_selected_id = Some(id.clone());
-                self.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Loading;
-                self.editor.snapshot_diff_error = None;
+                self.editor.snapshot_diff_modal = SnapshotDiffModalState::Loading {
+                    snapshot_id: id.clone(),
+                };
                 // DUAL-09-08: the modal renders the shared application's real
                 // Myers diff; it never fabricates rows.
                 let Some(profile) = self
@@ -32,9 +31,10 @@ impl AppState {
                     .and_then(|stem| stem.to_str())
                     .map(str::to_string)
                 else {
-                    self.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
-                    self.editor.snapshot_diff_error =
-                        Some("no profile is open in the editor".to_string());
+                    self.editor.snapshot_diff_modal = SnapshotDiffModalState::Failed {
+                        snapshot_id: id.clone(),
+                        reason: "no profile is open in the editor".to_string(),
+                    };
                     return Task::none();
                 };
                 let commands = self.command_ingress();
@@ -58,17 +58,19 @@ impl AppState {
                 )
             }
             Message::SnapshotDiffLoaded(result) => {
-                self.editor.snapshot_diff_load_phase = SnapshotDiffLoadPhase::Idle;
-                match result {
-                    Ok(diff) => {
-                        self.editor.snapshot_diff = Some(diff);
-                        self.editor.snapshot_diff_error = None;
-                    }
-                    Err(error) => {
-                        self.editor.snapshot_diff = None;
-                        self.editor.snapshot_diff_error = Some(error.to_string());
-                    }
-                }
+                let snapshot_id = self
+                    .editor
+                    .snapshot_diff_modal
+                    .snapshot_id()
+                    .unwrap_or_default()
+                    .to_owned();
+                self.editor.snapshot_diff_modal = match result {
+                    Ok(diff) => SnapshotDiffModalState::Loaded { snapshot_id, diff },
+                    Err(error) => SnapshotDiffModalState::Failed {
+                        snapshot_id,
+                        reason: error.to_string(),
+                    },
+                };
                 Task::none()
             }
             Message::SetSnapshotDiffMode(mode) => {
@@ -78,19 +80,18 @@ impl AppState {
             // DUAL-09-14: the same "recompute from the shared snapshot
             // application" action the Bevy card offers. Re-dispatching through
             // the open path keeps one loading/error state machine.
-            Message::RefreshSnapshotDiff => match self.editor.snapshot_diff_selected_id.clone() {
-                Some(id) => self.update_snapshot_diff(Message::OpenSnapshotDiff(id)),
-                None => Task::none(),
-            },
+            Message::RefreshSnapshotDiff => {
+                match self.editor.snapshot_diff_modal.snapshot_id().map(str::to_owned) {
+                    Some(id) => self.update_snapshot_diff(Message::OpenSnapshotDiff(id)),
+                    None => Task::none(),
+                }
+            }
             Message::SetProfileWriteAuthorization(authorization) => {
                 self.editor.profile_write_authorization = authorization;
                 Task::none()
             }
             Message::CloseSnapshotDiff => {
-                self.editor.snapshot_diff_modal_open = false;
-                self.editor.snapshot_diff_selected_id = None;
-                self.editor.snapshot_diff = None;
-                self.editor.snapshot_diff_error = None;
+                self.editor.snapshot_diff_modal = SnapshotDiffModalState::Closed;
                 Task::none()
             }
             Message::RollbackToSnapshot(id) => {
