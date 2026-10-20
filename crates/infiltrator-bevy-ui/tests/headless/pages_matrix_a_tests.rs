@@ -662,3 +662,6 @@ mod log_search;
 
 #[path = "pages_matrix_a_tests/log_follow.rs"]
 mod log_follow;
+
+#[path = "pages_matrix_a_tests/radius_roles.rs"]
+mod radius_roles;

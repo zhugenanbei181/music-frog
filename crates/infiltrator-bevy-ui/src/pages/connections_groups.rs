@@ -72,8 +72,8 @@ fn replay_groups(presentation: GroupPresentation, mut commands: Commands) {
         palette,
     } = presentation;
     let copy = LocalizedText::new(
-        view.groups.summary_key(),
-        vec![("count", view.groups.rows().len().to_string())],
+        view.page.summary_key(),
+        vec![("count", view.page.rows().len().to_string())],
     );
     for mut label in &mut summaries {
         if label.key != copy.key || label.params != copy.params {
@@ -84,7 +84,7 @@ fn replay_groups(presentation: GroupPresentation, mut commands: Commands) {
         rendered.root = None;
         return;
     };
-    let rows = view.groups.rows();
+    let rows = view.page.rows();
     if rendered.root == Some(root) && rendered.rows == rows {
         return;
     }

@@ -130,12 +130,18 @@ fn reconcile(
         .collect();
     if topology.root == Some(root) && topology.identities == identities {
         restamp_live_rows(rows, &mut copies, &mut buttons);
-        apply_connection_row_order(&update.0, view.sort, &mut containers, &markers, &subtrees);
+        apply_connection_row_order(
+            &update.0,
+            view.page.sort_key(),
+            &mut containers,
+            &markers,
+            &subtrees,
+        );
         return;
     }
     commands.entity(root).despawn_children();
     let mut sorted = rows.clone();
-    connection_view::sort_connections(&mut sorted, view.sort);
+    connection_view::sort_connections(&mut sorted, view.page.sort_key());
     for row in &sorted {
         let index = rows
             .iter()

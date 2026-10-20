@@ -102,7 +102,7 @@ fn native_grouping_search_refresh_and_return_to_flat_preserve_visibility() {
     app.update();
     assert_eq!(cards(&mut app).len(), 1);
     assert_eq!(
-        app.world().resource::<ConnectionsViewState>().groups.rows()[0].count,
+        app.world().resource::<ConnectionsViewState>().page.rows()[0].count,
         2
     );
     choose(&mut app, ConnectionGroupingMode::ByHost);

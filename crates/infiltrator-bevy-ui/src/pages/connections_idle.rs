@@ -178,7 +178,7 @@ pub(crate) fn on_connections_idle_activated(activate: On<Activate>, controls: Id
         restamp_idle_pills(&palette, &mut pill_fills, pill.0);
         return;
     }
-    if !sweep_buttons.contains(activate.entity) || !view.groups.source_current() {
+    if !sweep_buttons.contains(activate.entity) || !view.page.source_current() {
         return;
     }
     let Some(state) = idle.as_deref_mut() else {

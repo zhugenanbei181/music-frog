@@ -10,6 +10,7 @@ use infiltrator_bevy_ui::pages::connections_virtual::{
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::connection::ConnectionStreamPhase;
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -537,10 +538,47 @@ fn test_connections_high_throughput_pulse_follows_shared_threshold() {
     );
 }
 
+/// The sort pills in the order the page renders them.
+fn rendered_sort_keys(app: &mut App) -> Vec<ConnectionSortKey> {
+    use infiltrator_bevy_ui::pages::connections_view::ConnSortPill;
+
+    let parent = {
+        let mut query = app.world_mut().query_filtered::<Entity, With<ConnSortPill>>();
+        let first = query.iter(app.world()).next().expect("a sort pill");
+        app.world()
+            .get::<ChildOf>(first)
+            .expect("the sort pill's parent")
+            .0
+    };
+    let children: Vec<Entity> = app
+        .world()
+        .get::<Children>(parent)
+        .expect("the sort pill container")
+        .iter()
+        .copied()
+        .collect();
+    children
+        .into_iter()
+        .filter_map(|child| app.world().get::<ConnSortPill>(child).map(|pill| pill.0))
+        .collect()
+}
+
+#[test]
+fn the_rendered_sort_pills_follow_the_shared_ordered_choices() {
+    use infiltrator_presentation::connection_page_model::CONNECTION_SORT_OPTIONS;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Connections);
+
+    // The header renders the shared ordered list of sort choices, so a
+    // control position means the same thing on every surface.
+    assert_eq!(rendered_sort_keys(&mut app), CONNECTION_SORT_OPTIONS.to_vec());
+}
+
 #[test]
 fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
     use infiltrator_bevy_ui::pages::connections_view::ConnSortPill;
-    use infiltrator_domain::connection_view::ConnectionSortKey;
 
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
@@ -598,7 +636,7 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
     });
     app.update();
     assert_eq!(
-        app.world().resource::<ConnectionsViewState>().sort,
+        app.world().resource::<ConnectionsViewState>().page.sort_key(),
         ConnectionSortKey::DownloadRateDesc
     );
     assert_eq!(connection_row_order(&mut app), vec![2, 1, 0, 3]);

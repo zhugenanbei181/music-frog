@@ -106,7 +106,9 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                 max_height: percent(90),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(rem(space::S20)), row_gap: rem(space::S16),
-                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
+                // The contract's radius ladder gives a centered dialog the
+                // modal rung; only a panel-style card keeps the card rung.
+                border_radius: BorderRadius::all(rem(palette.modal_radius_px)),
                 overflow: Overflow::scroll_y(),
             }
             ThemeBackgroundColor({ Token::Surface })

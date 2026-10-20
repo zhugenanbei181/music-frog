@@ -129,6 +129,9 @@ pub fn panel_scene(
                 width: percent(90), max_width: rem(BUSINESS_PANEL_MAX_WIDTH_PX), max_height: percent(90),
                 min_width: px(0.0), flex_direction: FlexDirection::Column,
                 padding: UiRect::all(rem(space::S16)), row_gap: rem(space::S12),
+                // The business panel is the contract's panel-style dialog, so
+                // it keeps the card rung; only a centered dialog takes the
+                // modal rung.
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
             ThemeBackgroundColor({ Token::Surface })

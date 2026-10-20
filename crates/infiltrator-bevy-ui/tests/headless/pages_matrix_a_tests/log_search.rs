@@ -119,6 +119,41 @@ fn native_regex_query_renders_real_spans_invalid_error_no_matches_and_clear() {
     );
 }
 #[test]
+fn a_broken_pattern_is_a_typed_outcome_and_the_owner_level_is_a_confirmed_selection() {
+    use infiltrator_contract::logs::LogLevel;
+    use infiltrator_presentation::log_page_model::{LogLevelFilter, LogLevelSelection};
+    use infiltrator_presentation::log_search::LogSearchOutcome;
+
+    let (mut app, _, field) = setup();
+    edit(&mut app, field, "(");
+    // A broken pattern is a typed outcome of the shared page model, not only
+    // an i18n key the surface happens to render.
+    assert!(matches!(
+        app.world().resource::<LogsViewState>().0.search_outcome(),
+        LogSearchOutcome::InvalidPattern { .. }
+    ));
+    assert_eq!(
+        app.world().resource::<LogsViewState>().0.status_key(),
+        "logs_search_invalid"
+    );
+
+    // The owner's active level arrives as a confirmed selection, so the page
+    // never shows a filter nobody chose.
+    let mut leveled = LogsProjection::demo();
+    leveled.active_level = Some(LogLevel::Warn);
+    app.world_mut().trigger(LogsProjectionUpdated(leveled));
+    app.update();
+    assert_eq!(
+        app.world().resource::<LogsViewState>().0.level_selection(),
+        LogLevelSelection::Confirmed(LogLevel::Warn)
+    );
+    assert_eq!(
+        app.world().resource::<LogsViewState>().0.level_filter(),
+        LogLevelFilter::Level(LogLevel::Warn)
+    );
+}
+
+#[test]
 fn native_log_query_survives_refresh_language_and_route_without_rebuilding_live_input() {
     let (mut app, sink, field) = setup();
     edit(&mut app, field, "github");

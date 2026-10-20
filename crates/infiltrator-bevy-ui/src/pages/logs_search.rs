@@ -27,15 +27,20 @@ use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk, TextRunsSet};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
-use infiltrator_presentation::log_search::LogSearchState;
+use infiltrator_presentation::log_page_model::{LogLevelFilter, LogsPageModel};
 use lurker_core_contract::page::PageData;
 
 /// One-off layout value (not a ladder rung): the narrowest the logs regex
 /// search field may shrink before the row wraps.
 const LOGS_SEARCH_FIELD_MIN_WIDTH_PX: f32 = 180.0;
 
+/// The one page model of the logs page.
+///
+/// The query, the level filter, the typed page status and the typed search
+/// outcome are owned by the shared model, so this surface only renders the
+/// model and reports the owner's readback back to it.
 #[derive(Resource, Default)]
-pub struct LogsViewState(pub LogSearchState);
+pub struct LogsViewState(pub LogsPageModel);
 #[derive(Component, Clone, Copy, Default)]
 pub struct LogsSearchField;
 #[derive(Component, Clone, Copy, Default)]
@@ -179,6 +184,12 @@ fn replay(surface: LogSurface) {
             data: Some(data),
         },
     );
+    // The level filter is a separate owner readback: the page observation
+    // never carries it, so the surface hands the owner's active level to the
+    // model instead of deriving the filter here.
+    view.0.observe_level(LogLevelFilter::from_active_level(
+        projection.active_level.map(|level| level.label()),
+    ));
     for (identity, mut node) in &mut rows {
         node.display = if view.0.row(identity.0).is_some_and(|row| row.visible) {
             Display::Flex

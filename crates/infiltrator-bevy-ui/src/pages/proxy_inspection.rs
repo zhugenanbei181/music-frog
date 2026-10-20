@@ -699,7 +699,9 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
             }
         })
         Children [
-            Node { width:percent(92),max_width:rem(PROXY_INSPECTION_MODAL_MAX_WIDTH_PX),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(space::S12),padding:UiRect::all(rem(space::S16)),border_radius:BorderRadius::all(rem(palette.card_radius_px)) }
+            // The contract's radius ladder gives a centered dialog the modal
+            // rung; only a panel-style card keeps the card rung.
+            Node { width:percent(92),max_width:rem(PROXY_INSPECTION_MODAL_MAX_WIDTH_PX),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(space::S12),padding:UiRect::all(rem(space::S16)),border_radius:BorderRadius::all(rem(palette.modal_radius_px)) }
             ThemeBackgroundColor({Token::Surface}) ProxyInspectionCard ModalDialogCard ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_inspection_title")
             Children [

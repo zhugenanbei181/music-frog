@@ -34,8 +34,9 @@ use bevy::ui::prelude::{ComputedNode, FlexDirection, Node, Overflow, ScrollPosit
 use infiltrator_bevy_widgets::list::VirtualListState;
 use infiltrator_bevy_widgets::list::scroll_core::{SlotRebindAction, VirtualEntityPool};
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_domain::connection_view;
-use infiltrator_domain::connection_view::{ConnectionSortKey, ConnectionView};
+use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
+use infiltrator_domain::connection_view::ConnectionSortKey;
+use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
 
 /// Total connection count at or below which the page keeps its full-mount path.
 /// Above it the recycler owns row mounting.
@@ -111,37 +112,29 @@ impl Default for ConnectionsVirtualState {
     }
 }
 
-/// The shared sort reduction applied to projection indices. Mirrors
-/// [`connection_view::sort_connections`] (same key ranking and stable
-/// id tie-break) but returns the permutation so the recycler can window over
-/// the original collection without cloning it.
+/// The render permutation of the projected rows under the shared sort key.
+///
+/// The order comes from the one shared reduction the page model owns: the rows
+/// are sorted through the model and the sorted rows are mapped back to their
+/// projection indices by their row id, so the recycler windows over the
+/// original collection without keeping a second order table.
 pub fn sorted_connection_order(
     projection: &ConnectionsProjection,
     key: ConnectionSortKey,
 ) -> Vec<usize> {
-    let rows = &projection.connections;
-    let mut order: Vec<usize> = (0..rows.len()).collect();
-    order.sort_by(|&left, &right| {
-        let a = &rows[left];
-        let b = &rows[right];
-        let ordering = match key {
-            ConnectionSortKey::DownloadDesc => {
-                b.view_download_total().cmp(&a.view_download_total())
-            }
-            ConnectionSortKey::UploadDesc => b.view_upload_total().cmp(&a.view_upload_total()),
-            ConnectionSortKey::DownloadRateDesc => b
-                .view_download_rate_bps()
-                .total_cmp(&a.view_download_rate_bps()),
-            ConnectionSortKey::UploadRateDesc => b
-                .view_upload_rate_bps()
-                .total_cmp(&a.view_upload_rate_bps()),
-            ConnectionSortKey::LatestDesc => b.view_start().cmp(a.view_start()),
-            ConnectionSortKey::HostAsc => {
-                connection_view::connection_host(a).cmp(connection_view::connection_host(b))
-            }
-        };
-        ordering.then_with(|| a.view_id().cmp(b.view_id()))
-    });
+    let mut page = ConnectionsPageModel::<ConnectionSnapshot>::default();
+    page.select_sort(key);
+    let mut sorted = projection.connections.clone();
+    page.sort_rows(&mut sorted);
+    let mut order = Vec::with_capacity(sorted.len());
+    for row in &sorted {
+        let index = projection
+            .connections
+            .iter()
+            .position(|source| source.id == row.id)
+            .expect("a sorted row is one of the projected rows");
+        order.push(index);
+    }
     order
 }
 
@@ -283,7 +276,7 @@ pub(crate) fn sync_connections_virtual_window(
     let Some(projection) = last.as_ref().and_then(|last| last.0.clone()) else {
         return;
     };
-    let sort = view.as_ref().map(|view| view.sort).unwrap_or_default();
+    let sort = view.as_ref().map(|view| view.page.sort_key()).unwrap_or_default();
 
     // Recompute the render permutation only when the projection or the shared
     // sort key actually changed, so a live rate tick keeps its window.
@@ -413,7 +406,8 @@ mod tests {
     use super::*;
     use bevy::ecs::world::World;
     use infiltrator_contract::connection::{ConnectionRateObservation, ConnectionStreamPhase};
-    use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
+    use infiltrator_domain::connection_view;
+    use infiltrator_presentation::connection_page_model::CONNECTION_SORT_OPTIONS;
 
     fn connection(index: usize) -> ConnectionSnapshot {
         ConnectionSnapshot {
@@ -452,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn sorted_order_mirrors_the_shared_sort_reduction() {
+    fn the_virtual_order_is_the_shared_reduction_permutation() {
         let projection = projection_with(5);
         // Default (download-desc) ranks c-4 first, c-0 last.
         let order = sorted_connection_order(&projection, ConnectionSortKey::DownloadDesc);
@@ -463,6 +457,28 @@ mod tests {
         // Instantaneous upload rate keeps the same monotone ranking.
         let rate_order = sorted_connection_order(&projection, ConnectionSortKey::UploadRateDesc);
         assert_eq!(rate_order, vec![4, 3, 2, 1, 0]);
+
+        // Every shared sort choice produces exactly the permutation the shared
+        // reduction produces: the page keeps no second order table.
+        for key in CONNECTION_SORT_OPTIONS {
+            let mut expected = projection.connections.clone();
+            connection_view::sort_connections(&mut expected, key);
+            let expected_order: Vec<usize> = expected
+                .iter()
+                .map(|row| {
+                    projection
+                        .connections
+                        .iter()
+                        .position(|source| source.id == row.id)
+                        .expect("a sorted row is one of the projected rows")
+                })
+                .collect();
+            assert_eq!(
+                sorted_connection_order(&projection, key),
+                expected_order,
+                "the virtual order must be the shared reduction's permutation for {key:?}"
+            );
+        }
     }
 
     #[test]

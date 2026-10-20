@@ -45,7 +45,10 @@ pub fn observe(
     // The Escape interception belongs to Bevy's official dialog layer: the
     // barrier reports the close request and the modal's own close path runs
     // from it. This system only owns the page navigation.
-    if state.editor.is_open() && route.0 != Some(Route::Dns) && state.editor.cancel() {
+    if state.editor.is_open()
+        && route.0 != Some(Route::Dns)
+        && state.editor.cancel()
+    {
         state.sync_fields = true;
     }
     hand_off_focus(

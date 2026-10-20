@@ -63,7 +63,7 @@ fn initialize_query(
     {
         field
             .0
-            .apply(TextFieldInput::SetText(view.groups.query().into()));
+            .apply(TextFieldInput::SetText(view.page.query().into()));
     }
 }
 fn clear_query(
@@ -120,25 +120,25 @@ fn replay_search(surface: SearchSurface) {
         mut actions,
     } = surface;
     if let Some(query) = search_field_text(&search, &fields) {
-        view.groups.edit_query(&query);
+        view.page.edit_query(&query);
     }
     let Some(projection) = last.0.as_ref() else {
         return;
     };
-    let flat = view.groups.mode().is_flat();
+    let flat = view.page.mode().is_flat();
     for mut item in &mut nodes {
         let visible = if let Some(row) = item.row {
             projection
                 .connections
                 .get(row.0)
-                .and_then(|row| view.groups.search_row(&row.id))
+                .and_then(|row| view.page.search_row(&row.id))
                 .is_some_and(|row| row.visible)
         } else if item.flat.is_some() {
             flat
         } else if item.grouped.is_some() {
             !flat
         } else if item.empty.is_some() {
-            flat && view.groups.summary_empty()
+            flat && view.page.summary_empty()
         } else {
             continue;
         };
@@ -164,7 +164,7 @@ fn replay_search(surface: SearchSurface) {
         let Some(row) = projection
             .connections
             .get(index)
-            .and_then(|row| view.groups.search_row(&row.id))
+            .and_then(|row| view.page.search_row(&row.id))
         else {
             continue;
         };
@@ -179,19 +179,19 @@ fn replay_search(surface: SearchSurface) {
     }
     for mut action in &mut actions {
         if action.clear.is_some() {
-            action.disabled.0 = view.groups.query().trim().is_empty();
+            action.disabled.0 = view.page.query().trim().is_empty();
             continue;
         }
         if action.row.is_some() || action.filtered.is_some() {
-            action.disabled.0 = !view.groups.source_current()
-                || (action.filtered.is_some() && view.groups.query().trim().is_empty());
+            action.disabled.0 = !view.page.source_current()
+                || (action.filtered.is_some() && view.page.query().trim().is_empty());
         }
     }
     let summary = LocalizedText::new(
-        view.groups.search_summary_key(),
+        view.page.search_summary_key(),
         vec![
-            ("matched", view.groups.matched_count().to_string()),
-            ("total", view.groups.source_count().to_string()),
+            ("matched", view.page.matched_count().to_string()),
+            ("total", view.page.source_count().to_string()),
         ],
     );
     for mut copy in &mut summaries {

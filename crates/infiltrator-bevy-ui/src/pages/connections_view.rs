@@ -36,7 +36,10 @@ use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
-use infiltrator_presentation::connection_grouping::{ConnectionGroupingState, sort_label_key};
+use infiltrator_presentation::connection_grouping::sort_label_key;
+use infiltrator_presentation::connection_page_model::{
+    CONNECTION_SORT_OPTIONS, ConnectionsPageModel,
+};
 use std::collections::HashMap;
 
 /// Marker on a single flat connection row root; the payload is the row index
@@ -72,13 +75,14 @@ pub struct CloseFilteredConnectionsButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CloseAllConnectionsLabel;
 
-/// Shared grouping selection, set by the aggregation pills.
+/// The one page model of the connections page.
+///
+/// The grouped rows, the query, the match counts and the sort selection are
+/// owned by the shared model, so this surface only renders the model and
+/// dispatches typed intents back to it.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ConnectionsViewState {
-    pub groups: ConnectionGroupingState<ConnectionSnapshot>,
-    /// DUAL-13-12: shared order of the flat rows; defaults to the same
-    /// cumulative-download order the Iced surface starts with.
-    pub sort: ConnectionSortKey,
+    pub page: ConnectionsPageModel<ConnectionSnapshot>,
 }
 
 /// DUAL-13-12: one sort pill on the connections table header. The payload is
@@ -88,18 +92,14 @@ pub struct ConnSortPill(pub ConnectionSortKey);
 
 /// DUAL-13-12: the clickable header pills that reorder the flat rows by the
 /// shared key (instantaneous download / upload included).
+///
+/// The choices are the shared ordered list, so a control position means the
+/// same thing on every surface.
 pub fn sort_pills_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let pills: Vec<Box<dyn Scene>> = [
-        ConnectionSortKey::DownloadDesc,
-        ConnectionSortKey::UploadDesc,
-        ConnectionSortKey::DownloadRateDesc,
-        ConnectionSortKey::UploadRateDesc,
-        ConnectionSortKey::LatestDesc,
-        ConnectionSortKey::HostAsc,
-    ]
-    .into_iter()
-    .map(|key| Box::new(sort_pill(key, palette)) as Box<dyn Scene>)
-    .collect();
+    let pills: Vec<Box<dyn Scene>> = CONNECTION_SORT_OPTIONS
+        .into_iter()
+        .map(|key| Box::new(sort_pill(key, palette)) as Box<dyn Scene>)
+        .collect();
 
     bsn! {
             Node {
@@ -173,7 +173,7 @@ pub(crate) fn on_connections_sort_activated(
     };
     let key = pill.0;
     if let Some(state) = view_state.as_deref_mut() {
-        state.sort = key;
+        state.page.select_sort(key);
     }
     restamp_sort_pills(&palette, &mut pills, key);
     // BANDROID-010: the recycler re-derives the sorted window from the shared
@@ -425,7 +425,7 @@ mod tests {
                 item("c2", "b.com:443", "/usr/bin/git", 20, 20),
             ],
         };
-        let mut state = ConnectionGroupingState::default();
+        let mut state = ConnectionsPageModel::default();
         state.observe(&projection.connections);
         state.select(ConnectionGroupingMode::ByProcess);
         let rows = state.rows();

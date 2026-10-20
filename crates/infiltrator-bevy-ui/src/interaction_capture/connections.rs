@@ -183,7 +183,7 @@ pub fn observe(
         observed.publish(&mut feature, bounds);
         return;
     }
-    let state = &controls.view.groups;
+    let state = &controls.view.page;
     let Some((field, _, text)) = controls.fields.iter().find(|(_, field, _)| field.0 == 10) else {
         return;
     };
@@ -229,7 +229,7 @@ pub fn observe(
 }
 
 fn search_bounds(controls: &GroupControls, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
-    let state = &controls.view.groups;
+    let state = &controls.view.page;
     if !state.mode().is_flat()
         || state.matched_count() != 2
         || state.source_count() != 9

@@ -118,7 +118,7 @@ fn native_connection_search_renders_actual_highlight_metadata_empty_and_clear_wi
     assert_eq!(
         app.world()
             .resource::<ConnectionsViewState>()
-            .groups
+            .page
             .matched_count(),
         0
     );
@@ -191,7 +191,7 @@ fn native_connection_search_survives_language_and_route_refresh_and_rejects_unav
     assert!(
         !app.world()
             .resource::<ConnectionsViewState>()
-            .groups
+            .page
             .source_current()
     );
     let close = app

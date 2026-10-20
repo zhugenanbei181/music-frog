@@ -524,7 +524,7 @@ pub(crate) fn on_connections_action_activated(
         handle,
         view,
     } = controls;
-    if !view.groups.source_current() {
+    if !view.page.source_current() {
         return;
     }
     let Some(handle) = handle else {
@@ -595,7 +595,7 @@ pub(crate) fn on_connections_view_activated(
     };
     let mode = pill.0;
     if let Some(state) = view_state.as_deref_mut() {
-        state.groups.select(mode);
+        state.page.select(mode);
     }
     restamp_aggregation_pills(&palette, &mut pills, mode);
     let flat = mode.is_flat();
@@ -654,7 +654,7 @@ pub(crate) fn apply_connections_projection(
     let projection = &update.0;
     if projection.stream_phase != ConnectionStreamPhase::Live {
         if let Some(state) = view_state.as_deref_mut() {
-            state.groups.mark_unavailable();
+            state.page.mark_unavailable();
         }
         if let Some(last) = last.as_deref_mut()
             && let Some(previous) = last.0.as_mut()
@@ -670,7 +670,7 @@ pub(crate) fn apply_connections_projection(
         return;
     }
     if let Some(state) = view_state.as_deref_mut() {
-        state.groups.observe(&projection.connections);
+        state.page.observe(&projection.connections);
     }
 
     // DUAL-13-11: record byte-change times for the idle sweeper.
@@ -706,7 +706,7 @@ pub(crate) fn apply_connections_projection(
     // shared reduction so grouped mode never shows stale buckets.
     let grouping = view_state
         .as_ref()
-        .map(|state| state.groups.mode())
+        .map(|state| state.page.mode())
         .unwrap_or_default();
     restamp_aggregation_pills(&palette, &mut pills, grouping);
 
@@ -714,7 +714,7 @@ pub(crate) fn apply_connections_projection(
     // a fresh snapshot is re-ordered without touching the row markers.
     let sort = view_state
         .as_ref()
-        .map(|state| state.sort)
+        .map(|state| state.page.sort_key())
         .unwrap_or_default();
     restamp_sort_pills(&palette, &mut sort_pills, sort);
     if let Some(ref mut last_proj) = last {

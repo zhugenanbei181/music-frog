@@ -35,7 +35,7 @@ fn toggle_follow(
     mut view: ResMut<LogsViewState>,
 ) {
     if buttons.contains(activate.entity) {
-        view.0.follow.toggle_follow();
+        view.0.follow_mut().toggle_follow();
     }
 }
 fn replay(
@@ -54,24 +54,24 @@ fn replay(
         }
         let extent = (content - visible).max(0.0);
         if *previous_root != Some(viewport.entity) {
-            viewport.position.y = view.0.follow.restored_offset(extent);
+            viewport.position.y = view.0.follow().restored_offset(extent);
             *previous_root = Some(viewport.entity);
         } else {
             view.0
-                .follow
+                .follow_mut()
                 .observe_viewport(viewport.position.y, content, visible);
         }
-        if view.0.follow.should_follow() {
+        if view.0.follow().should_follow() {
             viewport.position.y = extent;
         }
         view.0
-            .follow
+            .follow_mut()
             .observe_viewport(viewport.position.y, content, visible);
     }
     for mut label in &mut labels {
-        *label = LocalizedText::plain(view.0.follow.label_key());
+        *label = LocalizedText::plain(view.0.follow().label_key());
     }
     for mut visual in &mut visuals {
-        visual.0 = !view.0.follow.should_follow();
+        visual.0 = !view.0.follow().should_follow();
     }
 }

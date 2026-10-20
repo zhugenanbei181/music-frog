@@ -164,7 +164,10 @@ pub fn observe(
             hand_off_focus(&mut commands, &mut input_focus, &windows, control);
         }
     }
-    if state.model.is_open() && route.0 != Some(Route::Dns) && state.model.cancel() {
+    if state.model.is_open()
+        && route.0 != Some(Route::Dns)
+        && state.model.cancel()
+    {
         focus.restore(&mut state);
         // The modal is closed: the focus leaves the dialog again.
         release_focus(&mut input_focus, dismiss_control(&buttons));
@@ -172,7 +175,9 @@ pub fn observe(
 }
 
 /// The modal's dismiss control: the one cancel control that is not the scrim.
-fn dismiss_control(buttons: &Query<(Entity, &CacheAction), Without<ModalScrim>>) -> Option<Entity> {
+fn dismiss_control(
+    buttons: &Query<(Entity, &CacheAction), Without<ModalScrim>>,
+) -> Option<Entity> {
     buttons
         .iter()
         .find(|(_, action)| matches!(action, CacheAction::Cancel))

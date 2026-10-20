@@ -232,7 +232,7 @@ pub fn observe(
     }
     if feature.feature == FeatureId::LogsScrollLock {
         let bounds = (|| {
-            if controls.view.0.follow.should_follow()
+            if controls.view.0.follow().should_follow()
                 || controls.view.0.source_count() != 35
                 || !controls.view.0.source_current()
             {
@@ -324,7 +324,7 @@ fn activate_follow(
             controls.capture.stage = 2;
         }
         2 => {
-            if controls.view.0.follow.should_follow() {
+            if controls.view.0.follow().should_follow() {
                 return;
             }
             append_follow_records(&controls.capture.core)
