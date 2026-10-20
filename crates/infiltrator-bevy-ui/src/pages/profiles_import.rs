@@ -33,8 +33,8 @@ use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
 use bevy::ui::prelude::{
-    AlignItems, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent,
+    AlignItems, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox};
@@ -46,21 +46,13 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::subscription_filter_form::FilterField;
-
-/// The "activate after import" switch track's fixed width in baseline pixels.
-const IMPORT_ACTIVATE_TRACK_WIDTH_PX: f32 = 38.0;
-
-/// The "activate after import" switch track's fixed height in baseline pixels.
-const IMPORT_ACTIVATE_TRACK_HEIGHT_PX: f32 = 22.0;
-
-/// The "activate after import" knob's left offset, in baseline pixels.
-const IMPORT_ACTIVATE_KNOB_OFFSET_PX: f32 = 18.0;
 
 /// Marker for the profiles import card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -235,31 +227,10 @@ pub fn profiles_import_card_scene(
                                 Children [
                                     LocalizedText::plain("overview_toggle_enabled") TextRole(Role::Caption) ThemeTextColor({ Token::Success })
                                     --
-                                    Node {
-                                        width: rem(IMPORT_ACTIVATE_TRACK_WIDTH_PX),
-                                        height: rem(IMPORT_ACTIVATE_TRACK_HEIGHT_PX),
-                                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                                        // Capsule track: 11px is half the 22px track
-                                        // height, and no radius token carries it.
-                                        border_radius: BorderRadius::MAX,
-                                        position_type: PositionType::Relative,
-                                        align_items: AlignItems::Center,
-                                    }
+                                    @{ switch_track_scene(palette, palette.accent, palette.accent) }
                                     ThemeBackgroundColor({ Token::Accent })
-                                    BorderColor {
-                                        top: { palette.accent },
-                                        right: { palette.accent },
-                                        bottom: { palette.accent },
-                                        left: { palette.accent },
-                                    }
                                     Children [
-                                        Node {
-                                            position_type: PositionType::Absolute,
-                                            left: rem(IMPORT_ACTIVATE_KNOB_OFFSET_PX),
-                                            width: rem(space::S16),
-                                            height: rem(space::S16),
-                                            border_radius: BorderRadius::all(rem(radius::SM)),
-                                        }
+                                        @{ switch_knob_scene(palette.on_accent, SwitchPosition::On) }
                                         ThemeBackgroundColor({ Token::OnAccent })
                                     ]
                                 ]

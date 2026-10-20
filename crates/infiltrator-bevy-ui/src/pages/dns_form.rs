@@ -13,10 +13,8 @@ use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
-use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -27,6 +25,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
@@ -35,15 +34,6 @@ use infiltrator_contract::dns::{
 use infiltrator_contract::dns_form::DnsFormField;
 use infiltrator_presentation::dns_settings_projection::field_label_key;
 use infiltrator_shared::locales::{Lang, Localizer};
-
-/// The DNS switch track's fixed width in baseline pixels.
-const DNS_SWITCH_TRACK_WIDTH_PX: f32 = 38.0;
-
-/// The DNS switch track's fixed height in baseline pixels.
-const DNS_SWITCH_TRACK_HEIGHT_PX: f32 = 22.0;
-
-/// The DNS switch knob's left offset when the switch is on, in baseline pixels.
-const DNS_SWITCH_KNOB_OFFSET_PX: f32 = 18.0;
 
 fn dns_switch_row_scene(
     field: DnsSwitchField,
@@ -68,11 +58,6 @@ fn dns_switch_row_scene(
         palette.accent
     } else {
         palette.surface_elevated
-    };
-    let knob_left = if enabled {
-        rem(DNS_SWITCH_KNOB_OFFSET_PX)
-    } else {
-        rem(space::S2)
     };
     let knob_color = if enabled {
         palette.on_accent
@@ -113,34 +98,13 @@ fn dns_switch_row_scene(
                     TextRole(Role::Caption)
                     TextColor({ status_color })
                     --
-                    Node {
-                        width: rem(DNS_SWITCH_TRACK_WIDTH_PX),
-                        height: rem(DNS_SWITCH_TRACK_HEIGHT_PX),
-                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::MAX,
-                        position_type: PositionType::Relative,
-                        align_items: AlignItems::Center,
-                    }
-                    BackgroundColor({ switch_bg })
-                    BorderColor {
-                        top: edge_color,
-                        right: edge_color,
-                        bottom: edge_color,
-                        left: edge_color,
-                    }
+                    @{ switch_track_scene(palette, switch_bg, edge_color) }
                     DnsSwitchButton(field, enabled)
                     DnsSwitchTrack(field)
                     DnsBorder(field)
                     Button
                     Children [
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: { knob_left },
-                            width: rem(space::S16),
-                            height: rem(space::S16),
-                            border_radius: BorderRadius::MAX,
-                        }
-                        BackgroundColor({ knob_color })
+                        @{ switch_knob_scene(knob_color, SwitchPosition::from_enabled(enabled)) }
                         DnsSwitchKnob(field)
                     ]
                 ]

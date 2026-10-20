@@ -14,8 +14,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, JustifyContent, Node, PositionType,
-    UiRect, percent, px,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -23,20 +22,12 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
+use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::settings_preference_projection::project;
-
-/// The preference switch track's fixed width in baseline pixels.
-const PREFERENCE_TRACK_WIDTH_PX: f32 = 38.0;
-
-/// The preference switch track's fixed height in baseline pixels.
-const PREFERENCE_TRACK_HEIGHT_PX: f32 = 22.0;
-
-/// The preference knob's left offset when the switch is on, in baseline pixels.
-const PREFERENCE_KNOB_OFFSET_PX: f32 = 18.0;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum PreferenceKind {
@@ -127,21 +118,12 @@ pub fn preference_row_scene(
                 LocalizedText { key: { copy.key }, params: { copy.params } }
                 PreferenceStatus(kind) TextRole(Role::Caption) TextColor(status_color)
                 --
-                Node {
-                    width: rem(PREFERENCE_TRACK_WIDTH_PX), height: rem(PREFERENCE_TRACK_HEIGHT_PX), border: UiRect::all(px(palette.hairline_px)),
-                    border_radius: BorderRadius::MAX, position_type: PositionType::Relative,
-                    align_items: AlignItems::Center,
-                }
-                BackgroundColor(fill) BorderColor::all(edge)
+                @{ switch_track_scene(palette, fill, edge) }
                 PreferenceTrack(kind) Button ButtonDisabled({ !observed.editable })
                 AccessibilityNode(semantic) label @{ action }
                 Children [
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: { if enabled { rem(PREFERENCE_KNOB_OFFSET_PX) } else { rem(space::S2) } },
-                        width: rem(space::S16), height: rem(space::S16), border_radius: BorderRadius::MAX,
-                    }
-                    BackgroundColor(knob) PreferenceKnob(kind)
+                    @{ switch_knob_scene(knob, SwitchPosition::from_enabled(enabled)) }
+                    PreferenceKnob(kind)
                     visibility
                 ]
             ]
@@ -243,11 +225,7 @@ pub fn replay(
             }
         } else if view.knob.is_some() {
             if let Some(node) = &mut view.node {
-                node.left = if enabled {
-                    rem(PREFERENCE_KNOB_OFFSET_PX)
-                } else {
-                    rem(space::S2)
-                };
+                node.left = rem(SwitchPosition::from_enabled(enabled).knob_offset_px());
             }
             if let Some(fill) = &mut view.fill {
                 fill.0 = if enabled {

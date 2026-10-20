@@ -20,8 +20,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -31,6 +30,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
@@ -40,16 +40,6 @@ use infiltrator_contract::dns::{append_server, parse_server_list};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
 use infiltrator_presentation::dns_settings_projection::{field_label_key, form_status};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-/// The geoip switch track's width in baseline pixels.
-const GEOIP_SWITCH_TRACK_WIDTH_PX: f32 = 38.0;
-/// The geoip switch track's height in baseline pixels.
-const GEOIP_SWITCH_TRACK_HEIGHT_PX: f32 = 22.0;
-/// The geoip switch knob's square size in baseline pixels.
-const GEOIP_SWITCH_KNOB_SIZE_PX: f32 = 16.0;
-
-/// The geoip switch knob's on-state offset inside its 38px track.
-const SWITCH_KNOB_ON_OFFSET_PX: f32 = 18.0;
 
 /// The DNS workbench submission stage.
 ///
@@ -360,7 +350,6 @@ fn geoip_toggle_row(
     } else {
         palette.ink_dim
     };
-    let knob_left = if enabled { rem(SWITCH_KNOB_ON_OFFSET_PX) } else { rem(space::S2) };
     let status = geoip_status_label(enabled, UiLocale::default().code());
     let status_color = if enabled {
         palette.success
@@ -395,32 +384,11 @@ fn geoip_toggle_row(
                 Children [
                     Text(status) DnsEditGeoipStatus TextRole(Role::Caption) TextColor({ status_color })
                     --
-                    Node {
-                        width: rem(GEOIP_SWITCH_TRACK_WIDTH_PX),
-                        height: rem(GEOIP_SWITCH_TRACK_HEIGHT_PX),
-                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::MAX,
-                        position_type: PositionType::Relative,
-                        align_items: AlignItems::Center,
-                    }
-                    BackgroundColor({ track })
-                    BorderColor {
-                        top: edge,
-                        right: edge,
-                        bottom: edge,
-                        left: edge,
-                    }
+                    @{ switch_track_scene(palette, track, edge) }
                     DnsEditGeoipToggle(enabled)
                     Button
                     Children [
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: { knob_left },
-                            width: rem(GEOIP_SWITCH_KNOB_SIZE_PX),
-                            height: rem(GEOIP_SWITCH_KNOB_SIZE_PX),
-                            border_radius: BorderRadius::MAX,
-                        }
-                        BackgroundColor({ knob })
+                        @{ switch_knob_scene(knob, SwitchPosition::from_enabled(enabled)) }
                     ]
                 ]
             ]
