@@ -1,119 +1,178 @@
 feature_id	surface	status	reason	standard_scenario	compact_scenario
 lifecycle-recovery-panel	iced	implemented	Shared diagnostic report owner, native failure recovery state machine and repair retry	lifecycle-recovery-panel-standard	lifecycle-recovery-panel-compact
 lifecycle-recovery-panel	bevy	implemented	Shared diagnostic report owner, native failure recovery state machine and repair retry	lifecycle-recovery-panel-standard	lifecycle-recovery-panel-compact
+lifecycle-recovery-panel	slint	pending	Slint has no doctor page and never dispatches RepairDoctorIssue; the diagnostic-report repair panel is missing.	lifecycle-recovery-panel-standard	lifecycle-recovery-panel-compact
 core-version-rollback-confirm	iced	implemented	Shared core rollback intent, two-step confirmation dialog and failure recovery	core-version-rollback-confirm-standard	core-version-rollback-confirm-compact
 core-version-rollback-confirm	bevy	implemented	Shared core rollback intent, two-step confirmation dialog and failure recovery	core-version-rollback-confirm-standard	core-version-rollback-confirm-compact
+core-version-rollback-confirm	slint	pending	Slint only checks the core version (CheckUpdates); the rollback action and its two-step confirmation are missing.	core-version-rollback-confirm-standard	core-version-rollback-confirm-compact
 settings-permission-panel	iced	implemented	Shared host privilege adapter, elevation guidance and typed unsupported status	settings-permission-panel-standard	settings-permission-panel-compact
 settings-permission-panel	bevy	implemented	Shared host privilege adapter, elevation guidance and typed unsupported status	settings-permission-panel-standard	settings-permission-panel-compact
+settings-permission-panel	slint	pending	Slint exposes no host privilege elevation panel, only a static capability hint.	settings-permission-panel-standard	settings-permission-panel-compact
 settings-port-conflict-repair	iced	implemented	Shared port conflict inspection, safe process ownership resolution and repair rebind	settings-port-conflict-repair-standard	settings-port-conflict-repair-compact
 settings-port-conflict-repair	bevy	implemented	Shared port conflict inspection, safe process ownership resolution and repair rebind	settings-port-conflict-repair-standard	settings-port-conflict-repair-compact
+settings-port-conflict-repair	slint	pending	Slint never projects mixed_port/controller_port and has no port-conflict inspection or repair rebind.	settings-port-conflict-repair-standard	settings-port-conflict-repair-compact
 settings-tun-permission	iced	implemented	Shared TUN mode capability contract, platform permission elevation flow and recovery	settings-tun-permission-standard	settings-tun-permission-compact
 settings-tun-permission	bevy	implemented	Shared TUN mode capability contract, platform permission elevation flow and recovery	settings-tun-permission-standard	settings-tun-permission-compact
+settings-tun-permission	slint	pending	Slint can gate TUN on the owner capability but has no permission elevation/prepare action and no recovery.	settings-tun-permission-standard	settings-tun-permission-compact
 settings-lan-security	iced	implemented	Shared LAN ACL and basic authentication policy, native input draft and readback	settings-lan-security-standard	settings-lan-security-compact
 settings-lan-security	bevy	implemented	Shared LAN ACL and basic authentication policy, native input draft and readback	settings-lan-security-standard	settings-lan-security-compact
+settings-lan-security	slint	pending	Slint never surfaces LAN sharing or LAN security, so the ACL and basic-auth policy editor is missing.	settings-lan-security-standard	settings-lan-security-compact
 overview-topology-drilldown	iced	implemented	Shared traffic topology stages, flow indicators and stage navigation drilldown	overview-topology-drilldown-standard	overview-topology-drilldown-compact
 overview-topology-drilldown	bevy	implemented	Shared traffic topology stages, flow indicators and stage navigation drilldown	overview-topology-drilldown-standard	overview-topology-drilldown-compact
+overview-topology-drilldown	slint	pending	Slint's overview has no topology stages or drilldown navigation.	overview-topology-drilldown-standard	overview-topology-drilldown-compact
 overview-reconnect-mask	iced	implemented	Shared core reload mask state, transient state degradation and watchdog reconnection	overview-reconnect-mask-standard	overview-reconnect-mask-compact
 overview-reconnect-mask	bevy	implemented	Shared core reload mask state, transient state degradation and watchdog reconnection	overview-reconnect-mask-standard	overview-reconnect-mask-compact
+overview-reconnect-mask	slint	pending	Slint has no core-reload mask state machine, only a degraded status and a manual system-proxy recovery retry.	overview-reconnect-mask-standard	overview-reconnect-mask-compact
 overview-card-reorder	iced	implemented	Shared overview card order preferences, reorder intents and responsive layout sync	overview-card-reorder-standard	overview-card-reorder-compact
 overview-card-reorder	bevy	implemented	Shared overview card order preferences, reorder intents and responsive layout sync	overview-card-reorder-standard	overview-card-reorder-compact
+overview-card-reorder	slint	pending	Slint's overview cards are statically ordered and ReorderOverviewCards is never dispatched.	overview-card-reorder-standard	overview-card-reorder-compact
 proxies-search-highlight	iced	implemented	Native editing, shared query and highlight fold, serial execution, clear and failure recovery; fresh L3 required per build	proxies-search-highlight-standard	proxies-search-highlight-compact
 proxies-search-highlight	bevy	implemented	Native editing, shared query and highlight fold, serial execution, clear and failure recovery; fresh L3 required per build	proxies-search-highlight-standard	proxies-search-highlight-compact
+proxies-search-highlight	slint	pending	Slint filters the published proxy window but never highlights matches and has no clear/error/retry surface.	proxies-search-highlight-standard	proxies-search-highlight-compact
 proxies-group-expanded	iced	implemented	Native stable-identity fold transitions; fresh L3 receipts required per build	proxies-group-expanded-standard	proxies-group-expanded-compact
 proxies-group-expanded	bevy	implemented	Shared preference commands and native fold transitions; fresh L3 receipts required per build	proxies-group-expanded-standard	proxies-group-expanded-compact
+proxies-group-expanded	slint	pending	Slint drills into a group but never reads or writes the shared fold state, so no expand/collapse, reorder, add or remove.	proxies-group-expanded-standard	proxies-group-expanded-compact
 proxies-node-detail-drawer	iced	implemented	Shared observed inspection, native independent controls and tracked probe recovery; fresh L3 required per build	proxies-node-detail-drawer-standard	proxies-node-detail-drawer-compact
 proxies-node-detail-drawer	bevy	implemented	Shared observed inspection, native independent controls and tracked probe recovery; fresh L3 required per build	proxies-node-detail-drawer-standard	proxies-node-detail-drawer-compact
+proxies-node-detail-drawer	slint	pending	Slint shows only name/protocol/latency per node, with no detail drawer, node reorder or node removal.	proxies-node-detail-drawer-standard	proxies-node-detail-drawer-compact
 proxies-custom-node-modal	iced	implemented	Full native protocol form and correlated terminal feedback implemented; fresh L3 receipts required per build	proxies-custom-node-modal-standard	proxies-custom-node-modal-compact
 proxies-custom-node-modal	bevy	implemented	Full native protocol form and correlated terminal feedback implemented; fresh L3 receipts required per build	proxies-custom-node-modal-standard	proxies-custom-node-modal-compact
+proxies-custom-node-modal	slint	pending	Slint has no custom-node form and never dispatches the custom-node draft commands.	proxies-custom-node-modal-standard	proxies-custom-node-modal-compact
 proxies-uri-import-preview	iced	implemented	Full native protocol form and correlated terminal feedback implemented; fresh L3 receipts required per build	proxies-uri-import-preview-standard	proxies-uri-import-preview-compact
 proxies-uri-import-preview	bevy	implemented	Full native protocol form and correlated terminal feedback implemented; fresh L3 receipts required per build	proxies-uri-import-preview-standard	proxies-uri-import-preview-compact
+proxies-uri-import-preview	slint	pending	Slint has no proxy-URI import; the profile sheet only imports subscriptions.	proxies-uri-import-preview-standard	proxies-uri-import-preview-compact
 proxies-group-reorder	iced	implemented	Native full-order draft, correlated command, cancel without effects and failure recovery; fresh L1/L2/L3 acceptance required	proxies-group-reorder-standard	proxies-group-reorder-compact
 proxies-group-reorder	bevy	implemented	Native full-order draft, correlated command, cancel without effects and failure recovery; fresh L1/L2/L3 acceptance required	proxies-group-reorder-standard	proxies-group-reorder-compact
+proxies-group-reorder	slint	pending	Slint never writes the group order preference, so there is no reorder draft, cancel or failure recovery.	proxies-group-reorder-standard	proxies-group-reorder-compact
 speedtest-progress-cancel	iced	implemented	Shared concurrent speedtest execution engine, progress feedback and graceful cancellation	speedtest-progress-cancel-standard	speedtest-progress-cancel-compact
 speedtest-progress-cancel	bevy	implemented	Shared concurrent speedtest execution engine, progress feedback and graceful cancellation	speedtest-progress-cancel-standard	speedtest-progress-cancel-compact
+speedtest-progress-cancel	slint	pending	Slint's probe shows a spinner but has no progress feedback, no cancellation and no failure surface.	speedtest-progress-cancel-standard	speedtest-progress-cancel-compact
 speedtest-details-modal	iced	implemented	Shared facts and production lifecycle verified; fresh L3 receipts required per build	speedtest-details-modal-standard	speedtest-details-modal-compact
 speedtest-details-modal	bevy	implemented	Shared facts and production lifecycle verified; fresh L3 receipts required per build	speedtest-details-modal-standard	speedtest-details-modal-compact
+speedtest-details-modal	slint	pending	Slint never dispatches StartSpeedtest and has no speedtest details modal.	speedtest-details-modal-standard	speedtest-details-modal-compact
 speedtest-history-comparison	iced	implemented	Shared speedtest history records, multi-run comparison view and empty state handling	speedtest-history-comparison-standard	speedtest-history-comparison-compact
 speedtest-history-comparison	bevy	implemented	Shared speedtest history records, multi-run comparison view and empty state handling	speedtest-history-comparison-standard	speedtest-history-comparison-compact
+speedtest-history-comparison	slint	pending	Slint stores no speedtest history and has no multi-run comparison view.	speedtest-history-comparison-standard	speedtest-history-comparison-compact
 profiles-import-modal	iced	implemented	Shared profile import validation, format detection, URL fetch and local file import	profiles-import-modal-standard	profiles-import-modal-compact
 profiles-import-modal	bevy	implemented	Shared profile import validation, format detection, URL fetch and local file import	profiles-import-modal-standard	profiles-import-modal-compact
+profiles-import-modal	slint	implemented	Slint 业务已实现，尚缺表面行为测试：Slint implements the add-profile sheet with URL, local-file and QR channels, but no Slint test covers the cancel path of the dismissal.	profiles-import-modal-standard	profiles-import-modal-compact
 profiles-delete-confirm	iced	implemented	Shared profile deletion safety check, confirmation modal, cancellation and sidecar cleanup	profiles-delete-confirm-standard	profiles-delete-confirm-compact
 profiles-delete-confirm	bevy	implemented	Shared profile deletion safety check, confirmation modal, cancellation and sidecar cleanup	profiles-delete-confirm-standard	profiles-delete-confirm-compact
+profiles-delete-confirm	slint	implemented	Slint 业务已实现，尚缺表面行为测试：Slint implements the delete sheet and the DeleteProfile command, but no Slint test covers its success, cancel or error paths.	profiles-delete-confirm-standard	profiles-delete-confirm-compact
 profiles-subscription-error	iced	implemented	Shared subscription refresh error diagnostics, status projection and single-flight retry	profiles-subscription-error-standard	profiles-subscription-error-compact
 profiles-subscription-error	bevy	implemented	Shared subscription refresh error diagnostics, status projection and single-flight retry	profiles-subscription-error-standard	profiles-subscription-error-compact
+profiles-subscription-error	slint	pending	Slint's per-profile refresh callback is not wired to any widget, so there is no subscription error status and no retry.	profiles-subscription-error-standard	profiles-subscription-error-compact
 profiles-filter-editor	iced	implemented	Complete source-bound filter form and native transaction behavior; fresh pixel receipts determine closure	profiles-filter-editor-standard	profiles-filter-editor-compact
 profiles-filter-editor	bevy	implemented	Complete source-bound filter form and native transaction behavior; fresh pixel receipts determine closure	profiles-filter-editor-standard	profiles-filter-editor-compact
+profiles-filter-editor	slint	pending	Slint never projects the profile filter and dispatches no filter save.	profiles-filter-editor-standard	profiles-filter-editor-compact
 profiles-aggregator-wizard	iced	implemented	Shared profile aggregation wizard, source selection, precheck validation and plan generation	profiles-aggregator-wizard-standard	profiles-aggregator-wizard-compact
 profiles-aggregator-wizard	bevy	implemented	Shared profile aggregation wizard, source selection, precheck validation and plan generation	profiles-aggregator-wizard-standard	profiles-aggregator-wizard-compact
+profiles-aggregator-wizard	slint	pending	Slint never projects the aggregation state and dispatches no aggregation command.	profiles-aggregator-wizard-standard	profiles-aggregator-wizard-compact
 profiles-aggregator-preview	iced	implemented	Shared aggregation preview projection, generated rule verification and save flow	profiles-aggregator-preview-standard	profiles-aggregator-preview-compact
 profiles-aggregator-preview	bevy	implemented	Shared aggregation preview projection, generated rule verification and save flow	profiles-aggregator-preview-standard	profiles-aggregator-preview-compact
+profiles-aggregator-preview	slint	pending	Slint has no aggregation preview or generated-rule verification flow.	profiles-aggregator-preview-standard	profiles-aggregator-preview-compact
 profiles-diff-viewer	iced	implemented	Shared AST YAML diff projection, side-by-side change viewer, line navigation and inspection	profiles-diff-viewer-standard	profiles-diff-viewer-compact
 profiles-diff-viewer	bevy	implemented	Shared AST YAML diff projection, side-by-side change viewer, line navigation and inspection	profiles-diff-viewer-standard	profiles-diff-viewer-compact
+profiles-diff-viewer	slint	pending	Slint only has a read-only redacted preview, with no AST diff or line navigation.	profiles-diff-viewer-standard	profiles-diff-viewer-compact
 profiles-snapshot-restore-confirm	iced	implemented	Actual shared restore transaction and native review branches; current pixels required	profiles-snapshot-restore-confirm-standard	profiles-snapshot-restore-confirm-compact
 profiles-snapshot-restore-confirm	bevy	implemented	Actual shared restore transaction and native review branches; current pixels required	profiles-snapshot-restore-confirm-standard	profiles-snapshot-restore-confirm-compact
+profiles-snapshot-restore-confirm	slint	pending	Slint has no snapshot history or restore confirmation flow.	profiles-snapshot-restore-confirm-standard	profiles-snapshot-restore-confirm-compact
 editor-yaml-error-navigation	iced	implemented	Shared YAML syntax validator, preflight diagnostics, line number tracking and error jumps	editor-yaml-error-navigation-standard	editor-yaml-error-navigation-compact
 editor-yaml-error-navigation	bevy	implemented	Shared YAML syntax validator, preflight diagnostics, line number tracking and error jumps	editor-yaml-error-navigation-standard	editor-yaml-error-navigation-compact
+editor-yaml-error-navigation	slint	pending	Slint's only YAML view is read-only, with no validator, line numbers or error jumps.	editor-yaml-error-navigation-standard	editor-yaml-error-navigation-compact
 editor-snippet-insertion	iced	implemented	Shared YAML snippet catalogue, cursor-aware insertion and syntax integrity preservation	editor-snippet-insertion-standard	editor-snippet-insertion-compact
 editor-snippet-insertion	bevy	implemented	Shared YAML snippet catalogue, cursor-aware insertion and syntax integrity preservation	editor-snippet-insertion-standard	editor-snippet-insertion-compact
+editor-snippet-insertion	slint	pending	Slint has no snippet catalogue and its document view is read-only.	editor-snippet-insertion-standard	editor-snippet-insertion-compact
 editor-large-document-window	iced	implemented	Shared large document window arithmetic, bounded virtual line rendering and scroll sync	editor-large-document-window-standard	editor-large-document-window-compact
 editor-large-document-window	bevy	implemented	Shared large document window arithmetic, bounded virtual line rendering and scroll sync	editor-large-document-window-standard	editor-large-document-window-compact
+editor-large-document-window	slint	pending	Slint renders the whole document in one read-only text area with no virtualized window.	editor-large-document-window-standard	editor-large-document-window-compact
 rules-search-highlight	iced	implemented	Shared rule search filter, regex and payload matching, row highlighting and empty state	rules-search-highlight-standard	rules-search-highlight-compact
 rules-search-highlight	bevy	implemented	Shared rule search filter, regex and payload matching, row highlighting and empty state	rules-search-highlight-standard	rules-search-highlight-compact
+rules-search-highlight	slint	pending	Slint filters rules by raw/proxy/type but never highlights matches.	rules-search-highlight-standard	rules-search-highlight-compact
 rules-tracer-drawer	iced	implemented	Shared command owner, native Tracer Tab and actual decision-tree capture; receipt validation determines closure	rules-tracer-drawer-standard	rules-tracer-drawer-compact
 rules-tracer-drawer	bevy	implemented	Shared command owner, native Tracer Tab and actual decision-tree capture; receipt validation determines closure	rules-tracer-drawer-standard	rules-tracer-drawer-compact
+rules-tracer-drawer	slint	pending	Slint never projects the tracer snapshot and dispatches no trace command.	rules-tracer-drawer-standard	rules-tracer-drawer-compact
 rules-override-editor	iced	implemented	Typed source-bound override editor and independent confirmation; receipts determine closure	rules-override-editor-standard	rules-override-editor-compact
 rules-override-editor	bevy	implemented	Typed source-bound override editor and independent confirmation; receipts determine closure	rules-override-editor-standard	rules-override-editor-compact
+rules-override-editor	slint	pending	Slint only edits named YAML overrides, not rule overrides.	rules-override-editor-standard	rules-override-editor-compact
 rules-provider-refresh-error	iced	implemented	Shared rule provider refresh error handling, local cache fallback, unpack and retry	rules-provider-refresh-error-standard	rules-provider-refresh-error-compact
 rules-provider-refresh-error	bevy	implemented	Shared rule provider refresh error handling, local cache fallback, unpack and retry	rules-provider-refresh-error-standard	rules-provider-refresh-error-compact
+rules-provider-refresh-error	slint	pending	Slint refreshes all providers in one batch with no per-provider error, cache fallback or retry.	rules-provider-refresh-error-standard	rules-provider-refresh-error-compact
 dns-leak-alert	iced	implemented	Actual isolated echo commands and independent reader tested; fresh L3 required	dns-leak-alert-standard	dns-leak-alert-compact
 dns-leak-alert	bevy	implemented	Actual isolated echo commands and independent reader tested; fresh L3 required	dns-leak-alert-standard	dns-leak-alert-compact
+dns-leak-alert	slint	pending	Slint has no DNS page and dispatches no DNS probe command.	dns-leak-alert-standard	dns-leak-alert-compact
 dns-query-details	iced	implemented	Complete shared query and native modal behavior tested; fresh L3 required	dns-query-details-standard	dns-query-details-compact
 dns-query-details	bevy	implemented	Complete shared query and native modal behavior tested; fresh L3 required	dns-query-details-standard	dns-query-details-compact
+dns-query-details	slint	pending	Slint has no DNS page and dispatches no DNS query command.	dns-query-details-standard	dns-query-details-compact
 dns-fake-ip-flush-confirm	iced	implemented	Shared cache owner and full native confirmation/result flow behavior tested; fresh L3 required	dns-fake-ip-flush-confirm-standard	dns-fake-ip-flush-confirm-compact
 dns-fake-ip-flush-confirm	bevy	implemented	Shared cache owner and full native confirmation/result flow behavior tested; fresh L3 required	dns-fake-ip-flush-confirm-standard	dns-fake-ip-flush-confirm-compact
+dns-fake-ip-flush-confirm	slint	pending	Slint has no fake-IP flush command or confirmation surface.	dns-fake-ip-flush-confirm-standard	dns-fake-ip-flush-confirm-compact
 dns-hosts-editor	iced	implemented	Actual shared profile owner and full native editor behavior verified; fresh L3 required	dns-hosts-editor-standard	dns-hosts-editor-compact
 dns-hosts-editor	bevy	implemented	Actual shared profile owner and full native editor behavior verified; fresh L3 required	dns-hosts-editor-standard	dns-hosts-editor-compact
+dns-hosts-editor	slint	pending	Slint has no hosts editor and dispatches no DNS settings command.	dns-hosts-editor-standard	dns-hosts-editor-compact
 connections-details-drawer	iced	implemented	Shared facts and production lifecycle verified; fresh L3 receipts required per build	connections-details-drawer-standard	connections-details-drawer-compact
 connections-details-drawer	bevy	implemented	Shared facts and production lifecycle verified; fresh L3 receipts required per build	connections-details-drawer-standard	connections-details-drawer-compact
+connections-details-drawer	slint	pending	Slint's connection detail is a separate page, not a drawer, and has no unsupported or reorder path.	connections-details-drawer-standard	connections-details-drawer-compact
 connections-close-all-confirm	iced	implemented	Cancellable production modal implemented; fresh L3 receipts required per build	connections-close-all-confirm-standard	connections-close-all-confirm-compact
 connections-close-all-confirm	bevy	implemented	Cancellable production modal implemented; fresh L3 receipts required per build	connections-close-all-confirm-standard	connections-close-all-confirm-compact
+connections-close-all-confirm	slint	pending	Slint can only break a single connection and has no close-all confirmation dialog.	connections-close-all-confirm-standard	connections-close-all-confirm-compact
 connections-search-highlight	iced	implemented	Shared cached search runs, native clear/empty/refresh/locale behavior; fresh L3 receipts required per build	connections-search-highlight-standard	connections-search-highlight-compact
 connections-search-highlight	bevy	implemented	Shared cached search runs, native clear/empty/refresh/locale behavior; fresh L3 receipts required per build	connections-search-highlight-standard	connections-search-highlight-compact
+connections-search-highlight	slint	pending	Slint filters connections over the published window but never highlights matches.	connections-search-highlight-standard	connections-search-highlight-compact
 connections-grouping	iced	implemented	Shared complete grouping and native query/refresh lifecycle; fresh L3 receipts required per build	connections-grouping-standard	connections-grouping-compact
 connections-grouping	bevy	implemented	Shared complete grouping and native query/refresh lifecycle; fresh L3 receipts required per build	connections-grouping-standard	connections-grouping-compact
+connections-grouping	slint	pending	Slint offers four sort dimensions only, with no grouping projection.	connections-grouping-standard	connections-grouping-compact
 logs-search-highlight	iced	implemented	Application-owned bounded logs, actual scoped stream failures and native regex spans; fresh L3 per build required	logs-search-highlight-standard	logs-search-highlight-compact
 logs-search-highlight	bevy	implemented	Application-owned bounded logs, actual scoped stream failures and native regex spans; fresh L3 per build required	logs-search-highlight-standard	logs-search-highlight-compact
+logs-search-highlight	slint	pending	Slint filters logs by keyword and level but never highlights matches and has no clear/error/refresh surface.	logs-search-highlight-standard	logs-search-highlight-compact
 sync-conflict-resolver	iced	implemented	Shared WebDAV sync conflict resolution, three-way merge review, diff inspector and commit	sync-conflict-resolver-standard	sync-conflict-resolver-compact
 sync-conflict-resolver	bevy	implemented	Shared WebDAV sync conflict resolution, three-way merge review, diff inspector and commit	sync-conflict-resolver-standard	sync-conflict-resolver-compact
+sync-conflict-resolver	slint	pending	Slint has no sync page and dispatches no sync conflict command.	sync-conflict-resolver-standard	sync-conflict-resolver-compact
 sync-restore-confirm	iced	implemented	Shared remote backup restore confirmation, local overwrite safeguard and recovery transaction	sync-restore-confirm-standard	sync-restore-confirm-compact
 sync-restore-confirm	bevy	implemented	Shared remote backup restore confirmation, local overwrite safeguard and recovery transaction	sync-restore-confirm-standard	sync-restore-confirm-compact
+sync-restore-confirm	slint	pending	Slint has no sync page and dispatches no sync restore command.	sync-restore-confirm-standard	sync-restore-confirm-compact
 doctor-failure-recovery	iced	implemented	Real shared reports and correlated native repair/retry tested; fresh L3 still required	doctor-failure-recovery-standard	doctor-failure-recovery-compact
 doctor-failure-recovery	bevy	implemented	Real shared reports and correlated native repair/retry tested; fresh L3 still required	doctor-failure-recovery-standard	doctor-failure-recovery-compact
+doctor-failure-recovery	slint	pending	Slint has no doctor page, so there is no failure-recovery or repair-retry surface.	doctor-failure-recovery-standard	doctor-failure-recovery-compact
 shell-command-palette	iced	implemented	Shared facts and production lifecycle verified; fresh L3 receipts required per build	shell-command-palette-standard	shell-command-palette-compact
 shell-command-palette	bevy	implemented	Shared facts and production lifecycle verified; fresh L3 receipts required per build	shell-command-palette-standard	shell-command-palette-compact
+shell-command-palette	slint	pending	Slint does not consume the shared command catalogue and has no palette overlay.	shell-command-palette-standard	shell-command-palette-compact
 shell-keyboard-focus	iced	implemented	Shared keyboard focus cycle, command palette navigation, shortcut bindings and focus trap	shell-keyboard-focus-standard	shell-keyboard-focus-compact
 shell-keyboard-focus	bevy	implemented	Shared keyboard focus cycle, command palette navigation, shortcut bindings and focus trap	shell-keyboard-focus-standard	shell-keyboard-focus-compact
+shell-keyboard-focus	slint	pending	Slint has no IME or window-focus model, so the shared caret/focus plan is never consumed.	shell-keyboard-focus-standard	shell-keyboard-focus-compact
 proxies-probe-settings	iced	implemented	Native parameter modal and durable shared settings commands; fresh L1/L2/L3 closure required	proxies-probe-settings-standard	proxies-probe-settings-compact
 proxies-probe-settings	bevy	implemented	Native parameter modal and durable shared settings commands; fresh L1/L2/L3 closure required	proxies-probe-settings-standard	proxies-probe-settings-compact
+proxies-probe-settings	slint	pending	Slint reads the owner probe settings but has no probe-settings editor, draft cancel or refresh.	proxies-probe-settings-standard	proxies-probe-settings-compact
 settings-language-choice	iced	implemented	Native durable language save, correlated failure retry and preserved live input state; fresh L1/L2/L3 acceptance required	settings-language-choice-standard	settings-language-choice-compact
 settings-language-choice	bevy	implemented	Native durable language save, correlated failure retry and preserved live input state; fresh L1/L2/L3 acceptance required	settings-language-choice-standard	settings-language-choice-compact
+settings-language-choice	slint	pending	Slint can set the language but has no retry, refresh or focus/IME preservation on a durable failure.	settings-language-choice-standard	settings-language-choice-compact
 app-routing-policy-editor	iced	implemented	Shared per-app split tunneling policy, process rule editor and platform capability handling	app-routing-policy-editor-standard	app-routing-policy-editor-compact
 app-routing-policy-editor	bevy	implemented	Shared per-app split tunneling policy, process rule editor and platform capability handling	app-routing-policy-editor-standard	app-routing-policy-editor-compact
+app-routing-policy-editor	slint	pending	Slint has no app-routing page and dispatches no app-routing command.	app-routing-policy-editor-standard	app-routing-policy-editor-compact
 rules-list-editor	iced	implemented	Complete staged list, source-fenced commit and actual permission failure surface; fresh pixel receipts determine closure	rules-list-editor-standard	rules-list-editor-compact
 rules-list-editor	bevy	implemented	Complete staged list, native SDK/keyboard/IME and actual permission failure surface; fresh pixel receipts determine closure	rules-list-editor-standard	rules-list-editor-compact
+rules-list-editor	slint	pending	Slint can only toggle a rule's enabled state; add/edit/delete/move are missing.	rules-list-editor-standard	rules-list-editor-compact
 shell-routing-intent-control	iced	implemented	Typed routing choices expose Follow Rules, Route All Through Proxy, and Bypass Proxy; correlated readback and retained failures; fresh L1/L2/L3 required	shell-routing-intent-control-standard	shell-routing-intent-control-compact
 shell-routing-intent-control	bevy	implemented	Typed routing choices expose Follow Rules, Route All Through Proxy, and Bypass Proxy; correlated readback and retained failures; fresh L1/L2/L3 required	shell-routing-intent-control-standard	shell-routing-intent-control-compact
+shell-routing-intent-control	slint	pending	Slint can submit a routing intent but has no pending, stale, retry, unsupported or guide state.	shell-routing-intent-control-standard	shell-routing-intent-control-compact
 shell-routing-intent-authentication	iced	implemented	Denied typed routing change retains authentication reason, disables retry, and exposes controller settings guidance; fresh L1/L2/L3 required	shell-routing-intent-authentication-standard	shell-routing-intent-authentication-compact
 shell-routing-intent-authentication	bevy	implemented	Denied typed routing change retains authentication reason, disables retry, and exposes controller settings guidance; fresh L1/L2/L3 required	shell-routing-intent-authentication-standard	shell-routing-intent-authentication-compact
+shell-routing-intent-authentication	slint	pending	Slint shows only a generic notice banner and never uses the routing-intent authentication guide path.	shell-routing-intent-authentication-standard	shell-routing-intent-authentication-compact
 logs-scroll-lock	iced	implemented	Shared viewport policy and actual native scroll/lock/resume; fresh pixels required	logs-scroll-lock-standard	logs-scroll-lock-compact
 logs-scroll-lock	bevy	implemented	Shared viewport policy and actual native scroll/lock/resume; fresh pixels required	logs-scroll-lock-standard	logs-scroll-lock-compact
+logs-scroll-lock	slint	pending	Slint's log list has no follow/lock/resume, no history and no growth handling.	logs-scroll-lock-standard	logs-scroll-lock-compact
 logs-redacted-export	iced	implemented	Actual native confirmation, cancel, pending and recovery execute shared Core commands; fresh pixels required	logs-redacted-export-standard	logs-redacted-export-compact
 logs-redacted-export	bevy	implemented	Actual native confirmation, cancel, pending and recovery execute shared Core commands; fresh pixels required	logs-redacted-export-standard	logs-redacted-export-compact
+logs-redacted-export	slint	pending	Slint's log export writes unredacted text and ignores the active filter, with no pending/unsupported state.	logs-redacted-export-standard	logs-redacted-export-compact
 runtime-telemetry-observation	iced	implemented	Actual reader warmup, measured zero, retained failure, new session and locale behavior; fresh native pixels required	runtime-telemetry-observation-standard	runtime-telemetry-observation-compact
 runtime-telemetry-observation	bevy	implemented	Actual reader warmup, measured zero, retained failure, new session and locale behavior; fresh native pixels required	runtime-telemetry-observation-standard	runtime-telemetry-observation-compact
+runtime-telemetry-observation	slint	pending	Slint projects the shared traffic freshness but has no wired telemetry refresh and no failure detail beyond the status string.	runtime-telemetry-observation-standard	runtime-telemetry-observation-compact
 rules-statistics-inspector	iced	implemented	Native inspector, independent cleanup review and correlated reset/readback; current pixel receipts determine closure	rules-statistics-inspector-standard	rules-statistics-inspector-compact
 rules-statistics-inspector	bevy	implemented	Native inspector, independent cleanup review and correlated reset/readback; current pixel receipts determine closure	rules-statistics-inspector-standard	rules-statistics-inspector-compact
+rules-statistics-inspector	slint	pending	Slint shows only a hit-count column, with no statistics inspector or counter cleanup.	rules-statistics-inspector-standard	rules-statistics-inspector-compact
 profiles-script-sandbox	iced	implemented	Shared script sandbox execution engine, multiline editing, console output and preset runs	profiles-script-sandbox-standard	profiles-script-sandbox-compact
 profiles-script-sandbox	bevy	implemented	Shared script sandbox execution engine, multiline editing, console output and preset runs	profiles-script-sandbox-standard	profiles-script-sandbox-compact
+profiles-script-sandbox	slint	pending	Slint has no script sandbox and explicitly refuses to execute JavaScript.	profiles-script-sandbox-standard	profiles-script-sandbox-compact
 profiles-script-export-review	iced	implemented	Shared script export review modal, permission retry, destination path selection and save	profiles-script-export-review-standard	profiles-script-export-review-compact
 profiles-script-export-review	bevy	implemented	Shared script export review modal, permission retry, destination path selection and save	profiles-script-export-review-standard	profiles-script-export-review-compact
+profiles-script-export-review	slint	pending	Slint never dispatches the script export prepare/save/cancel commands.	profiles-script-export-review-standard	profiles-script-export-review-compact

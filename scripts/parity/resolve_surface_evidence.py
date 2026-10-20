@@ -15,7 +15,7 @@ from evidence_progress import progress
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SURFACES = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui"}
+SURFACES = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
 MANIFEST_FIELDS = ("feature_id", "surface", "status", "reason", "standard_scenario", "compact_scenario")
 EVIDENCE_FIELDS = ("feature_id", "surface", "level", "status", "test_id", "paths", "reason")
 
@@ -103,6 +103,9 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
         if specs is not None and row["level"] == "scenario" and key[0] in specs:
             if set(row["paths"].split(",")) != set(specs[key[0]]["required_paths"]):
                 invalid.append(f"incomplete or unknown interaction paths: {key}")
+        if specs is not None and row["surface"] == "slint" and row["level"] == "scenario" \
+                and row["status"] == "anchored" and not specs.get(key[0], {}).get("slint_page"):
+            invalid.append(f"slint scenario anchor without a carrier page: {key}")
     expected_anchors = {(feature, surface, level) for feature, surface in expected for level in ("contract", "scenario")}
     for key in expected_anchors - anchors.keys():
         invalid.append(f"missing evidence cell: {key}")

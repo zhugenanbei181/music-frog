@@ -14,10 +14,24 @@ EXPECTED_EVENTS = {
     "bevy.yml": {"workflow_dispatch"},
     "parity.yml": {"workflow_dispatch"},
     "release.yml": {"push"},
+    "release-neutral-crates.yml": {"push", "workflow_dispatch"},
     "test.yml": {"workflow_call"},
     "main-gate.yml": {"push"},
 }
 TAG_JOB_CONDITION = "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')"
+
+# The neutral crates.io release workflow publishes the seven neutral crates.
+# A manual dispatch is a dry-run rehearsal, so its jobs may also start from
+# `workflow_dispatch`; the publish job must never do so.
+NEUTRAL_RELEASE_WORKFLOW = "release-neutral-crates.yml"
+NEUTRAL_RELEASE_JOB_CONDITION = (
+    "    if: github.event_name == 'workflow_dispatch' || "
+    "(github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))"
+)
+NEUTRAL_RELEASE_PUBLISH_CONDITION = (
+    "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') "
+    "&& github.event_name == 'push'"
+)
 
 
 def top_level_events(text: str) -> set[str]:
@@ -59,6 +73,79 @@ def job_blocks(text: str) -> dict[str, list[str]]:
     return jobs
 
 
+def neutral_release_problems(text: str) -> list[str]:
+    """Policy of the neutral crates.io release workflow.
+
+    The workflow may only start automatically for a `v*` tag, a manual
+    dispatch is a dry-run rehearsal, and the upload itself must be gated on
+    the crates.io API token stored in the repository secret
+    `CARGO_REGISTRY_TOKEN`.
+    """
+    problems: list[str] = []
+    prefix = f".github/workflows/{NEUTRAL_RELEASE_WORKFLOW}"
+
+    match = re.search(
+        r"(?ms)^  push:\s*\n(?P<body>(?:^    .*\n|^      .*\n|^        .*\n)*)", text
+    )
+    if not match:
+        problems.append(f"{prefix} must declare a tag-only push trigger")
+    else:
+        push_body = match.group("body")
+        if "tags:" not in push_body or '"v*"' not in push_body or "branches:" in push_body:
+            problems.append(f"{prefix} push trigger must match v* tags only")
+
+    jobs = job_blocks(text)
+    if not jobs:
+        problems.append(f"{prefix} must declare at least one job")
+    for job_name, lines in jobs.items():
+        if (
+            NEUTRAL_RELEASE_JOB_CONDITION in lines
+            or NEUTRAL_RELEASE_PUBLISH_CONDITION in lines
+        ):
+            continue
+        problems.append(
+            f"{prefix} job '{job_name}' must skip non-v* refs before assigning a runner"
+        )
+
+    publish_jobs = [
+        job_name
+        for job_name, lines in jobs.items()
+        if NEUTRAL_RELEASE_PUBLISH_CONDITION in lines
+    ]
+    if not publish_jobs:
+        problems.append(f"{prefix} must gate its publish job on a v* tag push")
+    for job_name in publish_jobs:
+        body = "\n".join(jobs[job_name])
+        if "secrets.CARGO_REGISTRY_TOKEN" not in body:
+            problems.append(
+                f"{prefix} job '{job_name}' must read the crates.io token from "
+                "secrets.CARGO_REGISTRY_TOKEN"
+            )
+        if "exit 1" not in body:
+            problems.append(
+                f"{prefix} job '{job_name}' must fail loudly when the crates.io "
+                "token secret is missing"
+            )
+
+    commands = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    for command in commands:
+        if re.search(r"(?:^|[\s;&|])cargo\s+publish\b", command):
+            problems.append(
+                f"{prefix} must publish through scripts/quality/neutral-release-guard.py, "
+                "not through a raw cargo publish"
+            )
+            break
+    if any(re.search(r"--token\b", command) for command in commands):
+        problems.append(
+            f"{prefix} must not pass a crates.io token on the command line"
+        )
+    return problems
+
+
 def source_problems(root: Path = ROOT) -> list[str]:
     workflow_dir = root / ".github/workflows"
     if not workflow_dir.is_dir():
@@ -90,6 +177,9 @@ def source_problems(root: Path = ROOT) -> list[str]:
                 problems.append(
                     ".github/workflows/main-gate.yml must not compile or run tests"
                 )
+            continue
+        if filename == NEUTRAL_RELEASE_WORKFLOW:
+            problems.extend(neutral_release_problems(text))
             continue
         if filename == "release.yml":
             if not re.search(r'(?ms)^  push:\s*\n(?P<body>(?:^    .*\n|^      .*\n|^        .*\n)*)', text):

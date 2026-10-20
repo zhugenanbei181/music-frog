@@ -29,6 +29,8 @@ python3 scripts/quality/lurker-neutrality-guard.py --self-test
 python3 scripts/quality/lurker-neutrality-guard.py
 python3 scripts/quality/publish-order-guard.py --self-test
 python3 scripts/quality/publish-order-guard.py
+python3 scripts/quality/neutral-release-guard.py --self-test
+python3 scripts/quality/neutral-release-guard.py --mode structure
 python3 scripts/quality/closure-questions-guard.py --self-test
 python3 scripts/quality/closure-questions-guard.py
 python3 scripts/quality/android-bevy-driver-dependency-guard.py --self-test

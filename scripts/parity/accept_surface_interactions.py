@@ -29,10 +29,21 @@ def main():
         parser.error(f"unknown feature IDs: {sorted(features - specs.keys())}")
     evidence = read_table(ROOT / "scripts/parity/feature_evidence.tsv", EVIDENCE_FIELDS)
     selected = [row for row in evidence if row["feature_id"] in features]
-    gaps = [f"{row['feature_id']}/{row['surface']}/{row['level']}" for row in selected if row["status"] != "anchored"]
+    packages = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
+    # A surface without a page carrier cannot present the business, so its cells stay
+    # recorded gaps instead of blocking acceptance on the surfaces that do carry it.
+    carriers = {feature: [surface for surface in packages if specs[feature][f"{surface}_page"]]
+                for feature in features}
+    gaps = [f"{row['feature_id']}/{row['surface']}/{row['level']}" for row in selected
+            if row["status"] != "anchored" and row["surface"] in carriers[row["feature_id"]]]
     if gaps:
         print(f"acceptance blocked: {len(gaps)} L1/L2 cells lack behavior anchors:\n" + "\n".join(gaps), file=sys.stderr)
         return 1
+    uncarried = sorted({f"{feature}/{surface}" for feature in features for surface in packages
+                        if surface not in carriers[feature]})
+    if uncarried:
+        print(f"note: {len(uncarried)} business/surface pairs have no page carrier yet and stay recorded gaps:\n"
+              + "\n".join(uncarried), file=sys.stderr)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"_{os.getpid()}"
     output = ROOT / ".evidence/runs" / stamp
     output.mkdir(parents=True)
@@ -48,7 +59,8 @@ def main():
     # Execute every selected L1/L2 anchor, including shared-crate tests, in the same workspace feature graph.
     metadata = {f"{binary_id}::{name}": (suite["package-name"], suite["binary-name"], name)
                 for binary_id, suite in discovery["rust-suites"].items() for name in suite["testcases"]}
-    anchors = {test for row in selected for test in row["test_id"].split(";")}
+    anchors = {test for row in selected if row["status"] == "anchored"
+               for test in row["test_id"].split(";") if test and test != "-"}
     filters = []
     for anchor in sorted(anchors):
         package, binary_name, name = metadata[anchor]
@@ -57,7 +69,6 @@ def main():
     subprocess.run(["cargo", "nextest", "run", "--workspace", "--build-jobs", "4", "--test-threads", "4",
                     "-E", " | ".join(filters)], cwd=ROOT, check=True)
     (output / "behavior_tests.json").write_text(json.dumps({"test_ids": sorted(anchors), "status": "passed"}, indent=2) + "\n")
-    packages = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui"}
     runs = {}
     for surface in packages:
         matrix = output / f"{surface}-scenarios.tsv"
@@ -65,8 +76,13 @@ def main():
             writer = csv.writer(file, delimiter="\t", lineterminator="\n")
             writer.writerow(["name", "page", "skin", "window_size"])
             for feature in sorted(features):
+                page = specs[feature][f"{surface}_page"]
+                if not page:
+                    # The surface has no carrier for this business yet; a capture would
+                    # prove a route that the product does not implement.
+                    continue
                 for viewport, size in (("standard", "1180x780"), ("compact", "720x480")):
-                    writer.writerow([f"{feature}-{viewport}", specs[feature][f"{surface}_page"], "dark", size])
+                    writer.writerow([f"{feature}-{viewport}", page, "dark", size])
         env = dict(os.environ, INFILTRATOR_CAPTURE_MATRIX=str(matrix), INFILTRATOR_CAPTURE_OUT_DIR=str(output / surface),
                    INFILTRATOR_LANG="en-US", CARGO_BUILD_JOBS="4", INFILTRATOR_CAPTURE_SCENARIOS="")
         evidence_root = ROOT / f".evidence/captures/{surface}"
@@ -86,7 +102,8 @@ def main():
     product_selection = output / "product-builds.json"
     product_selection.write_text(json.dumps(selected_products, indent=2) + "\n")
     verified = verified_receipts(receipts, ROOT, selected_products)
-    expected = {(feature, surface, viewport) for feature in features for surface in packages for viewport in ("standard", "compact")}
+    expected = {(feature, surface, viewport) for feature in features for surface in carriers[feature]
+                for viewport in ("standard", "compact")}
     if verified != expected:
         raise ValueError(f"asymmetric or missing pixel receipts: {expected - verified}")
     command = [sys.executable, "scripts/parity/resolve_surface_evidence.py", *discovery_flags, "--receipts", str(receipts),
@@ -94,7 +111,7 @@ def main():
     if args.all:
         command.append("--require-complete")
     subprocess.run(command, cwd=ROOT, check=True)
-    print(f"accepted {len(features)} interactions on both peers and both viewports: {output}")
+    print(f"accepted {len(features)} interactions on every carried surface and both viewports: {output}")
     return 0
 
 

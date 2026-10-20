@@ -103,5 +103,100 @@ class CiTriggerRules(unittest.TestCase):
         )
 
 
+def neutral_workflow_text() -> str:
+    """A minimal workflow that satisfies the neutral release policy."""
+    return (
+        "on:\n"
+        "  push:\n"
+        "    tags:\n"
+        '      - "v*"\n'
+        "  workflow_dispatch:\n"
+        "jobs:\n"
+        "  validate-topology:\n"
+        f"{GUARD.NEUTRAL_RELEASE_JOB_CONDITION}\n"
+        "    steps:\n"
+        "      - run: python3 scripts/quality/publish-order-guard.py\n"
+        "  publish:\n"
+        f"{GUARD.NEUTRAL_RELEASE_PUBLISH_CONDITION}\n"
+        "    env:\n"
+        "      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}\n"
+        "    steps:\n"
+        "      - name: Require the crates.io API token\n"
+        "        shell: bash\n"
+        "        run: |\n"
+        '          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then\n'
+        "            echo \"missing token\"\n"
+        "            exit 1\n"
+        "          fi\n"
+    )
+
+
+class NeutralReleaseWorkflowRules(unittest.TestCase):
+    def test_neutral_release_workflow_is_registered(self):
+        self.assertEqual(
+            GUARD.EXPECTED_EVENTS[GUARD.NEUTRAL_RELEASE_WORKFLOW],
+            {"push", "workflow_dispatch"},
+        )
+
+    def test_neutral_release_workflow_declares_the_expected_events(self):
+        self.assertEqual(
+            GUARD.top_level_events(neutral_workflow_text()),
+            {"push", "workflow_dispatch"},
+        )
+
+    def test_compliant_neutral_release_workflow_is_accepted(self):
+        self.assertEqual(GUARD.neutral_release_problems(neutral_workflow_text()), [])
+
+    def test_branch_push_trigger_is_rejected(self):
+        text = neutral_workflow_text().replace(
+            '    tags:\n      - "v*"', "    branches: [main]\n"
+        )
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("push trigger must match v* tags only" in p for p in problems))
+
+    def test_ungated_job_is_rejected(self):
+        text = neutral_workflow_text().replace(
+            f"{GUARD.NEUTRAL_RELEASE_JOB_CONDITION}\n", ""
+        )
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("must skip non-v* refs" in p for p in problems))
+
+    def test_publish_job_must_be_gated_on_a_tag_push(self):
+        text = neutral_workflow_text().replace(
+            GUARD.NEUTRAL_RELEASE_PUBLISH_CONDITION,
+            GUARD.NEUTRAL_RELEASE_JOB_CONDITION,
+        )
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("must gate its publish job on a v* tag push" in p for p in problems))
+
+    def test_publish_job_must_read_the_token_secret(self):
+        text = neutral_workflow_text().replace(
+            "      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}\n", ""
+        )
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("secrets.CARGO_REGISTRY_TOKEN" in p for p in problems))
+
+    def test_publish_job_must_fail_loudly_without_the_token(self):
+        text = neutral_workflow_text().replace("            exit 1\n", "")
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("must fail loudly" in p for p in problems))
+
+    def test_raw_cargo_publish_is_rejected(self):
+        text = neutral_workflow_text().replace(
+            "      - run: python3 scripts/quality/publish-order-guard.py",
+            "      - run: cargo publish -p lurker-core-contract",
+        )
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("not through a raw cargo publish" in p for p in problems))
+
+    def test_command_line_token_is_rejected(self):
+        text = neutral_workflow_text().replace(
+            "      - run: python3 scripts/quality/publish-order-guard.py",
+            "      - run: cargo publish --token $TOKEN",
+        )
+        problems = GUARD.neutral_release_problems(text)
+        self.assertTrue(any("must not pass a crates.io token" in p for p in problems))
+
+
 if __name__ == "__main__":
     unittest.main()

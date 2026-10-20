@@ -10,21 +10,22 @@ class ProgressTests(unittest.TestCase):
     def test_distinct_builds_preserve_history_without_becoming_selected_release_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name, cells in [('old-iced', [['confirm', 'iced']]), ('new-bevy', [['confirm', 'bevy']])]:
+            for name, cells in [('old-iced', [['confirm', 'iced']]), ('new-bevy', [['confirm', 'bevy']]),
+                                ('new-slint', [['confirm', 'slint']])]:
                 run = root / name
                 run.mkdir()
                 (run / 'acceptance.json').write_text(json.dumps({
                     'status':'pass','registry_verified':True,'discovery_verified':True,'aligned':cells}))
-            manifest = [{'feature_id':'confirm','surface':surface,'status':'implemented'} for surface in ['iced','bevy']]
+            manifest = [{'feature_id':'confirm','surface':surface,'status':'implemented'} for surface in ['iced','bevy','slint']]
             evidence = [{'level':level,'status':'anchored'} for level in ['contract','scenario'] for _ in range(2)]
             report = {'acceptance_scope':'baseline-coverage','aligned':[],'release_complete':False}
             observed = progress(manifest, evidence, root, {'confirm'}, report)
             self.assertEqual(observed['historical_baselines']['accepted_peer_scenarios'], 1)
-            self.assertEqual(observed['historical_baselines']['accepted_surface_cells'], 2)
+            self.assertEqual(observed['historical_baselines']['accepted_surface_cells'], 3)
             self.assertIsNone(observed['selected_candidate']['aligned_surface_cells'])
             self.assertFalse(observed['selected_candidate']['explicitly_selected'])
             self.assertFalse(observed['selected_candidate']['release_complete'])
-            self.assertEqual(observed['targets']['visual_receipts'], 4)
+            self.assertEqual(observed['targets']['visual_receipts'], 6)
 
     def test_failed_unknown_duplicate_and_undiscovered_reports_cannot_inflate_progress(self):
         with tempfile.TemporaryDirectory() as directory:

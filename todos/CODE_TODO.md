@@ -19,9 +19,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261019-v237`：现在佛 69 pt（29 条）/ 过去佛 23 pt（10 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 164 pt；已归档交付 682 pt（263 条）；累计 846 pt，严格归档完成率 80.6%。
-- 本板 29 条 = 原未来佛 16 条 + 截图认证与平台覆盖 6 条（`PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2`）+ Slint 第三 UI 补齐 7 条（`SLINT-001.1`～`001.7`）；未来佛看板随本批次退役，任务正文统一收敛在本板。
-- Slint 七条来自 2026-10-19 的表面审计实测：Slint 缺 7 类页面导致 19 条业务无载体、49 个 Slint 测试中仅 4 个文件真正驱动表面、无 headless 行为台导致无法产出 scenario 锚点。
+- Point 基线 `musicfrog-todo-20261020-v238`：现在佛 68 pt（29 条）/ 过去佛 27 pt（12 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 167 pt；已归档交付 682 pt（263 条）；累计 849 pt，严格归档完成率 80.3%。
+- 本板 29 条 = 原未来佛 16 条 + 截图认证与平台覆盖 6 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）；`PUB-006.1` 与 `PARITY-001.1` 已交付并迁入过去佛。
+- Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 <!-- POINT_LEDGER:END -->
 
 ## 一、大计划主线与推进顺序
@@ -29,7 +29,7 @@
 | 主线 | 覆盖里程碑 | 条目 | 出口判据 |
 | --- | --- | --- | --- |
 | A 发布流水线主线 | 0.60 / 0.69 / 1.0.0 | `PUB-006.1`、`PUB-006.6`～`PUB-006.11` | 七个中性 crate 可按顺序 dry-run 发布，docs.rs 构建通过，版本拓扑无环 |
-| B 表现与截图认证主线 | 0.44～0.49 / 0.92 | `PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2`、`GAP-4.1` | 59 条业务 × 桌面三 UI 锚点齐全、standard/compact 双视口像素回执全绿；Android 三 flavor 交互截图全绿 |
+| B 表现与截图认证主线 | 0.44～0.49 / 0.92 | `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2`、`SLINT-001.1`～`001.9`、`GAP-4.1` | 59 条业务 × 桌面三 UI 锚点齐全、standard/compact 双视口像素回执全绿；Android 三 flavor 交互截图全绿 |
 | C 质量红线与安装包主线 | 0.70～0.73 | `BANDROID-044.1`、`044.2`、`044.4`、`044.5`、`APPID-001.3` | Lint/ktlint/Detekt/架构守卫强制生效且零违规；Linux deb/AppImage 安装冒烟通过 |
 | D 视觉与模型统一主线 | 0.48 / 0.90 / 0.91 | `GAP-7.1`、`BANDROID-016.2`、`BANDROID-016.3` | 三大 UI 共用一份页面模型；地球增强与帧/内存报告交付 |
 
@@ -39,7 +39,7 @@
 
 | 平台 | 表现层 | 当前状态 | 收口条目 | 关闭证据 |
 | --- | --- | --- | --- | --- |
-| Linux 桌面 | Iced / Bevy / Slint | 源码可编译，截图矩阵仅 Bevy/Slint 有场景表，Slint 未进 parity 注册表 | `PARITY-001.1`、`PARITY-001.2`、`PLATFORM-001.1`、`APPID-001.3` | 59 业务 × 三 UI 双视口像素回执 + deb/AppImage 安装冒烟 |
+| Linux 桌面 | Iced / Bevy / Slint | 源码可编译；parity 注册表已含三表面，但 Slint 侧 59 个 scenario 全为 pending、场景表只覆盖 Slint 自身 24 个场景 | `PARITY-001.2`、`PLATFORM-001.1`、`APPID-001.3`、`SLINT-001.1`～`001.9` | 59 业务 × 三 UI 双视口像素回执 + deb/AppImage 安装冒烟 |
 | Windows 桌面 | Iced / Bevy / Slint | 本机仅有交叉 `cargo check`，无产物 | `PLATFORM-001.1`（交叉腿）、`PARITY-001.2`（截图腿） | 交叉编译回执 + 与平台无关的像素回执；NSIS 产物腿在斗战胜佛（`APPID-001.4`、`GAP-2.1`） |
 | macOS 桌面 | Iced / Bevy（Slint 未启用） | Apple target 被 `apple-ci-deferral-guard.py` 显式禁建 | 斗战胜佛（`GAP-2.2`） | 平台矩阵登记 `Unsupported` + 斗战胜佛阻塞方登记；本板不假装已覆盖 |
 | Android | Compose / Bevy / Slint flavor | 源码链路已通，APK 与交互截图未认证 | `PARITY-001.4`、`PLATFORM-001.1` | 模拟器 M1 交互截图与行为回执 + APK identity；真机腿在斗战胜佛 §一 |
@@ -60,18 +60,12 @@
 | 测速与命令面板（speedtest / shell） | 7 | 缺 Slint | 缺 Slint | 缺 |
 | 设置（settings） | 5 | 缺 Slint | 缺 Slint | 缺 |
 | 应用与路由策略（app） | 1 | 缺 Slint | 缺 Slint | 缺 |
-| **合计** | **59** | 2/3 表面已锚点（4 个 pending 单元格） | 118 个待像素回执单元格 | 0 个 flavor 截图回执 |
+| **合计** | **59** | 三表面全部登记：Iced contract 59/59、scenario 58/59；Bevy 59/59 + 59/59；Slint contract 57/59、scenario 0/59 | 177 个待像素回执单元格 | 0 个 flavor 截图回执 |
 
-缺口来源与实测结论（2026-10-19）：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。进一步审计 Slint 表面得到三条硬事实：① Slint 页面词汇为 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**dns、editor、filter、mixin、sync、app_routing、doctor 七类页面在 Slint 根本不存在**，按契约页面归属共 **19 条业务在第三 UI 无载体**（dns 4、editor 7、sync 2、doctor 2、app_routing 1、filter 1、aggregator/mixin 2）——这是产品缺口，不是测试缺口；② Slint 现有 49 个 nextest 测试中只有 4 个测试文件真正驱动 `infiltrator_slint` 表面，其余 4 个文件仅断言 typed 意图形状，**Slint 没有 Iced/Bevy 那样的 headless 行为台**，因而无法产出任何 parity scenario 锚点；③ 59 条业务里 Slint 仅有约 20 条存在形状级测试。收口由 `PARITY-001.1`～`001.4`、`PLATFORM-001.1`～`001.2` 与 `SLINT-001.1`～`SLINT-001.7` 共同承担。
+缺口来源与实测结论（2026-10-19 全量审计）：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 原先只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。现已补齐第三表面：**177 单元格（59 业务 × 3 表面）全部登记并可解析**，Slint 侧 57 格为 `pending` + 逐条原因，2 格为 `implemented`（业务已实现、缺表面测试）。Slint 表面审计得到五条硬事实：① 页面词汇只有 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**dns、editor、filter、mixin、sync、app_routing、doctor 七类页面不存在**，按契约页面归属共 **19 条业务在第三 UI 无载体**（产品缺口）；② Slint 只派发 42 种 `CommandIntent`，DNS、编辑器、脚本沙箱、测速、快照、聚合器、命令面板等 30 余种意图从未派发；③ 59 条业务里 **2 条完整实现、18 条部分实现、39 条未实现**，**今天没有任何一条可以合法标记为 Slint scenario 锚点**；④ 四个测试文件在用例里**重实现 Slint 逻辑**（路由模式映射、网络模式序列、主题白名单、十六进制解析、连接排序），构成仓库禁止的「第二业务真源」，且永远无法当表面锚点；⑤ 两个已声明回调 `refresh-profile(string)`、`refresh-home-egress()` 在任何 `.slint` 文件里都没有调用点。收口由 `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2` 与 `SLINT-001.1`～`SLINT-001.9` 共同承担。
 
 ## 四、A 主线：crates.io 发布流水线与开发者生态
 
-- [ ] PUB-006.1 [kind: infra] [priority: P0] [points: 2] [owner: CI] [status: Ready] Crates.io 自动化发布 CI 工作流
-  - 产物：GitHub Actions 发布流水线；发布前版本拓扑校验、Dry-run 打包、签名校验与顺序发布。
-  - 依赖：PUB-001.1～PUB-003.3（七个中性 crate 均已归档）。
-  - 验收：本地与 CI 环境下 dry-run 顺序打包成功，依赖图谱无环且版本严格对齐。
-  - 计划：① 复核 `publish-order-guard` 顺序（contract → ports → engine-runtime → profile-store → ui-presentation → mihomo-driver → singbox-driver）；② 落 workflow 与拓扑校验 job；③ 本地逐 crate dry-run 并记录失败原因（未上架依赖是顺序门，不算代码缺陷）。
-  - 证据：workflow run ID + 逐 crate dry-run 日志；上架腿在斗战胜佛 §四。
 - [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] [status: Planned] Docs.rs 预览与公共 API 文档质量门
   - 产物：docs.rs 渲染模拟配置与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]` 并提供标准 Rustdoc 与 doctest。
   - 依赖：PUB-006.1、PUB-006.2。
@@ -111,23 +105,18 @@
 
 ## 五、B 主线：截图认证与平台证据（每个业务都真跑过）
 
-- [ ] PARITY-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: scripts/parity + infiltrator-contract] [status: Ready] Slint 纳入 parity 目录、注册表与视觉回执管线
-  - 产物：契约目录 `FeatureSpec` 增 `slint_page`；`cross_surface_manifest.tsv` 与 `feature_evidence.tsv` 增 59×2 个 Slint 单元格（页面不存在者以 `pending` + 明确原因登记，禁止伪装已实现）；`resolve_surface_evidence.py` 的 `SURFACES` 增 `slint`；`visual_receipts.py` 接受 `--slint-run`。
-  - 依赖：SLINT-001.1（Slint 行为台与 scenario 锚点）、GAP-4.1 场景表。
-  - 验收：Slint 59 业务 × 2 层 = 118 单元格全部可解析且无 dangling；`--slint-run` 能产出像素回执；`--require-complete` 在 Slint 未补齐前必须仍失败。
-  - 计划：① 契约目录加 `slint_page` 并回填 59 条页面归属；② 逐条生成注册表单元格（可锚定则 anchored，页面缺失或行为缺失则 pending + 原因）；③ 扩展 resolver/receipts 与正反例测试。
-  - 证据：`resolve_surface_evidence.py` 报告 + 新增单元测试 run ID。
 - [ ] PARITY-001.2 [kind: evidence] [priority: P0] [points: 5] [owner: scripts/parity + 三大 UI] [status: Planned] 三大桌面 UI 全业务双视口像素认证闭环
   - 产物：59 业务 × 3 表面 × standard/compact 双视口的真实像素回执全量归档，覆盖率 100%。
   - 依赖：PARITY-001.1。
   - 验收：`visual_receipts.py` 输出的 118 个待回执单元格全部转绿，无「以静态页面截图冒充平权通过」。
   - 计划：① 用 `scripts/capture-{iced,bevy,slint}-matrix.sh` 跑标准/紧凑两视口；② 逐业务比对几何与交互断言；③ 失败业务回流对应 UI 修缺陷再重取。
   - 证据：`.evidence/visual_receipts.json` 全绿 + 每业务截图清单。
-- [ ] PARITY-001.3 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: Planned] 四个 pending 行为锚点补齐
-  - 产物：`core-version-rollback-confirm`（iced/bevy contract）、`proxies-search-highlight`（iced scenario）、`speedtest-progress-cancel`（iced scenario）四个单元格补真实行为测试并转 anchored。
+- [ ] PARITY-001.3 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 四个 pending 行为锚点补齐
+  - 产物：`core-version-rollback-confirm`（iced/bevy/slint contract）、`proxies-search-highlight`（iced scenario）、`speedtest-progress-cancel`（iced scenario）四个单元格补真实行为测试并转 anchored。
   - 依赖：共享 core rollback / proxy 搜索 / speedtest 取消 owner 契约。
   - 验收：四格状态由 pending 转 anchored，且测试覆盖失败恢复、拒绝与取消终态。
   - 计划：① 逐格补行为测试（不复用 demo 快照冒充）；② 更新注册表 `test_id`/`reason`；③ 跑 resolver 确认零 pending。
+  - 进度：4 格中已闭 3 格——`core-version-rollback-confirm` 的 iced/bevy/slint contract 由 `infiltrator-application::version_application::tests` 的三条回滚用例（转发引擎身份并回报激活版本 / 失败不伪造 / 外来引擎 fail-closed）转 anchored；`proxies-search-highlight` 的 iced scenario 由 `infiltrator-iced::headless::proxy_search_behavior_tests`（typed 偏好提交、命中高亮、诚实空态、清空恢复、owner 拒绝时保留已确认偏好与可重试草稿、刷新后重放查询）转 anchored。剩余 `speedtest-progress-cancel` 的 iced scenario 一格仍 pending。
   - 证据：四格 nextest run ID + resolver 报告。
 - [ ] PARITY-001.4 [kind: evidence] [priority: P0] [points: 3] [owner: android 三 flavor] [status: Planned] Android 三 flavor 实际交互截图与行为认证
   - 产物：Compose / Bevy / Slint 三个 flavor 在模拟器上的真实交互截图与行为回执（启动、导航、列表滚动、权限与 VPN consent 终态）。
@@ -198,6 +187,18 @@
   - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
   - 计划：① 接入共享策略投影 ② 实现编辑与提交动作 ③ 接行为测试与截图。
   - 证据：截图 + 锚点 run ID。
+- [ ] SLINT-001.8 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-slint] [status: Planned] 形状级测试文件改为驱动真实表面（消除第二业务真源）
+  - 产物：`connections_and_logs_tests`、`core_and_network_mode_tests`、`outbound_and_probe_tests`、`rules_and_settings_tests` 四个文件不再在测试里重实现路由模式、网络模式序列、主题白名单、十六进制解析与连接排序，改为调用 Slint 表面。
+  - 依赖：把 `network_mode_action`、`selection_action`、`probe_action`、`theme_util::parse_color` 等私有实现提升为可测边界。
+  - 验收：四个文件的用例全部经 Slint 表面断言派发意图与投影结果；重实现代码清零（仓库搜索回执）。
+  - 计划：① 提升可测边界 ② 逐文件替换断言 ③ 清零旧重实现并接 registry 锚点。
+  - 证据：nextest run ID + 旧符号清零搜索回执。
+- [ ] SLINT-001.9 [kind: mechanism] [priority: P1] [points: 1] [owner: infiltrator-slint] [status: Planned] 两个未接线的 Slint 回调接线
+  - 产物：`refresh-profile(string)`（订阅刷新）与 `refresh-home-egress()`（公网 IP 复探）在 Slint 界面有真实调用点，或从声明中退役。
+  - 依赖：SLINT-001.1 行为台。
+  - 验收：不存在"声明了但无调用点"的回调；订阅错误与复探失败有 typed 呈现。
+  - 计划：① 逐个判定接线或退役 ② 退役则同步删除声明 ③ 接线则补行为测试。
+  - 证据：调用点清单 + nextest run ID。
 
 ## 六、C 主线：质量红线与安装包
 

@@ -293,6 +293,8 @@ mod tests {
         engine_id: EngineId,
         reported_engine_id: Mutex<Option<EngineId>>,
         rollback_engine_id: Mutex<Option<EngineId>>,
+        rollback_requests: Mutex<Vec<EngineId>>,
+        rollback_failure: Mutex<Option<String>>,
         channels: Mutex<Vec<EngineReleaseChannel>>,
         channels_called: Mutex<Vec<EngineReleaseChannel>>,
         verification: Mutex<CoreArtifactVerification>,
@@ -311,6 +313,8 @@ mod tests {
                 engine_id,
                 reported_engine_id: Mutex::new(None),
                 rollback_engine_id: Mutex::new(None),
+                rollback_requests: Mutex::new(Vec::new()),
+                rollback_failure: Mutex::new(None),
                 channels_called: Mutex::new(Vec::new()),
                 verification: Mutex::new(CoreArtifactVerification::Unknown),
             }
@@ -424,8 +428,15 @@ mod tests {
         }
 
         async fn rollback(&self, request: VersionRollbackRequest) -> Result<String, PortError> {
+            self.rollback_requests
+                .lock()
+                .unwrap()
+                .push(request.engine_id.clone());
             if request.engine_id != self.engine_id {
                 return Err(PortError::Failed("wrong engine context".to_owned()));
+            }
+            if let Some(failure) = self.rollback_failure.lock().unwrap().clone() {
+                return Err(PortError::Failed(failure));
             }
             Ok("v1.19.29".to_owned())
         }
@@ -517,6 +528,59 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[tokio::test]
+    async fn core_rollback_forwards_the_owner_engine_identity_and_reports_the_activated_version() {
+        let engine_id = EngineId::new("engine-a").expect("engine ID");
+        let port = Arc::new(FakeVersionPort::new("engine-a"));
+        let port_for_application: Arc<dyn VersionPort> = port.clone();
+        let application = VersionApplication::new(engine_id.clone(), port_for_application).unwrap();
+
+        let activated = application.rollback().await.expect("core rollback is forwarded");
+
+        assert_eq!(activated, "v1.19.29");
+        let requests = port.rollback_requests.lock().unwrap().clone();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0], engine_id);
+    }
+
+    #[tokio::test]
+    async fn core_rollback_failure_is_reported_and_never_fabricates_an_activated_version() {
+        let engine_id = EngineId::new("engine-a").expect("engine ID");
+        let port = Arc::new(FakeVersionPort::new("engine-a"));
+        *port.rollback_failure.lock().unwrap() = Some("rollback snapshot is missing".to_owned());
+        let port_for_application: Arc<dyn VersionPort> = port.clone();
+        let application = VersionApplication::new(engine_id, port_for_application).unwrap();
+
+        let result = application.rollback().await;
+
+        assert!(matches!(result, Err(Failure { .. })));
+        assert_eq!(port.rollback_requests.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn core_rollback_for_a_foreign_engine_fails_closed_without_reaching_the_port() {
+        let engine_id = EngineId::new("engine-a").expect("engine ID");
+        let port = Arc::new(FakeVersionPort::new("engine-a"));
+        let port_for_application: Arc<dyn VersionPort> = port.clone();
+        let application = VersionApplication::new(engine_id, port_for_application).unwrap();
+        *port.reported_engine_id.lock().unwrap() =
+            Some(EngineId::new("engine-b").expect("engine ID"));
+
+        let result = application.rollback().await;
+
+        assert!(matches!(
+            result,
+            Err(Failure {
+                code: ErrorCode::InvalidState,
+                ..
+            })
+        ));
+        assert!(
+            port.rollback_requests.lock().unwrap().is_empty(),
+            "a cancelled or foreign rollback must not reach the version port"
+        );
     }
 
     #[tokio::test]

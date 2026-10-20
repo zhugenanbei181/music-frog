@@ -6,14 +6,15 @@ from resolve_surface_evidence import discovered_tests, validate
 
 class ClosureTests(unittest.TestCase):
     def setUp(self):
-        self.specs = [{"id": "confirm", "required_paths": ["success", "cancel"]}]
+        self.specs = [{"id": "confirm", "required_paths": ["success", "cancel"], "slint_page": "proxies"}]
         self.manifest = [dict(feature_id="confirm", surface=s, status="pending", reason="pixels pending",
                               standard_scenario="confirm-standard", compact_scenario="confirm-compact")
-                         for s in ("iced", "bevy")]
+                         for s in ("iced", "bevy", "slint")]
         self.evidence = [dict(feature_id="confirm", surface=s, level=level, status="anchored",
                               test_id=f"{s}::tests::cancel", paths="success,cancel", reason="-")
-                         for s in ("iced", "bevy") for level in ("contract", "scenario")]
-        self.discovery = {f"{s}::tests::cancel": f"infiltrator-{s if s == 'iced' else 'bevy-ui'}" for s in ("iced", "bevy")}
+                         for s in ("iced", "bevy", "slint") for level in ("contract", "scenario")]
+        self.discovery = {f"{s}::tests::cancel": f"infiltrator-{s if s == 'iced' else 'bevy-ui' if s == 'bevy' else 'slint'}"
+                         for s in ("iced", "bevy", "slint")}
 
     def report(self, **overrides):
         args = dict(manifest=self.manifest, evidence=self.evidence, catalogue=self.specs, discovery=self.discovery)
@@ -23,14 +24,14 @@ class ClosureTests(unittest.TestCase):
     def test_exact_discovery_is_not_complete_parity(self):
         report = self.report()
         self.assertEqual(report["status"], "pass")
-        self.assertEqual(report["pending"], [["confirm", "bevy"], ["confirm", "iced"]])
+        self.assertEqual(report["pending"], [["confirm", "bevy"], ["confirm", "iced"], ["confirm", "slint"]])
         self.assertFalse(report["complete"])
         self.assertEqual(self.report(require_complete=True)["status"], "fail")
 
     def test_deleted_or_renamed_test_fails_closed(self):
         discovery = {"iced::tests::renamed": "infiltrator-iced", "bevy::tests::cancel": "infiltrator-bevy-ui"}
         report = self.report(discovery=discovery)
-        self.assertEqual(len(report["dangling"]), 2)
+        self.assertEqual(len(report["dangling"]), 4)
         self.assertEqual(report["status"], "fail")
 
     def test_other_package_with_same_test_name_cannot_satisfy_anchor(self):
@@ -60,10 +61,16 @@ class ClosureTests(unittest.TestCase):
     def test_ready_requires_both_verified_viewports(self):
         for row in self.manifest:
             row["status"] = "ready"
-        receipts = {( "confirm", s, v) for s in ("iced", "bevy") for v in ("standard", "compact")}
+        receipts = {( "confirm", s, v) for s in ("iced", "bevy", "slint") for v in ("standard", "compact")}
         self.assertTrue(self.report(receipts=receipts)["complete"])
         receipts.remove(("confirm", "bevy", "compact"))
         self.assertEqual(self.report(receipts=receipts)["status"], "fail")
+
+    def test_slint_scenario_anchor_requires_a_carrier_page(self):
+        self.specs[0]["slint_page"] = ""
+        report = self.report()
+        self.assertEqual(report["status"], "fail")
+        self.assertTrue(any("carrier page" in error for error in report["invalid"]))
 
     def test_discovery_uses_binary_package_and_excludes_ignored_tests(self):
         payload = {"rust-suites": {"iced": {"package-name": "infiltrator-iced",

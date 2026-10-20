@@ -16,6 +16,7 @@ import product_build
 
 ROOT = Path(__file__).resolve().parents[2]
 VIEWPORTS = {"standard": (1180, 780), "compact": (720, 480)}
+SURFACE_BINARIES = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
 
 
 def sha256(path):
@@ -160,7 +161,7 @@ def verified_receipts(path, root, selected_builds=None):
     binary_digests = {}
     for row in document["receipts"]:
         key = (row["feature_id"], row["surface"], row["viewport"])
-        if key in verified or row["surface"] not in {"iced", "bevy"} or row["viewport"] not in VIEWPORTS:
+        if key in verified or row["surface"] not in set(SURFACE_BINARIES) or row["viewport"] not in VIEWPORTS:
             raise ValueError(f"duplicate/invalid pixel identity: {key}")
         image = repo_path(root, row["image"])
         if sha256(image) != row["sha256"] or pixel_signature(image) != row["pixel_signature"]:
@@ -214,7 +215,7 @@ def verified_receipts(path, root, selected_builds=None):
             # Old receipts remain baseline evidence; a missing original binary cannot be invented.
             if selected_builds is not None:
                 raise ValueError(f"legacy receipt lacks an archived build identity for release selection: {key}")
-            binary = root / "target/debug" / ("infiltrator-iced" if row["surface"] == "iced" else "infiltrator-bevy-ui")
+            binary = root / "target/debug" / SURFACE_BINARIES[row["surface"]]
         if binary not in binary_digests:
             identity = file_identity(binary)
             digest = sha256(binary)
@@ -235,6 +236,7 @@ def main():
     parser.add_argument("--fingerprint", action="store_true")
     parser.add_argument("--iced-run", type=Path)
     parser.add_argument("--bevy-run", type=Path)
+    parser.add_argument("--slint-run", type=Path)
     parser.add_argument("--output", type=Path, default=ROOT / ".evidence/visual_receipts.json")
     args = parser.parse_args()
     if args.fingerprint:
@@ -242,7 +244,10 @@ def main():
         return
     if not args.iced_run or not args.bevy_run:
         parser.error("both --iced-run and --bevy-run are required")
-    document = build_receipts(ROOT, {"iced": args.iced_run.resolve(), "bevy": args.bevy_run.resolve()})
+    runs = {"iced": args.iced_run.resolve(), "bevy": args.bevy_run.resolve()}
+    if args.slint_run:
+        runs["slint"] = args.slint_run.resolve()
+    document = build_receipts(ROOT, runs)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(document, indent=2) + "\n")
     verified = verified_receipts(args.output, ROOT)

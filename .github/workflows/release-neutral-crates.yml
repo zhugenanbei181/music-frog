@@ -1,0 +1,175 @@
+name: release-neutral-crates
+
+# Publish the seven neutral ("Lurker") crates to crates.io as one ordered
+# release chain:
+#
+#   lurker-core-contract -> lurker-core-ports -> lurker-engine-runtime
+#   -> lurker-profile-store -> lurker-ui-presentation
+#   -> mihomo-driver -> singbox-driver
+#
+# The chain is derived by scripts/quality/publish-order-guard.py and
+# re-derived by scripts/quality/neutral-release-guard.py, locally and in this
+# workflow, so the workflow and the repository can never disagree.
+#
+# Trigger policy (enforced by scripts/quality/ci-trigger-guard.py):
+#   * an automatic run only starts for a `v*` tag push;
+#   * `workflow_dispatch` is a dry-run rehearsal and never uploads anything;
+#   * no macOS/iOS runner and no Apple target: Apple CI stays deferred
+#     (scripts/quality/apple-ci-deferral-guard.py).
+#
+# Required repository secret: CARGO_REGISTRY_TOKEN
+#   A crates.io API token that may publish the seven neutral crates. On
+#   crates.io the token needs the `publish-scope` capability, plus `owner` when
+#   the crates belong to an organisation. Store it as a *repository* secret
+#   named CARGO_REGISTRY_TOKEN; cargo reads it from the environment, so the
+#   token itself never appears in this file, in the job logs or in the crate
+#   metadata. When the secret is missing the publish job fails loudly and
+#   nothing is published — there is no anonymous, dry-run or debug fallback.
+#
+# Dry-run semantics (scripts/quality/neutral-release-guard.py --mode dry-run):
+#   `cargo publish --dry-run` never uploads; it packages and verifies every
+#   crate in the enforced order. A crate whose neutral dependency is not on
+#   crates.io yet fails with "no matching package named `<crate>`" — that is
+#   the expected publish-order gate and is reported as `order-gate`, not as a
+#   packaging defect. Only a genuine packaging/verification failure is
+#   reported as `packaging-failure`; it fails the job and blocks the publish
+#   job, because a broken package must never reach crates.io.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A publish run must never be cancelled half-way: a cancelled chain would
+# leave crates.io with a partially published dependency chain.
+concurrency:
+  group: release-neutral-crates-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Topology: the publish order, the licences and the neutrality of the
+  #    chain must hold before anything is packaged or uploaded.
+  # ---------------------------------------------------------------------------
+  validate-topology:
+    name: Validate publish topology
+    if: github.event_name == 'workflow_dispatch' || (github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # The guards need Python 3.11+ (tomllib); pin the version explicitly.
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Publish order, licence and neutrality guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/quality/publish-order-guard.py
+          python3 scripts/quality/license-guard.py --mode enforce
+          python3 scripts/quality/lurker-neutrality-guard.py
+
+      # The release contract of the chain: every crate present, publishable,
+      # licensed and pinned to the version this release publishes. Offline.
+      - name: Neutral release topology (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/quality/neutral-release-guard.py --mode structure \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 2. Dry-run: package and verify every crate in the enforced order without
+  #    uploading anything. An `order-gate` result is expected before the
+  #    chain is published; a `packaging-failure` result blocks the publish.
+  # ---------------------------------------------------------------------------
+  dry-run:
+    name: Dry-run packaging (no upload)
+    needs: [validate-topology]
+    if: github.event_name == 'workflow_dispatch' || (github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # `cargo publish --dry-run` needs the crates.io index, so this step is
+      # the only one that talks to the network.
+      - name: Dry-run publish in the enforced order
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/neutral-crate-release.sh dry-run --summary "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 3. Publish: the real upload, in the enforced order, with the crates.io
+  #    API token taken from the repository secret. Never reachable from a
+  #    manual dispatch.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish to crates.io (ordered)
+    needs: [validate-topology, dry-run]
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.event_name == 'push'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    env:
+      # crates.io API token from the repository secret. It is only ever read
+      # from the environment; it is never echoed and never passed on a
+      # command line.
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # Fail loudly and early when the repository secret is absent: without a
+      # token there is no publish, and there is no fallback to an anonymous
+      # or debug upload.
+      - name: Require the crates.io API token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::The repository secret CARGO_REGISTRY_TOKEN is not set. Create a crates.io API token with the publish-scope capability and store it as the repository secret CARGO_REGISTRY_TOKEN. Nothing was published."
+            exit 1
+          fi
+          echo "crates.io token present (value not shown)"
+
+      - name: Publish in the enforced order
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/neutral-crate-release.sh publish --summary "$GITHUB_STEP_SUMMARY"
