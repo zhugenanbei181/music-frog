@@ -186,5 +186,9 @@
   - 依赖：TOKEN-001.1 的阶梯裁决（既有档位足够，但角色重叠需澄清）。
   - 验收：契约 `design_tokens::radius` 的每档角色注释互斥且可判定；三个表面按契约改齐；清零搜索确认无「居中对话框用 CARD」的残留。
   - 计划：① 列出各表面居中对话框的当前档位 ② 契约写清互斥角色 ③ 三表面按契约改齐并补断言。
+  - 进度（2026-10-20 契约已裁决，证据等级 L）：契约的圆角阶梯改为**每档一个互斥角色**并在阶梯文档里列成表——居中模态与居中命令面板 = `MODAL`(24)、面板式对话框 = `CARD`(16)、移动端底部抽屉顶边 = `BOTTOM_SHEET`(28)；重复且角色重叠的 `DIALOG`(28) 已退役（它与 `BOTTOM_SHEET` 同值同义），契约测试新增「每个角色只占一档」断言。
+  - 进度：widgets 的镜像阶梯同步退役 `DIALOG` 与与契约冲突的表面私有 `SHEET_TOP`(16)，镜像测试改为**逐档对照两套阶梯**（原来含 `assert_eq!(radius::DIALOG, radius::DIALOG)` 这类同侧自证），新增调色板字段 `modal_radius_px` 供居中对话框取用。
+  - 进度：Iced 侧 `view_root/modals/card.rs`（共享居中弹窗 chrome）、`aggregator_modal.rs`、`snapshot_diff_modal.rs` 已按契约改用 `R_MODAL`；Bevy 侧 `adaptive_modal.rs` 的居中形态改用 `radius::MODAL`、抽屉形态改用 `radius::BOTTOM_SHEET`；清零搜索确认 Iced 居中弹窗已无 `R_CARD` 残留。Slint 的居中命令面板本就按 `MODAL` 对齐。
+  - 剩余（Bevy 产品页归其模态迁移 owner）：Bevy 产品页的居中弹窗卡片仍在用 `palette.card_radius_px`(16)（`proxy_inspection`／`proxy_probe_settings`／`proxy_group_order`／`rules_tracer_confirm`／`snapshot_restore_scene`／`connections_confirm`／`dns_*`／`logs_export_scene`／`profiles_script_scene`／`rules_statistics_scene`／`overview_speedtest` 等），需改为 `palette.modal_radius_px`；这些文件正由另一条模态迁移流编辑，故按文件所有权不并行改动，迁移完成后由该流改齐并补断言。
   - 证据：契约 diff + 三表面断言 run ID + 清零搜索回执。
 
