@@ -70,15 +70,20 @@ impl AppState {
     }
 
     fn start_rule_provider_unpack(&mut self, provider_name: String) -> Task<Message> {
-        self.editor.provider_unpack.is_unpacking = true;
+        if let Err(busy) = self.editor.provider_unpack.begin_unpack() {
+            return self.set_provider_status(
+                format!("Rule provider maintenance is already running ({busy:?})"),
+                ToastStatus::Error,
+            );
+        }
         let name = provider_name.trim().to_owned();
         if name.is_empty() {
-            self.editor.provider_unpack.is_unpacking = false;
+            self.editor.provider_unpack.finish();
             return self
                 .set_provider_status("Rule provider name is empty".to_owned(), ToastStatus::Error);
         }
         let Some(declaration) = self.declared_rule_provider(&name) else {
-            self.editor.provider_unpack.is_unpacking = false;
+            self.editor.provider_unpack.finish();
             return self.set_provider_status(
                 format!("Provider {name} is not declared in the loaded profile"),
                 ToastStatus::Error,
@@ -103,7 +108,7 @@ impl AppState {
         &mut self,
         result: Result<ProviderUnpackPlan, InfiltratorError>,
     ) -> Task<Message> {
-        self.editor.provider_unpack.is_unpacking = false;
+        self.editor.provider_unpack.finish();
         match result {
             Ok(plan) => {
                 if !self.editor.rule_list.prepend(plan.entries.iter().cloned()) {
@@ -133,14 +138,19 @@ impl AppState {
     }
 
     fn start_rule_provider_cache_purge(&mut self) -> Task<Message> {
+        if let Err(busy) = self.editor.provider_unpack.begin_cache_purge() {
+            return self.set_provider_status(
+                format!("Rule provider maintenance is already running ({busy:?})"),
+                ToastStatus::Error,
+            );
+        }
         let Some(cache) = self.runtime.rule_provider_cache_port.clone() else {
-            self.editor.provider_unpack.is_purging_cache = false;
+            self.editor.provider_unpack.finish();
             return self.set_provider_status(
                 "This host does not expose a rule-provider cache location".to_owned(),
                 ToastStatus::Error,
             );
         };
-        self.editor.provider_unpack.is_purging_cache = true;
         Task::perform(
             async move {
                 cache
@@ -156,7 +166,7 @@ impl AppState {
         &mut self,
         result: Result<ProviderCachePurge, InfiltratorError>,
     ) -> Task<Message> {
-        self.editor.provider_unpack.is_purging_cache = false;
+        self.editor.provider_unpack.finish();
         match result {
             Ok(purge) => {
                 let status = if purge.is_noop() {

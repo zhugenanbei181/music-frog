@@ -5,6 +5,7 @@
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
+use infiltrator_iced::types::rules::ProviderMaintenanceStage;
 use crate::state::AppState;
 use crate::state::proxy_probe;
 use crate::types::message::Message;
@@ -492,7 +493,10 @@ fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
 
     // DUAL-11-07: a host without a cache location must say so.
     let _ = state.update(Message::PurgeRuleProviderCache);
-    assert!(!state.editor.provider_unpack.is_purging_cache);
+    assert_eq!(
+        state.editor.provider_unpack.stage,
+        ProviderMaintenanceStage::Idle
+    );
     assert!(
         state
             .editor

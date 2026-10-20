@@ -6,6 +6,7 @@ use infiltrator_application::rule_provider_application::RuleProviderRuntimeAcces
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::provider_cache::ProviderContentOrigin;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
+use infiltrator_iced::types::rules::ProviderMaintenanceStage;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use lurker_core_contract::error::InfiltratorError;
 
@@ -71,7 +72,10 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
         .clone()
         .expect("status");
     assert!(status.contains("inline-payload"), "{status}");
-    assert!(!state.editor.provider_unpack.is_unpacking);
+    assert_eq!(
+        state.editor.provider_unpack.stage,
+        ProviderMaintenanceStage::Idle
+    );
 
     // A host without a readable source reports the typed failure verbatim and
     // leaves the draft untouched.

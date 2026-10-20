@@ -66,10 +66,10 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     let cache_line = provider_cache_line(cache, lang);
 
     let feedback: Element<'_, Message> = if let Some(msg) = &unp.status_message {
-        let failed = unp.is_unpacking || unp.is_purging_cache;
+        let in_flight = unp.stage.is_busy();
         container(
             row![
-                svg_icons::icon_themed(Icon::ListChecks, 14.0, move |t: &Theme| if failed {
+                svg_icons::icon_themed(Icon::ListChecks, 14.0, move |t: &Theme| if in_flight {
                     tokens(t).warning
                 } else {
                     tokens(t).success
@@ -78,7 +78,7 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 text(msg.clone())
                     .size(11)
                     .style(move |t: &Theme| text::Style {
-                        color: Some(if failed {
+                        color: Some(if in_flight {
                             tokens(t).warning
                         } else {
                             tokens(t).success

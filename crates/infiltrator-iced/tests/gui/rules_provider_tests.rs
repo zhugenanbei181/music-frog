@@ -9,6 +9,7 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
+use infiltrator_iced::types::rules::{ProviderMaintenanceStage, ProviderUnpackState};
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;
@@ -65,12 +66,49 @@ fn declarations_come_from_the_loaded_profile_json_only() {
 }
 
 #[test]
+fn provider_maintenance_stage_makes_the_two_operations_mutually_exclusive() {
+    let mut state = ProviderUnpackState::default();
+    assert_eq!(state.stage, ProviderMaintenanceStage::Idle);
+    assert!(!state.stage.is_busy());
+
+    // A provider read starts the one stage the card can be in.
+    assert_eq!(state.begin_unpack(), Ok(()));
+    assert_eq!(state.stage, ProviderMaintenanceStage::Unpacking);
+    assert!(state.stage.is_busy());
+
+    // A cache purge requested while the read is in flight is refused with the
+    // running stage. The old flag pair could hold both at once.
+    assert_eq!(
+        state.begin_cache_purge(),
+        Err(ProviderMaintenanceStage::Unpacking)
+    );
+    assert_eq!(state.stage, ProviderMaintenanceStage::Unpacking);
+
+    // The same holds in the other direction.
+    let mut purging = ProviderUnpackState::default();
+    assert_eq!(purging.begin_cache_purge(), Ok(()));
+    assert_eq!(purging.stage, ProviderMaintenanceStage::PurgingCache);
+    assert_eq!(
+        purging.begin_unpack(),
+        Err(ProviderMaintenanceStage::PurgingCache)
+    );
+
+    // Finishing returns the card to idle.
+    state.finish();
+    assert_eq!(state.stage, ProviderMaintenanceStage::Idle);
+    assert_eq!(state.begin_cache_purge(), Ok(()));
+}
+
+#[test]
 fn unpack_without_a_declaration_reports_an_honest_status() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UnpackRuleProviderToCustom("absent".to_owned()));
     assert!(state.editor.rule_list.draft.is_empty());
     assert!(!state.editor.rule_list.dirty());
-    assert!(!state.editor.provider_unpack.is_unpacking);
+    assert_eq!(
+        state.editor.provider_unpack.stage,
+        ProviderMaintenanceStage::Idle
+    );
     let status = state
         .editor
         .provider_unpack
@@ -84,7 +122,10 @@ fn unpack_without_a_declaration_reports_an_honest_status() {
 fn purge_without_a_port_reports_a_typed_error() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::PurgeRuleProviderCache);
-    assert!(!state.editor.provider_unpack.is_purging_cache);
+    assert_eq!(
+        state.editor.provider_unpack.stage,
+        ProviderMaintenanceStage::Idle
+    );
     let status = state
         .editor
         .provider_unpack
