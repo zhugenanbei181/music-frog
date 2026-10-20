@@ -68,13 +68,13 @@
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 31 | 74 |
+| 现在佛 | 32 | 76 |
 | 过去佛 | 13 | 29 |
 | 斗战胜佛 | 29 | 72 |
-| **未办结联合分母** | **73** | **175** |
+| **未办结联合分母** | **74** | **177** |
 
-- **严格交付率：682 / 857 = 79.6%**（archived 682pt / archived 682 + 未办结 175pt）。执行态参考仍以看板状态计算，不替代验收。
-- 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt。
+- **严格交付率：682 / 859 = 79.4%**（archived 682pt / archived 682 + 未办结 177pt）。执行态参考仍以看板状态计算，不替代验收。
+- 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt；2026-10-20 再补立 `BEVYCAP-003.1` 2pt（Bevy 场景律法唯一 owner 收敛：仓库自有 `bevy_bsn_guard.py` 与共享包场景门禁当前双份执行同一条 BSN 律法），未办结条目集合净增 58pt。
 - 归档口径：累计 263 条 / 682 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
@@ -140,7 +140,7 @@
 | iOS | 无 | 626 行 host stub | 无 target、无包、无 NetworkExtension |
 | 0.43 收口 | L（代码侧已解决） | `PUB-001.1`～`PUB-001.3`、`PUB-002.1`～`PUB-002.5`、`PUB-003.1`～`PUB-003.4` 全部本地通过并归档；七个中性 crate 零产品私有依赖 | crates.io 顺序上架腿在斗战胜佛（`lurker-core-contract` 未实际上架前，其余 crate 的 dry-run 必然失败） |
 | 0.44 UI 管道 | L（代码侧已解决） | `PUB-004.1`～`PUB-004.3` 办结归档；`lurker-ui-presentation` 零私有依赖；四 UI 表面管道 conformance 测试落地 | 无 `C` 证据；四端设备回执在斗战胜佛 |
-| Bevy UI 编写口径 | L（结构层已强制，尺寸层未强制） | 场景结构已是机器红线：`scripts/quality/bevy_bsn_guard.py` 覆盖 `infiltrator-bevy-ui` 与 `infiltrator-bevy-widgets` 生产树 349 文件零违例（bsn! 唯一入口、禁直接 spawn / 手动挂子 / 裸 `ChildOf` 重挂 / `World` 访问），并接入 `scripts/quality/check-structure.sh` 与 CI | rem/em 尺寸通道与能力规范 ⑦ 小件收敛**仅人工评审、无守卫**：生产树 263 处 `Val::Px` 写入中初筛 183 处非白名单（字号通道已全量 `FontSize::Rem`），`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处；收口见现在佛 `BEVYCAP-001.1`、`001.2`、`002.1`，执行状态台账见 Bevy UI 能力规范的「强制化台账」一节 |
+| Bevy UI 编写口径 | L（结构层已强制，尺寸层部分强制） | 场景结构已是机器红线：`scripts/quality/bevy_bsn_guard.py` 覆盖 `infiltrator-bevy-ui` 与 `infiltrator-bevy-widgets` 生产树 349 文件零违例（bsn! 唯一入口、禁直接 spawn / 手动挂子 / 裸 `ChildOf` 重挂 / `World` 访问），并接入 `scripts/quality/check-structure.sh` 与 CI。尺寸层新增机器红线：`scripts/quality/bevy_scene_gate.py`（共享包 `zhuge-ui-kit` 的唯一执行器）拦截硬编码 px 字面量与 `FontSize::Px`，存量 128 处记在 `scripts/quality/bevy_scene_ratchet.json` | rem/em 尺寸通道**已分两段机器强制但存量未清零**：共享包场景门禁 `scripts/quality/bevy_scene_gate.py` 拦截硬编码 px 字面量与 `FontSize::Px`（存量 128 处记在 `scripts/quality/bevy_scene_ratchet.json`），产品守卫 `scripts/quality/bevy_rem_guard.py` 拦截命名/派生 px 值越出物理白名单（存量 52 处记在 `scripts/quality/bevy_rem_inventory.json`），两份台账站点不重叠且只允许缩小；字号通道已全量 `FontSize::Rem`，能力规范 ⑦ 小件收敛仍仅人工评审（`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处）；收口见现在佛 `BEVYCAP-001.1`、`001.2`、`002.1`，执行状态台账见 Bevy UI 能力规范的「强制化台账」一节 |
 | 环境阻塞层（斗战胜佛） | — | 29 条 / 72pt 已登记阻塞方与解锁条件 | ARM64 真机、受控 tag CI、用户 keystore、crates.io 上架凭证、Windows/macOS 目标机均缺失 |
 | 0.50 模板工程 | **已解决** | 四大 UI 独立模板工程（Slint/Iced/Bevy/Android）与 cargo-generate 交互脚手架全部交付；PUB-005.1～005.5 全部办结归档 | 零产品私有依赖，独立可编译运行 |
 | 真机 / 目标设备 | 无 | — | 过去佛 18 条 Integrated 全部卡硬件 |

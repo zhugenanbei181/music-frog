@@ -12,6 +12,7 @@ python3 scripts/quality/core-boundary-guard.py --mode enforce
 python3 scripts/quality/adapter-operation-declarations-guard.py
 python3 scripts/quality/workspace-pin-guard.py --mode enforce
 python3 scripts/quality/bevy_bsn_guard.py --mode enforce
+python3 scripts/quality/bevy_rem_guard.py --mode enforce
 python3 scripts/quality/bevy_shader_guard.py --mode enforce
 python3 scripts/quality/line-guard.py --self-test
 python3 scripts/quality/line-guard.py --mode enforce

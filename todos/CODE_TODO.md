@@ -20,10 +20,10 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v239`：现在佛 74 pt（31 条）/ 过去佛 29 pt（13 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 175 pt；已归档交付 682 pt（263 条）；累计 857 pt，严格归档完成率 79.6%。
-- 本板 31 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ Bevy UI 能力规范强制化 3 条（`BEVYCAP-001.1`、`001.2`、`002.1`，本批新增 8 pt）；`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 已交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261020-v240`：现在佛 76 pt（32 条）/ 过去佛 29 pt（13 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 177 pt；已归档交付 682 pt（263 条）；累计 859 pt，严格归档完成率 79.4%。
+- 本板 32 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ Bevy UI 能力规范强制化 4 条（`BEVYCAP-001.1`、`001.2`、`002.1`、`003.1`，本批新增 10 pt）；`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 已交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
-- Bevy UI 三条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），但 rem/em 尺寸通道与 ⑦ 小件收敛仅人工评审——生产树 263 处 `Val::Px` 写入中初筛 183 处非白名单（字号通道已全量 `FontSize::Rem`），`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处；执行状态台账见 Bevy UI 能力规范的「强制化台账」一节。
+- Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
 
 ## 一、大计划主线与推进顺序
@@ -32,7 +32,7 @@
 | --- | --- | --- | --- |
 | A 发布流水线主线 | 0.60 / 0.69 / 1.0.0 | `PUB-006.1`、`PUB-006.6`～`PUB-006.11` | 七个中性 crate 可按顺序 dry-run 发布，docs.rs 构建通过，版本拓扑无环 |
 | B 表现与截图认证主线 | 0.44～0.49 / 0.92 | `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2`、`SLINT-001.1`～`001.9`、`GAP-4.1` | 59 条业务 × 桌面三 UI 锚点齐全、standard/compact 双视口像素回执全绿；Android 三 flavor 交互截图全绿 |
-| C 质量红线与安装包主线 | 0.70～0.73 | `BANDROID-044.1`、`044.2`、`044.4`、`044.5`、`APPID-001.3`、`BEVYCAP-001.1`、`001.2`、`002.1` | Lint/ktlint/Detekt/架构守卫强制生效且零违规；Linux deb/AppImage 安装冒烟通过；Bevy UI 的 rem 尺寸通道与 ⑦ 小件收敛成为机器红线 |
+| C 质量红线与安装包主线 | 0.70～0.73 | `BANDROID-044.1`、`044.2`、`044.4`、`044.5`、`APPID-001.3`、`BEVYCAP-001.1`、`001.2`、`002.1`、`003.1` | Lint/ktlint/Detekt/架构守卫强制生效且零违规；Linux deb/AppImage 安装冒烟通过；Bevy UI 的 rem 尺寸通道与场景律法成为唯一机器红线 |
 | D 视觉与模型统一主线 | 0.48 / 0.90 / 0.91 | `GAP-7.1`、`BANDROID-016.2`、`BANDROID-016.3` | 三大 UI 共用一份页面模型；地球增强与帧/内存报告交付 |
 
 **推进顺序：B → A → C/D。**B 是「每个业务都真跑过」的判定器，先把它做成可复跑的流水线；A 解锁 0.69/1.0.0 的发布顺序门；C/D 与 B 并行但不得挤占 B 的取证窗口。
@@ -153,12 +153,7 @@
 
 ### 5.1 Slint 第三 UI 的 360° 补齐（7条 / 16pt）
 
-- [ ] SLINT-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-slint] [status: Ready] Slint 表面行为测试台与 scenario 锚点
-  - 产物：Slint headless 行为台（快照投影 + `SlintAction` 回调 + 真实 `CommandIntent` 派发），把 4 个仅断言意图形状的测试文件升级为表面行为测试，并为已实现页面产出 parity scenario 锚点。
-  - 依赖：现有 `SlintProductHost`/`SlintAction` 接线；Iced/Bevy headless 模式结构。
-  - 验收：每个 Slint 行为测试必须驱动 Slint 表面并断言派发意图与投影结果；纯意图形状断言不得计入 scenario 锚点。
-  - 计划：① 抽 headless 装配（不建窗口）② 升级 4 个形状级测试文件 ③ 按已实现页面补锚点并接注册表。
-  - 证据：Slint nextest run ID + 注册表锚点增量。
+
 - [ ] SLINT-001.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Slint DNS 页面（4 业务）
   - 产物：Slint DNS 页承载泄漏告警、查询详情、Fake-IP 刷新确认与 Hosts 编辑四条业务，并接入共享 owner 快照。
   - 依赖：SLINT-001.1 行为台；共享 DNS presentation 投影。
@@ -195,12 +190,7 @@
   - 验收：该业务在 Slint 有表面行为测试与双视口像素回执。
   - 计划：① 接入共享策略投影 ② 实现编辑与提交动作 ③ 接行为测试与截图。
   - 证据：截图 + 锚点 run ID。
-- [ ] SLINT-001.8 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-slint] [status: Planned] 形状级测试文件改为驱动真实表面（消除第二业务真源）
-  - 产物：`connections_and_logs_tests`、`core_and_network_mode_tests`、`outbound_and_probe_tests`、`rules_and_settings_tests` 四个文件不再在测试里重实现路由模式、网络模式序列、主题白名单、十六进制解析与连接排序，改为调用 Slint 表面。
-  - 依赖：把 `network_mode_action`、`selection_action`、`probe_action`、`theme_util::parse_color` 等私有实现提升为可测边界。
-  - 验收：四个文件的用例全部经 Slint 表面断言派发意图与投影结果；重实现代码清零（仓库搜索回执）。
-  - 计划：① 提升可测边界 ② 逐文件替换断言 ③ 清零旧重实现并接 registry 锚点。
-  - 证据：nextest run ID + 旧符号清零搜索回执。
+
 - [ ] SLINT-001.9 [kind: mechanism] [priority: P1] [points: 1] [owner: infiltrator-slint] [status: Planned] 两个未接线的 Slint 回调接线
   - 产物：`refresh-profile(string)`（订阅刷新）与 `refresh-home-egress()`（公网 IP 复探）在 Slint 界面有真实调用点，或从声明中退役。
   - 依赖：SLINT-001.1 行为台。
@@ -241,20 +231,20 @@
   - 计划：① 跑打包脚本出双产物；② 校验 identity 与登记表一致；③ 安装-启动-卸载冒烟。
   - 证据：产物 SHA-256 + 冒烟日志。
 
-### 7.1 Bevy UI 能力规范强制化（2026-10-20 实测立项：bsn! 已是机器红线，rem 不是）
+### 7.1 Bevy UI 能力规范强制化（2026-10-20 实测立项：bsn! 已是机器红线，rem 部分机器强制）
 
-立项依据（2026-10-20 实测审计，证据等级 L）：场景结构口径已闭合——`scripts/quality/bevy_bsn_guard.py` 扫描两个 Bevy crate 生产树 349 文件零违例并接入 `scripts/quality/check-structure.sh` 与 CI；但 rem/em 尺寸通道与能力规范 ⑦ 小件收敛**仅人工评审、无守卫**，生产树另有 263 处 `Val::Px` 写入（其中初筛 183 处非白名单、字号通道已全量 `FontSize::Rem`）、`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处。执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
+立项依据（2026-10-20 实测审计，证据等级 L）：场景结构口径已闭合——`scripts/quality/bevy_bsn_guard.py` 扫描两个 Bevy crate 生产树 349 文件零违例并接入 `scripts/quality/check-structure.sh` 与 CI；rem/em 尺寸通道同批由共享包执行器 `scripts/quality/bevy_scene_gate.py` 接上机器红线（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记），但 token/计算值通道的白名单边界与能力规范 ⑦ 小件收敛**仍仅人工评审**，生产树另有 263 处 `Val::Px` 写入（其中初筛 183 处非白名单、字号通道已全量 `FontSize::Rem`）、`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处。执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 
-- [ ] BEVYCAP-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: scripts/quality + bevy-widgets] [status: Planned] rem/em 尺寸通道机器守卫
-  - 产物：新增 `scripts/quality/bevy_rem_guard.py` 并注册进 `scripts/quality/check-structure.sh`；把能力规范①变成红线：`FontSize::Px` 零容忍，`Val::Px` 只许白名单（发丝线/光标/断点/最小触控目标/inset 物理换算/测量与 GPU），`rem(...)` 是唯一尺寸换算入口。
+- [ ] BEVYCAP-001.1 [kind: mechanism] [priority: P0] [points: 2] [owner: scripts/quality + bevy-widgets] [status: InProgress] rem/em 尺寸通道机器守卫
+  - 产物（已落地部分）：`scripts/quality/bevy_scene_gate.py`——共享包 `zhuge-ui-kit` 随 crate 发布的唯一执行器（此处为同摘要拷贝，摘要记在 `scripts/quality/bevy_scene_ratchet.json`，改动必须同步），注册进 `scripts/quality/check-structure.sh` 与 CI：禁硬编码非零 px 字面量与任何 `FontSize::Px`，存量 128 处按棘轮台账登记豁免、基线外新增即失败；同一门禁复核 BSN 律法在两 crate 生产树零违例。**产品侧另一半已同批落地**：`scripts/quality/bevy_rem_guard.py`（`BEVY-REM-001`～`004`，规则回归 `scripts/quality/tests/test_bevy_rem_guard.py`）负责字面量看不见的命名/派生 px 值白名单边界（`Val::Px(gap)`、`Val::Px(palette.control_radius_px)` 等越出能力规范①物理白名单即失败），额外禁字面量 `Val::Em` 与非 `FontSize::Rem` 字号；存量台账 `scripts/quality/bevy_rem_inventory.json` 登记 32 个表达式 / 52 处命名 px，只允许缩小（`--prune-inventory` 拒绝登记新债）。两段职责不重叠、互补成能力规范①的闭集白名单。
   - 依赖：`crates/infiltrator-bevy-widgets/src/palette.rs` 的 `rem()` 与 `REM_BASE`；存量初筛 183 处欠账由 `BEVYCAP-001.2` 承担，本条只禁止新增并显式登记存量豁免。
   - 验收：守卫自测（正例放行、负例拒绝）+ 生产树零新增违例；`check-structure.sh` 全绿。
-  - 计划：① 复用 `bevy_bsn_guard.py` 的遮罩/自测骨架 ② 写白名单与 `Val::Px`/`FontSize::Px` 规则 ③ 接入结构门并跑自测。
+  - 计划：① 已落地共享执行器、棘轮台账与结构门注册 ② 已落地产品侧命名/派生 px 值守卫与其独立台账（两份台账站点不重叠）③ 余下：跑统一结构门留回执，并按 `BEVYCAP-003.1` 裁决 BSN 律法与尺寸律法的唯一 owner。
   - 证据：守卫 run ID + 自测输出。
 - [ ] BEVYCAP-001.2 [kind: mechanism] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui + infiltrator-bevy-widgets] [status: Planned] 存量 px 尺寸迁移到 rem 通道
-  - 产物：两个 crate 生产树初筛 183 处非白名单 `Val::Px` 写入（115 处数字字面量、42 处计算值、26 处 px token）全部改走 `rem(space::*)`／`rem(radius::*)`／`rem(metrics::*)`，`rem()` + `REM_BASE` 是唯一换算入口。
-  - 依赖：`BEVYCAP-001.1` 的守卫与白名单口径。
-  - 验收：守卫零违例；调用户字号档位后全 UI 跟随缩放（截图回执）；非白名单 px 站点清零搜索。
+  - 产物：两个 crate 生产树 180 处非白名单 `Val::Px` 写入全部改走 `rem(space::*)`／`rem(radius::*)`／`rem(metrics::*)`，`rem()` + `REM_BASE` 是唯一换算入口；存量分两份互不重叠的台账：共享包棘轮 128 处字面量 px（`scripts/quality/bevy_scene_ratchet.json`）+ 产品台账 52 处命名 px（`scripts/quality/bevy_rem_inventory.json`），每清一处对应台账同步收缩。
+  - 依赖：`BEVYCAP-001.1` 的两段守卫与白名单口径。
+  - 验收：两份台账归零且守卫零违例；调用户字号档位后全 UI 跟随缩放（截图回执）；非白名单 px 站点清零搜索。
   - 计划：① 按文件把字面量尺寸 token 化并改走 rem ② 把计算值尺寸收敛为 rem 表达 ③ 跑字号档位截图对比。
   - 证据：守卫 run ID + 字号档位截图回执 + 清零搜索回执。
 - [ ] BEVYCAP-002.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui + infiltrator-bevy-widgets] [status: Planned] ⑦ 小件收敛强制化（bsn_list!/Ready/despawn_all/胶囊）
@@ -263,6 +253,12 @@
   - 验收：守卫零违例；内联 `Children [` 清零搜索（单子节点场景除外）；焦点落点与首帧投影回归通过。
   - 计划：① 先迁列表场景到 `bsn_list!` ② 再迁 `Ready` 订阅 ③ 最后收口胶囊圆角与批量退役路径。
   - 证据：守卫 run ID + 旧写法清零搜索回执 + nextest run ID。
+- [ ] BEVYCAP-003.1 [kind: mechanism] [priority: P1] [points: 2] [owner: scripts/quality + 共享包 owner] [status: Planned] Bevy 场景律法唯一 owner 收敛
+  - 产物：裁决并落一份唯一权威：仓库自有 `scripts/quality/bevy_bsn_guard.py`（BEVY-BSN-001～006 + BEVY-ECS-007～009）与共享包场景门禁 `scripts/quality/bevy_scene_gate.py`（UIK-BSN-001～006）当前**双份执行同一条 BSN 律法**，须定为「产品自有守卫为准、共享包门禁只保留产品未覆盖的律法」或「共享包律法为准、产品守卫退役」其中一种，并让被取代的一方同批删除或降级为非强制提示；同一站点不允许两份台账。
+  - 依赖：`BEVYCAP-001.1` 两段守卫已接线的现状。
+  - 验收：BSN 律法只有一份强制执行器与一份基线；结构门只扫描一次；被取代入口的旧符号清零搜索。
+  - 计划：① 列出两门禁规则覆盖差表 ② 裁决唯一 owner 并写进能力规范「强制化台账」 ③ 同批删除/降级被取代入口。
+  - 证据：覆盖差表 + 结构门单次扫描回执 + 清零搜索回执。
 
 ## 八、D 主线：视觉与页面模型统一
 
