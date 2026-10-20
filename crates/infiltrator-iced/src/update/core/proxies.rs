@@ -611,10 +611,7 @@ impl AppState {
             Message::InspectOutbound(outbound_id) => {
                 let next = outbound_id.filter(|id| self.outbound_is_observed(id));
                 if self.runtime.outbound_inspecting != next {
-                    self.runtime.outbound_probe_pending = None;
-                    self.runtime.outbound_probe_failure = None;
-                    self.runtime.outbound_probe_result = None;
-                    self.runtime.outbound_probe_blocked = None;
+                    self.runtime.reset_outbound_probe();
                     self.runtime.outbound_inspecting = next;
                 }
                 Task::none()

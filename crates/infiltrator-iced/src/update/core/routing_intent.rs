@@ -52,7 +52,7 @@ impl AppState {
     }
 
     fn submit_routing_intent(&mut self, target: RoutingIntent) -> Task<Message> {
-        if self.runtime.pending_runtime_patch.is_some()
+        if self.runtime.runtime_patch_stage.is_applying()
             || self
                 .runtime
                 .routing_intent_actions

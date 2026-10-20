@@ -44,8 +44,8 @@ impl AppState {
         project_core_control(
             &lifecycle,
             Some(availability),
-            self.runtime.lifecycle_pending.is_some(),
-            self.runtime.lifecycle_failure.as_ref(),
+            self.runtime.lifecycle.is_running(),
+            self.runtime.lifecycle.failure(),
         )
     }
 }

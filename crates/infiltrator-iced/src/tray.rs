@@ -133,7 +133,8 @@ impl AppState {
             TrayIntent::ToggleTheme => Task::done(Message::ToggleTheme),
             TrayIntent::SetRoutingIntent(intent) => Task::done(Message::SetRoutingIntent(intent)),
             TrayIntent::SetSystemProxy(enabled) => {
-                self.runtime.system_proxy_enabled = enabled;
+                // The toggle stage is typed: the pending stage it publishes
+                // shows the requested value, so no optimistic copy is needed.
                 self.refresh_tray();
                 Task::done(Message::SetSystemProxy(enabled))
             }
@@ -255,7 +256,7 @@ impl AppState {
         let ctx = TraySpecContext {
             lang: &self.shell.lang,
             routing_intent: self.runtime.routing_intent.as_ref(),
-            system_proxy: self.runtime.system_proxy_enabled,
+            system_proxy: self.runtime.system_proxy_stage.is_enabled(),
             tun: self.runtime.tun_enabled.unwrap_or(false),
             groups: &groups,
             profiles: &self.profile.profiles,
@@ -279,7 +280,7 @@ impl AppState {
     /// App-side states the event resolver needs for its toggles.
     fn tray_event_context(&self) -> spec::TrayEventContext<'_> {
         spec::TrayEventContext {
-            system_proxy: self.runtime.system_proxy_enabled,
+            system_proxy: self.runtime.system_proxy_stage.is_enabled(),
             tun: self.runtime.tun_enabled.unwrap_or(false),
             autostart: self.runtime.autostart_enabled,
             profiles: &self.profile.profiles,

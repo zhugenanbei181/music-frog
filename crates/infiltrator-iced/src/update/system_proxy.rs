@@ -1,6 +1,7 @@
 //! Iced adapter for shared system-proxy reconciliation results.
 
 use crate::state::AppState;
+use crate::state::runtime::SystemProxyRefusal;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
@@ -18,7 +19,9 @@ use lurker_core_contract::error::InfiltratorError;
 impl AppState {
     pub(super) fn set_system_proxy(&mut self, enabled: bool) -> Task<Message> {
         let copy_locale = self.shell.lang.clone();
-        if self.runtime.system_proxy_pending {
+        // A second change is refused while one is in flight: the running
+        // toggle stage stays pending.
+        if self.runtime.system_proxy_stage.is_pending() {
             return Task::none();
         }
         if let Err(failure) = system_toggle_projection::intent(
@@ -30,8 +33,10 @@ impl AppState {
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         }
-        self.runtime.system_proxy_enabled = enabled;
-        self.runtime.system_proxy_pending = true;
+        match self.runtime.begin_system_proxy_change(enabled) {
+            Ok(()) => {}
+            Err(SystemProxyRefusal::AlreadyPending) => return Task::none(),
+        }
         self.runtime.system_toggles = self
             .runtime
             .system_toggles
@@ -94,26 +99,27 @@ impl AppState {
     ) -> Task<Message> {
         match result {
             Ok(snapshot) => {
-                self.runtime.system_proxy_pending = false;
-                self.runtime.system_proxy_enabled = snapshot.is_enabled();
+                let enabled = snapshot.is_enabled();
                 self.runtime.system_proxy = snapshot;
+                self.runtime.settle_system_proxy_change(enabled);
                 self.runtime.system_toggles = self
                     .runtime
                     .system_toggles
                     .clone()
-                    .with_system_proxy_readback(self.runtime.system_proxy_enabled)
+                    .with_system_proxy_readback(enabled)
                     .with_legacy_tun(self.runtime.tun_enabled);
                 self.refresh_tray();
                 Task::none()
             }
             Err(error) => {
-                self.runtime.system_proxy_pending = false;
-                self.runtime.system_proxy_enabled = !self.runtime.system_proxy_enabled;
+                // A rejected change returns to the stage it interrupted.
+                self.runtime.rollback_system_proxy_change();
+                let enabled = self.runtime.system_proxy_stage.is_enabled();
                 self.runtime.system_toggles = self
                     .runtime
                     .system_toggles
                     .clone()
-                    .with_system_proxy_readback(self.runtime.system_proxy_enabled)
+                    .with_system_proxy_readback(enabled)
                     .with_legacy_tun(self.runtime.tun_enabled);
                 self.refresh_tray();
                 self.set_error(&error);
@@ -168,7 +174,7 @@ impl AppState {
             &snapshot.status,
             SystemProxyStatus::Enabled | SystemProxyStatus::Disabled
         ) {
-            self.runtime.system_proxy_enabled = snapshot.is_enabled();
+            self.runtime.observe_system_proxy(snapshot.is_enabled());
             self.runtime.system_toggles = self
                 .runtime
                 .system_toggles

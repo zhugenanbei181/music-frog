@@ -383,7 +383,7 @@ fn routing_intent_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, 
         .unwrap_or(usize::MAX);
 
     let intents_for_callback = intents.clone();
-    let pending = state.runtime.pending_runtime_patch.is_some();
+    let pending = state.runtime.runtime_patch_stage.is_applying();
     let routing_state = state.runtime.routing_intent_state.clone();
     let control = segmented_control_with_actions(&labels, selected, move |index| {
         let target = intents_for_callback.get(index)?;

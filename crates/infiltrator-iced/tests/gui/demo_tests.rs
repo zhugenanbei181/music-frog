@@ -49,7 +49,7 @@ fn demo_fixture_inventory_covers_all_pages() {
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::FollowRules)
     );
-    assert!(state.runtime.system_proxy_enabled);
+    assert!(state.runtime.system_proxy_stage.is_enabled());
     assert_eq!(state.runtime.tun_enabled, Some(false));
 
     // The demo proxy page is projected from typed owner snapshots.

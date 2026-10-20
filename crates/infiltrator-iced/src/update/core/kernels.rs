@@ -6,6 +6,7 @@ use crate::host::desktop::system_proxy_port;
 use crate::host::storage::{factory_reset, home_dir, profile_store, reset_profiles_to_default};
 use crate::settings_store::load;
 use crate::state::AppState;
+use crate::state::runtime::SystemProxyStage;
 use crate::state::core_operations::{
     CoreDownloadCancelAdmission, CoreDownloadCompletionAdmission, CoreDownloadInvalidation,
     CoreDownloadProgressAdmission, CoreDownloadRunId, CoreDownloadStart,
@@ -325,7 +326,7 @@ impl AppState {
                 self.profile.sync_cancel = None;
                 self.profile.webdav_sync_phase = WebDavSyncPhase::Idle;
                 self.profile.sync_progress = None;
-                self.runtime.system_proxy_enabled = false;
+                self.runtime.system_proxy_stage = SystemProxyStage::Disabled;
                 self.runtime.system_toggles = self
                     .runtime
                     .system_toggles

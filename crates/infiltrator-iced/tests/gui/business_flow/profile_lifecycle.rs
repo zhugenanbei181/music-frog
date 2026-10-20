@@ -217,7 +217,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
         CoreControlLabel::Unavailable,
         "profile activation cannot start a Core without its application owner"
     );
-    assert!(state.runtime.lifecycle_pending.is_none());
+    assert!(!state.runtime.lifecycle.is_running());
 }
 
 /// Journey 2 — 订阅设置保存 → 校验门 → auto_update 持久化（托盘入口语义）→

@@ -547,8 +547,8 @@ impl AppState {
             // this also protects RuntimePatchResult from a late controller
             // response after stop/restart.
             self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);
-            self.runtime.pending_runtime_patch = None;
-            self.runtime.system_proxy_pending = false;
+            self.runtime.settle_runtime_patch();
+            self.runtime.cancel_system_proxy_change();
         }
         self.runtime.runtime_generation = runtime
             .as_ref()
@@ -578,8 +578,8 @@ impl AppState {
         let taken = self.runtime.runtime.take();
         self.runtime.runtime_generation = self.runtime.runtime_generation.saturating_add(1);
         self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);
-        self.runtime.pending_runtime_patch = None;
-        self.runtime.system_proxy_pending = false;
+        self.runtime.settle_runtime_patch();
+        self.runtime.cancel_system_proxy_change();
         self.runtime.tun_service_status = None;
         self.runtime.tun_service_install_state = TunServiceInstallState::Idle;
         taken

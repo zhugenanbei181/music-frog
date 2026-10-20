@@ -167,7 +167,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }),
         Space::new().width(theme::SP_SM),
         if state.runtime.routing_intent_state.status == RoutingIntentStatus::Ready
-            && state.runtime.pending_runtime_patch.is_none()
+            && !state.runtime.runtime_patch_stage.is_applying()
         {
             Element::from(
                 pick_list(

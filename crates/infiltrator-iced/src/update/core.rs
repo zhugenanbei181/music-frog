@@ -55,7 +55,7 @@ impl AppState {
             .routing_intent_actions
             .pending_change()
             .is_some()
-            || self.runtime.pending_runtime_patch.is_some())
+            || self.runtime.runtime_patch_stage.is_applying())
         {
             return Task::none();
         }

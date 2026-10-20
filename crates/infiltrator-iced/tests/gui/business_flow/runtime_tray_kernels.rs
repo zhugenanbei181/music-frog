@@ -103,7 +103,7 @@ fn engine_defined_routing_intent_is_rejected_by_the_shared_ui_action() {
         "observed intent remains unchanged by the refusal"
     );
     assert!(
-        state.runtime.pending_runtime_patch.is_none(),
+        !state.runtime.runtime_patch_stage.is_applying(),
         "no patch armed"
     );
     assert!(
@@ -461,7 +461,7 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
         state.runtime.routing_intent, None,
         "no optimistic flip without a runtime: the tray never lies"
     );
-    assert!(state.runtime.pending_runtime_patch.is_none());
+    assert!(!state.runtime.runtime_patch_stage.is_applying());
     assert_eq!(state.runtime.routing_intent_state.current, None);
     assert!(state.runtime.routing_intent_actions.failure().is_some());
 

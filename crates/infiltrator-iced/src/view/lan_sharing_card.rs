@@ -20,7 +20,7 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
         && observed.allow_lan.is_some()
         && observed.mixed_port.is_some()
         && observed.lan_bind_address.is_some()
-        && state.runtime.pending_runtime_patch.is_none();
+        && !state.runtime.runtime_patch_stage.is_applying();
     let toggle = toggle_switch_with_actions(lan.allow_lan, move |value| {
         available.then_some(Message::ToggleLanSharing(value))
     });

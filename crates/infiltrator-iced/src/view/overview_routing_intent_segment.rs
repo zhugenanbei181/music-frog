@@ -27,7 +27,7 @@ pub fn overview_routing_intent_segment<'a>(
         RoutingIntent::BypassProxy,
     ] {
         let is_current = state.runtime.routing_intent_state.current.as_ref() == Some(&intent);
-        let is_selectable = state.runtime.pending_runtime_patch.is_none()
+        let is_selectable = !state.runtime.runtime_patch_stage.is_applying()
             && state
                 .runtime
                 .routing_intent_state

@@ -38,7 +38,7 @@ fn runtime_and_vpn_terminal_messages_use_the_current_shared_locale_and_keep_opaq
         assert_eq!(status, ToastStatus::Error);
         assert!(copy.contains(Lang(locale).tr("runtime_action_ipv6").as_ref()));
         assert!(state.runtime.runtime.is_none());
-        assert!(state.runtime.pending_runtime_patch.is_none());
+        assert!(!state.runtime.runtime_patch_stage.is_applying());
         let (copy, status) = notice(state.update(Message::TestWebDavConnection));
         assert_eq!(copy, Lang(locale).tr("webdav_credentials_required"));
         assert_eq!(status, ToastStatus::Error);

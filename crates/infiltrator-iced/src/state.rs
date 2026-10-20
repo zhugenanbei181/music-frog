@@ -33,7 +33,6 @@ use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_desktop::product::DesktopProductSessionHandle;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_presentation::command_palette_projection::filtered_indices;
@@ -575,10 +574,7 @@ impl AppState {
             .is_some_and(|id| !self.outbound_is_observed(id))
         {
             self.runtime.outbound_inspecting = None;
-            self.runtime.outbound_probe_pending = None;
-            self.runtime.outbound_probe_result = None;
-            self.runtime.outbound_probe_failure = None;
-            self.runtime.outbound_probe_blocked = None;
+            self.runtime.reset_outbound_probe();
         }
     }
 

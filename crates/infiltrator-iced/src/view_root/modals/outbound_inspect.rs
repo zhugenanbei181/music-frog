@@ -91,12 +91,12 @@ pub fn inspect_outbound_modal<'a>(
 
     let probe_failure = state
         .runtime
-        .outbound_probe_failure
-        .as_ref()
+        .outbound_probe
+        .failure()
         .map(|failure| failure.message.clone());
     let probe_result = state
         .runtime
-        .outbound_probe_result
+        .outbound_probe_measurement
         .as_ref()
         .filter(|result| result.outbound_id() == outbound_id)
         .map(|result| probe_state_label(result.state()))
@@ -111,7 +111,7 @@ pub fn inspect_outbound_modal<'a>(
                 .unwrap_or_default()
         });
     let can_probe = probe_availability == OutboundProbeActionAvailability::Available;
-    let pending = state.runtime.outbound_probe_pending.is_some();
+    let pending = state.runtime.outbound_probe.is_running();
     let actions = row![
         button(text(lang.tr("modal_close")))
             .style(style_ghost)

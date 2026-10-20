@@ -1,5 +1,6 @@
 //! Native TEA adapter for the application-owned lifecycle command boundary.
 use crate::state::AppState;
+use crate::state::runtime::{CoreLifecycleRefusal, CoreLifecycleStage};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use iced::Task;
@@ -21,8 +22,13 @@ impl AppState {
             return Task::none();
         };
         self.cancel_all_tasks();
-        self.runtime.lifecycle_pending = Some(action);
-        self.runtime.lifecycle_failure = None;
+        match self.runtime.begin_lifecycle(action) {
+            Ok(()) => {}
+            // Another command still owns the lifecycle stage; it stays running.
+            Err(CoreLifecycleRefusal::AlreadyRunning { .. } | CoreLifecycleRefusal::NotRunning { .. }) => {
+                return Task::none();
+            }
+        }
         self.shell.error_msg = None;
         let token = self.runtime.lifecycle_token;
         let requested_scope = application.observed_scope();
@@ -62,10 +68,14 @@ impl AppState {
         terminal_scope: Option<CoreScope>,
         snapshot: CoreSnapshot,
     ) -> Task<Message> {
-        if token != self.runtime.lifecycle_token || self.runtime.lifecycle_pending != Some(action) {
+        if token != self.runtime.lifecycle_token
+            || !matches!(
+                self.runtime.lifecycle,
+                CoreLifecycleStage::Running { action: running } if running == action
+            )
+        {
             return Task::none();
         }
-        self.runtime.lifecycle_pending = None;
         let confirmed = match action {
             CoreControlAction::Start => {
                 matches!(
@@ -99,11 +109,21 @@ impl AppState {
             self.rebind_product_commands_to_scope(Some(terminal));
         }
         if let Err(failure) = result {
-            self.runtime.lifecycle_failure = Some(failure.clone());
+            if let Err(refusal) = self.runtime.settle_lifecycle(action, Err(failure.clone())) {
+                match refusal {
+                    CoreLifecycleRefusal::AlreadyRunning { .. }
+                    | CoreLifecycleRefusal::NotRunning { .. } => return Task::none(),
+                }
+            }
             self.set_error(InfiltratorError::Backend(failure.message));
             return Task::none();
         }
-        self.runtime.lifecycle_failure = None;
+        if let Err(refusal) = self.runtime.settle_lifecycle(action, Ok(())) {
+            match refusal {
+                CoreLifecycleRefusal::AlreadyRunning { .. }
+                | CoreLifecycleRefusal::NotRunning { .. } => return Task::none(),
+            }
+        }
         if action == CoreControlAction::Stop {
             // Clear transient views while keeping the composed host and reader alive.
             return self.update_core(Message::CoreStopped);

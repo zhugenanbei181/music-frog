@@ -15,6 +15,7 @@ use infiltrator_contract::runtime_settings::{
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::state::proxy_probe;
+use infiltrator_iced::state::runtime::{OutboundProbeRefusal, OutboundProbeStage};
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -225,6 +226,80 @@ fn native_inspection_follows_stable_identity_on_refresh_and_rejects_a_removed_no
 }
 
 #[test]
+fn the_outbound_probe_stage_refuses_a_second_probe_and_keeps_the_stages_exclusive() {
+    let (mut state, _) = AppState::new();
+    assert_eq!(state.runtime.outbound_probe, OutboundProbeStage::Idle);
+
+    // A probe takes the running stage.
+    assert_eq!(state.runtime.begin_outbound_probe(7), Ok(()));
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Running { token: 7 }
+    );
+
+    // A second probe is refused: the running stage is handed back, so "a probe
+    // is in flight" and "the last probe failed" can never hold at once.
+    assert_eq!(
+        state.runtime.begin_outbound_probe(8),
+        Err(OutboundProbeRefusal::AlreadyRunning { token: 7 })
+    );
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Running { token: 7 }
+    );
+    assert!(state.runtime.outbound_probe.failure().is_none());
+
+    // A reply for another probe is refused and the running stage survives.
+    assert_eq!(
+        state.runtime.end_outbound_probe(9),
+        Err(OutboundProbeRefusal::NotRunning { token: 9 })
+    );
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Running { token: 7 }
+    );
+
+    // The running probe ends and fails: exactly one stage is left.
+    assert_eq!(state.runtime.end_outbound_probe(7), Ok(()));
+    assert_eq!(state.runtime.outbound_probe, OutboundProbeStage::Idle);
+    let failure = Failure::new(ErrorCode::Network, "probe read failed", true);
+    state.runtime.record_outbound_probe_failure(failure.clone());
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Failed {
+            failure: failure.clone()
+        }
+    );
+    assert!(!state.runtime.outbound_probe.is_running());
+    assert_eq!(state.runtime.outbound_probe.failure(), Some(&failure));
+
+    // A blocked probe keeps the interrupted failure and never runs.
+    state.runtime.block_outbound_probe(proxy_probe::OutboundProbeActionAvailability::CoreUnknown);
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Blocked {
+            availability: proxy_probe::OutboundProbeActionAvailability::CoreUnknown,
+            failure: Some(failure.clone()),
+        }
+    );
+    assert!(!state.runtime.outbound_probe.is_running());
+
+    // Lifting the block shows the interrupted failure again.
+    state.runtime.clear_outbound_probe_block();
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Failed {
+            failure: failure.clone()
+        }
+    );
+    assert_eq!(
+        state.runtime.outbound_probe.blocked_availability(),
+        None,
+        "a cleared block is no longer a blocked stage"
+    );
+}
+
+#[test]
 fn native_probe_preserves_failure_retries_the_same_intent_and_ignores_feedback_after_close() {
     let (mut state, _) = AppState::new();
     let (application, handler) = recording_application();
@@ -259,10 +334,15 @@ fn native_probe_preserves_failure_retries_the_same_intent_and_ignores_feedback_a
     *handler.1.lock().unwrap() = Some(failure.clone());
     let task = state.update(Message::ProbeInspectedOutbound);
     assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
-    assert!(state.runtime.outbound_probe_pending.is_some());
+    assert!(state.runtime.outbound_probe.is_running());
     let result = terminal(task);
     assert_eq!(state.update(result).units(), 0);
-    assert_eq!(state.runtime.outbound_probe_failure, Some(failure));
+    assert_eq!(
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Failed {
+            failure: failure.clone()
+        }
+    );
     assert_eq!(
         state.runtime.outbound_inspecting.as_ref(),
         Some(&outbound_id)
@@ -284,12 +364,12 @@ fn native_probe_preserves_failure_retries_the_same_intent_and_ignores_feedback_a
     let task = state.update(Message::ProbeInspectedOutbound);
     let result = terminal(task);
     assert_eq!(state.update(result).units(), 0);
-    assert!(state.runtime.outbound_probe_blocked.is_none());
-    assert!(state.runtime.outbound_probe_failure.is_none());
+    assert!(state.runtime.outbound_probe.blocked_availability().is_none());
+    assert!(state.runtime.outbound_probe.failure().is_none());
     assert_eq!(
         state
             .runtime
-            .outbound_probe_result
+            .outbound_probe_measurement
             .as_ref()
             .map(|result| result.state()),
         Some(&OutboundProbeState::Measured { delay_ms: 77 })
@@ -312,7 +392,7 @@ fn native_probe_preserves_failure_retries_the_same_intent_and_ignores_feedback_a
     let result = terminal(task);
     assert_eq!(state.update(result).units(), 0);
     assert!(state.runtime.outbound_inspecting.is_none());
-    assert!(state.runtime.outbound_probe_pending.is_none());
+    assert!(!state.runtime.outbound_probe.is_running());
     let commands = handler.0.lock().unwrap();
     assert_eq!(commands.len(), 3);
     let requests = commands
@@ -375,13 +455,16 @@ fn outbound_item_probe_support_does_not_enable_probe_without_global_core_evidenc
     let _ = state.update(Message::InspectOutbound(Some(outbound_id.clone())));
     assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
 
-    assert!(state.runtime.outbound_probe_pending.is_none());
+    assert!(!state.runtime.outbound_probe.is_running());
     assert_eq!(
-        state.runtime.outbound_probe_blocked,
-        Some(proxy_probe::OutboundProbeActionAvailability::CoreUnknown),
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Blocked {
+            availability: proxy_probe::OutboundProbeActionAvailability::CoreUnknown,
+            failure: None,
+        },
         "unregistered global evidence remains a visible typed block"
     );
-    assert!(state.runtime.outbound_probe_failure.is_none());
+    assert!(state.runtime.outbound_probe.failure().is_none());
     assert!(handler.0.lock().unwrap().is_empty());
 }
 
@@ -431,8 +514,11 @@ fn outbound_probe_is_disabled_for_unavailable_and_explicitly_unsupported_core_ev
     assert!(state.apply_shared_surface_snapshot(unavailable));
     assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
     assert_eq!(
-        state.runtime.outbound_probe_blocked,
-        Some(proxy_probe::OutboundProbeActionAvailability::CoreUnknown),
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Blocked {
+            availability: proxy_probe::OutboundProbeActionAvailability::CoreUnknown,
+            failure: None,
+        },
         "unavailable global evidence remains a visible typed block"
     );
 
@@ -460,12 +546,15 @@ fn outbound_probe_is_disabled_for_unavailable_and_explicitly_unsupported_core_ev
     assert!(state.apply_shared_surface_snapshot(unsupported));
     assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
     assert_eq!(
-        state.runtime.outbound_probe_blocked,
-        Some(proxy_probe::OutboundProbeActionAvailability::CoreUnsupported),
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Blocked {
+            availability: proxy_probe::OutboundProbeActionAvailability::CoreUnsupported,
+            failure: None,
+        },
         "unsupported global evidence remains a visible typed block"
     );
-    assert!(state.runtime.outbound_probe_failure.is_none());
-    assert!(state.runtime.outbound_probe_pending.is_none());
+    assert!(state.runtime.outbound_probe.failure().is_none());
+    assert!(!state.runtime.outbound_probe.is_running());
     assert!(handler.0.lock().unwrap().is_empty());
 }
 
@@ -523,7 +612,7 @@ fn typed_outbound_details_keep_failure_unknown_and_cipher_observations_without_l
         );
         assert!(state.runtime.outbound_details.data.is_none());
         assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
-        assert!(state.runtime.outbound_probe_pending.is_none());
+        assert!(!state.runtime.outbound_probe.is_running());
         assert_eq!(
             state.runtime.outbound_details.status,
             snapshot.outbound_details.status
@@ -554,9 +643,9 @@ fn typed_outbound_details_keep_failure_unknown_and_cipher_observations_without_l
             .as_deref(),
         Some("ChaCha20-Poly1305")
     );
-    assert!(state.runtime.outbound_probe_failure.is_none());
+    assert!(state.runtime.outbound_probe.failure().is_none());
     assert_ne!(
-        state.runtime.outbound_probe_blocked,
+        state.runtime.outbound_probe.blocked_availability(),
         Some(proxy_probe::OutboundProbeActionAvailability::DetailsUnavailable),
         "the recovered detail clears the stale details-unavailable block"
     );

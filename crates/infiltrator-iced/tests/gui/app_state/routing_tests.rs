@@ -253,15 +253,17 @@ fn test_p0_download_progress_token_and_sync_progress() {
 fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
     let (mut state, _) = AppState::new();
     state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
-    state.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
-        ipv6_enabled: true,
-        tun_enabled: Some(false),
-        tun_stack: "gvisor".to_string(),
-        tun_stack_selector: "gvisor".to_string(),
-        tun_auto_route: true,
-        tun_strict_route: false,
-        sniffer_enabled: true,
-    });
+    state.runtime.runtime_patch_stage = RuntimePatchStage::Applying {
+        snapshot: RuntimePatchSnapshot {
+            ipv6_enabled: true,
+            tun_enabled: Some(false),
+            tun_stack: "gvisor".to_string(),
+            tun_stack_selector: "gvisor".to_string(),
+            tun_auto_route: true,
+            tun_strict_route: false,
+            sniffer_enabled: true,
+        },
+    };
     state.runtime.runtime_patch_token = 11;
     state.runtime.routing_intent = Some(RoutingIntent::RouteAllThroughProxy);
     let generation = state.runtime.runtime_generation;
@@ -276,7 +278,7 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
         Some(&RoutingIntent::RouteAllThroughProxy),
         "a TUN/config patch does not own the routing intent"
     );
-    assert!(state.runtime.pending_runtime_patch.is_none());
+    assert!(!state.runtime.runtime_patch_stage.is_applying());
     assert!(state.shell.error_msg.is_some());
 
     state.runtime.routing_intent = Some(RoutingIntent::BypassProxy);
@@ -286,6 +288,54 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::BypassProxy)
     );
+}
+
+#[test]
+fn the_runtime_patch_stage_refuses_a_second_patch_while_one_is_in_flight() {
+    let (mut state, _) = AppState::new();
+    assert_eq!(state.runtime.runtime_patch_stage, RuntimePatchStage::Idle);
+
+    let snapshot = RuntimePatchSnapshot {
+        ipv6_enabled: true,
+        tun_enabled: Some(false),
+        tun_stack: "gvisor".to_string(),
+        tun_stack_selector: "gvisor".to_string(),
+        tun_auto_route: true,
+        tun_strict_route: false,
+        sniffer_enabled: true,
+    };
+    assert_eq!(state.runtime.begin_runtime_patch(snapshot.clone()), Ok(()));
+    assert_eq!(
+        state.runtime.runtime_patch_stage,
+        RuntimePatchStage::Applying {
+            snapshot: snapshot.clone()
+        }
+    );
+
+    // A second patch is refused: the running stage keeps its own snapshot.
+    assert_eq!(
+        state.runtime.begin_runtime_patch(RuntimePatchSnapshot {
+            ipv6_enabled: false,
+            tun_enabled: Some(true),
+            tun_stack: "system".to_string(),
+            tun_stack_selector: "system".to_string(),
+            tun_auto_route: false,
+            tun_strict_route: false,
+            sniffer_enabled: false,
+        }),
+        Err(RuntimePatchRefusal::AlreadyApplying)
+    );
+    assert_eq!(
+        state.runtime.runtime_patch_stage,
+        RuntimePatchStage::Applying {
+            snapshot: snapshot.clone()
+        }
+    );
+
+    // A rejected patch hands its restore snapshot back and returns to idle.
+    assert_eq!(state.runtime.take_runtime_patch_snapshot(), Some(snapshot));
+    assert_eq!(state.runtime.runtime_patch_stage, RuntimePatchStage::Idle);
+    assert_eq!(state.runtime.take_runtime_patch_snapshot(), None);
 }
 
 #[test]

@@ -63,8 +63,7 @@ impl AppState {
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                     self.runtime.custom_node_modal_open = false;
                     self.runtime.outbound_inspecting = None;
-                    self.runtime.outbound_probe_pending = None;
-                    self.runtime.outbound_probe_blocked = None;
+                    self.runtime.abandon_outbound_probe();
                     self.shell.current_route = route;
                 }
 
@@ -115,8 +114,7 @@ impl AppState {
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                     self.runtime.custom_node_modal_open = false;
                     self.runtime.outbound_inspecting = None;
-                    self.runtime.outbound_probe_pending = None;
-                    self.runtime.outbound_probe_blocked = None;
+                    self.runtime.abandon_outbound_probe();
                     self.shell.current_route = target;
 
                     let mut tasks = vec![];
@@ -154,8 +152,7 @@ impl AppState {
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                     self.runtime.custom_node_modal_open = false;
                     self.runtime.outbound_inspecting = None;
-                    self.runtime.outbound_probe_pending = None;
-                    self.runtime.outbound_probe_blocked = None;
+                    self.runtime.abandon_outbound_probe();
                     self.shell.current_route = target;
 
                     let mut tasks = vec![];

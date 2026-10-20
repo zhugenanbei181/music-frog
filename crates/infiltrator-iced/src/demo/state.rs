@@ -25,6 +25,7 @@ use super::snapshot_restore;
 use super::telemetry;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::state::AppState;
+use crate::state::runtime::SystemProxyStage;
 use crate::types::app::SyncConflict;
 use crate::types::dns::{FakeIpFormDraft, TunFormDraft};
 use crate::types::message::Message;
@@ -84,8 +85,8 @@ impl AppState {
         state.runtime.status = RuntimeStatus::Stopped;
         state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
         state.runtime.routing_intent_state = RoutingIntentSnapshot::demo_fixture();
-        state.runtime.system_proxy_enabled = true;
         state.runtime.tun_enabled = Some(false);
+        state.runtime.system_proxy_stage = SystemProxyStage::Enabled;
         state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(true, Some(false), 1);
         state.editor.tun_stack = "gvisor".to_string();
         state.editor.tun_auto_route = true;

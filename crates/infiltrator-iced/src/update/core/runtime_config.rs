@@ -4,7 +4,7 @@
 use crate::port_conflict_application::application;
 use crate::state::AppState;
 use crate::state::editor::TunSavePhase;
-use crate::state::runtime::TunServiceInstallState;
+use crate::state::runtime::{RuntimePatchRefusal, TunServiceInstallState};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimePatchSnapshot;
@@ -58,7 +58,7 @@ impl AppState {
     }
 
     fn begin_runtime_patch(&mut self) -> Option<u64> {
-        if self.runtime.pending_runtime_patch.is_some()
+        if self.runtime.runtime_patch_stage.is_applying()
             || self
                 .runtime
                 .routing_intent_actions
@@ -68,16 +68,19 @@ impl AppState {
             return None;
         }
         if self.runtime.runtime.is_some() {
-            if self.runtime.pending_runtime_patch.is_none() {
-                self.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
-                    ipv6_enabled: self.runtime.ipv6_routing.enabled,
-                    tun_enabled: self.runtime.tun_enabled,
-                    tun_stack: self.editor.tun_stack.clone(),
-                    tun_stack_selector: self.runtime.tun_stack_config.active_stack.clone(),
-                    tun_auto_route: self.editor.tun_auto_route,
-                    tun_strict_route: self.editor.tun_strict_route,
-                    sniffer_enabled: self.editor.sniffer_enabled,
-                });
+            let snapshot = RuntimePatchSnapshot {
+                ipv6_enabled: self.runtime.ipv6_routing.enabled,
+                tun_enabled: self.runtime.tun_enabled,
+                tun_stack: self.editor.tun_stack.clone(),
+                tun_stack_selector: self.runtime.tun_stack_config.active_stack.clone(),
+                tun_auto_route: self.editor.tun_auto_route,
+                tun_strict_route: self.editor.tun_strict_route,
+                sniffer_enabled: self.editor.sniffer_enabled,
+            };
+            match self.runtime.begin_runtime_patch(snapshot) {
+                Ok(()) => {}
+                // Another patch still owns the stage; it stays in flight.
+                Err(RuntimePatchRefusal::AlreadyApplying) => return None,
             }
             self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);
         }
@@ -85,7 +88,7 @@ impl AppState {
     }
 
     fn restore_runtime_patch(&mut self) {
-        if let Some(previous) = self.runtime.pending_runtime_patch.take() {
+        if let Some(previous) = self.runtime.take_runtime_patch_snapshot() {
             self.runtime.ipv6_routing.enabled = previous.ipv6_enabled;
             self.runtime.tun_enabled = previous.tun_enabled;
             self.runtime.system_toggles = self
@@ -663,7 +666,7 @@ impl AppState {
                 }
                 match result {
                     Ok(_) => {
-                        self.runtime.pending_runtime_patch = None;
+                        self.runtime.settle_runtime_patch();
                         Task::done(Message::FetchRuntimeConfig)
                     }
                     Err(error) => {

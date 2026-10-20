@@ -59,7 +59,7 @@ pub(super) fn tun_card<'a>(
     ];
     let observed = &state.runtime.runtime_control;
     let available = observed.status == RuntimeControlStatus::Ready
-        && state.runtime.pending_runtime_patch.is_none();
+        && !state.runtime.runtime_patch_stage.is_applying();
     let stack_available = available && observed.tun_stack.is_some();
     let routes_available =
         available && observed.tun_auto_route.is_some() && observed.tun_strict_route.is_some();

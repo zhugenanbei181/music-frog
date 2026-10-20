@@ -8,6 +8,7 @@
 use infiltrator_iced::types::rules::ProviderMaintenanceStage;
 use crate::state::AppState;
 use crate::state::proxy_probe;
+use crate::state::runtime::OutboundProbeStage;
 use crate::types::message::Message;
 use crate::types::message::mtu_probe::MtuProbeCompletion;
 use infiltrator_composition::capture_fixtures::list_document;
@@ -266,10 +267,12 @@ fn test_advancement_w5_2_typed_outbound_latency_history_is_observed_and_probe_fa
         Some(&outbound_id)
     );
     assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
-    assert_eq!(state.runtime.outbound_probe_pending, None);
     assert_eq!(
-        state.runtime.outbound_probe_blocked,
-        Some(proxy_probe::OutboundProbeActionAvailability::CoreUnknown),
+        state.runtime.outbound_probe,
+        OutboundProbeStage::Blocked {
+            availability: proxy_probe::OutboundProbeActionAvailability::CoreUnknown,
+            failure: None,
+        },
         "demo observations without owner capability evidence cannot probe"
     );
     assert_eq!(state.update(Message::InspectOutbound(None)).units(), 0);
@@ -433,7 +436,7 @@ fn test_shared_surface_system_proxy_updates_the_iced_projection() {
     );
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
-    assert!(state.runtime.system_proxy_enabled);
+    assert!(state.runtime.system_proxy_stage.is_enabled());
     assert_eq!(
         state.runtime.system_proxy.status,
         SystemProxyStatus::Enabled

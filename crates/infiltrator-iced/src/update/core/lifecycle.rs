@@ -1,6 +1,7 @@
 //! Core lifecycle commands and app-level autostart wiring.
 
 use crate::state::AppState;
+use crate::state::runtime::CoreLifecycleStage;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
 use iced::Task;
@@ -13,7 +14,7 @@ impl AppState {
     pub fn cancel_all_tasks(&mut self) {
         self.shell.last_task_id += 1;
         self.runtime.lifecycle_token = self.runtime.lifecycle_token.wrapping_add(1);
-        self.runtime.lifecycle_pending = None;
+        self.runtime.cancel_lifecycle();
     }
 
     /// Runtime start/stop plus autostart toggles. Unmatched messages fall
@@ -38,8 +39,7 @@ impl AppState {
                 *snapshot,
             ),
             Message::CoreStopped => {
-                self.runtime.lifecycle_pending = None;
-                self.runtime.lifecycle_failure = None;
+                self.runtime.lifecycle = CoreLifecycleStage::Idle;
                 self.diag.traffic = None;
                 self.diag.traffic_history.clear();
                 self.diag.connections = None;

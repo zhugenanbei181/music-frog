@@ -74,7 +74,7 @@ pub(super) fn kernel_management_card<'a>(
         None::<&str>,
         if state.runtime.runtime_control.status == RuntimeControlStatus::Ready
             && state.runtime.runtime_control.log_level.is_some()
-            && state.runtime.pending_runtime_patch.is_none()
+            && !state.runtime.runtime_patch_stage.is_applying()
         {
             Element::from(
                 pick_list(

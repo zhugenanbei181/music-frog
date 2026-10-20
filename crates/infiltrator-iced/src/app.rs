@@ -10,8 +10,9 @@ use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
 use crate::state::proxy_probe;
 use crate::state::runtime::{
-    CoreLifecycleStage, CustomNodeSaveState, ProbeSettingsDialogState, ProxyGroupOrderDialogState,
-    RuntimePatchStage, RuntimeState, TunServiceInstallState,
+    CoreLifecycleStage, CustomNodeSaveState, OutboundProbeStage, ProbeSettingsDialogState,
+    ProxyGroupOrderDialogState, RuntimePatchStage, RuntimeState, SystemProxyStage,
+    TunServiceInstallState,
 };
 use crate::state::shell::ShellState;
 use crate::types::app::{RouteHistory, Transition};
@@ -160,8 +161,7 @@ impl AppState {
                 tun_enabled: None,
                 tun_service_status: None,
                 tun_service_install_state: TunServiceInstallState::Idle,
-                system_proxy_enabled,
-                system_proxy_pending: false,
+                system_proxy_stage: SystemProxyStage::from_enabled(system_proxy_enabled),
                 autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
                 filter_alive_only: false,
                 favorite_proxies: HashSet::new(),
@@ -218,10 +218,8 @@ impl AppState {
                     "outbound UI preferences have not been observed",
                 )),
                 outbound_inspecting: None,
-                outbound_probe_result: None,
-                outbound_probe_pending: None,
-                outbound_probe_failure: None,
-                outbound_probe_blocked: None,
+                outbound_probe_measurement: None,
+                outbound_probe: OutboundProbeStage::Idle,
                 outbound_probe_token: 0,
                 proxy_groups: Vec::new(),
                 proxy_name_runs: Default::default(),

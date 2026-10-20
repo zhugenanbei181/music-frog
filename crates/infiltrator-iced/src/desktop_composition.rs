@@ -106,13 +106,13 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         if let Some(product_session) = product_session.clone() {
             if let Err(failure) = state.attach_desktop_product_session(product_session) {
                 state.runtime.host_composition_failure = Some(failure.clone());
-                state.runtime.lifecycle_failure = Some(failure.clone());
+                state.runtime.fail_lifecycle(failure.clone());
                 state.shell.error_msg = Some(failure.message);
             }
         }
         state.runtime.host_composition_failure = composition_failure.clone();
         if let Some(failure) = composition_failure.clone() {
-            state.runtime.lifecycle_failure = Some(failure.clone());
+            state.runtime.fail_lifecycle(failure.clone());
             state.shell.error_msg = Some(failure.message);
         }
         if let Some(bridge) = surface_bridge.clone() {

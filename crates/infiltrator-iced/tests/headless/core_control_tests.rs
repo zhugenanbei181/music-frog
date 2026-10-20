@@ -10,6 +10,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::core_control::{CoreControlAction, CoreControlLabel};
 use infiltrator_iced::state::AppState;
+use infiltrator_iced::state::runtime::{CoreLifecycleRefusal, CoreLifecycleStage};
 use infiltrator_iced::types::message::Message;
 use infiltrator_iced::types::runtime::RuntimeStatus;
 use lurker_core_contract::core_process::CoreProcessStartContext;
@@ -136,7 +137,7 @@ fn composed_native_start_stop_executes_the_actual_ports_and_keeps_the_command_ow
         state.commands.as_ref().unwrap().snapshot().lifecycle,
         CoreLifecycle::Stopped
     );
-    assert!(state.runtime.lifecycle_pending.is_none());
+    assert!(!state.runtime.lifecycle.is_running());
 }
 
 #[test]
@@ -148,7 +149,12 @@ fn composed_permission_failure_retains_its_code_and_retry_runs_the_same_owner() 
     let failure = Failure::from(PortError::PermissionDenied(
         "grant process permission".into(),
     ));
-    assert_eq!(state.runtime.lifecycle_failure, Some(failure.clone()));
+    assert_eq!(
+        state.runtime.lifecycle,
+        CoreLifecycleStage::Failed {
+            failure: failure.clone()
+        }
+    );
     assert_eq!(state.core_control_projection().issue, Some(failure));
     assert_eq!(
         state.core_control_projection().label,
@@ -159,7 +165,8 @@ fn composed_permission_failure_retains_its_code_and_retry_runs_the_same_owner() 
     assert_eq!(state.update(result).units(), 3);
     assert_eq!(process.starts.load(Ordering::SeqCst), 2);
     assert_eq!(state.runtime.status, RuntimeStatus::Running);
-    assert!(state.runtime.lifecycle_failure.is_none());
+    assert!(!state.runtime.lifecycle.is_running());
+    assert!(state.runtime.lifecycle.failure().is_none());
     let snapshot = state.commands.as_ref().unwrap().snapshot();
     let _ = state.update(Message::CoreControlFinished {
         action: CoreControlAction::Stop,
@@ -173,9 +180,91 @@ fn composed_permission_failure_retains_its_code_and_retry_runs_the_same_owner() 
 }
 
 #[test]
+fn the_lifecycle_stage_refuses_a_second_command_while_one_is_in_flight() {
+    let (mut state, _) = AppState::new();
+    assert_eq!(state.runtime.lifecycle, CoreLifecycleStage::Idle);
+
+    // A command takes the running stage.
+    assert_eq!(
+        state.runtime.begin_lifecycle(CoreControlAction::Start),
+        Ok(())
+    );
+    assert_eq!(
+        state.runtime.lifecycle,
+        CoreLifecycleStage::Running {
+            action: CoreControlAction::Start
+        }
+    );
+
+    // A second command is refused: the running stage is handed back, so the
+    // "a command is in flight" and "the last command failed" stages can never
+    // hold at the same time.
+    assert_eq!(
+        state.runtime.begin_lifecycle(CoreControlAction::Stop),
+        Err(CoreLifecycleRefusal::AlreadyRunning {
+            action: CoreControlAction::Start
+        })
+    );
+    assert_eq!(
+        state.runtime.lifecycle,
+        CoreLifecycleStage::Running {
+            action: CoreControlAction::Start
+        }
+    );
+    assert!(state.runtime.lifecycle.failure().is_none());
+
+    // A reply for another action is refused and the running stage survives.
+    let failure = Failure::from(PortError::PermissionDenied("denied".into()));
+    assert_eq!(
+        state.runtime.settle_lifecycle(CoreControlAction::Stop, Err(failure.clone())),
+        Err(CoreLifecycleRefusal::NotRunning {
+            action: CoreControlAction::Stop
+        })
+    );
+    assert_eq!(
+        state.runtime.lifecycle,
+        CoreLifecycleStage::Running {
+            action: CoreControlAction::Start
+        }
+    );
+
+    // The running command settles into exactly one stage.
+    assert_eq!(
+        state.runtime.settle_lifecycle(CoreControlAction::Start, Err(failure.clone())),
+        Ok(())
+    );
+    assert_eq!(
+        state.runtime.lifecycle,
+        CoreLifecycleStage::Failed {
+            failure: failure.clone()
+        }
+    );
+    assert!(!state.runtime.lifecycle.is_running());
+    assert_eq!(state.runtime.lifecycle.failure(), Some(&failure));
+
+    // A settled failure is not a running command: the next command may start
+    // and the failure is no longer carried.
+    assert_eq!(
+        state.runtime.begin_lifecycle(CoreControlAction::Start),
+        Ok(())
+    );
+    assert_eq!(
+        state.runtime.lifecycle,
+        CoreLifecycleStage::Running {
+            action: CoreControlAction::Start
+        }
+    );
+    assert!(state.runtime.lifecycle.failure().is_none());
+
+    // Cancelling the in-flight command returns to idle.
+    state.runtime.cancel_lifecycle();
+    assert_eq!(state.runtime.lifecycle, CoreLifecycleStage::Idle);
+}
+
+#[test]
 fn missing_core_owner_disables_lifecycle_controls_without_local_bootstrap() {
     let (mut state, _) = AppState::new();
-    assert!(state.runtime.lifecycle_pending.is_none());
+    assert!(!state.runtime.lifecycle.is_running());
     assert_eq!(
         state.core_control_projection().label,
         CoreControlLabel::Unavailable
@@ -184,5 +273,5 @@ fn missing_core_owner_disables_lifecycle_controls_without_local_bootstrap() {
     assert_eq!(state.update(Message::StartCore).units(), 0);
     assert_eq!(state.update(Message::StopCore).units(), 0);
     assert_eq!(state.runtime.core_lifecycle, lifecycle);
-    assert!(state.runtime.lifecycle_pending.is_none());
+    assert!(!state.runtime.lifecycle.is_running());
 }

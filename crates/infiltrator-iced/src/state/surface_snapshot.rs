@@ -1,6 +1,7 @@
 use super::proxy_probe;
 use super::*;
 use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::system_proxy::SystemProxyStatus;
 
 impl AppState {
     /// Apply the shared page read model as a monotonic render cache. The
@@ -44,10 +45,7 @@ impl AppState {
                 "outbound UI preferences have not been observed for the current scope",
             ));
             self.runtime.outbound_inspecting = None;
-            self.runtime.outbound_probe_result = None;
-            self.runtime.outbound_probe_pending = None;
-            self.runtime.outbound_probe_failure = None;
-            self.runtime.outbound_probe_blocked = None;
+            self.runtime.reset_outbound_probe();
             self.runtime.outbound_probe_batch_token =
                 self.runtime.outbound_probe_batch_token.wrapping_add(1);
             self.runtime.outbound_probe_batch = proxy_probe::OutboundProbeBatchState::Idle;
@@ -238,7 +236,7 @@ impl AppState {
             &snapshot.system_proxy.status,
             SystemProxyStatus::Enabled | SystemProxyStatus::Disabled
         ) {
-            self.runtime.system_proxy_enabled = snapshot.system_proxy.is_enabled();
+            self.runtime.observe_system_proxy(snapshot.system_proxy.is_enabled());
         }
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;

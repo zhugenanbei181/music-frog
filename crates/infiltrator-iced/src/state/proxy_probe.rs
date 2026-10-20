@@ -1,5 +1,6 @@
 //! Tracked inspector probes preserve failures and never reopen a dismissed panel.
 use crate::state::AppState;
+use crate::state::runtime::{OutboundProbeRefusal, OutboundProbeStage};
 use crate::types::app;
 use crate::types::message::Message;
 use iced::Task;
@@ -138,16 +139,22 @@ impl AppState {
     }
 
     pub(crate) fn refresh_outbound_probe_block(&mut self) {
-        if self.runtime.outbound_probe_blocked.is_none() {
+        if !matches!(
+            self.runtime.outbound_probe,
+            OutboundProbeStage::Blocked { .. }
+        ) {
             return;
         }
         let Some(outbound_id) = self.runtime.outbound_inspecting.clone() else {
-            self.runtime.outbound_probe_blocked = None;
+            self.runtime.clear_outbound_probe_block();
             return;
         };
         let availability = self.outbound_probe_action_availability(&outbound_id);
-        self.runtime.outbound_probe_blocked =
-            (availability != OutboundProbeActionAvailability::Available).then_some(availability);
+        if availability == OutboundProbeActionAvailability::Available {
+            self.runtime.clear_outbound_probe_block();
+        } else {
+            self.runtime.block_outbound_probe(availability);
+        }
     }
 
     fn core_outbound_probe_capability(&self, scope: &CoreScope) -> CoreProbeCapability {
@@ -226,7 +233,7 @@ impl AppState {
         scope: CoreScope,
         request: ProbeOutboundRequest,
     ) -> Task<Message> {
-        if self.runtime.outbound_probe_pending.is_some()
+        if self.runtime.outbound_probe.is_running()
             || !self.is_product_command_ingress()
             || self
                 .command_ingress()
@@ -250,18 +257,21 @@ impl AppState {
         let _ = current_inventory;
         let action_availability = self.outbound_probe_action_availability(request.outbound_id());
         if action_availability != OutboundProbeActionAvailability::Available {
-            self.runtime.outbound_probe_blocked = Some(action_availability);
+            self.runtime.block_outbound_probe(action_availability);
             return Task::none();
         }
-        self.runtime.outbound_probe_blocked = None;
+        self.runtime.clear_outbound_probe_block();
         self.runtime.outbound_inspecting = Some(request.outbound_id().clone());
         self.runtime.outbound_probe_token = self.runtime.outbound_probe_token.wrapping_add(1);
         let token = self.runtime.outbound_probe_token;
-        self.runtime.outbound_probe_pending = Some(token);
-        self.runtime.outbound_probe_failure = None;
+        match self.runtime.begin_outbound_probe(token) {
+            Ok(()) => {}
+            // Another probe still owns the stage; it stays in flight.
+            Err(OutboundProbeRefusal::AlreadyRunning { .. }
+            | OutboundProbeRefusal::NotRunning { .. }) => return Task::none(),
+        }
         let Some(ingress) = self.command_ingress() else {
-            self.runtime.outbound_probe_pending = None;
-            self.runtime.outbound_probe_failure = Some(Failure::new(
+            self.runtime.record_outbound_probe_failure(Failure::new(
                 ErrorCode::NotReady,
                 "outbound probe command is not composed",
                 true,
@@ -301,7 +311,7 @@ impl AppState {
     }
 
     pub(crate) fn probe_inspected_outbound(&mut self) -> Task<Message> {
-        if self.runtime.outbound_probe_pending.is_some() {
+        if self.runtime.outbound_probe.is_running() {
             return Task::none();
         }
         let Some(outbound_id) = self.runtime.outbound_inspecting.clone() else {
@@ -311,9 +321,11 @@ impl AppState {
             self.outbound_probe_message(&outbound_id)
         else {
             let availability = self.outbound_probe_action_availability(&outbound_id);
-            self.runtime.outbound_probe_blocked = (availability
-                != OutboundProbeActionAvailability::Available)
-                .then_some(availability);
+            if availability == OutboundProbeActionAvailability::Available {
+                self.runtime.clear_outbound_probe_block();
+            } else {
+                self.runtime.block_outbound_probe(availability);
+            }
             return Task::none();
         };
         self.start_outbound_probe(scope, request)
@@ -327,11 +339,13 @@ impl AppState {
         terminal_scope: Option<CoreScope>,
         result: Result<OutboundProbeSnapshot, Failure>,
     ) -> Task<Message> {
-        if self.runtime.outbound_probe_pending != Some(token) {
-            return Task::none();
+        if let Err(refusal) = self.runtime.end_outbound_probe(token) {
+            match refusal {
+                OutboundProbeRefusal::NotRunning { .. } => return Task::none(),
+                OutboundProbeRefusal::AlreadyRunning { .. } => return Task::none(),
+            }
         }
-        self.runtime.outbound_probe_pending = None;
-        self.runtime.outbound_probe_blocked = None;
+        self.runtime.clear_outbound_probe_block();
         let current_scope = self
             .command_ingress()
             .and_then(|ingress| ingress.observed_scope());
@@ -351,17 +365,16 @@ impl AppState {
         }
         match result {
             Ok(snapshot) if snapshot.scope() == &scope && request.is_confirmed_by(&snapshot) => {
-                self.runtime.outbound_probe_result = Some(snapshot);
-                self.runtime.outbound_probe_failure = None;
+                self.runtime.accept_outbound_probe_measurement(snapshot);
             }
             Ok(_) => {
-                self.runtime.outbound_probe_failure = Some(Failure::new(
+                self.runtime.record_outbound_probe_failure(Failure::new(
                     ErrorCode::InvalidState,
                     "outbound probe readback did not match its request",
                     false,
                 ));
             }
-            Err(failure) => self.runtime.outbound_probe_failure = Some(failure),
+            Err(failure) => self.runtime.record_outbound_probe_failure(failure),
         }
         Task::none()
     }

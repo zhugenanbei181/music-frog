@@ -6,6 +6,9 @@
 use crate::state::AppState;
 use crate::state::core_operations::{CoreDownloadCompletionAdmission, CoreDownloadStart};
 use crate::state::profiles::ProfileListLoadPhase;
+use crate::state::runtime::{
+    RuntimePatchRefusal, RuntimePatchStage, SystemProxyRefusal, SystemProxyStage,
+};
 use crate::test_mounts::profile_edit_fixture;
 use crate::tray::spec::{TRAY_ACTION_QUIT, TrayEvent, TrayIntent, resolve_tray_event};
 use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress, ToastStatus};
@@ -23,6 +26,7 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_control::CoreControlLabel;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleState;
 use infiltrator_domain::connection_rate::pulse_intensity;
 use infiltrator_domain::profiles::ProfileInfo;
@@ -370,21 +374,77 @@ fn test_dns_server_list_manipulation() {
 }
 
 #[test]
+fn the_system_proxy_stage_refuses_a_second_change_while_one_is_in_flight() {
+    let (mut state, _) = AppState::new();
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Disabled);
+
+    // A change takes the pending stage and shows the requested value.
+    assert_eq!(state.runtime.begin_system_proxy_change(true), Ok(()));
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Enabling);
+    assert!(state.runtime.system_proxy_stage.is_enabled());
+    assert!(state.runtime.system_proxy_stage.is_pending());
+
+    // A second change is refused: the running stage is handed back, so
+    // "the proxy is on" and "a change is in flight" are one stage.
+    assert_eq!(
+        state.runtime.begin_system_proxy_change(false),
+        Err(SystemProxyRefusal::AlreadyPending)
+    );
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Enabling);
+
+    // The observed readback settles the stage.
+    state.runtime.settle_system_proxy_change(true);
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Enabled);
+    assert!(!state.runtime.system_proxy_stage.is_pending());
+
+    // A rejected change returns to the stage it interrupted.
+    assert_eq!(state.runtime.begin_system_proxy_change(false), Ok(()));
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Disabling);
+    assert!(!state.runtime.system_proxy_stage.is_enabled());
+    state.runtime.rollback_system_proxy_change();
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Enabled);
+    assert!(!state.runtime.system_proxy_stage.is_pending());
+
+    // A readback that arrives while a change is in flight never cancels it.
+    assert_eq!(state.runtime.begin_system_proxy_change(false), Ok(()));
+    state.runtime.observe_system_proxy(true);
+    assert_eq!(
+        state.runtime.system_proxy_stage,
+        SystemProxyStage::Disabling,
+        "an observation cannot cancel the running change"
+    );
+    state.runtime.settle_system_proxy_change(false);
+    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Disabled);
+}
+
+#[test]
 fn test_system_integration_states() {
     let (mut state, _) = AppState::new();
 
     // System Proxy
-    state.runtime.system_proxy_enabled = false;
+    state.runtime.system_proxy_stage = SystemProxyStage::Disabled;
+    state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(false, Some(false), 1);
     let _ = state.update(Message::SetSystemProxy(true));
-    assert!(state.runtime.system_proxy_enabled);
+    assert!(
+        state.runtime.system_proxy_stage.is_enabled(),
+        "the pending toggle shows the requested value"
+    );
+    assert!(
+        state.runtime.system_proxy_stage.is_pending(),
+        "the requested value is a pending stage, not a settled one"
+    );
 
     // Rollback on error
     let _ = state.update(Message::SystemProxySet(Err(InfiltratorError::Privilege(
         "Access denied".into(),
     ))));
     assert!(
-        !state.runtime.system_proxy_enabled,
+        !state.runtime.system_proxy_stage.is_enabled(),
         "Should rollback on failure"
+    );
+    assert!(
+        !state.runtime.system_proxy_stage.is_pending(),
+        "a rejected change leaves no pending stage behind"
     );
     assert_eq!(
         state.shell.error_msg.as_ref().unwrap(),
@@ -432,7 +492,7 @@ fn core_lifecycle_controls_require_an_attached_owner() {
     let (mut state, _) = AppState::new();
 
     let _ = state.update(Message::StartCore);
-    assert_eq!(state.runtime.lifecycle_pending, None);
+    assert!(!state.runtime.lifecycle.is_running());
     assert_eq!(
         state.core_control_projection().label,
         CoreControlLabel::Unavailable

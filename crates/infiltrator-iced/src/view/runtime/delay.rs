@@ -80,7 +80,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
 
     // 2. Test all delays button
     let delay_testing = state.runtime.outbound_probe_batch.is_running()
-        || state.runtime.outbound_probe_pending.is_some();
+        || state.runtime.outbound_probe.is_running();
     let delay_test_all_btn = text_btn(
         if delay_testing {
             lang.tr("runtime_delay_testing_all").to_string()
@@ -161,7 +161,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
                 .find(|member| member.search_name() == name || member.name == name)
                 .and_then(|member| member.id.clone());
             let is_testing = state.runtime.outbound_probe_batch.is_running()
-                || state.runtime.outbound_probe_pending.is_some()
+                || state.runtime.outbound_probe.is_running()
                     && outbound_id.as_ref() == state.runtime.outbound_inspecting.as_ref();
             let probe_message = outbound_id
                 .as_ref()

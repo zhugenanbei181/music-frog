@@ -18,7 +18,7 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     let observed = &state.runtime.runtime_control;
     let available = observed.status == RuntimeControlStatus::Ready
         && observed.lan_security.is_some()
-        && state.runtime.pending_runtime_patch.is_none();
+        && !state.runtime.runtime_patch_stage.is_applying();
     let auth_status = format_lan_auth(observed.lan_security.as_ref(), &Lang(lang.0));
 
     let allowed = text_input("192.168.0.0/16, 10.0.0.0/8", &security.allowed_ips)
