@@ -15,6 +15,26 @@ from resolve_surface_evidence import ROOT, command_json, read_table, EVIDENCE_FI
 from visual_receipts import build_receipts, verified_receipts
 
 
+def capture_failures(run):
+    """Business/surface pairs whose capture did not produce a usable scenario."""
+    manifest = Path(run) / "capture-manifest.tsv"
+    if not manifest.exists():
+        return {f"{run.name}/unknown"}
+    failures = set()
+    with manifest.open(encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file, delimiter="\t"):
+            if row.get("status") == "ok":
+                continue
+            scenario = row.get("scenario", "")
+            feature = scenario
+            for suffix in ("-standard", "-compact"):
+                if feature.endswith(suffix):
+                    feature = feature[: -len(suffix)]
+                    break
+            failures.add(feature)
+    return failures
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("features", nargs="?", help="comma-separated implemented interaction tokens")
@@ -74,6 +94,7 @@ def main():
                     "-E", " | ".join(filters)], cwd=ROOT, check=True)
     (output / "behavior_tests.json").write_text(json.dumps({"test_ids": sorted(anchors), "status": "passed"}, indent=2) + "\n")
     runs = {}
+    uncertified = set()
     for surface in packages:
         matrix = output / f"{surface}-scenarios.tsv"
         with matrix.open("w") as file:
@@ -95,11 +116,17 @@ def main():
                    INFILTRATOR_LANG="en-US", CARGO_BUILD_JOBS="4", INFILTRATOR_CAPTURE_SCENARIOS="")
         evidence_root = ROOT / f".evidence/captures/{surface}"
         previous = set(evidence_root.iterdir()) if evidence_root.exists() else set()
-        subprocess.run(["bash", f"scripts/capture-{surface}-matrix.sh"], cwd=ROOT, env=env, check=True)
+        # A batch may contain businesses whose surface interaction is not
+        # implemented yet. Collect every scenario result instead of aborting on
+        # the first failure, so the report names every uncertified business.
+        capture = subprocess.run(["bash", f"scripts/capture-{surface}-matrix.sh"], cwd=ROOT, env=env)
         fresh = set(evidence_root.iterdir()) - previous
         if len(fresh) != 1:
             raise ValueError(f"expected exactly one fresh {surface} capture run, got {len(fresh)}")
         runs[surface] = fresh.pop()
+        failed = capture_failures(runs[surface])
+        if failed:
+            uncertified.update(f"{feature}/{surface}" for feature in failed)
     receipts = output / "visual_receipts.json"
     receipts.write_text(json.dumps(build_receipts(ROOT, runs), indent=2) + "\n")
     selected_products = {}
@@ -112,8 +139,23 @@ def main():
     verified = verified_receipts(receipts, ROOT, selected_products)
     expected = {(feature, surface, viewport) for feature in features for surface in carriers[feature]
                 for viewport in ("standard", "compact")}
-    if verified != expected:
-        raise ValueError(f"asymmetric or missing pixel receipts: {expected - verified}")
+    missing = expected - verified
+    if missing:
+        uncertified.update(f"{feature}/{surface}" for feature, surface, _ in missing)
+    report = output / "certification.json"
+    report.write_text(json.dumps({
+        "features": sorted(features),
+        "certified": sorted(f"{feature}/{surface}" for feature, surface, _ in verified),
+        "uncertified": sorted(uncertified),
+    }, indent=2) + "\n")
+    if uncertified:
+        print(
+            f"certification incomplete: {len(uncertified)} business/surface pair(s) have no verified "
+            f"dual-viewport pixels:\n" + "\n".join(sorted(uncertified)),
+            file=sys.stderr,
+        )
+        print(f"per-business report: {report}", file=sys.stderr)
+        return 1
     command = [sys.executable, "scripts/parity/resolve_surface_evidence.py", *discovery_flags, "--receipts", str(receipts),
                "--require-features", ",".join(sorted(features)), "--product-builds", str(product_selection), "--report-json", str(output / "acceptance.json")]
     if args.all:
