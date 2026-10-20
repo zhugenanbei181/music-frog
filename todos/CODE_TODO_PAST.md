@@ -320,7 +320,18 @@
   - 待验证：报告**文件**与截图/录屏回执属于取证层（`scripts/parity` 与 `.evidence/`），不在控件层产出；基线数值需在真实宿主上实测一次。
   - 本机可执行动作：跑统一验证批次。
 
-## 十三、登记说明
+## 十三、行为锚点补齐（已交付，1条 / 2pt）
+
+- [ ] PARITY-001.3 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: Integrated] 四个 pending 行为锚点补齐
+  - 产物：四个 pending 行为锚点补齐（`core-version-rollback-confirm`、`proxies-search-highlight`、`speedtest-progress-cancel` 的 contract 与 scenario 锚点）。
+  - 依赖：共享 typed 状态与 command 契约。
+  - 验收：四格状态由 pending 转 anchored，且测试覆盖失败恢复、拒绝与取消终态。
+  - 计划：① 逐格补行为测试（不复用 demo 快照冒充）；② 更新注册表 `test_id`/`reason`；③ 跑 resolver 确认零 pending。
+  - 当前证据（L）：四格全部 anchored——`core-version-rollback-confirm` 的 iced/bevy/slint contract 由 `infiltrator-application::version_application::tests` 的三条回滚用例（转发引擎身份并回报激活版本 / 失败不伪造 / 外来引擎 fail-closed）承担；`proxies-search-highlight` 的 iced scenario 由 `infiltrator_iced::headless::proxy_search_behavior_tests`（typed 偏好提交、命中高亮、诚实空态、清空恢复、owner 拒绝时保留已确认偏好与可重试草稿、刷新后重放查询）承担；**`speedtest-progress-cancel` 的 iced scenario 由 `infiltrator_iced::headless::speedtest_cancel_tests::the_running_speedtest_control_cancels_the_observed_run_and_lands_the_owner_outcome` 承担**——运行中的测速控件从观测到的 owner 快照取动作，只为那一轮 run 提交共享 typed 取消命令，owner 的 typed 回答落到表面状态而不是本地自造的��功；该用例同时覆盖失败恢复与拒绝终态。
+  - 待验证：统一验证批次复跑 resolver，确认四格在当前代码上仍 anchored 且没有 dangling 锚点。
+  - 本机可执行动作：跑统一验证批次。
+
+## 十四、登记说明
 
 - 2026-10-11 之前的历史切片回执（run ID、APK SHA、模拟器记录）已在 [TODO.md](../TODO.md) 归档表与 `.evidence/` 永久留存；本文件只持未办结验证项。
 - 已验证退出项不在本文件重复登记。

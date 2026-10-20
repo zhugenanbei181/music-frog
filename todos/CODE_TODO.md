@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v250`：现在佛 37 pt（14 条）/ 过去佛 85 pt（37 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
+- Point 基线 `musicfrog-todo-20261020-v251`：现在佛 35 pt（13 条）/ 过去佛 87 pt（38 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
 - 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）与地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -89,13 +89,6 @@
   - 证据：`.evidence/visual_receipts.json` 全绿 + 每业务截图清单。
   - 已验证能力（2026-10-20）：本机 `kwin_wayland --virtual` + 嵌套 `niri` 私有合成器可正常起栈，应用能写出 `CAPTURE_READY` 标记并落 PNG/manifest，截图取证在本机可复跑；缺的是逐业务的 demo 交互实现与「无载体页面不得锚定」之外的覆盖补齐。
   - 第一批可取证清单：Iced demo 已实现交互的 21 条业务（`RuntimeTelemetryObservation`、`LogsRedactedExport`、`LogsScrollLock`、`LogsSearchHighlight`、`ShellRoutingIntentControl`、`ShellRoutingIntentAuthentication`、`ProfilesSnapshotRestoreConfirm`、`ProfilesFilterEditor`、`RulesStatisticsInspector`、`RulesListEditor`、`RulesOverrideEditor`、`RulesTracerDrawer`、`DnsQueryDetails`、`DnsFakeIpFlushConfirm`、`DnsHostsEditor`、`DnsLeakAlert`、`DoctorFailureRecovery`、`SettingsLanguageChoice`、`ConnectionsCloseAllConfirm`、`ConnectionsSearchHighlight`、`ConnectionsGrouping`）× standard/compact 双视口 = 42 个像素回执单元格；其余 37 条业务要么缺 demo 交互、要么 Slint 无载体，按缺口逐条立项。
-- [ ] PARITY-001.3 [kind: mechanism] [priority: P0] [points: 2] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 四个 pending 行为锚点补齐
-  - 产物：`core-version-rollback-confirm`（iced/bevy/slint contract）、`proxies-search-highlight`（iced scenario）、`speedtest-progress-cancel`（iced scenario）四个单元格补真实行为测试并转 anchored。
-  - 依赖：共享 core rollback / proxy 搜索 / speedtest 取消 owner 契约。
-  - 验收：四格状态由 pending 转 anchored，且测试覆盖失败恢复、拒绝与取消终态。
-  - 计划：① 逐格补行为测试（不复用 demo 快照冒充）；② 更新注册表 `test_id`/`reason`；③ 跑 resolver 确认零 pending。
-  - 进度：4 格中已闭 3 格——`core-version-rollback-confirm` 的 iced/bevy/slint contract 由 `infiltrator-application::version_application::tests` 的三条回滚用例（转发引擎身份并回报激活版本 / 失败不伪造 / 外来引擎 fail-closed）转 anchored；`proxies-search-highlight` 的 iced scenario 由 `infiltrator-iced::headless::proxy_search_behavior_tests`（typed 偏好提交、命中高亮、诚实空态、清空恢复、owner 拒绝时保留已确认偏好与可重试草稿、刷新后重放查询）转 anchored。剩余 `speedtest-progress-cancel` 的 iced scenario 一格仍 pending。
-  - 证据：四格 nextest run ID + resolver 报告。
 - [ ] PARITY-001.4 [kind: evidence] [priority: P0] [points: 3] [owner: android 三 flavor] [status: Planned] Android 三 flavor 实际交互截图与行为认证
   - 产物：Compose / Bevy / Slint 三个 flavor 在模拟器上的真实交互截图与行为回执（启动、导航、列表滚动、权限与 VPN consent 终态）。
   - 依赖：模拟器 M1 腿（BANDROID-002.1/002.2 在过去佛）、`scripts/android-emulator-tests.sh`、APK identity 守卫。
