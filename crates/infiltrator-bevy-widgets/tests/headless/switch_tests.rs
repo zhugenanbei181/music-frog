@@ -21,8 +21,8 @@ use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::switch::{
     SWITCH_KNOB_OFF_OFFSET_PX, SWITCH_KNOB_ON_OFFSET_PX, SWITCH_KNOB_SIZE_PX,
-    SWITCH_TRACK_HEIGHT_PX, SWITCH_TRACK_WIDTH_PX, SwitchPosition, ThemeSwitch, switch_knob_scene,
-    switch_track_scene,
+    SWITCH_TRACK_HEIGHT_PX, SWITCH_TRACK_WIDTH_PX, SwitchColors, SwitchKnob, SwitchPosition,
+    SwitchTrack, ThemeSwitch, switch_control_scene, switch_knob_scene, switch_track_scene,
 };
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 
@@ -221,4 +221,126 @@ fn switch_track_and_knob_compose_as_parent_and_child() {
     assert_eq!(knob.width, rem(SWITCH_KNOB_SIZE_PX));
     assert_eq!(knob.height, rem(SWITCH_KNOB_SIZE_PX));
     assert_eq!(knob.border_radius, BorderRadius::MAX);
+}
+
+/// The shared control renders one geometry for every consumer: two controls
+/// with different colors have the same track and knob geometry, and only the
+/// colors differ.
+#[test]
+fn shared_switch_control_renders_one_geometry_for_every_consumer() {
+    let mut app = headless_app();
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(switch_control_scene(
+                &palette,
+                SwitchColors {
+                    track_fill: palette.accent,
+                    track_edge: palette.accent,
+                    knob_fill: palette.on_accent,
+                },
+                SwitchPosition::On,
+            ));
+            commands.spawn_scene(switch_control_scene(
+                &palette,
+                SwitchColors {
+                    track_fill: palette.surface_elevated,
+                    track_edge: palette.border,
+                    knob_fill: palette.ink_dim,
+                },
+                SwitchPosition::On,
+            ));
+        },
+    );
+    app.update();
+
+    let world = app.world_mut();
+    let mut tracks = world.query::<(&SwitchTrack, &Node, &BackgroundColor)>();
+    let track_nodes: Vec<Node> = tracks
+        .iter(world)
+        .map(|(_, node, _)| node.clone())
+        .collect();
+    let track_fills: Vec<BackgroundColor> = tracks.iter(world).map(|(_, _, fill)| *fill).collect();
+    assert_eq!(
+        track_nodes.len(),
+        2,
+        "two consumers mounted the shared control"
+    );
+    assert_eq!(track_fills.len(), 2);
+
+    // The geometry is the shared owner's: both consumers render the same one.
+    assert_eq!(track_nodes[0].width, rem(SWITCH_TRACK_WIDTH_PX));
+    assert_eq!(track_nodes[0].height, rem(SWITCH_TRACK_HEIGHT_PX));
+    assert_eq!(track_nodes[0].border_radius, BorderRadius::MAX);
+    assert_eq!(track_nodes[1].width, track_nodes[0].width);
+    assert_eq!(track_nodes[1].height, track_nodes[0].height);
+    assert_eq!(track_nodes[1].border, track_nodes[0].border);
+    assert_eq!(track_nodes[1].border_radius, track_nodes[0].border_radius);
+    assert_eq!(track_nodes[1].position_type, track_nodes[0].position_type);
+    // The colors stay the surface's own.
+    assert_ne!(track_fills[0], track_fills[1]);
+
+    let world = app.world_mut();
+    let mut knobs = world.query::<(&SwitchKnob, &Node, &BackgroundColor)>();
+    let knob_nodes: Vec<Node> = knobs.iter(world).map(|(_, node, _)| node.clone()).collect();
+    let knob_fills: Vec<BackgroundColor> = knobs.iter(world).map(|(_, _, fill)| *fill).collect();
+    assert_eq!(knob_nodes.len(), 2);
+    assert_eq!(knob_fills.len(), 2);
+    assert_eq!(knob_nodes[0].left, rem(SWITCH_KNOB_ON_OFFSET_PX));
+    assert_eq!(knob_nodes[0].width, rem(SWITCH_KNOB_SIZE_PX));
+    assert_eq!(knob_nodes[0].height, rem(SWITCH_KNOB_SIZE_PX));
+    assert_eq!(knob_nodes[0].border_radius, BorderRadius::MAX);
+    assert_eq!(knob_nodes[1].left, knob_nodes[0].left);
+    assert_eq!(knob_nodes[1].width, knob_nodes[0].width);
+    assert_eq!(knob_nodes[1].height, knob_nodes[0].height);
+    assert_eq!(knob_nodes[1].border_radius, knob_nodes[0].border_radius);
+    assert_ne!(knob_fills[0], knob_fills[1]);
+}
+
+/// The surface flips the typed position; the shared control owns the offset.
+#[test]
+fn switch_control_knob_follows_the_typed_position_without_a_surface_offset() {
+    let mut app = headless_app();
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(switch_control_scene(
+                &palette,
+                SwitchColors {
+                    track_fill: palette.surface_elevated,
+                    track_edge: palette.border,
+                    knob_fill: palette.ink_dim,
+                },
+                SwitchPosition::Off,
+            ));
+        },
+    );
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut knobs = world.query::<(&SwitchKnob, &Node)>();
+        let (knob, node) = knobs.iter(world).next().expect("knob mounted");
+        assert_eq!(knob.0, SwitchPosition::Off);
+        assert_eq!(node.left, rem(SWITCH_KNOB_OFF_OFFSET_PX));
+    }
+
+    {
+        let world = app.world_mut();
+        let mut knobs = world.query::<&mut SwitchKnob>();
+        for mut knob in knobs.iter_mut(world) {
+            knob.0 = SwitchPosition::On;
+        }
+    }
+    app.update();
+
+    let world = app.world_mut();
+    let mut knobs = world.query::<(&SwitchKnob, &Node)>();
+    let (knob, node) = knobs.iter(world).next().expect("knob mounted");
+    assert_eq!(knob.0, SwitchPosition::On);
+    assert_eq!(
+        node.left,
+        rem(SWITCH_KNOB_ON_OFFSET_PX),
+        "the shared control moved the knob; no surface computed the offset"
+    );
 }

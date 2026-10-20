@@ -193,7 +193,9 @@ fn test_focus_trap_stage_is_typed_and_refuses_a_second_engage() {
 
 #[test]
 fn test_chaos_runner_stage_is_typed_and_refuses_to_tick_when_idle() {
-    use infiltrator_bevy_widgets::chaos::{ChaosFaultScenario, ChaosRunStage, ChaosSimulationRunner};
+    use infiltrator_bevy_widgets::chaos::{
+        ChaosFaultScenario, ChaosRunStage, ChaosSimulationRunner,
+    };
 
     let mut runner = ChaosSimulationRunner::new();
     assert_eq!(runner.stage(), &ChaosRunStage::Idle);
@@ -248,7 +250,8 @@ fn test_reorder_drag_stage_is_typed_and_refuses_a_drop_without_a_drag() {
     // A second drag while one runs is refused.
     assert!(list.start_drag(1).is_err());
 
-    list.set_drop_target(2).expect("running drag takes a drop position");
+    list.set_drop_target(2)
+        .expect("running drag takes a drop position");
     assert_eq!(list.target_drop_index(), Some(2));
     assert_eq!(list.end_drag(), Some(2));
     assert_eq!(list.drag_stage(), ReorderDragStage::Idle);
@@ -307,7 +310,10 @@ fn test_healing_watchdog_stage_is_typed_and_refuses_double_arm() {
         }
     );
     assert!(watchdog.has_tripped());
-    assert!(!watchdog.is_repairing(), "a tripped watchdog is not repairing");
+    assert!(
+        !watchdog.is_repairing(),
+        "a tripped watchdog is not repairing"
+    );
 
     // A tripped watchdog refuses further ticks and can be re-armed for the next action.
     assert!(

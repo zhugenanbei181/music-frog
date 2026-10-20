@@ -10,11 +10,11 @@ use bevy::image::Image;
 use bevy::math::Vec2;
 use bevy::scene::CommandsSceneExt;
 use bevy::ui::widget::ImageNode;
+use infiltrator_bevy_widgets::globe::raster::rasterize_globe;
 use infiltrator_bevy_widgets::globe::{
     ARC_ALTITUDE_FRACTION, GeoLocation, GeoPoint, GeoPrecision, GeoSource, GeoUnknown, GlobeLink,
     GlobeMode, GlobeNode, GlobeNodeCategory, GlobePlate, GlobeProjection, GlobeSpec,
     build_globe_arcs, build_globe_particles, globe_scene, project_flat_nodes, project_globe_nodes,
-    rasterize_globe,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;

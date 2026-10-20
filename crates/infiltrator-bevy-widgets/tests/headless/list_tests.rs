@@ -715,7 +715,10 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     assert_eq!(pool.active_count(), 5);
 
     // Check slot 2: bound to item 2, generation 1
-    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Bound { item_idx: 2 }, 1)));
+    assert_eq!(
+        pool.slot_binding(2),
+        Some((SlotBinding::Bound { item_idx: 2 }, 1))
+    );
     assert!(pool.is_receipt_valid(2, 2, 1));
     assert!(!pool.is_receipt_valid(2, 2, 0)); // stale generation rejected
     assert!(!pool.is_receipt_valid(2, 3, 1)); // wrong item rejected
@@ -736,7 +739,10 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
     let rebind_actions = pool.sync_window(10, 15, |idx| idx as f32 * 40.0);
     assert_eq!(rebind_actions.len(), 5);
     // Slot 2 is now rebound to item 12 at generation 2
-    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Bound { item_idx: 12 }, 2)));
+    assert_eq!(
+        pool.slot_binding(2),
+        Some((SlotBinding::Bound { item_idx: 12 }, 2))
+    );
     slot_comp.apply_rebind(12, 2);
 
     // The delayed receipt / queued click from the earlier interaction arrives!
@@ -774,7 +780,10 @@ fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queue
 
     // Scrolling back so slot 2 rebinds to item 2 again: generation is now 4!
     let _scroll_back_actions = pool.sync_window(0, 5, |idx| idx as f32 * 40.0);
-    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Bound { item_idx: 2 }, 4)));
+    assert_eq!(
+        pool.slot_binding(2),
+        Some((SlotBinding::Bound { item_idx: 2 }, 4))
+    );
     slot_comp.apply_rebind(2, 4);
 
     // Even though slot 2 is once again bound to item 2, the old delayed click from generation 1 is STILL rejected!

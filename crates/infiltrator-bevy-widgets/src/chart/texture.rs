@@ -83,6 +83,22 @@ impl ChartTextureViewItem<'_, '_> {
         ));
         true
     }
+
+    /// Release the owned texture while the plate stays mounted.
+    ///
+    /// The sleeping and closed paths need the raster gone without retiring
+    /// the plate: the image asset is freed once its last strong handle
+    /// drops, and the binding that pointed at it is removed with it.
+    pub(crate) fn release_texture(&self, commands: &mut Commands) {
+        let Some(texture) = self.texture else {
+            return;
+        };
+        let mut entity = commands.entity(self.entity);
+        entity.remove::<(ChartTexture, ChartPaint, TopologyPaint, GlobePaint)>();
+        if self.node.is_some_and(|node| node.image == texture.image) {
+            entity.remove::<ImageNode>();
+        }
+    }
 }
 
 #[derive(QueryFilter)]
@@ -102,13 +118,6 @@ pub(crate) fn release_retired(
     mut commands: Commands,
 ) {
     for view in &charts {
-        let Some(texture) = view.texture else {
-            continue;
-        };
-        let mut entity = commands.entity(view.entity);
-        entity.remove::<(ChartTexture, ChartPaint, TopologyPaint, GlobePaint)>();
-        if view.node.is_some_and(|node| node.image == texture.image) {
-            entity.remove::<ImageNode>();
-        }
+        view.release_texture(&mut commands);
     }
 }

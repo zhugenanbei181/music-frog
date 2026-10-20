@@ -14,7 +14,7 @@
 //! business state and its typed transitions — it never re-implements the
 //! official behaviour.
 
-use crate::button::{ButtonVariant, button_scene};
+use crate::button::{ButtonVariant, button_action_scene};
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
@@ -98,21 +98,11 @@ pub enum ModalOutcome {
 ///
 /// The stage is typed; the title and the kind are the product's own facts —
 /// the official widget layer models neither.
-#[derive(Component, Clone, Debug, PartialEq)]
+#[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct ModalState {
     pub stage: ModalStage,
     pub title: String,
     pub kind: ModalKind,
-}
-
-impl Default for ModalState {
-    fn default() -> Self {
-        Self {
-            stage: ModalStage::default(),
-            title: String::new(),
-            kind: ModalKind::default(),
-        }
-    }
 }
 
 impl ModalState {
@@ -313,13 +303,28 @@ pub fn modal_scene(
             state
             ThemeContext(SurfaceLevel::Floating)
             FixedNode
-            on(|close: On<RequestClose>, mut states: Query<&mut ModalState>, mut outcomes: Commands| {
+            on(|close: On<RequestClose>, mut states: Query<&mut ModalState>, mut outcomes: Commands, confirms: Query<(), With<ModalConfirmButton>>, cancels: Query<(), With<ModalCancelButton>>| {
                 let target = close.event_target();
+                // The request's source names the outcome: the confirm and the
+                // cancel actions resolve the dialog, every other close (the
+                // barrier click-outside, the Escape interception, the close
+                // button) dismisses it.
+                let source = close.original_event_target();
+                let outcome = if confirms.contains(source) {
+                    ModalOutcome::Confirmed
+                } else if cancels.contains(source) {
+                    ModalOutcome::Cancelled
+                } else {
+                    ModalOutcome::Dismissed
+                };
                 if let Ok(mut state) = states.get_mut(target) {
-                    state.dismiss();
+                    match outcome {
+                        ModalOutcome::Dismissed => state.dismiss(),
+                        ModalOutcome::Confirmed | ModalOutcome::Cancelled => state.hide(),
+                    }
                     outcomes.write_message(ModalEvent {
                         modal: target,
-                        outcome: ModalOutcome::Dismissed,
+                        outcome,
                     });
                 }
             })
@@ -398,8 +403,22 @@ pub fn confirm_dialog_scene(
     };
 
     let actions = vec![
-        Box::new(button_scene(cancel_text, ButtonVariant::Default, palette)) as Box<dyn Scene>,
-        Box::new(button_scene(confirm_text, confirm_variant, palette)) as Box<dyn Scene>,
+        Box::new(bsn! {
+                @{ button_action_scene(cancel_text, ButtonVariant::Default, ModalCancelButton, palette) }
+                // The cancel action asks the official layer to close; the
+                // outcome is read back from the request's source.
+                on(|activate: On<Activate>, mut commands: Commands| {
+                    commands.trigger(RequestClose { source: activate.entity });
+                })
+        }) as Box<dyn Scene>,
+        Box::new(bsn! {
+                @{ button_action_scene(confirm_text, confirm_variant, ModalConfirmButton, palette) }
+                // The confirm action asks the official layer to close; the
+                // outcome is read back from the request's source.
+                on(|activate: On<Activate>, mut commands: Commands| {
+                    commands.trigger(RequestClose { source: activate.entity });
+                })
+        }) as Box<dyn Scene>,
     ];
 
     let content = Box::new(bsn! {
@@ -458,6 +477,7 @@ pub fn sync_modal_visuals(
 mod tests {
     use super::*;
     use crate::WidgetsPlugin;
+    use crate::button::ButtonVariantStyle;
     use crate::theme::Theme;
     use bevy::MinimalPlugins;
     use bevy::app::Startup;
@@ -476,9 +496,9 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins((AssetPlugin::default(), ScenePlugin));
         app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
-        // The official dialog behaviour layer: barrier click-outside, Escape
-        // interception, focus containment and the dialog stack.
-        app.add_plugins(ModalWidgetsPlugin);
+        // The official dialog behaviour layer (barrier click-outside, Escape
+        // interception, focus containment and the dialog stack) is added by
+        // the widget kit itself, so the test must not add it twice.
         app.init_resource::<RecordedOutcome>();
         app.add_systems(
             Update,
@@ -655,6 +675,90 @@ mod tests {
                 .expect("the typed stage")
                 .stage,
             ModalStage::Open
+        );
+    }
+
+    #[test]
+    fn the_confirm_dialog_mounts_its_cancel_and_confirm_actions() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+
+        let world = app.world_mut();
+        let mut variants = world.query::<&ButtonVariantStyle>();
+        let mut actions = Vec::new();
+        for style in variants.iter(world) {
+            actions.push(style.0);
+        }
+        assert!(
+            actions.contains(&ButtonVariant::Default),
+            "the cancel action is mounted"
+        );
+        assert!(
+            actions.contains(&ButtonVariant::Danger),
+            "the danger confirm action is mounted"
+        );
+    }
+
+    /// The confirm and the cancel action: their marker rides the official
+    /// button's own node.
+    fn action_entity(app: &mut App, confirm: bool) -> Entity {
+        let world = app.world_mut();
+        if confirm {
+            let mut confirms = world.query_filtered::<Entity, With<ModalConfirmButton>>();
+            confirms
+                .iter(world)
+                .next()
+                .expect("the confirm action is mounted")
+        } else {
+            let mut cancels = world.query_filtered::<Entity, With<ModalCancelButton>>();
+            cancels
+                .iter(world)
+                .next()
+                .expect("the cancel action is mounted")
+        }
+    }
+
+    #[test]
+    fn the_confirm_dialog_actions_carry_their_marker_on_the_button_node() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+
+        let confirm = action_entity(&mut app, true);
+        let cancel = action_entity(&mut app, false);
+        let world = app.world_mut();
+        assert!(
+            world.get::<Button>(confirm).is_some(),
+            "the confirm marker rides the official button's own node"
+        );
+        assert!(
+            world.get::<Button>(cancel).is_some(),
+            "the cancel marker rides the official button's own node"
+        );
+    }
+
+    #[test]
+    fn the_confirm_dialog_actions_report_their_outcome() {
+        let mut app = headless_app();
+        mount_confirm_dialog(&mut app);
+
+        let confirm = action_entity(&mut app, true);
+        app.world_mut().commands().trigger(Activate { entity: confirm });
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<RecordedOutcome>().0,
+            Some(ModalOutcome::Confirmed),
+            "the confirm action resolves the dialog"
+        );
+
+        let cancel = action_entity(&mut app, false);
+        app.world_mut().commands().trigger(Activate { entity: cancel });
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<RecordedOutcome>().0,
+            Some(ModalOutcome::Cancelled),
+            "the cancel action resolves the dialog"
         );
     }
 }

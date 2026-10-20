@@ -21,7 +21,10 @@ use chart::histogram::sync_histogram_charts;
 use chart::ring_buffer::{TelemetryCadenceManager, update_telemetry_cadence};
 use chart::texture::release_retired;
 use chart::topology::{advance_topology_flow, sync_topology_charts};
-use globe::{advance_globe_rotation, sync_globe_charts};
+use globe::advance_globe_rotation;
+use globe::report::{GlobeMeasurement, sync_globe_measurement};
+use globe::stage::{GlobeIdleBudget, GlobeStage, sync_globe_stage};
+use globe::sync_globe_charts;
 pub mod abi;
 pub mod accordion;
 pub mod adaptive_modal;
@@ -139,6 +142,9 @@ impl Plugin for WidgetsPlugin {
         // Native required components attach at spawn, before any navigation can retire a control.
         app.register_required_components::<Button, responsive::TouchHitbox>()
             .register_required_components::<Button, ButtonDisabled>();
+        // The globe enhancement's own stage attaches with its plate: a plate
+        // without a stage is a live enhancement.
+        app.register_required_components::<globe::GlobePlate, GlobeStage>();
         if !app.is_plugin_added::<WidgetLocalizationPlugin>() {
             app.add_plugins(WidgetLocalizationPlugin);
         }
@@ -191,6 +197,13 @@ impl Plugin for WidgetsPlugin {
         if !app.is_plugin_added::<TabPlugin>() {
             app.add_plugins(TabPlugin);
         }
+        // The official dialog layer (capability norm ⑥): the barrier
+        // click-outside, the Escape interception, the focus containment and
+        // the dialog stack come from bevy_ui_widgets, so every product
+        // surface that mounts a dialog gets them.
+        if !app.is_plugin_added::<modal::ModalWidgetsPlugin>() {
+            app.add_plugins(modal::ModalWidgetsPlugin);
+        }
         app.add_observer(tablist_self_update);
         app.add_observer(tabs::stamp_initial_tab_ink);
         app.init_resource::<ResponsiveContext>();
@@ -199,6 +212,8 @@ impl Plugin for WidgetsPlugin {
         app.init_resource::<master_detail::MasterDetailState>();
         app.init_resource::<adaptive_modal::ModalState>();
         app.init_resource::<TelemetryCadenceManager>();
+        app.init_resource::<GlobeIdleBudget>();
+        app.init_resource::<GlobeMeasurement>();
         app.init_resource::<toast::ToastQueue>();
 
         app.init_resource::<fonts::FontSources>();
@@ -216,7 +231,7 @@ impl Plugin for WidgetsPlugin {
         app.add_observer(master_detail::on_master_item_button_activated);
         app.add_observer(master_detail::on_master_item_selected);
         app.add_observer(master_detail::on_master_back_activated);
-        app.add_observer(adaptive_modal::on_modal_close_activated);
+        app.add_observer(adaptive_modal::on_adaptive_modal_request_close);
         app.add_observer(adaptive_modal::on_modal_open);
         app.add_observer(adaptive_modal::on_modal_close);
 
@@ -265,6 +280,10 @@ impl Plugin for WidgetsPlugin {
             PostUpdate,
             (
                 button::sync_button_disabled,
+                // The shared switch control owns the knob's geometry: the
+                // surface flips the typed position, this re-projects the
+                // offset before the layout pass reads it.
+                switch::sync_switch_knobs,
                 interaction_block::sync_inputs,
                 ApplyDeferred,
             )
@@ -295,7 +314,13 @@ impl Plugin for WidgetsPlugin {
             Update,
             (
                 (advance_topology_flow, sync_topology_charts).chain(),
-                (advance_globe_rotation, sync_globe_charts).chain(),
+                (
+                    advance_globe_rotation,
+                    sync_globe_stage,
+                    sync_globe_charts,
+                    sync_globe_measurement,
+                )
+                    .chain(),
                 update_telemetry_cadence,
                 scrollarea::advance_scroll_motion,
                 scrollarea::focus_avoidance_auto_scroll_system,

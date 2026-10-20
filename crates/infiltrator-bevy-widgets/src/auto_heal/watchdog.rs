@@ -40,8 +40,9 @@ impl HealingWatchdog {
     pub fn active_action_name(&self) -> Option<&str> {
         match &self.stage {
             WatchdogStage::Idle => None,
-            WatchdogStage::Repairing { action_name }
-            | WatchdogStage::Tripped { action_name } => Some(action_name),
+            WatchdogStage::Repairing { action_name } | WatchdogStage::Tripped { action_name } => {
+                Some(action_name)
+            }
         }
     }
 

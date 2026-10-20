@@ -211,11 +211,8 @@ mod tests {
 
     #[test]
     fn test_reorderable_list_drag_stage_is_typed() {
-        let mut list = ReorderableListState::new(vec![
-            "A".to_string(),
-            "B".to_string(),
-            "C".to_string(),
-        ]);
+        let mut list =
+            ReorderableListState::new(vec!["A".to_string(), "B".to_string(), "C".to_string()]);
 
         assert_eq!(list.drag_stage(), ReorderDragStage::Idle);
         assert_eq!(list.dragged_item_index(), None);
@@ -234,7 +231,8 @@ mod tests {
         // A second drag while one runs is refused.
         assert!(list.start_drag(1).is_err());
 
-        list.set_drop_target(2).expect("running drag takes a drop position");
+        list.set_drop_target(2)
+            .expect("running drag takes a drop position");
         assert_eq!(list.target_drop_index(), Some(2));
 
         assert_eq!(list.end_drag(), Some(2));

@@ -239,9 +239,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::ComputedNode;
-use bevy::ui::prelude::{
-    BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent,
-};
+use bevy::ui::prelude::{BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent};
 
 /// Specification for moving shimmer gradient waves on skeleton loading placeholders.
 #[derive(Clone, Copy, Debug, PartialEq)]

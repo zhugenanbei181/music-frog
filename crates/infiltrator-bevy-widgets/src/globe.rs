@@ -15,15 +15,35 @@
 //!
 //! The heavy math is pure and headless-testable: [`GlobeProjection`] (yaw/pitch
 //! rotation, back-hemisphere culling), [`build_globe_arcs`] and
-//! [`rasterize_globe`]. The Bevy seam is the usual `bsn!` scene
+//! [`raster::rasterize_globe`]. The Bevy seam is the usual `bsn!` scene
 //! ([`globe_scene`]) plus a compare-and-set repaint system
 //! ([`sync_globe_charts`]) that does no work while the globe is static.
+//!
+//! # The globe's own seams
+//!
+//! * [`degradation`] — the device pressure (low battery, thermal throttling,
+//!   reduced motion) decides how much of the sphere the widget may spend.
+//! * [`interaction`] — the pointer seam: a hover resolves to the node under
+//!   the pointer by its real identity, never to a guessed index.
+//! * [`stage`] — the enhancement's own typed stage: live, asleep while
+//!   idle, closed. A stage that owns no raster releases it.
+//! * [`report`] — the frame and memory report, bound to the source identity
+//!   of the globe it measured and compared against a measured baseline.
+//! * [`raster`] — the RGBA8 rasterizer (the measured surface of the widget).
+
+pub mod degradation;
+pub mod interaction;
+pub mod raster;
+pub mod report;
+pub mod stage;
 
 use crate::chart::texture::ChartTextureView;
 use crate::chart::to_rgba8;
+use crate::globe::raster::globe_image;
+use crate::globe::stage::GlobeStage;
 use crate::palette::UiPalette;
 use crate::particle::{GreatCircleArc, ParticleEmitter, TrafficParticle};
-use bevy::asset::{Assets, RenderAssetUsages};
+use bevy::asset::Assets;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -31,24 +51,16 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::math::{Vec2, Vec3};
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::time::Time;
 use bevy::ui::prelude::{Node, percent, px};
 use std::collections::HashMap;
-use std::f32::consts::TAU;
 
 /// Arc altitude above the unit sphere, as a fraction of the radius.
 pub const ARC_ALTITUDE_FRACTION: f32 = 0.12;
 
 /// Hard upper bound on simultaneously live traffic particles.
 pub const MAX_GLOBE_PARTICLES: usize = 128;
-
-/// Segment count used when sampling a great-circle arc.
-const ARC_SAMPLES: usize = 32;
-
-/// Segment count used for the globe limb circle.
-const LIMB_SAMPLES: usize = 96;
 
 // ---------------------------------------------------------------------------
 // Geographic provenance
@@ -359,6 +371,31 @@ impl GlobeSpec {
         self.yaw_deg = wrap_deg(self.yaw_deg + delta_px.x * DEG_PER_PX);
         self.pitch_deg = clamp_pitch(self.pitch_deg + delta_px.y * DEG_PER_PX);
     }
+
+    /// The current view orientation: the globe's rotation, as one value.
+    pub fn view(&self) -> GlobeView {
+        GlobeView {
+            yaw_deg: self.yaw_deg,
+            pitch_deg: self.pitch_deg,
+        }
+    }
+
+    /// The bytes the owned RGBA8 raster costs at this spec's raster size.
+    ///
+    /// The raster is the measured surface of the widget: four bytes per
+    /// pixel, and zero while the enhancement owns no raster.
+    pub fn raster_bytes(&self) -> u64 {
+        u64::from(self.width) * u64::from(self.height) * 4
+    }
+}
+
+/// The globe's view orientation: the yaw/pitch pair the projection reads.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GlobeView {
+    /// Center longitude facing the viewer, in degrees.
+    pub yaw_deg: f32,
+    /// Center latitude facing the viewer, in degrees.
+    pub pitch_deg: f32,
 }
 
 fn wrap_deg(value: f32) -> f32 {
@@ -606,266 +643,6 @@ pub fn globe_category_to_rgba(category: GlobeNodeCategory, palette: &UiPalette) 
 }
 
 // ---------------------------------------------------------------------------
-// Rasterization
-// ---------------------------------------------------------------------------
-
-fn blend(pixels: &mut [u8], width: u32, x: i32, y: i32, ink: [u8; 4], alpha: f32) {
-    if x < 0 || y < 0 || x >= width as i32 {
-        return;
-    }
-    let offset = (y as usize * width as usize + x as usize) * 4;
-    let Some(pixel) = pixels.get_mut(offset..offset + 4) else {
-        return;
-    };
-    let source_alpha = alpha.clamp(0.0, 1.0);
-    let destination_alpha = pixel[3] as f32 / 255.0;
-    let out_alpha = source_alpha + destination_alpha * (1.0 - source_alpha);
-    for channel in 0..3 {
-        let source = ink[channel] as f32 / 255.0;
-        let destination = pixel[channel] as f32 / 255.0;
-        let out = if out_alpha <= 0.0 {
-            0.0
-        } else {
-            (source * source_alpha + destination * destination_alpha * (1.0 - source_alpha))
-                / out_alpha
-        };
-        pixel[channel] = (out * 255.0).round().clamp(0.0, 255.0) as u8;
-    }
-    pixel[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
-}
-
-fn draw_disc(
-    pixels: &mut [u8],
-    width: u32,
-    cx: f32,
-    cy: f32,
-    radius: f32,
-    ink: [u8; 4],
-    alpha: f32,
-) {
-    let radius = radius.max(0.5);
-    let min_x = (cx - radius).floor() as i32;
-    let max_x = (cx + radius).ceil() as i32;
-    let min_y = (cy - radius).floor() as i32;
-    let max_y = (cy + radius).ceil() as i32;
-    for y in min_y..=max_y {
-        for x in min_x..=max_x {
-            let dx = x as f32 - cx;
-            let dy = y as f32 - cy;
-            if dx * dx + dy * dy <= radius * radius {
-                blend(pixels, width, x, y, ink, alpha);
-            }
-        }
-    }
-}
-
-fn draw_line(
-    pixels: &mut [u8],
-    width: u32,
-    from: Vec2,
-    to: Vec2,
-    ink: [u8; 4],
-    alpha: f32,
-    thickness: i32,
-) {
-    let steps = (to.x - from.x)
-        .abs()
-        .max((to.y - from.y).abs())
-        .ceil()
-        .max(1.0) as i32;
-    for step in 0..=steps {
-        let t = step as f32 / steps as f32;
-        let x = from.x + (to.x - from.x) * t;
-        let y = from.y + (to.y - from.y) * t;
-        for oy in -thickness..=thickness {
-            for ox in -thickness..=thickness {
-                if ox * ox + oy * oy <= thickness * thickness {
-                    blend(
-                        pixels,
-                        width,
-                        x.round() as i32 + ox,
-                        y.round() as i32 + oy,
-                        ink,
-                        alpha,
-                    );
-                }
-            }
-        }
-    }
-}
-
-fn draw_limb(pixels: &mut [u8], width: u32, center: Vec2, radius: f32, ink: [u8; 4]) {
-    if radius <= 0.0 {
-        return;
-    }
-    let mut previous: Option<Vec2> = None;
-    for step in 0..=LIMB_SAMPLES {
-        let angle = TAU * step as f32 / LIMB_SAMPLES as f32;
-        let point = Vec2::new(
-            center.x + radius * angle.cos(),
-            center.y + radius * angle.sin(),
-        );
-        if let Some(previous) = previous {
-            draw_line(pixels, width, previous, point, ink, 0.45, 0);
-        }
-        previous = Some(point);
-    }
-}
-
-fn draw_sphere_arc(
-    pixels: &mut [u8],
-    width: u32,
-    projection: &GlobeProjection,
-    arc: &GlobeArc,
-    ink: [u8; 4],
-    highlighted: bool,
-) {
-    let thickness = if highlighted { 2 } else { 1 };
-    let alpha = if highlighted { 0.95 } else { 0.55 };
-    let mut previous: Option<ProjectedPoint> = None;
-    for step in 0..=ARC_SAMPLES {
-        let t = step as f32 / ARC_SAMPLES as f32;
-        let point = projection.project_point3(arc.arc.sample_point(t, ARC_ALTITUDE_FRACTION), 1.0);
-        if let (Some(a), Some(b)) = (previous, point) {
-            draw_line(
-                pixels,
-                width,
-                Vec2::new(a.x, a.y),
-                Vec2::new(b.x, b.y),
-                ink,
-                alpha,
-                thickness,
-            );
-        }
-        previous = point;
-    }
-}
-
-fn draw_flat(spec: &GlobeSpec, palette: &UiPalette, pixels: &mut [u8], draw_links: bool) {
-    let markers = project_flat_nodes(spec);
-    if draw_links {
-        let positions: HashMap<&str, Vec2> = markers
-            .iter()
-            .map(|marker| (marker.id.as_str(), Vec2::new(marker.x, marker.y)))
-            .collect();
-        for link in &spec.links {
-            let (Some(from), Some(to)) = (
-                positions.get(link.source_id.as_str()),
-                positions.get(link.target_id.as_str()),
-            ) else {
-                continue;
-            };
-            let ink = to_rgba8(if link.highlighted {
-                palette.accent
-            } else {
-                palette.border
-            });
-            draw_line(pixels, spec.width, *from, *to, ink, 0.7, 1);
-        }
-    }
-    for marker in &markers {
-        let hovered = spec.hovered_node.as_deref() == Some(marker.id.as_str());
-        let ink = if hovered {
-            to_rgba8(palette.accent)
-        } else {
-            globe_category_to_rgba(marker.category, palette)
-        };
-        let radius = 2.0 + marker.weight * 3.0;
-        draw_disc(pixels, spec.width, marker.x, marker.y, radius, ink, 1.0);
-    }
-}
-
-fn draw_globe(spec: &GlobeSpec, palette: &UiPalette, pixels: &mut [u8]) {
-    let projection = GlobeProjection::from_spec(spec);
-    draw_limb(
-        pixels,
-        spec.width,
-        projection.center,
-        projection.radius_px,
-        to_rgba8(palette.border),
-    );
-
-    for arc in &build_globe_arcs(spec) {
-        let hovered = spec
-            .hovered_node
-            .as_deref()
-            .is_some_and(|hovered| hovered == arc.source_id || hovered == arc.target_id);
-        let highlighted = arc.highlighted || hovered;
-        let ink = to_rgba8(if highlighted {
-            palette.accent
-        } else {
-            palette.border
-        });
-        draw_sphere_arc(pixels, spec.width, &projection, arc, ink, highlighted);
-    }
-
-    let particle_ink = to_rgba8(palette.accent);
-    for particle in &build_globe_particles(spec, MAX_GLOBE_PARTICLES).particles {
-        if let Some(point) = projection.project_point3(particle.position, 1.0) {
-            draw_disc(
-                pixels,
-                spec.width,
-                point.x,
-                point.y,
-                2.0,
-                particle_ink,
-                0.95,
-            );
-        }
-    }
-
-    for node in &spec.nodes {
-        let Some(geo) = node.location.plottable() else {
-            continue;
-        };
-        let Some(point) = projection.project_lat_lon(geo.lat_deg() as f32, geo.lon_deg() as f32)
-        else {
-            continue;
-        };
-        let hovered = spec.hovered_node.as_deref() == Some(node.id.as_str());
-        let ink = if hovered {
-            to_rgba8(palette.accent)
-        } else {
-            globe_category_to_rgba(node.category, palette)
-        };
-        let radius = 2.0 + node.weight.clamp(0.0, 1.0) * 3.0 + point.depth * 1.5;
-        draw_disc(pixels, spec.width, point.x, point.y, radius, ink, 1.0);
-    }
-}
-
-/// Rasterize the globe (or its 2D fallback) into an RGBA8 buffer.
-pub fn rasterize_globe(spec: &GlobeSpec, palette: &UiPalette) -> Vec<u8> {
-    let width = spec.width;
-    let height = spec.height;
-    let mut pixels = vec![0u8; (width * height * 4) as usize];
-    if width == 0 || height == 0 {
-        return pixels;
-    }
-    match spec.mode {
-        GlobeMode::Globe => draw_globe(spec, palette, &mut pixels),
-        GlobeMode::Flat2d => draw_flat(spec, palette, &mut pixels, true),
-        GlobeMode::Eco => draw_flat(spec, palette, &mut pixels, false),
-    }
-    pixels
-}
-
-/// Create an [`Image`] asset from a globe spec.
-pub fn globe_image(spec: &GlobeSpec, palette: &UiPalette) -> Image {
-    let data = rasterize_globe(spec, palette);
-    Image::new(
-        Extent3d {
-            width: spec.width,
-            height: spec.height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    )
-}
-
-// ---------------------------------------------------------------------------
 // Bevy seam
 // ---------------------------------------------------------------------------
 
@@ -893,6 +670,7 @@ pub struct GlobeRenderView {
     entity: Entity,
     plate: &'static GlobePlate,
     paint: Option<&'static GlobePaint>,
+    stage: Option<&'static GlobeStage>,
     texture: ChartTextureView,
 }
 
@@ -925,6 +703,12 @@ pub fn sync_globe_charts(
     for view in &charts {
         let (entity, plate, paint) = (view.entity, view.plate, view.paint);
         let spec = &plate.0;
+        // A sleeping or closed enhancement owns no raster: it releases the
+        // texture it had and paints nothing until it is demanded again.
+        if view.stage.is_some_and(|stage| !stage.is_live()) {
+            view.texture.release_texture(&mut commands);
+            continue;
+        }
         let repaint = !paint.is_some_and(|paint| paint.matches(spec, &palette));
         if view.texture.sync::<GlobePlate>(
             &mut images,
@@ -942,13 +726,20 @@ pub fn sync_globe_charts(
 
 /// Advance only mounted globe plates that are actually animating. A static
 /// globe (no auto-rotation, no active flow) is left untouched, so the repaint
-/// system above performs no per-frame work.
-pub fn advance_globe_rotation(time: Res<Time>, mut charts: Query<&mut GlobePlate>) {
+/// system above performs no per-frame work. A sleeping or closed enhancement
+/// spends nothing at all: no rotation and no flow phase.
+pub fn advance_globe_rotation(
+    time: Res<Time>,
+    mut charts: Query<(&mut GlobePlate, Option<&GlobeStage>)>,
+) {
     let dt = time.delta_secs();
     if dt <= 0.0 {
         return;
     }
-    for mut plate in &mut charts {
+    for (mut plate, stage) in &mut charts {
+        if stage.is_some_and(|stage| !stage.is_live()) {
+            continue;
+        }
         let spec = &mut plate.0;
         if !spec.mode.animates() {
             continue;
@@ -956,11 +747,7 @@ pub fn advance_globe_rotation(time: Res<Time>, mut charts: Query<&mut GlobePlate
         if spec.auto_rotate_speed_deg_per_sec != 0.0 {
             spec.yaw_deg = wrap_deg(spec.yaw_deg + spec.auto_rotate_speed_deg_per_sec * dt);
         }
-        let has_active_flow = spec.flow_speed > 0.0
-            && spec.links.iter().any(|link| {
-                link.bandwidth_bps.is_finite() && (link.highlighted || link.bandwidth_bps > 0.0)
-            });
-        if has_active_flow {
+        if spec.has_active_flow() {
             spec.flow_phase = (spec.flow_phase + dt * spec.flow_speed).fract();
         }
     }

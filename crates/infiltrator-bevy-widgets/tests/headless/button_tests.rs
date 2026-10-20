@@ -1,7 +1,6 @@
 //! Headless tests for polymorphic buttons: Primary, Default, Secondary, Ghost,
 //! Danger, Outline variants, size ladders, and loading/disabled state sync.
 
-use infiltrator_bevy_widgets::theme::REM_BASE;
 use bevy::MinimalPlugins;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Startup, Update};
@@ -37,6 +36,7 @@ use infiltrator_bevy_widgets::button::{
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 use std::time::Duration;
 

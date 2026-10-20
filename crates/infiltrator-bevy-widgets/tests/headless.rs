@@ -20,6 +20,8 @@ mod combobox_tests;
 mod drawer_tests;
 #[path = "headless/fonts_tests.rs"]
 mod fonts_tests;
+#[path = "headless/globe_stage_tests.rs"]
+mod globe_stage_tests;
 #[path = "headless/globe_tests.rs"]
 mod globe_tests;
 #[path = "headless/icon_tests.rs"]
@@ -30,10 +32,10 @@ mod icon_tile_tests;
 mod list_tests;
 #[path = "headless/menu_tests.rs"]
 mod menu_tests;
-#[path = "headless/motion_tests.rs"]
-mod motion_tests;
 #[path = "headless/modal_dialog_tests.rs"]
 mod modal_dialog_tests;
+#[path = "headless/motion_tests.rs"]
+mod motion_tests;
 #[path = "headless/nav_tests.rs"]
 mod nav_tests;
 #[path = "headless/palette_tests.rs"]

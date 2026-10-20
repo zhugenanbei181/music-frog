@@ -298,6 +298,49 @@ pub fn button_scene(
     button_sized_scene(label, variant, ButtonSize::Md, palette)
 }
 
+/// A medium button that carries the caller's action marker on the button's
+/// own node.
+///
+/// The official `Button` and the marker live on the same node, so the product
+/// routes the activate event from the button itself — the marker is the
+/// button's identity, not a wrapper's. The button keeps the product skin of
+/// [`button_scene`]: the same fill, edge, radius and label role.
+pub fn button_action_scene<M: Component + Clone + Unpin>(
+    label: String,
+    variant: ButtonVariant,
+    marker: M,
+    palette: &UiPalette,
+) -> impl Scene + use<M> {
+    let fill = button_fill(variant, false, false, false, false, palette);
+    let edge = button_border(variant, false, false, false, false, palette);
+
+    let scene = control::button_scene(
+        ButtonLayout {
+            min_width: Val::Auto,
+            height: rem(palette.control_height_px),
+            padding: UiRect::horizontal(rem(space::S12)),
+            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+            align: AlignItems::Center,
+            justify: JustifyContent::Center,
+            radius: BorderRadius::all(rem(palette.control_radius_px)),
+        },
+        fill,
+        BorderColor::all(edge),
+        bsn! { Text(label) TextRole(Role::Body) ButtonLabel },
+    );
+
+    bsn! {
+        @{ scene }
+        marker
+        ButtonVariantStyle(variant)
+        ButtonSizeStyle(ButtonSize::Md)
+        ControlVisual(false)
+        ButtonLoading(false)
+        ButtonDisabled(false)
+        TouchHitbox::default()
+    }
+}
+
 /// Button with loading indicator state support.
 pub fn loading_button_scene(
     label: String,
