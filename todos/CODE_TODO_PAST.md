@@ -200,125 +200,27 @@
 
 ## 八、Android 静态质量门（已交付，4条 / 9pt）
 
-- [ ] BANDROID-044.1 [kind: infra] [priority: P1] [points: 2] [owner: android gradle] [status: Integrated] Android Lint 接入
-  - 产物：Compose/Bevy/Slint Debug 变体注册真实 lint task（`androidLintGate`），警告即错误（`warningsAsErrors = true`、`abortOnError = true`），不读 baseline 文件、不把 assemble 当 lint 结果；lint task 跑在 PR/push workflow 与本机入口里。
-  - 依赖：BANDROID-042/043 存量违规清理。
-  - 验收：lint 结果分项报告，违规清零后强制生效。
-  - 当前证据（L）：提交 `faa013c`；本机实测 lint 68 条（4 errors + 64 warnings）→ 0；四条有据可查的窄豁免写在 `android/app/lint.xml` 并由架构红线守卫逐条钉住；`android/app/lint.xml` 之外无任何 suppression。
-  - 待验证：受控 CI runner 的真实 lint 回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
-  - 本机可执行动作：跑统一验证批次 `scripts/quality/android-quality-gates.sh`。
 
-- [ ] BANDROID-044.2 [kind: infra] [priority: P1] [points: 2] [owner: android gradle + scripts/quality] [status: Integrated] ktlint/Detekt 门
-  - 产物：ktlint 与 Detekt 接入并强制；无永久 baseline、文件级 suppression 或抬高阈值。
-  - 依赖：BANDROID-044.1。
-  - 验收：违规清零后强制生效；正反例可复现。
-  - 当前证据（L）：提交 `faa013c`；ktlint 5046 → 0（以仓库自身代码风格为声明风格，作用域限定 Gradle 脚本）；Detekt 项目配置 0 条（stock profile 的 769 条不作数），每条 exclude 都写明由哪道机器门负责该关注点；无 baseline 文件、无文件级 suppression、无抬高阈值。
-  - 待验证：受控 CI runner 的真实 ktlint/Detekt 回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
-  - 本机可执行动作：跑统一验证批次 `scripts/quality/android-quality-gates.sh`。
 
-- [ ] BANDROID-044.4 [kind: infra] [priority: P1] [points: 3] [owner: scripts/quality] [status: Integrated] 架构红线守卫
-  - 产物：禁止生产 readiness sleep、主线程阻塞、无界 GlobalScope、空 catch、吞取消、`!!` 与多状态 Boolean wire。
-  - 依赖：BANDROID-044.2。
-  - 验收：窄例外有局部说明与行为回归；正反例通过。
-  - 当前证据（L）：提交 `faa013c`；新增 `scripts/quality/android-architecture-redline-guard.py`，扫描 137 处违规点、0 违例；ARCH001–007 七条红线各有负例（共 23 条负例）；窄例外必须同时具备局部说明与行为回归。
-  - 待验证：受控 CI runner 的守卫回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
-  - 本机可执行动作：跑统一验证批次；守卫已接入 `scripts/quality/check-structure.sh`。
 
-- [ ] BANDROID-044.5 [kind: infra] [priority: P1] [points: 2] [owner: CI + 本机检查入口] [status: Integrated] 质量门接线并自测
-  - 产物：Android workflow 与本机入口分别运行三 flavor lint、ktlint、Detekt、文件预算与架构守卫。
-  - 依赖：BANDROID-044.1～044.4。
-  - 验收：正反例验证任务注册、排除、放行与拒绝；真实执行后才称质量门接通。
-  - 当前证据（L）：提交 `faa013c`；本机入口 `scripts/quality/android-quality-gates.sh` 一次跑完 lint/ktlint/Detekt/架构守卫并带自测；Android 单测 192 core host + 391 app 全绿；架构守卫以 `--self-test` + `--mode enforce` 接入结构门。
-  - 待验证：受控 CI runner 的真实回执（CI 腿登记在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
-  - 本机可执行动作：跑统一验证批次 `bash scripts/quality/check-structure.sh`。
 
 ## 九、文档与状态表达红线（已交付，2条 / 5pt）
 
-- [ ] STATE-001.1 [kind: mechanism] [priority: P0] [points: 3] [owner: 全体 crate owner] [status: Integrated] 隐式状态机全量审计与逐条改写
-  - 产物：语义审计器 `scripts/quality/implicit-state-audit.py`（识别 phase carrier 上的多 bool 与 Option-as-stage）+ 判决台账 `scripts/quality/implicit-state-verdicts.json`；每条候选必须有人工判决（`legitimate` 独立事实 / `fixed` 已改写 / `open` 仍待改），未判决或 `open` 即门禁失败。
-  - 依赖：无；与并行工流按文件所有权切分（Bevy UI / Bevy widgets / Iced runtime 三簇）。
-  - 验收：候选全部判决完毕；`--mode enforce` 通过；真实违规全部改写为 typed enum + typed transition，并有行为测试证明非法组合不再可表示。
-  - 当前证据（L）：审计器 `candidates=22 undecided=0 open=0 stale_verdicts=0`（enforce 通过）；台账 22 条全部判决——16 条判为 `fixed`（真实阶段表改写为 typed enum + typed transition，含 3 处原本可表示非法组合者：Iced 供应商维护/快照差异弹窗/探针/系统代理/生命周期/运行期补丁、Bevy UI 的确认/DNS 表单/连接抽屉、Bevy widgets 的看门狗/混沌/焦点陷阱/主从视图/拖拽/虚拟槽/PIP 激活），9 条判为 `legitimate`（真实二值独立事实，逐条写明理由）；`scripts/quality/typed-state-guard.py` 0 findings。
-  - 待验证：统一验证批次复跑审计器与结构门（`--mode enforce` + 结构门），确认新合入代码未引入新候选。
-  - 本机可执行动作：跑统一验证批次。
 
-- [ ] PUB-006.6 [kind: infra] [priority: P1] [points: 2] [owner: docs] [status: Integrated] Docs.rs 预览与公共 API 文档质量门
-  - 产物：docs.rs 渲染模拟配置与 API 文档门禁；七个 crate 开启 `#![warn(missing_docs)]` 并提供标准 Rustdoc 与 doctest。
-  - 依赖：PUB-006.1、PUB-006.2。
-  - 验收：`cargo doc --all-features --no-deps` 零警告，intra-doc links 全部校验；公开 API 文档覆盖率 100% 且含可执行 doctest。
-  - 当前证据（L）：`scripts/quality/rustdoc-guard.py` 是 docs.rs 等价门禁——`--mode structure` 校验七个 crate 的公开项全部带文档、每个 crate 至少一条可执行 doctest、docs.rs 元数据齐备，`--mode docs` 跑 `cargo doc --all-features --no-deps` 取零告警并跑 `cargo test --doc` 证明示例可执行；1436 个公开项已补齐真实 Rustdoc，7 条可执行 doctest 353/353 全绿；门禁已接入 `scripts/quality/check-structure.sh`（structure + docs 两种模式）。
-  - 待验证：统一验证批次复跑结构门，确认门禁在当前代码上仍零告警。
-  - 本机可执行动作：跑统一验证批次。
 
 ## 十、开源生态与发布门禁（已交付，4条 / 7pt）
 
-- [ ] PUB-006.7 [kind: mechanism] [priority: P1] [points: 2] [owner: test-infra] [status: Integrated] 无头沙盒集成测试与混沌容错验证
-  - 产物：针对中性运行时的无头 CI 集成沙盒与混沌套件；覆盖网络波动、内核猝死拉起、锁竞争与损坏配置热恢复。
-  - 依赖：PUB-003.4、PUB-006.1。
-  - 验收：异常注入下状态机 100% fail-closed、租约安全回收、无内存泄漏且能自愈。
-  - 当前证据（L）：新包 `sandbox`（`lurker-sandbox`，publish=false）注入四类确定性故障——网络抖动、内核进程猝死、锁竞争、配置损坏——每类一条场景，断言全部是 typed 结果：`RuntimeError::Port(PortError::Network(_))` 与 `Failed { phase: Readiness }`（进程起停配平）、`PortError::Failed` 与 `Failed { phase: StartProcess }`（无残留 running 声明）、真实 `flock` 争用被拒且写栅栏可再次获取、`DocumentValidation::Invalid { diagnostics }` 且耐久写回逐字节一致；租约腿证明外来终态被拒而绑定仍在、精确终态释放租约且日志改绑新 owner；资源腿证明取得的每份资源都被归还；故障模型用穷尽匹配，新增故障类必须同时新增场景；混沌套件 nextest `8f00c3f7-19a1-421f-a3f8-bebada50dbf8` 7/7 全绿；守卫 `sandbox-chaos-guard.py` 拒绝套件里的随机与计时（`rand`/`sleep(`/`Instant::now` 等）。
-  - 待验证：统一验证批次复跑混沌矩阵与守卫，确认新合入代码未引入新故障类。
-  - 本机可执行动作：跑统一验证批次 `cargo nextest run -p lurker-sandbox`。
 
-- [ ] PUB-006.9 [kind: mechanism] [priority: P1] [points: 2] [owner: examples] [status: Integrated] 最小化用例展厅 (Examples Gallery)
-  - 产物：`examples/` 下 4 套独立极简用例（minimal-cli / minimal-slint / minimal-iced / minimal-bevy），各 ≤200 行、无多余依赖。
-  - 依赖：PUB-005.1～PUB-005.3、PUB-004.2。
-  - 验收：四套 example 独立 `cargo run --example` 成功并接入 CI 编译守卫。
-  - 当前证据（L）：四套用例各为独立 workspace 包并只声明一个同名 `[[example]]` 目标：minimal-cli 53 行、minimal-slint 64 行（+50 行 slint 文件）、minimal-iced 103 行、minimal-bevy 160 行，全部 ≤200 行；依赖只有中性 crate 加各自展示的一套工具链，工具链需求与产品模板逐字节比对（版本与 feature 只有一个真源）；`examples-guard.py --mode compile` 四例全部编译通过（`--mode smoke` 无头 CLI 例运行通过），`--mode structure` 校验目录、目标、白名单、模板一致与行数预算；CI 编译守卫落在已登记触发策略的 `.github/workflows/ecosystem-gate.yml`。
-  - 待验证：受控 tag 的生态门禁 workflow run 回执（CI 腿在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
-  - 本机可执行动作：跑统一验证批次。
 
-- [ ] PUB-006.10 [kind: infra] [priority: P1] [points: 2] [owner: CI] [status: Integrated] 多架构交叉构建自动化与 SemVer 兼容守卫
-  - 产物：Linux/Windows/Android aarch64 与 x86_64 交叉编译流水线 + `cargo-semver-checks` 门禁。
-  - 依赖：GAP-1.1、PUB-006.1。
-  - 验收：四大目标架构交叉编译 100% 通过；SemVer 门禁能拦截中性 crate 公开 API 的破坏性变更。
-  - 当前证据（L）：`semver-compat-guard.py` 锁定七个中性 crate 的公开 API 基线（1182 项，登记在 `semver-baseline.json`）并逐项比对；`--mode check` 报 0 差异 0 新增；**负例证明门禁会失败**——删除一个公开函数后门禁拒绝（`the gate rejected the deliberate break`），负例已接入结构门，所以一个不会失败的门禁会直接让构建红；`cross-build-guard.py` 证明四条桌面 triple、`scripts/cross-check.sh` 的两条 aarch64 腿与 `scripts/android-check.sh` 的两条 Android 腿都在位且没有 Apple 目标混入；类型检查版的 `cargo-semver-checks` 分析在生态门禁 workflow 里跑（`--mode tool --require-tool`）。
-  - 待验证：受控 tag 的生态门禁 workflow run 回执与真实 `cargo-semver-checks` 工具层回执（CI 腿在[斗战胜佛](CODE_TODO_BLOCKED.md) §二）。
-  - 本机可执行动作：跑统一验证批次（含 `scripts/cross-check.sh` 交叉腿）。
 
-- [ ] PUB-006.11 [kind: evidence] [priority: P1] [points: 1] [owner: docs/qa] [status: Integrated] 开发者全生命周期演练与干跑审计
-  - 产物：在纯净克隆环境模拟外部开发者全旅程（克隆 → 看文档 → 脚手架生成 → 运行 → 接驱动 → 调配置）并输出审计报告。
-  - 依赖：PUB-005.5、PUB-006.4、PUB-006.9。
-  - 验收：旅程零阻滞，全链路 ≤5 分钟，体验毛刺清零并归档回执。
-  - 当前证据（L）：`developer-journey-rehearsal.py` 走完克隆 → 读文档 → 脚手架 → 构建 → 运行 → 接驱动 → 调配置七步，逐步计时并给出 `ok`/`blocked`/`failed` 判定，总预算 300 秒；干跑实测产出完整审计报告（无占位符残留，模板 20 个占位符与 8 个审计问题全覆盖），守卫 `journey-rehearsal-guard.py` 校验步骤顺序、预算与报告完整性。
-  - 待验证：纯净克隆的真实演练（需要 `cargo-generate` 与一次真实编译），随统一批次执行。
-  - 本机可执行动作：跑统一验证批次 `python3 scripts/developer-journey-rehearsal.py --profile fast`。
 
 ## 十一、平台证据与安装包（已交付，2条 / 5pt）
 
-- [ ] PLATFORM-001.1 [kind: evidence] [priority: P0] [points: 3] [owner: release + scripts] [status: Integrated] 五大平台构建-安装-运行证据矩阵落地
-  - 产物：按平台矩阵口径（由 L1 入口导航）逐平台登记构建腿、安装包、运行与设备证据，缺项显式 `Unsupported` 并指向斗战胜佛。
-  - 依赖：GAP-1.1 交叉检查脚本、APPID-001.3、PARITY-001.4。
-  - 验收：Linux/Windows/Android 有本机或 CI 回执；macOS/iOS 显式 `Unsupported` 且阻塞方登记；矩阵无「以旧 commit 回执冒充当前源码」。
-  - 当前证据（L）：`scripts/platform/` 的证据台账 + `build-evidence-matrix.py` 生成矩阵，`platform-evidence-guard.py` 逐格校验：每个平台的 build/install/run/target 四腿要么带证据身份（命令、run id 或产物摘要），要么显式写 `Unsupported` 并给出原因；**交叉编译检查不算已证明**，守卫拒绝这种冒充；生成的矩阵段与台账必须同步（`--check` 报 in sync）；本机 Linux 腿的构建、安装、启动与卸载冒烟已跑通（`staged` 安装策略，私有合成器栈下应用真实起窗）；Windows / macOS / iOS / Android 目标与安装腿写明阻塞方并指向斗战胜佛。
-  - 待验证：受控 tag 的各平台构建腿回执与 Android 真机腿（在[斗战胜佛](CODE_TODO_BLOCKED.md) §二/§六）；本机 `dpkg` 系统安装分支需要 Debian 系主机与 root，本机为 CachyOS/Arch，该分支明确标为未测。
-  - 本机可执行动作：跑统一验证批次（含 `scripts/cross-check.sh` 与本机 Linux 打包腿）。
 
-- [ ] APPID-001.3 [kind: evidence] [priority: P0] [points: 2] [owner: packaging/linux] [status: Integrated] Linux 最终 Deb/AppImage 产物
-  - 产物：Linux 最终 Deb/AppImage 构建与验收。
-  - 依赖：APPID-001.2。
-  - 验收：包名/图标/二进制来自登记表；安装冒烟通过。
-  - 当前证据（L）：deb 与 AppImage 两个构建器都从 `product-identity.properties` 登记表取包名、图标与二进制，`build-linux.sh --all` 一次产出双产物并写出列出每个产物绝对路径的构建清单；deb 写出的是合法 `ar` 归档（`ar t`/`ar tv` 与 dpkg 成员布局交叉核对通过），AppImage 走真实 `appimagetool` 路径；`verify-linux-artifacts.py` 对每个产品跑 26 项登记表一致性检查；`smoke-install.sh` 从构建清单解析产物，完成安装 → 启动 → 确认起窗 → 卸载的全链路冒烟并留下证据文件；打包单测 12/12 通过。
-  - 待验证：`dpkg` 系统安装分支（需 Debian 系主机与 root，本机为 CachyOS/Arch 且非 root，该分支明确标为未测）与真实 release 二进制映射窗口的桌面会话证据（斗战胜佛 §六）。
-  - 本机可执行动作：跑统一验证批次 `bash packaging/linux/build-linux.sh --all` + 安装冒烟。
 
 ## 十二、地球增强与其帧/内存报告（已交付，2条 / 4pt）
 
-- [ ] BANDROID-016.2 [kind: mechanism] [priority: P1] [points: 3] [owner: bevy-widgets::chart] [status: Integrated] 按需 3D/2.5D 地球与流量弧线
-  - 产物：拖拽、节点地理标记、流量弧线；保留二维与 Eco 回退、低电量/热状态/减少动效降级。
-  - 依赖：BANDROID-016.1；013 图形基础。
-  - 验收：操作沿用真实节点身份；离页释放资源、静置休眠。
-  - 当前证据（L）：`infiltrator_bevy_widgets::globe` 拆成 `degradation`（`GlobeBattery`／`GlobeThermal`／`GlobeMotion` 三个独立事实组成的 `GlobeDevicePressure`、只降不升的 `effective_mode`）、`stage`（typed 阶段 `GlobeStage{Live{idle_seconds}, Sleeping, Closed}` 与 `tick`/`interact`/`close`/`open` 迁移、`GlobeIdleBudget` 静置预算）、`interaction`（`globe_pointer_target` 按真实节点 id 命中、无地理坐标的节点与被剔除的背面半球永不可命中、二维回退无损可达、`drag_globe` 夹紧俯仰并环绕偏航）、`raster`（自 `globe.rs` 拆出的 RGBA8 栅格器，`globe.rs` 回到体量预算内）。资源释放是同一个路径：闲置休眠、离页关闭与退役纹理共用 `release_texture`，纹理与 `ImageNode` 一起释放而底板保留；六条 headless 用例覆盖降级封顶（低电量→Eco、热→二维、减少动效→二维，且绝不抬高请求模式）、指针按真实身份命中、拖拽夹紧、休眠释放纹理、手势唤醒后纹理回来、关闭后释放而底板仍在。
-  - 待验证：宿主接线尚缺——`crates/infiltrator-bevy-ui` 的地球页仍需把指针事件路由进控件的接缝并唤醒阶段，且电池/热/减少动效的事实需要宿主喂入（控件层不生产平台事实）；真实录屏与性能抽样随本批截图批次。
-  - 本机可执行动作：跑统一验证批次。
 
-- [ ] BANDROID-016.3 [kind: evidence] [priority: P1] [points: 1] [owner: bevy-widgets::chart] [status: Integrated] 地球桌面帧/内存报告
-  - 产物：显示/关闭模式的帧/内存报告；增强关闭后资源释放核查。
-  - 依赖：BANDROID-016.2。
-  - 验收：报告绑定同一源码身份；等价操作面通过。
-  - 当前证据（L）：`globe::report` 的 `GlobeSourceIdentity` 是**源**（节点与其真实地理观测与来源、连线、模式、栅格尺寸）的内容指纹而不是视图或阶段，所以旋转与推进不改变它、换节点就改变它；`GlobeFrameReport` 带帧数、耗时与独占字节并给出 `fps()`；`GlobeBaseline` 是实测基线，比较结果是 typed 判决 `GlobeBudgetVerdict{WithinBudget, FrameRateBelow, MemoryAbove, OtherSource}`——**别源的基线判 `OtherSource`，绝不静默通过**；`GlobeMeasurement` 是 typed 的 `Idle`／`Open(window)` 而不是 bool/Option 对，显示期计入栅格字节、关闭期独占字节为 0，所以「显示」与「关闭」两段可直接比较；三条 headless 用例覆盖身份绑定、基线比较与计量。
-  - 待验证：报告**文件**与截图/录屏回执属于取证层（`scripts/parity` 与 `.evidence/`），不在控件层产出；基线数值需在真实宿主上实测一次。
-  - 本机可执行动作：跑统一验证批次。
 
 ## 十三、行为锚点补齐（已交付，1条 / 2pt）
 

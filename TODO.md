@@ -72,11 +72,11 @@
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 3 | 13 |
-| 过去佛 | 49 | 111 |
+| 过去佛 | 35 | 81 |
 | 斗战胜佛 | 29 | 72 |
-| **未办结联合分母** | **81** | **196** |
+| **未办结联合分母** | **67** | **166** |
 
-- **严格交付率：682 / 878 = 77.7%**（archived 682pt / archived 682 + 未办结 196pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：712 / 878 = 81.1%**（archived 712pt / archived 712 + 未办结 166pt）。执行态参考仍以看板状态计算，不替代验收。
 - 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt；2026-10-20 再补立 `BEVYCAP-003.1` 2pt（Bevy 场景律法唯一 owner 收敛：仓库自有 `bevy_bsn_guard.py` 与共享包场景门禁当前双份执行同一条 BSN 律法），未办结条目集合净增 58pt；2026-10-20 再补立 `WIDGET-001.1` 3pt（rem 迁移实测暴露的重复事实：开关轨道与旋钮几何在四个页面各写一份常量，widgets 缺 switch 控件真源），未办结条目集合净增 61pt；同日再补立 `BEVYCAP-004.1` 3pt（能力规范②④的浮层存量缺口：八个浮层 owner 补 `ThemeContext(SurfaceLevel::Floating)` 与 `FixedNode`，并加机器规则 `BEVY-BSN-011`）、`BEVYCAP-004.2` 3pt（modal 层迁官方 `Dialog`/`ModalDialog`/`RequestClose`，bool 对改 typed `ModalStage`）、`TOKEN-001.2` 2pt（契约圆角阶梯「居中对话框」角色重叠待裁决）；前三条已交付并迁入过去佛，未办结条目集合净增 69pt。
 - 2026-10-20 本批迁移：Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次与 CI runner 回执）；联合分母不变，严格交付率仍只计 archived points，故仍为 682 / 876 = 77.9%。
 - 2026-10-20 本批再迁移：隐式状态机全量审计（`STATE-001.1`，3 pt）与公共 API 文档质量门（`PUB-006.6`，2 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次复跑审计器与 docs.rs 等价门禁）；联合分母不变，严格交付率仍只计 archived points，故仍为 682 / 876 = 77.9%。
@@ -87,7 +87,8 @@
 - 2026-10-20 本批再迁移：双引擎真实二进制 smoke（`PUB-006.8`，2 pt）与 Android 三 flavor 取证流（`PARITY-001.4`，3 pt）由现在佛迁入过去佛（状态 `Integrated`，真实回执随统一批次产出）；**新立一条** `PUB-006.13`（2 pt）——真实二进制取证暴露的实现缺口：`singbox-driver` 的 typed 测速 port 仍返回 `Unsupported`，缺口回流现在佛；联合分母因新立一条 +2 pt（194 → 196 pt），严格交付率仍只计 archived points，故为 682 / 878 = 77.7%。
 - 2026-10-20 本批再迁移：Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）由现在佛迁入过去佛（状态 `Integrated`，像素回执随统一截图批次产出、缺交互路径的业务仍保持 pending）；联合分母不变（196 pt），严格交付率仍为 682 / 878 = 77.7%。
 - 2026-10-20 本批再迁移：sing-box 驱动的 typed 测速端口（`PUB-006.13`，2 pt）由现在佛迁入过去佛（状态 `Integrated`，真实二进制回执随收口批次产出）；联合分母不变（196 pt），严格交付率仍为 682 / 878 = 77.7%。
-- 归档口径：累计 263 条 / 682 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
+- 2026-10-20 统一验证批次办结 14 条 / 30 pt：Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`）、状态表达与文档门 2 条（`STATE-001.1`、`PUB-006.6`）、开源生态 4 条（`PUB-006.7`／`006.9`／`006.10`／`006.11`）、平台证据与安装包 2 条（`PLATFORM-001.1`、`APPID-001.3`）、地球增强 2 条（`BANDROID-016.2`、`016.3`）。批次证据：全仓 `cargo nextest run --workspace --no-fail-fast` **5372/5372 通过（15 skipped）**、`bash scripts/quality/check-structure.sh` **exit 0**、远端 `main-gate` run `39412660429` 绿（格式化 + 全部结构守卫）。累计 277 条 / 712 pt，严格交付率 712 / 878 = 81.1%。
+- 归档口径：累计 277 条 / 712 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 
@@ -166,13 +167,27 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 262 条 / 681 pt；累计 263 条 / 682 pt）
+### 已归档交付原子条目（明细 276 条 / 711 pt；累计 277 条 / 712 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
-> 明细口径说明：本表 262 行可逐行核对，合计 681 pt；与累计口径 263 条 / 682 pt 的 1 条 / 1 pt 差额是 v143 继承的历史差额（旧任务 ID 与证据无法还原，未猜填）。`docs/archive/TODO_ARCHIVED_ITEMS.md` 是本表的历史子集快照，不重复计数。
+> 明细口径说明：本表 276 行可逐行核对，合计 711 pt；与累计口径 277 条 / 712 pt 的 1 条 / 1 pt 差额是 v143 继承的历史差额（旧任务 ID 与证据无法还原，未猜填）。`docs/archive/TODO_ARCHIVED_ITEMS.md` 是本表的历史子集快照，不重复计数。
 | 条目 | pt | 证据身份 |
 | --- | ---: | --- |
+| `BANDROID-044.1` Android Lint 接入 | 2 | Lint 68 条（4 errors + 64 warnings）→ 0，三 flavor Debug 变体注册真实 lint task（`warningsAsErrors` + `abortOnError`，无 baseline），四条有据可查的窄豁免写在 `android/app/lint.xml` 并由架构红线守卫逐条钉住；`scripts/quality/android-quality-gates.sh` 一次跑完三 flavor。 |
+| `BANDROID-044.2` ktlint/Detekt 门 | 2 | ktlint 5046 → 0（以仓库自身代码风格为声明风格，作用域限定 Gradle 脚本）；Detekt 项目配置 0 条（stock profile 的 769 条不作数），每条 exclude 写明由哪道机器门负责；无 baseline、无文件级 suppression、无抬高阈值。 |
+| `BANDROID-044.4` 架构红线守卫 | 3 | 新增 `scripts/quality/android-architecture-redline-guard.py`（ARCH001–007）：禁生产 readiness sleep、主线程阻塞、无界 GlobalScope、空 catch、吞取消、`!!` 与两相布尔 wire；扫描 137 点 0 违例，23 条负例；接入结构门。 |
+| `BANDROID-044.5` 质量门接线并自测 | 2 | 本机入口 `scripts/quality/android-quality-gates.sh` 一次跑完 lint/ktlint/Detekt/架构守卫并带自测；Android 单测 192 core host + 391 app 全绿；守卫以 `--self-test` + `--mode enforce` 接入 `scripts/quality/check-structure.sh`（远端 main-gate run `39412660429` 绿）。 |
+| `STATE-001.1` 隐式状态机全量审计与逐条改写 | 3 | 语义审计器 `scripts/quality/implicit-state-audit.py` + 判决台账 `implicit-state-verdicts.json`：22 条候选逐条人工判决（16 条 `fixed` 改写为 typed enum + typed transition，9 处判为合法独立事实并写明理由），未判决或 `open` 即门禁失败；`typed-state-guard` 0 findings；审计在结构门内以 enforce 运行（远端 run `39412660429` 绿）。 |
+| `PUB-006.6` Docs.rs 预览与公共 API 文档质量门 | 2 | `scripts/quality/rustdoc-guard.py` 是 docs.rs 等价门禁：`--mode structure` 校验七个中性 crate 的公开项全部带文档、每 crate 至少一条可执行 doctest、docs.rs 元数据齐备；`--mode docs` 跑 `cargo doc --all-features --no-deps` 取零告警并跑 `cargo test --doc`；1436 个公开项 + 7 条可执行 doctest（353/353）。 |
+| `PUB-006.7` 无头沙盒集成测试与混沌容错验证 | 2 | 新包 `lurker-sandbox` 注入四类确定性故障（网络抖动/内核猝死/锁竞争/配置损坏）并断言 typed 结果与租约回收、资源归还、失败后自愈；故障模型穷尽匹配；守卫拒绝套件里的随机与计时；nextest `8f00c3f7-19a1-421f-a3f8-bebada50dbf8` 7/7。 |
+| `PUB-006.9` 最小化用例展厅 | 2 | `examples/minimal-{cli,slint,iced,bevy}` 四套独立用例各 ≤200 行、只依赖中性 crate + 各自工具链（工具链需求与产品模板逐字节比对）；`examples-guard.py --mode compile` 四例编译通过、`--mode smoke` 无头 CLI 例运行通过；CI 编译守卫在已登记触发策略的 `ecosystem-gate.yml`。 |
+| `PUB-006.10` 多架构交叉构建自动化与 SemVer 兼容守卫 | 2 | `semver-compat-guard.py` 锁定七个中性 crate 的公开 API 基线（1182 项），`--mode check` 0 差异；**负例证明门禁会失败**（删除公开函数后被拒）并接入结构门；`cross-build-guard.py` 证明四条桌面 triple、两条 aarch64 交叉腿与两条 Android 腿在位且无 Apple 目标混入。 |
+| `PUB-006.11` 开发者全生命周期演练与干跑审计 | 1 | `developer-journey-rehearsal.py` 走完克隆→文档→脚手架→构建→运行→接驱动→调配置七步，逐步计时、`ok`/`blocked`/`failed` 判定、300 秒预算；干跑产出完整审计报告（20 个占位符与 8 个审计问题全覆盖）；`journey-rehearsal-guard.py` 校验步骤序与完整性。 |
+| `PLATFORM-001.1` 五大平台构建-安装-运行证据矩阵落地 | 3 | `scripts/platform/` 证据台账 + `build-evidence-matrix.py` 生成矩阵 + `platform-evidence-guard.py` 逐格校验：每平台 build/install/run/target 四腿要么带证据身份，要么显式 `Unsupported` 并写明原因，**交叉编译检查不算已证明**；生成段与台账 `--check` 同步；本机 Linux 腿的构建/安装/启动/卸载冒烟通过。 |
+| `APPID-001.3` Linux 最终 Deb/AppImage 产物 | 2 | deb 与 AppImage 均从 `product-identity.properties` 产出，`build-linux.sh --all` 一次出双产物并写构建清单；deb 为合法 `ar` 归档（`ar t`/`ar tv` 与 dpkg 成员布局交叉核对通过），AppImage 走真实 `appimagetool`；`verify-linux-artifacts.py` 每产品 26 项登记表一致性检查；安装→启动→卸载冒烟通过；打包单测 12/12。 |
+| `BANDROID-016.2` 按需 3D/2.5D 地球与流量弧线 | 3 | `infiltrator_bevy_widgets::globe` 拆成 `degradation`（电池/热/减少动效三个独立事实，只降不升）、`stage`（typed `GlobeStage{Live{idle_seconds},Sleeping,Closed}` 与迁移、静置预算）、`interaction`（按真实节点 id 命中、背面半球不可命中、二维回退无损可达、拖拽夹紧）、`raster`；闲置/休眠/关闭共用一条资源释放路径；六条 headless 用例；widgets nextest 433/433。 |
+| `BANDROID-016.3` 地球桌面帧/内存报告 | 1 | `globe::report` 的 `GlobeSourceIdentity` 绑定**源**（节点与真实地理观测、连线、模式、栅格尺寸）的内容指纹；`GlobeFrameReport` 带帧数/耗时/独占字节；`GlobeBudgetVerdict` 是 typed 判决，**别源基线判 `OtherSource` 绝不静默通过**；`GlobeMeasurement` 是 typed 的 `Idle`/`Open(window)`（非 bool/Option 对），关闭期独占字节为 0。 |
 | `PUB-004.2` 标准单向 UI 通信管道协议规范化 | 2 | 固化 `SurfaceReader`（只读快照流，`crates/infiltrator-ports/src/surface.rs`）与 `CommandSink`（强类型意图通道，`crates/infiltrator-ports/src/command_sink.rs`）单向管道端口；typed 契约 `infiltrator_contract::{command, surface, surface_snapshot}` 与 `RecordingCommandSink` 确定性记录；管道 conformance nextest `ae3c3fa9-e02c-4fed-b5ad-9e1d1db95738` 2/2 全绿。 |
 | `PUB-004.3` 现有全 UI 表面接入统一管道回归验证 | 2 | Iced/Bevy/Slint/Android 四端统一经共享 `CommandIntent`/`SurfaceSnapshot` 消费；管道回归覆盖只读快照、typed 意图有序提交（RequestId 单调）与 typed `Rejected` 失败传播；conformance nextest `ae3c3fa9-e02c-4fed-b5ad-9e1d1db95738` 2/2 全绿。 |
 | `PUB-006.3` 开源合规与可发布基线 | 2 | 七个中性 crate 统一 `license = "MIT OR Apache-2.0"` 与 per-crate 元数据；`license-guard` 9 licenses 0 violations、`publish-order-guard` 顺序拓扑无环（contract → ports → engine-runtime → profile-store → ui-presentation → mihomo-driver → singbox-driver）、`lurker-neutrality-guard` OK。 |
