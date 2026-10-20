@@ -70,9 +70,22 @@ class SurfaceStateTests(unittest.TestCase):
     def test_a_surface_without_scenario_anchors_is_not_certifiable(self):
         evidence = [dict(feature_id="alpha", surface="slint", level="scenario", status="pending",
                          test_id="-", paths="-", reason="the slint surface has no scenario anchor")]
-        state = surface_registry_state(evidence, {"alpha"}, "slint")
+        specs = {"alpha": {"slint_page": ""}}
+        state = surface_registry_state(evidence, {"alpha"}, "slint", specs)
         self.assertEqual(state["status"], "not_certifiable")
         self.assertIn("no scenario anchor", state["reason"])
+
+    def test_a_carried_surface_reports_what_it_can_and_cannot_certify(self):
+        evidence = [dict(feature_id="alpha", surface="slint", level="scenario", status="anchored",
+                         test_id="infiltrator-slint::a", paths="success", reason="-"),
+                    dict(feature_id="beta", surface="slint", level="scenario", status="pending",
+                         test_id="-", paths="-", reason="no sheet yet")]
+        specs = {"alpha": {"slint_page": "profiles"}, "beta": {"slint_page": "profiles"}}
+        state = surface_registry_state(evidence, {"alpha", "beta"}, "slint", specs)
+        self.assertEqual(state["status"], "not_in_scope")
+        self.assertEqual(state["certifiable_businesses"], ["alpha"])
+        self.assertEqual(state["businesses_without_a_scenario_anchor"], ["beta"])
+        self.assertEqual(state["missing_capability"], "no sheet yet")
 
     def test_the_marker_route_rename_is_explicit(self):
         self.assertEqual(MARKER_ROUTES["iced"]["filter"], "editor")
@@ -109,7 +122,23 @@ class ClassificationTests(unittest.TestCase):
         self.rows["alpha-standard"]["status"] = "failed-marker (no CAPTURE_READY within 120x0.25s)"
         cell = self.classify()
         self.assertEqual(cell["status"], "uncertified")
-        self.assertIn("capture failed", cell["reason"])
+        self.assertIn("no demo interaction", cell["reason"])
+
+    def test_a_missing_window_is_an_environment_fault_not_a_product_verdict(self):
+        self.rows["alpha-standard"]["status"] = "failed-window (no pid+identity match via niri IPC)"
+        cell = self.classify()
+        self.assertEqual(cell["status"], "uncertified")
+        self.assertIn("environment", cell["reason"])
+
+    def test_a_surface_panic_is_a_product_fault(self):
+        self.rows["alpha-standard"]["status"] = "failed-window (no pid+identity match via niri IPC)"
+        (self.scenario / "app.log").write_text(
+            "thread 'main' panicked at crates/infiltrator-bevy-ui/src/interaction_capture/logs.rs:137:22:\n"
+            "actual isolated logs lifecycle: Failure { code: NotReady }\n")
+        cell = self.classify()
+        self.assertEqual(cell["status"], "uncertified")
+        self.assertIn("surface panic", cell["reason"])
+        self.assertIn("logs.rs", cell["reason"])
 
     def test_a_route_only_capture_without_an_activation_marker_is_not_certified(self):
         self.marker("CAPTURE_READY page=settings skin=dark\n")

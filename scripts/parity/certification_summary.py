@@ -51,6 +51,12 @@ def missing_capability(cell, activators):
     if reason.startswith("behaviour anchor"):
         return ("the declared behaviour anchor does not pass in this build; "
                 "the surface's scenario test has to drive the real interaction")
+    if reason.startswith("surface panic"):
+        return (f"the surface crashed while activating the business: {reason}; "
+                "the interaction capture must not panic when the capability provider is unavailable")
+    if reason.startswith("capture failed (environment)"):
+        return (f"the private capture stack could not produce the pixels: {reason}; "
+                "this is an environment fault, not a product verdict")
     if reason.startswith("capture failed"):
         return (f"the private capture stack could not produce the pixels: {reason}; "
                 "this is an environment or capture-stack fault, not a product verdict")

@@ -51,10 +51,27 @@ def discovered_tests(payload):
     return found
 
 
+def discovery_coverage(payload):
+    """The packages this discovery could enumerate, if it declares them."""
+    covered = payload.get("covered_packages")
+    return set(covered) if isinstance(covered, list) else None
+
+
 def validate(manifest, evidence, catalogue=None, discovery=None, require_complete=False, receipts=None,
-             require_features=(), require_surfaces=(), accepted_surfaces=None, judge_pixels=True):
+             require_features=(), require_surfaces=(), accepted_surfaces=None, judge_pixels=True,
+             covered_packages=None):
     invalid, dangling, pending = [], [], []
+    unverified = []
+    out_of_scope_findings = []
     cells, anchors = {}, {}
+    # An acceptance may cover a subset of the surfaces (a peer that is not
+    # certifiable yet must not silently pass as closed).  The scope decides
+    # which closed cells count for the acceptance; the global picture stays.
+    scope = set(accepted_surfaces) if accepted_surfaces else set(SURFACES)
+    # An anchor in a package the discovery could not enumerate is unverified,
+    # not dangling: the test may exist in a build that does not compile now.
+    # A discovery that does not declare its coverage judges every anchor.
+    covered = set(covered_packages) if covered_packages is not None else None
     specs = {spec["id"]: spec for spec in catalogue} if catalogue is not None else None
     if catalogue is not None and (not specs or len(specs) != len(catalogue)):
         invalid.append("compiled registry is empty or contains duplicate identities")
@@ -98,7 +115,11 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
             for test in tests:
                 owner = discovery.get(test)
                 if owner is None:
-                    dangling.append(f"{key}: {test}")
+                    package = test.split("::", 1)[0]
+                    if covered is not None and package not in covered:
+                        unverified.append(f"{key}: {test} (package {package} was not discovered)")
+                    else:
+                        dangling.append(f"{key}: {test}")
                 elif owner != SURFACES.get(row["surface"]) and not (row["level"] == "contract" and owner in {"infiltrator-contract", "lurker-core-contract", "infiltrator-domain", "infiltrator-application", "infiltrator-core", "infiltrator-presentation", "lurker-ui-presentation", "mihomo-driver", "singbox-driver"}):
                     invalid.append(f"wrong package for {key}: {owner}")
         if specs is not None and row["level"] == "scenario" and key[0] in specs:
@@ -112,6 +133,17 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
         invalid.append(f"missing evidence cell: {key}")
     for key, row in cells.items():
         if row["status"] != "ready":
+            continue
+        if key[1] not in scope:
+            # A certified cell of a surface outside this acceptance scope is
+            # reported, not judged here: this run cannot hold its receipts.
+            for level in ("contract", "scenario"):
+                if anchors.get((*key, level), {}).get("status") != "anchored":
+                    out_of_scope_findings.append(f"ready without {level} evidence: {key}")
+            if judge_pixels:
+                for viewport in ("standard", "compact"):
+                    if receipts is None or (*key, viewport) not in receipts:
+                        out_of_scope_findings.append(f"ready without verified {viewport} pixels: {key}")
             continue
         for level in ("contract", "scenario"):
             if anchors.get((*key, level), {}).get("status") != "anchored":
@@ -130,10 +162,6 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
     unclosed = set(cells) - aligned
     if require_complete and unclosed:
         invalid.append(f"complete parity required: {len(unclosed)} unclosed surface cells")
-    # An acceptance may cover a subset of the surfaces (a peer that is not
-    # certifiable yet must not silently pass as closed).  The scope decides
-    # which closed cells count for the acceptance; the global picture stays.
-    scope = set(accepted_surfaces) if accepted_surfaces else set(SURFACES)
     scope_aligned = {key for key in aligned if key[1] in scope}
     required_surfaces = tuple(require_surfaces) if require_surfaces else tuple(SURFACES)
     for feature in require_features:
@@ -144,6 +172,8 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
                 invalid.append(f"required feature lacks L1/L2/L3 closure: {(feature, surface)}")
     return {"status": "fail" if invalid or dangling else "pass", "invalid": sorted(invalid),
             "dangling": sorted(dangling), "pending": sorted(pending),
+            "unverified": sorted(unverified),
+            "out_of_scope_findings": sorted(out_of_scope_findings),
             "cells": len(cells), "anchored": sum(row["status"] == "anchored" for row in evidence),
             "aligned": sorted([list(key) for key in aligned]), "unclosed": len(unclosed),
             "accepted_surfaces": sorted(scope),
@@ -187,12 +217,14 @@ def main():
         parser.error("structure-only cannot be used for evidence acceptance")
     try:
         catalogue, discovery, receipts = None, None, None
+        covered_packages = None
         if not args.structure_only:
             catalogue = json.loads(args.catalogue_json.read_text()) if args.catalogue_json else command_json([
                 "cargo", "run", "--quiet", "-p", "infiltrator-contract", "--example", "parity_catalogue"])
             payload = json.loads(args.discovery_json.read_text()) if args.discovery_json else command_json([
                 "cargo", "nextest", "list", "--workspace", "--features", "infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools", "--build-jobs", "4", "--message-format", "json"])
             discovery = discovered_tests(payload)
+            covered_packages = discovery_coverage(payload)
             if args.receipts:
                 from visual_receipts import verified_receipts
                 selected_builds = json.loads(args.product_builds.read_text()) if args.product_builds else None
@@ -210,7 +242,8 @@ def main():
                           catalogue, discovery, args.require_complete, receipts,
                           tuple(filter(None, args.require_features.split(","))),
                           require_surfaces, accepted_surfaces,
-                          judge_pixels=not args.structure_only)
+                          judge_pixels=receipts is not None,
+                          covered_packages=covered_packages)
         report["acceptance_scope"] = "selected-products" if args.product_builds else "baseline-coverage"
         report["release_complete"] = bool(args.product_builds and report["complete"])
         if catalogue is not None:
@@ -226,6 +259,10 @@ def main():
               f"complete={report['complete']}")
         for finding in report["invalid"] + report["dangling"]:
             print(f"  {finding}", file=sys.stderr)
+        for finding in report.get("unverified", []):
+            print(f"  unverified anchor: {finding}", file=sys.stderr)
+        for finding in report.get("out_of_scope_findings", []):
+            print(f"  out of acceptance scope: {finding}", file=sys.stderr)
         return 0 if report["status"] == "pass" else 1
     except (ValueError, OSError, KeyError, TypeError, subprocess.CalledProcessError) as error:
         print(f"evidence discovery/IO error: {error}", file=sys.stderr)

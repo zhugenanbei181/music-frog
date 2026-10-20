@@ -32,7 +32,7 @@ from pathlib import Path
 from interaction_delta import changed_pixels, corroborate
 from resolve_surface_evidence import ROOT, command_json, read_table, EVIDENCE_FIELDS
 from visual_receipts import (build_receipts_tolerant, interaction_bounds, manifest_rows,
-                              verified_receipts_tolerant)
+                              source_fingerprint, verified_receipts_tolerant)
 
 SURFACE_PACKAGES = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
 VIEWPORT_SIZES = {"standard": (1180, 780), "compact": (720, 480)}
@@ -49,6 +49,7 @@ BASELINE_PREFIX = "baseline"
 ANCHOR_LEVELS = ("contract", "scenario")
 FAIL_PATTERN = re.compile(r"^\s*FAIL\s+\[\s*[\d.]+s\]\s+(\S+)\s+(\S+)", re.MULTILINE)
 BUILD_FAILURE = re.compile(r"could not compile|^error\[E\d+\]", re.MULTILINE)
+SUMMARY_PATTERN = re.compile(r"Summary \[.*?\]\s+(\d+) tests? run")
 
 
 def catalogue_specs():
@@ -80,7 +81,7 @@ def anchor_selection(evidence, features):
     return wanted, pending, owners
 
 
-def discovery_index(package, attempts=3):
+def discovery_index(package, attempts=8):
     """The runnable tests of one package: the exact nextest identity of every case."""
     command = ["cargo", "nextest", "list", "-p", package]
     if package in ("infiltrator-iced", "infiltrator-bevy-ui"):
@@ -94,7 +95,7 @@ def discovery_index(package, attempts=3):
             last = error
             # Another work stream may be compiling the same tree; a transient
             # build failure must not decide the acceptance.
-            time.sleep(10)
+            time.sleep(30)
             continue
         index = {}
         for binary_id, suite in payload.get("rust-suites", {}).items():
@@ -144,20 +145,26 @@ def run_anchors(output, wanted, owners):
             command += ["--features", "capture-tools"]
         command += ["--build-jobs", "4", "--test-threads", "4", "--no-fail-fast", "-E", " | ".join(filters)]
         completed = None
-        for attempt in range(2):
+        for attempt in range(4):
             completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
             if completed.returncode == 0 or not BUILD_FAILURE.search(completed.stdout + completed.stderr):
                 break
             # Another work stream may be compiling the same tree; a transient
             # build failure must not decide the acceptance.
-            time.sleep(10)
+            time.sleep(30)
         log = output / "anchors" / f"{package}.log"
         log.parent.mkdir(exist_ok=True)
         log.write_text(completed.stdout + completed.stderr)
+        output_text = completed.stdout + completed.stderr
         failed = {f"{package}::{name}" for _, name in FAIL_PATTERN.findall(completed.stdout)}
+        # A package that does not compile runs no test at all: its anchors stay
+        # unknown, they are never passed.
+        summary = SUMMARY_PATTERN.search(output_text)
+        not_run = bool(BUILD_FAILURE.search(output_text)) or "no tests to run" in output_text \
+            or (summary is not None and summary.group(1) == "0")
         statuses = {}
         for test_id in sorted(tests):
-            if test_id in missing:
+            if not_run or test_id in missing:
                 statuses[test_id] = "unknown"
             elif test_id in failed:
                 statuses[test_id] = "failed"
@@ -213,15 +220,19 @@ def run_capture(surface, rows, output, attempts=2):
     return None, completed
 
 
-def baseline_images(run, rows, replicates):
-    """The route-only captures of every page and viewport, plus their noise floor."""
+def baseline_images(run, rows):
+    """The route-only captures of every page and viewport, plus their noise floor.
+
+    The rows are the capture manifest rows: they name the page and the
+    requested window of every captured scenario.
+    """
     baselines = {}
     for row in rows:
-        name = row["name"]
+        name = row["scenario"]
         if not name.startswith(BASELINE_PREFIX):
             continue
         page = row["page"]
-        width, height = (int(value) for value in row["window_size"].split("x"))
+        width, height = (int(value) for value in row["requested_window"].split("x"))
         viewport = "standard" if (width, height) == VIEWPORT_SIZES["standard"] else "compact"
         image = run / name / "image.png"
         if not image.is_file():
@@ -232,6 +243,31 @@ def baseline_images(run, rows, replicates):
         elif entry["replicate"] is None:
             entry["replicate"] = image
     return baselines
+
+
+def capture_panic(run, scenario):
+    """The panic the surface hit while activating the business, if any."""
+    log = run / scenario / "app.log"
+    if not log.is_file():
+        return ""
+    text = log.read_text()
+    if "panicked at" not in text:
+        return ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        if "panicked at" in line:
+            return f"{line} {lines[index + 1] if index + 1 < len(lines) else ''}".strip()
+    return ""
+
+
+def capture_diagnostic(run, scenario):
+    """The surface's own admission of what it could not show or measure."""
+    log = run / scenario / "app.log"
+    if not log.is_file():
+        return ""
+    diagnostics = [line.strip() for line in log.read_text().splitlines()
+                   if line.startswith("native capture") or line.startswith("capture geometry")]
+    return diagnostics[-1] if diagnostics else ""
 
 
 def classify_cell(run, surface, feature, viewport, page, rows_by_scenario, baselines):
@@ -246,7 +282,25 @@ def classify_cell(run, surface, feature, viewport, page, rows_by_scenario, basel
         cell["reason"] = "capture failed: the capture matrix produced no row for this scenario"
         return cell
     if row["status"] != "ok":
-        cell["reason"] = f"capture failed: {row['status']}"
+        status = row["status"]
+        panic = capture_panic(run, scenario)
+        if panic:
+            # The surface crashed while activating the business: a product
+            # fault, not an environment one.
+            cell["reason"] = f"surface panic while activating the business: {panic}"
+            return cell
+        if status.startswith("failed-marker"):
+            # The surface never reached the interaction state of this business:
+            # the demo has no activator that brings the business on screen.
+            diagnostic = capture_diagnostic(run, scenario)
+            cell["reason"] = (f"no demo interaction: the surface never published the activation marker "
+                              f"for this business ({status})")
+            if diagnostic:
+                cell["reason"] += f" - surface diagnostic: {diagnostic}"
+        elif status.startswith("failed-window"):
+            cell["reason"] = f"capture failed (environment): the window never appeared ({status})"
+        else:
+            cell["reason"] = f"capture failed: {status}"
         return cell
     marker_path = run / scenario / "marker.log"
     image_path = run / scenario / "image.png"
@@ -302,6 +356,9 @@ def classify_cell(run, surface, feature, viewport, page, rows_by_scenario, basel
             f"no demo interaction: the activated pixels match the route-only render "
             f"({verdict['changed_pixels']} of {verdict['compared_pixels']} region pixels changed, "
             f"noise floor {verdict['noise_pixels']}, required {verdict['required_pixels']})")
+        diagnostic = capture_diagnostic(run, scenario)
+        if diagnostic:
+            cell["reason"] += f" - surface diagnostic: {diagnostic}"
         return cell
     cell["status"] = "certified"
     return cell
@@ -332,30 +389,49 @@ def anchor_reason(evidence, anchor_results, feature, surface):
     return ""
 
 
-def surface_registry_state(evidence, features, surface):
-    """Why a surface outside the acceptance scope cannot be certified (yet)."""
-    cells = [row for row in evidence if row["surface"] == surface and row["feature_id"] in features]
-    anchored = [row for row in cells if row["level"] == "scenario" and row["status"] == "anchored"]
+def surface_registry_state(evidence, features, surface, specs):
+    """What a surface outside the acceptance scope can and cannot certify."""
+    carried = sorted(feature for feature in features if specs[feature][f"{surface}_page"])
+    anchored = sorted({row["feature_id"] for row in evidence
+                       if row["surface"] == surface and row["feature_id"] in features
+                       and row["level"] == "scenario" and row["status"] == "anchored"})
+    missing = sorted(feature for feature in carried if feature not in anchored)
+    reasons = sorted({row["reason"] for row in evidence
+                      if row["surface"] == surface and row["feature_id"] in missing
+                      and row["level"] == "scenario" and row["reason"] != "-"})
+    state = {"carried_businesses": len(carried), "certifiable_businesses": anchored,
+             "businesses_without_a_scenario_anchor": missing,
+             "missing_capability": reasons[0] if reasons else ""}
     if not anchored:
-        reasons = sorted({row["reason"] for row in cells if row["level"] == "scenario" and row["reason"] != "-"})
-        return {"status": "not_certifiable",
-                "reason": "the surface has no scenario anchor for the selected businesses"
-                          + (f" ({reasons[0]})" if reasons else "")}
-    return {"status": "not_in_scope", "reason": "the surface is outside this acceptance scope"}
+        state["status"] = "not_certifiable"
+        state["reason"] = ("the surface has no scenario anchor for the selected businesses"
+                           + (f" ({reasons[0]})" if reasons else ""))
+    else:
+        state["status"] = "not_in_scope"
+        state["reason"] = (f"the surface is outside this acceptance scope; it carries {len(carried)} "
+                           f"business(es), {len(anchored)} of them have a scenario anchor")
+    return state
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("features", nargs="?", help="comma-separated business ids")
     parser.add_argument("--all", action="store_true", help="accept every business of the typed registry")
-    parser.add_argument("--surfaces", default="iced,bevy", help="comma-separated surfaces in the acceptance scope")
+    parser.add_argument("--surfaces", default=None,
+                        help="comma-separated surfaces in the acceptance scope (default: iced,bevy)")
     parser.add_argument("--replicates", type=int, default=2, help="route-only captures per page and viewport")
     parser.add_argument("--skip-anchors", action="store_true", help="pixels only; do not run the behaviour anchors")
     parser.add_argument("--out", type=Path, help="output directory (default: .evidence/runs/<stamp>)")
+    parser.add_argument("--reclassify", type=Path,
+                        help="re-derive the report from the pixels of an earlier run (no new capture)")
+    parser.add_argument("--rerun-anchors", action="store_true",
+                        help="with --reclassify: run the behaviour anchors again")
     args = parser.parse_args()
+    if args.reclassify:
+        return reclassify(args.reclassify.resolve(), args.out, args.surfaces, args.rerun_anchors)
     if bool(args.features) == args.all:
         parser.error("select explicit features or --all")
-    surfaces = tuple(filter(None, args.surfaces.split(",")))
+    surfaces = tuple(filter(None, (args.surfaces or "iced,bevy").split(",")))
     unknown = set(surfaces) - set(SURFACE_PACKAGES)
     if unknown:
         parser.error(f"unknown surface: {sorted(unknown)}")
@@ -407,7 +483,7 @@ def main():
             continue
         runs[surface] = run
         rows_by_scenario = {row["scenario"]: row for row in manifest_rows(run)}
-        baselines = baseline_images(run, rows, args.replicates)
+        baselines = baseline_images(run, manifest_rows(run))
         capture_reports[surface] = {"status": "captured", "run": str(run.relative_to(ROOT)),
                                     "scenarios": len(rows_by_scenario),
                                     "failed_scenarios": sorted(name for name, row in rows_by_scenario.items()
@@ -417,6 +493,24 @@ def main():
                 cells.append(classify_cell(run, surface, feature, viewport, page, rows_by_scenario, baselines))
 
     # --------------------------------------------------------- pixel receipts
+    return finalize(output, specs, features, surfaces, evidence, anchor_results, pending_anchors,
+                    owners, args.replicates, runs, cells, capture_reports)
+
+
+def capture_source_state(run):
+    """The source fingerprint the captured pixels were taken from."""
+    metadata = run / "capture-metadata.txt"
+    if not metadata.is_file():
+        return ""
+    for line in metadata.read_text().splitlines():
+        if line.startswith("source_fingerprint="):
+            return line.split("=", 1)[1].strip()
+    return ""
+
+
+def finalize(output, specs, features, surfaces, evidence, anchor_results, pending_anchors, owners,
+             replicates, runs, cells, capture_reports):
+    """Receipts, per-cell report and registry closure of one acceptance scope."""
     wanted_cells = {(cell["feature_id"], cell["surface"], cell["viewport"]) for cell in cells
                     if cell["status"] == "certified"}
     receipts_path = output / "visual_receipts.json"
@@ -473,13 +567,28 @@ def main():
     for surface in SURFACE_PACKAGES:
         if surface in surfaces:
             continue
-        out_of_scope[surface] = surface_registry_state(evidence, features, surface)
+        out_of_scope[surface] = surface_registry_state(evidence, features, surface, specs)
+    # The pixels are bound to the archived product build; the behaviour
+    # anchors run against the working tree.  When the tree moved in between,
+    # the report has to say so instead of pretending both describe one state.
+    coherence = []
+    tree_fingerprint = source_fingerprint(ROOT)
+    for surface, run in sorted(runs.items()):
+        captured = capture_source_state(run)
+        if captured and captured != tree_fingerprint:
+            coherence.append({
+                "surface": surface, "capture_source_fingerprint": captured,
+                "tree_source_fingerprint": tree_fingerprint,
+                "status": "tree_moved_after_the_capture",
+                "detail": "the behaviour anchors of this run prove the current tree, "
+                          "the captured pixels prove the archived product build",
+            })
     report = {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "features": sorted(features),
         "surfaces": list(surfaces),
-        "replicates": args.replicates,
+        "replicates": replicates,
         "cells": cells,
         "pairs": pairs,
         "certified_cells": len(certified),
@@ -487,6 +596,7 @@ def main():
         "certified_pairs": certified_pairs,
         "uncertified_pairs": sorted(key for key, pair in pairs.items() if pair["status"] != "certified"),
         "not_certifiable_surfaces": out_of_scope,
+        "source_coherence": coherence,
         "capture_runs": capture_reports,
         "receipt_failures": receipt_failures,
         "receipt_verification_failures": verify_failures,
@@ -519,10 +629,17 @@ def main():
                 "--report-json", str(output / "acceptance.json")]
     discovery = output / "discovery.json"
     merged = {"rust-suites": {}}
+    covered = []
     for package in sorted(owners):
         path = output / "discovery" / f"{package}.json"
         if path.is_file():
             merged["rust-suites"].update(json.loads(path.read_text()).get("rust-suites", {}))
+            covered.append(package)
+    # The packages the discovery could not enumerate are reported as
+    # unverified anchors, not as dangling ones: their build may be broken by
+    # another work stream right now.
+    merged["covered_packages"] = covered
+    merged["undiscovered_packages"] = sorted(set(owners) - set(covered))
     discovery.write_text(json.dumps(merged))
     resolver[2:2] = ["--discovery-json", str(discovery)]
     resolver_status = "skipped"
@@ -535,6 +652,8 @@ def main():
           f"({len(certified_pairs)}/{len(pairs)} business/surface pairs) on {','.join(surfaces)}")
     for surface, state in out_of_scope.items():
         print(f"{state['status']}: {surface}: {state['reason']}")
+    for entry in coherence:
+        print(f"source coherence: {entry['surface']}: {entry['status']} - {entry['detail']}")
     for cell in uncertified:
         print(f"  uncertified {cell['feature_id']}/{cell['surface']}/{cell['viewport']}: {cell['reason']}",
               file=sys.stderr)
@@ -549,6 +668,74 @@ def main():
         return 1
     print(f"accepted {len(features)} businesses on {','.join(surfaces)}: {output}")
     return 0
+
+
+def reclassify(previous, output=None, surfaces=None, rerun_anchors=False):
+    """Re-derive the certification report from the pixels of an earlier run.
+
+    The captured pixels, their markers and the behaviour anchors are facts of
+    the earlier run; only the classification rules are re-applied.  This keeps
+    a verdict reproducible without paying for another capture.  A surface that
+    the earlier run never captured is captured now.
+    """
+    report = json.loads((previous / "certification.json").read_text())
+    selection = json.loads((previous / "selection.json").read_text())
+    features = set(selection["features"])
+    surfaces = tuple(filter(None, surfaces.split(","))) if surfaces else tuple(selection["surfaces"])
+    specs = catalogue_specs()
+    evidence = read_table(ROOT / "scripts/parity/feature_evidence.tsv", EVIDENCE_FIELDS)
+    anchor_results = json.loads((previous / "anchors.json").read_text())
+    wanted, pending_anchors, owners = anchor_selection(evidence, features)
+    output = output.resolve() if output else previous
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "catalogue.json").write_text(json.dumps([specs[feature] for feature in sorted(specs)], indent=2) + "\n")
+    (output / "selection.json").write_text(json.dumps({"features": sorted(features), "surfaces": list(surfaces)},
+                                                       indent=2) + "\n")
+    if rerun_anchors:
+        anchor_results = run_anchors(output, wanted, owners)
+    (output / "anchors.json").write_text(json.dumps(anchor_results, indent=2, sort_keys=True) + "\n")
+    # A package that gained anchors since the earlier run has to be discovered
+    # again, otherwise its anchors would count as dangling.
+    (output / "discovery").mkdir(exist_ok=True)
+    for package in sorted(owners):
+        if (output / "discovery" / f"{package}.json").is_file():
+            continue
+        try:
+            payload, _ = discovery_index(package)
+        except (subprocess.CalledProcessError, ValueError, OSError):
+            continue
+        (output / "discovery" / f"{package}.json").write_text(json.dumps(payload))
+    runs, cells, capture_reports = {}, [], {}
+    for surface in surfaces:
+        state = report.get("capture_runs", {}).get(surface, {})
+        relative = state.get("run")
+        carried = {feature: specs[feature][f"{surface}_page"] for feature in features
+                   if specs[feature][f"{surface}_page"]}
+        if not relative:
+            if not carried:
+                capture_reports[surface] = {"status": "no-carrier",
+                                            "reason": "no selected business has a carrier page on this surface"}
+                continue
+            # The earlier run never captured this surface: capture it now so
+            # the scope is complete.
+            rows = capture_matrix(sorted(carried), carried, report.get("replicates", 2))
+            run, _ = run_capture(surface, rows, output)
+            if run is None:
+                capture_reports[surface] = {"status": "capture-failed",
+                                            "reason": "the capture stack produced no run directory"}
+                continue
+            relative = str(run.relative_to(ROOT))
+        run = ROOT / relative
+        rows = manifest_rows(run)
+        rows_by_scenario = {row["scenario"]: row for row in rows}
+        baselines = baseline_images(run, rows)
+        capture_reports[surface] = dict(state, run=relative)
+        runs[surface] = run
+        for feature, page in sorted(carried.items()):
+            for viewport in VIEWPORTS:
+                cells.append(classify_cell(run, surface, feature, viewport, page, rows_by_scenario, baselines))
+    return finalize(output, specs, features, surfaces, evidence, anchor_results, pending_anchors,
+                    owners, report.get("replicates", 2), runs, cells, capture_reports)
 
 
 if __name__ == "__main__":
