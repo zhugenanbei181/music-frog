@@ -5,6 +5,7 @@ use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, RuleProviderCacheSnapshot,
 };
+use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_iced::types::rules::{ProviderMaintenanceStage, ProviderUnpackState};
 use infiltrator_ports::rule_provider_cache::{
@@ -55,10 +56,15 @@ impl RuleProviderCachePort for FakeCache {
 fn declarations_come_from_the_loaded_profile_json_only() {
     let (mut state, _) = AppState::new();
     assert!(state.declared_rule_providers().is_empty());
-    state.editor.rule_providers_json_cache = "{}".to_owned();
+    state
+        .editor
+        .rules_model
+        .observe_json_document(RulesJsonSection::RuleProviders, "{}".to_owned());
     assert!(state.declared_rule_providers().is_empty());
-    state.editor.rule_providers_json_cache =
-        r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com"]}}"#.to_owned();
+    state.editor.rules_model.observe_json_document(
+        RulesJsonSection::RuleProviders,
+        r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com"]}}"#.to_owned(),
+    );
     let declarations = state.declared_rule_providers();
     assert_eq!(declarations.len(), 1);
     assert_eq!(declarations[0].name, "ads");
@@ -138,7 +144,11 @@ fn purge_without_a_port_reports_a_typed_error() {
 #[tokio::test]
 async fn unpack_reads_the_host_cache_through_the_injected_port() {
     let (mut state, _) = AppState::new();
-    state.editor.rule_providers_json_cache = r#"{"cn":{"type":"http","behavior":"domain","format":"text","url":"https://example.com/cn.txt"}}"#.to_owned();
+    state.editor.rules_model.observe_json_document(
+        RulesJsonSection::RuleProviders,
+        r#"{"cn":{"type":"http","behavior":"domain","format":"text","url":"https://example.com/cn.txt"}}"#
+            .to_owned(),
+    );
     state.runtime.rule_provider_cache_port = Some(Arc::new(FakeCache {
         bytes: Some(b"cached.cn\n".to_vec()),
     }));

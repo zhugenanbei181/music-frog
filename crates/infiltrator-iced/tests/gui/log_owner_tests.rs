@@ -155,7 +155,7 @@ fn shared_logs_ignore_private_stream_and_clear_only_after_actual_command_executi
     );
 }
 #[test]
-fn shared_filter_has_actual_effect_and_the_surface_cannot_ask_for_an_invalid_level() {
+fn shared_filter_has_actual_effect_and_invalid_selection_retains_typed_failure() {
     let (mut state, core) = composed();
     let scope = LogSession::from_core_scope(core.snapshot().scope().expect("active core scope"))
         .expect("active owner log session");

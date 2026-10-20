@@ -29,28 +29,27 @@ pub struct ApplyingOutboundPreference {
     group_order_token: Option<u64>,
 }
 
+/// The request context of the outbound preference write.
+///
+/// The phase of the write is the shared page model's
+/// (`ProxiesPageModel::preference_write_phase`); this typed value only
+/// carries the request context the owner needs to fence the answer.
 #[derive(Clone, Debug, Default)]
-pub enum ProxyPreferencePhase {
+pub enum OutboundPreferenceWrite {
+    /// No preference write was submitted.
     #[default]
     Idle,
-    Applying(ApplyingOutboundPreference),
-    Failed(Failure),
+    /// A preference write is in flight.
+    Writing(ApplyingOutboundPreference),
 }
 
+/// The outbound preference writer: the queued intents and the request
+/// context of the write in flight.
 #[derive(Default)]
 pub struct ProxyPreferenceState {
     queue: VecDeque<QueuedOutboundPreference>,
-    pub phase: ProxyPreferencePhase,
-    next_token: u64,
-}
-
-impl ProxyPreferenceState {
-    pub fn failure(&self) -> Option<&Failure> {
-        match &self.phase {
-            ProxyPreferencePhase::Failed(failure) => Some(failure),
-            ProxyPreferencePhase::Idle | ProxyPreferencePhase::Applying(_) => None,
-        }
-    }
+    /// The request context of the write in flight.
+    pub write: OutboundPreferenceWrite,
 }
 
 impl AppState {
@@ -87,9 +86,11 @@ impl AppState {
     }
 
     fn start_next_outbound_ui_preference(&mut self) -> Task<Message> {
-        match &self.runtime.proxy_preferences.phase {
-            ProxyPreferencePhase::Applying(_) => return Task::none(),
-            ProxyPreferencePhase::Idle | ProxyPreferencePhase::Failed(_) => {}
+        if matches!(
+            &self.runtime.proxy_preferences.write,
+            OutboundPreferenceWrite::Writing(_)
+        ) {
+            return Task::none();
         }
         let Some(queued) = self.runtime.proxy_preferences.queue.pop_front() else {
             return Task::none();
@@ -152,11 +153,13 @@ impl AppState {
                 .map(|pending| pending.token)
         })
         .flatten();
-        self.runtime.proxy_preferences.next_token =
-            self.runtime.proxy_preferences.next_token.wrapping_add(1);
-        let token = self.runtime.proxy_preferences.next_token;
-        self.runtime.proxy_preferences.phase =
-            ProxyPreferencePhase::Applying(ApplyingOutboundPreference {
+        let token = self
+            .runtime
+            .proxies_model
+            .preference_write_phase_mut()
+            .begin();
+        self.runtime.proxy_preferences.write =
+            OutboundPreferenceWrite::Writing(ApplyingOutboundPreference {
                 token,
                 scope: queued.scope.clone(),
                 request: request.clone(),
@@ -205,16 +208,16 @@ impl AppState {
         terminal_scope: Option<CoreScope>,
         result: Result<OutboundUiPreferencesSnapshot, Failure>,
     ) -> Task<Message> {
-        let active = match &self.runtime.proxy_preferences.phase {
-            ProxyPreferencePhase::Applying(active) if active.token == token => active.clone(),
-            ProxyPreferencePhase::Idle
-            | ProxyPreferencePhase::Applying(_)
-            | ProxyPreferencePhase::Failed(_) => return Task::none(),
+        let active = match &self.runtime.proxy_preferences.write {
+            OutboundPreferenceWrite::Writing(active) if active.token == token => active.clone(),
+            OutboundPreferenceWrite::Idle | OutboundPreferenceWrite::Writing(_) => {
+                return Task::none();
+            }
         };
         if active.scope != scope || active.request != request {
             return Task::none();
         }
-        self.runtime.proxy_preferences.phase = ProxyPreferencePhase::Idle;
+        self.runtime.proxy_preferences.write = OutboundPreferenceWrite::Idle;
         let group_order_token = active.group_order_token;
         if self
             .command_ingress()
@@ -224,6 +227,10 @@ impl AppState {
             || terminal_scope.as_ref() != Some(&scope)
         {
             self.runtime.proxy_search.preference_cancelled(token);
+            self.runtime
+                .proxies_model
+                .preference_write_phase_mut()
+                .reset();
             if let Some(editor_token) = group_order_token {
                 self.runtime.group_order_editor.finish(
                     editor_token,
@@ -254,7 +261,10 @@ impl AppState {
                 ) {
                     self.runtime.proxy_search.preference_applied(token);
                 }
-                self.runtime.proxy_preferences.phase = ProxyPreferencePhase::Idle;
+                self.runtime
+                    .proxies_model
+                    .preference_write_phase_mut()
+                    .succeed(token);
                 self.apply_outbound_ui_preferences_observation(PageData::ready(snapshot));
                 Some(Ok(()))
             }
@@ -264,7 +274,7 @@ impl AppState {
                     "outbound preference readback did not confirm the request",
                     false,
                 );
-                self.fail_outbound_ui_preference(failure.clone());
+                self.fail_inflight_outbound_ui_preference(token, failure.clone());
                 if matches!(
                     request.intent(),
                     OutboundUiPreferenceIntent::SetSearchQuery(_)
@@ -274,7 +284,7 @@ impl AppState {
                 Some(Err(failure))
             }
             Err(failure) => {
-                self.fail_outbound_ui_preference(failure.clone());
+                self.fail_inflight_outbound_ui_preference(token, failure.clone());
                 if matches!(
                     request.intent(),
                     OutboundUiPreferenceIntent::SetSearchQuery(_)
@@ -305,7 +315,21 @@ impl AppState {
         self.runtime.group_order_editor.finish(editor_token, result)
     }
 
+    /// Record a submission that never reached the owner.
+    ///
+    /// The attempt still owns a submission token, so the shared phase can
+    /// carry the failure.
     fn fail_outbound_ui_preference(&mut self, failure: Failure) {
-        self.runtime.proxy_preferences.phase = ProxyPreferencePhase::Failed(failure);
+        let phase = self.runtime.proxies_model.preference_write_phase_mut();
+        let token = phase.begin();
+        phase.fail(token, failure);
+    }
+
+    /// Record the failure of the write that is in flight.
+    fn fail_inflight_outbound_ui_preference(&mut self, token: u64, failure: Failure) {
+        self.runtime
+            .proxies_model
+            .preference_write_phase_mut()
+            .fail(token, failure);
     }
 }

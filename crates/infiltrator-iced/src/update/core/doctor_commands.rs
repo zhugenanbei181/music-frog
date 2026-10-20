@@ -21,7 +21,6 @@ impl AppState {
         let Some(application) = self.command_ingress() else {
             return Task::none();
         };
-        self.diag.doctor.clear_local_failure();
         let pending = match self.diag.doctor.action.begin(action) {
             Ok(pending) => pending,
             Err(_) => return Task::none(),
@@ -50,7 +49,6 @@ impl AppState {
         let Some(application) = self.command_ingress() else {
             return Task::none();
         };
-        self.diag.doctor.clear_local_failure();
         let pending = match self.diag.doctor.action.begin_retry() {
             Ok(pending) => pending,
             Err(_) => return Task::none(),

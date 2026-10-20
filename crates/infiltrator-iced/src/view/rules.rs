@@ -21,6 +21,7 @@ use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
 use infiltrator_presentation::rule_list_projection::{editor_preview, editor_status};
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(crate) mod providers;
@@ -91,7 +92,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             color: Some(tokens(t).text_tertiary)
         }),
         Space::new().width(Length::Fill),
-        if state.editor.rules_load_phase.is_loading() {
+        if state
+            .editor
+            .rules_model
+            .operation(RulesOperation::Load)
+            .is_running()
+        {
             Element::from(text("...").size(12).style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }))
@@ -139,7 +145,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .iter()
         .map(|tab| lang.tr(tab.i18n_key()).to_string())
         .collect();
-    let tab_index = state.editor.rules_tab.index();
+    let tab_index = state.editor.rules_model.tab_index();
     let tabs = segmented_control(&tab_labels, tab_index, |index| {
         Message::SetRulesTab(RulesTab::from_index(index))
     });
@@ -186,7 +192,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         available_targets.push("REJECT".to_string());
     }
 
-    let tab_content: Element<'_, Message> = match state.editor.rules_tab {
+    let tab_content: Element<'_, Message> = match state.editor.rules_model.tab() {
         RulesTab::List => {
             modern_scrollable(rules_list::rules_list_view(state, &lang, available_targets))
                 .id("rules-page-scroll")
@@ -203,7 +209,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     column![
         header,
-        if state.editor.rules_tab == RulesTab::List {
+        if state.editor.rules_model.tab() == RulesTab::List {
             Element::from(draft_panel)
         } else {
             Element::from(Space::new().height(0))

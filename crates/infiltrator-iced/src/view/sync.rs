@@ -12,6 +12,7 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens}
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, progress_bar, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -73,9 +74,15 @@ fn build_status_card<'a>(
     lang: &Lang<'_>,
     _is_en: bool,
 ) -> Element<'a, Message> {
-    let is_active = state.profile.webdav_sync_phase.is_syncing() || state.profile.webdav_enabled;
+    // Two facts: the WebDAV write this surface submitted, and the status the
+    // owner reported. The card shows "syncing" for either.
+    let sync_in_flight = state
+        .profile
+        .operation_running(ProfilesOperation::SyncWebDav);
+    let owner_syncing = state.profile.sync_model.is_syncing();
+    let is_active = sync_in_flight || owner_syncing || state.profile.webdav_enabled;
 
-    let (status_title, badge_text, badge_kind) = if state.profile.webdav_sync_phase.is_syncing() {
+    let (status_title, badge_text, badge_kind) = if sync_in_flight || owner_syncing {
         (
             lang.tr("sync_syncing").to_string(),
             lang.tr("sync_status_syncing").to_string(),
@@ -276,37 +283,47 @@ fn build_settings_form<'a>(
     lang: &Lang<'_>,
     _is_en: bool,
 ) -> Element<'a, Message> {
-    let save_settings_btn: Element<'_, Message> =
-        if state.profile.app_settings_save_phase.is_saving() {
-            text_btn(lang.tr("sync_saving").to_string(), style_ghost, None)
-        } else {
-            text_btn(
-                lang.tr("sync_save_btn").to_string(),
-                style_accent,
-                Some(Message::SaveAppSettings),
-            )
-        };
+    let save_settings_btn: Element<'_, Message> = if state
+        .profile
+        .operation_running(ProfilesOperation::SaveAppSettings)
+    {
+        text_btn(lang.tr("sync_saving").to_string(), style_ghost, None)
+    } else {
+        text_btn(
+            lang.tr("sync_save_btn").to_string(),
+            style_accent,
+            Some(Message::SaveAppSettings),
+        )
+    };
 
-    let cancel_sync_btn: Option<Element<'_, Message>> =
-        if state.profile.webdav_sync_phase.is_syncing() {
-            Some(text_btn(
-                lang.tr("sync_cancel_btn").to_string(),
-                style_ghost,
-                Some(Message::CancelWebDavSync),
-            ))
-        } else {
-            None
-        };
+    let sync_in_flight = state
+        .profile
+        .operation_running(ProfilesOperation::SyncWebDav);
+
+    let cancel_sync_btn: Option<Element<'_, Message>> = if sync_in_flight {
+        Some(text_btn(
+            lang.tr("sync_cancel_btn").to_string(),
+            style_ghost,
+            Some(Message::CancelWebDavSync),
+        ))
+    } else {
+        None
+    };
 
     let test_connection_btn = text_btn(
-        if state.profile.webdav_test_phase.is_testing() {
+        if state
+            .profile
+            .operation_running(ProfilesOperation::TestWebDav)
+        {
             lang.tr("sync_testing").to_string()
         } else {
             lang.tr("sync_test_btn").to_string()
         },
         style_ghost,
-        (!state.profile.webdav_sync_phase.is_syncing()
-            && !state.profile.webdav_test_phase.is_testing())
+        (!sync_in_flight
+            && !state
+                .profile
+                .operation_running(ProfilesOperation::TestWebDav))
         .then_some(Message::TestWebDavConnection),
     );
 
@@ -323,8 +340,10 @@ fn build_settings_form<'a>(
     .padding([7, 14])
     .style(style_ghost)
     .on_press_maybe(
-        (!state.profile.webdav_sync_phase.is_syncing()
-            && !state.profile.webdav_test_phase.is_testing())
+        (!sync_in_flight
+            && !state
+                .profile
+                .operation_running(ProfilesOperation::TestWebDav))
         .then_some(Message::SyncUpload),
     );
 
@@ -341,8 +360,10 @@ fn build_settings_form<'a>(
     .padding([7, 14])
     .style(style_accent)
     .on_press_maybe(
-        (!state.profile.webdav_sync_phase.is_syncing()
-            && !state.profile.webdav_test_phase.is_testing())
+        (!sync_in_flight
+            && !state
+                .profile
+                .operation_running(ProfilesOperation::TestWebDav))
         .then_some(Message::SyncDownload),
     );
 

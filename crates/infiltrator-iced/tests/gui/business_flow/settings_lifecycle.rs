@@ -24,6 +24,7 @@ use infiltrator_core::profile_reset::reset_profiles_to_default;
 use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::language_choice::{LanguageChoicePhase, project_language};
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use lurker_core_contract::error::InfiltratorError;
 use std::fs::{create_dir_all, write};
 use std::sync::Arc;
@@ -201,7 +202,11 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     assert_eq!(state.shell.theme, iced::Theme::Light);
 
     let task = state.update(Message::SaveAppSettings);
-    assert!(state.profile.app_settings_save_phase.is_saving());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::SaveAppSettings)
+    );
     let completion = language_terminal(task);
     assert!(
         matches!(completion, Message::AppSettingsSaved(Ok(()))),
@@ -211,7 +216,11 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     let saved = block_on(settings.load()).unwrap();
     assert_eq!(saved.language, "en-US");
     assert_eq!(saved.theme, "light");
-    assert!(!state.profile.app_settings_save_phase.is_saving());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveAppSettings)
+    );
     assert_eq!(units, 1, "success toast");
     assert!(
         home.join("settings.toml").exists(),

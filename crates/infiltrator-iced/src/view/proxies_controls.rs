@@ -8,19 +8,14 @@ use crate::view::theme::{self, tokens};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_presentation::proxies_page_model::PROXY_SORT_OPTIONS;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
-use lurker_core_contract::outbound::{
-    inventory::OutboundInventoryState, preferences::OutboundSortOrder,
-};
+use lurker_core_contract::outbound::inventory::OutboundInventoryState;
+use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 
 /// Product outbound sorting uses the shared typed preference vocabulary.
-pub(super) const SORT_ORDERS: [OutboundSortOrder; 4] = [
-    OutboundSortOrder::LatencyAscending,
-    OutboundSortOrder::LatencyDescending,
-    OutboundSortOrder::NameAscending,
-    OutboundSortOrder::NameDescending,
-];
+pub(super) const SORT_ORDERS: [OutboundSortOrder; 4] = PROXY_SORT_OPTIONS;
 pub(super) const SORT_LABEL_KEYS: [&str; 4] = [
     "outbound_sort_latency_ascending",
     "outbound_sort_latency_descending",
@@ -58,14 +53,17 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
                 color: Some(tokens(t).text_secondary),
             }),
         Space::new().width(theme::SP_XS),
-        toggle_switch(state.runtime.filter_alive_only, Message::ToggleFilterAlive),
+        toggle_switch(
+            state.runtime.proxies_model.healthy_only(),
+            Message::ToggleFilterAlive,
+        ),
     ]
     .spacing(theme::SP_XS)
     .align_y(Alignment::Center);
 
     let mut sort_segment = row![].spacing(2);
     for (index, order) in SORT_ORDERS.iter().copied().enumerate() {
-        let active = state.runtime.outbound_sort_order == order;
+        let active = state.runtime.proxies_model.sort_order() == order;
         let label = text(lang.tr(SORT_LABEL_KEYS[index]))
             .size(11)
             .font(if active {
@@ -170,7 +168,12 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
         ]
         .spacing(theme::SP_SM)
         .into()
-    } else if let Some(failure) = state.runtime.proxy_preferences.failure() {
+    } else if let Some(failure) = state
+        .runtime
+        .proxies_model
+        .preference_write_phase()
+        .failure()
+    {
         Element::from(
             text(interpolate(
                 lang.tr("proxies_preferences_failed").as_ref(),
@@ -178,7 +181,7 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
             ))
             .size(12),
         )
-    } else if typed_inventory_ready && state.runtime.filter_alive_only {
+    } else if typed_inventory_ready && state.runtime.proxies_model.healthy_only() {
         Element::from(text(lang.tr("proxies_alive_filter_unknown")).size(12))
     } else if !state.runtime.proxy_filter.trim().is_empty()
         && state

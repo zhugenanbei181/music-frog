@@ -11,7 +11,6 @@ use iced_runtime::task::into_stream;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_iced::state::AppState;
-use infiltrator_iced::state::proxy_preferences::ProxyPreferencePhase;
 use infiltrator_iced::state::proxy_search::ProxySearchPhase;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
@@ -185,10 +184,14 @@ fn native_search_submits_the_typed_owner_preference_and_recovers_from_a_refused_
         state.runtime.proxy_search.phase,
         ProxySearchPhase::Failed { .. }
     ));
-    assert!(matches!(
-        state.runtime.proxy_preferences.phase,
-        ProxyPreferencePhase::Failed(_)
-    ));
+    assert!(
+        state
+            .runtime
+            .proxies_model
+            .preference_write_phase()
+            .failure()
+            .is_some()
+    );
     let owner_query = state
         .runtime
         .outbound_ui_preferences

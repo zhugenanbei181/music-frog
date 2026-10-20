@@ -6,7 +6,6 @@
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
-use crate::types::doctor::{DoctorPanelRequest, DoctorPanelStart};
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::doctor::DoctorAction;
@@ -16,7 +15,7 @@ use infiltrator_presentation::doctor_actions::DoctorActionFinish;
 use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
-use lurker_core_contract::error::InfiltratorError;
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 
 impl AppState {
     /// 内嵌 admin server 的 API 基址：实际绑定地址优先（端口被占时会向上
@@ -36,9 +35,8 @@ impl AppState {
                 if self.commands.is_some() {
                     return self.shared_doctor_command(DoctorAction::Diagnose);
                 }
-                match self.diag.doctor.begin(DoctorPanelRequest::Check) {
-                    DoctorPanelStart::Started => {}
-                    DoctorPanelStart::Busy => return Task::none(),
+                if self.diag.doctor.begin(DoctorAction::Diagnose).is_err() {
+                    return Task::none();
                 }
                 let base = self.admin_api_base();
                 Task::perform(
@@ -75,9 +73,15 @@ impl AppState {
                 match result {
                     Ok(report) => {
                         self.diag.doctor.report = Some(report);
-                        self.diag.doctor.finish(Ok(()));
+                        self.diag.doctor.settle(Ok(()));
                     }
-                    Err(error) => self.diag.doctor.finish(Err(error.to_string())),
+                    Err(error) => {
+                        self.diag.doctor.settle(Err(Failure::new(
+                            ErrorCode::Internal,
+                            error.to_string(),
+                            false,
+                        )));
+                    }
                 }
                 Task::none()
             }
@@ -88,9 +92,8 @@ impl AppState {
                 if self.commands.is_some() {
                     return self.shared_doctor_command(DoctorAction::RepairAll);
                 }
-                match self.diag.doctor.begin(DoctorPanelRequest::Fix) {
-                    DoctorPanelStart::Started => {}
-                    DoctorPanelStart::Busy => return Task::none(),
+                if self.diag.doctor.begin(DoctorAction::RepairAll).is_err() {
+                    return Task::none();
                 }
                 let base = self.admin_api_base();
                 Task::perform(
@@ -107,7 +110,7 @@ impl AppState {
             Message::DoctorFixApplied(result) => {
                 match result {
                     Ok(report) => {
-                        self.diag.doctor.finish(Ok(()));
+                        self.diag.doctor.settle(Ok(()));
                         // 修复会改动文件系统状态，随后刷新报告。
                         Task::batch(vec![
                             Task::done(Message::RunDoctor),
@@ -118,7 +121,11 @@ impl AppState {
                         ])
                     }
                     Err(error) => {
-                        self.diag.doctor.finish(Err(error.to_string()));
+                        self.diag.doctor.settle(Err(Failure::new(
+                            ErrorCode::Internal,
+                            error.to_string(),
+                            false,
+                        )));
                         Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }
@@ -127,9 +134,8 @@ impl AppState {
                 if self.commands.is_some() {
                     return self.shared_doctor_command(DoctorAction::Bootstrap);
                 }
-                match self.diag.doctor.begin(DoctorPanelRequest::Bootstrap) {
-                    DoctorPanelStart::Started => {}
-                    DoctorPanelStart::Busy => return Task::none(),
+                if self.diag.doctor.begin(DoctorAction::Bootstrap).is_err() {
+                    return Task::none();
                 }
                 let base = self.admin_api_base();
                 Task::perform(
@@ -146,7 +152,7 @@ impl AppState {
             Message::BootstrapFinished(result) => {
                 match result {
                     Ok(report) => {
-                        self.diag.doctor.finish(Ok(()));
+                        self.diag.doctor.settle(Ok(()));
                         // 引导同样改动文件系统状态，随后刷新报告。
                         Task::batch(vec![
                             Task::done(Message::RunDoctor),
@@ -157,7 +163,11 @@ impl AppState {
                         ])
                     }
                     Err(error) => {
-                        self.diag.doctor.finish(Err(error.to_string()));
+                        self.diag.doctor.settle(Err(Failure::new(
+                            ErrorCode::Internal,
+                            error.to_string(),
+                            false,
+                        )));
                         Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }

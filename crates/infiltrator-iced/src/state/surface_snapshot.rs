@@ -1,8 +1,11 @@
 use super::proxy_probe;
 use super::*;
+use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_presentation::log_page_model::LogLevelFilter;
+use infiltrator_presentation::overview_page_model::OverviewHost;
 
 impl AppState {
     /// Apply the shared page read model as a monotonic render cache. The
@@ -185,7 +188,11 @@ impl AppState {
             // DUAL-14-10: the last real probe is a shared fact; a probe in
             // flight keeps the local optimistic view until the reader
             // publishes the same report.
-            if !self.editor.dns_latency_probe_phase.is_probing() || dns.latency.is_probed() {
+            if !self
+                .editor
+                .dns_operation_running(DnsOperation::ProbeLatency)
+                || dns.latency.is_probed()
+            {
                 self.editor.dns_latency = dns.latency.clone();
             }
             // DUAL-14-13: the self-heal observation is a shared fact.
@@ -206,6 +213,11 @@ impl AppState {
         }
         self.editor.rules_tracer_can_reverse_apply = false;
         self.editor.rule_hit_audit.observe(&snapshot.pages.rules);
+        if let Some(doctor) = snapshot.pages.doctor.data.as_ref() {
+            // The doctor page snapshot is a shared fact: the panel renders the
+            // checks the owner published, never a private copy of them.
+            self.diag.doctor.page = Some(doctor.clone());
+        }
         if let Some(rules_page) = snapshot.pages.rules.data.as_ref() {
             // DUAL-12-08: consume the shared reverse-apply facts; the chooser
             // is gated and seeded from the surface read model, not guessed.
@@ -237,6 +249,11 @@ impl AppState {
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles = system_toggle_projection::from_surface(&snapshot);
+        // The overview page model folds the shared toggles and the routing
+        // intent into the one typed run/traffic state the page renders.
+        self.runtime
+            .overview_model
+            .observe(OverviewHost::Desktop, &snapshot);
         if matches!(
             &snapshot.system_proxy.status,
             SystemProxyStatus::Enabled | SystemProxyStatus::Disabled
@@ -257,72 +274,46 @@ impl AppState {
             if let Some(strict_route) = settings.tun_strict_route {
                 self.editor.tun_strict_route = strict_route;
             }
-            let mut committed = self.runtime.lan_sharing_committed.clone();
-            if let Some(value) = settings.allow_lan {
-                committed.allow_lan = value;
-            }
-            if let Some(value) = settings.mixed_port {
-                committed.mixed_port = value;
-            }
-            if let Some(value) = &settings.lan_bind_address {
-                committed.bind_address = value.clone();
-            }
-            self.runtime.lan_sharing_committed = committed.clone();
-            if !self.runtime.lan_sharing_dirty {
-                self.runtime.lan_sharing = committed;
-            }
+            // The LAN sharing and LAN security drafts are owned by the
+            // shared settings page model: the observation becomes the
+            // committed baseline of the draft.
+            let current = self.runtime.settings_model.lan_sharing().clone();
+            let sharing = LanSharingSnapshot {
+                enabled: settings.allow_lan.unwrap_or(current.enabled),
+                mixed_port: settings.mixed_port.unwrap_or(current.mixed_port),
+                bind_address: settings
+                    .lan_bind_address
+                    .clone()
+                    .unwrap_or(current.bind_address),
+                revision: 0,
+            };
+            self.runtime.settings_model.observe_lan_sharing(&sharing);
 
             if let Some(security) = &settings.lan_security {
-                let mut security_committed = self.runtime.lan_security_committed.clone();
-                security_committed.allowed_ips = security.allowed_ips.join(", ");
-                security_committed.disallowed_ips = security.disallowed_ips.join(", ");
-                security_committed.skip_auth_prefixes = security.skip_auth_prefixes.join(", ");
-                security_committed.authentication_enabled = security.authentication_enabled;
-                security_committed.authentication_user_count = security.authentication_user_count;
-                if let Some(username) = security.authentication_username.as_ref() {
-                    security_committed.auth_username = username.clone();
-                }
-                security_committed.auth_password.clear();
-                self.runtime.lan_security_committed = security_committed.clone();
-                if !self.runtime.lan_security_dirty {
-                    self.runtime.lan_security = security_committed;
-                    self.runtime.lan_sharing.acl_whitelist_cidrs = security.allowed_ips.join(", ");
+                let security_modified = self.runtime.settings_model.lan_security_modified();
+                self.runtime.settings_model.observe_lan_security(security);
+                if !security_modified {
+                    self.runtime.settings_text.lan_allowed_ips = security.allowed_ips.join(", ");
+                    self.runtime.settings_text.lan_disallowed_ips =
+                        security.disallowed_ips.join(", ");
+                    self.runtime.settings_text.lan_skip_auth_prefixes =
+                        security.skip_auth_prefixes.join(", ");
                 }
             }
         }
-        if !self.shell.uwp_loopback.is_scanning
-            && let Some(app_routing) = snapshot.pages.app_routing.data.as_ref()
-        {
-            let uwp = &app_routing.uwp_loopback;
-            self.shell.uwp_loopback.availability = uwp.availability.clone();
-            self.shell.uwp_loopback.revision = uwp.revision;
-            self.shell.uwp_loopback.apps = uwp
-                .packages
-                .iter()
-                .map(|package| UwpAppItem {
-                    sid: package.sid.clone(),
-                    display_name: package.display_name.clone(),
-                    is_exempt: package.loopback_exempt,
-                })
-                .collect();
-            self.shell.uwp_loopback.is_scanning = false;
+        if let Some(app_routing) = snapshot.pages.app_routing.data.as_ref() {
+            // The app-routing page is a shared fact: the routing mode, the
+            // application list and the loopback packages come from the owner.
+            self.shell.uwp_loopback.observe_page(app_routing.clone());
         }
         if let Some(settings) = snapshot.pages.settings.data.as_ref() {
-            let pac = &mut self.runtime.pac_manager;
-            pac.snapshot = settings.pac.clone();
-            if !pac.dirty {
-                pac.bypass_subnets = settings.pac.bypass_domains.join(", ");
-                match &settings.pac.state {
-                    PacServiceState::Running { url } => {
-                        pac.is_pac_mode_active = true;
-                        pac.pac_url = url.clone();
-                    }
-                    PacServiceState::Disabled | PacServiceState::Unavailable { .. } => {
-                        pac.is_pac_mode_active = false;
-                        pac.pac_url.clear();
-                    }
-                }
-            }
+            // The PAC draft is owned by the shared settings page model.
+            self.apply_pac_snapshot(settings.pac.clone());
+        }
+        if let Some(sync) = snapshot.pages.sync.data.as_ref() {
+            // The sync page observation is a shared fact: the status, the
+            // conflict and the snapshot history come from the owner.
+            self.profile.sync_model.observe_page(sync.clone());
         }
         self.runtime.controller_auth = snapshot.controller_auth;
         self.runtime.service_mode = snapshot.service_mode;

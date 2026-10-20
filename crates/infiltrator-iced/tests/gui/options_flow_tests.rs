@@ -21,6 +21,7 @@ use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::mrs::parse_mrs_header;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use lurker_core_contract::error::InfiltratorError;
 use std::env::temp_dir;
@@ -302,7 +303,11 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
     let _ = state.update(Message::SyncDiffMerged(Err(InfiltratorError::Config(
         "合并失败".into(),
     ))));
-    assert!(!state.profile.sync_diff_apply_phase.is_applying());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::ApplySyncDiff)
+    );
     assert!(state.profile.sync_diff.is_some());
     assert!(
         state

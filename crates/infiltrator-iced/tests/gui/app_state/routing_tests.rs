@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_presentation::dns_page_model::DnsPageTab;
 
 #[test]
 fn test_tray_and_exit() {
@@ -31,14 +32,17 @@ fn test_tab_state_switches() {
     let (mut state, _) = AppState::new();
     state.editor.rules_page = 3;
     let _ = state.update(Message::SetRulesTab(RulesTab::JsonEditors));
-    assert_eq!(state.editor.rules_tab, RulesTab::JsonEditors);
+    assert_eq!(state.editor.rules_model.tab(), RulesTab::JsonEditors);
     assert_eq!(state.editor.rules_page, 0);
 
     let _ = state.update(Message::SetRulesJsonTab(RulesJsonSection::Sniffer));
-    assert_eq!(state.editor.rules_json_tab, RulesJsonSection::Sniffer);
+    assert_eq!(
+        state.editor.rules_model.json_section(),
+        RulesJsonSection::Sniffer
+    );
 
-    let _ = state.update(Message::SetDnsTab(DnsTab::Tun));
-    assert_eq!(state.editor.dns_tab, DnsTab::Tun);
+    let _ = state.update(Message::SetDnsTab(DnsPageTab::Tun));
+    assert_eq!(state.editor.dns_model.tab(), DnsPageTab::Tun);
 }
 
 #[test]

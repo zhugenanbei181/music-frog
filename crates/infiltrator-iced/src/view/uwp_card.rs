@@ -15,13 +15,19 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let uwp = &state.shell.uwp_loopback;
-    let availability = uwp.status_message.clone().unwrap_or_else(|| {
-        uwp_summary(
-            &uwp.availability,
-            uwp.apps.iter().map(|app| app.is_exempt),
-            &Lang(lang.0),
-        )
-    });
+    let availability = uwp
+        .scan_phase()
+        .failure()
+        .map(|failure| failure.message.clone())
+        .unwrap_or_else(|| {
+            uwp_summary(
+                uwp.uwp_availability(),
+                uwp.uwp_packages()
+                    .iter()
+                    .map(|package| package.loopback_exempt),
+                &Lang(lang.0),
+            )
+        });
 
     let scan_btn = button(
         row![
@@ -35,7 +41,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     )
     .padding([4, 10])
     .style(style_ghost)
-    .on_press_maybe((!uwp.is_scanning).then_some(Message::ScanUwpApps));
+    .on_press_maybe((!uwp.scan_phase().is_running()).then_some(Message::ScanUwpApps));
 
     let exempt_all_btn = button(
         row![
@@ -66,9 +72,9 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     .on_press(Message::ClearAllUwpExemptions);
 
     let mut apps_column = column![].spacing(theme::SP_XS);
-    for app in &uwp.apps {
+    for app in uwp.uwp_packages() {
         let sid = app.sid.clone();
-        let is_exempt = app.is_exempt;
+        let is_exempt = app.loopback_exempt;
         let glyph = if is_exempt { "☑" } else { "☐" };
 
         let item = button(

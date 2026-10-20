@@ -4,12 +4,12 @@
 use crate::host::storage::{clear_webdav_password, save_webdav_password};
 use crate::settings_store::{load, save};
 use crate::state::AppState;
-use crate::state::profiles::AppSettingsSavePhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::version_application::normalized_release_channel;
 use iced::Task;
 use infiltrator_domain::settings::WebDavConfig;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use lurker_core_contract::error::InfiltratorError;
 use std::path::PathBuf;
 
@@ -66,7 +66,8 @@ impl AppState {
                     }
                 };
 
-                self.profile.app_settings_save_phase = AppSettingsSavePhase::Saving;
+                self.profile
+                    .begin_operation(ProfilesOperation::SaveAppSettings);
                 let core_channel = self.profile_core_channel();
                 // Persist the *preference* ("system" stays "system"); a
                 // resolved skin name would silently pin the appearance on the
@@ -123,7 +124,8 @@ impl AppState {
                 )
             }
             Message::AppSettingsSaved(result) => {
-                self.profile.app_settings_save_phase = AppSettingsSavePhase::Idle;
+                self.profile
+                    .reset_operation(ProfilesOperation::SaveAppSettings);
                 match result {
                     Ok(_) => {
                         self.editor.editor_path =

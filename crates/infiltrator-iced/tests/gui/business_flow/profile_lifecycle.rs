@@ -38,6 +38,7 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use lurker_core_contract::error::InfiltratorError;
@@ -113,7 +114,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     feed(&mut state, Message::UpdateImportActivate(true));
     let units = feed(&mut state, Message::ImportProfile);
     assert!(
-        state.profile.url_import_phase.is_importing(),
+        state.profile.operation_running(ProfilesOperation::Import),
         "import is in flight"
     );
     assert!(units >= 1, "import task spawned");
@@ -135,7 +136,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
         &mut state,
         Message::ProfileImported(Err(InfiltratorError::Config("connection refused".into()))),
     );
-    assert!(!state.profile.url_import_phase.is_importing());
+    assert!(!state.profile.operation_running(ProfilesOperation::Import));
     assert!(state.shell.error_msg.is_some(), "failure hits the banner");
     // The error toast rides the single `Task::done(ShowToast)` unit asserted
     // below — it lands one runtime hop later, like every toast in this app.
@@ -158,7 +159,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     );
     feed(&mut state, Message::UpdateLocalImportActivate(true));
     let _task = feed(&mut state, Message::ImportLocalProfile);
-    assert!(state.profile.local_import_phase.is_importing());
+    assert!(state.profile.operation_running(ProfilesOperation::Import));
 
     // Task body for real: read_to_string → validate_yaml → save → activate.
     let stored = block_on(async {
@@ -179,7 +180,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     );
 
     let units = feed(&mut state, Message::LocalProfileImported(Ok(Some(stored))));
-    assert!(!state.profile.local_import_phase.is_importing());
+    assert!(!state.profile.operation_running(ProfilesOperation::Import));
     assert!(state.profile.local_import_path.is_empty(), "form cleared");
     // Selecting without a runtime completes import; starting the Core remains
     // an explicit lifecycle action.
@@ -252,12 +253,20 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
     feed(&mut state, Message::UpdateSubscriptionInterval("0".into()));
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
     assert_eq!(units, 1, "interval gate arms only the error toast");
-    assert!(!state.profile.subscription_save_phase.is_saving());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
 
     feed(&mut state, Message::UpdateSubscriptionUrl("  ".into()));
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
     assert_eq!(units, 1, "auto-update without URL → toast only");
-    assert!(!state.profile.subscription_save_phase.is_saving());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
 
     // Happy path: gates pass, the persistence task spawns (not run here —
     // its URL leg would touch the OS keyring), and the result 回灌 reloads.
@@ -267,10 +276,18 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
     );
     feed(&mut state, Message::UpdateSubscriptionInterval("12".into()));
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
-    assert!(state.profile.subscription_save_phase.is_saving());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
     assert_eq!(units, 1);
     let units = feed(&mut state, Message::SubscriptionSettingsSaved(Ok(())));
-    assert!(!state.profile.subscription_save_phase.is_saving());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
     assert_eq!(units, 2, "LoadProfiles + success-toast legs");
 
     // Persistence leg for real: the URL-less metadata write path (what the
@@ -325,7 +342,11 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
         units, 1,
         "guard toast armed (delivered one runtime hop later)"
     );
-    assert!(!state.profile.subscription_update_phase.is_updating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
 
     feed(
         &mut state,
@@ -342,7 +363,11 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
     assert_eq!(state.profile.subscription_profile_name, "Paid");
 
     let units = feed(&mut state, Message::UpdateSubscriptionNow);
-    assert!(state.profile.subscription_update_phase.is_updating());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
     assert!(units >= 1, "update task spawned");
 
     // Worker would fetch → parse → (active profile, no runtime) clear backup.
@@ -350,7 +375,11 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
         &mut state,
         Message::SubscriptionUpdatedNow(Ok(subscription_report("Paid"))),
     );
-    assert!(!state.profile.subscription_update_phase.is_updating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
     assert_eq!(units, 2, "LoadProfiles + success-toast legs");
 
     // Failure leg: banner + error toast, flag cleared.
@@ -359,7 +388,11 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
         &mut state,
         Message::SubscriptionUpdatedNow(Err(InfiltratorError::Config("订阅拉取失败".into()))),
     );
-    assert!(!state.profile.subscription_update_phase.is_updating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
     assert!(
         state
             .shell
@@ -385,7 +418,11 @@ fn subscription_batch_update_and_backup_restore_are_shared_application_wired() {
     // Toolbar click arms the shared batch path.
     let units = feed(&mut state, Message::UpdateAllSubscriptionsNow);
     assert!(units >= 1, "batch update task spawned");
-    assert!(state.profile.subscription_update_phase.is_updating());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
     // Single-flight guard: a second click while in flight is a no-op.
     assert_eq!(
         feed(&mut state, Message::UpdateAllSubscriptionsNow),
@@ -402,7 +439,11 @@ fn subscription_batch_update_and_backup_restore_are_shared_application_wired() {
     };
     let units = feed(&mut state, Message::AllSubscriptionsUpdated(Ok(report)));
     assert_eq!(units, 2, "LoadProfiles + summarized batch toast legs");
-    assert!(!state.profile.subscription_update_phase.is_updating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
 
     // Missing backup is reported honestly (informational), not as a success.
     let units = feed(&mut state, Message::RestoreSubscriptionBackup);
@@ -490,7 +531,9 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
     let units = feed(&mut state, Message::UpdateAllSubscriptionsNow);
     assert!(units >= 1, "update-all task armed through the router");
     assert!(
-        state.profile.subscription_update_phase.is_updating(),
+        state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription),
         "handler armed"
     );
 
@@ -505,7 +548,11 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
         })),
     );
     assert!(units >= 1, "AllSubscriptionsUpdated dispatched");
-    assert!(!state.profile.subscription_update_phase.is_updating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
     assert_eq!(
         units, 2,
         "LoadProfiles + summarized batch toast legs are armed"

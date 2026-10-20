@@ -6,7 +6,6 @@ use crate::host::runtime::{application_runtime, subscription_notifier};
 use crate::host::storage::subscription_source;
 use crate::notify::NotifyUrgency;
 use crate::state::AppState;
-use crate::state::profiles::{SubscriptionSavePhase, SubscriptionUpdatePhase};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use chrono::Utc;
@@ -19,6 +18,7 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
 use infiltrator_ports::host_runtime::HostRuntime;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
@@ -207,7 +207,8 @@ impl AppState {
                     ));
                 }
 
-                self.profile.subscription_save_phase = SubscriptionSavePhase::Saving;
+                self.profile
+                    .begin_operation(ProfilesOperation::SaveSubscription);
                 let draft = SubscriptionScheduleDraft {
                     url,
                     auto_update_enabled: auto_update,
@@ -244,7 +245,8 @@ impl AppState {
                 )
             }
             Message::SubscriptionSettingsSaved(result) => {
-                self.profile.subscription_save_phase = SubscriptionSavePhase::Idle;
+                self.profile
+                    .reset_operation(ProfilesOperation::SaveSubscription);
                 match result {
                     Ok(_) => Task::batch(vec![
                         Task::done(Message::LoadProfiles),
@@ -267,7 +269,8 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 }
-                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Updating;
+                self.profile
+                    .begin_operation(ProfilesOperation::UpdateSubscription);
                 let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
@@ -306,7 +309,8 @@ impl AppState {
                 )
             }
             Message::SubscriptionUpdatedNow(result) => {
-                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Idle;
+                self.profile
+                    .reset_operation(ProfilesOperation::UpdateSubscription);
                 self.refresh_tray();
                 match result {
                     Ok(report) => {
@@ -434,10 +438,14 @@ impl AppState {
                 // Tray + toolbar "update all" entry: refresh every profile
                 // carrying a subscription URL right away, regardless of its
                 // schedule, through the shared bounded-concurrency batch path.
-                if self.profile.subscription_update_phase.is_updating() {
+                if self
+                    .profile
+                    .operation_running(ProfilesOperation::UpdateSubscription)
+                {
                     return Task::none();
                 }
-                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Updating;
+                self.profile
+                    .begin_operation(ProfilesOperation::UpdateSubscription);
                 let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
@@ -465,7 +473,8 @@ impl AppState {
                 )
             }
             Message::AllSubscriptionsUpdated(result) => {
-                self.profile.subscription_update_phase = SubscriptionUpdatePhase::Idle;
+                self.profile
+                    .reset_operation(ProfilesOperation::UpdateSubscription);
                 match result {
                     Ok(report) => {
                         let applied_to_core = report

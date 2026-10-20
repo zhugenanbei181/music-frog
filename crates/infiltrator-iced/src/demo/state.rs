@@ -2,28 +2,15 @@
 //! tables so the full UI renders without any runtime or side effects.
 
 use super::DemoEnv;
-use super::dns_hosts;
-use super::dns_leak;
-use super::dns_query;
-use super::doctor;
-use super::filter;
 use super::fixtures::{
     demo_connections, demo_logs, demo_profiles, demo_rules, demo_traffic_history,
     demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture, profile_yaml_fixture,
     proxy_providers_json_fixture, rule_providers_json_fixture, sniffer_json_fixture,
     tun_json_fixture,
 };
-use super::interaction;
-use super::language;
-use super::logs;
 use super::proxy_fixtures::demo_outbound_surface;
-use super::routing_intent;
-use super::rule_list;
-use super::rule_statistics;
-use super::rule_trace;
-use super::snapshot_restore;
-use super::telemetry;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
+use crate::capture_scenario;
 use crate::state::AppState;
 use crate::state::runtime::SystemProxyStage;
 use crate::types::app::SyncConflict;
@@ -40,10 +27,9 @@ use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
-use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
-use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
@@ -154,7 +140,7 @@ impl AppState {
         // Capture variant `rules-providers` opens the Providers tab so the
         // provider lists and MRS metadata panel are in frame.
         if env.providers_tab {
-            state.editor.rules_tab = RulesTab::Providers;
+            state.editor.rules_model.select_tab(RulesTab::Providers);
             state.editor.rules_providers_expanded = true;
         }
         state.rebuild_rules_render_cache();
@@ -185,9 +171,20 @@ impl AppState {
                 cache_fingerprint: None,
             },
         ];
-        state.editor.rule_providers_json_cache = rule_providers_json_fixture();
-        state.editor.proxy_providers_json_cache = proxy_providers_json_fixture();
-        state.editor.sniffer_json_cache = sniffer_json_fixture();
+        // The JSON documents are the shared rules page model's drafts; the
+        // demo publishes them as the committed baseline.
+        state.editor.rules_model.observe_json_document(
+            RulesJsonSection::RuleProviders,
+            rule_providers_json_fixture(),
+        );
+        state.editor.rules_model.observe_json_document(
+            RulesJsonSection::ProxyProviders,
+            proxy_providers_json_fixture(),
+        );
+        state
+            .editor
+            .rules_model
+            .observe_json_document(RulesJsonSection::Sniffer, sniffer_json_fixture());
         // MRS metadata details paired with the rule providers above; the
         // last entry demonstrates the missing-cache failure projection.
         state.editor.mrs_details = vec![
@@ -385,70 +382,10 @@ rules:
         );
 
         if let Some(feature) = env.scenario {
-            if feature == FeatureId::RuntimeTelemetryObservation {
-                let task = telemetry::activate(&mut state);
-                return (state, task);
-            }
-            if matches!(
-                feature,
-                FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication
-            ) {
-                let task = routing_intent::activate(&mut state, feature);
-                return (state, task);
-            }
-            if matches!(
-                feature,
-                FeatureId::LogsSearchHighlight
-                    | FeatureId::LogsScrollLock
-                    | FeatureId::LogsRedactedExport
-            ) {
-                let task = logs::activate(&mut state, feature);
-                return (state, task);
-            }
-            if feature == FeatureId::ProfilesFilterEditor {
-                let task = filter::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::RulesStatisticsInspector {
-                let task = rule_statistics::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::RulesListEditor {
-                let task = rule_list::activate(&mut state);
-                return (state, task);
-            }
-            if matches!(
-                feature,
-                FeatureId::RulesTracerDrawer | FeatureId::RulesOverrideEditor
-            ) {
-                let task = rule_trace::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::DnsHostsEditor {
-                let task = dns_hosts::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::DnsQueryDetails {
-                let task = dns_query::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::DnsLeakAlert {
-                let task = dns_leak::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::DoctorFailureRecovery {
-                let task = doctor::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::ProfilesSnapshotRestoreConfirm {
-                let task = snapshot_restore::activate(&mut state);
-                return (state, task);
-            }
-            if feature == FeatureId::SettingsLanguageChoice {
-                let task = language::activate(&mut state);
-                return (state, task);
-            }
-            interaction::activate(&mut state, feature);
+            // The capture scenario opens exactly one business of the shared
+            // parity catalogue through the real surface.
+            let task = capture_scenario::open_business(&mut state, feature);
+            return (state, task);
         }
         (state, iced::Task::none())
     }

@@ -19,7 +19,6 @@ use crate::state::proxy_search::ProxySearchPhase::Uninitialized;
 use crate::state::runtime::RuntimeState;
 use crate::state::shell::ShellState;
 use crate::surface::{SurfaceBridge, SurfaceModel};
-use crate::types::app::UwpAppItem;
 use crate::types::app_routing::AppRoutingState;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
@@ -30,7 +29,6 @@ use infiltrator_contract::command_catalogue::{CommandCatalogue, ProfileChoice};
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
-use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_desktop::product::DesktopProductSessionHandle;
@@ -51,10 +49,7 @@ use lurker_core_contract::outbound::{
     details::{OutboundDetail, OutboundDetailsSnapshot},
     identity::OutboundId,
     inventory::{OutboundInventorySnapshot, OutboundInventoryState, SelectionAvailability},
-    preferences::{
-        OutboundHealthFilter, OutboundLayout, OutboundUiPreferencesSnapshot,
-        OutboundUiPreferencesValues,
-    },
+    preferences::{OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues},
     probe::OutboundSelectionRequest,
 };
 use lurker_core_contract::page::{PageData, PageStatus, SurfaceOrigin};
@@ -327,15 +322,13 @@ impl AppState {
             }
             Dirty { .. } | Pending { .. } | Failed { .. } => {}
         }
-        self.runtime.favorite_proxies = preferences
-            .favorite_outbound_ids
-            .iter()
-            .map(|id| id.value().to_owned())
-            .collect();
-        self.runtime.filter_alive_only =
-            preferences.health_filter == OutboundHealthFilter::HealthyOnly;
-        self.runtime.proxy_compact_view = preferences.layout == OutboundLayout::CompactList;
-        self.runtime.outbound_sort_order = preferences.sort_order;
+        // The shared page model owns the typed query, the sort order, the
+        // health filter, the layout, the group expansion, the group order and
+        // the favourites.
+        self.runtime.proxies_model.observe_preferences(preferences);
+        // A query the user is still typing stays the visible one.
+        let query = self.runtime.proxy_filter.clone();
+        self.runtime.proxies_model.edit_query(&query);
     }
 
     pub(crate) fn apply_demo_outbound_ui_preference(
@@ -484,14 +477,13 @@ impl AppState {
             return;
         }
         self.runtime.proxy_groups = outbound_inventory::project_groups(
+            &self.runtime.proxies_model,
             &self.runtime.outbound_inventory,
             &self.runtime.outbound_details,
-            &self.runtime.outbound_ui_preferences,
-            &self.runtime.proxy_groups,
         );
         let (filtered, name_runs) = outbound_inventory::filtered_groups(
+            &self.runtime.proxies_model,
             &self.runtime.proxy_groups,
-            &self.runtime.proxy_filter,
         );
         self.runtime.filtered_groups = filtered;
         self.runtime.proxy_name_runs = name_runs;

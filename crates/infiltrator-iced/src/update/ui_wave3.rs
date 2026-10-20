@@ -3,60 +3,51 @@
 
 use crate::host::desktop::uwp_loopback_application;
 use crate::state::AppState;
-use crate::types::app::{ToastStatus, UwpAppItem, UwpLoopbackState};
+use crate::types::app::ToastStatus;
 use crate::types::editor::GeoDataUpdatePhase;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_contract::app_routing::AppRoutingMode;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::speedtest::SpeedtestCancelOutcome;
-use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
+use infiltrator_contract::surface_snapshot::AppRoutingPageSnapshot;
+use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
 use infiltrator_domain::backup::{BackupBundle, export_encrypted_bundle};
 use infiltrator_domain::pcap_exporter::{PcapExporter, PcapHeader};
 use infiltrator_domain::rules::logical::{
     add_condition, build_logical_rule, remove_condition, select_operator, set_target,
 };
-use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::{Failure, InfiltratorError};
 use std::fs::write;
-
-fn map_uwp_snapshot(
-    target: &mut UwpLoopbackState,
-    snapshot: UwpLoopbackSnapshot,
-    copy_locale: &str,
-) {
-    target.availability = snapshot.availability.clone();
-    target.revision = snapshot.revision;
-    target.apps = snapshot
-        .packages
-        .into_iter()
-        .map(|package| UwpAppItem {
-            sid: package.sid,
-            display_name: package.display_name,
-            is_exempt: package.loopback_exempt,
-        })
-        .collect();
-    target.is_scanning = false;
-    target.status_message = Some(match snapshot.availability {
-        UwpLoopbackAvailability::Supported => localize(
-            copy_locale,
-            "uwp_scan_count",
-            &[("count", target.apps.len().to_string())],
-        ),
-        UwpLoopbackAvailability::Unsupported { reason }
-        | UwpLoopbackAvailability::Unavailable { reason } => reason,
-    });
-}
 
 fn map_uwp_failure(error: Failure) -> InfiltratorError {
     InfiltratorError::Internal(error.message)
 }
 
 impl AppState {
+    /// Observe the UWP loopback readback the host published.
+    ///
+    /// The loopback packages are a shared fact: the surface keeps no private
+    /// copy of them.
     fn apply_uwp_snapshot(&mut self, snapshot: UwpLoopbackSnapshot) {
-        map_uwp_snapshot(&mut self.shell.uwp_loopback, snapshot, &self.shell.lang);
+        let mode = self
+            .shell
+            .uwp_loopback
+            .mode()
+            .unwrap_or(AppRoutingMode::ProxyAll);
+        let include_system = self.shell.uwp_loopback.include_system().unwrap_or(false);
+        let apps = self.shell.uwp_loopback.apps().to_vec();
+        self.shell
+            .uwp_loopback
+            .observe_page(AppRoutingPageSnapshot {
+                mode,
+                include_system,
+                apps,
+                uwp_loopback: snapshot,
+            });
     }
 
     pub(super) fn update_ui_wave3(&mut self, message: Message) -> Task<Message> {
@@ -267,40 +258,39 @@ impl AppState {
                 }
             }
             Message::ScanUwpApps => {
+                self.shell.uwp_loopback.scan_phase_mut().begin();
                 if !self.shell.demo {
-                    self.shell.uwp_loopback.is_scanning = true;
                     let application = uwp_loopback_application();
                     return Task::perform(
                         async move { application.snapshot().await },
                         Message::UwpSnapshotLoaded,
                     );
                 }
-                self.shell.uwp_loopback.is_scanning = true;
-                let apps = vec![
-                    UwpAppItem {
+                let packages = vec![
+                    UwpPackageSnapshot {
                         sid: "S-1-15-2-1".into(),
                         display_name: "Microsoft Store".into(),
-                        is_exempt: true,
+                        package_family_name: "Microsoft.Store_8wekyb3d8bbwe".into(),
+                        loopback_exempt: true,
                     },
-                    UwpAppItem {
+                    UwpPackageSnapshot {
                         sid: "S-1-15-2-2".into(),
                         display_name: "Xbox App".into(),
-                        is_exempt: false,
+                        package_family_name: "Microsoft.XboxApp_8wekyb3d8bbwe".into(),
+                        loopback_exempt: false,
                     },
-                    UwpAppItem {
+                    UwpPackageSnapshot {
                         sid: "S-1-15-2-3".into(),
                         display_name: "Windows Terminal".into(),
-                        is_exempt: true,
+                        package_family_name: "Microsoft.WindowsTerminal_8wekyb3d8bbwe".into(),
+                        loopback_exempt: true,
                     },
                 ];
-                self.shell.uwp_loopback.is_scanning = false;
-                self.shell.uwp_loopback.apps = apps;
+                self.apply_uwp_snapshot(UwpLoopbackSnapshot::supported(1, packages));
                 Task::none()
             }
-            Message::UwpAppsLoaded(apps) => {
-                self.shell.uwp_loopback.apps = apps;
-                self.shell.uwp_loopback.availability = UwpLoopbackAvailability::Supported;
-                self.shell.uwp_loopback.is_scanning = false;
+            Message::UwpAppsLoaded(packages) => {
+                self.apply_uwp_snapshot(UwpLoopbackSnapshot::supported(1, packages));
                 Task::none()
             }
             Message::UwpSnapshotLoaded(snapshot) => {
@@ -308,90 +298,120 @@ impl AppState {
                 Task::none()
             }
             Message::ExemptAllUwpApps => {
+                self.shell.uwp_loopback.scan_phase_mut().begin();
                 if !self.shell.demo {
-                    self.shell.uwp_loopback.is_scanning = true;
                     let application = uwp_loopback_application();
                     return Task::perform(
                         async move { application.set_all(true).await.map_err(map_uwp_failure) },
                         Message::UwpExemptionsChanged,
                     );
                 }
-                for app in &mut self.shell.uwp_loopback.apps {
-                    app.is_exempt = true;
-                }
+                self.apply_uwp_snapshot(UwpLoopbackSnapshot::supported(
+                    1,
+                    self.shell
+                        .uwp_loopback
+                        .uwp_packages()
+                        .iter()
+                        .map(|package| UwpPackageSnapshot {
+                            loopback_exempt: true,
+                            ..package.clone()
+                        })
+                        .collect(),
+                ));
                 Task::done(Message::ShowToast(
                     "All UWP apps loopback exempted".into(),
                     ToastStatus::Success,
                 ))
             }
             Message::ClearAllUwpExemptions => {
+                self.shell.uwp_loopback.scan_phase_mut().begin();
                 if !self.shell.demo {
-                    self.shell.uwp_loopback.is_scanning = true;
                     let application = uwp_loopback_application();
                     return Task::perform(
                         async move { application.set_all(false).await.map_err(map_uwp_failure) },
                         Message::UwpExemptionsChanged,
                     );
                 }
-                for app in &mut self.shell.uwp_loopback.apps {
-                    app.is_exempt = false;
-                }
+                self.apply_uwp_snapshot(UwpLoopbackSnapshot::supported(
+                    1,
+                    self.shell
+                        .uwp_loopback
+                        .uwp_packages()
+                        .iter()
+                        .map(|package| UwpPackageSnapshot {
+                            loopback_exempt: false,
+                            ..package.clone()
+                        })
+                        .collect(),
+                ));
                 Task::done(Message::ShowToast(
                     "All UWP loopback exemptions cleared".into(),
                     ToastStatus::Success,
                 ))
             }
             Message::ToggleUwpAppExemption(sid) => {
+                let Some(package) = self
+                    .shell
+                    .uwp_loopback
+                    .uwp_packages()
+                    .iter()
+                    .find(|package| package.sid == sid)
+                    .cloned()
+                else {
+                    return Task::none();
+                };
+                self.shell.uwp_loopback.scan_phase_mut().begin();
                 if !self.shell.demo {
-                    let Some(app) = self
-                        .shell
-                        .uwp_loopback
-                        .apps
-                        .iter()
-                        .find(|app| app.sid == sid)
-                        .cloned()
-                    else {
-                        return Task::none();
-                    };
-                    self.shell.uwp_loopback.is_scanning = true;
                     let application = uwp_loopback_application();
                     return Task::perform(
                         async move {
                             application
-                                .set_exempt(&app.sid, !app.is_exempt)
+                                .set_exempt(&package.sid, !package.loopback_exempt)
                                 .await
                                 .map_err(map_uwp_failure)
                         },
                         Message::UwpExemptionsChanged,
                     );
                 }
-                if let Some(app) = self
-                    .shell
-                    .uwp_loopback
-                    .apps
-                    .iter_mut()
-                    .find(|a| a.sid == sid)
-                {
-                    app.is_exempt = !app.is_exempt;
-                }
+                self.apply_uwp_snapshot(UwpLoopbackSnapshot::supported(
+                    1,
+                    self.shell
+                        .uwp_loopback
+                        .uwp_packages()
+                        .iter()
+                        .map(|package| {
+                            if package.sid == sid {
+                                UwpPackageSnapshot {
+                                    loopback_exempt: !package.loopback_exempt,
+                                    ..package.clone()
+                                }
+                            } else {
+                                package.clone()
+                            }
+                        })
+                        .collect(),
+                ));
                 Task::none()
             }
-            Message::UwpExemptionsChanged(result) => {
-                self.shell.uwp_loopback.is_scanning = false;
-                match result {
-                    Ok(snapshot) => {
-                        self.apply_uwp_snapshot(snapshot);
-                        Task::done(Message::ShowToast(
-                            Lang(&copy_locale).tr("uwp_loopback_verified").into_owned(),
-                            ToastStatus::Success,
-                        ))
-                    }
-                    Err(error) => {
-                        self.set_error(&error);
-                        Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
-                    }
+            Message::UwpExemptionsChanged(result) => match result {
+                Ok(snapshot) => {
+                    self.apply_uwp_snapshot(snapshot);
+                    Task::done(Message::ShowToast(
+                        Lang(&copy_locale).tr("uwp_loopback_verified").into_owned(),
+                        ToastStatus::Success,
+                    ))
                 }
-            }
+                Err(error) => {
+                    let phase = self.shell.uwp_loopback.scan_phase_mut();
+                    let token = phase.token().unwrap_or_else(|| phase.begin());
+                    phase.fail(
+                        token,
+                        Failure::new(ErrorCode::Internal, error.to_string(), false),
+                    );
+                    self.set_error(&error);
+                    Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+                }
+            },
             Message::UpdateEncryptedBackupPassphrase(pass) => {
                 self.profile.encrypted_backup.passphrase = pass;
                 Task::none()

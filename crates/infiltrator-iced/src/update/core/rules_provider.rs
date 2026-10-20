@@ -9,7 +9,7 @@
 //! the existing `SaveRules` path, exactly like the other DUAL-11 rule edits.
 
 use crate::state::AppState;
-use crate::state::editor::RuleProviderDiffLoadPhase;
+
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
@@ -18,11 +18,13 @@ use infiltrator_application::rule_provider_application::{
 };
 use infiltrator_contract::provider_cache::ProviderCachePurge;
 use infiltrator_contract::rule_provider_runtime::RuleProviderPayload;
+use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::rules::provider_store::{
     RuleProviderDeclaration, deconstruct_provider_payload, parse_rule_provider_declarations,
 };
 use infiltrator_domain::rules::{RuleProviders, diff_rule_provider_contents};
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::InfiltratorError;
 
@@ -37,12 +39,18 @@ impl AppState {
             Message::PurgeRuleProviderCache => self.start_rule_provider_cache_purge(),
             Message::InspectRuleProviderDiff(None) => {
                 self.editor.inspecting_rule_provider_diff = None;
-                self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::LoadProviderDiff)
+                    .reset();
                 Task::none()
             }
             Message::InspectRuleProviderDiff(Some(name)) => self.start_rule_provider_diff(name),
             Message::RuleProviderDiffLoaded(result) => {
-                self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::LoadProviderDiff)
+                    .reset();
                 match result {
                     Ok(diff) => {
                         self.editor.inspecting_rule_provider_diff = Some(diff);
@@ -194,13 +202,19 @@ impl AppState {
     /// failure instead of a sample diff.
     fn start_rule_provider_diff(&mut self, provider_name: String) -> Task<Message> {
         let Some(declaration) = self.declared_rule_provider(&provider_name) else {
-            self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Idle;
+            self.editor
+                .rules_model
+                .operation_mut(RulesOperation::LoadProviderDiff)
+                .reset();
             return self.set_provider_status(
                 format!("Provider {provider_name} is not declared in the loaded profile"),
                 ToastStatus::Error,
             );
         };
-        self.editor.rule_provider_diff_load_phase = RuleProviderDiffLoadPhase::Loading;
+        self.editor
+            .rules_model
+            .operation_mut(RulesOperation::LoadProviderDiff)
+            .begin();
         let cache = self.runtime.rule_provider_cache_port.clone();
         let runtime_access = self.rule_provider_runtime_access();
         Task::perform(
@@ -291,7 +305,10 @@ impl AppState {
     }
 
     fn declared_rule_providers(&self) -> Vec<RuleProviderDeclaration> {
-        let cached = self.editor.rule_providers_json_cache.trim();
+        let cached = self
+            .editor
+            .rules_json_baseline(RulesJsonSection::RuleProviders)
+            .trim();
         if cached.is_empty() || cached == "{}" {
             return Vec::new();
         }

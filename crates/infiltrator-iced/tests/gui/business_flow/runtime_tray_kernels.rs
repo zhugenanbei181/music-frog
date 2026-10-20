@@ -22,6 +22,8 @@ use infiltrator_contract::version::{CoreRollbackSnapshot, InstalledCoreVersion};
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_platform::paths::get_home_dir;
+#[cfg(unix)]
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
@@ -29,7 +31,6 @@ use lurker_core_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
 use mihomo_version::manager::VersionManager;
-#[cfg(unix)]
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::fs::create_dir_all;
@@ -487,7 +488,11 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert_eq!(units, 1, "intent resolves and forwards…");
     let units = feed(&mut state, Message::UpdateAllSubscriptionsNow);
     assert!(units >= 1, "…into the live update-all handler");
-    assert!(state.profile.subscription_update_phase.is_updating());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::UpdateSubscription)
+    );
 }
 
 /// Kernel entries surface in the tray spec: one nested submenu per version,

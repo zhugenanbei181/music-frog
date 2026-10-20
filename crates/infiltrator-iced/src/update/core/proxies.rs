@@ -464,18 +464,20 @@ impl AppState {
             Message::ToggleProxyCompactView => {
                 if self.is_product_command_ingress() {
                     return self.submit_current_outbound_ui_preference(
-                        OutboundUiPreferenceIntent::SetLayout(if self.runtime.proxy_compact_view {
-                            OutboundLayout::Grid
-                        } else {
-                            OutboundLayout::CompactList
-                        }),
+                        OutboundUiPreferenceIntent::SetLayout(
+                            if self.runtime.proxies_model.layout() == OutboundLayout::CompactList {
+                                OutboundLayout::Grid
+                            } else {
+                                OutboundLayout::CompactList
+                            },
+                        ),
                     );
                 }
                 if !self.shell.demo {
                     return Task::none();
                 }
                 self.apply_demo_outbound_ui_preference(OutboundUiPreferenceIntent::SetLayout(
-                    if self.runtime.proxy_compact_view {
+                    if self.runtime.proxies_model.layout() == OutboundLayout::CompactList {
                         OutboundLayout::Grid
                     } else {
                         OutboundLayout::CompactList

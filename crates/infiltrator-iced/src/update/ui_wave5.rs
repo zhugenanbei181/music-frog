@@ -106,12 +106,16 @@ impl AppState {
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
-        let desired = self.runtime.lan_sharing.clone();
+        let desired = self.runtime.settings_model.lan_sharing().clone();
+        self.runtime
+            .settings_model
+            .lan_sharing_write_phase_mut()
+            .begin();
         let configuration_ports = runtime.runtime_configuration_ports();
         Task::perform(
             async move {
                 RuntimeConfigurationApplication::new(scope, configuration_ports)
-                    .set_lan_sharing(desired.allow_lan, desired.mixed_port, &desired.bind_address)
+                    .set_lan_sharing(desired.enabled, desired.mixed_port, &desired.bind_address)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
             },
@@ -136,10 +140,14 @@ impl AppState {
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
-        let desired = self.runtime.lan_security.clone();
-        let allowed_ips = split_cidrs(&desired.allowed_ips);
-        let disallowed_ips = split_cidrs(&desired.disallowed_ips);
-        let skip_auth_prefixes = split_cidrs(&desired.skip_auth_prefixes);
+        let desired = self.runtime.settings_model.lan_security().clone();
+        self.runtime
+            .settings_model
+            .lan_security_write_phase_mut()
+            .begin();
+        let allowed_ips = desired.allowed_ips.clone();
+        let disallowed_ips = desired.disallowed_ips.clone();
+        let skip_auth_prefixes = desired.skip_auth_prefixes.clone();
         let credentials = desired.authentication_enabled.then(|| LanCredentials {
             username: desired.auth_username.clone(),
             password: desired.auth_password.clone(),
@@ -293,28 +301,32 @@ impl AppState {
             | Message::RuleProviderUnpacked(_)
             | Message::RuleProviderCachePurged(_) => self.update_rule_provider(message),
             Message::ToggleLanSharing(on) => {
-                self.runtime.lan_sharing.allow_lan = on;
-                if self.runtime.lan_sharing.mixed_port == 0 {
-                    self.runtime.lan_sharing.mixed_port = 7890;
-                }
-                self.runtime.lan_sharing_dirty = true;
+                self.runtime.settings_model.edit_lan_sharing(|draft| {
+                    draft.enabled = on;
+                    if draft.mixed_port == 0 {
+                        draft.mixed_port = 7890;
+                    }
+                });
                 self.apply_lan_sharing()
             }
             Message::UpdateLanSharingPort(p) => {
-                self.runtime.lan_sharing.mixed_port = p;
-                self.runtime.lan_sharing_dirty = true;
+                self.runtime
+                    .settings_model
+                    .edit_lan_sharing(|draft| draft.mixed_port = p);
                 Task::none()
             }
             Message::UpdateLanBindAddress(address) => {
-                self.runtime.lan_sharing.bind_address = address;
-                self.runtime.lan_sharing_dirty = true;
+                self.runtime
+                    .settings_model
+                    .edit_lan_sharing(|draft| draft.bind_address = address);
                 Task::none()
             }
             Message::UpdateLanAclWhitelist(w) => {
-                self.runtime.lan_sharing.acl_whitelist_cidrs = w.clone();
-                self.runtime.lan_sharing_dirty = true;
-                self.runtime.lan_security.allowed_ips = w;
-                self.runtime.lan_security_dirty = true;
+                self.runtime.settings_text.lan_allowed_ips = w.clone();
+                let parsed = split_cidrs(&w);
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.allowed_ips = parsed);
                 Task::none()
             }
             Message::ApplyLanSharing => self.apply_lan_sharing(),
@@ -322,54 +334,85 @@ impl AppState {
                 if generation != self.runtime.runtime_generation {
                     return Task::none();
                 }
+                // The owner's answer settles the draft: the value it confirms
+                // becomes the draft the page shows, and the write phase
+                // settles with it.
+                let token = self
+                    .runtime
+                    .settings_model
+                    .lan_sharing_write_phase()
+                    .token();
                 match result {
                     Ok(snapshot) => {
-                        self.runtime.lan_sharing.allow_lan = snapshot.enabled;
-                        self.runtime.lan_sharing.mixed_port = snapshot.mixed_port;
-                        self.runtime.lan_sharing.bind_address = snapshot.bind_address;
-                        self.runtime.lan_sharing_committed = self.runtime.lan_sharing.clone();
-                        self.runtime.lan_sharing_dirty = false;
+                        self.runtime.settings_model.discard_lan_sharing();
+                        self.runtime.settings_model.observe_lan_sharing(&snapshot);
+                        if let Some(token) = token {
+                            self.runtime
+                                .settings_model
+                                .lan_sharing_write_phase_mut()
+                                .succeed(token);
+                        }
                         Task::done(Message::ShowToast(
                             Lang(&copy_locale).tr("lan_listen_verified").into_owned(),
                             ToastStatus::Success,
                         ))
                     }
                     Err(error) => {
-                        self.runtime.lan_sharing = self.runtime.lan_sharing_committed.clone();
-                        self.runtime.lan_sharing_dirty = false;
+                        if let Some(token) = token {
+                            self.runtime
+                                .settings_model
+                                .lan_sharing_write_phase_mut()
+                                .fail(
+                                    token,
+                                    Failure::new(ErrorCode::Internal, error.to_string(), false),
+                                );
+                        }
+                        self.runtime.settings_model.discard_lan_sharing();
                         self.set_error(&error);
                         Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }
             }
             Message::UpdateLanAllowedIps(value) => {
-                self.runtime.lan_security.allowed_ips = value;
-                self.runtime.lan_security_dirty = true;
+                self.runtime.settings_text.lan_allowed_ips = value.clone();
+                let parsed = split_cidrs(&value);
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.allowed_ips = parsed);
                 Task::none()
             }
             Message::UpdateLanDisallowedIps(value) => {
-                self.runtime.lan_security.disallowed_ips = value;
-                self.runtime.lan_security_dirty = true;
+                self.runtime.settings_text.lan_disallowed_ips = value.clone();
+                let parsed = split_cidrs(&value);
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.disallowed_ips = parsed);
                 Task::none()
             }
             Message::UpdateLanSkipAuthPrefixes(value) => {
-                self.runtime.lan_security.skip_auth_prefixes = value;
-                self.runtime.lan_security_dirty = true;
+                self.runtime.settings_text.lan_skip_auth_prefixes = value.clone();
+                let parsed = split_cidrs(&value);
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.skip_auth_prefixes = parsed);
                 Task::none()
             }
             Message::ToggleLanAuthentication(enabled) => {
-                self.runtime.lan_security.authentication_enabled = enabled;
-                self.runtime.lan_security_dirty = true;
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.authentication_enabled = enabled);
                 Task::none()
             }
             Message::UpdateLanAuthUsername(value) => {
-                self.runtime.lan_security.auth_username = value;
-                self.runtime.lan_security_dirty = true;
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.auth_username = value);
                 Task::none()
             }
             Message::UpdateLanAuthPassword(value) => {
-                self.runtime.lan_security.auth_password = value;
-                self.runtime.lan_security_dirty = true;
+                self.runtime
+                    .settings_model
+                    .edit_lan_security(|draft| draft.auth_password = value);
                 Task::none()
             }
             Message::ApplyLanSecurity => self.apply_lan_security(),
@@ -377,33 +420,47 @@ impl AppState {
                 if generation != self.runtime.runtime_generation {
                     return Task::none();
                 }
+                // The owner's answer settles the draft: the ACL it confirms
+                // becomes the draft the page shows, the password it never
+                // published is dropped, and the write phase settles with it.
+                let token = self
+                    .runtime
+                    .settings_model
+                    .lan_security_write_phase()
+                    .token();
                 match result {
                     Ok(snapshot) => {
-                        self.runtime.lan_security.allowed_ips = snapshot.allowed_ips.join(", ");
-                        self.runtime.lan_security.disallowed_ips =
-                            snapshot.disallowed_ips.join(", ");
-                        self.runtime.lan_security.skip_auth_prefixes =
-                            snapshot.skip_auth_prefixes.join(", ");
-                        self.runtime.lan_security.authentication_enabled =
-                            snapshot.authentication_enabled;
-                        self.runtime.lan_security.authentication_user_count =
-                            snapshot.authentication_user_count;
-                        if let Some(username) = snapshot.authentication_username {
-                            self.runtime.lan_security.auth_username = username;
+                        self.runtime.settings_model.discard_lan_security();
+                        self.runtime.settings_model.observe_lan_security(&snapshot);
+                        self.runtime.settings_model.accept_lan_security();
+                        if let Some(token) = token {
+                            self.runtime
+                                .settings_model
+                                .lan_security_write_phase_mut()
+                                .succeed(token);
                         }
-                        self.runtime.lan_security.auth_password.clear();
-                        self.runtime.lan_security_committed = self.runtime.lan_security.clone();
-                        self.runtime.lan_security_dirty = false;
-                        self.runtime.lan_sharing.acl_whitelist_cidrs =
-                            self.runtime.lan_security.allowed_ips.clone();
+                        self.runtime.settings_text.lan_allowed_ips =
+                            snapshot.allowed_ips.join(", ");
+                        self.runtime.settings_text.lan_disallowed_ips =
+                            snapshot.disallowed_ips.join(", ");
+                        self.runtime.settings_text.lan_skip_auth_prefixes =
+                            snapshot.skip_auth_prefixes.join(", ");
                         Task::done(Message::ShowToast(
                             Lang(&copy_locale).tr("lan_access_verified").into_owned(),
                             ToastStatus::Success,
                         ))
                     }
                     Err(error) => {
-                        self.runtime.lan_security = self.runtime.lan_security_committed.clone();
-                        self.runtime.lan_security_dirty = false;
+                        if let Some(token) = token {
+                            self.runtime
+                                .settings_model
+                                .lan_security_write_phase_mut()
+                                .fail(
+                                    token,
+                                    Failure::new(ErrorCode::Internal, error.to_string(), false),
+                                );
+                        }
+                        self.runtime.settings_model.discard_lan_security();
                         self.set_error(&error);
                         Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }

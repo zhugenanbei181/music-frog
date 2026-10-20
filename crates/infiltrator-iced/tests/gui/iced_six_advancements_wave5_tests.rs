@@ -560,25 +560,30 @@ fn test_advancement_w5_6_lan_proxy_sharing_and_access_acl() {
     let (mut state, _) = AppState::new();
 
     // Default state
-    assert!(!state.runtime.lan_sharing.allow_lan);
+    assert!(!state.runtime.settings_model.lan_sharing().enabled);
 
     // Toggle LAN sharing on
     let _ = state.update(Message::ToggleLanSharing(true));
-    assert!(state.runtime.lan_sharing.allow_lan);
-    assert_eq!(state.runtime.lan_sharing.mixed_port, 7890);
+    assert!(state.runtime.settings_model.lan_sharing().enabled);
+    assert_eq!(state.runtime.settings_model.lan_sharing().mixed_port, 7890);
 
     // Update port
     let _ = state.update(Message::UpdateLanSharingPort(8080));
-    assert_eq!(state.runtime.lan_sharing.mixed_port, 8080);
+    assert_eq!(state.runtime.settings_model.lan_sharing().mixed_port, 8080);
 
-    // Update ACL whitelist
+    // Update ACL whitelist: the typed list is the shared draft, the raw text
+    // is the field the user is editing.
     let acl = "192.168.1.0/24, 10.0.0.0/8";
     let _ = state.update(Message::UpdateLanAclWhitelist(acl.to_string()));
-    assert_eq!(state.runtime.lan_sharing.acl_whitelist_cidrs, acl);
+    assert_eq!(state.runtime.settings_text.lan_allowed_ips, acl);
+    assert_eq!(
+        state.runtime.settings_model.lan_security().allowed_ips,
+        vec!["192.168.1.0/24".to_owned(), "10.0.0.0/8".to_owned()]
+    );
 
     // Toggle off
     let _ = state.update(Message::ToggleLanSharing(false));
-    assert!(!state.runtime.lan_sharing.allow_lan);
+    assert!(!state.runtime.settings_model.lan_sharing().enabled);
 }
 
 #[test]
@@ -589,11 +594,10 @@ fn test_lan_sharing_readback_updates_the_iced_state() {
 
     let _ = state.update(Message::LanSharingSet(Ok(snapshot.clone()), generation));
 
-    assert!(state.runtime.lan_sharing.allow_lan);
-    assert_eq!(state.runtime.lan_sharing.mixed_port, 8080);
-    assert_eq!(state.runtime.lan_sharing.bind_address, "192.168.1.10");
+    assert!(state.runtime.settings_model.lan_sharing().enabled);
+    assert_eq!(state.runtime.settings_model.lan_sharing().mixed_port, 8080);
     assert_eq!(
-        state.runtime.lan_sharing_committed.bind_address,
+        state.runtime.settings_model.lan_sharing().bind_address,
         "192.168.1.10"
     );
 }
@@ -602,7 +606,10 @@ fn test_lan_sharing_readback_updates_the_iced_state() {
 fn test_lan_security_readback_updates_iced_acl_and_clears_password() {
     let (mut state, _) = AppState::new();
     let generation = state.runtime.runtime_generation;
-    state.runtime.lan_security.auth_password = "temporary-secret".to_owned();
+    state
+        .runtime
+        .settings_model
+        .edit_lan_security(|draft| draft.auth_password = "temporary-secret".to_owned());
     let snapshot = LanSecuritySnapshot::new(
         6,
         vec!["192.168.1.0/24".to_owned()],
@@ -615,19 +622,43 @@ fn test_lan_security_readback_updates_iced_acl_and_clears_password() {
 
     let _ = state.update(Message::LanSecuritySet(Ok(snapshot), generation));
 
-    assert_eq!(state.runtime.lan_security.allowed_ips, "192.168.1.0/24");
-    assert_eq!(state.runtime.lan_security.disallowed_ips, "192.168.1.10/32");
-    assert_eq!(state.runtime.lan_security.auth_username, "lan-user");
-    assert!(state.runtime.lan_security.authentication_enabled);
-    assert!(state.runtime.lan_security.auth_password.is_empty());
-    assert!(!state.runtime.lan_security_dirty);
+    assert_eq!(
+        state.runtime.settings_model.lan_security().allowed_ips,
+        vec!["192.168.1.0/24".to_owned()]
+    );
+    assert_eq!(
+        state.runtime.settings_model.lan_security().disallowed_ips,
+        vec!["192.168.1.10/32".to_owned()]
+    );
+    assert_eq!(
+        state.runtime.settings_model.lan_security().auth_username,
+        "lan-user"
+    );
+    assert!(
+        state
+            .runtime
+            .settings_model
+            .lan_security()
+            .authentication_enabled
+    );
+    assert!(
+        state
+            .runtime
+            .settings_model
+            .lan_security()
+            .auth_password
+            .is_empty()
+    );
+    assert!(!state.runtime.settings_model.lan_security_modified());
 }
 
 #[test]
 fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
     let (mut state, _) = AppState::new();
-    state.runtime.lan_sharing.bind_address = "192.168.1.10".to_owned();
-    state.runtime.lan_sharing_dirty = true;
+    state
+        .runtime
+        .settings_model
+        .edit_lan_sharing(|draft| draft.bind_address = "192.168.1.10".to_owned());
 
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::IcedDesktop,
@@ -676,9 +707,23 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
-    assert_eq!(state.runtime.lan_sharing.bind_address, "192.168.1.10");
-    assert_eq!(state.runtime.lan_sharing_committed.bind_address, "*");
-    assert_eq!(state.runtime.lan_security.allowed_ips, "192.168.0.0/16");
-    assert!(state.runtime.lan_security.authentication_enabled);
-    assert_eq!(state.runtime.lan_security.auth_username, "lan-user");
+    assert_eq!(
+        state.runtime.settings_model.lan_sharing().bind_address,
+        "192.168.1.10"
+    );
+    assert_eq!(
+        state.runtime.settings_model.lan_security().allowed_ips,
+        vec!["192.168.0.0/16".to_owned()]
+    );
+    assert!(
+        state
+            .runtime
+            .settings_model
+            .lan_security()
+            .authentication_enabled
+    );
+    assert_eq!(
+        state.runtime.settings_model.lan_security().auth_username,
+        "lan-user"
+    );
 }

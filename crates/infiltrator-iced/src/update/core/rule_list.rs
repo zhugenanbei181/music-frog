@@ -1,6 +1,5 @@
 //! Iced adapter for complete, source-bound draft facts and atomic commits.
 use crate::state::AppState;
-use crate::state::editor::RulesSavePhase;
 use crate::types::app::Route;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
@@ -11,9 +10,9 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use infiltrator_presentation::rule_form_binding::default_form_target;
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::page::PageData;
-use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 
 impl AppState {
     pub(crate) fn observe_rule_list_page(&mut self, page: &PageData<RulesPageSnapshot>) {
@@ -24,32 +23,7 @@ impl AppState {
         }
         if let Some(snapshot) = page.data.as_ref() {
             for document in &snapshot.json_documents {
-                match document.section {
-                    RulesJsonSection::RuleProviders => adopt_rules_document(
-                        &mut self.editor.rule_providers_json_cache,
-                        &mut self.editor.rule_providers_json_identity,
-                        &mut self.editor.rule_providers_json_content,
-                        self.editor.rule_providers_editor_state,
-                        &mut self.editor.rule_providers_json_dirty,
-                        document,
-                    ),
-                    RulesJsonSection::ProxyProviders => adopt_rules_document(
-                        &mut self.editor.proxy_providers_json_cache,
-                        &mut self.editor.proxy_providers_json_identity,
-                        &mut self.editor.proxy_providers_json_content,
-                        self.editor.proxy_providers_editor_state,
-                        &mut self.editor.proxy_providers_json_dirty,
-                        document,
-                    ),
-                    RulesJsonSection::Sniffer => adopt_rules_document(
-                        &mut self.editor.sniffer_json_cache,
-                        &mut self.editor.sniffer_json_identity,
-                        &mut self.editor.sniffer_json_content,
-                        self.editor.sniffer_editor_state,
-                        &mut self.editor.sniffer_json_dirty,
-                        document,
-                    ),
-                }
+                self.adopt_rules_document(document.section, document);
             }
         }
         if self
@@ -85,7 +59,10 @@ impl AppState {
             }
             RuleListAction::Finished { operation, result } => {
                 if self.editor.rule_list.finish(operation, result) {
-                    self.editor.rules_save_phase = RulesSavePhase::Idle;
+                    self.editor
+                        .rules_model
+                        .operation_mut(RulesOperation::Save)
+                        .reset();
                 }
             }
         }
@@ -107,7 +84,10 @@ impl AppState {
             Ok(pending) => pending,
             Err(_) => return Task::none(),
         };
-        self.editor.rules_save_phase = RulesSavePhase::Saving;
+        self.editor
+            .rules_model
+            .operation_mut(RulesOperation::Save)
+            .begin();
         Task::perform(
             async move {
                 match (commands
@@ -124,21 +104,27 @@ impl AppState {
     }
 }
 
-fn adopt_rules_document(
-    cache: &mut String,
-    identity: &mut Option<ProfileDocumentIdentity>,
-    content: &mut Content,
-    editor_state: EditorLazyState,
-    dirty: &mut bool,
-    document: &RulesJsonDocumentSnapshot,
-) {
-    if *dirty && content.text() != document.json {
-        return;
-    }
-    *cache = document.json.clone();
-    *identity = Some(document.identity.clone());
-    *dirty = false;
-    if editor_state == EditorLazyState::Loaded {
-        *content = Content::with_text(cache);
+impl AppState {
+    /// Adopt one JSON document the owner published.
+    ///
+    /// The committed text lives in the shared page model, next to the draft
+    /// it belongs to; the surface keeps no second copy of it.
+    fn adopt_rules_document(
+        &mut self,
+        section: RulesJsonSection,
+        document: &RulesJsonDocumentSnapshot,
+    ) {
+        let modified = self.editor.rules_model.json_modified(section);
+        if modified && self.editor.rules_json_content(section).text() != document.json.as_str() {
+            return;
+        }
+        self.editor
+            .rules_model
+            .observe_json_document(section, document.json.clone());
+        *self.editor.rules_json_identity_mut(section) = Some(document.identity.clone());
+        if self.editor.rules_json_editor_state(section) == EditorLazyState::Loaded {
+            let text = document.json.clone();
+            *self.editor.rules_json_content_mut(section) = Content::with_text(&text);
+        }
     }
 }

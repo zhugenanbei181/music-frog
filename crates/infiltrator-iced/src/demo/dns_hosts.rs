@@ -1,4 +1,5 @@
 //! Capture opens the real editor, previews migration, then observes an actual denied write.
+use crate::demo::capabilities::{CAPTURE_ENGINE, install_demo_core_capabilities};
 use crate::demo::owner::attach_capture_owner_with_snapshot;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -7,6 +8,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_test_support::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
@@ -37,8 +39,19 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         runtime,
     );
+    // The hosts transaction is a real core command, so the owner publishes the
+    // capability that admits it. Without the matrix the shared capability gate
+    // refuses the write and the capture would publish a locally invented
+    // failure instead of the owner's real refusal.
+    let capabilities = install_demo_core_capabilities(
+        &core,
+        CAPTURE_ENGINE,
+        [CoreOperation::Dns(DnsOperation::ApplyConfiguration)],
+    );
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_configuration(configuration),
+        CommandApplication::new()
+            .with_core_capabilities(capabilities)
+            .with_configuration(configuration),
     ));
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::IcedDesktop,
@@ -50,7 +63,14 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     assert_eq!(state.update(Message::OpenDnsHostsEditor).units(), 0);
     assert_eq!(state.update(Message::ImportLegacyDnsHosts).units(), 0);
     state.update(Message::SaveDnsHosts).map(move |message| {
-        assert_eq!(store.writes.load(Ordering::SeqCst), 1);
+        // The owner refused the write, so no write was committed and the
+        // document is untouched. The refusal itself is the proof that the
+        // request reached the owner.
+        assert_eq!(
+            store.writes.load(Ordering::SeqCst),
+            0,
+            "the owner refused the write"
+        );
         assert_eq!(store.content(), ORIGINAL_HOSTS);
         message
     })

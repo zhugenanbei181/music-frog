@@ -11,7 +11,6 @@
 use super::sync::sync_application;
 use crate::configs_dir::{config_manager, configs_dir};
 use crate::state::AppState;
-use crate::state::profiles::{SyncDiffApplyPhase, SyncDiffLoadPhase};
 use crate::types::app::{SyncConflict, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
@@ -22,6 +21,7 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
 use infiltrator_domain::sync::diff_yaml_configs;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{InfiltratorError, from_backend};
 use std::collections::HashSet;
@@ -30,7 +30,10 @@ impl AppState {
     pub(super) fn update_sync_diff(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadSyncDiff(profile) => {
-                if self.profile.sync_diff_load_phase.is_loading() {
+                if self
+                    .profile
+                    .operation_running(ProfilesOperation::LoadSyncDiff)
+                {
                     return Task::none();
                 }
                 let Some(conflict) = self
@@ -42,7 +45,8 @@ impl AppState {
                 else {
                     return Task::none();
                 };
-                self.profile.sync_diff_load_phase = SyncDiffLoadPhase::Loading;
+                self.profile
+                    .begin_operation(ProfilesOperation::LoadSyncDiff);
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
@@ -65,7 +69,8 @@ impl AppState {
                 )
             }
             Message::SyncDiffLoaded(result) => {
-                self.profile.sync_diff_load_phase = SyncDiffLoadPhase::Idle;
+                self.profile
+                    .reset_operation(ProfilesOperation::LoadSyncDiff);
                 match result {
                     Ok(bundle) => {
                         self.profile.sync_diff = Some(SyncDiffState::new(bundle));
@@ -100,7 +105,10 @@ impl AppState {
                 Task::none()
             }
             Message::ApplySyncDiffMerge => {
-                if self.profile.sync_diff_apply_phase.is_applying() {
+                if self
+                    .profile
+                    .operation_running(ProfilesOperation::ApplySyncDiff)
+                {
                     return Task::none();
                 }
                 let Some(diff) = self.profile.sync_diff.clone() else {
@@ -116,7 +124,8 @@ impl AppState {
                     self.profile.sync_diff = None;
                     return Task::none();
                 };
-                self.profile.sync_diff_apply_phase = SyncDiffApplyPhase::Applying;
+                self.profile
+                    .begin_operation(ProfilesOperation::ApplySyncDiff);
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
@@ -159,7 +168,8 @@ impl AppState {
                 )
             }
             Message::SyncDiffMerged(result) => {
-                self.profile.sync_diff_apply_phase = SyncDiffApplyPhase::Idle;
+                self.profile
+                    .reset_operation(ProfilesOperation::ApplySyncDiff);
                 match result {
                     Ok(profile) => {
                         self.profile.sync_diff = None;

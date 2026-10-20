@@ -36,7 +36,14 @@ pub(super) fn attach_capture_owner_with_snapshot(
     snapshot.origin = SurfaceOrigin::Demo;
     snapshot.revision = 1;
     snapshot.generation = core.generation;
-    snapshot.core = core;
+    // A snapshot that already carries the owner's own core projection keeps
+    // it: that projection is the owner's real readback (the routing intent it
+    // really observed, for instance) and must not be replaced by a bare
+    // lifecycle snapshot. A hand-made snapshot without one is completed from
+    // the owner.
+    if snapshot.core.identity != core.identity {
+        snapshot.core = core;
+    }
 
     state.attach_product_application(application);
     assert!(

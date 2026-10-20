@@ -12,7 +12,10 @@ fn test_rules_dns_lazy_editor_state() {
         state.editor.rule_providers_editor_state,
         EditorLazyState::Unloaded
     );
-    state.editor.rule_providers_json_cache = "{\"a\":1}".into();
+    state
+        .editor
+        .rules_model
+        .observe_json_document(RulesJsonSection::RuleProviders, "{\"a\":1}".into());
     let _ = state.update(Message::EnsureRuleProvidersEditorLoaded);
     assert_eq!(
         state.editor.rule_providers_editor_state,

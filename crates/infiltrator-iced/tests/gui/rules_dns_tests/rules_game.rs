@@ -3,7 +3,6 @@
 
 use super::*;
 use infiltrator_composition::capture_fixtures::list_document;
-use infiltrator_iced::state::editor::GeoDatabasesUpdatePhase;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 
 #[test]
@@ -33,10 +32,26 @@ fn test_rules_game_presets_and_geo_update() {
     // Without a composed runtime the geo update is refused with a typed
     // toast instead of a fabricated sleep-then-success.
     let _ = state.update(Message::UpdateGeoDatabases);
-    assert!(!state.editor.geo_databases_update_phase.is_updating());
+    assert!(
+        !state
+            .editor
+            .rules_model
+            .operation(RulesOperation::UpdateGeoDatabases)
+            .is_running()
+    );
 
     // The finished handler still owns the busy-flag lifecycle.
-    state.editor.geo_databases_update_phase = GeoDatabasesUpdatePhase::Updating;
+    state
+        .editor
+        .rules_model
+        .operation_mut(RulesOperation::UpdateGeoDatabases)
+        .begin();
     let _ = state.update(Message::GeoDatabasesUpdated(Ok(())));
-    assert!(!state.editor.geo_databases_update_phase.is_updating());
+    assert!(
+        !state
+            .editor
+            .rules_model
+            .operation(RulesOperation::UpdateGeoDatabases)
+            .is_running()
+    );
 }

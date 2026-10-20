@@ -1,23 +1,14 @@
-//! Advanced-config (DNS / Fake-IP / TUN / sniffer) form types: page tabs,
-//! form/edit-mode selection, form drafts and validation state.
+//! Advanced-config (DNS / Fake-IP / TUN / sniffer) form types: form drafts
+//! and validation state.
+//!
+//! The page partition, the form/JSON edit mode and the four write/probe
+//! phases are owned by the shared page model
+//! (`infiltrator_presentation::dns_page_model`); the surface keeps no
+//! private copy of them.
 
 use infiltrator_domain::dns::DnsConfig;
 use infiltrator_domain::fake_ip::FakeIpConfig;
 use infiltrator_domain::tun::TunConfig;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DnsTab {
-    #[default]
-    Dns,
-    FakeIp,
-    Tun,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum AdvancedEditMode {
-    #[default]
-    Form,
-    Json,
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct FakeIpFormDraft {

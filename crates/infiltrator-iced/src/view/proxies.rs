@@ -26,6 +26,7 @@ use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::details::OutboundCollectionKind;
 use lurker_core_contract::outbound::details::OutboundObservation;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use lurker_core_contract::outbound::{
     inventory::{OutboundInventoryState, SelectionAvailability},
     probe::{OutboundProbeBatchOutcome, OutboundProbeBatchScope},
@@ -71,7 +72,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into()
     };
 
-    let view_switch_icon = if state.runtime.proxy_compact_view {
+    let view_switch_icon = if state.runtime.proxies_model.layout() == OutboundLayout::CompactList {
         Icon::LayoutGrid
     } else {
         Icon::ListChecks
@@ -273,11 +274,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let mut card_body = column![group_header].spacing(theme::SP_MD);
 
         if is_expanded {
-            card_body = card_body.push(if state.runtime.proxy_compact_view {
-                node_compact_list(state, group_name, members)
-            } else {
-                node_grid(state, group_name, members)
-            });
+            card_body = card_body.push(
+                if state.runtime.proxies_model.layout() == OutboundLayout::CompactList {
+                    node_compact_list(state, group_name, members)
+                } else {
+                    node_grid(state, group_name, members)
+                },
+            );
         }
 
         groups_col = groups_col.push(

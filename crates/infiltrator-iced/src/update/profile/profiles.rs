@@ -4,7 +4,6 @@
 use crate::configs_dir::config_manager;
 use crate::host::storage::reset_profiles_to_default;
 use crate::state::AppState;
-use crate::state::profiles::ProfileListLoadPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
@@ -13,6 +12,7 @@ use crate::update::core::profile_apply::runtime_access;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::lifecycle::CoreInactiveLifecycle;
@@ -21,7 +21,7 @@ impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadProfiles => {
-                self.profile.list_load_phase = ProfileListLoadPhase::Loading;
+                self.profile.begin_operation(ProfilesOperation::LoadList);
                 Task::perform(
                     async {
                         let store = config_manager().await?;
@@ -34,7 +34,7 @@ impl AppState {
                 )
             }
             Message::ProfilesLoaded(result) => {
-                self.profile.list_load_phase = ProfileListLoadPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::LoadList);
                 self.refresh_tray();
                 match result {
                     Ok(profiles) => {
@@ -50,7 +50,7 @@ impl AppState {
                 }
             }
             Message::UpdateProfilesFilter(filter) => {
-                self.profile.profiles_filter = filter;
+                self.profile.profiles_model.edit_filter(&filter);
                 Task::none()
             }
             Message::ClearProfiles => {
@@ -58,7 +58,7 @@ impl AppState {
                 let runtime = self.take_app_runtime();
                 self.profile.restart_after_profile_reset = runtime.is_some();
                 self.runtime.status = RuntimeStatus::Stopped;
-                self.profile.list_load_phase = ProfileListLoadPhase::Loading;
+                self.profile.begin_operation(ProfilesOperation::LoadList);
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
@@ -77,13 +77,13 @@ impl AppState {
                 )
             }
             Message::ProfilesCleared(result) => {
-                self.profile.list_load_phase = ProfileListLoadPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::LoadList);
                 match result {
                     Ok(_) => {
                         let restart = self.profile.restart_after_profile_reset;
                         self.profile.restart_after_profile_reset = false;
                         self.invalidate_rules_dns_views();
-                        self.profile.profiles_filter.clear();
+                        self.profile.profiles_model.edit_filter("");
                         let mut tasks = vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::ShowToast(

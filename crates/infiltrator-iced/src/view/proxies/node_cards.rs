@@ -1,5 +1,7 @@
 use super::*;
 use iced::widget;
+use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 
 fn favorite_message(state: &AppState, member_name: &str) -> Message {
     member_view(state, member_name)
@@ -21,26 +23,6 @@ pub fn group_icon(proxy_type: &str) -> Icon {
         "Fallback" | "fallback" => Icon::Shield,
         "LoadBalance" | "load-balance" | "Load-Balance" => Icon::ListChecks,
         _ => Icon::Globe,
-    }
-}
-
-/// Canonical display name for proxy protocols (Shadowsocks, Vless, VMess, Trojan, Hysteria2).
-pub fn format_protocol_chip(raw_type: &str) -> String {
-    match raw_type.to_ascii_lowercase().as_str() {
-        "shadowsocks" | "ss" => "Shadowsocks".to_string(),
-        "vless" => "Vless".to_string(),
-        "vmess" => "VMess".to_string(),
-        "trojan" => "Trojan".to_string(),
-        "hysteria2" | "hy2" => "Hysteria2".to_string(),
-        "wireguard" => "WireGuard".to_string(),
-        "tuic" => "Tuic".to_string(),
-        "http" => "HTTP".to_string(),
-        "socks5" => "SOCKS5".to_string(),
-        "snell" => "Snell".to_string(),
-        "direct" => "Direct".to_string(),
-        "reject" => "Reject".to_string(),
-        _ if !raw_type.is_empty() => raw_type.to_string(),
-        _ => "Proxy".to_string(),
     }
 }
 
@@ -151,7 +133,7 @@ pub(super) fn node_grid<'a>(
         .shell
         .viewport
         .tier
-        .proxy_grid_columns(state.runtime.proxy_compact_view)
+        .proxy_grid_columns(state.runtime.proxies_model.layout() == OutboundLayout::CompactList)
         .max(1);
 
     let mut grid = widget::column![].spacing(theme::SP_SM);
@@ -220,7 +202,7 @@ fn node_card<'a>(
 
     let mut chips = row![].spacing(theme::SP_XS);
     if let Some(node_type) = &meta.node_type {
-        chips = chips.push(chip(format_protocol_chip(node_type)));
+        chips = chips.push(chip(proxy_protocol_chip(node_type)));
     }
     if meta.udp {
         chips = chips.push(chip("udp"));
@@ -294,7 +276,7 @@ fn node_compact_row<'a>(
 
     let mut chips = row![].spacing(theme::SP_XS);
     if let Some(node_type) = &meta.node_type {
-        chips = chips.push(chip(format_protocol_chip(node_type)));
+        chips = chips.push(chip(proxy_protocol_chip(node_type)));
     }
     if meta.udp {
         chips = chips.push(chip("udp"));

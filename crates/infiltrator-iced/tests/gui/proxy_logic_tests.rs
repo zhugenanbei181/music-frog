@@ -142,7 +142,7 @@ fn test_connections_page_sort_key_switch() {
 fn test_profiles_filter_state() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateProfilesFilter("default".into()));
-    assert_eq!(state.profile.profiles_filter, "default");
+    assert_eq!(state.profile.profiles_model.filter(), "default");
 }
 
 #[test]
@@ -235,7 +235,7 @@ fn test_filter_alive_and_favorite_pinning() {
         ));
     let task = state.update(Message::ToggleFilterAlive(true));
     let _ = state.update(terminal(task));
-    assert!(state.runtime.filter_alive_only);
+    assert!(state.runtime.proxies_model.healthy_only());
     let alive_members = &state.runtime.filtered_groups[0].1;
     assert_eq!(alive_members.len(), standard_members().len() - 1);
     assert!(!alive_members.contains(&"node-dead".to_owned()));
@@ -262,7 +262,12 @@ fn test_filter_alive_and_favorite_pinning() {
         initial.ids["node-alive-1"].clone(),
     ));
     let _ = state.update(terminal(task));
-    assert!(state.runtime.favorite_proxies.contains("node-alive-1"));
+    assert!(
+        state
+            .runtime
+            .proxies_model
+            .is_favorite(&initial.ids["node-alive-1"])
+    );
     let fav_members = &state.runtime.filtered_groups[0].1;
     assert_eq!(fav_members[0], "node-alive-1");
     assert_eq!(fav_members[1], "node-alive-2");
@@ -309,7 +314,10 @@ fn test_filter_alive_and_favorite_pinning() {
         ));
     let task = state.update(Message::ToggleProxyCompactView);
     let _ = state.update(terminal(task));
-    assert!(state.runtime.proxy_compact_view);
+    assert_eq!(
+        state.runtime.proxies_model.layout(),
+        OutboundLayout::CompactList
+    );
 }
 
 #[test]

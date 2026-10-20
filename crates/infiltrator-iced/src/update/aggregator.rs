@@ -9,7 +9,6 @@
 
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
-use crate::state::profiles::ProfileAggregatorPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
@@ -21,6 +20,7 @@ use infiltrator_contract::aggregator::{
     AggregationDraft, AggregationRenameRule,
 };
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
@@ -302,7 +302,7 @@ impl AppState {
                     Ok(draft) => draft,
                     Err(task) => return task,
                 };
-                self.profile.aggregator_phase = ProfileAggregatorPhase::Aggregating;
+                self.profile.begin_operation(ProfilesOperation::Aggregate);
                 Task::perform(
                     async move {
                         let store = config_manager().await?;
@@ -315,7 +315,7 @@ impl AppState {
                 )
             }
             Message::AggregationPreviewFinished(result) => {
-                self.profile.aggregator_phase = ProfileAggregatorPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::Aggregate);
                 match result {
                     Ok(report) => {
                         self.profile.aggregator_report = Some(report);
@@ -339,7 +339,7 @@ impl AppState {
                     Ok(draft) => draft,
                     Err(task) => return task,
                 };
-                self.profile.aggregator_phase = ProfileAggregatorPhase::Aggregating;
+                self.profile.begin_operation(ProfilesOperation::Aggregate);
                 // DUAL-08-12: carry the selected runtime access mode into the
                 // shared exact-reference activation use case.
                 let runtime = match self.runtime.runtime.clone() {
@@ -358,7 +358,7 @@ impl AppState {
                 )
             }
             Message::AggregatedProfileCreated(result) => {
-                self.profile.aggregator_phase = ProfileAggregatorPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::Aggregate);
                 self.aggregation_outcome_tasks(result, "aggregator_created")
             }
             Message::ReAggregateProfile(template_name) => {

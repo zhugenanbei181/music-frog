@@ -1,6 +1,7 @@
 use super::*;
-use crate::view::proxies::node_cards::{format_protocol_chip, group_icon};
+use crate::view::proxies::node_cards::group_icon;
 use crate::view::proxies_controls::{SORT_LABEL_KEYS, SORT_ORDERS};
+use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 
 #[test]
@@ -19,26 +20,26 @@ fn test_group_icon_mapping() {
 }
 
 #[test]
-fn test_format_protocol_chip() {
-    assert_eq!(format_protocol_chip("Shadowsocks"), "Shadowsocks");
-    assert_eq!(format_protocol_chip("ss"), "Shadowsocks");
-    assert_eq!(format_protocol_chip("Vless"), "Vless");
-    assert_eq!(format_protocol_chip("vless"), "Vless");
-    assert_eq!(format_protocol_chip("vmess"), "VMess");
-    assert_eq!(format_protocol_chip("VMess"), "VMess");
-    assert_eq!(format_protocol_chip("Trojan"), "Trojan");
-    assert_eq!(format_protocol_chip("trojan"), "Trojan");
-    assert_eq!(format_protocol_chip("Hysteria2"), "Hysteria2");
-    assert_eq!(format_protocol_chip("hy2"), "Hysteria2");
-    assert_eq!(format_protocol_chip("wireguard"), "WireGuard");
-    assert_eq!(format_protocol_chip("tuic"), "Tuic");
-    assert_eq!(format_protocol_chip("http"), "HTTP");
-    assert_eq!(format_protocol_chip("socks5"), "SOCKS5");
-    assert_eq!(format_protocol_chip("snell"), "Snell");
-    assert_eq!(format_protocol_chip("direct"), "Direct");
-    assert_eq!(format_protocol_chip("reject"), "Reject");
-    assert_eq!(format_protocol_chip("custom-proto"), "custom-proto");
-    assert_eq!(format_protocol_chip(""), "Proxy");
+fn test_proxy_protocol_chip() {
+    assert_eq!(proxy_protocol_chip("Shadowsocks"), "Shadowsocks");
+    assert_eq!(proxy_protocol_chip("ss"), "Shadowsocks");
+    assert_eq!(proxy_protocol_chip("Vless"), "Vless");
+    assert_eq!(proxy_protocol_chip("vless"), "Vless");
+    assert_eq!(proxy_protocol_chip("vmess"), "VMess");
+    assert_eq!(proxy_protocol_chip("VMess"), "VMess");
+    assert_eq!(proxy_protocol_chip("Trojan"), "Trojan");
+    assert_eq!(proxy_protocol_chip("trojan"), "Trojan");
+    assert_eq!(proxy_protocol_chip("Hysteria2"), "Hysteria2");
+    assert_eq!(proxy_protocol_chip("hy2"), "Hysteria2");
+    assert_eq!(proxy_protocol_chip("wireguard"), "WireGuard");
+    assert_eq!(proxy_protocol_chip("tuic"), "Tuic");
+    assert_eq!(proxy_protocol_chip("http"), "HTTP");
+    assert_eq!(proxy_protocol_chip("socks5"), "SOCKS5");
+    assert_eq!(proxy_protocol_chip("snell"), "Snell");
+    assert_eq!(proxy_protocol_chip("direct"), "Direct");
+    assert_eq!(proxy_protocol_chip("reject"), "Reject");
+    assert_eq!(proxy_protocol_chip("custom-proto"), "custom-proto");
+    assert_eq!(proxy_protocol_chip(""), "Proxy");
 }
 
 #[test]

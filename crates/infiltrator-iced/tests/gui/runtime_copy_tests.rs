@@ -9,6 +9,7 @@ use iced::Task;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason, InfiltratorError};
 use lurker_core_contract::identity::EngineId;
@@ -42,7 +43,11 @@ fn runtime_and_vpn_terminal_messages_use_the_current_shared_locale_and_keep_opaq
         let (copy, status) = notice(state.update(Message::TestWebDavConnection));
         assert_eq!(copy, Lang(locale).tr("webdav_credentials_required"));
         assert_eq!(status, ToastStatus::Error);
-        assert!(!state.profile.webdav_test_phase.is_testing());
+        assert!(
+            !state
+                .profile
+                .operation_running(ProfilesOperation::TestWebDav)
+        );
         let snapshot = VpnSessionSnapshot {
             state: VpnSessionState::Unsupported {
                 reason: "opaque {reason} 用户".into(),

@@ -4,9 +4,7 @@ use crate::admin_server::{AdminServerManager, AdminSharedRuntime, SharedAdminCom
 use crate::capture_frame::CaptureFrameGate;
 use crate::tray::SharedTrayEventReceiver;
 use crate::tray::spec::TrayController;
-use crate::types::app::{
-    ConfirmAction, Route, RouteHistory, ToastStatus, Transition, UwpLoopbackState,
-};
+use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus, Transition};
 use crate::view::theme::theme_for_skin;
 use iced::Rectangle;
 use iced::Theme;
@@ -20,6 +18,7 @@ use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutRegistry};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::toast::ToastGate;
+use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::language_choice::LanguageChoiceState;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -116,7 +115,9 @@ pub struct ShellState {
     /// owns the field text; the shell records the session so composing keys are
     /// not treated as global chords and the capability stays one shared fact.
     pub ime: ImeCompositionTracker,
-    pub uwp_loopback: UwpLoopbackState,
+    /// The one page model of the app-routing page: the routing mode, the
+    /// application list, the loopback packages and the scan phase.
+    pub uwp_loopback: AppRoutingPageModel,
 }
 
 /// Drag state for the Mini HUD window: the cursor's widget-local anchor and

@@ -1,9 +1,6 @@
 //! JSON sub-editors for Rules: Rule Providers, Proxy Providers and Sniffer JSON tabs.
 
 use crate::state::AppState;
-use crate::state::editor::{
-    ProxyProvidersJsonSavePhase, RuleProvidersJsonSavePhase, SnifferJsonSavePhase,
-};
 use crate::types::app::ToastStatus;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
@@ -15,51 +12,46 @@ use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate,
 };
 use infiltrator_contract::rules_workspace::RulesJsonSection;
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
-use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use std::time::Instant;
 use tokio::time;
 use tokio::time::sleep;
 
 impl AppState {
     pub(super) fn ensure_rule_providers_editor_loaded(&mut self) {
-        if self.editor.rule_providers_editor_state == EditorLazyState::Loaded
-            && self.editor.rule_providers_json_content.text()
-                == self.editor.rule_providers_json_cache
-        {
-            return;
-        }
-        let start = Instant::now();
-        self.editor.rule_providers_json_content =
-            Content::with_text(&self.editor.rule_providers_json_cache);
-        self.editor.rule_providers_editor_state = EditorLazyState::Loaded;
-        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
+        self.ensure_rules_json_editor_loaded(RulesJsonSection::RuleProviders);
     }
 
     pub(super) fn ensure_proxy_providers_editor_loaded(&mut self) {
-        if self.editor.proxy_providers_editor_state == EditorLazyState::Loaded
-            && self.editor.proxy_providers_json_content.text()
-                == self.editor.proxy_providers_json_cache
-        {
-            return;
-        }
-        let start = Instant::now();
-        self.editor.proxy_providers_json_content =
-            Content::with_text(&self.editor.proxy_providers_json_cache);
-        self.editor.proxy_providers_editor_state = EditorLazyState::Loaded;
-        self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
+        self.ensure_rules_json_editor_loaded(RulesJsonSection::ProxyProviders);
     }
 
     pub(super) fn ensure_sniffer_editor_loaded(&mut self) {
-        if self.editor.sniffer_editor_state == EditorLazyState::Loaded
-            && self.editor.sniffer_json_content.text() == self.editor.sniffer_json_cache
+        self.ensure_rules_json_editor_loaded(RulesJsonSection::Sniffer);
+    }
+
+    /// Load one JSON editor from the committed text the shared page model
+    /// holds. The committed text is the model's baseline, so the surface keeps
+    /// no second copy of it.
+    fn ensure_rules_json_editor_loaded(&mut self, section: RulesJsonSection) {
+        if self.editor.rules_json_editor_state(section) == EditorLazyState::Loaded
+            && self.editor.rules_json_content(section).text()
+                == self.editor.rules_json_baseline(section)
         {
             return;
         }
         let start = Instant::now();
-        self.editor.sniffer_json_content = Content::with_text(&self.editor.sniffer_json_cache);
-        self.editor.sniffer_editor_state = EditorLazyState::Loaded;
+        let baseline = self.editor.rules_json_baseline(section).to_owned();
+        *self.editor.rules_json_content_mut(section) = Content::with_text(&baseline);
+        *self.editor.rules_json_editor_state_mut(section) = EditorLazyState::Loaded;
         self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
+    }
+
+    /// Mirror the edited JSON buffer into the shared draft.
+    fn sync_rules_json_draft(&mut self, section: RulesJsonSection) {
+        let text = self.editor.rules_json_content(section).text();
+        self.editor.rules_model.json_buffer_mut(section).edit(text);
     }
 
     pub(super) fn update_core_json_editors(&mut self, message: Message) -> Task<Message> {
@@ -79,13 +71,16 @@ impl AppState {
             Message::RuleProvidersEditorAction(action) => {
                 self.ensure_rule_providers_editor_loaded();
                 self.editor.rule_providers_json_content.perform(action);
-                self.editor.rule_providers_json_dirty = true;
+                self.sync_rules_json_draft(RulesJsonSection::RuleProviders);
                 Task::none()
             }
             Message::SaveRuleProvidersJson => {
                 self.ensure_rule_providers_editor_loaded();
                 let text = self.editor.rule_providers_json_content.text();
-                self.editor.rule_providers_json_save_phase = RuleProvidersJsonSavePhase::Saving;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::SaveRuleProvidersJson)
+                    .begin();
                 self.begin_configuration_save("Rule Providers");
                 self.save_rules_configuration(
                     RulesJsonSection::RuleProviders,
@@ -94,15 +89,15 @@ impl AppState {
                 )
             }
             Message::RuleProvidersJsonSaved(result) => {
-                self.editor.rule_providers_json_save_phase = RuleProvidersJsonSavePhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::SaveRuleProvidersJson)
+                    .reset();
                 match result {
-                    Ok(_) => {
-                        self.editor.rule_providers_json_dirty = false;
-                        Task::batch(vec![
-                            Task::done(Message::LoadRules),
-                            self.finish_configuration_save("Rule Providers".to_string()),
-                        ])
-                    }
+                    Ok(_) => Task::batch(vec![
+                        Task::done(Message::LoadRules),
+                        self.finish_configuration_save("Rule Providers".to_string()),
+                    ]),
                     Err(e) => {
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Rule Providers".to_string(),
@@ -124,13 +119,16 @@ impl AppState {
             Message::ProxyProvidersEditorAction(action) => {
                 self.ensure_proxy_providers_editor_loaded();
                 self.editor.proxy_providers_json_content.perform(action);
-                self.editor.proxy_providers_json_dirty = true;
+                self.sync_rules_json_draft(RulesJsonSection::ProxyProviders);
                 Task::none()
             }
             Message::SaveProxyProvidersJson => {
                 self.ensure_proxy_providers_editor_loaded();
                 let text = self.editor.proxy_providers_json_content.text();
-                self.editor.proxy_providers_json_save_phase = ProxyProvidersJsonSavePhase::Saving;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::SaveProxyProvidersJson)
+                    .begin();
                 self.begin_configuration_save("Proxy Providers");
                 self.save_rules_configuration(
                     RulesJsonSection::ProxyProviders,
@@ -139,15 +137,15 @@ impl AppState {
                 )
             }
             Message::ProxyProvidersJsonSaved(result) => {
-                self.editor.proxy_providers_json_save_phase = ProxyProvidersJsonSavePhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::SaveProxyProvidersJson)
+                    .reset();
                 match result {
-                    Ok(_) => {
-                        self.editor.proxy_providers_json_dirty = false;
-                        Task::batch(vec![
-                            Task::done(Message::LoadRules),
-                            self.finish_configuration_save("Proxy Providers".to_string()),
-                        ])
-                    }
+                    Ok(_) => Task::batch(vec![
+                        Task::done(Message::LoadRules),
+                        self.finish_configuration_save("Proxy Providers".to_string()),
+                    ]),
                     Err(e) => {
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Proxy Providers".to_string(),
@@ -169,13 +167,16 @@ impl AppState {
             Message::SnifferEditorAction(action) => {
                 self.ensure_sniffer_editor_loaded();
                 self.editor.sniffer_json_content.perform(action);
-                self.editor.sniffer_json_dirty = true;
+                self.sync_rules_json_draft(RulesJsonSection::Sniffer);
                 Task::none()
             }
             Message::SaveSnifferJson => {
                 self.ensure_sniffer_editor_loaded();
                 let text = self.editor.sniffer_json_content.text();
-                self.editor.sniffer_json_save_phase = SnifferJsonSavePhase::Saving;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::SaveSnifferJson)
+                    .begin();
                 self.begin_configuration_save("Sniffer");
                 self.save_rules_configuration(
                     RulesJsonSection::Sniffer,
@@ -184,15 +185,15 @@ impl AppState {
                 )
             }
             Message::SnifferJsonSaved(result) => {
-                self.editor.sniffer_json_save_phase = SnifferJsonSavePhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::SaveSnifferJson)
+                    .reset();
                 match result {
-                    Ok(_) => {
-                        self.editor.sniffer_json_dirty = false;
-                        Task::batch(vec![
-                            Task::done(Message::LoadRules),
-                            self.finish_configuration_save("Sniffer".to_string()),
-                        ])
-                    }
+                    Ok(_) => Task::batch(vec![
+                        Task::done(Message::LoadRules),
+                        self.finish_configuration_save("Sniffer".to_string()),
+                    ]),
                     Err(e) => {
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Sniffer".to_string(),
@@ -223,7 +224,7 @@ impl AppState {
         text: String,
         result_message: fn(Result<(), InfiltratorError>) -> Message,
     ) -> Task<Message> {
-        let identity = match self.rules_json_identity(section) {
+        let identity = match self.editor.rules_json_identity(section).cloned() {
             Some(identity) => identity,
             None => {
                 return Task::done(result_message(Err(InfiltratorError::Config(
@@ -257,14 +258,6 @@ impl AppState {
             },
             result_message,
         )
-    }
-
-    fn rules_json_identity(&self, section: RulesJsonSection) -> Option<ProfileDocumentIdentity> {
-        match section {
-            RulesJsonSection::RuleProviders => self.editor.rule_providers_json_identity.clone(),
-            RulesJsonSection::ProxyProviders => self.editor.proxy_providers_json_identity.clone(),
-            RulesJsonSection::Sniffer => self.editor.sniffer_json_identity.clone(),
-        }
     }
 }
 

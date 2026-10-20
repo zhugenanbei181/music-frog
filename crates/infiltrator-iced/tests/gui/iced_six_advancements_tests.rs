@@ -27,13 +27,13 @@ fn test_advancement_1_live_rule_tracer_contract() {
     let (mut state, reader, store) = setup();
 
     // 1. Initial tracer state check
-    assert_eq!(state.editor.rules_tab, RulesTab::List);
+    assert_eq!(state.editor.rules_model.tab(), RulesTab::List);
     assert_eq!(state.editor.rules_tracer_input, "");
     assert!(state.editor.rules_tracer_chain.is_none());
 
     // Switch to Tracer tab
     let _ = state.update(Message::SetRulesTab(RulesTab::Tracer));
-    assert_eq!(state.editor.rules_tab, RulesTab::Tracer);
+    assert_eq!(state.editor.rules_model.tab(), RulesTab::Tracer);
 
     store.replace("proxy-groups:\n  - name: ProxyGroup\n    type: select\n    proxies: [DIRECT]\n  - name: GameProxy\n    type: select\n    proxies: [DIRECT]\n  - name: FallbackProxy\n    type: select\n    proxies: [DIRECT]\nrules:\n  - DOMAIN-SUFFIX,google.com,ProxyGroup\n  - IP-CIDR,1.1.1.1/32,DIRECT,no-resolve\n  - PROCESS-NAME,steam.exe,GameProxy\n  - MATCH,FallbackProxy\n");
 

@@ -5,7 +5,6 @@ use crate::configs_dir::configs_dir;
 use crate::host::storage;
 use crate::notify::NotifyUrgency;
 use crate::state::AppState;
-use crate::state::profiles::{WebDavSyncPhase, WebDavTestPhase};
 use crate::types::app::{SyncConflict, SyncProgress, SyncSummary, ToastStatus};
 use crate::types::message::Message;
 use crate::update::core::profile_apply::runtime_access;
@@ -20,6 +19,7 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::sync::SyncProgressSink;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
 use mem::take;
@@ -97,7 +97,10 @@ impl AppState {
         let copy_locale = self.shell.lang.clone();
         match message {
             Message::SyncUpload => {
-                if self.profile.webdav_sync_phase.is_syncing() {
+                if self
+                    .profile
+                    .operation_running(ProfilesOperation::SyncWebDav)
+                {
                     // A manual sync is already in flight; the tick-spawned
                     // chain is dropped here, so its notify flag must go too
                     // (otherwise the manual completion would notify).
@@ -118,7 +121,8 @@ impl AppState {
                 );
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.profile.sync_cancel = Some(cancel.clone());
-                self.profile.webdav_sync_phase = WebDavSyncPhase::Syncing;
+                self.profile.begin_operation(ProfilesOperation::SyncWebDav);
+                self.profile.sync_model.sync_now_phase_mut().begin();
                 self.refresh_tray();
                 let operation =
                     stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
@@ -138,7 +142,10 @@ impl AppState {
                 Task::run(operation, |message| message)
             }
             Message::SyncDownload => {
-                if self.profile.webdav_sync_phase.is_syncing() {
+                if self
+                    .profile
+                    .operation_running(ProfilesOperation::SyncWebDav)
+                {
                     return Task::none();
                 }
                 let application = match sync_application() {
@@ -155,7 +162,8 @@ impl AppState {
                 );
                 let cancel = Arc::new(AtomicBool::new(false));
                 self.profile.sync_cancel = Some(cancel.clone());
-                self.profile.webdav_sync_phase = WebDavSyncPhase::Syncing;
+                self.profile.begin_operation(ProfilesOperation::SyncWebDav);
+                self.profile.sync_model.sync_now_phase_mut().begin();
                 self.refresh_tray();
                 let operation =
                     stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
@@ -179,7 +187,8 @@ impl AppState {
                 // SyncUpload) notifies; manual upload/download stay silent.
                 // The flag is consumed exactly once, on either outcome.
                 let notify_this_sync = take(&mut self.profile.sync_from_tick);
-                self.profile.webdav_sync_phase = WebDavSyncPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::SyncWebDav);
+                self.profile.sync_model.sync_now_phase_mut().reset();
                 self.profile.sync_cancel = None;
                 self.profile.sync_progress = None;
                 self.refresh_tray();
@@ -262,6 +271,7 @@ impl AppState {
                 Task::none()
             }
             Message::ResolveSyncConflict(profile) => {
+                self.profile.sync_model.resolve_phase_mut().begin();
                 let Some(conflict) = self
                     .profile
                     .sync_conflicts
@@ -368,7 +378,7 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 }
-                self.profile.webdav_test_phase = WebDavTestPhase::Testing;
+                self.profile.begin_operation(ProfilesOperation::TestWebDav);
                 let application = match sync_application() {
                     Ok(application) => application,
                     Err(error) => {
@@ -388,7 +398,7 @@ impl AppState {
                 )
             }
             Message::WebDavConnectionTested(result) => {
-                self.profile.webdav_test_phase = WebDavTestPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::TestWebDav);
                 match result {
                     Ok(()) => Task::done(Message::ShowToast(
                         Lang(&copy_locale)

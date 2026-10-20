@@ -14,7 +14,7 @@ use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
-use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_contract::pac::{PacRequest, PacSnapshot};
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
@@ -92,12 +92,16 @@ impl AppState {
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
+        let draft = self.runtime.settings_model.pac().clone();
+        // The LAN bypass and the minifier keep the Iced wire semantics; the
+        // shared draft only carries the fields the page edits.
         let request = PacRequest {
-            enabled: self.runtime.pac_manager.is_pac_mode_active,
-            bypass_domains: split_pac_domains(&self.runtime.pac_manager.bypass_subnets),
+            enabled: draft.enabled,
+            bypass_domains: draft.bypass_domains,
             bypass_lan: true,
             minify: false,
         };
+        self.runtime.settings_model.pac_write_phase_mut().begin();
         let scope_source = runtime.core_scope_source();
         let configuration_ports = runtime.runtime_configuration_ports();
         Task::perform(
@@ -115,13 +119,13 @@ impl AppState {
         let config = PacGenerator::new("PROXY 127.0.0.1:7890");
         let script = config.compile_pac_script(&self.editor.rule_list.draft);
         if validate_pac_script(&script).is_ok() {
-            self.runtime.pac_manager.last_compile_status = Some("Valid PAC compiled".into());
+            self.runtime.pac_compile_status = Some("Valid PAC compiled".into());
             Task::done(Message::ShowToast(
                 "PAC script compiled successfully".into(),
                 ToastStatus::Success,
             ))
         } else {
-            self.runtime.pac_manager.last_compile_status = Some("PAC validation error".into());
+            self.runtime.pac_compile_status = Some("PAC validation error".into());
             Task::done(Message::ShowToast(
                 "PAC compilation failed".into(),
                 ToastStatus::Error,
@@ -129,20 +133,13 @@ impl AppState {
         }
     }
 
-    fn apply_pac_snapshot(&mut self, snapshot: PacSnapshot) {
-        self.runtime.pac_manager.snapshot = snapshot.clone();
-        self.runtime.pac_manager.bypass_subnets = snapshot.bypass_domains.join(", ");
-        match snapshot.state {
-            PacServiceState::Running { url } => {
-                self.runtime.pac_manager.is_pac_mode_active = true;
-                self.runtime.pac_manager.pac_url = url;
-            }
-            PacServiceState::Disabled | PacServiceState::Unavailable { .. } => {
-                self.runtime.pac_manager.is_pac_mode_active = false;
-                self.runtime.pac_manager.pac_url.clear();
-            }
+    pub(crate) fn apply_pac_snapshot(&mut self, snapshot: PacSnapshot) {
+        let modified = self.runtime.settings_model.pac_modified();
+        self.runtime.pac_snapshot = snapshot.clone();
+        self.runtime.settings_model.observe_pac(&snapshot);
+        if !modified {
+            self.runtime.settings_text.pac_bypass_domains = snapshot.bypass_domains.join(", ");
         }
-        self.runtime.pac_manager.dirty = false;
     }
 
     fn apply_vpn(&mut self, start: bool) -> Task<Message> {
@@ -422,8 +419,11 @@ impl AppState {
                 Task::none()
             }
             Message::UpdatePacBypassSubnets(subnets) => {
-                self.runtime.pac_manager.bypass_subnets = subnets;
-                self.runtime.pac_manager.dirty = true;
+                self.runtime.settings_text.pac_bypass_domains = subnets.clone();
+                let parsed = split_pac_domains(&subnets);
+                self.runtime
+                    .settings_model
+                    .edit_pac(|draft| draft.bypass_domains = parsed);
                 Task::none()
             }
             Message::CompileAndValidatePac => {
@@ -434,22 +434,22 @@ impl AppState {
                 }
             }
             Message::TogglePacMode(on) => {
-                self.runtime.pac_manager.is_pac_mode_active = on;
-                self.runtime.pac_manager.dirty = true;
+                self.runtime
+                    .settings_model
+                    .edit_pac(|draft| draft.enabled = on);
                 if self.shell.demo {
-                    self.runtime.pac_manager.pac_url = if on {
-                        "http://127.0.0.1:25211/proxy.pac".into()
-                    } else {
-                        String::new()
-                    };
                     Task::none()
                 } else {
                     self.apply_pac()
                 }
             }
             Message::PacApplied(Ok(snapshot)) => {
+                // The owner's answer settles the draft: the value it confirms
+                // becomes the draft the page shows.
+                self.runtime.settings_model.discard_pac();
                 self.apply_pac_snapshot(snapshot);
-                self.runtime.pac_manager.last_compile_status =
+                self.runtime.settings_model.pac_write_phase_mut().reset();
+                self.runtime.pac_compile_status =
                     Some("PAC script compiled and service state read back".to_owned());
                 Task::done(Message::ShowToast(
                     Lang(&copy_locale).tr("pac_service_verified").into_owned(),
@@ -457,9 +457,10 @@ impl AppState {
                 ))
             }
             Message::PacApplied(Err(error)) => {
-                let snapshot = self.runtime.pac_manager.snapshot.clone();
+                let snapshot = self.runtime.pac_snapshot.clone();
                 self.apply_pac_snapshot(snapshot);
-                self.runtime.pac_manager.last_compile_status = Some(error.to_string());
+                self.runtime.settings_model.pac_write_phase_mut().reset();
+                self.runtime.pac_compile_status = Some(error.to_string());
                 self.set_error(&error);
                 Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
             }

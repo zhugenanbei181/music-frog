@@ -12,6 +12,7 @@ use crate::view::theme;
 use crate::view::theme::{MONO, tokens};
 use iced::widget::{Space, button, column, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn kind_badge(lang: &Lang<'_>, kind: SyncDiffKeyKind) -> Element<'static, Message> {
@@ -107,8 +108,10 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
         .padding([7, 14])
         .style(style_accent)
         .on_press_maybe(
-            (!state.profile.sync_diff_apply_phase.is_applying())
-                .then_some(Message::ApplySyncDiffMerge),
+            (!state
+                .profile
+                .operation_running(ProfilesOperation::ApplySyncDiff))
+            .then_some(Message::ApplySyncDiffMerge),
         ),
         Space::new().width(theme::SP_SM),
         button(text(lang.tr("sync_diff_all_local").to_string()).size(12))
@@ -128,7 +131,10 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
     ]
     .align_y(Alignment::Center);
 
-    if state.profile.sync_diff_load_phase.is_loading() {
+    if state
+        .profile
+        .operation_running(ProfilesOperation::LoadSyncDiff)
+    {
         actions = row![text(lang.tr("sync_diff_computing").to_string()).size(12)];
     }
 

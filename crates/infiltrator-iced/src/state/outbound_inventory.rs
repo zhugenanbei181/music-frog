@@ -3,7 +3,9 @@
 //! Product and demo rows are built from typed inventory, details and
 //! preference observations.
 
-use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
+use infiltrator_presentation::proxies_page_model::{
+    ProxiesPageModel, ProxyFilterTarget, proxy_name_runs,
+};
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::outbound::{
     details::{
@@ -16,12 +18,11 @@ use lurker_core_contract::outbound::{
         OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionState,
         SelectionAvailability,
     },
-    preferences::{OutboundHealthFilter, OutboundSortOrder, OutboundUiPreferencesSnapshot},
 };
 use lurker_core_contract::page::{PageData, PageStatus};
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use zhuge_ui_core::text::{CaseSensitivity, SearchTextRun, project_text_runs};
+use std::sync::OnceLock;
+use zhuge_ui_core::text::SearchTextRun;
 
 pub(crate) type FilteredOutboundGroups = (
     Vec<(String, Vec<String>)>,
@@ -87,6 +88,47 @@ pub(crate) struct OutboundGroupView {
     pub proxies: Vec<OutboundMemberView>,
 }
 
+impl ProxyFilterTarget for OutboundMemberView {
+    fn proxy_name(&self) -> &str {
+        self.search_name()
+    }
+
+    fn proxy_identity(&self) -> Option<&str> {
+        self.id.as_ref().map(|id| id.value())
+    }
+
+    fn proxy_protocol(&self) -> &str {
+        self.protocol_display_name.as_deref().unwrap_or_default()
+    }
+
+    fn proxy_features(&self) -> &[String] {
+        match &self.features {
+            OutboundObservation::Observed(features) if features.contains(&OutboundFeature::Udp) => {
+                udp_feature_tags()
+            }
+            _ => &[],
+        }
+    }
+
+    fn proxy_latency_ms(&self) -> Option<u32> {
+        self.latency_ms()
+    }
+
+    fn proxy_supports_udp(&self) -> bool {
+        self.supports_udp()
+    }
+
+    fn proxy_favorite(&self) -> bool {
+        self.favorite
+    }
+}
+
+/// The one advertised feature tag the contract knows today.
+fn udp_feature_tags() -> &'static [String] {
+    static TAGS: OnceLock<Vec<String>> = OnceLock::new();
+    TAGS.get_or_init(|| vec!["udp".to_owned()])
+}
+
 impl OutboundGroupView {
     pub fn current(&self) -> Option<&str> {
         match &self.selection {
@@ -100,10 +142,9 @@ impl OutboundGroupView {
 }
 
 pub(super) fn project_groups(
+    model: &ProxiesPageModel,
     inventory_page: &PageData<OutboundInventorySnapshot>,
     details_page: &PageData<OutboundDetailsSnapshot>,
-    preferences_page: &PageData<OutboundUiPreferencesSnapshot>,
-    previous: &[OutboundGroupView],
 ) -> Vec<OutboundGroupView> {
     if !matches!(&inventory_page.status, PageStatus::Ready) {
         return Vec::new();
@@ -124,12 +165,6 @@ pub(super) fn project_groups(
         .as_ref()
         .filter(|snapshot| snapshot.scope() == inventory.scope())
         .filter(|_| matches!(&details_page.status, PageStatus::Ready));
-    let preferences = preferences_page
-        .data
-        .as_ref()
-        .filter(|snapshot| snapshot.scope() == inventory.scope())
-        .filter(|_| matches!(&preferences_page.status, PageStatus::Ready));
-
     let mut groups = collections
         .iter()
         .map(|collection| {
@@ -143,36 +178,22 @@ pub(super) fn project_groups(
                 .filter_map(|member_id| {
                     let entry = entries.iter().find(|entry| &entry.id == member_id)?;
                     let detail = details.and_then(|snapshot| snapshot.detail(member_id));
-                    let favorite = preferences
-                        .is_some_and(|prefs| prefs.favorite_outbound_ids.contains(member_id));
+                    let favorite = model.is_favorite(member_id);
                     let member = member_view(
                         member_id.clone(),
                         entry.display_name.clone(),
                         detail,
                         favorite,
                     );
-                    if preferences.is_some_and(|prefs| {
-                        prefs.health_filter == OutboundHealthFilter::HealthyOnly
-                    }) && member.health != OutboundHealthObservation::Healthy
-                    {
+                    if !model.keeps_health(member.health) {
                         // Unknown and unsupported health cannot satisfy HealthyOnly.
                         return None;
                     }
                     Some(member)
                 })
                 .collect::<Vec<_>>();
-            let sort_order =
-                preferences.map_or(OutboundSortOrder::default(), |prefs| prefs.sort_order);
-            sort_members(&mut proxies, sort_order);
-            let expanded = preferences.map_or_else(
-                || {
-                    previous
-                        .iter()
-                        .find(|group| group.id.as_ref() == Some(&collection.id))
-                        .is_none_or(|group| group.expanded)
-                },
-                |prefs| !prefs.collapsed_group_ids.contains(&collection.id),
-            );
+            model.sort_members(&mut proxies);
+            let expanded = model.group_expanded(&collection.id);
             OutboundGroupView {
                 id: Some(collection.id.clone()),
                 name: collection.id.value().to_owned(),
@@ -185,11 +206,25 @@ pub(super) fn project_groups(
         })
         .collect::<Vec<_>>();
 
-    if let Some(preferences) = preferences.filter(|preferences| !preferences.group_order.is_empty())
-    {
+    // The owner's group order only ranks the groups it ordered; the rest
+    // keep the order the inventory published.
+    let ordered = groups
+        .iter()
+        .filter_map(|group| group.id.as_ref())
+        .map(|id| model.group_rank(id))
+        .min()
+        .is_some_and(|rank| rank != usize::MAX);
+    if ordered {
+        let rank = |group: &OutboundGroupView| {
+            group
+                .id
+                .as_ref()
+                .map(|id| model.group_rank(id))
+                .unwrap_or(usize::MAX)
+        };
         groups.sort_by(|left, right| {
-            group_order_rank(left, &preferences.group_order)
-                .cmp(&group_order_rank(right, &preferences.group_order))
+            rank(left)
+                .cmp(&rank(right))
                 .then_with(|| left.name.cmp(&right.name))
         });
     }
@@ -249,20 +284,26 @@ fn member_view(
     }
 }
 
-pub(crate) fn filtered_groups(groups: &[OutboundGroupView], query: &str) -> FilteredOutboundGroups {
-    let query = query.trim();
+pub(crate) fn filtered_groups(
+    model: &ProxiesPageModel,
+    groups: &[OutboundGroupView],
+) -> FilteredOutboundGroups {
+    let query = model.query();
     let mut visible = Vec::new();
     let mut name_runs = BTreeMap::new();
 
     for group in groups {
-        let group_matches = fuzzy_match(&group.name, query);
+        let group_matches = model.group_matches(&group.name);
         let mut members = Vec::new();
         for node in &group.proxies {
-            let matches = group_matches || member_matches(node, query);
+            let matches = group_matches || model.matches(node);
             if matches {
                 members.push(node.name.clone());
             }
-            name_runs.insert(node.name.clone(), highlight_runs(node.search_name(), query));
+            name_runs.insert(
+                node.name.clone(),
+                proxy_name_runs(node.search_name(), query),
+            );
         }
         if group_matches || !members.is_empty() {
             visible.push((group.name.clone(), members));
@@ -270,55 +311,6 @@ pub(crate) fn filtered_groups(groups: &[OutboundGroupView], query: &str) -> Filt
     }
 
     (visible, name_runs)
-}
-
-fn member_matches(member: &OutboundMemberView, query: &str) -> bool {
-    if query.trim().is_empty()
-        || fuzzy_match(&member.name, query)
-        || fuzzy_match(member.search_name(), query)
-    {
-        return true;
-    }
-    let query = query.trim().to_ascii_lowercase();
-    if member
-        .protocol_display_name
-        .as_deref()
-        .is_some_and(|name| name.to_ascii_lowercase().contains(&query))
-    {
-        return true;
-    }
-    if query == "udp" && member.supports_udp() {
-        return true;
-    }
-    if let Some(delay) = member.latency_ms().filter(|delay| *delay > 0)
-        && let Some((operator, bound)) = query.split_at_checked(1)
-        && matches!(operator, "<" | ">")
-        && let Ok(bound) = bound.trim().parse::<u32>()
-    {
-        return if operator == "<" {
-            delay < bound
-        } else {
-            delay > bound
-        };
-    }
-    false
-}
-
-fn fuzzy_match(value: &str, query: &str) -> bool {
-    query.trim().is_empty() || pinyin_fuzzy_match(value, query)
-}
-
-fn highlight_runs(value: &str, query: &str) -> Vec<SearchTextRun> {
-    let mut runs = project_text_runs(value, query, CaseSensitivity::AsciiInsensitive);
-    if !query.trim().is_empty()
-        && !runs.iter().any(|run| run.highlighted)
-        && pinyin_fuzzy_match(value, &query.trim().to_ascii_lowercase())
-    {
-        for run in &mut runs {
-            run.highlighted = true;
-        }
-    }
-    runs
 }
 
 fn selection_view(selection: &OutboundSelectionState) -> OutboundSelectionViewState {
@@ -332,58 +324,5 @@ fn selection_view(selection: &OutboundSelectionState) -> OutboundSelectionViewSt
         OutboundSelectionState::Failed { failure } => {
             OutboundSelectionViewState::Failed(failure.clone())
         }
-    }
-}
-
-fn group_order_rank(group: &OutboundGroupView, order: &[OutboundId]) -> usize {
-    group
-        .id
-        .as_ref()
-        .and_then(|id| order.iter().position(|ordered| ordered == id))
-        .unwrap_or(usize::MAX)
-}
-
-fn sort_members(members: &mut [OutboundMemberView], sort_order: OutboundSortOrder) {
-    members.sort_by(|left, right| {
-        if left.favorite != right.favorite {
-            return if left.favorite {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            };
-        }
-        match sort_order {
-            OutboundSortOrder::NameAscending => name_order(left, right),
-            OutboundSortOrder::NameDescending => name_order(right, left),
-            OutboundSortOrder::LatencyAscending => latency_order(left, right, false),
-            OutboundSortOrder::LatencyDescending => latency_order(left, right, true),
-        }
-    });
-}
-
-fn name_order(left: &OutboundMemberView, right: &OutboundMemberView) -> Ordering {
-    left.search_name()
-        .to_lowercase()
-        .cmp(&right.search_name().to_lowercase())
-}
-
-fn latency_order(
-    left: &OutboundMemberView,
-    right: &OutboundMemberView,
-    descending: bool,
-) -> Ordering {
-    match (
-        left.latency_ms().filter(|delay| *delay > 0),
-        right.latency_ms().filter(|delay| *delay > 0),
-    ) {
-        (Some(left_delay), Some(right_delay)) => if descending {
-            right_delay.cmp(&left_delay)
-        } else {
-            left_delay.cmp(&right_delay)
-        }
-        .then_with(|| name_order(left, right)),
-        (Some(_), None) => Ordering::Less,
-        (None, Some(_)) => Ordering::Greater,
-        (None, None) => name_order(left, right),
     }
 }

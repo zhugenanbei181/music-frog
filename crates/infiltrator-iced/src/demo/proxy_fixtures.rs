@@ -344,7 +344,10 @@ pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
             search_query: String::new(),
             favorite_outbound_ids: Vec::new(),
             group_order: group_ids,
-            collapsed_group_ids: Vec::new(),
+            // The first group starts folded: the fold business has to open it
+            // for real, and the route-only render it is measured against shows
+            // the folded group.
+            collapsed_group_ids: vec![id(PROXIES)],
             sort_order: OutboundSortOrder::LatencyAscending,
             health_filter: OutboundHealthFilter::All,
             layout: OutboundLayout::CompactList,

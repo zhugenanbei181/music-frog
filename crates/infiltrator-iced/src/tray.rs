@@ -12,6 +12,7 @@
 //! window-only app with a warning and never fails or panics the process.
 
 use iced::futures::channel::mpsc;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use std::time::Instant;
 use tokio::time::sleep;
 pub mod spec;
@@ -266,7 +267,9 @@ impl AppState {
             core_downloading: self.runtime.core_download.is_downloading(),
             core_download_percent,
             webdav_enabled: self.profile.webdav_enabled,
-            syncing: self.profile.webdav_sync_phase.is_syncing(),
+            syncing: self
+                .profile
+                .operation_running(ProfilesOperation::SyncWebDav),
             sync_step,
             autostart: self.runtime.autostart_enabled,
             controller: controller.as_deref(),

@@ -6,10 +6,11 @@
 
 use crate::configuration::application;
 use crate::state::AppState;
-use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
+use crate::types::dns::AdvancedConfigsBundle;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsPageTab};
 use lurker_core_contract::error::InfiltratorError;
 
 impl AppState {
@@ -52,12 +53,8 @@ impl AppState {
         message
     }
 
-    fn active_advanced_mode(&self, tab: DnsTab) -> AdvancedEditMode {
-        match tab {
-            DnsTab::Dns => self.editor.dns_mode,
-            DnsTab::FakeIp => self.editor.fake_ip_mode,
-            DnsTab::Tun => self.editor.tun_mode,
-        }
+    fn active_advanced_mode(&self) -> DnsEditMode {
+        self.editor.dns_model.edit_mode()
     }
 
     /// Advanced-config tab/mode switching and the combined DNS/Fake-IP/TUN
@@ -66,28 +63,24 @@ impl AppState {
     pub(super) fn update_core_advanced(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SetDnsTab(tab) => {
-                self.editor.dns_tab = tab;
-                if self.active_advanced_mode(tab) == AdvancedEditMode::Json {
+                self.editor.dns_model.select_tab(tab);
+                if self.active_advanced_mode() == DnsEditMode::Json {
                     Task::done(match tab {
-                        DnsTab::Dns => Message::EnsureDnsEditorLoaded,
-                        DnsTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
-                        DnsTab::Tun => Message::EnsureTunEditorLoaded,
+                        DnsPageTab::Dns => Message::EnsureDnsEditorLoaded,
+                        DnsPageTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
+                        DnsPageTab::Tun => Message::EnsureTunEditorLoaded,
                     })
                 } else {
                     Task::none()
                 }
             }
             Message::SetAdvancedMode(tab, mode) => {
-                match tab {
-                    DnsTab::Dns => self.editor.dns_mode = mode,
-                    DnsTab::FakeIp => self.editor.fake_ip_mode = mode,
-                    DnsTab::Tun => self.editor.tun_mode = mode,
-                }
-                if mode == AdvancedEditMode::Json {
+                self.editor.dns_model.select_edit_mode(mode);
+                if mode == DnsEditMode::Json {
                     Task::done(match tab {
-                        DnsTab::Dns => Message::EnsureDnsEditorLoaded,
-                        DnsTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
-                        DnsTab::Tun => Message::EnsureTunEditorLoaded,
+                        DnsPageTab::Dns => Message::EnsureDnsEditorLoaded,
+                        DnsPageTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
+                        DnsPageTab::Tun => Message::EnsureTunEditorLoaded,
                     })
                 } else {
                     Task::none()
@@ -95,11 +88,12 @@ impl AppState {
             }
             Message::ActivateDnsHeavyView => {
                 self.editor.dns_heavy_ready = true;
-                if self.active_advanced_mode(self.editor.dns_tab) == AdvancedEditMode::Json {
-                    Task::done(match self.editor.dns_tab {
-                        DnsTab::Dns => Message::EnsureDnsEditorLoaded,
-                        DnsTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
-                        DnsTab::Tun => Message::EnsureTunEditorLoaded,
+                let tab = self.editor.dns_model.tab();
+                if self.active_advanced_mode() == DnsEditMode::Json {
+                    Task::done(match tab {
+                        DnsPageTab::Dns => Message::EnsureDnsEditorLoaded,
+                        DnsPageTab::FakeIp => Message::EnsureFakeIpEditorLoaded,
+                        DnsPageTab::Tun => Message::EnsureTunEditorLoaded,
                     })
                 } else {
                     Task::none()

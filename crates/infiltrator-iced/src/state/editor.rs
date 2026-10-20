@@ -1,9 +1,7 @@
 //! Editor owner.
 
 use crate::types::app::SnapshotDiffMode;
-use crate::types::dns::{
-    AdvancedEditMode, AdvancedValidationState, DnsTab, FakeIpFormDraft, TunFormDraft,
-};
+use crate::types::dns::{AdvancedValidationState, FakeIpFormDraft, TunFormDraft};
 use crate::types::editor::{EditorLazyState, GeoDataStatus};
 use crate::types::options::{EditorPane, MrsProviderDetail};
 use crate::types::rules::{ProviderUnpackState, RuleRenderItem};
@@ -21,121 +19,26 @@ use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProvid
 use infiltrator_contract::rule_edit::LogicalDraft;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rule_tracer::DecisionChainSnapshot;
-use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::rules::RuleProviderDiff;
 use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
+use infiltrator_presentation::dns_page_model::{DnsOperation, DnsPageModel};
 use infiltrator_presentation::profile_edit_session::ProfileEditSession;
 use infiltrator_presentation::rule_form_binding::RuleFormBinding;
 use infiltrator_presentation::rule_list_editor::RuleListEditor;
 use infiltrator_presentation::rule_statistics_workbench::RuleStatisticsWorkbench;
 use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
+use infiltrator_presentation::rules_page_model::RulesPageModel;
 use infiltrator_presentation::script_workbench::ScriptWorkbench;
 use infiltrator_presentation::snapshot_restore_workbench::SnapshotRestoreWorkbench;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
+use lurker_core_contract::error::Failure;
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
 use lurker_core_contract::profile_protection::ProfileWriteAuthorization;
 use std::path::PathBuf;
-
-/// Loading phase for rule list editor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RulesLoadPhase {
-    #[default]
-    Idle,
-    Loading,
-}
-
-impl RulesLoadPhase {
-    pub const fn is_loading(self) -> bool {
-        matches!(self, Self::Loading)
-    }
-}
-
-/// Save phase for rule list editor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RulesSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl RulesSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
-
-/// Save phase for rule-providers JSON editor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuleProvidersJsonSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl RuleProvidersJsonSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
-
-/// Save phase for proxy-providers JSON editor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ProxyProvidersJsonSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl ProxyProvidersJsonSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
-
-/// Save phase for sniffer JSON editor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SnifferJsonSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl SnifferJsonSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
-
-/// Update phase for GeoIP and GeoSite databases.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum GeoDatabasesUpdatePhase {
-    #[default]
-    Idle,
-    Updating,
-}
-
-impl GeoDatabasesUpdatePhase {
-    pub const fn is_updating(self) -> bool {
-        matches!(self, Self::Updating)
-    }
-}
-
-/// Add rule submission phase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuleAddPhase {
-    #[default]
-    Idle,
-    Adding,
-}
-
-impl RuleAddPhase {
-    pub const fn is_adding(self) -> bool {
-        matches!(self, Self::Adding)
-    }
-}
 
 /// The stage of the snapshot-diff modal.
 ///
@@ -204,60 +107,9 @@ impl SnapshotDiffModalState {
 }
 
 /// DNS server latency probing phase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DnsLatencyProbePhase {
-    #[default]
-    Idle,
-    Probing,
-}
-
-impl DnsLatencyProbePhase {
-    pub const fn is_probing(self) -> bool {
-        matches!(self, Self::Probing)
-    }
-}
-
-/// Save phase for advanced DNS configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DnsSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl DnsSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
-
-/// Save phase for Fake-IP configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum FakeIpSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl FakeIpSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
-
-/// Save phase for TUN configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum TunSavePhase {
-    #[default]
-    Idle,
-    Saving,
-}
-
-impl TunSavePhase {
-    pub const fn is_saving(self) -> bool {
-        matches!(self, Self::Saving)
-    }
-}
+///
+/// The probe phase is owned by the shared DNS page model
+/// (`DnsOperation::ProbeLatency`); the surface keeps no private copy.
 
 /// Load phase for profile snapshot history.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -316,18 +168,9 @@ impl MrsScanPhase {
 }
 
 /// Load phase for inspecting rule provider diff.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuleProviderDiffLoadPhase {
-    #[default]
-    Idle,
-    Loading,
-}
-
-impl RuleProviderDiffLoadPhase {
-    pub const fn is_loading(self) -> bool {
-        matches!(self, Self::Loading)
-    }
-}
+///
+/// The diff-load phase is owned by the shared rules page model
+/// (`RulesOperation::LoadProviderDiff`); the surface keeps no private copy.
 
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
 /// 表单双模式编辑状态、脏标记、懒加载与校验(UI-002)。
@@ -338,12 +181,10 @@ pub struct ConfigEditorState {
     pub sniffer_enabled: bool,
     pub rule_list: RuleListEditor,
     pub rules_filter: String,
-    pub rules_load_phase: RulesLoadPhase,
     pub rules_loaded_once: bool,
-    pub rules_save_phase: RulesSavePhase,
-    /// DUAL-11-14: the shared workspace partition vocabulary.
-    pub rules_tab: RulesTab,
-    pub rules_json_tab: RulesJsonSection,
+    /// The one page model of the rules page: the active tab, the active JSON
+    /// section, the JSON document drafts and the eight operation phases.
+    pub rules_model: RulesPageModel,
     pub rules_page: usize,
     pub rules_page_size: usize,
     /// DUAL-11-08: scroll offset (logical px) of the rules list viewport, fed
@@ -392,9 +233,6 @@ pub struct ConfigEditorState {
     pub rule_providers_json_content: text_editor::Content,
     pub proxy_providers_json_content: text_editor::Content,
     pub sniffer_json_content: text_editor::Content,
-    pub rule_providers_json_cache: String,
-    pub proxy_providers_json_cache: String,
-    pub sniffer_json_cache: String,
     /// Exact source revision bound to each JSON editor buffer.
     pub rule_providers_json_identity: Option<ProfileDocumentIdentity>,
     pub proxy_providers_json_identity: Option<ProfileDocumentIdentity>,
@@ -402,13 +240,6 @@ pub struct ConfigEditorState {
     pub rule_providers_editor_state: EditorLazyState,
     pub proxy_providers_editor_state: EditorLazyState,
     pub sniffer_editor_state: EditorLazyState,
-    pub rule_providers_json_dirty: bool,
-    pub proxy_providers_json_dirty: bool,
-    pub sniffer_json_dirty: bool,
-    pub rule_providers_json_save_phase: RuleProvidersJsonSavePhase,
-    pub proxy_providers_json_save_phase: ProxyProvidersJsonSavePhase,
-    pub sniffer_json_save_phase: SnifferJsonSavePhase,
-    pub geo_databases_update_phase: GeoDatabasesUpdatePhase,
     pub dns_json_content: text_editor::Content,
     pub fake_ip_json_content: text_editor::Content,
     pub tun_json_content: text_editor::Content,
@@ -418,10 +249,9 @@ pub struct ConfigEditorState {
     pub dns_editor_state: EditorLazyState,
     pub fake_ip_editor_state: EditorLazyState,
     pub tun_editor_state: EditorLazyState,
-    pub dns_tab: DnsTab,
-    pub dns_mode: AdvancedEditMode,
-    pub fake_ip_mode: AdvancedEditMode,
-    pub tun_mode: AdvancedEditMode,
+    /// The one page model of the DNS page: the active partition, the
+    /// form/JSON edit mode and the four write/probe phases.
+    pub dns_model: DnsPageModel,
     pub dns_heavy_ready: bool,
     pub advanced_configs_loaded_once: bool,
     pub dns_json_dirty: bool,
@@ -438,7 +268,6 @@ pub struct ConfigEditorState {
     pub rule_form_binding: RuleFormBinding,
     pub new_rule_payload: String,
     pub new_rule_target: String,
-    pub rule_add_phase: RuleAddPhase,
     pub rule_providers: Vec<RuleProviderSnapshot>,
     pub script_sandbox: ScriptWorkbench,
     pub snapshot_restore: SnapshotRestoreWorkbench,
@@ -471,11 +300,7 @@ pub struct ConfigEditorState {
     /// DUAL-14-13: the shared DNS self-heal observation.
     pub dns_self_heal: DnsSelfHealSnapshot,
     /// DUAL-14-10: a probe started from this surface is in flight.
-    pub dns_latency_probe_phase: DnsLatencyProbePhase,
     pub dns_hosts_editor: DnsHostsEditor,
-    pub dns_save_phase: DnsSavePhase,
-    pub fake_ip_save_phase: FakeIpSavePhase,
-    pub tun_save_phase: TunSavePhase,
     pub editor_content: text_editor::Content,
     pub document_session: ProfileEditSession,
     pub mixin_session: ProfileEditSession,
@@ -518,5 +343,118 @@ pub struct ConfigEditorState {
     pub syntax_error: Option<String>,
     pub syntax_error_line: Option<usize>,
     pub inspecting_rule_provider_diff: Option<RuleProviderDiff>,
-    pub rule_provider_diff_load_phase: RuleProviderDiffLoadPhase,
+}
+
+impl ConfigEditorState {
+    /// Begin one DNS page operation and return its submission token.
+    pub fn begin_dns_operation(&mut self, operation: DnsOperation) -> u64 {
+        self.dns_model.operation_mut(operation).begin()
+    }
+
+    /// Settle one DNS page operation with the owner's answer.
+    ///
+    /// The token is read from the shared phase, so a superseded answer moves
+    /// nothing.
+    pub fn settle_dns_operation(&mut self, operation: DnsOperation, result: Result<(), Failure>) {
+        let phase = self.dns_model.operation_mut(operation);
+        let Some(token) = phase.token() else {
+            return;
+        };
+        match result {
+            Ok(()) => {
+                phase.succeed(token);
+            }
+            Err(failure) => {
+                phase.fail(token, failure);
+            }
+        }
+    }
+
+    /// Return one DNS page operation to the idle phase.
+    pub fn reset_dns_operation(&mut self, operation: DnsOperation) {
+        self.dns_model.operation_mut(operation).reset();
+    }
+
+    /// Whether one DNS page operation is still in flight.
+    pub fn dns_operation_running(&self, operation: DnsOperation) -> bool {
+        self.dns_model.operation(operation).is_running()
+    }
+
+    /// The JSON document buffer of one section.
+    pub fn rules_json_content(&self, section: RulesJsonSection) -> &text_editor::Content {
+        match section {
+            RulesJsonSection::RuleProviders => &self.rule_providers_json_content,
+            RulesJsonSection::ProxyProviders => &self.proxy_providers_json_content,
+            RulesJsonSection::Sniffer => &self.sniffer_json_content,
+        }
+    }
+
+    /// The JSON document buffer of one section, for the fold that changes it.
+    pub fn rules_json_content_mut(
+        &mut self,
+        section: RulesJsonSection,
+    ) -> &mut text_editor::Content {
+        match section {
+            RulesJsonSection::RuleProviders => &mut self.rule_providers_json_content,
+            RulesJsonSection::ProxyProviders => &mut self.proxy_providers_json_content,
+            RulesJsonSection::Sniffer => &mut self.sniffer_json_content,
+        }
+    }
+
+    /// The committed text of one JSON section.
+    ///
+    /// The baseline lives in the shared page model, next to the draft it
+    /// belongs to: the surface keeps no second copy of the committed text.
+    pub fn rules_json_baseline(&self, section: RulesJsonSection) -> &str {
+        self.rules_model
+            .json_buffer(section)
+            .baseline()
+            .map(String::as_str)
+            .unwrap_or_default()
+    }
+
+    /// The lazy-load state of one JSON section.
+    pub fn rules_json_editor_state(&self, section: RulesJsonSection) -> EditorLazyState {
+        match section {
+            RulesJsonSection::RuleProviders => self.rule_providers_editor_state,
+            RulesJsonSection::ProxyProviders => self.proxy_providers_editor_state,
+            RulesJsonSection::Sniffer => self.sniffer_editor_state,
+        }
+    }
+
+    /// The lazy-load state of one JSON section, for the fold that changes it.
+    pub fn rules_json_editor_state_mut(
+        &mut self,
+        section: RulesJsonSection,
+    ) -> &mut EditorLazyState {
+        match section {
+            RulesJsonSection::RuleProviders => &mut self.rule_providers_editor_state,
+            RulesJsonSection::ProxyProviders => &mut self.proxy_providers_editor_state,
+            RulesJsonSection::Sniffer => &mut self.sniffer_editor_state,
+        }
+    }
+
+    /// The source revision bound to one JSON section.
+    pub fn rules_json_identity(
+        &self,
+        section: RulesJsonSection,
+    ) -> Option<&ProfileDocumentIdentity> {
+        match section {
+            RulesJsonSection::RuleProviders => self.rule_providers_json_identity.as_ref(),
+            RulesJsonSection::ProxyProviders => self.proxy_providers_json_identity.as_ref(),
+            RulesJsonSection::Sniffer => self.sniffer_json_identity.as_ref(),
+        }
+    }
+
+    /// The source revision bound to one JSON section, for the fold that changes it.
+    pub fn rules_json_identity_mut(
+        &mut self,
+        section: RulesJsonSection,
+    ) -> &mut Option<ProfileDocumentIdentity> {
+        match section {
+            RulesJsonSection::RuleProviders => &mut self.rule_providers_json_identity,
+            RulesJsonSection::ProxyProviders => &mut self.proxy_providers_json_identity,
+            RulesJsonSection::Sniffer => &mut self.sniffer_json_identity,
+        }
+    }
 }

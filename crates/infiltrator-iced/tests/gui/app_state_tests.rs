@@ -5,14 +5,12 @@
 
 use crate::state::AppState;
 use crate::state::core_operations::{CoreDownloadCompletionAdmission, CoreDownloadStart};
-use crate::state::profiles::ProfileListLoadPhase;
 use crate::state::runtime::{
     RuntimePatchRefusal, RuntimePatchStage, SystemProxyRefusal, SystemProxyStage,
 };
 use crate::test_mounts::profile_edit_fixture;
 use crate::tray::spec::{TRAY_ACTION_QUIT, TrayEvent, TrayIntent, resolve_tray_event};
 use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress, ToastStatus};
-use crate::types::dns::DnsTab;
 use crate::types::message::Message;
 use crate::types::profile_edit::ProfileEditReply;
 use crate::types::runtime::{
@@ -39,6 +37,7 @@ use infiltrator_ports::runtime_configuration::{
 };
 use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use lurker_core_contract::identity::{
@@ -480,7 +479,7 @@ fn test_profiles_and_rules_loading() {
         ..Default::default()
     }])));
     assert_eq!(state.profile.profiles.len(), 1);
-    assert_eq!(state.profile.list_load_phase, ProfileListLoadPhase::Idle);
+    assert!(!state.profile.operation_running(ProfilesOperation::LoadList));
 
     // Rules loaded
     let _ = state.update(Message::RulesLoaded(Ok(list_document(vec![RuleEntry {

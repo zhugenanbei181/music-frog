@@ -1,6 +1,6 @@
 //! Capture readiness follows native redraws and GPU readback, never a view construction.
 #[cfg(any(feature = "capture-tools", test))]
-use crate::demo::interaction;
+use crate::capture_scenario;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::window::Screenshot;
@@ -38,7 +38,7 @@ impl AppState {
             && self
                 .shell
                 .capture_scenario
-                .is_none_or(|feature| interaction::ready(self, feature))
+                .is_none_or(|feature| capture_scenario::business_opened(self, feature))
     }
 
     #[cfg(not(any(feature = "capture-tools", test)))]

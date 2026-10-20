@@ -1,10 +1,7 @@
 //! App-shell types: navigation routes, toast severity and page transitions.
 
 use infiltrator_contract::command_catalogue::ShellPage;
-use infiltrator_contract::lan::DEFAULT_BIND_ADDRESS;
-use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
-use infiltrator_contract::uwp::UwpLoopbackAvailability;
 use std::path::PathBuf;
 use std::time;
 use std::time::Instant;
@@ -205,81 +202,8 @@ impl Default for Transition {
 // (`infiltrator_contract::shortcuts::ShortcutRegistry`); the shell keeps no
 // second local binding model.
 
-/// Individual UWP package metadata for Windows loopback exemption.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UwpAppItem {
-    pub sid: String,
-    pub display_name: String,
-    pub is_exempt: bool,
-}
-
-/// State for the Windows UWP Loopback Utility.
-#[derive(Debug, Clone, Default)]
-pub struct UwpLoopbackState {
-    pub apps: Vec<UwpAppItem>,
-    pub availability: UwpLoopbackAvailability,
-    pub revision: u64,
-    pub search_query: String,
-    pub is_scanning: bool,
-    pub status_message: Option<String>,
-}
-
-/// Configuration for the local PAC (Proxy Auto-Config) service and bypass manager.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PacManagerConfig {
-    pub pac_url: String,
-    pub bypass_subnets: String,
-    pub is_pac_mode_active: bool,
-    pub last_compile_status: Option<String>,
-    pub snapshot: PacSnapshot,
-    pub dirty: bool,
-}
-
-/// Configuration for LAN proxy sharing and IP access control lists (ACL).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LanSharingConfig {
-    pub allow_lan: bool,
-    pub mixed_port: u16,
-    pub bind_address: String,
-    pub acl_whitelist_cidrs: String,
-    pub active_lan_clients_count: usize,
-}
-
-impl Default for LanSharingConfig {
-    fn default() -> Self {
-        Self {
-            allow_lan: false,
-            mixed_port: 7890,
-            bind_address: DEFAULT_BIND_ADDRESS.to_owned(),
-            acl_whitelist_cidrs: String::new(),
-            active_lan_clients_count: 0,
-        }
-    }
-}
-
-/// Iced-only editable draft for LAN ACL and Basic Authentication settings.
-/// The password is kept in memory and never enters a shared snapshot.
-#[derive(Clone, PartialEq, Eq)]
-pub struct LanSecurityConfig {
-    pub allowed_ips: String,
-    pub disallowed_ips: String,
-    pub skip_auth_prefixes: String,
-    pub authentication_enabled: bool,
-    pub authentication_user_count: usize,
-    pub auth_username: String,
-    pub auth_password: String,
-}
-
-impl Default for LanSecurityConfig {
-    fn default() -> Self {
-        Self {
-            allowed_ips: "192.168.0.0/16,10.0.0.0/8".to_owned(),
-            disallowed_ips: String::new(),
-            skip_auth_prefixes: "127.0.0.0/8,::1/128".to_owned(),
-            authentication_enabled: false,
-            authentication_user_count: 0,
-            auth_username: "musicfrog".to_owned(),
-            auth_password: String::new(),
-        }
-    }
-}
+// The LAN sharing, LAN security and PAC drafts, the UWP loopback state and
+// their baselines live in the shared owner layer
+// (`infiltrator_presentation::settings_page_model` and
+// `infiltrator_presentation::app_routing_page_model`); the Iced types module
+// keeps no second local copy of them.

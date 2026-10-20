@@ -303,38 +303,41 @@ fn test_advancement_w3_5_uwp_loopback_exemption_manager() {
     let (mut state, _) = AppState::new();
     state.shell.demo = true;
 
-    // Initial state
-    assert!(state.shell.uwp_loopback.apps.is_empty());
+    // Initial state: the loopback packages are the shared page model's.
+    assert!(state.shell.uwp_loopback.uwp_packages().is_empty());
 
     // Scan apps
     let _ = state.update(Message::ScanUwpApps);
-    assert_eq!(state.shell.uwp_loopback.apps.len(), 3);
+    assert_eq!(state.shell.uwp_loopback.uwp_packages().len(), 3);
     assert_eq!(
-        state.shell.uwp_loopback.apps[0].display_name,
+        state.shell.uwp_loopback.uwp_packages()[0].display_name,
         "Microsoft Store"
     );
-    assert_eq!(state.shell.uwp_loopback.apps[1].display_name, "Xbox App");
     assert_eq!(
-        state.shell.uwp_loopback.apps[2].display_name,
+        state.shell.uwp_loopback.uwp_packages()[1].display_name,
+        "Xbox App"
+    );
+    assert_eq!(
+        state.shell.uwp_loopback.uwp_packages()[2].display_name,
         "Windows Terminal"
     );
 
     // Exempt all
     let _ = state.update(Message::ExemptAllUwpApps);
-    for app in &state.shell.uwp_loopback.apps {
-        assert!(app.is_exempt);
+    for package in state.shell.uwp_loopback.uwp_packages() {
+        assert!(package.loopback_exempt);
     }
 
     // Clear all exemptions
     let _ = state.update(Message::ClearAllUwpExemptions);
-    for app in &state.shell.uwp_loopback.apps {
-        assert!(!app.is_exempt);
+    for package in state.shell.uwp_loopback.uwp_packages() {
+        assert!(!package.loopback_exempt);
     }
 
     // Toggle single app
     let _ = state.update(Message::ToggleUwpAppExemption("S-1-15-2-1".to_string()));
-    assert!(state.shell.uwp_loopback.apps[0].is_exempt);
-    assert!(!state.shell.uwp_loopback.apps[1].is_exempt);
+    assert!(state.shell.uwp_loopback.uwp_packages()[0].loopback_exempt);
+    assert!(!state.shell.uwp_loopback.uwp_packages()[1].loopback_exempt);
 }
 
 #[test]
@@ -352,14 +355,17 @@ fn test_uwp_live_snapshot_projects_without_demo_data() {
 
     let _ = state.update(Message::UwpSnapshotLoaded(snapshot));
 
-    assert_eq!(state.shell.uwp_loopback.revision, 4);
+    assert_eq!(state.shell.uwp_loopback.uwp_revision(), 4);
     assert!(matches!(
-        state.shell.uwp_loopback.availability,
+        state.shell.uwp_loopback.uwp_availability(),
         UwpLoopbackAvailability::Supported
     ));
-    assert_eq!(state.shell.uwp_loopback.apps.len(), 1);
-    assert_eq!(state.shell.uwp_loopback.apps[0].display_name, "Contoso UWP");
-    assert!(state.shell.uwp_loopback.apps[0].is_exempt);
+    assert_eq!(state.shell.uwp_loopback.uwp_packages().len(), 1);
+    assert_eq!(
+        state.shell.uwp_loopback.uwp_packages()[0].display_name,
+        "Contoso UWP"
+    );
+    assert!(state.shell.uwp_loopback.uwp_packages()[0].loopback_exempt);
 }
 
 #[test]

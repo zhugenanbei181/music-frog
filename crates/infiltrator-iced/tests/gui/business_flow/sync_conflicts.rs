@@ -33,12 +33,13 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
 use infiltrator_domain::sync::diff_yaml_configs;
-use infiltrator_iced::state::editor::DnsSavePhase;
 use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use infiltrator_presentation::dns_page_model::DnsOperation;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -278,7 +279,11 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Sync page → open the merge session (guard arm runs, loader task arms).
     let units = feed(&mut state, Message::LoadSyncDiff("alpha".into()));
-    assert!(state.profile.sync_diff_load_phase.is_loading());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::LoadSyncDiff)
+    );
     assert!(units >= 1);
 
     // Loader task body for real: local via manager + remote file + diff.
@@ -331,7 +336,11 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Apply arms the merge task (guards on an open session + the conflict).
     let units = feed(&mut state, Message::ApplySyncDiffMerge);
-    assert!(state.profile.sync_diff_apply_phase.is_applying());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::ApplySyncDiff)
+    );
     assert!(units >= 1);
 
     // Task body for real — merge by picks, validate, commit, drop the
@@ -368,7 +377,11 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     });
 
     let units = feed(&mut state, Message::SyncDiffMerged(Ok("alpha".into())));
-    assert!(!state.profile.sync_diff_apply_phase.is_applying());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::ApplySyncDiff)
+    );
     assert!(state.profile.sync_diff.is_none(), "session closed");
     assert!(state.profile.sync_conflicts.is_empty(), "conflict cleared");
     assert!(units >= 2, "LoadProfiles + success-toast legs");
@@ -602,7 +615,11 @@ fn mixed_profile_sync_failure_and_runtime_refetch_chain() {
     state.runtime.configuration_save_state = ConfigurationSaveState::Saving {
         label: "DNS".into(),
     };
-    state.editor.dns_save_phase = DnsSavePhase::Saving;
+    state
+        .editor
+        .dns_model
+        .operation_mut(DnsOperation::SaveDns)
+        .begin();
     let units = feed(
         &mut state,
         Message::DnsSaved(Err(InfiltratorError::Backend("DNS 应用失败".into()))),
@@ -612,7 +629,7 @@ fn mixed_profile_sync_failure_and_runtime_refetch_chain() {
         ConfigurationSaveState::Failed { .. }
     ));
     assert!(state.shell.error_msg.is_some());
-    assert!(!state.editor.dns_save_phase.is_saving());
+    assert!(!state.editor.dns_operation_running(DnsOperation::SaveDns));
     assert!(units >= 1);
 
     // The banner reset clears the flow.

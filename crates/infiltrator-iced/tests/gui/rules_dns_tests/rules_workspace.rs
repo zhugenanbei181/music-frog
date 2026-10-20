@@ -20,8 +20,11 @@ fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {
 
     let (mut state, _) = AppState::new();
     // The default partition is the shared default, not a surface literal.
-    assert_eq!(state.editor.rules_tab, RulesTab::default());
-    assert_eq!(state.editor.rules_json_tab, RulesJsonSection::default());
+    assert_eq!(state.editor.rules_model.tab(), RulesTab::default());
+    assert_eq!(
+        state.editor.rules_model.json_section(),
+        RulesJsonSection::default()
+    );
     assert_eq!(RulesTab::default(), RulesTab::List);
     assert_eq!(RulesJsonSection::default(), RulesJsonSection::RuleProviders);
 
@@ -29,12 +32,12 @@ fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {
     // its shared identity.
     for tab in RulesTab::ALL {
         let _ = state.update(Message::SetRulesTab(tab));
-        assert_eq!(state.editor.rules_tab, tab);
+        assert_eq!(state.editor.rules_model.tab(), tab);
         assert_eq!(RulesTab::from_index(tab.index()), tab);
     }
     for section in RulesJsonSection::ALL {
         let _ = state.update(Message::SetRulesJsonTab(section));
-        assert_eq!(state.editor.rules_json_tab, section);
+        assert_eq!(state.editor.rules_model.json_section(), section);
         assert_eq!(RulesJsonSection::from_index(section.index()), section);
     }
 

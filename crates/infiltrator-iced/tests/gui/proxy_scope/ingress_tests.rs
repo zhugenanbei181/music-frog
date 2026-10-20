@@ -23,19 +23,25 @@ fn product_preferences_reproject_the_private_outbound_view_model() {
             ),
         ));
     let task = state.update(Message::FilterProxies("Node B".into()));
-    assert!(matches!(
-        &state.runtime.proxy_preferences.phase,
-        ProxyPreferencePhase::Applying(_)
-    ));
+    assert!(
+        state
+            .runtime
+            .proxies_model
+            .preference_write_phase()
+            .is_running()
+    );
     assert!(matches!(
         &state.runtime.proxy_search.phase,
         ProxySearchPhase::Pending { query, .. } if query == "Node B"
     ));
     assert_eq!(state.update(terminal(task)).units(), 0);
-    assert!(matches!(
-        &state.runtime.proxy_preferences.phase,
-        ProxyPreferencePhase::Idle
-    ));
+    assert!(
+        !state
+            .runtime
+            .proxies_model
+            .preference_write_phase()
+            .is_running()
+    );
     assert!(matches!(
         &state.runtime.proxy_search.phase,
         ProxySearchPhase::Synchronized { query } if query == "Node B"
@@ -92,7 +98,7 @@ fn product_preferences_reproject_the_private_outbound_view_model() {
     )));
     assert_eq!(state.update(completion).units(), 0);
     assert_eq!(
-        state.runtime.outbound_sort_order,
+        state.runtime.proxies_model.sort_order(),
         OutboundSortOrder::NameDescending
     );
     assert_eq!(state.runtime.proxy_groups[0].proxies[0].name, "node-b");
@@ -115,7 +121,7 @@ fn product_preferences_reproject_the_private_outbound_view_model() {
     let completion = terminal(state.update(Message::ToggleFilterAlive(true)));
     assert_eq!(state.update(completion).units(), 0);
     assert!(state.runtime.proxy_groups[0].proxies.is_empty());
-    assert!(state.runtime.filter_alive_only);
+    assert!(state.runtime.proxies_model.healthy_only());
 
     handler
         .2
@@ -134,7 +140,10 @@ fn product_preferences_reproject_the_private_outbound_view_model() {
         ));
     let completion = terminal(state.update(Message::ToggleProxyCompactView));
     assert_eq!(state.update(completion).units(), 0);
-    assert!(state.runtime.proxy_compact_view);
+    assert_eq!(
+        state.runtime.proxies_model.layout(),
+        OutboundLayout::CompactList
+    );
     assert_eq!(
         state
             .runtime
@@ -168,10 +177,14 @@ fn product_search_keeps_failed_draft_and_retries_through_typed_phases() {
             if query == "Node B" && actual == &failure
     ));
     assert_eq!(state.runtime.proxy_filter, "Node B");
-    assert!(matches!(
-        &state.runtime.proxy_preferences.phase,
-        ProxyPreferencePhase::Failed(actual) if actual == &failure
-    ));
+    assert!(
+        state
+            .runtime
+            .proxies_model
+            .preference_write_phase()
+            .failure()
+            .is_some_and(|actual| actual == &failure)
+    );
 
     *handler.1.lock().unwrap() = None;
     handler
@@ -271,10 +284,13 @@ fn product_group_order_applies_only_after_typed_outbound_preference_readback() {
         .unwrap()
         .push_back(CommandOutput::OutboundUiPreferencesApplied(ordered));
     let task = state.update(Message::ApplyProxyGroupOrder);
-    assert!(matches!(
-        &state.runtime.proxy_preferences.phase,
-        ProxyPreferencePhase::Applying(_)
-    ));
+    assert!(
+        state
+            .runtime
+            .proxies_model
+            .preference_write_phase()
+            .is_running()
+    );
     let completion = terminal(task);
     assert_eq!(state.update(completion).units(), 0);
     assert_eq!(state.runtime.group_order_dialog, Closed);

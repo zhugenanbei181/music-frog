@@ -4,12 +4,12 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
-use crate::types::doctor::DoctorPanelOperation;
 use crate::types::message::Message;
 use infiltrator_contract::doctor::{
-    BootstrapReport, BootstrapStep, DoctorCheckResult, DoctorFixAction, DoctorFixReport,
-    DoctorReport, DoctorStatus,
+    BootstrapReport, BootstrapStep, DoctorAction, DoctorCheckResult, DoctorFixAction,
+    DoctorFixReport, DoctorReport, DoctorStatus,
 };
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use lurker_core_contract::error::InfiltratorError;
 
 fn check(id: &str, status: DoctorStatus) -> DoctorCheckResult {
@@ -31,16 +31,24 @@ fn report(checks: Vec<DoctorCheckResult>) -> DoctorReport {
     }
 }
 
+/// The action the shared phase machine is currently running.
+fn running_action(state: &AppState) -> Option<DoctorAction> {
+    match &state.diag.doctor.action.phase {
+        DoctorActionPhase::Pending(pending) => Some(pending.action.clone()),
+        DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => None,
+    }
+}
+
 #[test]
-fn test_run_doctor_enters_checking_phase_and_report_ready_stores_report() {
+fn test_run_doctor_enters_the_shared_pending_phase_and_report_ready_stores_report() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunDoctor);
     assert_eq!(
-        state.diag.doctor.operation,
-        DoctorPanelOperation::Checking,
-        "RunDoctor enters the checking phase"
+        running_action(&state),
+        Some(DoctorAction::Diagnose),
+        "RunDoctor enters the shared pending phase"
     );
-    assert!(state.diag.doctor.failure_message().is_none());
+    assert!(state.diag.doctor.failure().is_none());
 
     let sample = report(vec![
         check("config.settings_parse", DoctorStatus::Pass),
@@ -50,7 +58,7 @@ fn test_run_doctor_enters_checking_phase_and_report_ready_stores_report() {
     ]);
     let _ = state.update(Message::DoctorReportReady(Ok(sample)));
 
-    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
+    assert_eq!(state.diag.doctor.action.phase, DoctorActionPhase::Idle);
     let stored = state.diag.doctor.report.as_ref().expect("report stored");
     assert_eq!(stored.checks.len(), 4);
     assert_eq!(stored.count_by_status(DoctorStatus::Pass), 1);
@@ -65,11 +73,11 @@ fn test_run_doctor_is_guarded_while_busy() {
     let _ = state.update(Message::RunDoctor);
     // busy 期间重复触发不改变状态（节流），也不会清掉在途标记。
     let _ = state.update(Message::RunDoctor);
-    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Checking);
+    assert_eq!(running_action(&state), Some(DoctorAction::Diagnose));
     let _ = state.update(Message::RunDoctorFix);
     assert_eq!(
-        state.diag.doctor.operation,
-        DoctorPanelOperation::Checking,
+        running_action(&state),
+        Some(DoctorAction::Diagnose),
         "a different operation cannot overlap the active check"
     );
 }
@@ -82,18 +90,15 @@ fn test_doctor_report_error_surfaces_in_panel_and_clears_busy() {
         "connection refused".to_string(),
     ))));
 
-    assert!(matches!(
-        &state.diag.doctor.operation,
-        DoctorPanelOperation::Failed(message) if message.contains("connection refused")
-    ));
     assert!(
         state
             .diag
             .doctor
-            .failure_message()
-            .is_some_and(|message| message.contains("connection refused")),
+            .failure()
+            .is_some_and(|failure| failure.message.contains("connection refused")),
         "panel error must surface the transport failure"
     );
+    assert!(!state.diag.doctor.is_busy());
     assert!(state.diag.doctor.report.is_none());
 }
 
@@ -113,14 +118,14 @@ fn test_doctor_report_error_keeps_previous_report_visible() {
         state.diag.doctor.report.is_some(),
         "previous report must stay visible"
     );
-    assert!(state.diag.doctor.failure_message().is_some());
+    assert!(state.diag.doctor.failure().is_some());
 }
 
 #[test]
 fn test_doctor_fix_transitions_and_clears_busy() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunDoctorFix);
-    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Fixing);
+    assert_eq!(running_action(&state), Some(DoctorAction::RepairAll));
 
     let fixed = DoctorFixReport {
         actions: vec![DoctorFixAction {
@@ -129,8 +134,8 @@ fn test_doctor_fix_transitions_and_clears_busy() {
         }],
     };
     let _ = state.update(Message::DoctorFixApplied(Ok(fixed)));
-    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
-    assert!(state.diag.doctor.failure_message().is_none());
+    assert_eq!(state.diag.doctor.action.phase, DoctorActionPhase::Idle);
+    assert!(state.diag.doctor.failure().is_none());
 }
 
 #[test]
@@ -141,20 +146,17 @@ fn test_doctor_fix_error_sets_panel_error() {
         "fix failed".to_string(),
     ))));
     assert!(matches!(
-        &state.diag.doctor.operation,
-        DoctorPanelOperation::Failed(_)
+        &state.diag.doctor.action.phase,
+        DoctorActionPhase::Failed { .. }
     ));
-    assert!(state.diag.doctor.failure_message().is_some());
+    assert!(state.diag.doctor.failure().is_some());
 }
 
 #[test]
 fn test_bootstrap_transitions_and_clears_busy() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunBootstrap);
-    assert_eq!(
-        state.diag.doctor.operation,
-        DoctorPanelOperation::Bootstrapping
-    );
+    assert_eq!(running_action(&state), Some(DoctorAction::Bootstrap));
 
     let bootstrapped = BootstrapReport {
         steps: vec![BootstrapStep {
@@ -164,8 +166,8 @@ fn test_bootstrap_transitions_and_clears_busy() {
         }],
     };
     let _ = state.update(Message::BootstrapFinished(Ok(bootstrapped)));
-    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
-    assert!(state.diag.doctor.failure_message().is_none());
+    assert_eq!(state.diag.doctor.action.phase, DoctorActionPhase::Idle);
+    assert!(state.diag.doctor.failure().is_none());
 
     // Err 分支进入失败阶段并保留可见错误。
     let _ = state.update(Message::RunBootstrap);
@@ -173,10 +175,10 @@ fn test_bootstrap_transitions_and_clears_busy() {
         "bootstrap failed".to_string(),
     ))));
     assert!(matches!(
-        &state.diag.doctor.operation,
-        DoctorPanelOperation::Failed(_)
+        &state.diag.doctor.action.phase,
+        DoctorActionPhase::Failed { .. }
     ));
-    assert!(state.diag.doctor.failure_message().is_some());
+    assert!(state.diag.doctor.failure().is_some());
 }
 
 #[test]
@@ -190,7 +192,30 @@ fn test_doctor_actions_are_noop_in_demo_mode() {
     ] {
         let _ = state.update(message.clone());
     }
-    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
+    assert_eq!(state.diag.doctor.action.phase, DoctorActionPhase::Idle);
+}
+
+#[test]
+fn test_the_doctor_panel_reads_the_shared_action_phase() {
+    // The panel keeps no phase of its own: the busy flag, the failure and
+    // the running action all come from the shared stage machine, so the
+    // surface cannot contradict the owner.
+    let (mut state, _) = AppState::new();
+    assert!(!state.diag.doctor.is_busy());
+    assert!(state.diag.doctor.current_action().is_none());
+
+    let _ = state.update(Message::RunDoctor);
+    assert!(state.diag.doctor.is_busy());
+    assert_eq!(
+        state.diag.doctor.current_action(),
+        Some(&DoctorAction::Diagnose)
+    );
+
+    let _ = state.update(Message::DoctorReportReady(Err(InfiltratorError::Internal(
+        "boom".to_string(),
+    ))));
+    assert!(!state.diag.doctor.is_busy());
+    assert!(state.diag.doctor.failure().is_some());
 }
 
 #[test]

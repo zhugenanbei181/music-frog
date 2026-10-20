@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 
 /// DUAL-07-02 / 07-04 / 07-12 — the per-profile User-Agent and insecure-TLS
 /// fields are real editor state (previously `UpdateSubscriptionUserAgent`
@@ -305,7 +306,9 @@ fn subscription_cron_editor_loads_and_validates() {
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
     assert!(units >= 1, "rejection raises a toast");
     assert!(
-        !state.profile.subscription_save_phase.is_saving(),
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription),
         "a malformed cron never starts the save task"
     );
 
@@ -315,9 +318,17 @@ fn subscription_cron_editor_loads_and_validates() {
         Message::UpdateSubscriptionCron("0 */6 * * *".into()),
     );
     feed(&mut state, Message::SaveSubscriptionSettings);
-    assert!(state.profile.subscription_save_phase.is_saving());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
     feed(&mut state, Message::SubscriptionSettingsSaved(Ok(())));
-    assert!(!state.profile.subscription_save_phase.is_saving());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
 }
 
 /// DUAL-07-09/14: the subscription editor's schedule draft and auto-reload
@@ -346,7 +357,11 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     feed(&mut state, Message::UpdateSubscriptionAutoUpdate(true));
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
     assert_eq!(units, 1, "auto-update without URL → toast only");
-    assert!(!state.profile.subscription_save_phase.is_saving());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
 
     // Opt out for real so the editor state is the honest persisted one.
     block_on(async {
@@ -389,14 +404,20 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
         "typed unsupported toast instead of spawning the save task"
     );
     assert!(
-        !state.profile.subscription_save_phase.is_saving(),
+        !state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription),
         "a reload this host cannot perform never starts a save"
     );
 
     // Disabling never needs the seam: the save task really spawns.
     feed(&mut state, Message::UpdateSubscriptionAutoReload(false));
     let units = feed(&mut state, Message::SaveSubscriptionSettings);
-    assert!(state.profile.subscription_save_phase.is_saving());
+    assert!(
+        state
+            .profile
+            .operation_running(ProfilesOperation::SaveSubscription)
+    );
     assert_eq!(units, 1);
     let units = feed(&mut state, Message::SubscriptionSettingsSaved(Ok(())));
     assert_eq!(units, 2, "LoadProfiles + success-toast legs");

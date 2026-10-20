@@ -1,4 +1,5 @@
 //! Capture the real typed options read and denied filter transaction through TEA.
+use crate::demo::capabilities::{CAPTURE_ENGINE, install_demo_core_capabilities};
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -10,6 +11,7 @@ use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
@@ -29,9 +31,19 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated filter runtime"),
     );
+    // The filter transaction is a real core command: the owner publishes the
+    // capability that admits it, so the capture observes the owner's real
+    // refusal instead of a capability-gate refusal.
+    let capabilities = install_demo_core_capabilities(
+        &core,
+        CAPTURE_ENGINE,
+        [CoreOperation::Profile(ProfileOperation::ApplyFeature)],
+    );
     let profiles = profiles_for_mihomo(store);
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(profiles.clone()),
+        CommandApplication::new()
+            .with_core_capabilities(capabilities)
+            .with_profile(profiles.clone()),
     ));
     attach_capture_owner(state, core.clone());
     let commands = state

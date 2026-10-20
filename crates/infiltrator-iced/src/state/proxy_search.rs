@@ -98,6 +98,8 @@ impl ProxySearchState {
 impl AppState {
     pub(crate) fn update_proxy_search(&mut self, query: String) -> Task<Message> {
         self.runtime.proxy_filter = query.clone();
+        // The typed query is the shared page model's.
+        self.runtime.proxies_model.edit_query(&query);
         self.runtime.proxy_search.phase = ProxySearchPhase::Dirty {
             query: query.clone(),
         };

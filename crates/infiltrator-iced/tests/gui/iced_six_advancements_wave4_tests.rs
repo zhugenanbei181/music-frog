@@ -202,40 +202,44 @@ fn test_advancement_w4_6_pac_auto_proxy_and_bypass_manager() {
     state.shell.demo = true;
 
     // Default PAC state
-    assert!(!state.runtime.pac_manager.is_pac_mode_active);
-    assert!(state.runtime.pac_manager.pac_url.is_empty());
+    assert!(!state.runtime.settings_model.pac().enabled);
 
     // Update bypass subnets
     let bypass = "localhost; 127.*; 192.168.*; 10.*";
     let _ = state.update(Message::UpdatePacBypassSubnets(bypass.to_string()));
-    assert_eq!(state.runtime.pac_manager.bypass_subnets, bypass);
+    assert_eq!(
+        state.runtime.settings_model.pac().bypass_domains,
+        vec![
+            "localhost".to_owned(),
+            "127.*".to_owned(),
+            "192.168.*".to_owned(),
+            "10.*".to_owned(),
+        ]
+    );
 
     // Toggle PAC mode on
     let _ = state.update(Message::TogglePacMode(true));
-    assert!(state.runtime.pac_manager.is_pac_mode_active);
-    assert_eq!(
-        state.runtime.pac_manager.pac_url,
-        "http://127.0.0.1:25211/proxy.pac"
-    );
+    assert!(state.runtime.settings_model.pac().enabled);
 
     // Compile and validate PAC
     let _ = state.update(Message::CompileAndValidatePac);
     assert_eq!(
-        state.runtime.pac_manager.last_compile_status.as_deref(),
+        state.runtime.pac_compile_status.as_deref(),
         Some("Valid PAC compiled")
     );
 
     // Toggle PAC mode off
     let _ = state.update(Message::TogglePacMode(false));
-    assert!(!state.runtime.pac_manager.is_pac_mode_active);
-    assert!(state.runtime.pac_manager.pac_url.is_empty());
+    assert!(!state.runtime.settings_model.pac().enabled);
 }
 
 #[test]
 fn test_pac_live_result_updates_url_and_committed_snapshot() {
     let (mut state, _) = AppState::new();
-    state.runtime.pac_manager.bypass_subnets = "old.example".to_owned();
-    state.runtime.pac_manager.dirty = true;
+    state
+        .runtime
+        .settings_model
+        .edit_pac(|draft| draft.bypass_domains = vec!["old.example".to_owned()]);
     let snapshot = PacSnapshot {
         state: PacServiceState::Running {
             url: "http://127.0.0.1:32000/proxy.pac".to_owned(),
@@ -247,12 +251,24 @@ fn test_pac_live_result_updates_url_and_committed_snapshot() {
 
     let _ = state.update(Message::PacApplied(Ok(snapshot)));
 
-    assert!(state.runtime.pac_manager.is_pac_mode_active);
+    // The owner's readback lands in the observed snapshot ...
     assert_eq!(
-        state.runtime.pac_manager.pac_url,
-        "http://127.0.0.1:32000/proxy.pac"
+        state.runtime.pac_snapshot.state,
+        PacServiceState::Running {
+            url: "http://127.0.0.1:32000/proxy.pac".to_owned()
+        }
     );
-    assert_eq!(state.runtime.pac_manager.bypass_subnets, "example.com");
-    assert_eq!(state.runtime.pac_manager.snapshot.script_bytes, 4096);
-    assert!(!state.runtime.pac_manager.dirty);
+    assert_eq!(
+        state.runtime.pac_snapshot.bypass_domains,
+        vec!["example.com".to_owned()]
+    );
+    assert_eq!(state.runtime.pac_snapshot.script_bytes, 4096);
+    // ... and in the settings model's draft, which the owner's answer
+    // settled: the pending edit is replaced by the value the owner confirmed.
+    assert!(state.runtime.settings_model.pac().enabled);
+    assert_eq!(
+        state.runtime.settings_model.pac().bypass_domains,
+        vec!["example.com".to_owned()]
+    );
+    assert!(!state.runtime.settings_model.pac_modified());
 }

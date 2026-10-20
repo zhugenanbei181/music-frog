@@ -7,7 +7,6 @@ use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_domain::rules::edit::{CUSTOM_RULE_TYPE_CHOICES, build_custom_rule};
 use infiltrator_domain::rules::game_routing_presets;
-use infiltrator_iced::state::editor::RuleAddPhase;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 
 #[test]
@@ -70,7 +69,11 @@ fn test_rules_edit_operations_delegate_to_shared_module() {
     // DUAL-11-11: the wizard and the shared builder agree on the type list and
     // reject an empty payload before any async save is scheduled.
     assert_eq!(CUSTOM_RULE_TYPE_CHOICES.len(), 12);
-    state.editor.rule_add_phase = RuleAddPhase::Idle;
+    state
+        .editor
+        .rules_model
+        .operation_mut(RulesOperation::AddRule)
+        .reset();
     let rule = build_custom_rule(&RuleDraft {
         rule_type: "AND".into(),
         payload: "(DOMAIN,a.com),(DST-PORT,443)".into(),

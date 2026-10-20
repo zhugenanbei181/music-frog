@@ -12,9 +12,9 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::core_control::CoreControlAction;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
+use infiltrator_presentation::overview_page_model::OverviewRunState;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
-use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use lurker_ui_presentation::core_status_projection::lifecycle_copy;
 
@@ -125,7 +125,11 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
 
 pub fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let lifecycle = state.core_lifecycle_snapshot().lifecycle;
-    let running = matches!(lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready);
+    // The run tri-state is the shared overview page model's.
+    let running = matches!(
+        state.runtime.overview_model.run_state(),
+        OverviewRunState::Running
+    );
     let status_text = lifecycle_copy(&lifecycle, &Lang(lang.0));
 
     let projection = state.core_control_projection();

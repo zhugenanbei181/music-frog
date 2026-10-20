@@ -1,7 +1,6 @@
 //! Doctor diagnostics card: self-healing check / repair / bootstrap actions.
 
 use crate::state::AppState;
-use crate::types::doctor::DoctorPanelOperation;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::components::{BadgeKind, badge};
@@ -12,9 +11,8 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::border::Radius;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
+use infiltrator_contract::doctor::{DoctorAction, DoctorCheckResult, DoctorReport, DoctorStatus};
 use infiltrator_contract::surface_snapshot::DoctorCheckSnapshot;
-use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::doctor_projection::{check_detail, check_name, status_key, summary};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -39,21 +37,11 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         .surface
         .latest()
         .map(|snapshot| &snapshot.pages.doctor);
-    let busy = matches!(&doctor.action.phase, DoctorActionPhase::Pending(_))
-        || matches!(
-            &doctor.operation,
-            DoctorPanelOperation::Checking
-                | DoctorPanelOperation::Fixing
-                | DoctorPanelOperation::Bootstrapping
-        );
+    let busy = doctor.is_busy();
+    let checks = doctor.checks();
     let repairable = !busy
-        && page.is_some_and(|page| {
-            matches!(page.status, PageStatus::Ready)
-                && page
-                    .data
-                    .as_ref()
-                    .is_some_and(|data| data.checks.iter().any(|check| check.fix_available))
-        });
+        && page.is_some_and(|page| matches!(page.status, PageStatus::Ready))
+        && checks.iter().any(|check| check.fix_available);
 
     let actions: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
         column![
@@ -123,33 +111,25 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     let mut body = column![].spacing(theme::SP_SM);
 
-    match &doctor.action.phase {
-        DoctorActionPhase::Pending(_) => {
-            body = body.push(secondary_text(
-                lang.tr("doctor_operation_pending").into_owned(),
-            ));
+    if busy {
+        body = body.push(secondary_text(
+            lang.tr("doctor_operation_pending").into_owned(),
+        ));
+        if let Some(action) = doctor.current_action() {
+            body = body.push(secondary_text(match action {
+                DoctorAction::Diagnose => lang.tr("doctor_running_check").to_string(),
+                DoctorAction::RepairAll | DoctorAction::RepairOne(_) => {
+                    lang.tr("doctor_running_fix").to_string()
+                }
+                DoctorAction::Bootstrap => lang.tr("doctor_running_bootstrap").to_string(),
+            }));
         }
-        DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => {}
     }
-    match &doctor.operation {
-        DoctorPanelOperation::Checking => {
-            body = body.push(secondary_text(lang.tr("doctor_running_check").to_string()));
-        }
-        DoctorPanelOperation::Fixing => {
-            body = body.push(secondary_text(lang.tr("doctor_running_fix").to_string()));
-        }
-        DoctorPanelOperation::Bootstrapping => {
-            body = body.push(secondary_text(
-                lang.tr("doctor_running_bootstrap").to_string(),
-            ));
-        }
-        DoctorPanelOperation::Idle | DoctorPanelOperation::Failed(_) => {}
-    }
-    if let Some(error) = doctor.failure_message() {
-        body = body.push(error_text(error));
+    if let Some(failure) = doctor.failure() {
+        body = body.push(error_text(failure.message.as_str()));
     }
 
-    if doctor.action.can_retry() {
+    if doctor.can_retry() {
         body = body.push(
             container(
                 button(text(lang.tr("doctor_retry_action").into_owned()))
@@ -160,13 +140,14 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
     }
     if let Some(page) = page {
         if let PageStatus::Failed { failure } = &page.status
-            && doctor.failure_message() != Some(failure.message.as_str())
+            && doctor.failure().map(|failure| failure.message.as_str())
+                != Some(failure.message.as_str())
         {
             body = body.push(error_text(&failure.message));
         }
-        if let Some(data) = &page.data {
+        if let Some(data) = &doctor.page {
             body = body.push(secondary_text(summary(
-                data.checks.iter().map(|check| check.state),
+                checks.iter().map(|check| check.state),
                 data.report_finished_at,
                 &Lang(&state.shell.lang),
             )));
@@ -177,7 +158,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
                     &[("time", data.last_run.clone())],
                 )));
             }
-            for check in &data.checks {
+            for check in checks {
                 body = body.push(snapshot_check_row(check, &state.shell.lang, repairable));
             }
         }

@@ -26,6 +26,7 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_ports::host_runtime::TunServiceStatus;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_presentation::settings_status_projection::format_runtime_status;
 use infiltrator_shared::assets::harmonyos_font_license_text;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -143,7 +144,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .size(13)
             .style(form_input_style),
             row![
-                if state.profile.app_settings_save_phase.is_saving() {
+                if state
+                    .profile
+                    .operation_running(ProfilesOperation::SaveAppSettings)
+                {
                     text_btn("Saving...", style_ghost, None)
                 } else {
                     text_btn(

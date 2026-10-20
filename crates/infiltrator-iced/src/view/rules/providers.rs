@@ -25,6 +25,7 @@ use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_presentation::rule_provider_projection::{
     etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
 };
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn editor_lazy_placeholder<'a>(title: String, on_press: Message) -> Element<'a, Message> {
@@ -319,7 +320,12 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             }
         }
 
-        let update_geo_btn = if state.editor.geo_databases_update_phase.is_updating() {
+        let update_geo_btn = if state
+            .editor
+            .rules_model
+            .operation(RulesOperation::UpdateGeoDatabases)
+            .is_running()
+        {
             button(
                 row![
                     svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t)
@@ -421,18 +427,25 @@ pub(super) fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Ele
         .iter()
         .map(|section| lang.tr(section.i18n_key()).to_string())
         .collect();
-    let json_tab_index = state.editor.rules_json_tab.index();
+    let json_tab_index = state.editor.rules_model.json_section().index();
     let json_tab_buttons = segmented_control(&json_tab_labels, json_tab_index, |index| {
         Message::SetRulesJsonTab(RulesJsonSection::from_index(index))
     });
 
-    let json_view = match state.editor.rules_json_tab {
+    let json_view = match state.editor.rules_model.json_section() {
         RulesJsonSection::RuleProviders => json_tab_card(
             lang.tr("rules_rule_providers_json").to_string(),
             state.editor.rule_providers_editor_state,
             &state.editor.rule_providers_json_content,
-            state.editor.rule_providers_json_dirty,
-            state.editor.rule_providers_json_save_phase.is_saving(),
+            state
+                .editor
+                .rules_model
+                .json_modified(RulesJsonSection::RuleProviders),
+            state
+                .editor
+                .rules_model
+                .operation(RulesOperation::SaveRuleProvidersJson)
+                .is_running(),
             Message::EnsureRuleProvidersEditorLoaded,
             Message::RuleProvidersEditorAction,
             Message::SaveRuleProvidersJson,
@@ -443,8 +456,15 @@ pub(super) fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Ele
             lang.tr("rules_proxy_providers_json").to_string(),
             state.editor.proxy_providers_editor_state,
             &state.editor.proxy_providers_json_content,
-            state.editor.proxy_providers_json_dirty,
-            state.editor.proxy_providers_json_save_phase.is_saving(),
+            state
+                .editor
+                .rules_model
+                .json_modified(RulesJsonSection::ProxyProviders),
+            state
+                .editor
+                .rules_model
+                .operation(RulesOperation::SaveProxyProvidersJson)
+                .is_running(),
             Message::EnsureProxyProvidersEditorLoaded,
             Message::ProxyProvidersEditorAction,
             Message::SaveProxyProvidersJson,
@@ -455,8 +475,15 @@ pub(super) fn json_editors_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Ele
             lang.tr("rules_sniffer_json").to_string(),
             state.editor.sniffer_editor_state,
             &state.editor.sniffer_json_content,
-            state.editor.sniffer_json_dirty,
-            state.editor.sniffer_json_save_phase.is_saving(),
+            state
+                .editor
+                .rules_model
+                .json_modified(RulesJsonSection::Sniffer),
+            state
+                .editor
+                .rules_model
+                .operation(RulesOperation::SaveSnifferJson)
+                .is_running(),
             Message::EnsureSnifferEditorLoaded,
             Message::SnifferEditorAction,
             Message::SaveSnifferJson,

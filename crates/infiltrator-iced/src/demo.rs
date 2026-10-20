@@ -34,6 +34,7 @@ use infiltrator_contract::parity::FeatureId;
 use std::env::{args, var};
 mod capabilities;
 mod capture;
+mod connections;
 mod dns_hosts;
 mod dns_leak;
 mod dns_query;
@@ -43,13 +44,19 @@ mod fixtures;
 pub(crate) mod interaction;
 mod language;
 mod logs;
+mod overview;
 mod owner;
+mod profiles;
+mod proxies;
 mod proxy_fixtures;
 mod routing_intent;
 mod rule_list;
 mod rule_statistics;
 mod rule_trace;
+mod rules;
+mod shell;
 mod snapshot_restore;
+mod speedtest;
 mod state;
 mod telemetry;
 
@@ -227,3 +234,7 @@ pub fn run(env: DemoEnv) -> iced::Result {
 #[cfg(test)]
 #[path = "../tests/gui/demo_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../tests/gui/demo_interaction_tests.rs"]
+mod interaction_tests;

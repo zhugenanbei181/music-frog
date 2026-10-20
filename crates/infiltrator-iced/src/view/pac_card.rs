@@ -15,11 +15,14 @@ use infiltrator_presentation::host_network_projection::pac;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let manager = &state.runtime.pac_manager;
-    let status = pac(&manager.snapshot, &Lang(lang.0));
-    let running = matches!(manager.snapshot.state, PacServiceState::Running { .. });
+    let snapshot = &state.runtime.pac_snapshot;
+    let status = pac(snapshot, &Lang(lang.0));
+    let running = matches!(snapshot.state, PacServiceState::Running { .. });
 
-    let toggle = toggle_switch(manager.is_pac_mode_active, Message::TogglePacMode);
+    let toggle = toggle_switch(
+        state.runtime.settings_model.pac().enabled,
+        Message::TogglePacMode,
+    );
 
     let compile_btn = button(
         row![
@@ -37,10 +40,10 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
 
     let bypass_input = text_input(
         "localhost, 127.*, 192.168.*, 10.*, *.lan",
-        if manager.bypass_subnets.is_empty() {
+        if state.runtime.settings_text.pac_bypass_domains.is_empty() {
             "localhost, 127.*, 192.168.*, 10.*"
         } else {
-            &manager.bypass_subnets
+            &state.runtime.settings_text.pac_bypass_domains
         },
     )
     .on_input(Message::UpdatePacBypassSubnets)
@@ -50,7 +53,8 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     .width(Length::Fill)
     .style(form_input_style);
 
-    let status_feedback: Element<'_, Message> = if let Some(st) = &manager.last_compile_status {
+    let status_feedback: Element<'_, Message> = if let Some(st) = &state.runtime.pac_compile_status
+    {
         container(
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),

@@ -1,4 +1,7 @@
 //! Capture executes the same shared tracer command and reader as the interactive product.
+use crate::demo::capabilities::{
+    DemoMihomoCaptureCore, MIHOMO_CAPTURE_ENGINE, install_demo_core_capabilities,
+};
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -15,26 +18,46 @@ use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
-use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
 use lurker_core_contract::page::SurfaceOrigin;
 use std::sync::{Arc, atomic::Ordering};
 
-pub(super) fn activate(state: &mut AppState) -> Task<Message> {
-    let confirm = state.shell.capture_scenario == Some(FeatureId::RulesOverrideEditor);
+pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message> {
+    let confirm = feature == FeatureId::RulesOverrideEditor;
     let port = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(port.clone());
+    // The tracer reads a Mihomo profile document, and the shared rule-trace
+    // command refuses a workspace that belongs to another engine: the capture
+    // core therefore speaks the Mihomo engine, exactly as the product core
+    // does.
     let core = CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
+        Arc::new(DemoMihomoCaptureCore),
+        Arc::new(DemoMihomoCaptureCore),
         tokio_application_runtime().expect("isolated tracer capture runtime"),
     );
+    // The tracer runs the shared rule commands, so the owner publishes the
+    // capability matrix that admits them. Without it the capability gate
+    // refuses the trace and the capture never observes the owner's report.
+    let capabilities = install_demo_core_capabilities(
+        &core,
+        MIHOMO_CAPTURE_ENGINE,
+        [
+            CoreOperation::Rules(RulesOperation::Trace),
+            CoreOperation::Rules(RulesOperation::Apply),
+        ],
+    );
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_rule_tracer(owner.clone()),
+        CommandApplication::new()
+            .with_core_capabilities(capabilities)
+            // The trace command reads the active profile workspace, so the
+            // facade carries the same profile application the reader uses.
+            .with_profile(profiles_for_mihomo(port.clone()))
+            .with_rule_tracer(owner.clone()),
     ));
     let reader = Arc::new(
         ProductSurfaceReader::new(

@@ -11,7 +11,6 @@ use crate::state::core_operations::{
     CoreDownloadProgressAdmission, CoreDownloadRunId, CoreDownloadStart,
     CoreUpdateCheckCompletionAdmission, CoreUpdateCheckInvalidation, CoreUpdateCheckStart,
 };
-use crate::state::profiles::WebDavSyncPhase;
 use crate::state::runtime::SystemProxyStage;
 use crate::types::app::{CoreDownloadProgress, ToastStatus};
 use crate::types::message::Message;
@@ -23,6 +22,7 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::version::{CoreArtifactVerification, VersionDownloadProgress};
 use infiltrator_ports::version::VersionProgressSink;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::autostart::set_autostart_enabled;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError, from_backend};
@@ -324,7 +324,7 @@ impl AppState {
                     cancel.store(true, Ordering::Release);
                 }
                 self.profile.sync_cancel = None;
-                self.profile.webdav_sync_phase = WebDavSyncPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::SyncWebDav);
                 self.profile.sync_progress = None;
                 self.runtime.system_proxy_stage = SystemProxyStage::Disabled;
                 self.runtime.system_toggles = self

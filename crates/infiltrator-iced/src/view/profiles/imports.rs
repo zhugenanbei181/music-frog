@@ -15,23 +15,25 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-    let clear_profiles_btn: Element<'_, Message> = if state.profile.list_load_phase.is_loading() {
-        text_btn(lang.tr("profiles_clearing").to_string(), style_danger, None)
-    } else {
-        text_btn(
-            lang.tr("profiles_clear_all").to_string(),
-            style_danger,
-            Some(Message::RequestConfirmation(ConfirmAction::ClearProfiles)),
-        )
-    };
+    let clear_profiles_btn: Element<'_, Message> =
+        if state.profile.operation_running(ProfilesOperation::LoadList) {
+            text_btn(lang.tr("profiles_clearing").to_string(), style_danger, None)
+        } else {
+            text_btn(
+                lang.tr("profiles_clear_all").to_string(),
+                style_danger,
+                Some(Message::RequestConfirmation(ConfirmAction::ClearProfiles)),
+            )
+        };
 
     let search_box = container(search_input(
         lang.tr("profiles_search_placeholder").as_ref(),
-        &state.profile.profiles_filter,
+        &state.profile.profiles_model.filter(),
         Message::UpdateProfilesFilter,
         Message::UpdateProfilesFilter(String::new()),
     ))
@@ -39,20 +41,22 @@ pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
     .max_width(360.0);
 
     // DUAL-07-11: toolbar entry that refreshes every subscription at once.
-    let update_all_btn: Element<'_, Message> =
-        if state.profile.subscription_update_phase.is_updating() {
-            text_btn(
-                lang.tr("profiles_updating_subscription").to_string(),
-                style_ghost,
-                None,
-            )
-        } else {
-            text_btn(
-                lang.tr("profiles_update_all").to_string(),
-                style_ghost,
-                Some(Message::UpdateAllSubscriptionsNow),
-            )
-        };
+    let update_all_btn: Element<'_, Message> = if state
+        .profile
+        .operation_running(ProfilesOperation::UpdateSubscription)
+    {
+        text_btn(
+            lang.tr("profiles_updating_subscription").to_string(),
+            style_ghost,
+            None,
+        )
+    } else {
+        text_btn(
+            lang.tr("profiles_update_all").to_string(),
+            style_ghost,
+            Some(Message::UpdateAllSubscriptionsNow),
+        )
+    };
 
     let header = row![
         text(lang.tr("profiles_title").to_string())
@@ -183,28 +187,29 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     .style(style_ghost)
     .on_press(paste_msg);
 
-    let import_actions: Element<'_, Message> = if state.profile.url_import_phase.is_importing() {
-        text_btn(
-            lang.tr("profiles_importing").to_string(),
-            style_accent,
-            None,
-        )
-    } else {
-        button(
-            row![
-                svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
-                text(lang.tr("profiles_import_btn").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM)
-            ]
-            .spacing(theme::SP_SM)
-            .align_y(Alignment::Center),
-        )
-        .padding([7, 14])
-        .style(style_accent)
-        .on_press(Message::ImportProfile)
-        .into()
-    };
+    let import_actions: Element<'_, Message> =
+        if state.profile.operation_running(ProfilesOperation::Import) {
+            text_btn(
+                lang.tr("profiles_importing").to_string(),
+                style_accent,
+                None,
+            )
+        } else {
+            button(
+                row![
+                    svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
+                    text(lang.tr("profiles_import_btn").to_string())
+                        .size(12)
+                        .font(FONT_MEDIUM)
+                ]
+                .spacing(theme::SP_SM)
+                .align_y(Alignment::Center),
+            )
+            .padding([7, 14])
+            .style(style_accent)
+            .on_press(Message::ImportProfile)
+            .into()
+        };
 
     card(
         Some(lang.tr("profiles_import_sub").to_string()),
@@ -262,7 +267,7 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
 pub(super) fn local_import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
     let local_import_action: Element<'_, Message> =
-        if state.profile.local_import_phase.is_importing() {
+        if state.profile.operation_running(ProfilesOperation::Import) {
             text_btn(
                 lang.tr("profiles_importing").to_string(),
                 style_accent,

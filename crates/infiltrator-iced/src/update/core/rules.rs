@@ -3,7 +3,7 @@
 //! providers, proxy providers and the sniffer config.
 
 use crate::state::AppState;
-use crate::state::editor::{GeoDatabasesUpdatePhase, RulesLoadPhase};
+
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::rule_trace::RuleTraceAction;
@@ -24,6 +24,7 @@ use infiltrator_domain::rules::view::{
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::rule_list_projection::draft_page;
 use infiltrator_presentation::rule_row_projection::rule_row;
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::time::Instant;
@@ -365,21 +366,25 @@ impl AppState {
                 Task::none()
             }
             Message::SetRulesTab(tab) => {
-                self.editor.rules_tab = tab;
+                self.editor.rules_model.select_tab(tab);
                 self.editor.rules_page = 0;
                 match tab {
-                    RulesTab::JsonEditors => Task::done(match self.editor.rules_json_tab {
-                        RulesJsonSection::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
-                        RulesJsonSection::ProxyProviders => {
-                            Message::EnsureProxyProvidersEditorLoaded
-                        }
-                        RulesJsonSection::Sniffer => Message::EnsureSnifferEditorLoaded,
-                    }),
+                    RulesTab::JsonEditors => {
+                        Task::done(match self.editor.rules_model.json_section() {
+                            RulesJsonSection::RuleProviders => {
+                                Message::EnsureRuleProvidersEditorLoaded
+                            }
+                            RulesJsonSection::ProxyProviders => {
+                                Message::EnsureProxyProvidersEditorLoaded
+                            }
+                            RulesJsonSection::Sniffer => Message::EnsureSnifferEditorLoaded,
+                        })
+                    }
                     _ => Task::none(),
                 }
             }
             Message::SetRulesJsonTab(tab) => {
-                self.editor.rules_json_tab = tab;
+                self.editor.rules_model.select_json_section(tab);
                 Task::done(match tab {
                     RulesJsonSection::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
                     RulesJsonSection::ProxyProviders => Message::EnsureProxyProvidersEditorLoaded,
@@ -432,8 +437,8 @@ impl AppState {
             }
             Message::ActivateRulesHeavyView => {
                 self.editor.rules_heavy_ready = true;
-                if self.editor.rules_tab == RulesTab::JsonEditors {
-                    Task::done(match self.editor.rules_json_tab {
+                if self.editor.rules_model.tab() == RulesTab::JsonEditors {
+                    Task::done(match self.editor.rules_model.json_section() {
                         RulesJsonSection::RuleProviders => Message::EnsureRuleProvidersEditorLoaded,
                         RulesJsonSection::ProxyProviders => {
                             Message::EnsureProxyProvidersEditorLoaded
@@ -452,7 +457,10 @@ impl AppState {
                 Task::none()
             }
             Message::RulesLoaded(result) => {
-                self.editor.rules_load_phase = RulesLoadPhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::Load)
+                    .reset();
                 match result {
                     Ok(document) => {
                         if self
@@ -536,7 +544,10 @@ impl AppState {
                         ToastStatus::Error,
                     ));
                 };
-                self.editor.geo_databases_update_phase = GeoDatabasesUpdatePhase::Updating;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::UpdateGeoDatabases)
+                    .begin();
                 Task::perform(
                     async move {
                         application
@@ -549,7 +560,10 @@ impl AppState {
                 )
             }
             Message::GeoDatabasesUpdated(result) => {
-                self.editor.geo_databases_update_phase = GeoDatabasesUpdatePhase::Idle;
+                self.editor
+                    .rules_model
+                    .operation_mut(RulesOperation::UpdateGeoDatabases)
+                    .reset();
                 match result {
                     Ok(()) => Task::done(Message::ShowToast(
                         "GeoIP & GeoSite database update request accepted; completion is asynchronous".to_string(),

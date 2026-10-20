@@ -30,12 +30,18 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
         .editor
         .rule_list
         .observe_readback(RuleListReadback::Observed(document));
-    state.editor.rule_providers_json_cache =
+    state.editor.rules_model.observe_json_document(
+        RulesJsonSection::RuleProviders,
         r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com","tracker.net"]}}"#
-            .to_owned();
+            .to_owned(),
+    );
 
-    let providers: RuleProviders =
-        serde_json::from_str(&state.editor.rule_providers_json_cache).expect("declarations");
+    let providers: RuleProviders = serde_json::from_str(
+        state
+            .editor
+            .rules_json_baseline(RulesJsonSection::RuleProviders),
+    )
+    .expect("declarations");
     let declaration = parse_rule_provider_declarations(&providers)
         .into_iter()
         .next()

@@ -1,8 +1,8 @@
 //! Demo visual-capture plumbing: the one-shot `CAPTURE_READY` marker file
 //! consumed by the screenshot tooling.
 
-use super::interaction;
 use super::{route_env_name, skin_name};
+use crate::capture_scenario;
 use crate::state::AppState;
 use std::fs::{OpenOptions, create_dir_all};
 use std::sync::atomic::Ordering;
@@ -27,7 +27,7 @@ impl AppState {
         );
         if let Some(feature) = self.shell.capture_scenario {
             let scenario = feature.spec().id;
-            if !interaction::ready(self, feature) {
+            if !capture_scenario::business_opened(self, feature) {
                 return;
             }
             line = format!("{} scenario={scenario} activated=true", line.trim_end());

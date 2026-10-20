@@ -434,9 +434,6 @@ impl AppState {
         if feature == FeatureId::ProxiesProbeSettings {
             probe = probe.requiring(InteractionRegion::ProxyProbeTimeout.id());
         }
-        if feature == FeatureId::ProxiesNodeDetailDrawer {
-            probe = probe.requiring(InteractionRegion::ProxyInspectionHistory.id());
-        }
         operate(probe).map(move |bounds| {
             let bounds = bounds.map(|rect| {
                 if target == Id::new("page-content") {

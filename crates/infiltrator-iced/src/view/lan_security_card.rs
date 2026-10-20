@@ -14,34 +14,43 @@ use infiltrator_presentation::settings_status_projection::format_lan_auth;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let security = &state.runtime.lan_security;
+    let security = state.runtime.settings_model.lan_security();
     let observed = &state.runtime.runtime_control;
     let available = observed.status == RuntimeControlStatus::Ready
         && observed.lan_security.is_some()
         && !state.runtime.runtime_patch_stage.is_applying();
     let auth_status = format_lan_auth(observed.lan_security.as_ref(), &Lang(lang.0));
 
-    let allowed = text_input("192.168.0.0/16, 10.0.0.0/8", &security.allowed_ips)
-        .on_input_maybe(available.then_some(Message::UpdateLanAllowedIps))
-        .padding([6, 10])
-        .size(12)
-        .font(MONO)
-        .width(Length::Fill)
-        .style(form_input_style);
-    let disallowed = text_input("192.168.1.10/32", &security.disallowed_ips)
-        .on_input_maybe(available.then_some(Message::UpdateLanDisallowedIps))
-        .padding([6, 10])
-        .size(12)
-        .font(MONO)
-        .width(Length::Fill)
-        .style(form_input_style);
-    let skip_auth = text_input("127.0.0.0/8, ::1/128", &security.skip_auth_prefixes)
-        .on_input_maybe(available.then_some(Message::UpdateLanSkipAuthPrefixes))
-        .padding([6, 10])
-        .size(12)
-        .font(MONO)
-        .width(Length::Fill)
-        .style(form_input_style);
+    let allowed = text_input(
+        "192.168.0.0/16, 10.0.0.0/8",
+        &state.runtime.settings_text.lan_allowed_ips,
+    )
+    .on_input_maybe(available.then_some(Message::UpdateLanAllowedIps))
+    .padding([6, 10])
+    .size(12)
+    .font(MONO)
+    .width(Length::Fill)
+    .style(form_input_style);
+    let disallowed = text_input(
+        "192.168.1.10/32",
+        &state.runtime.settings_text.lan_disallowed_ips,
+    )
+    .on_input_maybe(available.then_some(Message::UpdateLanDisallowedIps))
+    .padding([6, 10])
+    .size(12)
+    .font(MONO)
+    .width(Length::Fill)
+    .style(form_input_style);
+    let skip_auth = text_input(
+        "127.0.0.0/8, ::1/128",
+        &state.runtime.settings_text.lan_skip_auth_prefixes,
+    )
+    .on_input_maybe(available.then_some(Message::UpdateLanSkipAuthPrefixes))
+    .padding([6, 10])
+    .size(12)
+    .font(MONO)
+    .width(Length::Fill)
+    .style(form_input_style);
     let username = text_input("musicfrog", &security.auth_username)
         .on_input_maybe(available.then_some(Message::UpdateLanAuthUsername))
         .padding([6, 10])

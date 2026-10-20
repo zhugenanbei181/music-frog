@@ -4,7 +4,6 @@
 use crate::configs_dir::config_manager;
 use crate::host::storage::{subscription_import_port, subscription_source};
 use crate::state::AppState;
-use crate::state::profiles::ProfileImportPhase;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::profile_apply::activate_profile;
@@ -20,6 +19,7 @@ use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::error::InfiltratorError;
@@ -61,7 +61,7 @@ impl AppState {
                     ));
                 }
 
-                self.profile.url_import_phase = ProfileImportPhase::Importing;
+                self.profile.begin_operation(ProfilesOperation::Import);
                 Task::perform(
                     async move {
                         let profile_name = sanitize_profile_name(&name)
@@ -125,7 +125,7 @@ impl AppState {
                 )
             }
             Message::ProfileImported(result) => {
-                self.profile.url_import_phase = ProfileImportPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::Import);
                 match result {
                     Ok(activation) => {
                         self.invalidate_rules_dns_views();
@@ -250,7 +250,7 @@ impl AppState {
                     ));
                 }
 
-                self.profile.local_import_phase = ProfileImportPhase::Importing;
+                self.profile.begin_operation(ProfilesOperation::Import);
                 Task::perform(
                     async move {
                         let profile_name = sanitize_profile_name(&name)
@@ -352,7 +352,7 @@ impl AppState {
                 )
             }
             Message::LocalProfileImported(result) => {
-                self.profile.local_import_phase = ProfileImportPhase::Idle;
+                self.profile.reset_operation(ProfilesOperation::Import);
                 match result {
                     Ok(activation) => {
                         self.invalidate_rules_dns_views();

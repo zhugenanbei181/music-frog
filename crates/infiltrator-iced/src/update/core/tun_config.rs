@@ -5,9 +5,8 @@ use super::profile_apply::runtime_access;
 use super::profile_apply::save_task_with_strategy;
 use crate::configuration::application;
 use crate::state::AppState;
-use crate::state::editor::TunSavePhase;
 use crate::types::app::ToastStatus;
-use crate::types::dns::{AdvancedEditMode, TunFormDraft};
+use crate::types::dns::TunFormDraft;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::ConfigurationSaveState;
@@ -16,7 +15,8 @@ use iced::widget::text_editor::Content;
 use infiltrator_contract::tun::{TunStack, TunStackUpdate};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::tun::{TunConfig, TunConfigPatch, apply_tun_patch_to_yaml};
-use lurker_core_contract::error::InfiltratorError;
+use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsOperation};
+use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use std::time::Instant;
 use tokio::time;
 use tokio::time::sleep;
@@ -198,9 +198,9 @@ impl AppState {
                 Task::none()
             }
             Message::SaveTunConfig => {
-                self.editor.tun_save_phase = TunSavePhase::Saving;
+                self.editor.begin_dns_operation(DnsOperation::SaveTun);
                 self.begin_configuration_save("TUN");
-                let patch = if self.editor.tun_mode == AdvancedEditMode::Form {
+                let patch = if self.editor.dns_model.edit_mode() == DnsEditMode::Form {
                     self.tun_patch_from_form()
                 } else {
                     self.ensure_tun_editor_loaded();
@@ -212,7 +212,7 @@ impl AppState {
                 let patch = match patch {
                     Ok(value) => value,
                     Err(error) => {
-                        self.editor.tun_save_phase = TunSavePhase::Idle;
+                        self.editor.reset_dns_operation(DnsOperation::SaveTun);
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.tun = Some(mapped.clone());
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
@@ -239,7 +239,12 @@ impl AppState {
                 )
             }
             Message::TunConfigSaved(result) => {
-                self.editor.tun_save_phase = TunSavePhase::Idle;
+                self.editor.settle_dns_operation(
+                    DnsOperation::SaveTun,
+                    result.as_ref().map(|_| ()).map_err(|error| {
+                        Failure::new(ErrorCode::Internal, error.to_string(), false)
+                    }),
+                );
                 match result {
                     Ok(_) => {
                         self.editor.tun_form_dirty = false;

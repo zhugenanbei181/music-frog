@@ -29,6 +29,7 @@ use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES;
 use infiltrator_domain::rules::view::{RULE_ROW_HEIGHT_PX, page_count};
 use infiltrator_presentation::rule_row_projection::{row_detail, row_hits_copy};
+use infiltrator_presentation::rules_page_model::RulesOperation;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -159,7 +160,12 @@ fn add_rule_panel<'a>(
         .iter()
         .map(|choice| (*choice).to_string())
         .collect::<Vec<String>>();
-    let add_rule_btn_style = if state.editor.rule_add_phase.is_adding() {
+    let add_rule_btn_style = if state
+        .editor
+        .rules_model
+        .operation(RulesOperation::AddRule)
+        .is_running()
+    {
         style_ghost
     } else {
         style_accent
@@ -210,7 +216,12 @@ fn add_rule_panel<'a>(
                 button(
                     row![
                         svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| {
-                            if state.editor.rule_add_phase.is_adding() {
+                            if state
+                                .editor
+                                .rules_model
+                                .operation(RulesOperation::AddRule)
+                                .is_running()
+                            {
                                 tokens(t).text_secondary
                             } else {
                                 tokens(t).on_accent

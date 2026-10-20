@@ -1,5 +1,4 @@
 use crate::state::AppState;
-use crate::types::dns::{AdvancedEditMode, DnsTab};
 use crate::types::dns_query::QueryAction;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
@@ -34,6 +33,7 @@ use infiltrator_contract::dns::{
     DnsUpstreamProtocol, append_server, parse_server_list, remove_server_at,
 };
 use infiltrator_contract::dns_form::DnsFormField;
+use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsOperation, DnsPageTab};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn save_button(
@@ -116,21 +116,17 @@ fn lazy_editor_placeholder<'a>(title: String, on_press: Message) -> Element<'a, 
     )
 }
 
-fn mode_tabs(tab: DnsTab, current: AdvancedEditMode) -> Element<'static, Message> {
+fn mode_tabs(tab: DnsPageTab, current: DnsEditMode) -> Element<'static, Message> {
     segmented_control(
         &["Form".to_string(), "Raw JSON".to_string()],
-        if current == AdvancedEditMode::Json {
-            1
-        } else {
-            0
-        },
+        if current == DnsEditMode::Json { 1 } else { 0 },
         move |idx| {
             Message::SetAdvancedMode(
                 tab,
                 if idx == 1 {
-                    AdvancedEditMode::Json
+                    DnsEditMode::Json
                 } else {
-                    AdvancedEditMode::Form
+                    DnsEditMode::Form
                 },
             )
         },
@@ -175,7 +171,7 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                     header_actions(
                         Message::RefreshDnsOnly,
                         Message::SaveDns,
-                        state.editor.dns_save_phase.is_saving(),
+                        state.editor.dns_operation_running(DnsOperation::SaveDns),
                         dirty
                     )
                 ]
@@ -231,7 +227,7 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
                     header_actions(
                         Message::RefreshFakeIpOnly,
                         Message::SaveFakeIpConfig,
-                        state.editor.fake_ip_save_phase.is_saving(),
+                        state.editor.dns_operation_running(DnsOperation::SaveFakeIp),
                         dirty
                     )
                 ]
@@ -315,7 +311,7 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                     header_actions(
                         Message::RefreshTunOnly,
                         Message::SaveTunConfig,
-                        state.editor.tun_save_phase.is_saving(),
+                        state.editor.dns_operation_running(DnsOperation::SaveTun),
                         dirty
                     )
                 ]
@@ -452,7 +448,7 @@ fn dns_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
     advanced_json_panel(
         title.as_ref(),
         dirty,
-        state.editor.dns_save_phase.is_saving(),
+        state.editor.dns_operation_running(DnsOperation::SaveDns),
         "DNS",
         state.editor.advanced_configs_loaded_once,
         state.editor.dns_editor_state,
@@ -476,7 +472,7 @@ fn fake_ip_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
     advanced_json_panel(
         title.as_ref(),
         dirty,
-        state.editor.fake_ip_save_phase.is_saving(),
+        state.editor.dns_operation_running(DnsOperation::SaveFakeIp),
         "Fake-IP",
         state.editor.advanced_configs_loaded_once,
         state.editor.fake_ip_editor_state,
@@ -498,7 +494,7 @@ fn tun_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
     advanced_json_panel(
         title.as_ref(),
         dirty,
-        state.editor.tun_save_phase.is_saving(),
+        state.editor.dns_operation_running(DnsOperation::SaveTun),
         "TUN",
         state.editor.advanced_configs_loaded_once,
         state.editor.tun_editor_state,
@@ -537,21 +533,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .align_y(Alignment::Center);
 
-    let tab_index = match state.editor.dns_tab {
-        DnsTab::FakeIp => 1,
-        DnsTab::Tun => 2,
-        DnsTab::Dns => 0,
-    };
+    let tab_index = state.editor.dns_model.tab_index();
     let tabs = segmented_control(
         &["DNS".to_string(), "Fake-IP".to_string(), "TUN".to_string()],
         tab_index,
-        |idx| {
-            Message::SetDnsTab(match idx {
-                1 => DnsTab::FakeIp,
-                2 => DnsTab::Tun,
-                _ => DnsTab::Dns,
-            })
-        },
+        |idx| Message::SetDnsTab(DnsPageTab::from_index(idx)),
     );
 
     if !state.editor.dns_heavy_ready {
@@ -585,10 +571,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into();
     }
 
-    let section = match state.editor.dns_tab {
-        DnsTab::Dns => {
-            let mode_tabs = mode_tabs(DnsTab::Dns, state.editor.dns_mode);
-            let body = if state.editor.dns_mode == AdvancedEditMode::Form {
+    let section = match state.editor.dns_model.tab() {
+        DnsPageTab::Dns => {
+            let mode_tabs = mode_tabs(DnsPageTab::Dns, state.editor.dns_model.edit_mode());
+            let body = if state.editor.dns_model.edit_mode() == DnsEditMode::Form {
                 dns_form_panel(state, &lang)
             } else {
                 dns_json_panel(state, &lang)
@@ -603,7 +589,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     latency_policy_line(
                         &state.editor.dns_latency,
                         Some(Message::RunDnsLatencyProbe),
-                        state.editor.dns_latency_probe_phase.is_probing(),
+                        state
+                            .editor
+                            .dns_operation_running(DnsOperation::ProbeLatency),
                         &lang,
                     )
                 ),
@@ -614,9 +602,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             ]
             .spacing(0)
         }
-        DnsTab::FakeIp => {
-            let mode_tabs = mode_tabs(DnsTab::FakeIp, state.editor.fake_ip_mode);
-            let body = if state.editor.fake_ip_mode == AdvancedEditMode::Form {
+        DnsPageTab::FakeIp => {
+            let mode_tabs = mode_tabs(DnsPageTab::FakeIp, state.editor.dns_model.edit_mode());
+            let body = if state.editor.dns_model.edit_mode() == DnsEditMode::Form {
                 fake_ip_form_panel(state, &lang)
             } else {
                 fake_ip_json_panel(state, &lang)
@@ -630,10 +618,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             ]
             .spacing(0)
         }
-        DnsTab::Tun => {
-            let mode_tabs = mode_tabs(DnsTab::Tun, state.editor.tun_mode);
+        DnsPageTab::Tun => {
+            let mode_tabs = mode_tabs(DnsPageTab::Tun, state.editor.dns_model.edit_mode());
             let stack_card = tun_stack_card(state, &lang);
-            let body = if state.editor.tun_mode == AdvancedEditMode::Form {
+            let body = if state.editor.dns_model.edit_mode() == DnsEditMode::Form {
                 tun_form_panel(state, &lang)
             } else {
                 tun_json_panel(state, &lang)

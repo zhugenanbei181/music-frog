@@ -21,7 +21,6 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_iced::state::proxy_preferences::ProxyPreferencePhase;
 use infiltrator_iced::state::proxy_search::ProxySearchPhase;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;

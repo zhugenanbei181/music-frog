@@ -15,24 +15,36 @@ use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CARD, SP_MD, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::profiles_page_model::{ProfileFilterTarget, ProfilesOperation};
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// The profile facts the shared list filter reads.
+///
+/// The shared filter matches the profile name and its kind; the Iced list
+/// shows the profile path as its kind, so the filter answers the same way it
+/// always did.
+struct ProfileRow<'a>(&'a ProfileInfo);
+
+impl ProfileFilterTarget for ProfileRow<'_> {
+    fn profile_name(&self) -> &str {
+        &self.0.name
+    }
+
+    fn profile_kind(&self) -> &str {
+        &self.0.path
+    }
+}
 
 pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
     let mut profiles_list = column![].spacing(SP_MD);
-    let profile_filter = state.profile.profiles_filter.trim().to_lowercase();
-    let filtered_profiles: Vec<_> = state
-        .profile
-        .profiles
-        .iter()
-        .filter(|p| {
-            profile_filter.is_empty()
-                || p.name.to_lowercase().contains(&profile_filter)
-                || p.path.to_lowercase().contains(&profile_filter)
-        })
-        .collect();
+    // The list filter is the shared page model's; the surface keeps no
+    // second copy of the match rule.
+    let profile_rows: Vec<ProfileRow<'_>> = state.profile.profiles.iter().map(ProfileRow).collect();
+    let filtered_profiles = state.profile.profiles_model.visible_profiles(&profile_rows);
 
-    if state.profile.list_load_phase.is_loading() {
+    if state.profile.operation_running(ProfilesOperation::LoadList) {
         profiles_list = profiles_list.push(empty_state(
             Icon::FileText,
             lang.tr("loading_profiles").as_ref(),
@@ -52,6 +64,7 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
         ));
     } else {
         for profile in filtered_profiles {
+            let profile = profile.0;
             let is_active = profile.active;
             let is_subscription = profile.subscription_url.is_some();
 

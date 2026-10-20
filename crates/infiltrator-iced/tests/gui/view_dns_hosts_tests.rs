@@ -3,6 +3,7 @@ use iced::advanced::widget::Tree;
 use infiltrator_contract::dns::FakeIpMappingPool;
 use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
 use infiltrator_presentation::dns_hosts_projection::issue_text;
+use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_shared::locales::Lang;
 
 // ===========================================================================
@@ -148,7 +149,11 @@ fn test_dns_latency_policy_line_is_localized_and_honest() {
     // the demo session has no host runtime.
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunDnsLatencyProbe);
-    assert!(!state.editor.dns_latency_probe_phase.is_probing());
+    assert!(
+        !state
+            .editor
+            .dns_operation_running(DnsOperation::ProbeLatency)
+    );
 }
 
 #[test]

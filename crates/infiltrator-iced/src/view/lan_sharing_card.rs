@@ -13,7 +13,7 @@ use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let lan = &state.runtime.lan_sharing;
+    let lan = state.runtime.settings_model.lan_sharing();
 
     let observed = &state.runtime.runtime_control;
     let available = observed.status == RuntimeControlStatus::Ready
@@ -21,7 +21,7 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
         && observed.mixed_port.is_some()
         && observed.lan_bind_address.is_some()
         && !state.runtime.runtime_patch_stage.is_applying();
-    let toggle = toggle_switch_with_actions(lan.allow_lan, move |value| {
+    let toggle = toggle_switch_with_actions(lan.enabled, move |value| {
         available.then_some(Message::ToggleLanSharing(value))
     });
 
@@ -71,12 +71,12 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
                 badge(
                     if observed.allow_lan.is_none() {
                         lang.tr("shell_readout_unknown").into_owned()
-                    } else if lan.allow_lan {
+                    } else if lan.enabled {
                         "LAN Active".to_owned()
                     } else {
                         "LAN Disabled".to_owned()
                     },
-                    if lan.allow_lan {
+                    if lan.enabled {
                         BadgeKind::Success
                     } else {
                         BadgeKind::Neutral

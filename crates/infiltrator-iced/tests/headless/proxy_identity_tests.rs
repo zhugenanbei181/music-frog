@@ -39,6 +39,9 @@ fn group_id(state: &AppState, name: &str) -> OutboundId {
         .expect("typed collection ID")
 }
 
+/// The expansion of one group, as the shared proxies model answers it.
+///
+/// The fold is the model's fact: the surface keeps no private copy of it.
 fn is_expanded(state: &AppState, name: &str) -> bool {
     let Some(id) = state
         .runtime
@@ -55,19 +58,31 @@ fn is_expanded(state: &AppState, name: &str) -> bool {
     else {
         return false;
     };
-    state
-        .runtime
-        .outbound_ui_preferences
-        .data
-        .as_ref()
-        .is_none_or(|preferences| !preferences.collapsed_group_ids.contains(id))
+    state.runtime.proxies_model.group_expanded(id)
+}
+
+/// Open one group so the fold the business measures is a real close.
+///
+/// The demo fixture folds its first group, so the fold business opens it
+/// first.
+fn open_group(state: &mut AppState, name: &str) -> OutboundId {
+    let id = group_id(state, name);
+    if !is_expanded(state, name) {
+        assert_eq!(
+            state
+                .update(Message::ToggleOutboundGroupExpanded(id.clone()))
+                .units(),
+            0
+        );
+    }
+    id
 }
 
 #[test]
 fn group_fold_replays_a_real_smaller_widget_tree_and_reopens_without_side_effects() {
     let mut state = demo_state();
     let (name, members) = state.runtime.filtered_groups.first().unwrap().clone();
-    let id = group_id(&state, &name);
+    let id = open_group(&mut state, &name);
     assert!(!members.is_empty());
     assert!(state.runtime.outbound_ui_preferences.data.is_some());
     let original = mounted_nodes(&Tree::new(state.view().as_widget()));
@@ -108,6 +123,9 @@ fn group_fold_keeps_other_identity_preferences_and_rejects_an_unknown_collection
     assert!(groups.len() > 1);
     let first = group_id(&state, &groups[0]);
     let second = group_id(&state, &groups[1]);
+    // The fixture may start the first group folded; the fold business opens
+    // it first so the fold it measures is a real close.
+    open_group(&mut state, &groups[0]);
     assert_eq!(
         state
             .update(Message::ToggleOutboundGroupExpanded(first.clone()))
@@ -171,6 +189,9 @@ fn newly_published_typed_collection_expands_without_reopening_a_collapsed_group(
     let mut state = demo_state();
     let (closed, visible_members) = state.runtime.filtered_groups[0].clone();
     let closed_id = group_id(&state, &closed);
+    // The fixture may start this group folded; the fold business opens it
+    // first so the fold it measures is a real close.
+    open_group(&mut state, &closed);
     assert_eq!(
         state
             .update(Message::ToggleOutboundGroupExpanded(closed_id.clone()))

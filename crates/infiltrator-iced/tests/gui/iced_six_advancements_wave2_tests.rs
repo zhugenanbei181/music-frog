@@ -12,6 +12,7 @@ use infiltrator_contract::aggregator::{
 };
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::Failure;
@@ -268,7 +269,11 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     // A real shared report lands in the surface state verbatim.
     let _ = state.update(Message::AggregationPreviewFinished(Ok(report.clone())));
     assert_eq!(state.profile.aggregator_report.as_ref(), Some(&report));
-    assert!(!state.profile.aggregator_phase.is_aggregating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::Aggregate)
+    );
 
     // The draft assembled by the surface maps every switch to the shared type.
     let draft = state.aggregator_draft().expect("valid rename text");
@@ -346,7 +351,11 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     // No source selected: the surface refuses to start an aggregation.
     state.profile.aggregator_selected_profiles.clear();
     let _ = state.update(Message::PreviewProfileAggregation);
-    assert!(!state.profile.aggregator_phase.is_aggregating());
+    assert!(
+        !state
+            .profile
+            .operation_running(ProfilesOperation::Aggregate)
+    );
 
     // DUAL-08-11: the modal view (preview + YAML viewport + template library)
     // builds from the shared report; the surface keeps no second aggregator.

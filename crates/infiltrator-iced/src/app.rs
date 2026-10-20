@@ -54,9 +54,8 @@ use infiltrator_domain::rules::view::{RULE_DEFAULT_VIEWPORT_PX, RULE_PUBLISH_LIM
 use infiltrator_shared::autostart;
 use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
 use lurker_core_contract::error::{ErrorCode, Failure};
-use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 use lurker_core_contract::page::PageData;
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::env::var;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::channel;
@@ -68,12 +67,15 @@ use crate::tray;
 #[cfg(not(test))]
 use crate::tray::spec::TrayStartup;
 use crate::types::app::Route;
-use crate::types::dns::{AdvancedEditMode, DnsTab, FakeIpFormDraft, TunFormDraft};
+use crate::types::dns::{FakeIpFormDraft, TunFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::{ConfigurationSaveState, RuntimeStatus};
 use iced::Task;
-use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+use infiltrator_presentation::dns_page_model::DnsPageModel;
+use infiltrator_presentation::profiles_page_model::ProfilesPageModel;
+use infiltrator_presentation::rules_page_model::RulesPageModel;
+use infiltrator_presentation::sync_page_model::SyncPageModel;
 use lurker_core_contract::error::InfiltratorError;
 use std::sync::{Arc, Mutex};
 
@@ -163,9 +165,6 @@ impl AppState {
                 tun_service_install_state: TunServiceInstallState::Idle,
                 system_proxy_stage: SystemProxyStage::from_enabled(system_proxy_enabled),
                 autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
-                filter_alive_only: false,
-                favorite_proxies: HashSet::new(),
-                proxy_compact_view: false,
                 is_adding_custom_node: false,
                 new_node_type: "ss".to_string(),
                 new_node_name: String::new(),
@@ -224,9 +223,10 @@ impl AppState {
                 proxy_name_runs: Default::default(),
                 proxy_search: Default::default(),
                 proxy_preferences: Default::default(),
+                overview_model: Default::default(),
+                proxies_model: Default::default(),
                 filtered_groups: Vec::new(),
                 proxy_filter: String::new(),
-                outbound_sort_order: OutboundSortOrder::LatencyAscending,
                 runtime_panel_delay_sort_order: Default::default(),
                 group_order_editor: Default::default(),
                 group_order_dialog: ProxyGroupOrderDialogState::Closed,
@@ -236,27 +236,22 @@ impl AppState {
                 custom_node_inputs: Default::default(),
                 custom_node_save_state: CustomNodeSaveState::Idle,
                 network_roaming: Default::default(),
-                pac_manager: Default::default(),
-                lan_sharing: Default::default(),
-                lan_sharing_committed: Default::default(),
-                lan_sharing_dirty: false,
-                lan_security: Default::default(),
-                lan_security_committed: Default::default(),
-                lan_security_dirty: false,
+                settings_model: Default::default(),
+                settings_text: Default::default(),
+                pac_snapshot: Default::default(),
+                pac_compile_status: None,
                 tun_stack_config: Default::default(),
             },
             profile: ProfileState {
                 profiles: Vec::new(),
-                profiles_filter: String::new(),
-                list_load_phase: Default::default(),
+                profiles_model: ProfilesPageModel::default(),
+                sync_model: SyncPageModel::default(),
                 import_url: String::new(),
                 import_name: String::new(),
                 import_activate: false,
-                url_import_phase: Default::default(),
                 local_import_path: String::new(),
                 local_import_name: String::new(),
                 local_import_activate: false,
-                local_import_phase: Default::default(),
                 subscription_profile_name: String::new(),
                 subscription_url: String::new(),
                 subscription_auto_update_enabled: false,
@@ -265,25 +260,18 @@ impl AppState {
                 subscription_user_agent: String::new(),
                 subscription_insecure_skip_verify: false,
                 subscription_auto_reload_core: false,
-                subscription_save_phase: Default::default(),
-                subscription_update_phase: Default::default(),
                 webdav_url: String::new(),
                 webdav_user: String::new(),
                 webdav_pass: String::new(),
                 webdav_enabled: false,
                 webdav_sync_interval_mins: "60".to_string(),
                 webdav_sync_on_startup: false,
-                webdav_sync_phase: Default::default(),
                 sync_progress: None,
                 sync_conflicts: Vec::new(),
-                webdav_test_phase: Default::default(),
                 sync_cancel: None,
                 sync_from_tick: false,
-                app_settings_save_phase: Default::default(),
                 restart_after_profile_reset: false,
                 sync_diff: None,
-                sync_diff_load_phase: Default::default(),
-                sync_diff_apply_phase: Default::default(),
                 aggregator_modal_open: false,
                 aggregator_selected_profiles: Vec::new(),
                 aggregator_name_input: "Aggregated".to_string(),
@@ -300,7 +288,6 @@ impl AppState {
                 aggregator_custom_groups: Vec::new(),
                 aggregator_templates: Vec::new(),
                 aggregator_template_name: String::new(),
-                aggregator_phase: Default::default(),
                 encrypted_backup: Default::default(),
             },
             editor: ConfigEditorState {
@@ -312,11 +299,8 @@ impl AppState {
                 next_editor_read: 0,
                 rule_list: Default::default(),
                 rules_filter: String::new(),
-                rules_load_phase: Default::default(),
                 rules_loaded_once: false,
-                rules_save_phase: Default::default(),
-                rules_tab: RulesTab::List,
-                rules_json_tab: RulesJsonSection::RuleProviders,
+                rules_model: RulesPageModel::default(),
                 rules_page: 0,
                 rules_page_size: 200,
                 rules_scroll_offset_px: 0.0,
@@ -340,22 +324,12 @@ impl AppState {
                 rule_providers_json_content: Content::new(),
                 proxy_providers_json_content: Content::new(),
                 sniffer_json_content: Content::new(),
-                rule_providers_json_cache: "{}".to_string(),
-                proxy_providers_json_cache: "{}".to_string(),
-                sniffer_json_cache: "{}".to_string(),
                 rule_providers_json_identity: None,
                 proxy_providers_json_identity: None,
                 sniffer_json_identity: None,
                 rule_providers_editor_state: EditorLazyState::Unloaded,
                 proxy_providers_editor_state: EditorLazyState::Unloaded,
                 sniffer_editor_state: EditorLazyState::Unloaded,
-                rule_providers_json_dirty: false,
-                proxy_providers_json_dirty: false,
-                sniffer_json_dirty: false,
-                rule_providers_json_save_phase: Default::default(),
-                proxy_providers_json_save_phase: Default::default(),
-                sniffer_json_save_phase: Default::default(),
-                geo_databases_update_phase: Default::default(),
                 dns_json_content: Content::new(),
                 fake_ip_json_content: Content::new(),
                 tun_json_content: Content::new(),
@@ -365,10 +339,7 @@ impl AppState {
                 dns_editor_state: EditorLazyState::Unloaded,
                 fake_ip_editor_state: EditorLazyState::Unloaded,
                 tun_editor_state: EditorLazyState::Unloaded,
-                dns_tab: DnsTab::Dns,
-                dns_mode: AdvancedEditMode::Form,
-                fake_ip_mode: AdvancedEditMode::Form,
-                tun_mode: AdvancedEditMode::Form,
+                dns_model: DnsPageModel::default(),
                 dns_heavy_ready: true,
                 advanced_configs_loaded_once: false,
                 dns_json_dirty: false,
@@ -391,7 +362,6 @@ impl AppState {
                 rule_form_binding: Default::default(),
                 new_rule_payload: String::new(),
                 new_rule_target: "DIRECT".to_string(),
-                rule_add_phase: Default::default(),
                 rule_providers: Vec::new(),
                 script_sandbox: Default::default(),
                 snapshot_restore: Default::default(),
@@ -414,11 +384,7 @@ impl AppState {
                 dns_leak: Default::default(),
                 dns_stun: Default::default(),
                 dns_self_heal: Default::default(),
-                dns_latency_probe_phase: Default::default(),
                 dns_hosts_editor: Default::default(),
-                dns_save_phase: Default::default(),
-                fake_ip_save_phase: Default::default(),
-                tun_save_phase: Default::default(),
                 tun_stack: "gvisor".to_string(),
                 tun_auto_route: false,
                 tun_strict_route: false,
@@ -445,7 +411,6 @@ impl AppState {
                 syntax_error: None,
                 syntax_error_line: None,
                 inspecting_rule_provider_diff: None,
-                rule_provider_diff_load_phase: Default::default(),
             },
             diag: DiagnosticsState {
                 traffic: None,

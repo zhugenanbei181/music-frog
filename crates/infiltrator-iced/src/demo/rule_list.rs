@@ -1,4 +1,5 @@
 //! Capture a real source-bound staged edit and the actual denied commit terminal.
+use crate::demo::capabilities::{CAPTURE_ENGINE, install_demo_core_capabilities};
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -11,6 +12,7 @@ use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
@@ -26,8 +28,18 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated rule-list runtime"),
     );
+    // The staged edit and its commit are real core commands: the owner
+    // publishes the capability that admits them, so the capture observes the
+    // owner's real terminal instead of a capability-gate refusal.
+    let capabilities = install_demo_core_capabilities(
+        &core,
+        CAPTURE_ENGINE,
+        [CoreOperation::Rules(RulesOperation::Apply)],
+    );
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_rule_list(RuleListApplication::new(store.clone())),
+        CommandApplication::new()
+            .with_core_capabilities(capabilities)
+            .with_rule_list(RuleListApplication::new(store.clone())),
     ));
     let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),

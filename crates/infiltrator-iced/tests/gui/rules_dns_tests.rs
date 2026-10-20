@@ -6,14 +6,17 @@
 mod rule_list;
 
 use crate::state::AppState;
-use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
+use crate::types::dns::AdvancedConfigsBundle;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rules::RuleBadgeKind;
 use crate::types::runtime::ConfigurationSaveState;
 use crate::view::components::BadgeKind;
 use crate::view::rules::{display_rule_type, semantic_badge_kind};
+use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsPageTab};
+use infiltrator_presentation::rules_page_model::RulesOperation;
 
 // ---- LEFT-05 L1 / DUAL-09-01: editor saves keep comments -------------------
 

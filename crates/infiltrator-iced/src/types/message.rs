@@ -2,9 +2,9 @@
 //! implementation used by tracing and tests.
 
 use super::app::{
-    ConfirmAction, CoreDownloadProgress, Route, SyncProgress, SyncSummary, ToastStatus, UwpAppItem,
+    ConfirmAction, CoreDownloadProgress, Route, SyncProgress, SyncSummary, ToastStatus,
 };
-use super::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
+use super::dns::AdvancedConfigsBundle;
 use super::runtime::{IpProbeResult, RuntimeStreamKind, RuntimeStreamState};
 use crate::state::core_operations::{CoreDownloadRunId, CoreUpdateCheckId};
 use crate::types::{
@@ -47,6 +47,7 @@ use infiltrator_domain::{
     settings::AppSettings,
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
+use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsPageTab};
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use lurker_core_contract::error;
 use lurker_core_contract::identity::{CoreScope, EngineId};
@@ -353,8 +354,8 @@ pub enum Message {
     SnifferJsonSaved(Result<(), error::InfiltratorError>),
     LoadAdvancedConfigs,
     AdvancedConfigsBundleLoaded(Result<Box<AdvancedConfigsBundle>, error::InfiltratorError>),
-    SetDnsTab(DnsTab),
-    SetAdvancedMode(DnsTab, AdvancedEditMode),
+    SetDnsTab(DnsPageTab),
+    SetAdvancedMode(DnsPageTab, DnsEditMode),
     RefreshDnsOnly,
     RefreshFakeIpOnly,
     RefreshTunOnly,
@@ -853,7 +854,7 @@ pub enum Message {
     GeoDataUpdateResult(Result<(), String>),
     // Wave 3 Category 5: Windows UWP Loopback Utility
     ScanUwpApps,
-    UwpAppsLoaded(Vec<UwpAppItem>),
+    UwpAppsLoaded(Vec<uwp::UwpPackageSnapshot>),
     UwpSnapshotLoaded(uwp::UwpLoopbackSnapshot),
     ExemptAllUwpApps,
     ClearAllUwpExemptions,

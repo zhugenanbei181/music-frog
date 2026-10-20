@@ -1,4 +1,5 @@
 //! Capture submits a real shared query and reads the same owner's published response.
+use crate::demo::capabilities::{CAPTURE_ENGINE, install_demo_core_capabilities};
 use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::dns_query::QueryAction;
@@ -9,6 +10,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
@@ -26,8 +28,18 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated query capture runtime"),
     );
+    // The query is a real core command: the owner publishes the capability
+    // that admits it, so the surface observes the owner's real answer instead
+    // of a locally invented refusal from the capability gate.
+    let capabilities = install_demo_core_capabilities(
+        &core,
+        CAPTURE_ENGINE,
+        [CoreOperation::Dns(DnsOperation::Query)],
+    );
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_query(owner.clone()),
+        CommandApplication::new()
+            .with_core_capabilities(capabilities)
+            .with_dns_query(owner.clone()),
     ));
     let reader = Arc::new(
         ProductSurfaceReader::new(

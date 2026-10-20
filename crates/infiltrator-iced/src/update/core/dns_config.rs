@@ -6,9 +6,8 @@ use super::profile_apply::runtime_access;
 use super::profile_apply::save_task;
 use crate::configuration::application;
 use crate::state::AppState;
-use crate::state::editor::{DnsLatencyProbePhase, DnsSavePhase, FakeIpSavePhase};
 use crate::types::app::ToastStatus;
-use crate::types::dns::{AdvancedEditMode, FakeIpFormDraft};
+use crate::types::dns::FakeIpFormDraft;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::ConfigurationSaveState;
@@ -22,6 +21,7 @@ use infiltrator_contract::dns_form::DnsFormIssue;
 use infiltrator_contract::dns_latency::{DnsLatencyProbeRequest, DnsProbeTarget};
 use infiltrator_domain::dns::DnsConfig;
 use infiltrator_domain::fake_ip::{FakeIpConfig, FakeIpConfigPatch, apply_fake_ip_patch_to_yaml};
+use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsOperation};
 use lurker_core_contract::error::{ErrorCode, Failure, InfiltratorError};
 use std::time::Instant;
 use tokio::time;
@@ -189,7 +189,7 @@ impl AppState {
                         false,
                     ))));
                 }
-                self.editor.dns_latency_probe_phase = DnsLatencyProbePhase::Probing;
+                self.editor.begin_dns_operation(DnsOperation::ProbeLatency);
                 let request = DnsLatencyProbeRequest::new(targets);
                 Task::perform(
                     async move {
@@ -201,7 +201,7 @@ impl AppState {
                 )
             }
             Message::DnsLatencyProbed(result) => {
-                self.editor.dns_latency_probe_phase = DnsLatencyProbePhase::Idle;
+                self.editor.reset_dns_operation(DnsOperation::ProbeLatency);
                 match result {
                     Ok(report) => {
                         self.editor.dns_latency = report;
@@ -455,9 +455,9 @@ impl AppState {
                 Task::none()
             }
             Message::SaveDns => {
-                self.editor.dns_save_phase = DnsSavePhase::Saving;
+                self.editor.begin_dns_operation(DnsOperation::SaveDns);
                 self.begin_configuration_save("DNS");
-                let patch = if self.editor.dns_mode == AdvancedEditMode::Form {
+                let patch = if self.editor.dns_model.edit_mode() == DnsEditMode::Form {
                     match self.dns_form_issue() {
                         Some(issue) => {
                             Err(InfiltratorError::Config(Self::dns_issue_message(&issue)))
@@ -474,7 +474,7 @@ impl AppState {
                 let patch = match patch {
                     Ok(value) => value,
                     Err(error) => {
-                        self.editor.dns_save_phase = DnsSavePhase::Idle;
+                        self.editor.reset_dns_operation(DnsOperation::SaveDns);
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.dns = Some(mapped.clone());
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
@@ -507,7 +507,12 @@ impl AppState {
                 )
             }
             Message::DnsSaved(result) => {
-                self.editor.dns_save_phase = DnsSavePhase::Idle;
+                self.editor.settle_dns_operation(
+                    DnsOperation::SaveDns,
+                    result.as_ref().map(|_| ()).map_err(|error| {
+                        Failure::new(ErrorCode::Internal, error.to_string(), false)
+                    }),
+                );
                 match result {
                     Ok(_) => {
                         self.editor.dns_form_dirty = false;
@@ -539,9 +544,9 @@ impl AppState {
                 }
             }
             Message::SaveFakeIpConfig => {
-                self.editor.fake_ip_save_phase = FakeIpSavePhase::Saving;
+                self.editor.begin_dns_operation(DnsOperation::SaveFakeIp);
                 self.begin_configuration_save("Fake-IP");
-                let patch = if self.editor.fake_ip_mode == AdvancedEditMode::Form {
+                let patch = if self.editor.dns_model.edit_mode() == DnsEditMode::Form {
                     self.fake_ip_patch_from_form()
                 } else {
                     self.ensure_fake_ip_editor_loaded();
@@ -554,7 +559,7 @@ impl AppState {
                 let patch = match patch {
                     Ok(value) => value,
                     Err(error) => {
-                        self.editor.fake_ip_save_phase = FakeIpSavePhase::Idle;
+                        self.editor.reset_dns_operation(DnsOperation::SaveFakeIp);
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.fake_ip = Some(mapped.clone());
                         self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
@@ -580,7 +585,12 @@ impl AppState {
                 )
             }
             Message::FakeIpConfigSaved(result) => {
-                self.editor.fake_ip_save_phase = FakeIpSavePhase::Idle;
+                self.editor.settle_dns_operation(
+                    DnsOperation::SaveFakeIp,
+                    result.as_ref().map(|_| ()).map_err(|error| {
+                        Failure::new(ErrorCode::Internal, error.to_string(), false)
+                    }),
+                );
                 match result {
                     Ok(_) => {
                         self.editor.fake_ip_form_dirty = false;

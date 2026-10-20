@@ -18,6 +18,7 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::network_status_projection::system_proxy_status;
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_presentation::settings_status_projection::format_port_conflicts;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -318,14 +319,19 @@ pub(super) fn system_integration_card<'a>(
             Space::new().height(theme::SP_SM),
             row![
                 text_btn(
-                    if state.profile.app_settings_save_phase.is_saving() {
+                    if state
+                        .profile
+                        .operation_running(ProfilesOperation::SaveAppSettings)
+                    {
                         lang.tr("settings_saving").to_string()
                     } else {
                         lang.tr("settings_save_btn").to_string()
                     },
                     style_accent,
-                    (!state.profile.app_settings_save_phase.is_saving())
-                        .then_some(Message::SaveAppSettings)
+                    (!state
+                        .profile
+                        .operation_running(ProfilesOperation::SaveAppSettings))
+                    .then_some(Message::SaveAppSettings)
                 ),
                 Space::new().width(theme::SP_MD),
                 text_btn(

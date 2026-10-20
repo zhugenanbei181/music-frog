@@ -3,7 +3,6 @@
 
 use crate::port_conflict_application::application;
 use crate::state::AppState;
-use crate::state::editor::TunSavePhase;
 use crate::state::runtime::{RuntimePatchRefusal, TunServiceInstallState};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
@@ -14,6 +13,7 @@ use infiltrator_application::runtime_control_projection::{
     ipv6_observation, lan_security_observation, runtime_control,
 };
 use infiltrator_application::service_mode_application::ServiceModeApplication;
+use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
@@ -21,6 +21,7 @@ use infiltrator_contract::tun::TunStack;
 use infiltrator_desktop::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_presentation::system_toggle_projection;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -166,7 +167,7 @@ impl AppState {
             ));
         };
         self.shell.error_msg = None;
-        self.editor.tun_save_phase = TunSavePhase::Idle;
+        self.editor.reset_dns_operation(DnsOperation::SaveTun);
         let binary = runtime.core_binary_path();
         self.runtime.tun_service_status = Some(status);
         self.runtime.service_mode = legacy_service_snapshot(status);
@@ -240,41 +241,43 @@ impl AppState {
                         if let Some(ipv6) = ipv6_observation(&config) {
                             self.runtime.ipv6_routing = ipv6;
                         }
-                        let mut lan_committed = self.runtime.lan_sharing_committed.clone();
+                        // The LAN sharing and LAN security drafts are owned
+                        // by the shared settings page model: the observation
+                        // becomes the committed baseline of the draft.
+                        let mut lan_sharing = self.runtime.settings_model.lan_sharing().clone();
                         if let ObservedValue::Reported(enabled) = &config.lan_sharing.value.enabled
                         {
-                            lan_committed.allow_lan = *enabled;
+                            lan_sharing.enabled = *enabled;
                         }
                         if let ObservedValue::Reported(mixed_port) =
                             &config.lan_sharing.value.mixed_port
                         {
-                            lan_committed.mixed_port = *mixed_port;
+                            lan_sharing.mixed_port = *mixed_port;
                         }
                         if let ObservedValue::Reported(bind_address) =
                             &config.lan_sharing.value.bind_address
                         {
-                            lan_committed.bind_address = bind_address.clone();
+                            lan_sharing.bind_address = bind_address.clone();
                         }
-                        self.runtime.lan_sharing_committed = lan_committed.clone();
-                        if !self.runtime.lan_sharing_dirty {
-                            self.runtime.lan_sharing = lan_committed;
-                        }
+                        self.runtime
+                            .settings_model
+                            .observe_lan_sharing(&LanSharingSnapshot {
+                                enabled: lan_sharing.enabled,
+                                mixed_port: lan_sharing.mixed_port,
+                                bind_address: lan_sharing.bind_address,
+                                revision: 0,
+                            });
                         if let Some(security) = lan_security_observation(&config) {
-                            let mut committed = self.runtime.lan_security_committed.clone();
-                            committed.allowed_ips = security.allowed_ips.join(", ");
-                            committed.disallowed_ips = security.disallowed_ips.join(", ");
-                            committed.skip_auth_prefixes = security.skip_auth_prefixes.join(", ");
-                            committed.authentication_enabled = security.authentication_enabled;
-                            committed.authentication_user_count =
-                                security.authentication_user_count;
-                            committed.auth_username =
-                                security.authentication_username.unwrap_or_default();
-                            committed.auth_password.clear();
-                            self.runtime.lan_security_committed = committed.clone();
-                            if !self.runtime.lan_security_dirty {
-                                self.runtime.lan_security = committed;
-                                self.runtime.lan_sharing.acl_whitelist_cidrs =
-                                    self.runtime.lan_security.allowed_ips.clone();
+                            let security_modified =
+                                self.runtime.settings_model.lan_security_modified();
+                            self.runtime.settings_model.observe_lan_security(&security);
+                            if !security_modified {
+                                self.runtime.settings_text.lan_allowed_ips =
+                                    security.allowed_ips.join(", ");
+                                self.runtime.settings_text.lan_disallowed_ips =
+                                    security.disallowed_ips.join(", ");
+                                self.runtime.settings_text.lan_skip_auth_prefixes =
+                                    security.skip_auth_prefixes.join(", ");
                             }
                         }
                         self.runtime.tun_enabled = observed.tun_enabled;

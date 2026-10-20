@@ -5,7 +5,6 @@ use crate::state::proxy_preferences::ProxyPreferenceState;
 use crate::state::proxy_probe::{OutboundProbeActionAvailability, OutboundProbeBatchState};
 
 use crate::state::proxy_search::ProxySearchState;
-use crate::types::app::{LanSecurityConfig, LanSharingConfig, PacManagerConfig};
 use crate::types::dns::TunStackConfig;
 use crate::types::runtime::{ConfigurationSaveState, RuntimePatchSnapshot, RuntimeStatus};
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
@@ -16,6 +15,7 @@ use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
@@ -38,8 +38,11 @@ use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use infiltrator_presentation::overview_page_model::OverviewPageModel;
 use infiltrator_presentation::protocol_form::ProtocolInputs;
+use infiltrator_presentation::proxies_page_model::ProxiesPageModel;
 use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsEditor;
+use infiltrator_presentation::settings_page_model::SettingsPageModel;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
@@ -47,7 +50,7 @@ use lurker_core_contract::outbound::{
     details::OutboundDetailsSnapshot,
     identity::OutboundId,
     inventory::{OutboundInventorySnapshot, OutboundProbeSnapshot},
-    preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot},
+    preferences::OutboundUiPreferencesSnapshot,
     probe::OutboundSelectionRequest,
 };
 use lurker_core_contract::page::PageData;
@@ -55,7 +58,7 @@ use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot}
 use lurker_core_contract::session::SessionToken;
 use lurker_ui_presentation::proxy_group_order_editor::ProxyGroupOrderEditor;
 use lurker_ui_presentation::routing_intent_actions::RoutingIntentActions;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::mem;
 use std::sync::Arc;
 use std::time::Instant;
@@ -327,14 +330,23 @@ pub struct RuntimeState {
     pub outbound_probe_token: u64,
     pub outbound_probe_batch: OutboundProbeBatchState,
     pub outbound_probe_batch_token: u64,
+    /// The one page model of the overview page: the run state, the routing
+    /// mode, the traffic mode, its status and its warning.
+    pub overview_model: OverviewPageModel,
+    /// The one page model of the proxies page: the typed query, the match
+    /// rule, the member order, the health filter, the group expansion, the
+    /// group order, the favourites and the preference-write phase.
+    pub proxies_model: ProxiesPageModel,
     pub filtered_groups: Vec<(String, Vec<String>)>,
     pub(crate) proxy_groups: Vec<OutboundGroupView>,
     pub proxy_name_runs: BTreeMap<String, Vec<SearchTextRun>>,
     pub proxy_search: ProxySearchState,
     pub proxy_preferences: ProxyPreferenceState,
+    /// The raw text of the proxies search box.
+    ///
+    /// The typed query is the shared page model's; the widget keeps the raw
+    /// text so a latency bound the user is typing survives the parse.
     pub proxy_filter: String,
-    /// Product outbound page sorting comes from the typed Core preference contract.
-    pub outbound_sort_order: OutboundSortOrder,
     /// Runtime diagnostic ordering, separate from outbound-page preferences.
     pub runtime_panel_delay_sort_order: RuntimeDelaySortOrder,
     pub runtime_probe_url_draft: String,
@@ -362,9 +374,6 @@ pub struct RuntimeState {
     /// The single typed stage of the Iced system-proxy toggle.
     pub system_proxy_stage: SystemProxyStage,
     pub autostart_enabled: bool,
-    pub filter_alive_only: bool,
-    pub favorite_proxies: HashSet<String>,
-    pub proxy_compact_view: bool,
     pub is_adding_custom_node: bool,
     pub new_node_type: String,
     pub new_node_name: String,
@@ -398,14 +407,38 @@ pub struct RuntimeState {
     pub custom_node_inputs: ProtocolInputs,
     pub custom_node_save_state: CustomNodeSaveState,
     pub network_roaming: NetworkRoamingSnapshot,
-    pub pac_manager: PacManagerConfig,
-    pub lan_sharing: LanSharingConfig,
-    pub lan_sharing_committed: LanSharingConfig,
-    pub lan_sharing_dirty: bool,
-    pub lan_security: LanSecurityConfig,
-    pub lan_security_committed: LanSecurityConfig,
-    pub lan_security_dirty: bool,
+    /// The one page model of the settings page: the LAN sharing, LAN security
+    /// and PAC drafts with their committed baselines, the typed owner intents
+    /// and the three write phases.
+    pub settings_model: SettingsPageModel,
+    /// The free-text buffers of the settings list fields.
+    ///
+    /// The shared page model keeps the typed lists; the surface edits them as
+    /// free text, so the raw text of a field the user is typing lives here
+    /// until the owner confirms the typed value.
+    pub settings_text: SettingsTextBuffers,
+    /// The PAC snapshot the owner published.
+    pub pac_snapshot: PacSnapshot,
+    /// The last PAC compilation feedback the surface shows.
+    pub pac_compile_status: Option<String>,
     pub tun_stack_config: TunStackConfig,
+}
+
+/// The free-text buffers of the settings list fields.
+///
+/// The shared settings page model keeps the typed lists; the Iced surface
+/// edits a list as one free-text field, so the raw text lives here until the
+/// owner confirms the typed value.
+#[derive(Clone, Debug, Default)]
+pub struct SettingsTextBuffers {
+    /// The raw text of the LAN ACL allow list.
+    pub lan_allowed_ips: String,
+    /// The raw text of the LAN ACL deny list.
+    pub lan_disallowed_ips: String,
+    /// The raw text of the LAN authentication bypass prefixes.
+    pub lan_skip_auth_prefixes: String,
+    /// The raw text of the PAC bypass domains.
+    pub pac_bypass_domains: String,
 }
 
 impl RuntimeState {
