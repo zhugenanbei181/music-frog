@@ -227,12 +227,12 @@ async fn prove_api_handshake(
 
 /// Proves the typed node speed test of the configured outbound.
 ///
-/// The sing-box Clash API surface the driver owns does not model a delay
-/// measurement for a concrete outbound, so the typed port may report the
-/// capability as unsupported. The proof records that typed outcome as it is:
-/// it never reports a measurement the typed port did not produce. A failed
-/// probe is retried inside a bounded budget instead of failing on the startup
-/// race.
+/// The driver asks the engine's own delay endpoint for the measured latency
+/// and reports the engine's typed answer, so a proof is a real measurement
+/// of the configured outbound. A failed probe is retried inside a bounded
+/// budget instead of failing on the startup race. A typed `Unsupported`
+/// outcome is returned as it is: it is a declared capability boundary, never
+/// a measurement, and it is never retried.
 async fn prove_node_speed_test(
     outbound: &dyn OutboundPort,
     scope: &CoreScope,
@@ -267,7 +267,7 @@ async fn probe_once(
     let outbound_id = OutboundId::new(scope.identity.engine.clone(), target.probe_outbound())
         .map_err(|error| format!("the probe outbound identity is invalid: {error}"))?;
     let request = OutboundProbeRequest::new(
-        ProbeTarget::http_url(target.fixture_url())
+        ProbeTarget::http_url(target.probe_target())
             .map_err(|error| format!("the probe target is invalid: {error}"))?,
         PROBE_TIMEOUT_MS,
     )
@@ -279,13 +279,15 @@ async fn probe_once(
     match snapshot.state() {
         OutboundProbeState::Measured { delay_ms } => Ok(ProofOutcome::Proven {
             detail: format!(
-                "the typed probe measured {delay_ms} ms for {}",
-                target.probe_outbound()
+                "the typed probe measured {delay_ms} ms for {} against {}",
+                target.probe_outbound(),
+                target.probe_target()
             ),
         }),
         OutboundProbeState::TimedOut => Err("the typed outbound probe timed out".to_owned()),
         OutboundProbeState::Unsupported => Ok(ProofOutcome::Unsupported {
-            reason: "the sing-box outbound port does not model a delay measurement".to_owned(),
+            reason: "the sing-box outbound port reports the node speed test as unsupported"
+                .to_owned(),
         }),
         OutboundProbeState::Unknown | OutboundProbeState::Probing => {
             Err("the typed outbound probe did not reach a terminal state".to_owned())
@@ -503,10 +505,10 @@ fn select_pair(
 }
 
 /// Returns the currently selected member of one collection.
-fn selected_member(
-    inventory: &OutboundInventoryState,
+fn selected_member<'a>(
+    inventory: &'a OutboundInventoryState,
     collection_id: &OutboundId,
-) -> Option<&OutboundId> {
+) -> Option<&'a OutboundId> {
     let OutboundInventoryState::Ready { collections, .. } = inventory else {
         return None;
     };

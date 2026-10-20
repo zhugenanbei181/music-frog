@@ -516,10 +516,10 @@ fn select_pair(
 }
 
 /// Returns the currently selected member of one collection.
-fn selected_member(
-    inventory: &OutboundInventoryState,
+fn selected_member<'a>(
+    inventory: &'a OutboundInventoryState,
     collection_id: &OutboundId,
-) -> Option<&OutboundId> {
+) -> Option<&'a OutboundId> {
     let OutboundInventoryState::Ready { collections, .. } = inventory else {
         return None;
     };

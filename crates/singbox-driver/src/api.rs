@@ -3,5 +3,6 @@
 
 pub mod clash_api;
 pub mod controller_configuration;
+pub mod delay;
 pub mod http;
 pub(crate) mod scope_fence;

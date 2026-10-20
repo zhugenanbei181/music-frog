@@ -23,11 +23,22 @@ pub(crate) struct ObservedRequest {
     pub(crate) method: SingBoxClashMethod,
     pub(crate) authorization: SingBoxControllerAuthorization,
     pub(crate) body: Option<Vec<u8>>,
+    pub(crate) timeout: Duration,
+}
+
+/// One scripted answer of the fake controller.
+enum ScriptedAnswer {
+    /// The controller answers with this response.
+    Response(SingBoxClashResponse),
+    /// The controller never answers.
+    Hang,
+    /// The controller fails at the transport level.
+    Failure,
 }
 
 #[derive(Default)]
 pub(crate) struct ScriptedHttpPort {
-    responses: Mutex<VecDeque<SingBoxClashResponse>>,
+    responses: Mutex<VecDeque<ScriptedAnswer>>,
     requests: Mutex<Vec<ObservedRequest>>,
 }
 
@@ -36,20 +47,46 @@ impl ScriptedHttpPort {
         self.responses
             .lock()
             .unwrap()
-            .push_back(SingBoxClashResponse {
+            .push_back(ScriptedAnswer::Response(SingBoxClashResponse {
                 status,
                 body: serde_json::to_vec(&body).unwrap(),
-            });
+            }));
+    }
+
+    pub(crate) fn push_text(&self, status: u16, body: &str) {
+        self.responses
+            .lock()
+            .unwrap()
+            .push_back(ScriptedAnswer::Response(SingBoxClashResponse {
+                status,
+                body: body.as_bytes().to_vec(),
+            }));
     }
 
     pub(crate) fn push_empty(&self, status: u16) {
         self.responses
             .lock()
             .unwrap()
-            .push_back(SingBoxClashResponse {
+            .push_back(ScriptedAnswer::Response(SingBoxClashResponse {
                 status,
                 body: Vec::new(),
-            });
+            }));
+    }
+
+    /// Scripts a controller that never answers the request.
+    pub(crate) fn push_hang(&self) {
+        self.responses
+            .lock()
+            .unwrap()
+            .push_back(ScriptedAnswer::Hang);
+    }
+
+    /// Scripts a controller whose request fails at the transport level.
+    pub(crate) fn push_failure(&self) {
+        self.responses
+            .lock()
+            .unwrap()
+            .push_back(ScriptedAnswer::Failure);
     }
 
     pub(crate) fn requests(&self) -> Vec<ObservedRequest> {
@@ -69,19 +106,31 @@ impl SingBoxClashHttpPort for ScriptedHttpPort {
         method: SingBoxClashMethod,
         authorization: &SingBoxControllerAuthorization,
         body: Option<Vec<u8>>,
-        _timeout: Duration,
+        timeout: Duration,
     ) -> Result<SingBoxClashResponse, PortError> {
         self.requests.lock().unwrap().push(ObservedRequest {
             url: url.to_string(),
             method,
             authorization: authorization.clone(),
             body,
+            timeout,
         });
-        self.responses
+        let answer = self
+            .responses
             .lock()
             .unwrap()
             .pop_front()
-            .ok_or_else(|| PortError::Failed("scripted HTTP response is missing".to_owned()))
+            .ok_or_else(|| PortError::Failed("scripted HTTP response is missing".to_owned()))?;
+        match answer {
+            ScriptedAnswer::Response(response) => Ok(response),
+            ScriptedAnswer::Failure => Err(PortError::Network(
+                "scripted HTTP request failed".to_owned(),
+            )),
+            ScriptedAnswer::Hang => {
+                std::future::pending::<()>().await;
+                unreachable!("a hanging scripted answer never completes")
+            }
+        }
     }
 }
 

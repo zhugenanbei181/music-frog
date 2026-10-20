@@ -1,6 +1,7 @@
 //! CoreScope-fenced sing-box outbound inventory, selector switching and probe.
 
 use crate::api::clash_api::{SingBoxClashApiClient, SingBoxCoreVersionProvider};
+use crate::api::delay::{DelayAnswer, MAX_SINGBOX_DELAY_TIMEOUT_MS, refusal_code};
 use crate::api::scope_fence::{engine_id, rejected, verify_live_scope, verify_owner_scope};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -15,11 +16,34 @@ use lurker_core_contract::outbound::inventory::{
 };
 use lurker_core_ports::core_scope::CoreScopeSource;
 use lurker_core_ports::error::PortError;
-use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest};
+use lurker_core_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
+
+/// The details revision the sing-box driver publishes.
+///
+/// The sing-box Clash API exposes no neutral outbound details, so the driver
+/// publishes the same constant revision its details snapshot carries. There
+/// is no second details observation that could move it.
+const DETAILS_REVISION: SnapshotRevision = SnapshotRevision::new(1);
+
+/// The grace the driver adds to the engine's own delay budget.
+///
+/// The engine enforces the delay budget itself and answers its own timeout,
+/// so the driver's deadline only covers the engine's answer: it is the
+/// engine's budget plus this grace. A driver deadline that expires means the
+/// engine did not answer in time, never that the measurement failed.
+const DELAY_DEADLINE_GRACE: Duration = Duration::from_secs(2);
+
+/// The slack the transport keeps beyond the driver's deadline.
+///
+/// The transport timeout stays strictly behind the driver's deadline, so the
+/// driver's own deadline is the single authority over a late answer and the
+/// typed outcome never depends on which of the two fired first.
+const DELAY_TRANSPORT_SLACK: Duration = Duration::from_secs(1);
 
 /// CoreScope-aware outbound inventory and selector adapter.
 ///
@@ -27,6 +51,11 @@ use tokio::sync::Mutex;
 /// serializes its own operations, compares a fresh `/proxies` observation with
 /// the expected local revision immediately before writes, verifies the active
 /// scope/version around HTTP calls, and accepts a write only after readback.
+///
+/// The probe asks the engine's own delay endpoint for the measured latency of
+/// one outbound and reports the engine's typed answer: a measurement, the
+/// engine's timeout, a typed failure or the unsupported capability. The driver
+/// never invents a measurement the engine did not publish.
 pub struct SingBoxOutboundAdapter {
     api: SingBoxClashApiClient,
     scope_source: Arc<dyn CoreScopeSource>,
@@ -76,6 +105,31 @@ impl SingBoxOutboundAdapter {
         }
         Ok(current.inventory().clone())
     }
+
+    /// Asks the engine for the delay of one outbound within the probe budget.
+    ///
+    /// The engine enforces the delay budget itself, so the driver's deadline
+    /// only covers the engine's answer. A deadline that expires is a timeout
+    /// of the probe, never a measurement and never a failure of the engine.
+    async fn measure_delay(
+        &self,
+        outbound_id: &OutboundId,
+        target: &str,
+        timeout_ms: u32,
+    ) -> Result<DelayAnswer, PortError> {
+        let deadline = Duration::from_millis(u64::from(timeout_ms)) + DELAY_DEADLINE_GRACE;
+        let transport_timeout = deadline + DELAY_TRANSPORT_SLACK;
+        match tokio::time::timeout(
+            deadline,
+            self.api
+                .get_delay(outbound_id.value(), target, timeout_ms, transport_timeout),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_elapsed) => Ok(DelayAnswer::TimedOut),
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -96,7 +150,7 @@ impl OutboundPort for SingBoxOutboundAdapter {
         let inventory = self.inventory(scope.clone()).await?;
         let details = OutboundDetailsSnapshot::new(
             scope,
-            SnapshotRevision::new(1),
+            DETAILS_REVISION,
             OutboundDetailsState::Unsupported,
         )
         .map_err(|error| PortError::Failed(error.to_string()))?;
@@ -112,12 +166,8 @@ impl OutboundPort for SingBoxOutboundAdapter {
         let mut state = self.observation.lock().await;
         self.preflight_revision(&scope, expected_revision, &mut state)
             .await?;
-        OutboundDetailsSnapshot::new(
-            scope,
-            SnapshotRevision::new(1),
-            OutboundDetailsState::Unsupported,
-        )
-        .map_err(|error| PortError::Failed(error.to_string()))
+        OutboundDetailsSnapshot::new(scope, DETAILS_REVISION, OutboundDetailsState::Unsupported)
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 
     async fn select(
@@ -163,9 +213,10 @@ impl OutboundPort for SingBoxOutboundAdapter {
         scope: CoreScope,
         expected_revision: SnapshotRevision,
         outbound_id: OutboundId,
-        _request: OutboundProbeRequest,
+        request: OutboundProbeRequest,
     ) -> Result<OutboundProbeSnapshot, PortError> {
         verify_id_engine(&scope, &outbound_id)?;
+        let (target, timeout_ms) = singbox_probe_values(&request)?;
         let mut state = self.observation.lock().await;
         let inventory = self
             .preflight_revision(&scope, expected_revision, &mut state)
@@ -176,19 +227,98 @@ impl OutboundPort for SingBoxOutboundAdapter {
                 "probe outbound is absent from the observed sing-box inventory",
             ));
         }
+
+        // The preflight ends with a live-scope check, so the engine is still
+        // the observed core when the delay request leaves the driver.
+        let answer = self.measure_delay(&outbound_id, &target, timeout_ms).await;
+
+        // The probe is fenced like every other write: the inventory is read
+        // again afterwards, so the snapshot carries the revision the engine
+        // published while the probe ran.
+        let observed = self.read_inventory().await;
+        verify_live_scope(&self.version_provider, self.scope_source.as_ref(), &scope).await?;
+        let observed = observed?;
+        state.observe(&scope, observed)?;
         let current = current_inventory(&state, &scope)?;
-        if current.revision() != expected_revision {
-            return Err(stale_revision());
-        }
+
+        let probe_state = match answer {
+            Ok(answer) => map_delay_answer(answer),
+            Err(error) => OutboundProbeState::Failed {
+                failure: Failure::from(error),
+            },
+        };
         OutboundProbeSnapshot::new(
             scope,
-            expected_revision,
-            SnapshotRevision::new(1),
+            current.revision(),
+            DETAILS_REVISION,
             outbound_id,
-            OutboundProbeState::Unsupported,
+            probe_state,
         )
         .map_err(|error| PortError::Failed(error.to_string()))
     }
+}
+
+/// Maps the engine's typed delay answer onto the neutral probe state.
+///
+/// Every answer keeps its own outcome: a measurement is a measurement, the
+/// engine's own timeout is a timeout, a refusal is a typed failure and an
+/// answer the engine's delay endpoint does not produce is the capability
+/// being unsupported. No answer is ever turned into another one.
+fn map_delay_answer(answer: DelayAnswer) -> OutboundProbeState {
+    match answer {
+        DelayAnswer::Measured { delay_ms } => OutboundProbeState::Measured { delay_ms },
+        DelayAnswer::TimedOut => OutboundProbeState::TimedOut,
+        DelayAnswer::Refused { status, reason } => OutboundProbeState::Failed {
+            failure: refusal_failure(status, reason),
+        },
+        DelayAnswer::NotProvided => OutboundProbeState::Unsupported,
+        DelayAnswer::Malformed => OutboundProbeState::Failed {
+            failure: Failure::new(
+                ErrorCode::InvalidState,
+                "the sing-box delay endpoint answered with a body that is not a measurement",
+                false,
+            ),
+        },
+    }
+}
+
+/// Builds the neutral failure of one refused delay answer.
+fn refusal_failure(status: u16, reason: Option<String>) -> Failure {
+    let message = match reason {
+        Some(reason) => {
+            format!("the sing-box delay endpoint refused the request with HTTP {status}: {reason}")
+        }
+        None => format!("the sing-box delay endpoint refused the request with HTTP {status}"),
+    };
+    Failure::new(refusal_code(status), message, false)
+}
+
+/// The probe values the sing-box delay endpoint accepts.
+///
+/// The endpoint carries the timeout as a signed 16-bit millisecond count, so
+/// a timeout it cannot carry is refused before the request is sent.
+fn singbox_probe_values(request: &OutboundProbeRequest) -> Result<(String, u32), PortError> {
+    let target = ProbeTarget::http_url(request.target().as_url().to_owned())
+        .map_err(|error| rejected(ErrorCode::InvalidInput, error.to_string()))?;
+    let timeout_ms = u32::try_from(request.timeout_ms()).map_err(|_| {
+        rejected(
+            ErrorCode::InvalidInput,
+            "the sing-box delay endpoint carries the timeout as a millisecond count",
+        )
+    })?;
+    if timeout_ms == 0 {
+        return Err(rejected(
+            ErrorCode::InvalidInput,
+            "the sing-box delay timeout must be greater than zero",
+        ));
+    }
+    if timeout_ms > MAX_SINGBOX_DELAY_TIMEOUT_MS {
+        return Err(rejected(
+            ErrorCode::InvalidInput,
+            "the sing-box delay timeout exceeds the endpoint's signed 16-bit millisecond limit",
+        ));
+    }
+    Ok((target.as_url().to_owned(), timeout_ms))
 }
 
 #[derive(Default)]

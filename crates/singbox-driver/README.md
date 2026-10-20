@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-sing-box 引擎驱动：Clash API 客户端与 controller preflight、`/version` readiness、routing intent 观测、outbound inventory/selector 切换、原生进程启停与 child 守护、原生 JSON document codec 与官方 `check` 事务钩子、binary 版本探测。
+sing-box 引擎驱动：Clash API 客户端与 controller preflight、`/version` readiness、routing intent 观测、outbound inventory/selector 切换与 typed 节点测速、原生进程启停与 child 守护、原生 JSON document codec 与官方 `check` 事务钩子、binary 版本探测。
 
 本 crate 只依赖 `lurker-core-contract`、`lurker-core-ports` 与通用库；不携带任何产品类型、平台宿主或 UI 依赖。能力声明证据、profile workspace CAS 事务与版本资产安装锁属产品侧。
 
@@ -56,7 +56,7 @@ cargo run -p singbox-driver --example lifecycle
 | 证明 | 内容 | typed 结果 |
 | --- | --- | --- |
 | `api_handshake` | Clash API 握手与活引擎版本读回 | `CoreReadiness::probe` / `active_core_version` |
-| `node_speed_test` | 对配置好的出站做节点测速 | `OutboundPort::probe` 的 typed 结果（见下方已知缺口） |
+| `node_speed_test` | 对配置好的出站做节点测速 | `OutboundPort::probe` 的 typed 结果：实测延迟、引擎自身超时、typed 失败或不支持 |
 | `traffic_dispatch` | 经引擎自己的 SOCKS5 监听器把真实流量送到 loopback fixture | fixture 收到并回显同一批字节 |
 | `configuration_write` | 向运行中的引擎写配置并读回 | `OutboundPort::select` 写后读回 |
 
@@ -64,9 +64,30 @@ cargo run -p singbox-driver --example lifecycle
 
 回执是机器可读的 JSON：每条证明一个 typed 结果，整体结论由证明记录推导（`complete` / `unsupported_proof` / `defect`），因此回执不可能声称超过证明本身的事实。回执写入 `SINGBOX_REAL_RECEIPT` 指定的文件，并始终打印到 stdout（`MUSIC_FROG_REAL_PROCESS_RECEIPT <json>`）。
 
-### 已知缺口：节点测速
+### 节点测速：typed 端口与引擎的 delay 接口
 
-本驱动的 typed 出站端口 `OutboundPort::probe` 目前把 sing-box 的 Clash API 延迟端点建模为 `OutboundProbeState::Unsupported`，因此 sing-box 腿的 `node_speed_test` 证明会如实记录 `unsupported` 并把整体结论标成 `unsupported_proof`，而不是伪造一个测量值。真实引擎侧并不缺这个能力：sing-box 1.13.14 与 v1.14.3 都对 `GET /proxies/{name}/delay` 返回 `{"delay": N}`，所以缺口在驱动自身的 typed 端口，需要单独切片补齐后才可能把该证明升级为 `Measured`。
+驱动的 typed 出站端口 `OutboundPort::probe` 现在真的测速：它向引擎自己的 delay 端点发 `GET /proxies/{name}/delay?url={target}&timeout={ms}`，并按引擎自己的答案回报 typed 状态。引擎（sing-box 1.13 与 1.14）的答案与驱动的映射一一对应：
+
+| 引擎答案 | 驱动的 typed 状态 |
+| --- | --- |
+| `200` + `{"delay": N}` | `OutboundProbeState::Measured { delay_ms: N }` |
+| `504`（引擎自己的 delay 测试超时） | `OutboundProbeState::TimedOut` |
+| `503`（delay 测试失败）、`500` | `OutboundProbeState::Failed { failure }`（`Network`） |
+| `400`（引擎拒绝该请求） | `OutboundProbeState::Failed { failure }`（`InvalidInput`） |
+| `401` / `403`（控制器拒绝 secret） | `OutboundProbeState::Failed { failure }`（`Authentication`） |
+| `404` + 引擎自己的 `{"message": ...}` 错误体（引擎不认识该出站） | `OutboundProbeState::Failed { failure }`（`InvalidState`） |
+| 引擎自己的错误体以外的答案（delay 路由没有应答） | `OutboundProbeState::Unsupported` |
+| `200` 但响应体不是测量值 | `OutboundProbeState::Failed { failure }`（`InvalidState`） |
+| 驱动自己的截止时间到（引擎没有在期限内应答） | `OutboundProbeState::TimedOut` |
+| 传输层失败 | `OutboundProbeState::Failed { failure }`（`Network`） |
+
+没有任何一种答案会被改写成另一种：测不到就是测不到，失败就是失败，超时就是超时。
+
+上表的每一种答案都用真实 sing-box 1.13.14 与 v1.14.3 的 delay 端点逐条核对过：`200` 的测量体、`400` 的 `{"message":"Body invalid"}`、`404` 的 `{"message":"Resource not found"}`、路由缺失时 `404` 的纯文本 `404 page not found`、`503` 的 `{"message":"An error occurred in the delay test"}` 与 `504` 的 `{"message":"Timeout"}` 都与上表一致。
+
+**超时预算与重试策略**（与 mihomo 驱动同语义）：引擎自己执行 delay 预算（`timeout` 查询参数按有符号 16 位毫秒数解析，因此超过 32767 ms 的预算在发请求之前就被 typed 拒绝）；驱动的截止时间只覆盖引擎的应答，等于引擎预算加 2 秒宽限；传输层超时再留 1 秒余量，所以驱动的截止时间始终是“应答是否迟到”的唯一权威，typed 结果不取决于两个计时器谁先触发。驱动本身不重试；证据 harness 在有界预算内重试失败的测速，而 typed 的 `Unsupported` 结局直接返回、从不重试。
+
+**引擎的目标策略**：sing-box 的 delay 端点只测 HTTPS 目标——`http://` 开头的目标会被引擎替换成它自己的 URL test 目标。驱动把请求的目标原样发出并回报引擎公布的测量值，不改写目标也不猜测被替换成了什么；需要显式目标时，调用方传 HTTPS URL 即可。
 
 该测试带 `#[ignore]`，默认质量门禁不会执行；只有显式请求时才运行：
 
@@ -89,7 +110,10 @@ cargo nextest run -p singbox-driver --test real_process_evidence --run-ignored o
 | `SINGBOX_REAL_PROBE_OUTBOUND` | 是 | 测速证明所测量的出站名 |
 | `SINGBOX_REAL_SELECTOR` | 是 | 配置写入证明所切换的组名 |
 | `SINGBOX_REAL_SECRET` | 否 | 控制器 bearer secret |
+| `SINGBOX_REAL_PROBE_TARGET` | 否 | 测速证明所测量的 HTTPS 目标；缺省是引擎自己的 URL test 目标 `https://www.gstatic.com/generate_204` |
 | `SINGBOX_REAL_RECEIPT` | 否 | 回执写入的文件 |
+
+测速证明需要一个引擎能到达的 HTTPS 目标：sing-box 不测 `http://` 目标，所以本腿不像 mihomo 腿那样用本机 HTTP 夹具，而是测引擎的 URL test 目标。目标不可达时引擎回答 `503`，驱动回报 typed 失败，证明如实记为失败，绝不伪造一个测量值。
 
 本地可复跑入口是 `scripts/core-backend-smoke-singbox.sh`（`--driver-evidence-only` 只跑驱动证明）。脚本从契约文件读取环境变量名，自己写好隔离的配置文档、端口与 fixture 地址，并把机器可读摘要 `MUSIC_FROG_SMOKE_SUMMARY <json>` 打到 stdout；`scripts/quality/real-process-evidence-guard.py` 守住这份证据不许退化。
 

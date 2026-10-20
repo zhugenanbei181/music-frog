@@ -28,8 +28,11 @@
 
 #![cfg(feature = "backend")]
 
+#[path = "real_process_evidence/contract.rs"]
 mod contract;
+#[path = "real_process_evidence/proofs.rs"]
 mod proofs;
+#[path = "real_process_evidence/receipt.rs"]
 mod receipt;
 
 use crate::contract::RealProcessEnvironment;

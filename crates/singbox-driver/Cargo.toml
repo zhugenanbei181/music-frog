@@ -45,3 +45,6 @@ url = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# The paused clock lets the probe's own deadline be proven without waiting for
+# it, so the timeout behaviour is covered by an ordinary hermetic test.
+tokio = { workspace = true, features = ["test-util"] }

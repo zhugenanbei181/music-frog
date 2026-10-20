@@ -568,14 +568,17 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         initial_member_id: outbound_id(&engine, "direct-a"),
         alternate_member_id: outbound_id(&engine, "direct-b"),
         probe_outbound_id: outbound_id(&engine, "direct-a"),
+        // sing-box measures HTTPS targets only: an http target is silently
+        // replaced by the engine's own URL test target, so the case asks for
+        // the engine's HTTPS test target and expects a real measurement.
         probe_request: OutboundProbeRequest::new(
-            ProbeTarget::http_url("http://probe.test/health")
+            ProbeTarget::http_url("https://www.gstatic.com/generate_204")
                 .map_err(|error| format!("construct sing-box probe URL: {error}"))?,
             5_000,
         )
         .map_err(|error| format!("construct sing-box probe request: {error}"))?,
         details: DetailsBehavior::Unsupported,
-        probe: ProbeBehavior::Unsupported,
+        probe: ProbeBehavior::Measured,
         running_profile_transaction: RunningProfileTransactionBehavior::Unsupported,
         routing: RoutingBehavior::ReadOnlyUnsupported {
             initial: RoutingIntent::EngineDefined(EngineDefinedRoutingIntent::new(

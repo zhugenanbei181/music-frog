@@ -1,6 +1,7 @@
 //! sing-box-specific Clash API client and live version observation.
 
 use crate::api::controller_configuration::SingBoxControllerConfiguration;
+use crate::api::delay::{DelayAnswer, classify};
 use crate::api::http::{
     ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse,
     SingBoxControllerAuthorization, endpoint_with_path, parse_loopback_endpoint,
@@ -52,7 +53,9 @@ impl SingBoxClashApiClient {
         &self,
         segments: &[&str],
     ) -> Result<T, PortError> {
-        let response = self.send(SingBoxClashMethod::Get, segments, None).await?;
+        let response = self
+            .send(SingBoxClashMethod::Get, segments, None, API_TIMEOUT)
+            .await?;
         require_status(&response, 200, "GET")?;
         serde_json::from_slice(&response.body)
             .map_err(|_| PortError::Network("sing-box Clash API JSON was invalid".to_owned()))
@@ -67,9 +70,40 @@ impl SingBoxClashApiClient {
             PortError::Failed("sing-box request JSON could not be encoded".to_owned())
         })?;
         let response = self
-            .send(SingBoxClashMethod::Put, segments, Some(body))
+            .send(SingBoxClashMethod::Put, segments, Some(body), API_TIMEOUT)
             .await?;
         require_status(&response, 204, "PUT")
+    }
+
+    /// Asks the engine for the delay of one outbound.
+    ///
+    /// The request is `GET /proxies/{name}/delay?url={url}&timeout={ms}`: the
+    /// engine measures the target through the named outbound and answers with
+    /// its own typed delay answer. The caller owns the transport timeout, so
+    /// the driver's own deadline stays the single authority over a late
+    /// answer.
+    pub(crate) async fn get_delay(
+        &self,
+        name: &str,
+        url: &str,
+        timeout_ms: u32,
+        transport_timeout: Duration,
+    ) -> Result<DelayAnswer, PortError> {
+        let mut request_url = endpoint_with_path(&self.base_url, &["proxies", name, "delay"])?;
+        {
+            let mut query = request_url.query_pairs_mut();
+            query.append_pair("url", url);
+            query.append_pair("timeout", &timeout_ms.to_string());
+        }
+        let response = self
+            .send_to(
+                SingBoxClashMethod::Get,
+                request_url,
+                None,
+                transport_timeout,
+            )
+            .await?;
+        Ok(classify(response.status, &response.body))
     }
 
     async fn send(
@@ -77,10 +111,21 @@ impl SingBoxClashApiClient {
         method: SingBoxClashMethod,
         segments: &[&str],
         body: Option<Vec<u8>>,
+        timeout: Duration,
     ) -> Result<SingBoxClashResponse, PortError> {
         let url = endpoint_with_path(&self.base_url, segments)?;
+        self.send_to(method, url, body, timeout).await
+    }
+
+    async fn send_to(
+        &self,
+        method: SingBoxClashMethod,
+        url: Url,
+        body: Option<Vec<u8>>,
+        timeout: Duration,
+    ) -> Result<SingBoxClashResponse, PortError> {
         self.http
-            .request(&url, method, &self.authorization, body, API_TIMEOUT)
+            .request(&url, method, &self.authorization, body, timeout)
             .await
     }
 }

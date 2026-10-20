@@ -40,6 +40,19 @@ pub const PROBE_OUTBOUND_ENV: &str = "SINGBOX_REAL_PROBE_OUTBOUND";
 pub const SELECTOR_ENV: &str = "SINGBOX_REAL_SELECTOR";
 /// The environment variable that names the file the receipt is written to.
 pub const RECEIPT_ENV: &str = "SINGBOX_REAL_RECEIPT";
+/// The environment variable that names the absolute URL the typed node speed
+/// test measures.
+pub const PROBE_TARGET_ENV: &str = "SINGBOX_REAL_PROBE_TARGET";
+
+/// The URL the typed node speed test measures when the environment names no
+/// target of its own.
+///
+/// sing-box measures HTTPS targets only: its delay endpoint replaces a
+/// plain-HTTP target with the engine's own URL test target. The evidence
+/// therefore asks for that target explicitly instead of pretending it
+/// measured a loopback fixture, and an environment that cannot reach it
+/// reports the failure honestly instead of a measurement.
+pub const DEFAULT_PROBE_TARGET: &str = "https://www.gstatic.com/generate_204";
 
 /// The environment keys every real-binary run must provide.
 pub const REQUIRED_ENV_KEYS: [&str; 8] = [
@@ -54,7 +67,7 @@ pub const REQUIRED_ENV_KEYS: [&str; 8] = [
 ];
 
 /// The environment keys a real-binary run may provide in addition.
-pub const OPTIONAL_ENV_KEYS: [&str; 2] = [SECRET_ENV, RECEIPT_ENV];
+pub const OPTIONAL_ENV_KEYS: [&str; 3] = [SECRET_ENV, RECEIPT_ENV, PROBE_TARGET_ENV];
 
 /// One resolved real-binary target.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,6 +80,7 @@ pub struct RealProcessTarget {
     proxy: String,
     fixture: String,
     probe_outbound: String,
+    probe_target: String,
     selector: String,
     receipt: Option<PathBuf>,
 }
@@ -108,8 +122,11 @@ impl RealProcessTarget {
     }
 
     /// The absolute HTTP URL the typed node speed test measures.
-    pub fn fixture_url(&self) -> String {
-        format!("http://{}/health", self.fixture)
+    ///
+    /// The engine measures HTTPS targets only, so the target is an HTTPS URL
+    /// the engine can reach.
+    pub fn probe_target(&self) -> &str {
+        &self.probe_target
     }
 
     /// The outbound the typed node speed test measures.
@@ -231,6 +248,8 @@ where
         proxy,
         fixture,
         probe_outbound,
+        probe_target: optional_entry(&optional, PROBE_TARGET_ENV)
+            .unwrap_or_else(|| DEFAULT_PROBE_TARGET.to_owned()),
         selector,
         receipt: optional_entry(&optional, RECEIPT_ENV).map(PathBuf::from),
     })
