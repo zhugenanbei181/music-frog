@@ -2,16 +2,22 @@
 use crate::localized_widgets::localized_button_scene;
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::observer::On;
+use bevy::ecs::query::Without;
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
     PositionType, UiRect, percent, px,
 };
-use bevy::ui_widgets::{Button, ScrollArea};
+use bevy::ui_widgets::{
+    Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
+};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
@@ -48,6 +54,24 @@ pub struct ReviewControl;
 fn control(key: &'static str, action: RestoreControl, palette: &UiPalette) -> impl Scene + use<> {
     bsn! { @{localized_button_scene(LocalizedText::plain(key), ButtonVariant::Secondary, palette)} action ReviewControl }
 }
+/// The review overlay's dismiss control: it asks the official dialog layer to
+/// close instead of closing the review itself.
+fn dismiss_control(
+    key: &'static str,
+    action: RestoreControl,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    bsn! {
+        @{localized_button_scene(LocalizedText::plain(key), ButtonVariant::Secondary, palette)}
+        action ReviewControl
+        TabIndex(0)
+        // The dismiss control asks the official layer to close; the page never
+        // closes the restore review on its own.
+        on(|activate: On<Activate>, mut commands: Commands| {
+            commands.trigger(RequestClose { source: activate.entity });
+        })
+    }
+}
 pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
     let semantic = accesskit::Node::new(accesskit::Role::Dialog);
     let cancel = RestoreControl::Cancel;
@@ -57,12 +81,24 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(bsn! {
         Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100), display: Display::None, align_items: AlignItems::Center, justify_content: JustifyContent::Center }
         RestoreOverlay GlobalZIndex(150)
+        // The barrier is the modal layer's root: it owns the click-outside
+        // close and the Escape interception, and the card is its child, so the
+        // official behaviour layer reaches the focused control.
+        ModalScrim cancel ReviewControl ThemeBackgroundColor({Token::Scrim}) ModalDialogBarrier
+        // The close request travels as the official `RequestClose` and the
+        // page's own close path runs from it.
+        on(|close: On<RequestClose>, closes: Query<(Entity, &RestoreControl), Without<ModalScrim>>, mut commands: Commands| {
+            for (entity, control) in &closes {
+                if matches!(control, RestoreControl::Cancel)
+                    && entity != close.original_event_target()
+                {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
-            Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim cancel ReviewControl ThemeBackgroundColor({Token::Scrim})
-            --
             Node { width: percent(90), max_width: rem(SNAPSHOT_RESTORE_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
-            ModalDialogCard RestoreCard AccessibilityNode(semantic) LocalizedLabel::plain("snapshot_restore_title") ThemeBackgroundColor({Token::Surface})
+            ModalDialogCard RestoreCard ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("snapshot_restore_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("snapshot_restore_title") TextRole(Role::Heading)
                 --
@@ -72,7 +108,7 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
                         -- Text(String::new()) details TextRole(Role::Mono)
                         -- Text(String::new()) content TextRole(Role::Mono) ] ]
                 -- Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
-                Children [ @{control("snapshot_restore_cancel", RestoreControl::Cancel, &palette)}
+                Children [ @{dismiss_control("snapshot_restore_cancel", RestoreControl::Cancel, &palette)}
                     -- @{control("snapshot_restore_confirm", RestoreControl::Confirm, &palette)}
                     -- @{control("snapshot_restore_retry", RestoreControl::Retry, &palette)} ]
             ]

@@ -4,11 +4,14 @@ use crate::support::headless_plugins;
 use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
+use bevy::ecs::query::With;
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input_focus::{FocusCause, InputFocus};
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::Activate;
+use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -210,6 +213,13 @@ fn entity<T: Component>(app: &mut App) -> Entity {
         .unwrap()
         .0
 }
+fn primary_window(app: &mut App) -> Entity {
+    app.world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>()
+        .iter(app.world())
+        .next()
+        .expect("the composition owns a primary window")
+}
 fn activate(app: &mut App, entity: Entity) {
     app.world_mut().commands().trigger(Activate { entity });
     app.update();
@@ -384,6 +394,10 @@ fn setup_with_snapshot(snapshot: SurfaceSnapshot) -> (App, ProbeSink) {
     ));
     app.add_plugins(PagesPlugin::new_surface(Source(snapshot)));
     app.add_plugins(CommandPumpPlugin::new(Arc::new(sink.clone())));
+    // The official input-focus layer hands a keyboard message to the focused
+    // entity only when the composition owns a primary window; that window is
+    // the route the official `ModalDialogBarrier` Escape interception reads.
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.update();
     app.world_mut()
         .commands()
@@ -695,9 +709,22 @@ fn native_probe_preserves_typed_failure_retries_with_revision_and_ignores_late_r
             .probe,
         ProxyProbePhase::Pending(_)
     ));
-    let mut keys = ButtonInput::<KeyCode>::default();
-    keys.press(KeyCode::Escape);
-    app.insert_resource(keys);
+    // The official layer owns the dismissal: the focus lives inside the
+    // dialog, and the official Escape interception reads the keyboard message
+    // through that focus.
+    let close = entity::<CloseProxyInspection>(&mut app);
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(close, FocusCause::Navigated);
+    let window = primary_window(&mut app);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::Escape,
+        logical_key: Key::Escape,
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window,
+    });
     app.update();
     assert!(selected_outbound(app.world().resource::<ProxyInspectionState>()).is_none());
     sink.complete_all();

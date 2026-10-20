@@ -5,22 +5,24 @@ use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Has, Or, With};
+use bevy::ecs::query::{Has, Or, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
-use bevy::scene::{Scene, bsn};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::scene::{Scene, bsn, on};
 use bevy::ui::GlobalZIndex;
 use bevy::ui::prelude::{
     AlignItems, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect,
     percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use bevy::ui_widgets::{
+    Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
+};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -118,12 +120,26 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::Center, display: Display::None }
         ProbeSettingsRoot GlobalZIndex(110)
+        // The barrier is the modal layer's root: it owns the click-outside
+        // close and the Escape interception, and the card is its child, so the
+        // official behaviour layer reaches the focused control.
+        ThemeBackgroundColor({ Token::Scrim }) ModalScrim ModalDialogBarrier
+        // The close request travels as the official `RequestClose` and the
+        // page's own close path runs from it.
+        on(|close: On<RequestClose>, closes: Query<Entity, (With<CancelProbeSettings>, Without<ModalScrim>)>, mut commands: Commands| {
+            for entity in &closes {
+                // A close request the dismiss control itself raised is that
+                // control's business; every other close request (the barrier's
+                // click-outside, the official Escape interception) runs the
+                // page's own close path.
+                if entity != close.original_event_target() {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
-            Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ThemeBackgroundColor({ Token::Scrim }) ModalScrim Button CancelProbeSettings ButtonDisabled(false)
-            --
             Node { width: percent(90), max_width: rem(PROBE_SETTINGS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
-            ThemeBackgroundColor({ Token::Surface }) ModalDialogCard ProbeSettingsCard
+            ThemeBackgroundColor({ Token::Surface }) ModalDialogCard ProbeSettingsCard ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_probe_settings_title")
             Children [
                 LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Heading)
@@ -150,6 +166,12 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(space::S12), rem(space::S8)) }
                     Button CancelProbeSettings ButtonDisabled(false)
+                    TabIndex(0)
+                    // The dismiss control asks the official layer to close; the
+                    // page never closes the probe editor on its own.
+                    on(|activate: On<Activate>, mut commands: Commands| {
+                        commands.trigger(RequestClose { source: activate.entity });
+                    })
                     Children [ LocalizedText::plain("modal_cancel") TextRole(Role::Body) ]
                     --
                     Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(space::S12), rem(space::S8)) }
@@ -305,7 +327,6 @@ pub fn sync_fields(
 }
 
 pub fn sync_editor(
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     route: Res<ActiveRoute>,
     latest: Res<LatestSurfaceSnapshot>,
     mut state: ResMut<ProbeSettingsState>,
@@ -322,14 +343,8 @@ pub fn sync_editor(
         state.dialog = ProbeSettingsDialogState::Closed;
         state.field_projection.request();
     }
-    if keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape))
-        && state.dialog == ProbeSettingsDialogState::Editing
-        && !state.editor.is_pending()
-    {
-        state.editor.cancel();
-        state.dialog = ProbeSettingsDialogState::Closed;
-        state.field_projection.request();
-    }
+    // Escape is owned by the official dialog layer: the barrier raises the
+    // official close request and the page closes through its own close path.
 }
 
 pub fn sync_surface(

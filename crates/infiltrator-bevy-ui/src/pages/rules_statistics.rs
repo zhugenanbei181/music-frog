@@ -17,8 +17,6 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
 use bevy::input_focus::InputFocus;
 use bevy::scene::Scene;
 use bevy::ui_widgets::{Activate, Button};
@@ -102,16 +100,15 @@ impl Plugin for RulesStatisticsPlugin {
 fn observe(
     latest: Res<LatestSurfaceSnapshot>,
     route: Res<ActiveRoute>,
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<RulesStatisticsState>,
 ) {
     if latest.is_changed() {
         state.model.observe(&latest.0.pages.rules);
     }
-    if state.model.confirmation().is_some()
-        && (route.0 != Some(Route::Rules)
-            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
-    {
+    // The Escape interception belongs to Bevy's official dialog layer: the
+    // barrier reports the close request and the review's own close path runs
+    // from it. This system only owns the page navigation.
+    if state.model.confirmation().is_some() && route.0 != Some(Route::Rules) {
         state.model.cancel_cleanup();
     }
 }

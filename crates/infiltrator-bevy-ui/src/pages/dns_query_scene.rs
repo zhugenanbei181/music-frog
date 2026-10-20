@@ -4,16 +4,19 @@ use crate::pages::dns_query::{
     QueryAction, QueryLine, QueryModalCard, QueryModalRoot, QueryNameField, QueryTypeMenu,
 };
 use bevy::a11y::AccessibilityNode;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::observer::On;
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
     PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
+use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
 use infiltrator_bevy_widgets::button::{
     ButtonLabel, ButtonSize, ButtonVariant, button_with_label_scene,
 };
@@ -93,9 +96,31 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             justify_content: JustifyContent::Center,
         }
         QueryModalRoot GlobalZIndex(116)
+        // The query modal is a modal dialog on Bevy's official behaviour
+        // layer: the barrier owns the click-outside close and the Escape
+        // interception, the card owns the focus containment, and every close
+        // request travels as the official `RequestClose`.
+        //
+        // The barrier is the modal root — the only common ancestor of the
+        // scrim and the card — because the official Escape interception
+        // reaches the barrier through the focused entity and the official
+        // `RequestClose` reaches it through the closing control, both of
+        // which live under the card.
+        ModalDialogBarrier
+        on(|close: On<RequestClose>, cancels: Query<(Entity, &QueryAction)>, mut commands: Commands| {
+            // A close request that names the modal's own close control is that
+            // control's business (it already asked to close); every other
+            // close request — the barrier's click-outside and the Escape
+            // interception — runs the modal's own close path.
+            for (entity, action) in &cancels {
+                if matches!(action, QueryAction::Cancel) && entity != close.original_event_target() {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim ThemeBackgroundColor({ Token::Scrim }) QueryAction::Cancel
+            ModalScrim ThemeBackgroundColor({ Token::Scrim })
             --
             Node {
                 width: percent(90), max_width: rem(DNS_QUERY_MODAL_MAX_WIDTH_PX), height: percent(90), max_height: rem(DNS_QUERY_MODAL_MAX_HEIGHT_PX),
@@ -103,6 +128,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S6),
             }
             ModalDialogCard QueryModalCard ThemeBackgroundColor({ Token::Surface })
+            ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_query_title")
             Children [
                 LocalizedText::plain("dns_query_title") TextRole(Role::Heading)
@@ -157,7 +183,13 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::FlexEnd }
                 Children [
-                    @{ query_button(QueryAction::Cancel, LocalizedText::plain("dns_query_close"), palette) }
+                    @{ (query_button(QueryAction::Cancel, LocalizedText::plain("dns_query_close"), palette), bsn! {
+                        // The close control asks the official layer to close;
+                        // the barrier observer runs the modal's own close path.
+                        on(|activate: On<Activate>, mut commands: Commands| {
+                            commands.trigger(RequestClose { source: activate.entity });
+                        })
+                    }) }
                     --
                     @{ query_button(QueryAction::Run, LocalizedText::plain("dns_query_run"), palette) }
                     --

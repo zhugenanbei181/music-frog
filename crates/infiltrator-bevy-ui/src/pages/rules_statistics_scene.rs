@@ -5,16 +5,20 @@ use crate::pages::rules_statistics::{
     StatisticsLine, StatisticsRows,
 };
 use bevy::a11y::AccessibilityNode;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::observer::On;
+use bevy::ecs::query::Without;
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
     PositionType, UiRect, percent, px,
 };
-use bevy::ui_widgets::ScrollArea;
+use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
@@ -42,6 +46,27 @@ fn control(
     (
         localized_button_scene(LocalizedText::plain(key), ButtonVariant::Default, palette),
         bsn! { StatisticsControl { .. { action } } ButtonDisabled(true) },
+    )
+}
+/// The cleanup review's dismiss control: it asks the official dialog layer to
+/// close instead of closing the review itself.
+fn dismiss_control(
+    key: &'static str,
+    action: StatisticsControl,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    (
+        localized_button_scene(LocalizedText::plain(key), ButtonVariant::Default, palette),
+        bsn! {
+            StatisticsControl { .. { action } }
+            ButtonDisabled(true)
+            TabIndex(0)
+            // The dismiss control asks the official layer to close; the page
+            // never closes the cleanup review on its own.
+            on(|activate: On<Activate>, mut commands: Commands| {
+                commands.trigger(RequestClose { source: activate.entity });
+            })
+        },
     )
 }
 fn metric(key: &'static str, line: StatisticsLine) -> impl Scene + use<> {
@@ -115,13 +140,25 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
         Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100), display: Display::None,
             align_items: AlignItems::Center, justify_content: JustifyContent::Center }
         StatisticsConfirmation GlobalZIndex(121)
+        // The barrier is the modal layer's root: it owns the click-outside
+        // close and the Escape interception, and the card is its child, so the
+        // official behaviour layer reaches the focused control.
+        ModalScrim ThemeBackgroundColor({Token::Scrim}) ModalDialogBarrier
+        // The close request travels as the official `RequestClose` and the
+        // page's own close path runs from it.
+        on(|close: On<RequestClose>, closes: Query<(Entity, &StatisticsControl), Without<ModalScrim>>, mut commands: Commands| {
+            for (entity, control) in &closes {
+                if matches!(control, StatisticsControl::CancelCleanup)
+                    && entity != close.original_event_target()
+                {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
-            Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim StatisticsControl::CancelCleanup ThemeBackgroundColor({Token::Scrim})
-            --
             Node { width: percent(90), max_width: rem(STATISTICS_CLEANUP_DIALOG_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
-            StatisticsConfirmationCard ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") ThemeBackgroundColor({Token::Surface})
+            StatisticsConfirmationCard ModalDialogCard ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("rules_stats_cleanup_title") TextRole(Role::Heading)
                 --
@@ -132,7 +169,7 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
                 Children [ Text(String::new()) StatisticsLine::Confirmation TextRole(Role::Body) ]
                 --
                 Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S12), row_gap: rem(space::S8), flex_shrink: 0.0 }
-                Children [ @{control("modal_cancel", StatisticsControl::CancelCleanup, &palette)} -- @{control("rules_stats_cleanup_confirm", StatisticsControl::ConfirmCleanup, &palette)} ]
+                Children [ @{dismiss_control("modal_cancel", StatisticsControl::CancelCleanup, &palette)} -- @{control("rules_stats_cleanup_confirm", StatisticsControl::ConfirmCleanup, &palette)} ]
             ]
         ]
     });

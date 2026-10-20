@@ -10,22 +10,26 @@ use crate::surface::LatestSurfaceSnapshot;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Or, QueryData, With};
+use bevy::ecs::query::{Or, QueryData, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
-use bevy::scene::{Scene, SceneList, bsn, bsn_list};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
+use bevy::scene::{Scene, SceneList, bsn, bsn_list, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow,
     PositionType, UiRect, percent, px,
 };
-use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use bevy::window::PrimaryWindow;
+use bevy::ui_widgets::{
+    Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
+};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
 use infiltrator_bevy_widgets::chart::{ChartPlate, chart_scene_with_smooth};
@@ -308,11 +312,14 @@ impl Plugin for ProxyInspectionPlugin {
 fn activate_inspection(
     activated: On<Activate>,
     details: Query<&NodeDetailButton>,
-    close: Query<&CloseProxyInspection>,
+    close: Query<(Entity, &CloseProxyInspection)>,
     latest: Res<LatestSurfaceSnapshot>,
     mut state: ResMut<ProxyInspectionState>,
+    mut commands: Commands,
+    mut focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
-    if close.contains(activated.entity) {
+    if close.get(activated.entity).is_ok() {
         state.dismiss();
         return;
     }
@@ -344,17 +351,41 @@ fn activate_inspection(
         &latest.0.outbound_details,
     );
     state.phase = ProxyInspectionPhase::Open(session);
+    // The official focus hand-off: the dialog's dismiss control is its
+    // focusable control, so Bevy's own Escape interception (which needs the
+    // focused entity inside the barrier) owns the dismissal.
+    if let Ok((control, _)) = close.single()
+        && focus.get() != Some(control)
+    {
+        commands
+            .entity(control)
+            .entry::<TabIndex>()
+            .or_insert(TabIndex(0));
+        if let Ok(window) = windows.single() {
+            commands.trigger(AcquireFocus {
+                focused_entity: control,
+                window,
+            });
+        }
+        focus.set(control, FocusCause::Navigated);
+    }
 }
 fn dismiss_inspection(
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     route: Res<ActiveRoute>,
     latest: Res<LatestSurfaceSnapshot>,
     mut state: ResMut<ProxyInspectionState>,
+    mut focus: ResMut<InputFocus>,
+    close: Query<(Entity, &CloseProxyInspection), Without<ModalScrim>>,
 ) {
-    if route.0 != Some(Route::Proxies)
-        || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape))
-    {
+    // Escape is owned by the official dialog layer: the barrier raises the
+    // official close request and the page closes through its own close path.
+    if route.0 != Some(Route::Proxies) {
         state.dismiss();
+        if let Ok((control, _)) = close.single()
+            && focus.get() == Some(control)
+        {
+            focus.clear();
+        }
         return;
     }
     let outcome = match &mut state.phase {
@@ -371,6 +402,12 @@ fn dismiss_inspection(
         ProxyInspectionObservation::Removed | ProxyInspectionObservation::ScopeChanged
     ) {
         state.dismiss();
+        // The dialog is gone: the focus leaves it again.
+        if let Ok((control, _)) = close.single()
+            && focus.get() == Some(control)
+        {
+            focus.clear();
+        }
     }
 }
 
@@ -644,12 +681,26 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node { position_type:PositionType::Absolute, left:px(0.0), top:px(0.0), width:percent(100), height:percent(100), align_items:AlignItems::Center, justify_content:JustifyContent::Center, display:Display::None }
         ProxyInspectionRoot GlobalZIndex(95)
+        // The barrier is the modal layer's root: it owns the click-outside
+        // close and the Escape interception, and the card is its child, so the
+        // official behaviour layer reaches the focused control.
+        ThemeBackgroundColor({Token::Scrim}) ModalScrim ModalDialogBarrier
+        // The close request travels as the official `RequestClose` and the
+        // page's own close path runs from it.
+        on(|close: On<RequestClose>, closes: Query<Entity, (With<CloseProxyInspection>, Without<ModalScrim>)>, mut commands: Commands| {
+            for entity in &closes {
+                // A close request the dismiss control itself raised is that
+                // control's business; every other close request (the barrier's
+                // click-outside, the official Escape interception) runs the
+                // page's own close path.
+                if entity != close.original_event_target() {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
-            Node { position_type:PositionType::Absolute, width:percent(100),height:percent(100) }
-            ThemeBackgroundColor({Token::Scrim}) ModalScrim Button CloseProxyInspection
-            --
             Node { width:percent(92),max_width:rem(PROXY_INSPECTION_MODAL_MAX_WIDTH_PX),max_height:percent(90), min_width:px(0.0), flex_direction:FlexDirection::Column, row_gap:rem(space::S12),padding:UiRect::all(rem(space::S16)),border_radius:BorderRadius::all(rem(palette.card_radius_px)) }
-            ThemeBackgroundColor({Token::Surface}) ProxyInspectionCard ModalDialogCard
+            ThemeBackgroundColor({Token::Surface}) ProxyInspectionCard ModalDialogCard ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_inspection_title")
             Children [
                 LocalizedText::plain("proxy_inspection_title") TextRole(Role::Heading)
@@ -676,6 +727,12 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(space::S12),rem(space::S8)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }
                     ThemeBackgroundColor({Token::SurfaceElevated}) Button CloseProxyInspection
+                    TabIndex(0)
+                    // The dismiss control asks the official layer to close; the
+                    // page never closes the inspection on its own.
+                    on(|activate: On<Activate>, mut commands: Commands| {
+                        commands.trigger(RequestClose { source: activate.entity });
+                    })
                     Children [ LocalizedText::plain("modal_close") TextRole(Role::BodyStrong) ]
                     --
                     Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(space::S12),rem(space::S8)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }

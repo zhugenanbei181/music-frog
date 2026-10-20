@@ -6,6 +6,7 @@ use crate::support::{headless_plugins, observed_scope_for_snapshot};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::Without;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
@@ -18,6 +19,7 @@ use infiltrator_bevy_ui::command::{
 };
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::command_execution::ApplicationCommandSink;
+use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_ui::pages::business_panel::{
     BusinessPanelRoot, BusinessPanelState, CloseBusinessPanel, OpenBusinessPanel, PanelKind,
 };
@@ -259,7 +261,7 @@ fn protocol_form_cancel_blocks_residual_actions_and_switches_family_fields() {
     );
     let cancel = app
         .world_mut()
-        .query::<(Entity, &CloseBusinessPanel)>()
+        .query_filtered::<(Entity, &CloseBusinessPanel), Without<ModalScrim>>()
         .iter(app.world())
         .find(|(_, close)| close.0 == PanelKind::CustomNode)
         .map(|(e, _)| e)
@@ -469,7 +471,7 @@ fn uri_import_uses_real_codec_handler_and_error_cancel_keep_the_imported_draft()
     );
     let cancel = app
         .world_mut()
-        .query::<(Entity, &CloseBusinessPanel)>()
+        .query_filtered::<(Entity, &CloseBusinessPanel), Without<ModalScrim>>()
         .iter(app.world())
         .find(|(_, close)| close.0 == PanelKind::CustomNode)
         .map(|(e, _)| e)
@@ -556,7 +558,7 @@ fn import_reply_from_cancelled_session_cannot_complete_the_same_uri_in_a_new_ses
     };
     let cancel = app
         .world_mut()
-        .query::<(Entity, &CloseBusinessPanel)>()
+        .query_filtered::<(Entity, &CloseBusinessPanel), Without<ModalScrim>>()
         .iter(app.world())
         .find(|(_, close)| close.0 == PanelKind::CustomNode)
         .map(|(e, _)| e)

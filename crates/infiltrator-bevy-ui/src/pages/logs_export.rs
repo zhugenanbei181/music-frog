@@ -10,15 +10,15 @@ use bevy::app::{App, Plugin, PostUpdate, Startup, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::InputFocus;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, sync_button_disabled};
+use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_contract::command::{CommandIntent, RequestId};
 use infiltrator_presentation::log_export_actions::{LogExportActions, LogExportPending};
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -58,8 +58,22 @@ impl Plugin for LogsExportPlugin {
             .add_systems(Startup, spawn)
             .add_observer(activate)
             .add_observer(finish)
-            .add_systems(Update, observe)
+            .add_systems(Update, (observe, mark_dismiss_control))
             .add_systems(PostUpdate, render.before(sync_button_disabled));
+    }
+}
+
+/// The modal's dismiss control is the dialog's focusable control: the
+/// official `TabIndex` marks it for Bevy's focus scheme, so the official
+/// focus containment and the official `AcquireFocus` request know it.
+fn mark_dismiss_control(
+    mut commands: Commands,
+    controls: Query<(Entity, &LogsExportAction), (Without<ModalScrim>, Without<TabIndex>)>,
+) {
+    for (entity, action) in &controls {
+        if matches!(action, LogsExportAction::Cancel) {
+            commands.entity(entity).insert(TabIndex(0));
+        }
     }
 }
 fn submit(
@@ -145,14 +159,15 @@ fn finish(
 }
 fn observe(
     route: Res<ActiveRoute>,
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<LogsExportState>,
     sink: Option<Res<CommandSinkHandle>>,
     mut focus: LogExportFocus,
 ) {
+    // The Escape interception belongs to Bevy's official dialog layer: the
+    // barrier reports the close request and the modal's own close path runs
+    // from it. This system only owns the page navigation.
     if state.model.is_open()
-        && (route.0 != Some(Route::Logs)
-            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
+        && route.0 != Some(Route::Logs)
         && let Some(request) = state.model.cancel()
     {
         submit(&mut state, request, sink.as_deref());

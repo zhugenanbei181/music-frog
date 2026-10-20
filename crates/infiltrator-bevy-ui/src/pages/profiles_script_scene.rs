@@ -3,16 +3,19 @@ use crate::localized_widgets::localized_button_scene;
 use crate::pages::profiles_script_workbench::{ScriptControl, ScriptInput};
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::observer::On;
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
     PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
+use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
 use infiltrator_bevy_widgets::button::ButtonVariant;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
@@ -100,7 +103,6 @@ pub fn control(
 }
 pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
     let semantic = accesskit::Node::new(accesskit::Role::Dialog);
-    let cancel = ScriptControl::Cancel;
     let status = ScriptReviewLine::Status;
     let details = ScriptReviewLine::Details;
     let content = ScriptReviewLine::Content;
@@ -109,13 +111,36 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
         Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100), display: Display::None,
             align_items: AlignItems::Center, justify_content: JustifyContent::Center }
         ScriptExportOverlay GlobalZIndex(122)
+        // The export review is a modal dialog on Bevy's official behaviour
+        // layer: the barrier owns the click-outside close and the Escape
+        // interception, the card owns the focus containment, and every close
+        // request travels as the official `RequestClose`.
+        //
+        // The barrier is the review root — the only common ancestor of the
+        // scrim and the card — because the official Escape interception
+        // reaches the barrier through the focused entity and the official
+        // `RequestClose` reaches it through the closing control, both of
+        // which live under the card.
+        ModalDialogBarrier
+        on(|close: On<RequestClose>, cancels: Query<(Entity, &ScriptControl)>, mut commands: Commands| {
+            // A close request that names the review's own cancel control is
+            // that control's business (it already asked to close); every other
+            // close request — the barrier's click-outside and the Escape
+            // interception — runs the review's own close path.
+            for (entity, control) in &cancels {
+                if matches!(control, ScriptControl::Cancel) && entity != close.original_event_target() {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim cancel ScriptReviewControl ThemeBackgroundColor({Token::Scrim})
+            ModalScrim ScriptReviewControl ThemeBackgroundColor({Token::Scrim})
             --
             Node { width: percent(90), max_width: rem(SCRIPT_REVIEW_MODAL_MAX_WIDTH_PX), max_height: percent(85), padding: UiRect::all(rem(space::S16)),
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("script_export_title") ThemeBackgroundColor({Token::Surface})
+            ModalDialog
             Children [
                 LocalizedText::plain("script_export_title") TextRole(Role::Heading)
                 --
@@ -132,6 +157,11 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
                 Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
                 Children [
                     @{control("logs_export_cancel", ScriptControl::Cancel, &palette)} ScriptReviewControl
+                    // The cancel control asks the official layer to close; the
+                    // barrier observer runs the review's own close path.
+                    on(|activate: On<Activate>, mut commands: Commands| {
+                        commands.trigger(RequestClose { source: activate.entity });
+                    })
                     -- @{control("logs_export_confirm", ScriptControl::Confirm, &palette)} ScriptReviewControl
                     -- @{control("logs_export_retry", ScriptControl::Retry, &palette)} ScriptReviewControl
                 ]

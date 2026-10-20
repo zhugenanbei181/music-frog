@@ -22,7 +22,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
+use infiltrator_bevy_widgets::switch::{
+    SwitchKnob, SwitchPosition, switch_knob_scene, switch_track_scene,
+};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_shared::locales::Lang;
@@ -124,6 +126,7 @@ pub fn preference_row_scene(
                 Children [
                     @{ switch_knob_scene(knob, SwitchPosition::from_enabled(enabled)) }
                     PreferenceKnob(kind)
+                    SwitchKnob({ SwitchPosition::from_enabled(enabled) })
                     visibility
                 ]
             ]
@@ -142,7 +145,7 @@ pub struct PreferenceView {
     ink: Option<&'static mut TextColor>,
     fill: Option<&'static mut BackgroundColor>,
     border: Option<&'static mut BorderColor>,
-    node: Option<&'static mut Node>,
+    knob_position: Option<&'static mut SwitchKnob>,
     visibility: Option<&'static mut Visibility>,
     disabled: Option<&'static mut ButtonDisabled>,
     semantic: Option<&'static mut AccessibilityNode>,
@@ -224,8 +227,14 @@ pub fn replay(
                 }
             }
         } else if view.knob.is_some() {
-            if let Some(node) = &mut view.node {
-                node.left = rem(SwitchPosition::from_enabled(enabled).knob_offset_px());
+            // The knob's offset belongs to the shared control: the page only
+            // flips the typed rest position and the kit re-projects the
+            // geometry. No page computes a knob offset any more.
+            if let Some(knob) = &mut view.knob_position {
+                let next = SwitchPosition::from_enabled(enabled);
+                if knob.0 != next {
+                    knob.0 = next;
+                }
             }
             if let Some(fill) = &mut view.fill {
                 fill.0 = if enabled {

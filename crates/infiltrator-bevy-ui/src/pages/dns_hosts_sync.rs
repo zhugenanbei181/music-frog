@@ -1,18 +1,22 @@
 //! Scoped observation, native input and localized feedback preserve the active editor entities.
 use crate::pages::dns_hosts::{
     DnsHostsDomainField, DnsHostsEditorField, DnsHostsEditorState, DnsHostsStatusLine, HostAction,
-    HostsEmptyHint, HostsLegacyHint, HostsModalRoot, HostsSummary,
+    HostsEmptyHint, HostsLegacyHint, HostsModalCard, HostsModalRoot, HostsSummary,
 };
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
-use bevy::ecs::hierarchy::Children;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::{Has, Or, QueryData, QueryFilter, With, Without};
-use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::input::{ButtonInput, keyboard::KeyCode};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
+use bevy::window::PrimaryWindow;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_presentation::dns_hosts_projection::{feedback, legacy_hint, summary};
@@ -20,8 +24,13 @@ use infiltrator_shared::locales::Lang;
 pub fn observe(
     latest: Res<LatestSurfaceSnapshot>,
     route: Res<ActiveRoute>,
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<DnsHostsEditorState>,
+    parents: Query<&ChildOf>,
+    cards: Query<Entity, With<HostsModalCard>>,
+    actions: Query<(Entity, &HostAction), Without<ModalScrim>>,
+    mut commands: Commands,
+    mut input_focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
     let previous = (
         state.editor.address().to_owned(),
@@ -33,13 +42,90 @@ pub fn observe(
             state.editor.address().to_owned(),
             state.editor.domain().to_owned(),
         );
+    // The Escape interception belongs to Bevy's official dialog layer: the
+    // barrier reports the close request and the modal's own close path runs
+    // from it. This system only owns the page navigation.
     if state.editor.is_open()
-        && (route.0 != Some(Route::Dns)
-            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
+        && route.0 != Some(Route::Dns)
         && state.editor.cancel()
     {
         state.sync_fields = true;
     }
+    hand_off_focus(
+        &mut commands,
+        &mut input_focus,
+        &windows,
+        &parents,
+        &cards,
+        &actions,
+        state.editor.is_open(),
+    );
+}
+
+/// The official focus hand-off.
+///
+/// While the hosts modal is presented the input focus lives inside the
+/// dialog, so Bevy's own `ModalDialogBarrier` owns the Escape interception;
+/// when the modal closes the focus is released again. The dialog's dismiss
+/// control is its focusable control — the official `TabIndex` marks it for
+/// Bevy's focus scheme — and the official `AcquireFocus` request asks that
+/// scheme to move the input focus there.
+fn hand_off_focus(
+    commands: &mut Commands,
+    focus: &mut InputFocus,
+    windows: &Query<Entity, With<PrimaryWindow>>,
+    parents: &Query<&ChildOf>,
+    cards: &Query<Entity, With<HostsModalCard>>,
+    actions: &Query<(Entity, &HostAction), Without<ModalScrim>>,
+    presented: bool,
+) {
+    let Ok(card) = cards.single() else {
+        return;
+    };
+    let inside = focus
+        .get()
+        .is_some_and(|entity| inside_dialog(parents, entity, card));
+    if presented {
+        if inside {
+            return;
+        }
+        let Some(control) = dismiss_control(actions) else {
+            return;
+        };
+        commands
+            .entity(control)
+            .entry::<TabIndex>()
+            .or_insert(TabIndex(0));
+        if let Ok(window) = windows.single() {
+            commands.trigger(AcquireFocus {
+                focused_entity: control,
+                window,
+            });
+        }
+        focus.set(control, FocusCause::Navigated);
+    } else if inside {
+        focus.clear();
+    }
+}
+
+/// Whether the entity is the dialog card or lives inside it.
+fn inside_dialog(parents: &Query<&ChildOf>, entity: Entity, card: Entity) -> bool {
+    let mut current = Some(entity);
+    while let Some(node) = current {
+        if node == card {
+            return true;
+        }
+        current = parents.get(node).ok().map(|parent| parent.parent());
+    }
+    false
+}
+
+/// The modal's dismiss control: the one cancel control that is not the scrim.
+fn dismiss_control(actions: &Query<(Entity, &HostAction), Without<ModalScrim>>) -> Option<Entity> {
+    actions
+        .iter()
+        .find(|(_, action)| matches!(action, HostAction::Cancel))
+        .map(|(entity, _)| entity)
 }
 #[derive(QueryFilter)]
 pub struct HostFieldWrappers {

@@ -5,17 +5,18 @@ use crate::pages::profiles::ProfilesProjectionUpdated;
 use crate::pages::profiles_script_scene::spawn_review;
 use crate::pages::profiles_script_view;
 use crate::route::{ActiveRoute, Route};
+use bevy::app::Update;
 use bevy::app::{App, Plugin, PostUpdate, Startup};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::lifecycle::Insert;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::Without;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
+use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::text::{EditableText, EditableTextSystems, TextEditChange};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::{
@@ -70,6 +71,7 @@ impl Plugin for ScriptWorkbenchPlugin {
             .add_observer(observe)
             .add_observer(edited)
             .add_systems(Startup, spawn_review)
+            .add_systems(Update, mark_dismiss_control)
             .add_systems(
                 PostUpdate,
                 (
@@ -89,6 +91,19 @@ impl Plugin for ScriptWorkbenchPlugin {
                     .after(EditableTextSystems)
                     .before(MultilineModeSet),
             );
+    }
+}
+/// The export review's dismiss control is the dialog's focusable control:
+/// the official `TabIndex` marks it for Bevy's focus scheme, so the official
+/// focus containment and the official `AcquireFocus` request know it.
+fn mark_dismiss_control(
+    mut commands: Commands,
+    controls: Query<(Entity, &ScriptControl), Without<TabIndex>>,
+) {
+    for (entity, control) in &controls {
+        if matches!(control, ScriptControl::Cancel) {
+            commands.entity(entity).insert(TabIndex(0));
+        }
     }
 }
 fn initialize(
@@ -150,19 +165,16 @@ pub struct ScriptInteraction<'w, 's> {
     handle: Option<Res<'w, CommandSinkHandle>>,
     controls: Query<'w, 's, &'static ScriptControl>,
     fields: Query<'w, 's, (&'static ScriptInput, &'static mut EditableText)>,
-    keyboard: Option<Res<'w, ButtonInput<KeyCode>>>,
 }
 fn process(mut surface: ScriptInteraction) {
     let queued = take(&mut surface.state.queue);
-    let composing = surface.fields.iter().any(|(_, field)| field.is_composing());
     let leaving = surface.route.0 != Some(Route::Profiles);
-    let escape = surface
-        .keyboard
-        .as_deref()
-        .is_some_and(|keys| keys.just_pressed(KeyCode::Escape));
+    // The Escape interception belongs to Bevy's official dialog layer: the
+    // barrier reports the close request and the review's own close path runs
+    // from it. This system only owns the page navigation.
     if surface.state.model.is_export_visible()
         && !surface.state.model.busy()
-        && (leaving || (!composing && escape))
+        && leaving
         && let Some(request) = surface.state.model.cancel_export()
     {
         submit(&mut surface.state, surface.handle.as_deref(), request);

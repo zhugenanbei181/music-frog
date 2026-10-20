@@ -12,10 +12,13 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
+use bevy::window::PrimaryWindow;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant, ButtonVariantStyle};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -70,7 +73,7 @@ pub enum QueryLine {
 }
 pub fn activate(
     event: On<Activate>,
-    actions: Query<&QueryAction>,
+    actions: Query<(Entity, &QueryAction)>,
     route: Res<ActiveRoute>,
     mut state: ResMut<QueryPanel>,
     sink: Option<Res<CommandSinkHandle>>,
@@ -81,11 +84,13 @@ pub fn activate(
         Option<&QueryNameField>,
     )>,
     mut commands: Commands,
+    mut input_focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
     if route.0 != Some(Route::Dns) {
         return;
     }
-    let Ok(action) = actions.get(event.entity) else {
+    let Ok((_, action)) = actions.get(event.entity) else {
         return;
     };
     match action {
@@ -97,6 +102,12 @@ pub fn activate(
                     state.restore_focus.push(entity);
                 }
                 focus.0 = own.is_some();
+            }
+            // The modal is presented: the official focus hand-off moves the
+            // input focus into the dialog, so Bevy's own `ModalDialogBarrier`
+            // owns the Escape interception.
+            if let Some(control) = dismiss_control(&actions) {
+                hand_off_focus(&mut commands, &mut input_focus, &windows, control);
             }
             return;
         }
@@ -114,6 +125,8 @@ pub fn activate(
                     }
                 }
                 state.restore_focus.clear();
+                // The modal is closed: the focus leaves the dialog again.
+                release_focus(&mut input_focus, dismiss_control(&actions));
             }
             return;
         }
@@ -205,11 +218,16 @@ pub fn observe(
         &mut TextFieldFocused,
         Option<&QueryNameField>,
     )>,
+    actions: Query<(Entity, &QueryAction)>,
+    mut input_focus: ResMut<InputFocus>,
 ) {
     state.model.observe(&latest.0.dns_query);
     let composing = fields
         .iter()
         .any(|(_, field, _, own)| own.is_some() && field.0.is_in_ime_transaction());
+    // The record-type picker is a sub-menu stage of the query modal, not the
+    // modal itself: it has no barrier of its own, so its own Escape arm stays
+    // — the modal's Escape belongs to Bevy's official dialog layer.
     if state.kind_open
         && !composing
         && keys
@@ -219,8 +237,10 @@ pub fn observe(
         state.kind_open = false;
         return;
     }
-    let leaving = route.0 != Some(Route::Dns)
-        || (!composing && keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)));
+    // The modal's Escape interception belongs to Bevy's official dialog
+    // layer: the barrier reports the close request and the modal's own close
+    // path runs from it. This system only owns the page navigation.
+    let leaving = route.0 != Some(Route::Dns);
     if leaving && state.model.cancel() {
         for (entity, field, mut focus, own) in &mut fields {
             if own.is_some() {
@@ -230,6 +250,8 @@ pub fn observe(
             }
         }
         state.restore_focus.clear();
+        // The modal is closed: the focus leaves the dialog again.
+        release_focus(&mut input_focus, dismiss_control(&actions));
     }
     for (_, mut field, _, own) in &mut fields {
         if own.is_none() {
@@ -244,6 +266,50 @@ pub fn observe(
         }
     }
 }
+/// The modal's dismiss control: the one close control of the query modal.
+fn dismiss_control(actions: &Query<(Entity, &QueryAction)>) -> Option<Entity> {
+    actions
+        .iter()
+        .find(|(_, action)| matches!(action, QueryAction::Cancel))
+        .map(|(entity, _)| entity)
+}
+
+/// The official focus hand-off.
+///
+/// The dialog's dismiss control is the dialog's focusable control — the
+/// official `TabIndex` marks it for Bevy's focus scheme — and the official
+/// `AcquireFocus` request asks that scheme to move the input focus into the
+/// dialog. The official focus resource carries the result, so the page and
+/// the official layer read the same fact. While the focus lives inside the
+/// barrier, Bevy's own `ModalDialogBarrier` owns the Escape interception.
+fn hand_off_focus(
+    commands: &mut Commands,
+    focus: &mut InputFocus,
+    windows: &Query<Entity, With<PrimaryWindow>>,
+    control: Entity,
+) {
+    commands
+        .entity(control)
+        .entry::<TabIndex>()
+        .or_insert(TabIndex(0));
+    if let Ok(window) = windows.single() {
+        commands.trigger(AcquireFocus {
+            focused_entity: control,
+            window,
+        });
+    }
+    focus.set(control, FocusCause::Navigated);
+}
+
+/// Release the input focus the hand-off moved into the dialog.
+fn release_focus(focus: &mut InputFocus, control: Option<Entity>) {
+    if let Some(control) = control
+        && focus.get() == Some(control)
+    {
+        focus.clear();
+    }
+}
+
 #[derive(QueryData)]
 #[query_data(mutable)]
 pub struct QueryControl {

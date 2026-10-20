@@ -12,18 +12,20 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::input::{ButtonInput, keyboard::KeyCode};
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow, PositionType,
     UiRect, percent, px,
 };
-use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use bevy::ui_widgets::{
+    Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
+};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -51,6 +53,10 @@ use std::collections::{HashMap, HashSet};
 /// One-off layout value (not a ladder rung): the widest the proxy group order
 /// modal card may grow on a wide viewport.
 const GROUP_ORDER_MODAL_MAX_WIDTH_PX: f32 = 520.0;
+
+/// The reorder dialog's tab order: the dismiss control comes first, the
+/// reorder rows follow in draft order (two focusable controls per row).
+const GROUP_ORDER_ROW_TAB_BASE: i32 = 1;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GroupOrderDialogState {
@@ -120,12 +126,24 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100), display: Display::None, align_items: AlignItems::Center, justify_content: JustifyContent::Center }
         GroupOrderRoot GlobalZIndex(115)
+        // The barrier is the modal layer's root: it owns the click-outside
+        // close and the Escape interception, and the card is its child, so the
+        // official behaviour layer reaches the focused control.
+        ModalScrim ThemeBackgroundColor({ Token::Scrim }) ModalDialogBarrier
+        // The close request travels as the official `RequestClose` and the
+        // page's own close path runs from it.
+        on(|close: On<RequestClose>, closes: Query<(Entity, &GroupOrderAction), Without<ModalScrim>>, mut commands: Commands| {
+            for (entity, action) in &closes {
+                if matches!(action, GroupOrderAction::Cancel)
+                    && entity != close.original_event_target()
+                {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
-            Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim ThemeBackgroundColor({ Token::Scrim }) Button GroupOrderAction::Cancel ButtonDisabled(false)
-            --
             Node { width: percent(90), max_width: rem(GROUP_ORDER_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
-            ModalDialogCard GroupOrderCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("proxies_reorder_title")
+            ModalDialogCard GroupOrderCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("proxies_reorder_title")
             Children [
                 LocalizedText::plain("proxies_reorder_title") TextRole(Role::Heading)
                 --
@@ -140,6 +158,12 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                     Button GroupOrderAction::Cancel ButtonDisabled(false)
+                    TabIndex(0)
+                    // The dismiss control asks the official layer to close; the
+                    // page never closes the reorder editor on its own.
+                    on(|activate: On<Activate>, mut commands: Commands| {
+                        commands.trigger(RequestClose { source: activate.entity });
+                    })
                     Children [ LocalizedText::plain("modal_cancel") TextRole(Role::Body) ]
                     --
                     Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
@@ -155,7 +179,12 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
     }
 }
 
-fn row_scene(id: OutboundId, label: String, palette: &UiPalette) -> impl Scene + use<> {
+fn row_scene(
+    id: OutboundId,
+    label: String,
+    tab_index: i32,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     bsn! {
         Node { width: percent(100), column_gap: rem(space::S8), align_items: AlignItems::Center, flex_shrink: 0.0 }
         GroupOrderRow { id: { id.clone() }, label: { label.clone() } }
@@ -165,11 +194,15 @@ fn row_scene(id: OutboundId, label: String, palette: &UiPalette) -> impl Scene +
             --
             Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
             Button GroupOrderAction::Move { group_id: { id.clone() }, direction: GroupMove::Up } ButtonDisabled(false)
+            // The reorder rows are the dialog's focus content: the official
+            // focus containment walks them in draft order.
+            TabIndex({ tab_index })
             LocalizedLabel({ LocalizedText::new("proxies_reorder_up_label", vec![("name", label.clone())]) })
             Children [ Text::new("▲") TextRole(Role::Caption) ]
             --
             Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
             Button GroupOrderAction::Move { group_id: { id.clone() }, direction: GroupMove::Down } ButtonDisabled(false)
+            TabIndex({ tab_index + 1 })
             LocalizedLabel({ LocalizedText::new("proxies_reorder_down_label", vec![("name", label.clone())]) })
             Children [ Text::new("▼") TextRole(Role::Caption) ]
         ]
@@ -462,7 +495,6 @@ pub fn finish_order(event: On<CommandExecutedEvent>, mut state: ResMut<GroupOrde
 }
 
 pub fn sync_order_editor(
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     route: Res<ActiveRoute>,
     latest: Res<LatestSurfaceSnapshot>,
     mut state: ResMut<GroupOrderState>,
@@ -478,12 +510,8 @@ pub fn sync_order_editor(
         state.dialog = GroupOrderDialogState::Closed;
         return;
     }
-    if keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)) && !state.editor.is_pending() {
-        state.editor = ProxyGroupOrderEditor::default();
-        state.request = GroupOrderRequestState::Idle;
-        state.dialog = GroupOrderDialogState::Closed;
-        return;
-    }
+    // Escape is owned by the official dialog layer: the barrier raises the
+    // official close request and the page closes through its own close path.
     state.editor.observe(
         observed_group_order(&latest)
             .map(|(current, _, inventory_revision, _)| (current, inventory_revision)),
@@ -518,14 +546,15 @@ pub fn reconcile_order_rows(
         })
         .unwrap_or_default();
     let existing: HashSet<_> = rows.iter().map(|(_, row)| row.id.clone()).collect();
-    for id in state.editor.draft() {
+    for (index, id) in state.editor.draft().iter().enumerate() {
         if !existing.contains(id) {
             let label = labels
                 .get(id)
                 .cloned()
                 .unwrap_or_else(|| id.value().to_owned());
+            let tab_index = GROUP_ORDER_ROW_TAB_BASE + index as i32 * 2;
             commands
-                .spawn_scene(row_scene(id.clone(), label, &palette))
+                .spawn_scene(row_scene(id.clone(), label, tab_index, &palette))
                 .insert(ChildOf(root));
         }
     }

@@ -13,7 +13,6 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
-use bevy::input::{ButtonInput, keyboard::KeyCode};
 use bevy::scene::{Scene, bsn};
 use bevy::text::{LineBreak, TextLayout};
 use bevy::ui::prelude::{
@@ -521,16 +520,14 @@ pub fn sync_overview_speedtest_button(
     }
 }
 
-/// A detail inspection never stays open over a different page or after Escape.
-pub fn dismiss_speedtest_detail(
-    route: Res<ActiveRoute>,
-    keys: Option<Res<ButtonInput<KeyCode>>>,
-    mut state: ResMut<ModalState>,
-) {
-    if state.is_open
-        && (route.0 != Some(Route::Overview)
-            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
-    {
+/// A detail inspection never stays open over a different page.
+///
+/// The Escape interception belongs to the official dialog layer: the adaptive
+/// modal's barrier reports the close request and the shared typed stage
+/// moves to `Dismissed`. The product only closes the inspection when the
+/// user leaves the page.
+pub fn dismiss_speedtest_detail(route: Res<ActiveRoute>, mut state: ResMut<ModalState>) {
+    if route.0 != Some(Route::Overview) {
         state.close();
     }
 }

@@ -17,8 +17,10 @@ use crate::responsive::{ModalForm, ResponsiveContext};
 use crate::text::{Role, TextRole};
 use crate::theme::{radius, space};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::event::EntityEvent;
 use bevy::ecs::event::Event;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
@@ -26,6 +28,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::scene::{Scene, bsn, on};
 use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
@@ -34,6 +37,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose};
+use bevy::window::PrimaryWindow;
 use std::ops::Not;
 
 /// The centered-dialog card's fixed width in baseline pixels.
@@ -272,15 +276,22 @@ pub fn on_modal_close(_trigger: On<CloseModal>, mut state: Option<ResMut<ModalSt
 pub fn sync_adaptive_modal_morphology(
     ctx: Option<Res<ResponsiveContext>>,
     state: Option<Res<ModalState>>,
-    mut roots: Query<&mut Node, (With<AdaptiveModalRoot>, Without<ModalCard>)>,
+    mut roots: Query<(Entity, &mut Node), (With<AdaptiveModalRoot>, Without<ModalCard>)>,
     mut cards: Query<&mut Node, (With<ModalCard>, Without<AdaptiveModalRoot>)>,
+    mut commands: Commands,
+    mut focus: ResMut<InputFocus>,
+    parents: Query<&ChildOf>,
+    closes: Query<Entity, With<ModalCloseButton>>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
     let is_open = state.as_ref().is_some_and(|s| s.is_presented());
     let form = ctx
         .map(|c| c.modal_form())
         .unwrap_or(ModalForm::CenteredDialog);
 
-    for mut root in &mut roots {
+    let mut root_entity = None;
+    for (entity, mut root) in &mut roots {
+        root_entity = Some(entity);
         root.display = if is_open {
             Display::Flex
         } else {
@@ -324,4 +335,76 @@ pub fn sync_adaptive_modal_morphology(
             }
         }
     }
+
+    hand_off_focus(
+        &mut commands,
+        &mut focus,
+        &parents,
+        &closes,
+        &windows,
+        root_entity,
+        is_open,
+    );
+}
+
+/// The official focus hand-off.
+///
+/// The adaptive modal mounts closed, so Bevy's own `ModalDialog` spawn-time
+/// focus hand-off lands on the hidden dialog and the official Escape
+/// interception never reaches it. While the modal is presented the input
+/// focus lives inside the dialog, so Bevy's own `ModalDialogBarrier` owns
+/// the Escape interception; when the modal is no longer presented the focus
+/// is released again.
+///
+/// The close control is the dialog's focusable control — the official
+/// `TabIndex` marks it for Bevy's focus scheme — and the official
+/// `AcquireFocus` request asks that scheme to move the input focus there.
+fn hand_off_focus(
+    commands: &mut Commands,
+    focus: &mut InputFocus,
+    parents: &Query<&ChildOf>,
+    closes: &Query<Entity, With<ModalCloseButton>>,
+    windows: &Query<Entity, With<PrimaryWindow>>,
+    root: Option<Entity>,
+    presented: bool,
+) {
+    let Some(root) = root else {
+        return;
+    };
+    let inside = focus
+        .get()
+        .is_some_and(|entity| inside_dialog(parents, entity, root));
+    if presented {
+        if inside {
+            return;
+        }
+        let Ok(close) = closes.single() else {
+            return;
+        };
+        commands
+            .entity(close)
+            .entry::<TabIndex>()
+            .or_insert(TabIndex(0));
+        if let Ok(window) = windows.single() {
+            commands.trigger(AcquireFocus {
+                focused_entity: close,
+                window,
+            });
+        }
+        focus.set(close, FocusCause::Navigated);
+    } else if inside {
+        focus.clear();
+    }
+}
+
+/// Whether the entity is the overlay root or lives inside it.
+fn inside_dialog(parents: &Query<&ChildOf>, entity: Entity, root: Entity) -> bool {
+    let mut current = Some(entity);
+    while let Some(node) = current {
+        if node == root {
+            return true;
+        }
+        current = parents.get(node).ok().map(|parent| parent.parent());
+    }
+    false
 }

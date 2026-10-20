@@ -3,8 +3,9 @@
 
 use super::*;
 use bevy::ecs::query::With;
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_ui::command_palette::{CommandPaletteState, ExecuteSelectedPaletteAction};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_catalogue::CommandTarget;
@@ -13,6 +14,9 @@ use infiltrator_contract::command_catalogue::CommandTarget;
 fn test_connections_close_all_requires_confirmation() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    // The official dialog layer delivers a keyboard message through the
+    // focused entity, which needs a primary window.
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
     navigate_to(&mut app, Route::Connections);
 
     let btn_entity = app
@@ -71,6 +75,9 @@ fn test_connections_close_all_requires_confirmation() {
 fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    // The official dialog layer delivers a keyboard message through the
+    // focused entity, which needs a primary window.
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
     navigate_to(&mut app, Route::Connections);
     let opener = app
         .world_mut()
@@ -101,9 +108,23 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
         .commands()
         .trigger(Activate { entity: opener });
     app.update();
-    let mut keys = ButtonInput::<KeyCode>::default();
-    keys.press(KeyCode::Escape);
-    app.world_mut().insert_resource(keys);
+    // The official dialog layer owns the dismissal: the focus hand-off moved
+    // the input focus into the dialog and the official Escape interception
+    // reads the keyboard message through that focus.
+    let window = app
+        .world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>()
+        .iter(app.world())
+        .next()
+        .expect("the composition owns a primary window");
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::Escape,
+        logical_key: Key::Escape,
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window,
+    });
     app.update();
     assert!(
         !app.world()
@@ -111,9 +132,6 @@ fn close_all_modal_cancel_escape_and_navigation_have_no_side_effects() {
             .is_armed()
     );
     assert_eq!(sink.submitted(), Vec::<UiCommand>::new());
-    app.world_mut()
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .clear();
     app.world_mut()
         .commands()
         .trigger(Activate { entity: opener });

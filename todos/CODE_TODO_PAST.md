@@ -191,7 +191,7 @@
   - 待验证：真实像素回执（开关两态的轨道与旋钮）随本批截图批次。
   - 本机可执行动作：跑统一截图批次。
 - [ ] BEVYCAP-004.2 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets::modal + infiltrator-bevy-ui] [status: Integrated] modal 层迁到官方 `Dialog`/`ModalDialog`/`RequestClose` 并把 bool 对改 typed stage
-  - 产物：能力规范⑥收口——共享 modal 场景挂载官方 `ModalDialog`/`ModalDialogBarrier` 与 `DialogPlugin`/`ModalDialogPlugin`，barrier 点击外关闭、Esc 拦截、焦点圈闭与 `DialogStack` 全部由 Bevy 提供，本地不再手写；业务状态保留在产品侧但改为**一个 typed stage** `ModalStage{Hidden, Open, Dismissed}`（`is_open()` 为派生方法，旧的 `is_open`/`dismiss_on_scrim` bool 对消失，不再能表达非法组合）。
+  - 产物：能力规范⑥收口——**全部模态面**（共享 modal、命令面板、13 个产品模态页、adaptive modal）挂载官方 `ModalDialog`/`ModalDialogBarrier`/`RequestClose` 并注册 `ModalWidgetsPlugin`（`DialogPlugin`+`ModalDialogPlugin`），barrier 点击外关闭、焦点圈闭（`Dialog` → `TabGroup{modal:true}`）、`DialogStack` 与 Esc 拦截全部由 Bevy 提供；打开时把输入焦点交接进对话框（`TabIndex` + `AcquireFocus`）、关闭时释放，手写 `KeyCode::Escape` 分支已删除（命令面板这类键盘控制台与子菜单阶段除外，已注明）；业务状态保留在产品侧但改为**一个 typed stage** `ModalStage{Hidden, Open, Dismissed}`（`is_open()` 为派生方法，旧的 `is_open`/`dismiss_on_scrim` bool 对消失，不再能表达非法组合）；新增 `button_action_scene` 让确认/取消标记与官方 `Button` 同节点，官方 `RequestClose` 的原始触发者（`original_event_target`）决定 `Confirmed`/`Cancelled`/`Dismissed` 结果。
   - 依赖：Bevy 0.20 `bevy::ui_widgets` 官方 `Dialog`/`ModalDialog`/`RequestClose`/`DialogStack`；`menu` 层为已评审的本地例外，不在本条范围。
   - 验收：弹窗行为 headless 回归（开/关/取消/确认/焦点圈闭）全绿；`implicit-state-audit` 判决台账同步（旧的 `ModalState::multi-bool` 判决已撤销）。
   - 当前证据（L）：`bevy-widgets` nextest 419/419、`bevy-ui` nextest 716/716 全绿；`implicit-state-audit` 报 22 候选 / 0 未判决 / 0 open / 0 stale（撤销旧判决后）。

@@ -62,6 +62,7 @@ use bevy::ui::prelude::{BackgroundColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
+use infiltrator_bevy_widgets::feathers_theme::sync_ui_theme;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::icon::status_dot_image;
@@ -575,8 +576,12 @@ impl Plugin for ShellPlugin {
                 sync_content_title,
                 sync_sidebar_panel,
                 sync_sidebar_toggle_visuals,
-                sync_sidebar_nav_visuals,
-                sync_bottom_nav_visuals,
+                // The theme chain is explicit: the widgets layer rebuilds
+                // `UiTheme` from the palette, and the surfaces that read it
+                // run after it, so a skin flip repaints in the same frame
+                // instead of racing the theme sync.
+                sync_sidebar_nav_visuals.after(sync_ui_theme),
+                sync_bottom_nav_visuals.after(sync_ui_theme),
                 sync_responsive_shell,
                 sync_sidebar_rail_morphology,
                 sync_rail_nav_tooltips,

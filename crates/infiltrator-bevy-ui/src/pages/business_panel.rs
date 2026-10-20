@@ -8,12 +8,13 @@ use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::prelude::*;
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
-use bevy::scene::{Scene, bsn};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
+use bevy::scene::{Scene, bsn, on};
 use bevy::ui::prelude::*;
 use bevy::ui_widgets::ScrollArea;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose};
+use bevy::window::PrimaryWindow;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
@@ -93,12 +94,35 @@ pub fn panel_scene(
             display: Display::None,
         }
         BusinessPanelRoot(kind) GlobalZIndex(90)
+        // The panel is a modal dialog on Bevy's official behaviour layer: the
+        // barrier owns the click-outside close and the Escape interception, the
+        // card owns the focus containment, and every close request travels as
+        // the official `RequestClose`.
+        //
+        // The barrier is the panel root — the only common ancestor of the
+        // scrim and the card — because the official Escape interception
+        // reaches the barrier through the focused entity and the official
+        // `RequestClose` reaches it through the closing control, both of
+        // which live under the card.
+        ModalDialogBarrier
+        on(move |close: On<RequestClose>, closes: Query<(Entity, &CloseBusinessPanel), Without<ModalScrim>>, mut commands: Commands| {
+            // A close request that names this panel's own close control is
+            // that control's business (it already asked to close); every other
+            // close request — the barrier's click-outside and the Escape
+            // interception — runs the panel's own close path.
+            for (entity, marker) in &closes {
+                if marker.0 == kind && entity != close.original_event_target() {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
             Node {
                 position_type: PositionType::Absolute,
                 width: percent(100), height: percent(100),
             }
-            ThemeBackgroundColor({ Token::Scrim }) Button CloseBusinessPanel(kind)
+            ThemeBackgroundColor({ Token::Scrim })
+            CloseBusinessPanel(kind)
             ModalScrim
             --
             Node {
@@ -109,6 +133,7 @@ pub fn panel_scene(
             }
             ThemeBackgroundColor({ Token::Surface })
             ModalDialogCard BusinessPanelCard(kind)
+            ModalDialog
             Children [
                 Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
                 Children [
@@ -116,6 +141,16 @@ pub fn panel_scene(
                     --
                     Node { padding: UiRect::axes(rem(space::S12), rem(space::S8)), min_height: rem(palette.control_height_px) }
                     Button CloseBusinessPanel(kind)
+                    // The dismiss control is the dialog's focusable control:
+                    // the official `TabIndex` marks it for Bevy's focus
+                    // scheme, so the focus hand-off can move the input focus
+                    // into the panel.
+                    TabIndex(0)
+                    // The close control asks the official layer to close; the
+                    // barrier observer runs the panel's own close path.
+                    on(|activate: On<Activate>, mut commands: Commands| {
+                        commands.trigger(RequestClose { source: activate.entity });
+                    })
                     Children [ close TextRole(Role::Body) ]
                 ]
                 --
@@ -152,11 +187,14 @@ pub fn profiles_panels(
 pub(crate) fn activate_panel(
     activate: On<Activate>,
     open: Query<&OpenBusinessPanel>,
-    close: Query<&CloseBusinessPanel>,
+    close: Query<(Entity, &CloseBusinessPanel), Without<ModalScrim>>,
     mut state: ResMut<BusinessPanelState>,
     mut form: ResMut<CustomNodeForm>,
     latest: Option<Res<LatestSurfaceSnapshot>>,
     mut roots: Query<(&BusinessPanelRoot, &mut Node)>,
+    mut commands: Commands,
+    mut focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
     if let Ok(open) = open.get(activate.entity) {
         if !roots.iter().any(|(root, _)| root.0 == open.0) {
@@ -181,14 +219,22 @@ pub(crate) fn activate_panel(
             form.begin(studio);
         }
         state.0 = Some(open.0);
-    } else if let Ok(close) = close.get(activate.entity) {
-        if state.0 != Some(close.0) {
+        // The panel is presented: the official focus hand-off moves the input
+        // focus into the dialog, so Bevy's own `ModalDialogBarrier` owns the
+        // Escape interception.
+        if let Some(control) = dismiss_control(&close, open.0) {
+            hand_off_focus(&mut commands, &mut focus, &windows, control);
+        }
+    } else if let Ok((_, closing)) = close.get(activate.entity) {
+        if state.0 != Some(closing.0) {
             return;
         }
-        if close.0 == PanelKind::CustomNode {
+        if closing.0 == PanelKind::CustomNode {
             form.operation.cancel();
         }
         state.0 = None;
+        // The panel is closed: the focus leaves the dialog again.
+        release_focus(&mut focus, dismiss_control(&close, closing.0));
     } else {
         return;
     }
@@ -201,16 +247,63 @@ pub(crate) fn activate_panel(
     }
 }
 
+/// The panel's dismiss control: the one close control that is not the scrim.
+fn dismiss_control(
+    close: &Query<(Entity, &CloseBusinessPanel), Without<ModalScrim>>,
+    kind: PanelKind,
+) -> Option<Entity> {
+    close
+        .iter()
+        .find(|(_, marker)| marker.0 == kind)
+        .map(|(entity, _)| entity)
+}
+
+/// The official focus hand-off.
+///
+/// The dialog's dismiss control is the dialog's focusable control — the
+/// official `TabIndex` marks it for Bevy's focus scheme — and the official
+/// `AcquireFocus` request asks that scheme to move the input focus into the
+/// dialog. The official focus resource carries the result, so the page and
+/// the official layer read the same fact. While the focus lives inside the
+/// barrier, Bevy's own `ModalDialogBarrier` owns the Escape interception.
+fn hand_off_focus(
+    commands: &mut Commands,
+    focus: &mut InputFocus,
+    windows: &Query<Entity, With<PrimaryWindow>>,
+    control: Entity,
+) {
+    commands
+        .entity(control)
+        .entry::<TabIndex>()
+        .or_insert(TabIndex(0));
+    if let Ok(window) = windows.single() {
+        commands.trigger(AcquireFocus {
+            focused_entity: control,
+            window,
+        });
+    }
+    focus.set(control, FocusCause::Navigated);
+}
+
+/// Release the input focus the hand-off moved into the dialog.
+fn release_focus(focus: &mut InputFocus, control: Option<Entity>) {
+    if let Some(control) = control
+        && focus.get() == Some(control)
+    {
+        focus.clear();
+    }
+}
+
 pub(crate) fn cancel_panel(
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     route: Res<ActiveRoute>,
     mut state: ResMut<BusinessPanelState>,
     mut form: ResMut<CustomNodeForm>,
     mut roots: Query<&mut Node, With<BusinessPanelRoot>>,
+    mut focus: ResMut<InputFocus>,
+    close: Query<(Entity, &CloseBusinessPanel), Without<ModalScrim>>,
 ) {
     if let Some(kind) = state.0
-        && (route.0 != Some(kind.route())
-            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
+        && route.0 != Some(kind.route())
     {
         if kind == PanelKind::CustomNode {
             form.operation.cancel();
@@ -219,5 +312,7 @@ pub(crate) fn cancel_panel(
         for mut node in &mut roots {
             node.display = Display::None;
         }
+        // The panel is closed: the focus leaves the dialog again.
+        release_focus(&mut focus, dismiss_control(&close, kind));
     }
 }

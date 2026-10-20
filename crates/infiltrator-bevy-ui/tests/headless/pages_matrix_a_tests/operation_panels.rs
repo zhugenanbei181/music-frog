@@ -2,13 +2,14 @@
 //! test-intent: behavior
 
 use super::*;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use infiltrator_bevy_ui::pages::proxies_custom::ImportUriButton;
 use infiltrator_bevy_widgets::text_input::TextField;
 
 #[test]
 fn operation_panels_preserve_editable_controls_and_cancel_without_commands() {
-    use infiltrator_bevy_ui::pages::business_panel::{
+    use infiltrator_bevy_widgets::modal::ModalScrim;
+use infiltrator_bevy_ui::pages::business_panel::{
         BusinessPanelRoot, BusinessPanelState, CloseBusinessPanel, OpenBusinessPanel, PanelKind,
     };
     for (route, kind) in [
@@ -82,7 +83,7 @@ fn operation_panels_preserve_editable_controls_and_cancel_without_commands() {
         }
         let cancel = app
             .world_mut()
-            .query::<(Entity, &CloseBusinessPanel)>()
+            .query_filtered::<(Entity, &CloseBusinessPanel), Without<ModalScrim>>()
             .iter(app.world())
             .find(|(_, marker)| marker.0 == kind)
             .map(|(entity, _)| entity)

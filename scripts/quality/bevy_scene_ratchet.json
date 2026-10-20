@@ -4,11 +4,5 @@
     "source": "zhuge-ui-kit:crates/zhuge-ui-kit-bevy/tools/check_bevy_ui.py",
     "sha256": "a6d0ca4d18f2e0dd04daf632601adae60ff10301da7920bd9665f46baf281014"
   },
-  "entries": {
-    "infiltrator-bevy-ui/src/pages/connections_view.rs|UIK-REM-001|border_radius: BorderRadius::all(Val::Px(4.0)),": 1,
-    "infiltrator-bevy-ui/src/pages/dns_edit.rs|UIK-REM-001|border_radius: BorderRadius::all(Val::Px(11.0)),": 1,
-    "infiltrator-bevy-ui/src/pages/dns_edit.rs|UIK-REM-001|border_radius: BorderRadius::all(Val::Px(4.0)),": 1,
-    "infiltrator-bevy-ui/src/pages/dns_edit.rs|UIK-REM-001|border_radius: BorderRadius::all(Val::Px(8.0)),": 1,
-    "infiltrator-bevy-ui/src/pages/dns_edit.rs|UIK-REM-001|let knob_left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };": 2
-  }
+  "entries": {}
 }

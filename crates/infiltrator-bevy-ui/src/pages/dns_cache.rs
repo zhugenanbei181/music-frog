@@ -13,14 +13,16 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
+use bevy::window::PrimaryWindow;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
@@ -70,11 +72,14 @@ pub fn request(
 pub fn activate(
     event: On<Activate>,
     launchers: Query<(), With<ClearDnsCacheButton>>,
-    buttons: Query<&CacheAction>,
+    buttons: Query<(Entity, &CacheAction), Without<ModalScrim>>,
     route: Res<ActiveRoute>,
     mut state: ResMut<CacheConfirmation>,
     sink: Option<Res<CommandSinkHandle>>,
     mut focus: CacheFocus,
+    mut commands: Commands,
+    mut input_focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
     if route.0 != Some(Route::Dns) || state.model.is_pending() {
         return;
@@ -82,15 +87,23 @@ pub fn activate(
     if launchers.contains(event.entity) {
         state.model.show();
         focus.suspend(&mut state);
+        // The modal is presented: the official focus hand-off moves the input
+        // focus into the dialog, so Bevy's own `ModalDialogBarrier` owns the
+        // Escape interception.
+        if let Some(control) = dismiss_control(&buttons) {
+            hand_off_focus(&mut commands, &mut input_focus, &windows, control);
+        }
         return;
     }
-    let Ok(action) = buttons.get(event.entity) else {
+    let Ok((_, action)) = buttons.get(event.entity) else {
         return;
     };
     let token = match action {
         CacheAction::Cancel => {
             if state.model.cancel() {
                 focus.restore(&mut state);
+                // The modal is closed: the focus leaves the dialog again.
+                release_focus(&mut input_focus, dismiss_control(&buttons));
             }
             return;
         }
@@ -132,22 +145,78 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<CacheConfirmati
 pub fn observe(
     latest: Res<LatestSurfaceSnapshot>,
     route: Res<ActiveRoute>,
-    keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<CacheConfirmation>,
     mut focus: CacheFocus,
+    buttons: Query<(Entity, &CacheAction), Without<ModalScrim>>,
+    mut commands: Commands,
+    mut input_focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
 ) {
     state.model.observe(&latest.0.dns_cache);
     if state.requested && route.0 == Some(Route::Dns) {
         state.requested = false;
         state.model.show();
         focus.suspend(&mut state);
+        // The modal is presented: the official focus hand-off moves the input
+        // focus into the dialog, so Bevy's own `ModalDialogBarrier` owns the
+        // Escape interception.
+        if let Some(control) = dismiss_control(&buttons) {
+            hand_off_focus(&mut commands, &mut input_focus, &windows, control);
+        }
     }
     if state.model.is_open()
-        && (route.0 != Some(Route::Dns)
-            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
+        && route.0 != Some(Route::Dns)
         && state.model.cancel()
     {
         focus.restore(&mut state);
+        // The modal is closed: the focus leaves the dialog again.
+        release_focus(&mut input_focus, dismiss_control(&buttons));
+    }
+}
+
+/// The modal's dismiss control: the one cancel control that is not the scrim.
+fn dismiss_control(
+    buttons: &Query<(Entity, &CacheAction), Without<ModalScrim>>,
+) -> Option<Entity> {
+    buttons
+        .iter()
+        .find(|(_, action)| matches!(action, CacheAction::Cancel))
+        .map(|(entity, _)| entity)
+}
+
+/// The official focus hand-off.
+///
+/// The dialog's dismiss control is the dialog's focusable control — the
+/// official `TabIndex` marks it for Bevy's focus scheme — and the official
+/// `AcquireFocus` request asks that scheme to move the input focus into the
+/// dialog. The official focus resource carries the result, so the page and
+/// the official layer read the same fact. While the focus lives inside the
+/// barrier, Bevy's own `ModalDialogBarrier` owns the Escape interception.
+fn hand_off_focus(
+    commands: &mut Commands,
+    focus: &mut InputFocus,
+    windows: &Query<Entity, With<PrimaryWindow>>,
+    control: Entity,
+) {
+    commands
+        .entity(control)
+        .entry::<TabIndex>()
+        .or_insert(TabIndex(0));
+    if let Ok(window) = windows.single() {
+        commands.trigger(AcquireFocus {
+            focused_entity: control,
+            window,
+        });
+    }
+    focus.set(control, FocusCause::Navigated);
+}
+
+/// Release the input focus the hand-off moved into the dialog.
+fn release_focus(focus: &mut InputFocus, control: Option<Entity>) {
+    if let Some(control) = control
+        && focus.get() == Some(control)
+    {
+        focus.clear();
     }
 }
 #[derive(QueryData)]

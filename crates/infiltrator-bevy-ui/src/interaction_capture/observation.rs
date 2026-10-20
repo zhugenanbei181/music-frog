@@ -105,7 +105,7 @@ pub fn speedtest_observation(
 ) {
     let bounds = (|| {
         if !marker.feature.activated
-            || !surface.modal.is_open
+            || !surface.modal.stage.is_open()
             || !geometry.visible(surface.roots.iter().next()?)
         {
             return None;

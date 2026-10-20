@@ -6,19 +6,21 @@ use crate::pages::rules_tracer::RulesTraceState;
 use crate::route::{ActiveRoute, Route, RouteChanged};
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::events::PointerClick;
-use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
     AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, PositionType, UiRect,
     percent,
 };
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -58,12 +60,24 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100), display: Display::None, align_items: AlignItems::Center, justify_content: JustifyContent::Center }
         TraceConfirmationRoot GlobalZIndex(119)
+        // The barrier is the modal layer's root: it owns the click-outside
+        // close and the Escape interception, and the card is its child, so the
+        // official behaviour layer reaches the focused control.
+        ModalScrim ThemeBackgroundColor({ Token::Scrim }) TraceConfirmationAction::Cancel ModalDialogBarrier
+        // The close request travels as the official `RequestClose` and the
+        // page's own close path runs from it.
+        on(|close: On<RequestClose>, closes: Query<(Entity, &TraceConfirmationAction), Without<ModalScrim>>, mut commands: Commands| {
+            for (entity, action) in &closes {
+                if matches!(action, TraceConfirmationAction::Cancel)
+                    && entity != close.original_event_target()
+                {
+                    commands.trigger(Activate { entity });
+                }
+            }
+        })
         Children [
-            Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim ThemeBackgroundColor({ Token::Scrim }) TraceConfirmationAction::Cancel
-            --
             Node { width: percent(90), max_width: rem(TRACE_CONFIRMATION_MODAL_MAX_WIDTH_PX), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
-            ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
+            ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
             Children [
                 LocalizedText::plain("rule_trace_confirm_title") TextRole(Role::Heading)
                 --
@@ -71,7 +85,15 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node { width: percent(100), column_gap: rem(space::S12) }
                 Children [
-                    @{ (localized_button_scene(LocalizedText::plain("modal_cancel"), ButtonVariant::Default, palette), bsn! { TraceConfirmationAction::Cancel }) }
+                    @{ (localized_button_scene(LocalizedText::plain("modal_cancel"), ButtonVariant::Default, palette), bsn! {
+                        TraceConfirmationAction::Cancel
+                        TabIndex(0)
+                        // The dismiss control asks the official layer to close;
+                        // the page never closes the confirmation on its own.
+                        on(|activate: On<Activate>, mut commands: Commands| {
+                            commands.trigger(RequestClose { source: activate.entity });
+                        })
+                    }) }
                     --
                     @{ (localized_button_scene(LocalizedText::plain("rule_trace_confirm_apply"), ButtonVariant::Primary, palette), bsn! { TraceConfirmationAction::Apply }) }
                     --
@@ -144,13 +166,18 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<RulesTraceState
         state.override_request = None;
     }
 }
+/// The scrim's click asks the official dialog layer to close; the official
+/// barrier owns the click-outside behaviour and the page closes through its
+/// own close path.
 pub fn dismiss_scrim(
     event: On<PointerClick>,
     scrims: Query<&TraceConfirmationAction, With<ModalScrim>>,
-    mut state: ResMut<RulesTraceState>,
+    mut commands: Commands,
 ) {
     if scrims.get(event.entity).is_ok() {
-        state.model.cancel_override();
+        commands.trigger(RequestClose {
+            source: event.entity,
+        });
     }
 }
 pub fn render(

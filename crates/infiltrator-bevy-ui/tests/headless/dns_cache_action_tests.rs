@@ -5,14 +5,17 @@ use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::KeyCode;
+use bevy::ecs::query::With;
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input_focus::InputFocus;
 use bevy::math::Vec2;
 use bevy::picking::backend::HitData;
 use bevy::picking::events::{Pointer, PointerClick, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::ui::Node;
 use bevy::ui_widgets::ButtonPlugin;
+use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::dns_cache_application::DnsCacheApplication;
@@ -63,6 +66,10 @@ fn setup(owner: DnsCacheApplication) -> (App, ProductSurfaceReader) {
         PagesPlugin::default(),
         command_pump_for_observed_snapshot(application),
     ));
+    // The official input-focus layer hands a keyboard message to the focused
+    // entity only when the composition owns a primary window; that window is
+    // the route the official `ModalDialogBarrier` Escape interception reads.
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.update();
     app.world_mut().trigger(RouteChanged(Route::Dns));
     app.update();
@@ -84,6 +91,13 @@ fn button(app: &mut App, wanted: impl Fn(&CacheAction) -> bool) -> Entity {
         .find(|(_, action)| wanted(action))
         .unwrap()
         .0
+}
+fn primary_window(app: &mut App) -> Entity {
+    app.world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>()
+        .iter(app.world())
+        .next()
+        .expect("the composition owns a primary window")
 }
 fn pointer() -> Pointer {
     Pointer::new(
@@ -169,14 +183,26 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
     assert_eq!(ports.system_calls.load(Ordering::SeqCst), 0);
     assert_eq!(ports.contents(), before);
     open(&mut app);
-    let mut keys = ButtonInput::<KeyCode>::default();
-    keys.press(KeyCode::Escape);
-    app.insert_resource(keys);
+    // The official layer owns the dismissal: the focus hand-off moved the
+    // input focus into the dialog, and the official Escape interception
+    // reads the keyboard message through that focus.
+    let cancel = button(&mut app, |a| matches!(a, CacheAction::Cancel));
+    assert_eq!(
+        app.world().resource::<InputFocus>().get(),
+        Some(cancel),
+        "the focus hand-off moved the input focus into the dialog"
+    );
+    let window = primary_window(&mut app);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::Escape,
+        logical_key: Key::Escape,
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window,
+    });
     app.update();
     assert!(!app.world().resource::<CacheConfirmation>().model.is_open());
-    app.world_mut()
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .reset_all();
     open(&mut app);
     app.world_mut().trigger(RouteChanged(Route::Settings));
     app.update();
