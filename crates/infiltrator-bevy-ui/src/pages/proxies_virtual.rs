@@ -15,9 +15,8 @@
 use crate::pages::proxies::{
     LastProxiesProjection, ProxiesProjection, ProxiesScrollArea, ProxyGroup,
 };
-use crate::pages::proxies_card::{
-    ProxyNodeSceneContext, group_header_scene, proxy_node_scene_sized,
-};
+use crate::pages::proxies_card::group_card::group_header_scene;
+use crate::pages::proxies_card::node_card::{ProxyNodeSceneContext, proxy_node_scene_sized};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};

@@ -34,7 +34,7 @@ use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use crate::support::allow_outbound_probe;
 use infiltrator_bevy_ui::pages::connections_row::connection_row_scene;
 use infiltrator_bevy_ui::pages::proxies::ProxyNode;
-use infiltrator_bevy_ui::pages::proxies_card::proxy_node_scene;
+use infiltrator_bevy_ui::pages::proxies_card::node_card::proxy_node_scene;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_ui::route::{PagesPlugin, RouteChanged};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;

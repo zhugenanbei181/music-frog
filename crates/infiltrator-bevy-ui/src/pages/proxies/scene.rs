@@ -4,7 +4,7 @@ use crate::pages::business_panel::{PanelKind, launcher_scene, panel_scene};
 use crate::pages::proxies::{
     ProxiesPageRoot, ProxiesProjection, ProxiesScrollArea, ProxyGroup, ProxyNode,
 };
-use crate::pages::proxies_card;
+use crate::pages::proxies_card::{group_card, node_card, toolbar};
 use crate::pages::proxies_custom::custom_node_scene;
 use crate::pages::proxies_identity::ProxyCardsContainer;
 use crate::pages::proxies_virtual::{PROXIES_VIRTUAL_THRESHOLD, ProxiesVirtualNodes};
@@ -54,7 +54,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
             test_status,
             palette,
         )));
-        root_children.push(Box::new(proxies_card::search_bar_card_scene(
+        root_children.push(Box::new(toolbar::search_bar_card_scene(
             &projection.search_query,
             palette,
         )));
@@ -101,7 +101,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                 --
                 @{ header_card_scene(summary, active_exit, test_status, palette) }
                 --
-                @{ proxies_card::search_bar_card_scene(&projection.search_query, palette) }
+                @{ toolbar::search_bar_card_scene(&projection.search_query, palette) }
                 --
                 @{ launcher_scene(PanelKind::CustomNode, palette) }
                 --
@@ -143,7 +143,7 @@ pub(super) fn header_card_scene(
     test_status: LocalizedText,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    proxies_card::header_card_scene(summary, active_exit, test_status, palette)
+    toolbar::header_card_scene(summary, active_exit, test_status, palette)
 }
 
 pub(super) fn group_card_scene(
@@ -151,7 +151,7 @@ pub(super) fn group_card_scene(
     group: &ProxyGroup,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    proxies_card::group_card_scene(g_idx, group, palette)
+    group_card::group_card_scene(g_idx, group, palette)
 }
 
 pub fn proxy_node_scene(
@@ -162,7 +162,7 @@ pub fn proxy_node_scene(
     selection_available: bool,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    proxies_card::proxy_node_scene(
+    node_card::proxy_node_scene(
         g_idx,
         n_idx,
         group_name,

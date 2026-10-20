@@ -10,13 +10,10 @@
 //! * `node_card` — the single proxy node card vocabulary (chips, favorite pin, latency trend).
 //! * `group_card` — the strategy group card and its header-only variant.
 //!
-//! The re-exports below keep the public paths stable:
-//! `infiltrator_bevy_ui::pages::proxies_card::*`.
+//! Each seam is a public module, so callers import from the defining module's
+//! canonical path (the repository bans re-export facades):
+//! `infiltrator_bevy_ui::pages::proxies_card::node_card::proxy_node_scene`.
 
-mod group_card;
-mod node_card;
-mod toolbar;
-
-pub use group_card::{group_card_scene, group_header_scene};
-pub use node_card::{ProxyNodeSceneContext, proxy_node_scene, proxy_node_scene_sized};
-pub use toolbar::{header_card_scene, search_bar_card_scene};
+pub mod group_card;
+pub mod node_card;
+pub mod toolbar;

@@ -1,6 +1,7 @@
 //! Reconcile only added/removed identities and child order; preserve surviving native controls.
 use crate::pages::proxies::{GroupNodesContainer, LastProxiesProjection, ProxyNodeButton};
-use crate::pages::proxies_card::{group_card_scene, proxy_node_scene};
+use crate::pages::proxies_card::group_card::group_card_scene;
+use crate::pages::proxies_card::node_card::proxy_node_scene;
 use crate::pages::proxies_identity::{
     ProxyCardsContainer, ProxyGroupIdentity, ProxyGroupOutboundIdentity,
 };

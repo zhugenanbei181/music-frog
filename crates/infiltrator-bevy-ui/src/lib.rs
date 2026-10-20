@@ -17,6 +17,8 @@
 //! screenshot forensics seam (env-driven skin/window-size/marker, read only here).
 
 use infiltrator_bevy_widgets::shader_fx::ModernSurfacePlugin;
+#[cfg(feature = "capture-tools")]
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_contract::theme::ThemePreference;
 pub mod a11y;
 pub mod app;
@@ -67,6 +69,8 @@ use crate::pages::connections_clipboard::ClipboardHost;
 use crate::surface::host_insets::WindowInsetsInputReceiver;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
+#[cfg(feature = "capture-tools")]
+use bevy::text::RemSize;
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use lurker_core_contract::error::Failure;
@@ -225,9 +229,7 @@ fn run_with_command_sink_and_composition(
     // prove that a user font-scale preference moves the whole layout.
     #[cfg(feature = "capture-tools")]
     if let Some(scale) = capture::font_scale_from_env() {
-        app.insert_resource(bevy::text::RemSize(
-            infiltrator_bevy_widgets::theme::REM_BASE * scale,
-        ));
+        app.insert_resource(RemSize(REM_BASE * scale));
     }
     app.add_plugins(ModernSurfacePlugin);
     // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
