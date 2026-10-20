@@ -56,6 +56,8 @@ python3 scripts/quality/android-architecture-redline-guard.py --self-test
 python3 scripts/quality/android-architecture-redline-guard.py --mode enforce
 python3 scripts/quality/android-so-combination-guard.py --self-test
 python3 scripts/quality/android-so-combination-guard.py
+python3 scripts/quality/real-process-evidence-guard.py --self-test
+python3 scripts/quality/real-process-evidence-guard.py
 python3 scripts/quality/verify-packaging.py
 python3 -m unittest discover -s scripts/packaging_tests -p 'test_*.py'
 python3 -m unittest discover -s scripts/quality/tests -p 'test_*.py'

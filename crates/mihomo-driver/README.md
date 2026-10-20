@@ -69,14 +69,29 @@ cargo run -p mihomo-driver --example lifecycle
 
 未设置 `MIHOMO_BINARY` / `MIHOMO_CONFIG` 时，示例不启动进程，只打印“未配置”的完整执行计划并成功退出，因此干净检出与 CI 无需引擎二进制也能直接运行。
 
-## 真实二进制验收（PUB-002.1 / PUB-002.3）
+## 真实二进制验收（PUB-002.1 / PUB-002.3 / PUB-006.8）
 
-`tests/real_process_smoke.rs` 是 PUB-002.1 / PUB-002.3 要求的真实二进制验收证据，也是当前唯一能证明真实进程路径的入口：mock/fake 测试不能替代它。测试只走公开 API——用 `MihomoBackendOptions` + `MihomoEngineBackendProvider::create_backend()` 取得 `EngineBackendPorts`，经 `CoreProcess::prepare_start` / `start` 启动真实 mihomo，在 30 秒预算内轮询 `CoreReadiness` 直至就绪，用 `OutboundPort` 读回非空出站清单，最后 `CoreProcess::stop()` 并要求终态精确为 `CoreLifecycle::Stopped` 且 `pid()` 为 `None`。
+`tests/real_process_evidence.rs` 是 PUB-006.8 要求的真实二进制验收入口，也是当前唯一能证明真实进程路径的入口：mock/fake 测试不能替代它。测试只走公开 API——用 `MihomoBackendOptions` + `MihomoEngineBackendProvider::create_backend()` 取得 `EngineBackendPorts`，经 `CoreProcess::prepare_start` / `start` 启动真实 mihomo，并对运行中的引擎证明四件事：
 
-该测试带 `#[ignore]`，默认质量门禁不会执行；只有显式请求时才运行。缺少任一必填环境变量会立即失败并给出变量名，不会静默跳过：
+| 证明 | 内容 | typed 结果 |
+| --- | --- | --- |
+| `api_handshake` | 控制器握手与活引擎版本读回 | `CoreReadiness::probe` / `active_core_version` |
+| `node_speed_test` | 对配置好的出站做节点测速 | `OutboundPort::probe` → `OutboundProbeState::Measured` |
+| `traffic_dispatch` | 经引擎自己的 SOCKS5 监听器把真实流量送到 loopback fixture | fixture 收到并回显同一批字节 |
+| `configuration_write` | 向运行中的引擎写配置并读回 | `OutboundPort::select` 读回 + `PATCH /configs` 读回 |
+
+环境契约是 typed 的：`tests/real_process_evidence/contract.rs` 的 `RealProcessEnvironment` 只有三个互斥结果——`Absent`（环境没有引擎二进制）、`Present`（可运行的引擎目标）、`Invalid`（环境指向不可用的引擎）。`Absent` 产出 `environment_absent` 回执并让测试失败，绝不静默通过；`Invalid` 产出 `invalid_environment` 回执。
+
+回执是机器可读的 JSON：每条证明一个 typed 结果，整体结论由证明记录推导（`complete` / `unsupported_proof` / `defect`），因此回执不可能声称超过证明本身的事实。回执写入 `MIHOMO_REAL_RECEIPT` 指定的文件，并始终打印到 stdout（`MUSIC_FROG_REAL_PROCESS_RECEIPT <json>`）。
+
+该测试带 `#[ignore]`，默认质量门禁不会执行；只有显式请求时才运行：
 
 ```bash
-MIHOMO_REAL_BINARY=… MIHOMO_REAL_CONFIG=… MIHOMO_REAL_HOME=… MIHOMO_REAL_CONTROLLER=http://127.0.0.1:9090 cargo nextest run -p mihomo-driver --run-ignored -E 'test(real_process_smoke)'
+MIHOMO_REAL_BINARY=… MIHOMO_REAL_CONFIG=… MIHOMO_REAL_HOME=… \
+MIHOMO_REAL_CONTROLLER=http://127.0.0.1:9090 \
+MIHOMO_REAL_PROXY=127.0.0.1:1080 MIHOMO_REAL_FIXTURE=127.0.0.1:9099 \
+MIHOMO_REAL_PROBE_OUTBOUND=CORE-SMOKE-HTTP MIHOMO_REAL_SELECTOR=CORE-SMOKE-SELECTOR \
+cargo nextest run -p mihomo-driver --test real_process_evidence --run-ignored only
 ```
 
 | 环境变量 | 必填 | 说明 |
@@ -85,7 +100,14 @@ MIHOMO_REAL_BINARY=… MIHOMO_REAL_CONFIG=… MIHOMO_REAL_HOME=… MIHOMO_REAL_C
 | `MIHOMO_REAL_CONFIG` | 是 | 真实 mihomo 配置文档 |
 | `MIHOMO_REAL_HOME` | 是 | 存放 PID 记录与引擎日志的数据目录（不存在时由 harness 创建） |
 | `MIHOMO_REAL_CONTROLLER` | 是 | loopback 控制器端点，例如 `http://127.0.0.1:9090` |
+| `MIHOMO_REAL_PROXY` | 是 | 引擎自己的 SOCKS5 监听器，例如 `127.0.0.1:1080` |
+| `MIHOMO_REAL_FIXTURE` | 是 | loopback 流量 fixture，例如 `127.0.0.1:9099` |
+| `MIHOMO_REAL_PROBE_OUTBOUND` | 是 | 测速证明所测量的出站名 |
+| `MIHOMO_REAL_SELECTOR` | 是 | 配置写入证明所切换的组名 |
 | `MIHOMO_REAL_SECRET` | 否 | 控制器 bearer secret |
+| `MIHOMO_REAL_RECEIPT` | 否 | 回执写入的文件 |
+
+本地可复跑入口是 `scripts/core-backend-smoke-mihomo.sh`（`--driver-evidence-only` 只跑驱动证明）。脚本从契约文件读取环境变量名，自己写好隔离的配置文档、端口与 fixture 地址，并把机器可读摘要 `MUSIC_FROG_SMOKE_SUMMARY <json>` 打到 stdout；`scripts/quality/real-process-evidence-guard.py` 守住这份证据不许退化。
 
 ## Controller 安全边界
 

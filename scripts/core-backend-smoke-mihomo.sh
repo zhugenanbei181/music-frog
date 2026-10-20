@@ -1,20 +1,73 @@
 #!/usr/bin/env bash
+# Real Mihomo evidence smoke: the locked release assets, the product-level
+# typed smokes and the `mihomo-driver` real-binary proof.
+#
+# What this entry point produces
+# ------------------------------
+# * The locked Mihomo release asset and its extracted binary, both verified
+#   against `packaging/mihomo-evidence-assets.json`.
+# * The product-level typed smokes against the running engine.
+# * The `mihomo-driver` real-binary proof: the named test target
+#   `real_process_evidence` proves the controller handshake, the typed node
+#   speed test, a real traffic flow through the engine's own listener and a
+#   configuration write with its readback. Its environment contract lives in
+#   `crates/mihomo-driver/tests/real_process_evidence/contract.rs`; this script
+#   reads the environment key names from that file, so the script and the test
+#   can never disagree about the contract.
+# * One machine-readable summary line (`MUSIC_FROG_SMOKE_SUMMARY <json>`) that
+#   names what was proven, which binary identity and digest were used, what
+#   was skipped and why.
+#
+# Exit codes
+# ----------
+# 0  the summary reports `proven` or `environment_absent`: every step that
+#    could run ran and passed, and the steps that could not run are listed in
+#    `skipped` with their reason.
+# 1  a real defect: an assertion failed, a digest mismatched, or the summary
+#    could not be produced.
+# 2  a usage error.
+#
+# Usage
+# -----
+#   scripts/core-backend-smoke-mihomo.sh [--self-test]
+#                                         [--driver-evidence-only]
+#                                         [--summary-file PATH]
+#
+# `MIHOMO_REAL_BINARY` may name an installed Mihomo executable. When it is set
+# the script uses that binary instead of downloading the locked release asset,
+# and the summary records that the release archive was not verified.
 set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
 evidence_lock="$repo_root/packaging/mihomo-evidence-assets.json"
 evidence_guard="$repo_root/scripts/quality/mihomo-evidence-guard.py"
+driver_contract="$repo_root/crates/mihomo-driver/tests/real_process_evidence/contract.rs"
 
-if [[ $# -eq 1 && "$1" == "--self-test" ]]; then
-    python3 "$evidence_guard" --self-test
-    python3 "$evidence_guard"
-    exit 0
-fi
-if [[ $# -ne 0 ]]; then
-    printf '[FAIL] usage: %s [--self-test]\n' "${BASH_SOURCE[0]}" >&2
-    exit 2
-fi
+driver_only=false
+summary_file=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --self-test)
+            python3 "$evidence_guard" --self-test
+            python3 "$evidence_guard"
+            exit 0
+            ;;
+        --driver-evidence-only)
+            driver_only=true
+            ;;
+        --summary-file)
+            shift
+            summary_file="${1:-}"
+            ;;
+        *)
+            printf '[FAIL] usage: %s [--self-test] [--driver-evidence-only] [--summary-file PATH]\n' \
+                "${BASH_SOURCE[0]}" >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
 
 for command_name in cargo curl env python3 sha256sum uname mktemp gzip awk seq sleep; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
@@ -35,6 +88,120 @@ if [[ "$(uname -s):$(uname -m)" != Linux:x86_64 && "$(uname -s):$(uname -m)" != 
 fi
 
 python3 "$evidence_guard"
+
+# --- machine-readable summary -------------------------------------------------
+# The summary is the single machine-readable artifact of this entry point. It
+# names what was proven, which binary identity and digest were used, what was
+# skipped and why, and what is a defect. The exit code follows the summary:
+# `proven`, `incomplete` and `environment_absent` exit 0, `defect` exits 1.
+summary_outcome="proven"
+summary_binary_path=""
+summary_binary_sha256=""
+summary_binary_version=""
+summary_binary_source=""
+summary_proven=""
+summary_not_proven=""
+summary_skipped=""
+summary_defects=""
+summary_receipts=""
+product_smokes=true
+driver_evidence_ran_for=""
+env_binary_noted=false
+
+summary_add() {
+    # summary_add <proven|not_proven|skipped|defects> <item> [reason]
+    local list=$1
+    local item=$2
+    local reason=${3-}
+    local entry="$item"
+    if [[ -n "$reason" ]]; then
+        entry="$item"$'\t'"$reason"
+    fi
+    case "$list" in
+        proven) summary_proven="${summary_proven}${entry}"$'\n' ;;
+        not_proven) summary_not_proven="${summary_not_proven}${entry}"$'\n' ;;
+        skipped) summary_skipped="${summary_skipped}${entry}"$'\n' ;;
+        defects) summary_defects="${summary_defects}${entry}"$'\n' ;;
+    esac
+}
+
+free_loopback_port() {
+    python3 - <<'PY'
+import socket
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+    listener.bind(("127.0.0.1", 0))
+    print(listener.getsockname()[1])
+PY
+}
+
+emit_summary() {
+    local status=$1
+    local outcome="$summary_outcome"
+    if [[ "$status" -ne 0 ]]; then
+        outcome="defect"
+    fi
+    MUSIC_FROG_SMOKE_ENGINE="mihomo" \
+    MUSIC_FROG_SMOKE_OUTCOME="$outcome" \
+    MUSIC_FROG_SMOKE_BINARY_PATH="$summary_binary_path" \
+    MUSIC_FROG_SMOKE_BINARY_SHA256="$summary_binary_sha256" \
+    MUSIC_FROG_SMOKE_BINARY_VERSION="$summary_binary_version" \
+    MUSIC_FROG_SMOKE_BINARY_SOURCE="$summary_binary_source" \
+    MUSIC_FROG_SMOKE_PROVEN="$summary_proven" \
+    MUSIC_FROG_SMOKE_NOT_PROVEN="$summary_not_proven" \
+    MUSIC_FROG_SMOKE_SKIPPED="$summary_skipped" \
+    MUSIC_FROG_SMOKE_DEFECTS="$summary_defects" \
+    MUSIC_FROG_SMOKE_RECEIPTS="$summary_receipts" \
+    MUSIC_FROG_SMOKE_SUMMARY_FILE="$summary_file" \
+    python3 - <<'PY'
+import json
+import os
+
+
+def entries(name):
+    result = []
+    for line in os.environ.get(name, "").split("\n"):
+        if not line:
+            continue
+        item, _, reason = line.partition("\t")
+        entry = {"item": item}
+        if reason:
+            entry["reason"] = reason
+        result.append(entry)
+    return result
+
+
+payload = {
+    "schema": "music-frog.core-backend-smoke/1",
+    "engine": os.environ.get("MUSIC_FROG_SMOKE_ENGINE", ""),
+    "outcome": os.environ.get("MUSIC_FROG_SMOKE_OUTCOME", "defect"),
+    "binary": {
+        "path": os.environ.get("MUSIC_FROG_SMOKE_BINARY_PATH", ""),
+        "sha256": os.environ.get("MUSIC_FROG_SMOKE_BINARY_SHA256", ""),
+        "version": os.environ.get("MUSIC_FROG_SMOKE_BINARY_VERSION", ""),
+        "source": os.environ.get("MUSIC_FROG_SMOKE_BINARY_SOURCE", ""),
+    },
+    "proven": entries("MUSIC_FROG_SMOKE_PROVEN"),
+    "not_proven": entries("MUSIC_FROG_SMOKE_NOT_PROVEN"),
+    "skipped": entries("MUSIC_FROG_SMOKE_SKIPPED"),
+    "defects": entries("MUSIC_FROG_SMOKE_DEFECTS"),
+    "driver_receipts": [
+        receipt
+        for line in os.environ.get("MUSIC_FROG_SMOKE_RECEIPTS", "").split("\n")
+        if line
+        for receipt in (
+            json.loads(line) if isinstance(json.loads(line), list) else [json.loads(line)]
+        )
+    ],
+}
+text = json.dumps(payload, sort_keys=True)
+print("MUSIC_FROG_SMOKE_SUMMARY " + text)
+path = os.environ.get("MUSIC_FROG_SMOKE_SUMMARY_FILE", "")
+if path:
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(text + "\n")
+PY
+}
 
 process_id=""
 probe_server_pid=""
@@ -102,11 +269,198 @@ cleanup() {
     if [[ -n "$run_dir" && -d "$run_dir" ]]; then
         rm -rf -- "$run_dir"
     fi
+    if ! emit_summary "$exit_status"; then
+        exit_status=1
+    fi
     exit "$exit_status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+run_driver_evidence() {
+    # run_driver_evidence <expected_version> <binary_path> <binary_sha256>
+    #
+    # The driver proof runs against its own isolated engine: its own data
+    # directory, its own configuration document, its own loopback controller
+    # and its own listeners. The environment key names are read from the typed
+    # contract of the driver, so the script and the test share one contract.
+    local expected_version=$1
+    local binary_path=$2
+    local binary_digest=$3
+    local driver_dir="$run_dir/driver-evidence"
+    mkdir -m 700 -p "$driver_dir/home"
+
+    local binary_env="" config_env="" home_env="" controller_env="" secret_env=""
+    local proxy_env="" fixture_env="" probe_env="" selector_env="" receipt_env=""
+    local contract_map
+    contract_map="$(python3 - "$driver_contract" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], encoding="utf-8").read()
+pairs = re.findall(r'pub const ([A-Z0-9_]+): &str = "([A-Z0-9_]+)";', text)
+if not pairs:
+    raise SystemExit("the Mihomo real-binary contract declares no environment keys")
+for name, value in pairs:
+    print(f"{name}={value}")
+PY
+)" || {
+        printf '[FAIL] the Mihomo real-binary contract could not be read\n' >&2
+        return 1
+    }
+    while IFS='=' read -r const_name env_name; do
+        case "$const_name" in
+            BINARY_ENV) binary_env="$env_name" ;;
+            CONFIG_ENV) config_env="$env_name" ;;
+            HOME_ENV) home_env="$env_name" ;;
+            CONTROLLER_ENV) controller_env="$env_name" ;;
+            SECRET_ENV) secret_env="$env_name" ;;
+            PROXY_ENV) proxy_env="$env_name" ;;
+            FIXTURE_ENV) fixture_env="$env_name" ;;
+            PROBE_OUTBOUND_ENV) probe_env="$env_name" ;;
+            SELECTOR_ENV) selector_env="$env_name" ;;
+            RECEIPT_ENV) receipt_env="$env_name" ;;
+        esac
+    done <<<"$contract_map"
+    for required_key in "$binary_env" "$config_env" "$home_env" "$controller_env" \
+        "$proxy_env" "$fixture_env" "$probe_env" "$selector_env" "$receipt_env"; do
+        if [[ -z "$required_key" ]]; then
+            printf '[FAIL] the Mihomo real-binary contract does not declare every environment key\n' >&2
+            return 1
+        fi
+    done
+
+    local driver_controller_port driver_socks_port driver_fixture_port driver_secret
+    driver_controller_port="$(free_loopback_port)"
+    driver_socks_port="$(free_loopback_port)"
+    driver_fixture_port="$(free_loopback_port)"
+    driver_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    local driver_profile="$driver_dir/profile.yaml"
+    cat >"$driver_profile" <<EOF
+port: 0
+socks-port: $driver_socks_port
+mixed-port: 0
+redir-port: 0
+tproxy-port: 0
+allow-lan: false
+mode: rule
+log-level: debug
+ipv6: false
+external-controller: 127.0.0.1:$driver_controller_port
+secret: "$driver_secret"
+proxies:
+  - name: CORE-SMOKE-HTTP
+    type: http
+    server: 127.0.0.1
+    port: $driver_fixture_port
+proxy-groups:
+  - name: CORE-SMOKE-SELECTOR
+    type: select
+    proxies:
+      - DIRECT
+      - CORE-SMOKE-HTTP
+      - REJECT
+rules:
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - MATCH,REJECT
+EOF
+
+    local receipt_file="$driver_dir/receipt.json"
+    local test_log="$driver_dir/real-process-evidence.log"
+    printf '[INFO] running the Mihomo driver real-binary evidence against %s\n' "$expected_version"
+    local test_status=0
+    env "${binary_env}=$binary_path" \
+        "${config_env}=$driver_profile" \
+        "${home_env}=$driver_dir/home" \
+        "${controller_env}=http://127.0.0.1:$driver_controller_port" \
+        "${secret_env}=$driver_secret" \
+        "${proxy_env}=127.0.0.1:$driver_socks_port" \
+        "${fixture_env}=127.0.0.1:$driver_fixture_port" \
+        "${probe_env}=CORE-SMOKE-HTTP" \
+        "${selector_env}=CORE-SMOKE-SELECTOR" \
+        "${receipt_env}=$receipt_file" \
+        cargo nextest run --offline -p mihomo-driver \
+            --test real_process_evidence --run-ignored only \
+        >"$test_log" 2>&1 || test_status=$?
+
+    local receipt_json=""
+    if [[ -s "$receipt_file" ]]; then
+        receipt_json="$(cat "$receipt_file")"
+    fi
+    if [[ -n "$receipt_json" ]]; then
+        summary_receipts="${summary_receipts}${receipt_json}"$'\n'
+    fi
+    if [[ -z "$receipt_json" ]]; then
+        printf '[FAIL] the Mihomo driver evidence produced no receipt\n' >&2
+        cat "$test_log" >&2 || true
+        summary_add defects "driver_real_process_evidence" \
+            "the Mihomo driver evidence produced no receipt"
+        return 1
+    fi
+
+    local receipt_summary
+    receipt_summary="$(printf '%s' "$receipt_json" | python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+outcome = payload["outcome"]
+proven = [item["proof"] for item in payload["proofs"] if item["outcome"]["kind"] == "proven"]
+unsupported = [
+    item["proof"] for item in payload["proofs"] if item["outcome"]["kind"] == "unsupported"
+]
+print("|".join([
+    outcome["kind"],
+    outcome.get("proof", ""),
+    ",".join(proven),
+    ",".join(unsupported),
+]))
+')" || {
+        printf '[FAIL] the Mihomo driver receipt could not be read\n' >&2
+        summary_add defects "driver_real_process_evidence" \
+            "the Mihomo driver receipt could not be read"
+        return 1
+    }
+    local receipt_kind receipt_proof receipt_proven receipt_unsupported
+    IFS='|' read -r receipt_kind receipt_proof receipt_proven receipt_unsupported <<<"$receipt_summary"
+
+    case "$receipt_kind" in
+        complete)
+            summary_add proven "driver_real_process_evidence" \
+                "the Mihomo driver proved ${receipt_proven} against ${expected_version}"
+            printf '[PASS] Mihomo driver real-binary evidence: %s\n' "$expected_version"
+            ;;
+        unsupported_proof)
+            summary_add not_proven "driver_${receipt_proof}" \
+                "the typed port reports the capability as unsupported"
+            summary_add proven "driver_real_process_evidence" \
+                "the Mihomo driver proved ${receipt_proven} against ${expected_version}"
+            summary_outcome="incomplete"
+            printf '[PASS] Mihomo driver real-binary evidence with one unsupported proof: %s\n' \
+                "$expected_version"
+            ;;
+        environment_absent)
+            summary_add skipped "driver_real_process_evidence" \
+                "the environment does not provide a Mihomo binary"
+            summary_outcome="environment_absent"
+            printf '[SKIP] the Mihomo driver real-binary evidence is absent\n'
+            ;;
+        *)
+            summary_add defects "driver_real_process_evidence" \
+                "the Mihomo driver evidence reported `${receipt_kind}`"
+            cat "$test_log" >&2 || true
+            return 1
+            ;;
+    esac
+    if [[ "$test_status" -ne 0 && "$receipt_kind" != unsupported_proof ]]; then
+        summary_add defects "driver_real_process_evidence" \
+            "the Mihomo driver evidence test failed"
+        cat "$test_log" >&2 || true
+        return 1
+    fi
+    return 0
+}
 
 run_one_version() {
     temporary_root="${TMPDIR:-/tmp}"
@@ -115,33 +469,76 @@ run_one_version() {
     archive_path="$run_dir/$archive"
     binary_path="$run_dir/$binary_name"
     download_url="${release_url/\/tag\//\/download\/}/$archive"
-    printf '[INFO] downloading official asset: %s\n' "$download_url"
-    if ! curl --fail --location --retry 2 --silent --show-error \
-        --output "$archive_path" "$download_url"; then
-        printf '[FAIL] official asset download failed for %s\n' "$expected_version" >&2
-        exit 1
+    if [[ -n "${MIHOMO_REAL_BINARY:-}" ]]; then
+        binary_path="$MIHOMO_REAL_BINARY"
+        if [[ ! -x "$binary_path" ]]; then
+            printf '[FAIL] MIHOMO_REAL_BINARY does not name an executable: %s\n' \
+                "$binary_path" >&2
+            exit 1
+        fi
+        actual_binary_digest="$(sha256sum "$binary_path" | awk '{print $1}')"
+        if [[ "$env_binary_noted" != true ]]; then
+            summary_add skipped "locked_release_asset" \
+                "MIHOMO_REAL_BINARY was used; the locked release archive was not downloaded"
+            env_binary_noted=true
+        fi
+        summary_binary_source="environment"
+        if [[ "$actual_binary_digest" != "$binary_sha256" ]]; then
+            printf '[INFO] the environment-provided binary does not match the locked %s digest; the product smokes of this leg are skipped\n' \
+                "$expected_version"
+            summary_add skipped "locked_product_smokes" \
+                "the environment-provided binary does not match the locked ${expected_version} digest"
+            product_smokes=false
+        fi
+    else
+        printf '[INFO] downloading official asset: %s\n' "$download_url"
+        if ! curl --fail --location --retry 2 --silent --show-error \
+            --output "$archive_path" "$download_url"; then
+            printf '[FAIL] official asset download failed for %s\n' "$expected_version" >&2
+            exit 1
+        fi
+        actual_archive_digest="$(sha256sum "$archive_path" | awk '{print $1}')"
+        if [[ "$actual_archive_digest" != "$archive_sha256" ]]; then
+            printf '[FAIL] archive digest mismatch for %s\n' "$expected_version" >&2
+            printf '       expected: %s\n       actual:   %s\n' \
+                "$archive_sha256" "$actual_archive_digest" >&2
+            exit 1
+        fi
+        if ! gzip -dc "$archive_path" >"$binary_path"; then
+            printf '[FAIL] official release asset is not a valid gzip archive: %s\n' "$archive" >&2
+            exit 1
+        fi
+        chmod 700 "$binary_path"
+        actual_binary_digest="$(sha256sum "$binary_path" | awk '{print $1}')"
+        if [[ "$actual_binary_digest" != "$binary_sha256" ]]; then
+            printf '[FAIL] extracted binary digest mismatch for %s\n' "$expected_version" >&2
+            printf '       expected: %s\n       actual:   %s\n' \
+                "$binary_sha256" "$actual_binary_digest" >&2
+            exit 1
+        fi
+        printf '[PASS] official asset lock: %s archive and binary SHA-256 verified\n' \
+            "$expected_version"
+        summary_binary_source="locked-release-asset"
     fi
-    actual_archive_digest="$(sha256sum "$archive_path" | awk '{print $1}')"
-    if [[ "$actual_archive_digest" != "$archive_sha256" ]]; then
-        printf '[FAIL] archive digest mismatch for %s\n' "$expected_version" >&2
-        printf '       expected: %s\n       actual:   %s\n' \
-            "$archive_sha256" "$actual_archive_digest" >&2
-        exit 1
+    summary_binary_path="$binary_path"
+    summary_binary_sha256="$actual_binary_digest"
+    summary_binary_version="$("$binary_path" -v 2>/dev/null | awk 'NR==1 {print $3}' || true)"
+
+    # The driver evidence runs once per distinct binary: the same executable
+    # must not be proven twice under two different locked versions.
+    if [[ "$driver_evidence_ran_for" != "$actual_binary_digest" ]]; then
+        if ! run_driver_evidence "$expected_version" "$binary_path" "$actual_binary_digest"; then
+            exit 1
+        fi
+        driver_evidence_ran_for="$actual_binary_digest"
     fi
-    if ! gzip -dc "$archive_path" >"$binary_path"; then
-        printf '[FAIL] official release asset is not a valid gzip archive: %s\n' "$archive" >&2
-        exit 1
+
+    if [[ "$driver_only" == true || "$product_smokes" == false ]]; then
+        cleanup_active_processes || true
+        rm -rf -- "$run_dir"
+        run_dir=""
+        return 0
     fi
-    chmod 700 "$binary_path"
-    actual_binary_digest="$(sha256sum "$binary_path" | awk '{print $1}')"
-    if [[ "$actual_binary_digest" != "$binary_sha256" ]]; then
-        printf '[FAIL] extracted binary digest mismatch for %s\n' "$expected_version" >&2
-        printf '       expected: %s\n       actual:   %s\n' \
-            "$binary_sha256" "$actual_binary_digest" >&2
-        exit 1
-    fi
-    printf '[PASS] official asset lock: %s archive and binary SHA-256 verified\n' \
-        "$expected_version"
 
 controller_port="$(python3 - <<'PY'
 import socket

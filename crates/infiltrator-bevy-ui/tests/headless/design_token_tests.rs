@@ -6,7 +6,6 @@
 
 use design_tokens::elevation::{HIGH, LOW, MEDIUM};
 use design_tokens::metrics::HAIRLINE;
-use design_tokens::radius::{CARD, CONTROL, MODAL, PILL};
 use design_tokens::space::{LG, MD, SM, XL, XS, XXL};
 use design_tokens::type_scale::{BODY, CAPTION, DISPLAY, HEADING, MONO, TAG, TITLE};
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
@@ -189,24 +188,6 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     assert_eq!(space::S24, XXL);
     assert_eq!(space::SCREEN_MARGIN_MOBILE, space::SCREEN_MARGIN_MOBILE);
     assert_eq!(space::SCREEN_MARGIN_TABLET, space::SCREEN_MARGIN_TABLET);
-    // The widget kit's radius ladder mirrors the contract's, rung by rung:
-    // one source of truth for every radius in the product. The comparison is
-    // written against the two ladders explicitly, so a rung that exists on
-    // one side only cannot pass as "mirrored".
-    {
-        use infiltrator_contract::design_tokens::radius as contract_radius;
-        assert_eq!(radius::XS, contract_radius::XS);
-        assert_eq!(radius::SM, contract_radius::SM);
-        assert_eq!(radius::CONTROL, CONTROL);
-        assert_eq!(radius::CARD, CARD);
-        assert_eq!(radius::MODAL, MODAL);
-        assert_eq!(radius::PILL, PILL);
-        assert_eq!(
-            radius::BOTTOM_SHEET,
-            contract_radius::BOTTOM_SHEET,
-            "the bottom sheet rung is the contract's",
-        );
-    }
     assert_eq!(type_scale::DISPLAY, DISPLAY);
     assert_eq!(type_scale::TITLE, TITLE);
     assert_eq!(type_scale::HEADING, HEADING);
@@ -256,8 +237,31 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     }
 }
 
+#[test]
+fn the_widget_radius_ladder_mirrors_the_contract_radius_ladder() {
+    // The contract's radius rungs come from their defining module; the
+    // widget kit's ladder is the module imported above. The comparison is
+    // rung by rung, so a rung that exists on one side only cannot pass as
+    // "mirrored", and a value that drifts on either side fails here.
+    use infiltrator_contract::design_tokens::radius::{
+        BOTTOM_SHEET, CARD, CONTROL, MODAL, PILL, SM, XS,
+    };
+    assert_eq!(radius::XS, XS);
+    assert_eq!(radius::SM, SM);
+    assert_eq!(radius::CONTROL, CONTROL);
+    assert_eq!(radius::CARD, CARD);
+    assert_eq!(radius::MODAL, MODAL);
+    assert_eq!(radius::PILL, PILL);
+    assert_eq!(
+        radius::BOTTOM_SHEET,
+        BOTTOM_SHEET,
+        "the bottom sheet rung is the contract's",
+    );
+}
+
 /// The contract values are the Iced reference, so the two dark-ish and
 /// light-ish skins must stay visibly distinct after the alignment.
+
 #[test]
 fn the_aligned_palette_keeps_every_skin_distinct() {
     let dark = Theme::dark();
