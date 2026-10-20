@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261020-v253`：现在佛 17 pt（5 条）/ 过去佛 107 pt（47 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 196 pt；已归档交付 682 pt（263 条）；累计 878 pt，严格归档完成率 77.7%。
+- Point 基线 `musicfrog-todo-20261020-v245`：现在佛 15 pt（4 条）/ 过去佛 107 pt（47 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 194 pt；已归档交付 682 pt（263 条）；累计 876 pt，严格归档完成率 77.9%。
 - 本板 24 条 = 原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -63,7 +63,7 @@
 | 测速与命令面板（speedtest / shell） | 7 | 缺 Slint | 缺 Slint | 缺 |
 | 设置（settings） | 5 | 缺 Slint | 缺 Slint | 缺 |
 | 应用与路由策略（app） | 1 | 缺 Slint | 缺 Slint | 缺 |
-| **合计** | **59** | 三表面全部登记：Iced contract 59/59 + scenario 59/59；Bevy 59/59 + 59/59；Slint contract 57/59、scenario 2/59 | 177 个清单格：implemented 120 / ready 2 / pending 57 | 0 个 flavor 截图回执 |
+| **合计** | **59** | 三表面全部登记：Iced contract 59/59 + scenario 59/59；Bevy 59/59 + 59/59；Slint contract 58/59、scenario 2/59（另 16 条业务已有载体与表面行为测试，交互路径未齐故仍 pending） | 177 个清单格：implemented 120 / ready 2 / pending 55 | 0 个 flavor 截图回执（取证流已交付） |
 
 缺口来源与实测结论（2026-10-19 全量审计）：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 原先只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。现已补齐第三表面：**177 单元格（59 业务 × 3 表面）全部登记并可解析**，Slint 侧 57 格为 `pending` + 逐条原因，2 格已转 `ready`（`profiles-import-modal` 与 `profiles-delete-confirm`：真实表面行为测试 + 标准/紧凑双视口真实像素回执，PNG 摘要与原生 bounds 全部绑定）。四个 pending 行为锚点已全部 anchored（含运行中测速控件的取消路径）。Slint 表面审计得到五条硬事实：① 页面词汇只有 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**dns、editor、filter、mixin、sync、app_routing、doctor 七类页面不存在**，按契约页面归属共 **19 条业务在第三 UI 无载体**（产品缺口）；② Slint 只派发 42 种 `CommandIntent`，DNS、编辑器、脚本沙箱、测速、快照、聚合器、命令面板等 30 余种意图从未派发；③ 59 条业务里 **2 条完整实现、18 条部分实现、39 条未实现**（2026-10-19 实测），今天这 2 条已各自带上面行为测试与像素回执，其余 57 条仍不能合法标记为 Slint scenario 锚点；④ 四个测试文件在用例里**重实现 Slint 逻辑**（路由模式映射、网络模式序列、主题白名单、十六进制解析、连接排序），构成仓库禁止的「第二业务真源」，且永远无法当表面锚点；⑤ 两个已声明回调 `refresh-profile(string)`、`refresh-home-egress()` 在任何 `.slint` 文件里都没有调用点。收口由 `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2` 与 `SLINT-001.1`～`SLINT-001.9` 共同承担。
 
@@ -126,15 +126,4 @@
 - 需要实机、tag CI、用户 secrets、上架凭证或异构目标机才能收口的条目，在迁移前先完成本板所有可推动作，再整条迁入[斗战胜佛](CODE_TODO_BLOCKED.md)。
 
 ### 7.2 共享控件真源补齐（rem 迁移暴露的重复事实）
-
-- [ ] TOKEN-001.2 [kind: mechanism] [priority: P2] [points: 2] [owner: infiltrator-contract::design_tokens + 三大 UI owner] [status: Planned] 圆角阶梯「居中对话框」角色重叠需契约裁决
-  - 产物：契约圆角阶梯里 `MODAL`(24) 的角色注释是「Centered modal dialog, command palette (24px)」，而 `DIALOG`(28) 是「Dialog corner radius (28px)」——**「居中对话框」到底用哪一档没有唯一答案**；实测其它居中对话框仍用 `R_CARD`/`radius::CARD`(16)：Iced 共享 modal chrome（`view_root/modals/card.rs`）、`aggregator_modal.rs`、`snapshot_diff_modal.rs`，Bevy `adaptive_modal.rs`。须由契约 owner 写清「居中模态 / 面板式对话框 / 居中命令面板」三者的档位归属，再由各表面按契约改齐（命令面板已按 `MODAL` 对齐）。
-  - 依赖：TOKEN-001.1 的阶梯裁决（既有档位足够，但角色重叠需澄清）。
-  - 验收：契约 `design_tokens::radius` 的每档角色注释互斥且可判定；三个表面按契约改齐；清零搜索确认无「居中对话框用 CARD」的残留。
-  - 计划：① 列出各表面居中对话框的当前档位 ② 契约写清互斥角色 ③ 三表面按契约改齐并补断言。
-  - 进度（2026-10-20 契约已裁决，证据等级 L）：契约的圆角阶梯改为**每档一个互斥角色**并在阶梯文档里列成表——居中模态与居中命令面板 = `MODAL`(24)、面板式对话框 = `CARD`(16)、移动端底部抽屉顶边 = `BOTTOM_SHEET`(28)；重复且角色重叠的 `DIALOG`(28) 已退役（它与 `BOTTOM_SHEET` 同值同义），契约测试新增「每个角色只占一档」断言。
-  - 进度：widgets 的镜像阶梯同步退役 `DIALOG` 与与契约冲突的表面私有 `SHEET_TOP`(16)，镜像测试改为**逐档对照两套阶梯**（原来含 `assert_eq!(radius::DIALOG, radius::DIALOG)` 这类同侧自证），新增调色板字段 `modal_radius_px` 供居中对话框取用。
-  - 进度：Iced 侧 `view_root/modals/card.rs`（共享居中弹窗 chrome）、`aggregator_modal.rs`、`snapshot_diff_modal.rs` 已按契约改用 `R_MODAL`；Bevy 侧 `adaptive_modal.rs` 的居中形态改用 `radius::MODAL`、抽屉形态改用 `radius::BOTTOM_SHEET`；清零搜索确认 Iced 居中弹窗已无 `R_CARD` 残留。Slint 的居中命令面板本就按 `MODAL` 对齐。
-  - 剩余（Bevy 产品页归其模态迁移 owner）：Bevy 产品页的居中弹窗卡片仍在用 `palette.card_radius_px`(16)（`proxy_inspection`／`proxy_probe_settings`／`proxy_group_order`／`rules_tracer_confirm`／`snapshot_restore_scene`／`connections_confirm`／`dns_*`／`logs_export_scene`／`profiles_script_scene`／`rules_statistics_scene`／`overview_speedtest` 等），需改为 `palette.modal_radius_px`；这些文件正由另一条模态迁移流编辑，故按文件所有权不并行改动，迁移完成后由该流改齐并补断言。
-  - 证据：契约 diff + 三表面断言 run ID + 清零搜索回执。
 
