@@ -60,7 +60,7 @@
 
 **台账口径**：权威台账唯一——`scripts/quality/bevy_rem_inventory.json`（产品库存，只允许缩小，`--prune-inventory` 拒绝登记新债）；共享包棘轮 `scripts/quality/bevy_scene_ratchet.json` 归其 owner，是上游镜像，只读参考，不作为产品的放行依据。
 
-**硬结论：**"`bsn!` 已强制"成立（机器红线、CI 生效）；**"rem 已强制且存量已清零"成立**——产品守卫是唯一阻塞执行器且覆盖共享包律法全部规则，180 处非白名单 px 全部迁到 rem 通道，存量台账归零，白名单外新增即失败；**唯一未闭环的是证据层**：字号档位下的真实缩放仍需像素回执（`INFILTRATOR_BEVY_FONT_SCALE` 两档截图），静态守卫与 headless 结果不能替代它。
+**硬结论：**"`bsn!` 已强制"成立（机器红线、CI 生效）；**"rem 已强制且存量已清零"成立**——产品守卫是唯一阻塞执行器且覆盖共享包律法全部规则，180 处非白名单 px 全部迁到 rem 通道，存量台账归零，白名单外新增即失败；**证据层已闭环**：字号档位下的真实缩放已由像素回执证明（`INFILTRATOR_BEVY_FONT_SCALE=1.0`/`1.5` 同场景真实截图逐像素比对 46.2% 像素变化、差异覆盖整帧），静态守卫与 headless 结果不能替代它，但本次两者同时具备。
 
 ## ① rem/em 动态字号与尺寸（`Val::Rem`/`Val::Em`、`FontSize::Rem`、`RemSize`/`EmSize`）
 
