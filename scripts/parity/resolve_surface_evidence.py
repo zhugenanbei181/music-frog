@@ -52,7 +52,7 @@ def discovered_tests(payload):
 
 
 def validate(manifest, evidence, catalogue=None, discovery=None, require_complete=False, receipts=None,
-             require_features=(), require_surfaces=(), accepted_surfaces=None):
+             require_features=(), require_surfaces=(), accepted_surfaces=None, judge_pixels=True):
     invalid, dangling, pending = [], [], []
     cells, anchors = {}, {}
     specs = {spec["id"]: spec for spec in catalogue} if catalogue is not None else None
@@ -116,6 +116,11 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
         for level in ("contract", "scenario"):
             if anchors.get((*key, level), {}).get("status") != "anchored":
                 invalid.append(f"ready without {level} evidence: {key}")
+        if not judge_pixels:
+            # A structure-only run carries no pixel receipts, so the pixel
+            # layer cannot be judged here; the acceptance run is its
+            # authority and still rejects a cell without verified pixels.
+            continue
         for viewport in ("standard", "compact"):
             if receipts is None or (*key, viewport) not in receipts:
                 invalid.append(f"ready without verified {viewport} pixels: {key}")
@@ -204,7 +209,8 @@ def main():
         report = validate(manifest, evidence,
                           catalogue, discovery, args.require_complete, receipts,
                           tuple(filter(None, args.require_features.split(","))),
-                          require_surfaces, accepted_surfaces)
+                          require_surfaces, accepted_surfaces,
+                          judge_pixels=not args.structure_only)
         report["acceptance_scope"] = "selected-products" if args.product_builds else "baseline-coverage"
         report["release_complete"] = bool(args.product_builds and report["complete"])
         if catalogue is not None:
