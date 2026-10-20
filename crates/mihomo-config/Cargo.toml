@@ -16,7 +16,7 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 lurker-profile-store = { path = "../lurker-profile-store" }
 log = { workspace = true }
-mihomo-driver = { version = "0.50.0", path = "../mihomo-driver", default-features = false, features = [
+mihomo-driver = { version = "0.51.0", path = "../mihomo-driver", default-features = false, features = [
   "codec",
 ] }
 infiltrator-platform = { path = "../infiltrator-platform" }

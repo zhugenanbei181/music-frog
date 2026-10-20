@@ -7,7 +7,7 @@ edition = "2024"
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
-lurker-engine-runtime = { version = "0.50.0", path = "../lurker-engine-runtime" }
+lurker-engine-runtime = { version = "0.51.0", path = "../lurker-engine-runtime" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
@@ -21,7 +21,7 @@ infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 lurker-profile-store = { path = "../lurker-profile-store" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
-mihomo-driver = { version = "0.50.0", path = "../mihomo-driver" }
+mihomo-driver = { version = "0.51.0", path = "../mihomo-driver" }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 mihomo-version = { path = "../mihomo-version" }
@@ -48,6 +48,6 @@ windows-sys = { workspace = true, features = ["Win32_System_Threading", "Win32_S
 [dev-dependencies]
 infiltrator-composition = { path = "../infiltrator-composition", features = ["capture-fixtures"] }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
-lurker-ui-presentation = { version = "0.50.0", path = "../lurker-ui-presentation" }
+lurker-ui-presentation = { version = "0.51.0", path = "../lurker-ui-presentation" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-test-support = { path = "../infiltrator-test-support" }
