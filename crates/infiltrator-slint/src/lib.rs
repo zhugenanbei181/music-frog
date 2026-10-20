@@ -15,8 +15,8 @@
 )]
 
 pub mod age_action;
-pub mod capture_scenario;
 mod callbacks;
+pub mod capture_scenario;
 #[cfg(feature = "capture-tools")]
 pub mod demo;
 mod flag_assets;

@@ -722,12 +722,7 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
             if ticks.get() < 5 || (scenario.is_some() && !stable) {
                 return;
             }
-            write_capture_marker(
-                &marker_settings,
-                &window,
-                activated.get(),
-                bounds,
-            );
+            write_capture_marker(&marker_settings, &window, activated.get(), bounds);
             timer_for_callback.stop();
         },
     );

@@ -44,7 +44,9 @@ pub fn route_mode_action(mode: &str) -> Result<SlintAction, Failure> {
             ));
         }
     };
-    Ok(SlintAction::Command(CommandIntent::SetRoutingIntent { intent }))
+    Ok(SlintAction::Command(CommandIntent::SetRoutingIntent {
+        intent,
+    }))
 }
 
 /// Maps a network mode label to the owner command sequence that switches the
@@ -191,9 +193,12 @@ pub fn selection_action(
         .find(|entry| entry.id.value() == node)
         .map(|entry| entry.id.clone())
         .ok_or_else(|| Failure::new(ErrorCode::InvalidInput, "Unknown proxy node", false))?;
-    let request = OutboundSelectionRequest::new(collection.id.clone(), outbound, inventory.revision())
-        .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
-    Ok(SlintAction::Command(CommandIntent::SelectOutbound { request }))
+    let request =
+        OutboundSelectionRequest::new(collection.id.clone(), outbound, inventory.revision())
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+    Ok(SlintAction::Command(CommandIntent::SelectOutbound {
+        request,
+    }))
 }
 
 /// Builds the owner command that updates the outbound presentation preferences.
@@ -300,7 +305,9 @@ pub fn probe_action(
         settings.timeout_ms() as u64,
     )
     .map_err(map_error)?;
-    Ok(SlintAction::Command(CommandIntent::ProbeOutbound { request }))
+    Ok(SlintAction::Command(CommandIntent::ProbeOutbound {
+        request,
+    }))
 }
 
 /// Maps a log level filter label to the shared log filter command.
