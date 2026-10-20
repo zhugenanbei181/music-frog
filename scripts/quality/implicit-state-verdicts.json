@@ -36,17 +36,6 @@
       "verdict": ""
     },
     {
-      "key": "crates/infiltrator-bevy-ui/src/pages/connections_view.rs::ConnectionsCloseAllState::multi-bool",
-      "file": "crates/infiltrator-bevy-ui/src/pages/connections_view.rs",
-      "type": "ConnectionsCloseAllState",
-      "kind": "multi-bool",
-      "fields": [
-        "armed",
-        "requested"
-      ],
-      "verdict": ""
-    },
-    {
       "key": "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs::DnsFormState::multi-bool",
       "file": "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs",
       "type": "DnsFormState",
@@ -139,16 +128,6 @@
       "kind": "option-as-stage",
       "fields": [
         "active_index"
-      ],
-      "verdict": ""
-    },
-    {
-      "key": "crates/infiltrator-bevy-widgets/src/reorderable.rs::ReorderableListState::option-as-stage",
-      "file": "crates/infiltrator-bevy-widgets/src/reorderable.rs",
-      "type": "ReorderableListState",
-      "kind": "option-as-stage",
-      "fields": [
-        "active_drag_index"
       ],
       "verdict": ""
     },

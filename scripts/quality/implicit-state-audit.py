@@ -237,6 +237,11 @@ def main() -> int:
                     "fields": candidate.fields,
                     "verdict": "",
                 }
+        # A type that no longer matches a candidate is rewritten or gone, so its
+        # verdict must not linger in the ledger.
+        current = {candidate.key for candidate in candidates}
+        for key in [key for key in ledger if key not in current]:
+            del ledger[key]
         save_verdicts(ledger)
 
     undecided = []
