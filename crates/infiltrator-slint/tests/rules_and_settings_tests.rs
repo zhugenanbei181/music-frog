@@ -56,7 +56,11 @@ fn desktop_snapshot() -> SurfaceSnapshot {
 fn single_command(outcome: harness::SurfaceOutcome) -> CommandIntent {
     match outcome {
         harness::SurfaceOutcome::Dispatched(actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             match &actions[0] {
                 SlintAction::Command(intent) => intent.clone(),
                 other => panic!("expected an owner command, got {other:?}"),

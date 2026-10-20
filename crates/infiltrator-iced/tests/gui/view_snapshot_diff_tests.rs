@@ -55,7 +55,10 @@ fn rollback_never_executes_before_the_second_confirmation() {
 fn closing_the_modal_drops_the_diff_and_the_confirmation() {
     let mut state = open_modal_state();
     let _ = state.update(Message::CloseSnapshotDiff);
-    assert_eq!(state.editor.snapshot_diff_modal, SnapshotDiffModalState::Closed);
+    assert_eq!(
+        state.editor.snapshot_diff_modal,
+        SnapshotDiffModalState::Closed
+    );
     assert!(state.editor.snapshot_diff_modal.diff().is_none());
     assert!(state.editor.snapshot_diff_modal.failure().is_none());
 }
@@ -165,7 +168,10 @@ fn refresh_recomputes_the_open_diff_through_the_shared_application() {
         !state.editor.snapshot_diff_modal.is_loading(),
         "nothing is open, so refresh is an inert no-op"
     );
-    assert_eq!(state.editor.snapshot_diff_modal, SnapshotDiffModalState::Closed);
+    assert_eq!(
+        state.editor.snapshot_diff_modal,
+        SnapshotDiffModalState::Closed
+    );
 
     let mut state = open_modal_state();
     state.editor.editor_path = Some(PathBuf::from("/fake/configs/main.yaml"));

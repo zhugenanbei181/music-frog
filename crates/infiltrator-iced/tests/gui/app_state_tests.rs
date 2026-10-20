@@ -399,7 +399,10 @@ fn the_system_proxy_stage_refuses_a_second_change_while_one_is_in_flight() {
 
     // A rejected change returns to the stage it interrupted.
     assert_eq!(state.runtime.begin_system_proxy_change(false), Ok(()));
-    assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Disabling);
+    assert_eq!(
+        state.runtime.system_proxy_stage,
+        SystemProxyStage::Disabling
+    );
     assert!(!state.runtime.system_proxy_stage.is_enabled());
     state.runtime.rollback_system_proxy_change();
     assert_eq!(state.runtime.system_proxy_stage, SystemProxyStage::Enabled);

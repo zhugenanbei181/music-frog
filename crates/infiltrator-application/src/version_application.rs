@@ -537,7 +537,10 @@ mod tests {
         let port_for_application: Arc<dyn VersionPort> = port.clone();
         let application = VersionApplication::new(engine_id.clone(), port_for_application).unwrap();
 
-        let activated = application.rollback().await.expect("core rollback is forwarded");
+        let activated = application
+            .rollback()
+            .await
+            .expect("core rollback is forwarded");
 
         assert_eq!(activated, "v1.19.29");
         let requests = port.rollback_requests.lock().unwrap().clone();

@@ -19,8 +19,8 @@ use lurker_core_contract::identity::{
 use lurker_core_contract::outbound::details::OutboundSnapshot;
 use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
 use lurker_core_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet, OutboundSelectionState,
-    SelectionAvailability,
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+    OutboundSelectionState, SelectionAvailability,
 };
 use lurker_core_contract::outbound::preferences::{
     OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferencesSnapshot,
@@ -100,7 +100,11 @@ fn outbound_snapshot() -> SurfaceSnapshot {
 fn single_command(outcome: harness::SurfaceOutcome) -> CommandIntent {
     match outcome {
         harness::SurfaceOutcome::Dispatched(actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             match &actions[0] {
                 SlintAction::Command(intent) => intent.clone(),
                 other => panic!("expected an owner command, got {other:?}"),

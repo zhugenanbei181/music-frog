@@ -5,7 +5,6 @@
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
-use infiltrator_iced::types::rules::ProviderMaintenanceStage;
 use crate::state::AppState;
 use crate::state::proxy_probe;
 use crate::state::runtime::OutboundProbeStage;
@@ -32,6 +31,7 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_iced::demo::DemoEnv;
 use infiltrator_iced::types::app;
 use infiltrator_iced::types::options;
+use infiltrator_iced::types::rules::ProviderMaintenanceStage;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::details::OutboundLatencySample;

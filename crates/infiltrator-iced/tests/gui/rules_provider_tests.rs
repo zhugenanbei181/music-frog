@@ -6,10 +6,10 @@ use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, RuleProviderCacheSnapshot,
 };
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_iced::types::rules::{ProviderMaintenanceStage, ProviderUnpackState};
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
-use infiltrator_iced::types::rules::{ProviderMaintenanceStage, ProviderUnpackState};
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;

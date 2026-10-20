@@ -518,7 +518,10 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
         let card = cards.iter(world).next().unwrap();
         assert_eq!(card.width, percent(100));
-        assert_eq!(card.border_radius.top_left, rem(radius::BOTTOM_SHEET).into());
+        assert_eq!(
+            card.border_radius.top_left,
+            rem(radius::BOTTOM_SHEET).into()
+        );
         assert_eq!(card.border_radius.bottom_left, Val::Px(0.0).into());
     }
 

@@ -12,7 +12,7 @@ use lurker_engine_runtime::facade::{LurkerRuntimeState, RuntimeError, RuntimeFai
 use lurker_engine_runtime::switch::memory_journal::MemoryEngineSwitchJournal;
 use lurker_sandbox::fault::Fault;
 use lurker_sandbox::ports::{ChaosCodec, ChaosPhase, ChaosProvider};
-use lurker_sandbox::runtime_chaos::{sandbox_identity, Sandbox};
+use lurker_sandbox::runtime_chaos::{Sandbox, sandbox_identity};
 use lurker_sandbox::store_chaos::{observe_corrupted_document, observe_fence_contention};
 
 #[tokio::test]
@@ -49,7 +49,9 @@ async fn a_network_flap_fails_closed_and_the_runtime_heals_itself() {
 
     // The host observes the typed failure and builds a fresh runtime.
     sandbox.clear_faults();
-    let healed = sandbox.runtime().expect("the healed sandbox runtime builds");
+    let healed = sandbox
+        .runtime()
+        .expect("the healed sandbox runtime builds");
     healed.start().await.expect("the healed runtime starts");
     assert!(matches!(healed.state(), LurkerRuntimeState::Running { .. }));
 }
@@ -85,7 +87,10 @@ async fn a_dead_kernel_fails_closed_and_leaves_no_running_claim() {
     let healed = Sandbox::new(EngineId::mihomo());
     let runtime = healed.runtime().expect("the healed sandbox runtime builds");
     runtime.start().await.expect("the fresh kernel starts");
-    assert!(matches!(runtime.state(), LurkerRuntimeState::Running { .. }));
+    assert!(matches!(
+        runtime.state(),
+        LurkerRuntimeState::Running { .. }
+    ));
 }
 
 #[test]
@@ -202,7 +207,11 @@ async fn a_released_owner_lease_is_reclaimed_and_the_journal_rebinds() {
     );
 
     // The reclaimed journal binds a new owner.
-    let revision = journal.snapshot().await.expect("the journal reads back").revision;
+    let revision = journal
+        .snapshot()
+        .await
+        .expect("the journal reads back")
+        .revision;
     let (rebound, _lease) = journal
         .bind_owner(revision, engine, identity, CoreGeneration::new(2))
         .await
@@ -236,9 +245,7 @@ fn scenario_of(fault: Fault) -> &'static str {
         Fault::NetworkFlap => "a_network_flap_fails_closed_and_the_runtime_heals_itself",
         Fault::KernelProcessDeath => "a_dead_kernel_fails_closed_and_leaves_no_running_claim",
         Fault::LockContention => "a_contended_write_fence_fails_closed_and_is_reclaimed",
-        Fault::CorruptedConfiguration => {
-            "a_corrupted_configuration_is_rejected_and_recovered"
-        }
+        Fault::CorruptedConfiguration => "a_corrupted_configuration_is_rejected_and_recovered",
     }
 }
 

@@ -44,7 +44,12 @@ fn connection(id: &str, host: &str, upload_total: u64, download_total: u64) -> C
     }
 }
 
-fn closed_connection(id: &str, destination: &str, upload: u64, download: u64) -> ClosedConnectionSnapshot {
+fn closed_connection(
+    id: &str,
+    destination: &str,
+    upload: u64,
+    download: u64,
+) -> ClosedConnectionSnapshot {
     ClosedConnectionSnapshot {
         id: id.into(),
         destination: destination.into(),
@@ -115,7 +120,11 @@ fn observe_snapshot() -> SurfaceSnapshot {
 fn single_command(outcome: harness::SurfaceOutcome) -> CommandIntent {
     match outcome {
         harness::SurfaceOutcome::Dispatched(actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             match &actions[0] {
                 SlintAction::Command(intent) => intent.clone(),
                 other => panic!("expected an owner command, got {other:?}"),

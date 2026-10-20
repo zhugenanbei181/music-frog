@@ -81,7 +81,12 @@ impl AppState {
             // application" action the Bevy card offers. Re-dispatching through
             // the open path keeps one loading/error state machine.
             Message::RefreshSnapshotDiff => {
-                match self.editor.snapshot_diff_modal.snapshot_id().map(str::to_owned) {
+                match self
+                    .editor
+                    .snapshot_diff_modal
+                    .snapshot_id()
+                    .map(str::to_owned)
+                {
                     Some(id) => self.update_snapshot_diff(Message::OpenSnapshotDiff(id)),
                     None => Task::none(),
                 }

@@ -6,13 +6,13 @@ use crate::host::desktop::system_proxy_port;
 use crate::host::storage::{factory_reset, home_dir, profile_store, reset_profiles_to_default};
 use crate::settings_store::load;
 use crate::state::AppState;
-use crate::state::runtime::SystemProxyStage;
 use crate::state::core_operations::{
     CoreDownloadCancelAdmission, CoreDownloadCompletionAdmission, CoreDownloadInvalidation,
     CoreDownloadProgressAdmission, CoreDownloadRunId, CoreDownloadStart,
     CoreUpdateCheckCompletionAdmission, CoreUpdateCheckInvalidation, CoreUpdateCheckStart,
 };
 use crate::state::profiles::WebDavSyncPhase;
+use crate::state::runtime::SystemProxyStage;
 use crate::types::app::{CoreDownloadProgress, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;

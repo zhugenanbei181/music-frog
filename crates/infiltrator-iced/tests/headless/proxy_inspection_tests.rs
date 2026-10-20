@@ -274,7 +274,9 @@ fn the_outbound_probe_stage_refuses_a_second_probe_and_keeps_the_stages_exclusiv
     assert_eq!(state.runtime.outbound_probe.failure(), Some(&failure));
 
     // A blocked probe keeps the interrupted failure and never runs.
-    state.runtime.block_outbound_probe(proxy_probe::OutboundProbeActionAvailability::CoreUnknown);
+    state
+        .runtime
+        .block_outbound_probe(proxy_probe::OutboundProbeActionAvailability::CoreUnknown);
     assert_eq!(
         state.runtime.outbound_probe,
         OutboundProbeStage::Blocked {
@@ -364,7 +366,13 @@ fn native_probe_preserves_failure_retries_the_same_intent_and_ignores_feedback_a
     let task = state.update(Message::ProbeInspectedOutbound);
     let result = terminal(task);
     assert_eq!(state.update(result).units(), 0);
-    assert!(state.runtime.outbound_probe.blocked_availability().is_none());
+    assert!(
+        state
+            .runtime
+            .outbound_probe
+            .blocked_availability()
+            .is_none()
+    );
     assert!(state.runtime.outbound_probe.failure().is_none());
     assert_eq!(
         state

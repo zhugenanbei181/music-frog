@@ -91,7 +91,10 @@ fn native_search_submits_the_typed_owner_preference_and_recovers_from_a_refused_
     });
     fixture.attach_to(&mut state, &application);
     let baseline = visible_members(&state);
-    assert!(baseline.len() >= 3, "the published window is the search domain");
+    assert!(
+        baseline.len() >= 3,
+        "the published window is the search domain"
+    );
 
     // success: the typed preference reaches the owner and the narrowed window is published.
     handler
@@ -225,11 +228,7 @@ fn native_search_submits_the_typed_owner_preference_and_recovers_from_a_refused_
     surface.revision = state.surface.revision() + 1;
     surface.outbound_inventory = PageData::ready(fixture.inventory.clone());
     surface.outbound_details = PageData::ready(fixture.details.clone());
-    surface.outbound_ui_preferences = PageData::ready(confirmed_preferences(
-        &scope,
-        56,
-        "香港",
-    ));
+    surface.outbound_ui_preferences = PageData::ready(confirmed_preferences(&scope, 56, "香港"));
     assert!(state.apply_shared_surface_snapshot(surface));
     let refreshed = visible_members(&state);
     assert_eq!(refreshed, vec!["hong-kong".to_owned()]);

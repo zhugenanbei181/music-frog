@@ -267,8 +267,10 @@ impl AppState {
         match self.runtime.begin_outbound_probe(token) {
             Ok(()) => {}
             // Another probe still owns the stage; it stays in flight.
-            Err(OutboundProbeRefusal::AlreadyRunning { .. }
-            | OutboundProbeRefusal::NotRunning { .. }) => return Task::none(),
+            Err(
+                OutboundProbeRefusal::AlreadyRunning { .. }
+                | OutboundProbeRefusal::NotRunning { .. },
+            ) => return Task::none(),
         }
         let Some(ingress) = self.command_ingress() else {
             self.runtime.record_outbound_probe_failure(Failure::new(

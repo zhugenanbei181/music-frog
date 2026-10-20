@@ -107,11 +107,15 @@ impl ChaosProcess {
     }
 
     fn state(&self) -> ChaosGuard<'_> {
-        self.state.lock().expect("the chaos state lock is not poisoned")
+        self.state
+            .lock()
+            .expect("the chaos state lock is not poisoned")
     }
 
     fn state_mut(&self) -> ChaosGuard<'_> {
-        self.state.lock().expect("the chaos state lock is not poisoned")
+        self.state
+            .lock()
+            .expect("the chaos state lock is not poisoned")
     }
 }
 
@@ -183,9 +187,9 @@ impl CoreReadiness for ChaosReadiness {
         }
         match state.phase {
             ChaosPhase::Running => Ok("chaos-ready".to_owned()),
-            ChaosPhase::Stopped => {
-                Err(PortError::Network("the chaos process is stopped".to_owned()))
-            }
+            ChaosPhase::Stopped => Err(PortError::Network(
+                "the chaos process is stopped".to_owned(),
+            )),
             ChaosPhase::Died => Err(PortError::Failed(
                 "the kernel process died before the readiness probe".to_owned(),
             )),

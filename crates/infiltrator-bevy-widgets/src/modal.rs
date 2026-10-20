@@ -742,7 +742,9 @@ mod tests {
         mount_confirm_dialog(&mut app);
 
         let confirm = action_entity(&mut app, true);
-        app.world_mut().commands().trigger(Activate { entity: confirm });
+        app.world_mut()
+            .commands()
+            .trigger(Activate { entity: confirm });
         app.update();
         app.update();
         assert_eq!(
@@ -752,7 +754,9 @@ mod tests {
         );
 
         let cancel = action_entity(&mut app, false);
-        app.world_mut().commands().trigger(Activate { entity: cancel });
+        app.world_mut()
+            .commands()
+            .trigger(Activate { entity: cancel });
         app.update();
         app.update();
         assert_eq!(

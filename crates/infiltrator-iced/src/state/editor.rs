@@ -158,10 +158,7 @@ pub enum SnapshotDiffModalState {
         diff: YamlAstDiffSnapshot,
     },
     /// The modal is open and the load failed with the typed reason.
-    Failed {
-        snapshot_id: String,
-        reason: String,
-    },
+    Failed { snapshot_id: String, reason: String },
 }
 
 impl SnapshotDiffModalState {

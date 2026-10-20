@@ -9,9 +9,7 @@ use crate::ports::{ChaosProcess, ChaosProvider};
 use lurker_core_contract::identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use lurker_core_ports::engine_backend::{EngineBackendPorts, EngineBackendProvider};
 use lurker_core_ports::error::PortError;
-use lurker_engine_runtime::facade::{
-    LurkerRuntime, LurkerRuntimeBuilder, RuntimeBuildError,
-};
+use lurker_engine_runtime::facade::{LurkerRuntime, LurkerRuntimeBuilder, RuntimeBuildError};
 use std::sync::Arc;
 use std::time::Duration;
 

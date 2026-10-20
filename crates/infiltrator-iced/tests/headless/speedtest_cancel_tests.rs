@@ -13,7 +13,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_contract::speedtest::{
-    SpeedtestCancelOutcome, SpeedtestProgress, SpeedtestRunId, SpeedtestRunState, SpeedtestRounds,
+    SpeedtestCancelOutcome, SpeedtestProgress, SpeedtestRounds, SpeedtestRunId, SpeedtestRunState,
     SpeedtestSnapshot, SpeedtestTarget,
 };
 use infiltrator_iced::state::AppState;
@@ -46,9 +46,9 @@ fn terminal(task: Task<Message>) -> Message {
 fn owner() -> (CoreApplication, OutboundFixture, CoreScope) {
     let (application, _handler) = recording_application();
     application
-        .install_speedtest_application(SpeedtestApplication::new(SettingsApplication::new(Arc::new(
-            ProbeSettingsStore::default(),
-        ))))
+        .install_speedtest_application(SpeedtestApplication::new(SettingsApplication::new(
+            Arc::new(ProbeSettingsStore::default()),
+        )))
         .expect("the speedtest owner is installed once");
     let scope = application
         .snapshot()
@@ -69,11 +69,7 @@ fn owner() -> (CoreApplication, OutboundFixture, CoreScope) {
 }
 
 /// Publish the owner's running speedtest so the surface shows a real run.
-fn publish_running_speedtest(
-    state: &mut AppState,
-    scope: &CoreScope,
-    run_id: SpeedtestRunId,
-) {
+fn publish_running_speedtest(state: &mut AppState, scope: &CoreScope, run_id: SpeedtestRunId) {
     let target = SpeedtestTarget::new(
         scope.clone(),
         SnapshotRevision::new(51),

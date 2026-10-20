@@ -18,7 +18,9 @@
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::{
+    ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
+};
 use infiltrator_slint::SlintAction;
 use infiltrator_slint::capture_scenario;
 use infiltrator_slint::surface::harness;
@@ -61,7 +63,11 @@ fn profiles_snapshot() -> SurfaceSnapshot {
 fn single_action(outcome: harness::SurfaceOutcome) -> SlintAction {
     match outcome {
         harness::SurfaceOutcome::Dispatched(mut actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             actions.remove(0)
         }
         harness::SurfaceOutcome::Rejected { failure, .. } => {
@@ -106,7 +112,11 @@ fn profiles_import_modal_success_dispatches_the_shared_import_command() {
     surface.fill_profile_add("Beta Subscription", "https://example.com/sub/beta", "");
     let action = single_action(surface.confirm_profile_add());
     match action {
-        SlintAction::ImportEncryptedSubscription { name, url, private_key } => {
+        SlintAction::ImportEncryptedSubscription {
+            name,
+            url,
+            private_key,
+        } => {
             assert_eq!(name, "Beta Subscription");
             assert_eq!(url, "https://example.com/sub/beta");
             assert_eq!(private_key, None);
@@ -156,7 +166,10 @@ fn profiles_import_modal_error_refuses_an_invalid_age_key() {
 
     let failure = rejection(surface.confirm_profile_add());
     assert_eq!(failure.code, ErrorCode::InvalidInput);
-    assert_eq!(failure.message, "Age private key must be a single trimmed line");
+    assert_eq!(
+        failure.message,
+        "Age private key must be a single trimmed line"
+    );
     assert_eq!(surface.notice(), failure.message);
 }
 
@@ -267,5 +280,9 @@ fn the_capture_scenario_opens_the_sheet_of_the_business_it_names() {
     assert_eq!(window.get_pending_delete_name(), "Beta Local Direct");
 
     // A business the surface does not carry is never activated.
-    assert!(!capture_scenario::activate(window, "dns-leak-alert", &snapshot));
+    assert!(!capture_scenario::activate(
+        window,
+        "dns-leak-alert",
+        &snapshot
+    ));
 }

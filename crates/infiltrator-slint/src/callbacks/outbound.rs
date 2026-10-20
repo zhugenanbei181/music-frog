@@ -45,15 +45,13 @@ pub(super) fn register(
     let tx = requests.clone();
     let latest_for_proxy_sort = Arc::clone(&latest);
     let weak_for_proxy_sort = weak.clone();
-    window.on_set_proxy_sort(move |sort| {
-        match action::proxy_sort_action(sort.as_str()) {
-            Ok(intent) => {
-                let action = require_snapshot(&latest_for_proxy_sort)
-                    .and_then(|snapshot| action::outbound_preference_action(&snapshot, intent));
-                queue_action(&tx, &weak_for_proxy_sort, action);
-            }
-            Err(failure) => show_failure(&weak_for_proxy_sort, failure),
+    window.on_set_proxy_sort(move |sort| match action::proxy_sort_action(sort.as_str()) {
+        Ok(intent) => {
+            let action = require_snapshot(&latest_for_proxy_sort)
+                .and_then(|snapshot| action::outbound_preference_action(&snapshot, intent));
+            queue_action(&tx, &weak_for_proxy_sort, action);
         }
+        Err(failure) => show_failure(&weak_for_proxy_sort, failure),
     });
 
     let tx = requests.clone();
@@ -153,9 +151,8 @@ pub(super) fn register(
     let latest_for_rule = Arc::clone(&latest);
     let weak_for_rule = weak.clone();
     window.on_set_rule_enabled(move |index, enabled| {
-        let action = require_snapshot(&latest_for_rule).and_then(|snapshot| {
-            action::rule_enabled_action(&snapshot, index.as_str(), enabled)
-        });
+        let action = require_snapshot(&latest_for_rule)
+            .and_then(|snapshot| action::rule_enabled_action(&snapshot, index.as_str(), enabled));
         match action {
             Ok(Some(intent)) => {
                 let weak = weak_for_rule.clone();

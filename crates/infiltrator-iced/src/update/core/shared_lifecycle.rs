@@ -25,7 +25,10 @@ impl AppState {
         match self.runtime.begin_lifecycle(action) {
             Ok(()) => {}
             // Another command still owns the lifecycle stage; it stays running.
-            Err(CoreLifecycleRefusal::AlreadyRunning { .. } | CoreLifecycleRefusal::NotRunning { .. }) => {
+            Err(
+                CoreLifecycleRefusal::AlreadyRunning { .. }
+                | CoreLifecycleRefusal::NotRunning { .. },
+            ) => {
                 return Task::none();
             }
         }

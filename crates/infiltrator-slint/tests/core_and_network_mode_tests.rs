@@ -55,7 +55,11 @@ fn desktop_snapshot() -> SurfaceSnapshot {
 fn single_command(outcome: harness::SurfaceOutcome) -> CommandIntent {
     match outcome {
         harness::SurfaceOutcome::Dispatched(actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             match &actions[0] {
                 SlintAction::Command(intent) => intent.clone(),
                 other => panic!("expected an owner command, got {other:?}"),
@@ -147,7 +151,11 @@ fn network_mode_switches_from_proxy_to_tun_while_running() {
 
     match surface.set_network_mode("TUN") {
         harness::SurfaceOutcome::Dispatched(actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             match &actions[0] {
                 SlintAction::Sequence(commands) => assert_eq!(
                     commands,
@@ -180,7 +188,11 @@ fn network_mode_switches_to_core_only_while_stopped() {
 
     match surface.set_network_mode("Core only") {
         harness::SurfaceOutcome::Dispatched(actions) => {
-            assert_eq!(actions.len(), 1, "expected one owner action, got {actions:?}");
+            assert_eq!(
+                actions.len(),
+                1,
+                "expected one owner action, got {actions:?}"
+            );
             match &actions[0] {
                 SlintAction::Sequence(commands) => assert_eq!(
                     commands,

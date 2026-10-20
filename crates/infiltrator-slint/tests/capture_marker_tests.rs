@@ -12,7 +12,7 @@
 #![cfg(feature = "capture-tools")]
 
 use infiltrator_slint::capture_scenario::CaptureBounds;
-use infiltrator_slint::demo::{write_capture_marker, DemoSettings};
+use infiltrator_slint::demo::{DemoSettings, write_capture_marker};
 use std::fs;
 use std::path::PathBuf;
 
@@ -50,7 +50,10 @@ fn the_marker_publishes_the_activated_scenario_with_its_real_bounds() {
     );
 
     let line = read_marker(&marker);
-    assert!(line.contains("CAPTURE_READY page=profiles skin=dark"), "{line}");
+    assert!(
+        line.contains("CAPTURE_READY page=profiles skin=dark"),
+        "{line}"
+    );
     assert!(
         line.contains("scenario=profiles-import-modal activated=true"),
         "{line}"

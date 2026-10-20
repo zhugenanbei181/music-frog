@@ -216,7 +216,9 @@ fn the_lifecycle_stage_refuses_a_second_command_while_one_is_in_flight() {
     // A reply for another action is refused and the running stage survives.
     let failure = Failure::from(PortError::PermissionDenied("denied".into()));
     assert_eq!(
-        state.runtime.settle_lifecycle(CoreControlAction::Stop, Err(failure.clone())),
+        state
+            .runtime
+            .settle_lifecycle(CoreControlAction::Stop, Err(failure.clone())),
         Err(CoreLifecycleRefusal::NotRunning {
             action: CoreControlAction::Stop
         })
@@ -230,7 +232,9 @@ fn the_lifecycle_stage_refuses_a_second_command_while_one_is_in_flight() {
 
     // The running command settles into exactly one stage.
     assert_eq!(
-        state.runtime.settle_lifecycle(CoreControlAction::Start, Err(failure.clone())),
+        state
+            .runtime
+            .settle_lifecycle(CoreControlAction::Start, Err(failure.clone())),
         Ok(())
     );
     assert_eq!(
