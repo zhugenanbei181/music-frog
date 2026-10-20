@@ -12,8 +12,8 @@ use lurker_core_contract::identity::{
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use lurker_core_ports::error::PortError;
-use std::future::pending;
 use std::collections::VecDeque;
+use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use url::Url;
