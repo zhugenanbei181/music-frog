@@ -20,7 +20,7 @@ use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::text::{Role, TextRole};
-use crate::theme::space;
+use crate::theme::{radius, space};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -336,7 +336,10 @@ pub fn modal_scene(
                     padding: UiRect::all(rem(space::S16)),
                     row_gap: rem(space::S16),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
+                    // A centered modal dialog is the contract's `MODAL` rung
+                    // ("centered modal dialog, centered command palette"); a
+                    // panel-style dialog card is `CARD`.
+                    border_radius: BorderRadius::all(rem(radius::MODAL)),
                 }
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
