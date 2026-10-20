@@ -72,7 +72,7 @@
   - 依赖：无；与并行工流按文件所有权切分（Bevy UI / Bevy widgets / Iced runtime 三簇）。
   - 验收：候选全部判决完毕；`--mode enforce` 通过；真实违规全部改写为 typed enum + typed transition，并有行为测试证明非法组合不再可表示。
   - 计划：① 审计器与台账入仓并接进结构门（report 模式，已做）；② 三簇并行逐条改写，发现一处改一处；③ 逐条判决并把 enforce 打开。
-  - 进度：27 条候选已入台账（15 条 multi-bool、12 条 option-as-stage）；首条已改写（`ProviderUnpackState` 的两个 flag → `ProviderMaintenanceStage` typed enum + 拒绝非法并发）；其余三簇并行处理中。
+  - 进度：26 条候选在台账（15 条 multi-bool、11 条 option-as-stage），已判决 8 条：6 条判定为**合法独立事实**（admin 作业的 `last_error`、Iced diagnostics、editor 的逐区 dirty/loaded 标记、profile 聚合向导草稿选项、shell 独立标志），2 条已改写（`ProviderUnpackState` 的两个 flag → `ProviderMaintenanceStage`；快照差异弹窗的 4 个字段 → `SnapshotDiffModalState`）；Bevy UI / Bevy widgets / Iced runtime 三簇并行改写中，台账未判决或 `open` 即门禁失败。
   - 证据：审计器 self-test PASS；首条改写后 Iced 538/538 全绿 + 新增互斥用例通过（nextest `d73f34dc-1650-4a56-a615-82dcaf7e0435`）。
 
 ## 五、A 主线：crates.io 发布流水线与开发者生态
