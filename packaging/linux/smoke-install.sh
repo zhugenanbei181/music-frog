@@ -94,6 +94,22 @@ identity_value() {
     python3 "$REPO_ROOT/scripts/product_identity.py" --get "desktop.$PRODUCT.$1"
 }
 
+# The artifacts are addressed absolutely: the install leg changes the working
+# directory, and a relative path would not resolve there anymore.
+absolute_path() {
+    case "$1" in
+        /*) printf '%s\n' "$1" ;;
+        *) printf '%s\n' "$PWD/$1" ;;
+    esac
+}
+
+if [ -n "$DEB_PATH" ]; then
+    DEB_PATH="$(absolute_path "$DEB_PATH")"
+fi
+if [ -n "$APPIMAGE_PATH" ]; then
+    APPIMAGE_PATH="$(absolute_path "$APPIMAGE_PATH")"
+fi
+
 APP_BIN="$(identity_value binary_name)"
 APP_PKG="$(identity_value linux_package_id)"
 APP_DISPLAY_NAME="$(identity_value display_name)"

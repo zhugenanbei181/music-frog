@@ -158,10 +158,13 @@ def deb_tree(package: Path) -> tuple[dict[str, tuple[bytes | None, int]], dict[s
 
 def appimage_tree(appimage: Path) -> dict[str, tuple[bytes | None, int]]:
     """Extract an AppImage and read the file tree it carries."""
+    # The extraction runs in its own working directory, so the artifact path
+    # must be absolute.
+    artifact = appimage.resolve()
     with tempfile.TemporaryDirectory(prefix="infiltrator-appimage-verify-") as temporary:
         workspace = Path(temporary)
         result = subprocess.run(
-            [str(appimage), "--appimage-extract"],
+            [str(artifact), "--appimage-extract"],
             cwd=workspace,
             capture_output=True,
             text=True,
