@@ -153,6 +153,7 @@ FLOATING_LAYER_ROOTS = (
     "MiniHudRoot",
     "ToastContainer",
     "CommandPaletteOverlayRoot",
+    "AdaptiveModalRoot",
 )
 FLOATING_DECLARATION = "ThemeContext(SurfaceLevel::Floating)"
 MARKER_DEFINITION = re.compile(r"pub\s+struct\s+(\w+)\s*;")

@@ -8,6 +8,7 @@ use crate::palette::rem;
 use crate::responsive::{ModalForm, ResponsiveContext};
 use crate::text::{Role, TextRole};
 use crate::theme::{radius, space};
+use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
@@ -16,6 +17,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, JustifyContent,
     Node, Overflow, PositionType, UiRect, Val, percent, px,
@@ -98,6 +100,8 @@ pub fn adaptive_modal_scene(
                 align_items: AlignItems::Center,
                 display: Display::None,
             }
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             AdaptiveModalRoot
             Children [
                 Node {
