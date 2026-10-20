@@ -18,6 +18,7 @@ use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
+use infiltrator_presentation::log_page_model::LogLevelFilter;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
@@ -395,14 +396,13 @@ impl AppState {
                 ))
             }
             Message::UpdateLogRegexFilter(q) => {
-                self.diag.log_search.edit_query(&q);
-                self.diag.log_filter.regex_query = q;
+                self.diag.logs_page.edit_query(&q);
                 Task::none()
             }
-            Message::SetLogLevelFilter(lvl) => {
+            Message::SetLogLevelFilter(level) => {
                 if let Some(application) = self.command_ingress() {
                     let generation = self.runtime.core_lifecycle.generation;
-                    let level = (!lvl.trim().is_empty()).then_some(lvl);
+                    let level = level.map(|level| level.label().to_string());
                     return Task::perform(
                         async move {
                             application
@@ -415,7 +415,10 @@ impl AppState {
                     );
                 }
 
-                self.diag.log_filter.level_filter = lvl;
+                self.diag.logs_page.select_level(match level {
+                    Some(level) => LogLevelFilter::Level(level),
+                    None => LogLevelFilter::All,
+                });
                 Task::none()
             }
             Message::UpdatePacBypassSubnets(subnets) => {

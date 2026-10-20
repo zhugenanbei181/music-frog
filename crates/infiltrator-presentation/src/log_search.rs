@@ -19,6 +19,38 @@ pub struct LogSearchRow {
     pub message: Vec<SearchTextRun>,
 }
 
+/// The typed outcome of the logs search fold.
+///
+/// Every surface renders the search state from this one enum, so "the pattern
+/// is broken" can never look like "nothing matched" and "the page is gone" can
+/// never look like an empty result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LogSearchOutcome {
+    /// The query is not a usable regular expression.
+    InvalidPattern {
+        /// Why the pattern did not compile.
+        reason: String,
+    },
+    /// The observed page is not currently readable.
+    SourceUnavailable,
+    /// The owner reported no records at all.
+    NoRecords,
+    /// The query is valid but no record matches it.
+    NoMatches {
+        /// Rows that matched.
+        matched: usize,
+        /// Rows the owner reported.
+        source: usize,
+    },
+    /// The query matched at least one record.
+    Results {
+        /// Rows that matched.
+        matched: usize,
+        /// Rows the owner reported.
+        source: usize,
+    },
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct LogSearchState {
     pub follow: LogFollowState,
@@ -197,16 +229,37 @@ impl LogSearchState {
     }
 
     pub fn status_key(&self) -> &'static str {
-        if self.query.invalid_error().is_some() {
-            "logs_search_invalid"
-        } else if !self.source_current() {
-            "logs_search_unavailable"
-        } else if self.source_count() == 0 {
-            "logs_no_realtime_records"
-        } else if self.matched_count == 0 {
-            "logs_search_no_matches"
-        } else {
-            "logs_search_results"
+        match self.outcome() {
+            LogSearchOutcome::InvalidPattern { .. } => "logs_search_invalid",
+            LogSearchOutcome::SourceUnavailable => "logs_search_unavailable",
+            LogSearchOutcome::NoRecords => "logs_no_realtime_records",
+            LogSearchOutcome::NoMatches { .. } => "logs_search_no_matches",
+            LogSearchOutcome::Results { .. } => "logs_search_results",
+        }
+    }
+
+    /// The typed outcome of the search fold.
+    pub fn outcome(&self) -> LogSearchOutcome {
+        if let Some(reason) = self.query.invalid_error() {
+            return LogSearchOutcome::InvalidPattern {
+                reason: reason.to_owned(),
+            };
+        }
+        if !self.source_current() {
+            return LogSearchOutcome::SourceUnavailable;
+        }
+        if self.source_count() == 0 {
+            return LogSearchOutcome::NoRecords;
+        }
+        if self.matched_count == 0 {
+            return LogSearchOutcome::NoMatches {
+                matched: 0,
+                source: self.source_count(),
+            };
+        }
+        LogSearchOutcome::Results {
+            matched: self.matched_count,
+            source: self.source_count(),
         }
     }
 }

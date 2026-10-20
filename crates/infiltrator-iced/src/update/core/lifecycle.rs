@@ -43,7 +43,7 @@ impl AppState {
                 self.diag.traffic = None;
                 self.diag.traffic_history.clear();
                 self.diag.connections = None;
-                self.diag.connection_groups.clear_observation();
+                self.diag.connections_model.clear_observation();
                 self.runtime.core_resources = CoreResourceSnapshot::NotObserved;
                 self.diag.public_ip = None;
                 self.diag.public_ip_provider = None;

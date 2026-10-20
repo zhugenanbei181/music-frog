@@ -51,11 +51,11 @@ fn native_log_query_drives_shared_regex_highlights_error_empty_and_clear() {
         let _ = state.update(Message::LogReceived(raw.into()));
     }
     edit(&mut state, "api\\.example|timeout");
-    assert_eq!(state.diag.log_search.matched_count(), 2);
+    assert_eq!(state.diag.logs_page.matched_count(), 2);
     assert!(
         state
             .diag
-            .log_search
+            .logs_page
             .row(1)
             .unwrap()
             .message
@@ -63,10 +63,10 @@ fn native_log_query_drives_shared_regex_highlights_error_empty_and_clear() {
             .any(|run| run.highlighted && run.text == "API.example")
     );
     edit(&mut state, "(");
-    assert_eq!(state.diag.log_search.status_key(), "logs_search_invalid");
-    assert!(state.diag.log_search.invalid_pattern().is_some());
+    assert_eq!(state.diag.logs_page.status_key(), "logs_search_invalid");
+    assert!(state.diag.logs_page.invalid_pattern().is_some());
     edit(&mut state, "no-match");
-    assert_eq!(state.diag.log_search.status_key(), "logs_search_no_matches");
+    assert_eq!(state.diag.logs_page.status_key(), "logs_search_no_matches");
     let messages = native(
         search(&state),
         InteractionRegion::LogsSearchClear.id(),
@@ -76,14 +76,14 @@ fn native_log_query_drives_shared_regex_highlights_error_empty_and_clear() {
     for message in messages {
         let _ = state.update(message);
     }
-    assert_eq!(state.diag.log_search.query(), "");
-    assert_eq!(state.diag.log_search.matched_count(), 3);
+    assert_eq!(state.diag.logs_page.query(), "");
+    assert_eq!(state.diag.logs_page.matched_count(), 3);
     let _ = state.update(Message::ClearRuntimeLogs);
     assert_eq!(
-        state.diag.log_search.status_key(),
+        state.diag.logs_page.status_key(),
         "logs_no_realtime_records"
     );
-    assert_eq!(state.diag.log_search.source_count(), 0);
+    assert_eq!(state.diag.logs_page.source_count(), 0);
 }
 
 #[test]
@@ -91,15 +91,15 @@ fn native_log_query_is_retained_across_refresh_language_and_observed_empty() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::LogReceived("INFO[1] connected".into()));
     edit(&mut state, "timeout");
-    assert_eq!(state.diag.log_search.status_key(), "logs_search_no_matches");
+    assert_eq!(state.diag.logs_page.status_key(), "logs_search_no_matches");
     let _ = state.update(Message::LogReceived("WARN[2] TIMEOUT on stream".into()));
-    assert_eq!(state.diag.log_search.matched_count(), 1);
+    assert_eq!(state.diag.logs_page.matched_count(), 1);
     state.shell.lang = "en-US".into();
-    assert_eq!(state.diag.log_search.query(), "timeout");
+    assert_eq!(state.diag.logs_page.query(), "timeout");
     assert!(
         state
             .diag
-            .log_search
+            .logs_page
             .row(2)
             .unwrap()
             .message
@@ -107,9 +107,9 @@ fn native_log_query_is_retained_across_refresh_language_and_observed_empty() {
             .any(|run| run.highlighted && run.text == "TIMEOUT")
     );
     let _ = state.update(Message::ClearRuntimeLogs);
-    assert_eq!(state.diag.log_search.query(), "timeout");
+    assert_eq!(state.diag.logs_page.query(), "timeout");
     assert_eq!(
-        state.diag.log_search.status_key(),
+        state.diag.logs_page.status_key(),
         "logs_no_realtime_records"
     );
 }
@@ -142,7 +142,7 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     };
     read(&mut state);
     edit(&mut state, "api\\.example");
-    assert_eq!(state.diag.log_search.matched_count(), 2);
+    assert_eq!(state.diag.logs_page.matched_count(), 2);
     let current = core.snapshot();
     let scope = LogSession::from_core_scope(current.scope().expect("current core scope"))
         .expect("current log session");
@@ -151,11 +151,8 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
         Failure::new(ErrorCode::Permission, "controller denied", false),
     );
     read(&mut state);
-    assert_eq!(
-        state.diag.log_search.status_key(),
-        "logs_search_unavailable"
-    );
-    assert_eq!(state.diag.log_search.matched_count(), 2);
+    assert_eq!(state.diag.logs_page.status_key(), "logs_search_unavailable");
+    assert_eq!(state.diag.logs_page.matched_count(), 2);
     let restarting = core.clone();
     runtime.block_on(Box::pin(async move {
         execute_at_observed_scope(&restarting, CommandIntent::RestartCore)
@@ -164,8 +161,8 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
             .unwrap();
     }));
     read(&mut state);
-    assert_eq!(state.diag.log_search.query(), "api\\.example");
-    assert!(state.diag.log_search.rows().is_empty());
+    assert_eq!(state.diag.logs_page.query(), "api\\.example");
+    assert!(state.diag.logs_page.rows().is_empty());
     let current = core.snapshot();
     let scope = LogSession::from_core_scope(current.scope().expect("current core scope"))
         .expect("current log session");
@@ -181,7 +178,7 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     );
     read(&mut state);
     assert_eq!(
-        state.diag.log_search.status_key(),
+        state.diag.logs_page.status_key(),
         "logs_no_realtime_records"
     );
     let closing = core.clone();
@@ -201,12 +198,12 @@ fn native_follow_toggle_locks_scroll_operations_without_stopping_actual_log_inge
             ScrollEffect::Position(0.0)
         );
     }
-    assert!(!state.diag.log_search.follow.should_follow());
+    assert!(!state.diag.logs_page.follow().should_follow());
     assert_eq!(
         native_scroll_effect(state.update(Message::LogReceived("INFO[1] still received".into()))),
         ScrollEffect::Position(0.0)
     );
-    assert_eq!(state.diag.log_search.source_count(), 1);
+    assert_eq!(state.diag.logs_page.source_count(), 1);
     let messages = native(follow(&state), InteractionRegion::LogFollow.id(), None);
     assert!(!messages.is_empty());
     for message in messages {
@@ -215,7 +212,7 @@ fn native_follow_toggle_locks_scroll_operations_without_stopping_actual_log_inge
             ScrollEffect::End
         );
     }
-    assert!(state.diag.log_search.follow.should_follow());
+    assert!(state.diag.logs_page.follow().should_follow());
     let _ = state.update(Message::LogsScrolled {
         offset: 400.0,
         content: 600.0,
@@ -226,12 +223,12 @@ fn native_follow_toggle_locks_scroll_operations_without_stopping_actual_log_inge
         content: 600.0,
         viewport: 200.0,
     });
-    assert!(!state.diag.log_search.follow.should_follow());
+    assert!(!state.diag.logs_page.follow().should_follow());
     assert_eq!(
         native_scroll_effect(state.update(Message::LogReceived("WARN[2] no forced jump".into()))),
         ScrollEffect::Position(300.0)
     );
-    assert_eq!(state.diag.log_search.source_count(), 2);
+    assert_eq!(state.diag.logs_page.source_count(), 2);
 }
 
 #[derive(Debug, Default, PartialEq)]

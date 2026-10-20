@@ -25,12 +25,12 @@ fn native_connection_search_preserves_original_runs_metadata_empty_and_clear_thr
     edit(&mut state, "API-0");
     assert_eq!(
         (
-            state.diag.connection_groups.matched_count(),
-            state.diag.connection_groups.source_count()
+            state.diag.connections_model.matched_count(),
+            state.diag.connections_model.source_count()
         ),
         (2, 9)
     );
-    let row = state.diag.connection_groups.search_row("group-0").unwrap();
+    let row = state.diag.connections_model.search_row("group-0").unwrap();
     assert_eq!(
         row.endpoint
             .iter()
@@ -40,12 +40,12 @@ fn native_connection_search_preserves_original_runs_metadata_empty_and_clear_thr
         ["api-0"]
     );
     edit(&mut state, "203.0.113.1");
-    let row = state.diag.connection_groups.search_row("group-0").unwrap();
+    let row = state.diag.connections_model.search_row("group-0").unwrap();
     assert_eq!(row.matched_term[0].text, "203.0.113.1");
     assert!(row.matched_term[0].highlighted);
     edit(&mut state, "no-match");
-    assert!(state.diag.connection_groups.summary_empty());
-    assert_eq!(state.diag.connection_groups.matched_count(), 0);
+    assert!(state.diag.connections_model.summary_empty());
+    assert_eq!(state.diag.connections_model.matched_count(), 0);
     let messages = native(
         connections_controls::search(&state),
         InteractionRegion::ConnectionSearchClear.id(),
@@ -56,7 +56,7 @@ fn native_connection_search_preserves_original_runs_metadata_empty_and_clear_thr
         let _ = state.update(message);
     }
     assert_eq!(state.runtime.runtime_connection_filter, "");
-    assert_eq!(state.diag.connection_groups.matched_count(), 9);
+    assert_eq!(state.diag.connections_model.matched_count(), 9);
 }
 
 #[test]
@@ -72,14 +72,14 @@ fn native_connection_search_refresh_and_core_stop_retire_observations_without_lo
     let _ = state.update(Message::ConnectionsReceived(snapshot));
     assert_eq!(
         (
-            state.diag.connection_groups.matched_count(),
-            state.diag.connection_groups.source_count()
+            state.diag.connections_model.matched_count(),
+            state.diag.connections_model.source_count()
         ),
         (1, 1)
     );
     let _ = state.update(Message::CoreStopped);
     assert_eq!(state.runtime.runtime_connection_filter, "API-0");
-    assert!(!state.diag.connection_groups.source_current());
-    assert!(!state.diag.connection_groups.summary_empty());
-    assert_eq!(state.diag.connection_groups.source_count(), 0);
+    assert!(!state.diag.connections_model.source_current());
+    assert!(!state.diag.connections_model.summary_empty());
+    assert_eq!(state.diag.connections_model.source_count(), 0);
 }

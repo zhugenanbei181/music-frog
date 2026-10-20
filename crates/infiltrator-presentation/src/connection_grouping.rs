@@ -90,6 +90,17 @@ impl<C: ConnectionView + Clone> ConnectionGroupingState<C> {
     pub fn search_row(&self, id: &str) -> Option<&ConnectionSearchRow> {
         self.search.get(id)
     }
+    /// The observed rows that survive the current query, in observation order.
+    pub fn visible_rows(&self) -> Vec<&C> {
+        self.source
+            .iter()
+            .filter(|row| {
+                self.search
+                    .get(row.view_id())
+                    .is_some_and(|row| row.visible)
+            })
+            .collect()
+    }
     pub fn summary_empty(&self) -> bool {
         matches!(self.source_state, ConnectionSourceState::Current)
             && !self.query.trim().is_empty()

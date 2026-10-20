@@ -5,8 +5,23 @@ use infiltrator_domain::connection_rate::{
     PULSE_MIN_INTENSITY,
 };
 use infiltrator_domain::connection_view::matches_search;
-use infiltrator_domain::connection_view::{aggregate_connections, route_chain};
+use infiltrator_domain::connection_view::{ConnectionSortKey, aggregate_connections, route_chain};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
+use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
+
+/// The row order the shared connections page model publishes for one sort key.
+fn ordered_ids(
+    model: &mut ConnectionsPageModel<Connection>,
+    key: ConnectionSortKey,
+    rates: &ConnectionRates,
+) -> Vec<String> {
+    model.select_sort(key);
+    model
+        .ordered_rated_rows(rates)
+        .iter()
+        .map(|row| row.row.id.clone())
+        .collect()
+}
 
 fn make_test_conn(id: &str, host: &str, process: &str, up: u64, down: u64) -> Connection {
     Connection {
@@ -76,7 +91,7 @@ fn test_filter_connection() {
 
 #[test]
 fn test_sort_connections() {
-    let mut conns = vec![
+    let conns = vec![
         make_test_conn("1", "b.com", "", 100, 500),
         make_test_conn("2", "a.com", "", 900, 200),
         make_test_conn("3", "c.com", "", 500, 800),
@@ -84,25 +99,18 @@ fn test_sort_connections() {
 
     // Cumulative keys keep the original ordering through the shared reduction.
     let empty = ConnectionRates::default();
-    let rows = sort_rated_connections(&conns, &empty, "download_desc");
+    let mut model = ConnectionsPageModel::<Connection>::default();
+    model.observe(&conns);
     assert_eq!(
-        rows.iter()
-            .map(|row| row.row.id.as_str())
-            .collect::<Vec<_>>(),
+        ordered_ids(&mut model, ConnectionSortKey::DownloadDesc, &empty),
         vec!["3", "1", "2"]
     );
-    let rows = sort_rated_connections(&conns, &empty, "upload_desc");
     assert_eq!(
-        rows.iter()
-            .map(|row| row.row.id.as_str())
-            .collect::<Vec<_>>(),
+        ordered_ids(&mut model, ConnectionSortKey::UploadDesc, &empty),
         vec!["2", "3", "1"]
     );
-    let rows = sort_rated_connections(&conns, &empty, "host_asc");
     assert_eq!(
-        rows.iter()
-            .map(|row| row.row.id.as_str())
-            .collect::<Vec<_>>(),
+        ordered_ids(&mut model, ConnectionSortKey::HostAsc, &empty),
         vec!["2", "1", "3"]
     );
 
@@ -134,25 +142,19 @@ fn test_sort_connections() {
             },
         ),
     ]);
-    let rows = sort_rated_connections(&conns, &rates, "download_rate_desc");
     assert_eq!(
-        rows.iter()
-            .map(|row| row.row.id.as_str())
-            .collect::<Vec<_>>(),
+        ordered_ids(&mut model, ConnectionSortKey::DownloadRateDesc, &rates),
         vec!["1", "3", "2"]
     );
-    let rows = sort_rated_connections(&conns, &rates, "upload_rate_desc");
     assert_eq!(
-        rows.iter()
-            .map(|row| row.row.id.as_str())
-            .collect::<Vec<_>>(),
+        ordered_ids(&mut model, ConnectionSortKey::UploadRateDesc, &rates),
         vec!["2", "3", "1"]
     );
 
     // The windowed view slices the rated rows, so the bounds still line up.
-    conns.truncate(2);
-    let rows = sort_rated_connections(&conns, &rates, "download_rate_desc");
-    assert_eq!(rows.len(), 2);
+    let mut windowed = ConnectionsPageModel::<Connection>::default();
+    windowed.observe(&conns[..2]);
+    assert_eq!(windowed.ordered_rated_rows(&rates).len(), 2);
 }
 
 #[test]
@@ -194,7 +196,9 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
 }
 #[test]
 fn test_shared_connection_view_reductions_are_delegated() {
-    use infiltrator_domain::connection_view::{ConnectionGroupingMode, quick_rule_spec};
+    use infiltrator_domain::connection_view::{
+        ConnectionGroupingMode, ConnectionSortKey, quick_rule_spec,
+    };
 
     let conns = vec![
         make_test_conn("1", "b.com", "/usr/bin/git", 100, 500),
@@ -204,7 +208,12 @@ fn test_shared_connection_view_reductions_are_delegated() {
     // Search (DUAL-13-13) and sort resolve through the shared domain.
     assert!(matches_search(&conns[0], "git"));
     assert!(!matches_search(&conns[0], "curl"));
-    let rows = sort_rated_connections(&conns, &ConnectionRates::default(), "upload_desc");
+    let mut model = ConnectionsPageModel::<Connection>::default();
+    model.observe(&conns);
+    // The sort is the shared reduction: the upload-descending key puts the
+    // connection with the larger upload first.
+    model.select_sort(ConnectionSortKey::UploadDesc);
+    let rows = model.ordered_rated_rows(&ConnectionRates::default());
     assert_eq!(rows[0].row.id, "2");
 
     // Aggregation (DUAL-13-02) is the shared bucket reduction.

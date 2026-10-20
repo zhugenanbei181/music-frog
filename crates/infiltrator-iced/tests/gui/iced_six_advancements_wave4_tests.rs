@@ -7,6 +7,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view_root::modals::log_export::tests::exercise_redacted_export;
+use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
@@ -130,15 +131,16 @@ fn test_advancement_w4_2_crash_watchdog_and_forensics_lifecycle() {
 fn test_advancement_w4_4_log_regex_and_redacted_export() {
     let (mut state, _) = AppState::new();
 
-    // Default state
-    assert!(state.diag.log_filter.regex_query.is_empty());
+    // Default state: the shared page model owns the query and the level.
+    assert!(state.diag.logs_page.query().is_empty());
+    assert_eq!(state.diag.logs_page.active_level(), None);
 
     // Update regex query and log level
     let _ = state.update(Message::UpdateLogRegexFilter("error|warn".to_string()));
-    assert_eq!(state.diag.log_filter.regex_query, "error|warn");
+    assert_eq!(state.diag.logs_page.query(), "error|warn");
 
-    let _ = state.update(Message::SetLogLevelFilter("WARN".to_string()));
-    assert_eq!(state.diag.log_filter.level_filter, "WARN");
+    let _ = state.update(Message::SetLogLevelFilter(Some(LogLevel::Warn)));
+    assert_eq!(state.diag.logs_page.active_level(), Some(LogLevel::Warn));
 
     exercise_redacted_export(&mut state);
 }

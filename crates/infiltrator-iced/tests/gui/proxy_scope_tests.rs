@@ -245,7 +245,7 @@ fn composed_snapshot_retires_demo_rows_and_rejects_reads_from_the_previous_core_
     );
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
-    assert_eq!(state.diag.connection_groups.source_count(), 9);
+    assert_eq!(state.diag.connections_model.source_count(), 9);
     state.attach_product_application(core.clone());
     state.shell.demo = false;
     let first_scope = core.snapshot().scope().expect("initial product scope");
@@ -276,7 +276,7 @@ fn composed_snapshot_retires_demo_rows_and_rejects_reads_from_the_previous_core_
             .any(|(name, _)| name == "old-demo-group")
     );
     assert!(state.diag.connections.is_none());
-    assert_eq!(state.diag.connection_groups.source_count(), 0);
+    assert_eq!(state.diag.connections_model.source_count(), 0);
     assert_eq!(
         state.runtime.filtered_groups,
         vec![(

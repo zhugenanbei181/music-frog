@@ -122,6 +122,9 @@ mod log_owner_tests;
 #[path = "../tests/gui/log_search_native_tests.rs"]
 mod log_search_native_tests;
 
+#[path = "../tests/gui/page_model_migration_tests.rs"]
+mod page_model_migration_tests;
+
 #[path = "../tests/gui/proxy_scope_tests.rs"]
 mod proxy_scope_tests;
 

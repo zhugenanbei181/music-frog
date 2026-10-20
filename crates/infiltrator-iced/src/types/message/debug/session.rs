@@ -246,7 +246,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             write!(f, "UpdateRuntimeConnectionFilter({})", s)
         }
         Message::UpdateRuntimeConnectionSort(s) => {
-            write!(f, "UpdateRuntimeConnectionSort({})", s)
+            write!(f, "UpdateRuntimeConnectionSort({:?})", s)
         }
         Message::RefreshRuntimeNow => write!(f, "RefreshRuntimeNow"),
         Message::TrafficReceived(t) => {

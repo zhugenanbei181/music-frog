@@ -70,20 +70,14 @@ pub(crate) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
         label: level.label().into(),
     }))
     .collect();
-    let selected_level = (!state.diag.log_filter.level_filter.is_empty())
-        .then(|| LogLevel::from_identifier(&state.diag.log_filter.level_filter));
+    let selected_level = state.diag.logs_page.active_level();
     let selected = choices
         .iter()
         .find(|choice| choice.level == selected_level)
         .cloned();
     let status_controls = row![
         pick_list(choices, selected, |choice: LogChoice| {
-            Message::SetLogLevelFilter(
-                choice
-                    .level
-                    .map(|level| level.label().into())
-                    .unwrap_or_default(),
-            )
+            Message::SetLogLevelFilter(choice.level)
         })
         .text_size(12)
         .style(form_pick_style),
@@ -119,7 +113,7 @@ pub(crate) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
 
     let log_lines: Vec<Element<'_, Message>> = state
         .diag
-        .log_search
+        .logs_page
         .rows()
         .iter()
         .filter(|row| row.visible)

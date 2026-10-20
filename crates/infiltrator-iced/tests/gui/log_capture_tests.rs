@@ -24,14 +24,14 @@ fn actual_follow_capture_sequence_locks_before_continued_receipts_and_retains_al
                 }
             }
         });
-    assert_eq!(state.diag.log_search.source_count(), 35);
-    assert_eq!(state.diag.log_search.matched_count(), 35);
-    assert!(!state.diag.log_search.follow.should_follow());
+    assert_eq!(state.diag.logs_page.source_count(), 35);
+    assert_eq!(state.diag.logs_page.matched_count(), 35);
+    assert!(!state.diag.logs_page.follow().should_follow());
     assert_eq!(
-        state.diag.log_search.follow.label_key(),
+        state.diag.logs_page.follow().label_key(),
         "logs_scroll_resume"
     );
-    assert!(state.diag.log_search.source_current());
+    assert!(state.diag.logs_page.source_current());
     assert!(state.diag.connections.is_none());
     assert!(state.runtime.proxy_groups.is_empty());
 }

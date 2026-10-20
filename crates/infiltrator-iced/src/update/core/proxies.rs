@@ -29,8 +29,6 @@ use lurker_core_contract::outbound::{
 };
 use lurker_core_contract::page::PageData;
 
-const DEFAULT_RUNTIME_CONNECTION_SORT: &str = "download_desc";
-
 impl AppState {
     fn read_outbound_inventory(&self) -> Task<Message> {
         let Some(ingress) = self.command_ingress() else {
@@ -286,16 +284,6 @@ impl AppState {
         }
     }
 
-    pub(super) fn normalize_connection_sort_key(value: &str) -> &'static str {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "download_desc" => "download_desc",
-            "upload_desc" => "upload_desc",
-            "latest_desc" => "latest_desc",
-            "host_asc" => "host_asc",
-            _ => DEFAULT_RUNTIME_CONNECTION_SORT,
-        }
-    }
-
     /// Apply a signed step to the typed concurrency range, clamped to 1..=30.
     pub(crate) fn stepped_speedtest_concurrency(current: usize, delta: i32) -> usize {
         (current as i32 + delta).clamp(1, 30) as usize
@@ -305,8 +293,7 @@ impl AppState {
         let auto_refresh = self.runtime.runtime_auto_refresh;
         let delay_sort_order = self.runtime.runtime_panel_delay_sort_order;
         let connection_filter = self.runtime.runtime_connection_filter.clone();
-        let connection_sort =
-            Self::normalize_connection_sort_key(&self.runtime.runtime_connection_sort).to_string();
+        let connection_sort = self.diag.connections_model.sort_key().as_str().to_string();
         Task::perform(
             async move {
                 update(|settings| {
@@ -702,7 +689,7 @@ impl AppState {
                     })
             }
             Message::UpdateRuntimeConnectionFilter(filter) => {
-                self.diag.connection_groups.edit_query(
+                self.diag.connections_model.edit_query(
                     filter
                         .trim()
                         .strip_prefix("tab:closed")
@@ -714,8 +701,7 @@ impl AppState {
                 self.persist_runtime_panel_settings_task()
             }
             Message::UpdateRuntimeConnectionSort(sort_key) => {
-                self.runtime.runtime_connection_sort =
-                    Self::normalize_connection_sort_key(&sort_key).to_string();
+                self.diag.connections_model.select_sort(sort_key);
                 self.diag.connections_page = 0;
                 self.persist_runtime_panel_settings_task()
             }

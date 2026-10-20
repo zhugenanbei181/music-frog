@@ -24,9 +24,11 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use infiltrator_domain::connection_activity::{IDLE_TIMEOUT_CHOICES, idle_timeout_minutes_label};
 use infiltrator_domain::connection_rate::ConnectionRates;
-use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
+use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_domain::{connection_rate, connection_view};
+use infiltrator_presentation::connection_grouping::sort_label_key;
+use infiltrator_presentation::connection_page_model::{CONNECTION_SORT_OPTIONS, sort_option_at};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -70,22 +72,6 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
     (target, kind)
 }
 
-/// DUAL-13-12: order the live rows through the one shared sort reduction with
-/// the derived instantaneous rates attached, so the rate keys rank on real
-/// bytes-per-second and the cumulative keys keep their previous behavior.
-pub fn sort_rated_connections<'a>(
-    conns: &'a [Connection],
-    rates: &ConnectionRates,
-    sort_key: &str,
-) -> Vec<connection_view::RatedConnection<'a, Connection>> {
-    let mut rows: Vec<connection_view::RatedConnection<'_, Connection>> = conns
-        .iter()
-        .map(|conn| connection_view::RatedConnection::new(conn, rates.get(&conn.id)))
-        .collect();
-    connection_view::sort_connections(&mut rows, ConnectionSortKey::from_identifier(sort_key));
-    rows
-}
-
 /// DUAL-13-10: the breathing glow of one row at the shared pulse phase; zero
 /// until the connection really crosses the shared high-throughput threshold.
 pub fn connection_pulse_intensity(conn: &Connection, rates: &ConnectionRates, phase: f32) -> f32 {
@@ -103,35 +89,15 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
     // 1. Sort segmented control: cumulative download / cumulative upload /
     // instantaneous download / instantaneous upload / latest / host. The
-    // instantaneous entries are DUAL-13-12; every index maps to a shared
-    // `ConnectionSortKey`, and the wire value is its identifier.
-    let sort_labels: Vec<String> = vec![
-        lang.tr("runtime_conn_sort_download_desc").to_string(),
-        lang.tr("runtime_conn_sort_upload_desc").to_string(),
-        lang.tr("runtime_conn_sort_download_rate").to_string(),
-        lang.tr("runtime_conn_sort_upload_rate").to_string(),
-        lang.tr("runtime_conn_sort_latest_desc").to_string(),
-        lang.tr("runtime_conn_sort_host_asc").to_string(),
-    ];
-    let sort_index =
-        match ConnectionSortKey::from_identifier(&state.runtime.runtime_connection_sort) {
-            ConnectionSortKey::DownloadDesc => 0,
-            ConnectionSortKey::UploadDesc => 1,
-            ConnectionSortKey::DownloadRateDesc => 2,
-            ConnectionSortKey::UploadRateDesc => 3,
-            ConnectionSortKey::LatestDesc => 4,
-            ConnectionSortKey::HostAsc => 5,
-        };
+    // instantaneous entries are DUAL-13-12; every position maps to the shared
+    // `ConnectionSortKey`, and the shared page model owns the selection.
+    let sort_labels: Vec<String> = CONNECTION_SORT_OPTIONS
+        .iter()
+        .map(|key| lang.tr(sort_label_key(*key)).to_string())
+        .collect();
+    let sort_index = state.diag.connections_model.sort_index();
     let conn_sort_control = segmented_control(&sort_labels, sort_index, |index| {
-        let key = match index {
-            1 => ConnectionSortKey::UploadDesc,
-            2 => ConnectionSortKey::DownloadRateDesc,
-            3 => ConnectionSortKey::UploadRateDesc,
-            4 => ConnectionSortKey::LatestDesc,
-            5 => ConnectionSortKey::HostAsc,
-            _ => ConnectionSortKey::DownloadDesc,
-        };
-        Message::UpdateRuntimeConnectionSort(key.as_str().to_string())
+        Message::UpdateRuntimeConnectionSort(sort_option_at(index))
     });
 
     // 2. Traffic totals and stream status
@@ -337,24 +303,15 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             lang.tr("conn_no_closed").as_ref(),
             lang.tr("conn_no_closed_desc").as_ref(),
         ));
-    } else if let Some(c) = &state.diag.connections {
-        let mut filtered_conns = c.connections.clone();
-        if !user_filter.is_empty() {
-            filtered_conns.retain(|conn| {
-                state
-                    .diag
-                    .connection_groups
-                    .search_row(&conn.id)
-                    .is_some_and(|row| row.visible)
-            });
-        }
+    } else if state.diag.connections_model.source_current() {
+        // The shared page model owns the query fold and the row order; this
+        // surface only renders the rows it hands back.
         // DUAL-13-12: the shared sort runs with the derived instantaneous
         // rates attached, so the rate keys rank on real bytes-per-second.
-        let rated_rows = sort_rated_connections(
-            &filtered_conns,
-            &state.diag.connection_rate_book,
-            &state.runtime.runtime_connection_sort,
-        );
+        let rated_rows = state
+            .diag
+            .connections_model
+            .ordered_rated_rows(&state.diag.connection_rate_book);
 
         if rated_rows.is_empty() {
             connections_section = connections_section.push(empty_state(
@@ -362,11 +319,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 lang.tr("runtime_no_matching_connections").as_ref(),
                 "",
             ));
-        } else if !state.diag.connection_groups.mode().is_flat() {
+        } else if !state.diag.connections_model.mode().is_flat() {
             // DUAL-13-02: both grouped dimensions reduce through the shared
             // domain aggregation; Iced owns no aggregation logic of its own.
-            let mode = state.diag.connection_groups.mode();
-            let aggregates = state.diag.connection_groups.rows();
+            let mode = state.diag.connections_model.mode();
+            let aggregates = state.diag.connections_model.rows();
             if aggregates.is_empty() {
                 connections_section = connections_section.push(empty_state(
                     Icon::Plug,
@@ -453,7 +410,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
                 if !process_name.is_empty() {
                     headline_items.push(
-                        if let Some(search) = state.diag.connection_groups.search_row(&conn.id) {
+                        if let Some(search) = state.diag.connections_model.search_row(&conn.id) {
                             connection_search::connection_text(state, &search.process_name, 12)
                         } else {
                             chip(process_name)
@@ -462,7 +419,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     headline_items.push(Space::new().width(theme::SP_SM).into());
                 }
 
-                let search = state.diag.connection_groups.search_row(&conn.id);
+                let search = state.diag.connections_model.search_row(&conn.id);
                 let host_text = if let Some(search) = search {
                     connection_search::connection_text(state, &search.endpoint, 13)
                 } else {

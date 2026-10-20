@@ -7,6 +7,7 @@ use crate::version_application::normalized_release_channel;
 use iced::Task;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::theme::ThemePreference;
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::language_choice::project_language;
 use infiltrator_presentation::runtime_probe_settings::project_settings;
@@ -45,9 +46,13 @@ impl AppState {
         self.runtime.core_channel = normalized_release_channel(&settings.core_channel);
         self.runtime.runtime_panel_delay_sort_order = settings.runtime_panel.delay_sort_order;
         self.runtime.runtime_connection_filter = settings.runtime_panel.connection_filter;
-        self.runtime.runtime_connection_sort =
-            Self::normalize_connection_sort_key(&settings.runtime_panel.connection_sort)
-                .to_string();
+        // The persisted sort is the shared typed key's identifier; the page
+        // model owns the selection itself.
+        self.diag
+            .connections_model
+            .select_sort(ConnectionSortKey::from_identifier(
+                &settings.runtime_panel.connection_sort,
+            ));
         self.shell.admin_enabled = settings.admin.enabled;
         self.shell.admin_port = settings.admin.port;
         self.shell.admin_port_input = settings.admin.port.to_string();

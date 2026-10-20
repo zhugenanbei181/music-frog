@@ -27,7 +27,7 @@ fn native_grouping_controls_preserve_filtered_counts_across_dimensions_and_clear
     state.shell.demo = true;
     let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
     choose(&mut state, InteractionRegion::ConnectionGroupProcess);
-    assert_eq!(state.diag.connection_groups.rows().len(), 8);
+    assert_eq!(state.diag.connections_model.rows().len(), 8);
     let messages = native(
         connections_controls::search(&state),
         InteractionRegion::ConnectionSearch.id(),
@@ -35,16 +35,16 @@ fn native_grouping_controls_preserve_filtered_counts_across_dimensions_and_clear
     );
     feed(&mut state, messages);
     assert_eq!(state.runtime.runtime_connection_filter, "CLIENT-0");
-    assert_eq!(state.diag.connection_groups.rows().len(), 1);
-    assert_eq!(state.diag.connection_groups.rows()[0].count, 2);
+    assert_eq!(state.diag.connections_model.rows().len(), 1);
+    assert_eq!(state.diag.connections_model.rows()[0].count, 2);
     choose(&mut state, InteractionRegion::ConnectionGroupHost);
     assert_eq!(
-        state.diag.connection_groups.rows()[0].key,
+        state.diag.connections_model.rows()[0].key,
         "api-0.example.org"
     );
     choose(&mut state, InteractionRegion::ConnectionGroupFlat);
     assert_eq!(
-        state.diag.connection_groups.mode(),
+        state.diag.connections_model.mode(),
         ConnectionGroupingMode::Flat
     );
     assert_eq!(state.runtime.runtime_connection_filter, "CLIENT-0");
@@ -56,5 +56,5 @@ fn native_grouping_controls_preserve_filtered_counts_across_dimensions_and_clear
     feed(&mut state, messages);
     choose(&mut state, InteractionRegion::ConnectionGroupProcess);
     assert_eq!(state.runtime.runtime_connection_filter, "");
-    assert_eq!(state.diag.connection_groups.rows().len(), 8);
+    assert_eq!(state.diag.connections_model.rows().len(), 8);
 }

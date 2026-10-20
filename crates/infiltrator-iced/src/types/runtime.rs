@@ -121,10 +121,3 @@ pub struct PcapCaptureState {
     pub total_bytes: usize,
     pub exported_path: Option<String>,
 }
-
-/// State for structured regex log filtering and sanitized credential redaction.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct LogFilterState {
-    pub regex_query: String,
-    pub level_filter: String,
-}

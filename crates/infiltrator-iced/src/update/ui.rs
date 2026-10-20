@@ -656,7 +656,7 @@ impl AppState {
             | Message::CustomNodeDialerScanned(_)
             | Message::VerifyCustomNodeCertificateAuthority => self.update_protocol_codec(message),
             Message::SetConnectionGroupingMode(mode) => {
-                self.diag.connection_groups.select(mode);
+                self.diag.connections_model.select(mode);
                 Task::none()
             }
             Message::AddQuickRuleFromConnection { pattern, target } => {

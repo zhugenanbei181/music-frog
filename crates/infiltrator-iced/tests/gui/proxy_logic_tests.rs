@@ -15,6 +15,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use lurker_core_contract::outbound::preferences::OutboundFavoriteState;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
 use lurker_core_contract::outbound::preferences::{
@@ -107,15 +108,34 @@ fn test_runtime_auto_refresh_toggle() {
 }
 
 #[test]
-fn test_runtime_connection_sort_mode_switch() {
+fn test_connections_page_sort_key_switch() {
     let (mut state, _) = AppState::new();
-    assert_eq!(state.runtime.runtime_connection_sort, "download_desc");
+    assert_eq!(
+        state.diag.connections_model.sort_key(),
+        ConnectionSortKey::DownloadDesc
+    );
 
-    let _ = state.update(Message::UpdateRuntimeConnectionSort("upload_desc".into()));
-    assert_eq!(state.runtime.runtime_connection_sort, "upload_desc");
+    let _ = state.update(Message::UpdateRuntimeConnectionSort(
+        ConnectionSortKey::UploadDesc,
+    ));
+    assert_eq!(
+        state.diag.connections_model.sort_key(),
+        ConnectionSortKey::UploadDesc
+    );
 
-    let _ = state.update(Message::UpdateRuntimeConnectionSort("invalid_key".into()));
-    assert_eq!(state.runtime.runtime_connection_sort, "download_desc");
+    // The rate keys are part of the shared typed key, so the page model can
+    // hold them and the persisted identifier round-trips exactly.
+    let _ = state.update(Message::UpdateRuntimeConnectionSort(
+        ConnectionSortKey::DownloadRateDesc,
+    ));
+    assert_eq!(
+        state.diag.connections_model.sort_key(),
+        ConnectionSortKey::DownloadRateDesc
+    );
+    assert_eq!(
+        ConnectionSortKey::from_identifier(ConnectionSortKey::DownloadRateDesc.as_str()),
+        ConnectionSortKey::DownloadRateDesc
+    );
 }
 
 #[test]

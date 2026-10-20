@@ -25,7 +25,7 @@ pub(crate) fn grouping<'a, R: Renderer<Font = Font> + 'a>(
             container(
                 button(text(lang.tr(grouping_label_key(mode))).size(12))
                     .padding([6, 8])
-                    .style(if state.diag.connection_groups.mode() == mode {
+                    .style(if state.diag.connections_model.mode() == mode {
                         style_accent
                     } else {
                         style_ghost
@@ -81,7 +81,7 @@ pub(crate) fn search<'a, R: Renderer<Font = Font> + 'a>(
             .id(InteractionRegion::ConnectionSearchClear.id()),
         );
     }
-    let owner = &state.diag.connection_groups;
+    let owner = &state.diag.connections_model;
     let matched = owner.matched_count().to_string();
     let total = owner.source_count().to_string();
     let summary = interpolate(

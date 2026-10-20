@@ -13,7 +13,7 @@ pub(crate) fn search<'a, R: Renderer<Font = Font> + 'a>(
     state: &'a AppState,
 ) -> Element<'a, Message, Theme, R> {
     let lang = Lang(&state.shell.lang);
-    let owner = &state.diag.log_search;
+    let owner = &state.diag.logs_page;
     let input = container(
         text_input(lang.tr("logs_regex_placeholder").as_ref(), owner.query())
             .on_input(Message::UpdateLogRegexFilter)
@@ -60,7 +60,7 @@ pub(crate) fn follow<'a, R: Renderer<Font = Font> + 'a>(
 ) -> Element<'a, Message, Theme, R> {
     let lang = Lang(&state.shell.lang);
     container(
-        button(text(lang.tr(state.diag.log_search.follow.label_key())).size(11))
+        button(text(lang.tr(state.diag.logs_page.follow().label_key())).size(11))
             .on_press(Message::ToggleLogFollow),
     )
     .id(InteractionRegion::LogFollow.id())

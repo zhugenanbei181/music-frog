@@ -7,6 +7,7 @@ use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::state::AppState;
 use crate::types::message::Message;
 use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings, RuntimePanelConfig};
 
 #[test]
@@ -134,7 +135,10 @@ fn test_settings_loaded_applies_runtime_panel_state() {
     );
     assert_eq!(state.runtime.runtime_probe_timeout_draft, "1200");
     assert_eq!(state.runtime.runtime_connection_filter, "api");
-    assert_eq!(state.runtime.runtime_connection_sort, "host_asc");
+    assert_eq!(
+        state.diag.connections_model.sort_key(),
+        ConnectionSortKey::HostAsc
+    );
 }
 
 #[test]

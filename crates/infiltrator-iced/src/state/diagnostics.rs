@@ -5,13 +5,12 @@ use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
 use infiltrator_presentation::dns_query_actions::DnsQueryActions;
 use infiltrator_presentation::log_export_actions::LogExportActions;
 use infiltrator_presentation::log_projection::page_from_log_records;
-use infiltrator_presentation::log_search::LogSearchState;
 use lurker_ui_presentation::dns_leak_actions::DnsLeakActionState;
 
 use crate::types::app::Route;
 use crate::types::doctor::{CrashWatchdogState, DoctorPanelState};
 use crate::types::perf::PerfSnapshot;
-use crate::types::runtime::{LogFilterState, PcapCaptureState, RuntimeStreamState};
+use crate::types::runtime::{PcapCaptureState, RuntimeStreamState};
 use infiltrator_application::connection_rate_application::ConnectionRateApplication;
 use infiltrator_contract::dns_cache::DnsCacheFlushReport;
 use infiltrator_contract::overview_layout::OverviewCardKind;
@@ -20,7 +19,8 @@ use infiltrator_domain::connection_activity::ConnectionActivityTracker;
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_domain::runtime::{ConnectionSnapshot, TrafficData};
-use infiltrator_presentation::connection_grouping::ConnectionGroupingState;
+use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
+use infiltrator_presentation::log_page_model::LogsPageModel;
 use lurker_core_contract::error::Failure;
 use std::collections::VecDeque;
 use std::time::Instant;
@@ -59,7 +59,9 @@ pub struct DiagnosticsState {
     pub perf_nav_route: Option<Route>,
     pub logs_stream_state: RuntimeStreamState,
     pub log_command_failure: Option<Failure>,
-    pub log_search: LogSearchState,
+    /// The one page model of the logs page: the page availability, the level
+    /// filter and the search fold are derived once, in the shared owner.
+    pub logs_page: LogsPageModel,
     pub log_export: LogExportActions,
     pub traffic_stream_state: RuntimeStreamState,
     pub connections_stream_state: RuntimeStreamState,
@@ -88,8 +90,10 @@ pub struct DiagnosticsState {
     /// reorderable cards in this order.
     pub overview_card_order: Vec<OverviewCardKind>,
     pub crash_watchdog: CrashWatchdogState,
-    pub log_filter: LogFilterState,
-    pub connection_groups: ConnectionGroupingState<Connection>,
+    /// The one page model of the connections page: the sort key, the grouping
+    /// dimension, the query and the row order are derived once, in the shared
+    /// owner.
+    pub connections_model: ConnectionsPageModel<Connection>,
     /// DUAL-13-11: byte-change tracking that backs idle detection.
     pub connection_activity: ConnectionActivityTracker,
     /// DUAL-13-10/12: the shared rate window fed by successive live snapshots.
@@ -106,7 +110,7 @@ pub struct DiagnosticsState {
 
 impl DiagnosticsState {
     pub fn observe_log_records(&mut self) {
-        self.log_search.observe(
+        self.logs_page.observe(
             0,
             None,
             &page_from_log_records(self.logs.iter().map(String::as_str)),

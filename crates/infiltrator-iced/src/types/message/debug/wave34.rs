@@ -282,7 +282,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ExportCrashDiagnostics => write!(f, "ExportCrashDiagnostics"),
         Message::LaunchWebDashboard(dash) => write!(f, "LaunchWebDashboard({dash})"),
         Message::UpdateLogRegexFilter(q) => write!(f, "UpdateLogRegexFilter({q})"),
-        Message::SetLogLevelFilter(lvl) => write!(f, "SetLogLevelFilter({lvl})"),
+        Message::SetLogLevelFilter(lvl) => write!(f, "SetLogLevelFilter({:?})", lvl),
         Message::ExportRedactedLogs => write!(f, "ExportRedactedLogs"),
         Message::UpdatePacBypassSubnets(s) => write!(f, "UpdatePacBypassSubnets({s})"),
         Message::CompileAndValidatePac => write!(f, "CompileAndValidatePac"),

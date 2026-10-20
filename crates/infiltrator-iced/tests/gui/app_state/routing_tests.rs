@@ -340,6 +340,7 @@ fn the_runtime_patch_stage_refuses_a_second_patch_while_one_is_in_flight() {
 
 #[test]
 fn connections_pagination_windows_and_clamps() {
+    use infiltrator_domain::connection_view::ConnectionSortKey;
     use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
 
     let snapshot_with = |count: usize| ConnectionSnapshot {
@@ -387,7 +388,9 @@ fn connections_pagination_windows_and_clamps() {
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("x".into()));
     assert_eq!(state.diag.connections_page, 0);
     let _ = state.update(Message::ConnectionsNextPage);
-    let _ = state.update(Message::UpdateRuntimeConnectionSort("host_asc".into()));
+    let _ = state.update(Message::UpdateRuntimeConnectionSort(
+        ConnectionSortKey::HostAsc,
+    ));
     assert_eq!(state.diag.connections_page, 0);
 }
 

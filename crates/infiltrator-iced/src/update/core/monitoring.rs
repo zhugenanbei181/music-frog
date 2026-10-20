@@ -21,14 +21,14 @@ use std::time::Instant;
 
 impl AppState {
     pub(crate) fn sync_logs_viewport_task(&self) -> Task<Message> {
-        if self.diag.log_search.follow.should_follow() {
+        if self.diag.logs_page.follow().should_follow() {
             snap_to(Id::new("log_scroller"), RelativeOffset::END)
         } else {
             scroll_to(
                 Id::new("log_scroller"),
                 AbsoluteOffset {
                     x: None,
-                    y: Some(self.diag.log_search.follow.restored_offset(f32::MAX)),
+                    y: Some(self.diag.logs_page.follow().restored_offset(f32::MAX)),
                 },
             )
         }
@@ -213,7 +213,7 @@ impl AppState {
                 Task::none()
             }
             Message::ToggleLogFollow => {
-                self.diag.log_search.follow.toggle_follow();
+                self.diag.logs_page.follow_mut().toggle_follow();
                 self.sync_logs_viewport_task()
             }
             Message::LogsScrolled {
@@ -222,8 +222,8 @@ impl AppState {
                 viewport,
             } => {
                 self.diag
-                    .log_search
-                    .follow
+                    .logs_page
+                    .follow_mut()
                     .observe_viewport(offset, content, viewport);
                 Task::none()
             }
@@ -505,9 +505,9 @@ impl AppState {
         }
         let filter = self.runtime.runtime_connection_filter.trim();
         self.diag
-            .connection_groups
+            .connections_model
             .edit_query(filter.strip_prefix("tab:closed").unwrap_or(filter).trim());
-        self.diag.connection_groups.observe(&data.connections);
+        self.diag.connections_model.observe(&data.connections);
         self.diag.connections = Some(data);
         self.clamp_connections_page();
         Task::none()

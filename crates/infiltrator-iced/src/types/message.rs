@@ -26,6 +26,7 @@ use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
+use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::{
@@ -39,7 +40,7 @@ use infiltrator_contract::{
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::{
     app_routing::{AppRoutingConfig, AppRoutingMode, AppRoutingRule},
-    connection_view::ConnectionGroupingMode,
+    connection_view::{ConnectionGroupingMode, ConnectionSortKey},
     profiles::ProfileInfo,
     rules::RuleProviderDiff,
     runtime::{ConnectionSnapshot, TrafficData},
@@ -224,7 +225,10 @@ pub enum Message {
     UpdateRuntimeSelectedGroup(String),
     ApplyRuntimeSelectedProxy,
     UpdateRuntimeConnectionFilter(String),
-    UpdateRuntimeConnectionSort(String),
+    /// Reorder the connections page. The payload is the shared typed sort
+    /// key, so a surface can never carry a sort the shared model does not
+    /// know.
+    UpdateRuntimeConnectionSort(ConnectionSortKey),
     RefreshRuntimeNow,
     TrafficReceived(TrafficData),
     IpInfoReceived(Result<IpProbeResult, error::InfiltratorError>, usize),
@@ -881,7 +885,10 @@ pub enum Message {
     LaunchWebDashboard(&'static str),
     // Wave 4 Category 4: Log Regex & Redacted Export
     UpdateLogRegexFilter(String),
-    SetLogLevelFilter(String),
+    /// Select the level filter of the logs page. The payload is the shared
+    /// typed level, so a surface can never ask for a level that does not
+    /// exist.
+    SetLogLevelFilter(Option<LogLevel>),
     ExportRedactedLogs,
     // Wave 4 Category 5: Subscription Quota & Cron
     // Wave 4 Category 6: PAC Auto-Proxy & Bypass CIDR

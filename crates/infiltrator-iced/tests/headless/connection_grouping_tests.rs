@@ -19,20 +19,20 @@ fn grouping_updates_all_groups_and_preserves_search_without_commands() {
             .units(),
         0
     );
-    assert_eq!(state.diag.connection_groups.rows().len(), 8);
-    assert_eq!(state.diag.connection_groups.rows()[0].key, "client-7");
+    assert_eq!(state.diag.connections_model.rows().len(), 8);
+    assert_eq!(state.diag.connections_model.rows()[0].key, "client-7");
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("CLIENT-0".into()));
-    assert_eq!(state.diag.connection_groups.rows().len(), 1);
-    assert_eq!(state.diag.connection_groups.rows()[0].count, 2);
+    assert_eq!(state.diag.connections_model.rows().len(), 1);
+    assert_eq!(state.diag.connections_model.rows()[0].count, 2);
     assert_eq!(
-        state.diag.connection_groups.rows()[0].traffic,
+        state.diag.connections_model.rows()[0].traffic,
         "↑ 2.00 KB / ↓ 4.00 KB"
     );
     let _ = state.update(Message::SetConnectionGroupingMode(
         ConnectionGroupingMode::ByHost,
     ));
     assert_eq!(
-        state.diag.connection_groups.rows()[0].key,
+        state.diag.connections_model.rows()[0].key,
         "api-0.example.org"
     );
     snapshot
@@ -40,13 +40,13 @@ fn grouping_updates_all_groups_and_preserves_search_without_commands() {
         .retain(|row| row.id == "group-duplicate");
     snapshot.connections[0].upload = 4096;
     let _ = state.update(Message::ConnectionsReceived(snapshot));
-    assert_eq!(state.diag.connection_groups.rows()[0].count, 1);
+    assert_eq!(state.diag.connections_model.rows()[0].count, 1);
     assert_eq!(
-        state.diag.connection_groups.rows()[0].traffic,
+        state.diag.connections_model.rows()[0].traffic,
         "↑ 4.00 KB / ↓ 2.00 KB"
     );
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("no-match".into()));
-    assert!(state.diag.connection_groups.rows().is_empty());
+    assert!(state.diag.connections_model.rows().is_empty());
     drop(state.view());
 }
 
@@ -58,7 +58,7 @@ fn grouping_first_observation_respects_existing_search() {
     let _ = state.update(Message::SetConnectionGroupingMode(
         ConnectionGroupingMode::ByProcess,
     ));
-    assert_eq!(state.diag.connection_groups.rows().len(), 1);
-    assert_eq!(state.diag.connection_groups.rows()[0].key, "client-0");
-    assert_eq!(state.diag.connection_groups.rows()[0].count, 2);
+    assert_eq!(state.diag.connections_model.rows().len(), 1);
+    assert_eq!(state.diag.connections_model.rows()[0].key, "client-0");
+    assert_eq!(state.diag.connections_model.rows()[0].count, 2);
 }

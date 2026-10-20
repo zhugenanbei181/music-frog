@@ -376,7 +376,7 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
 
     // Default grouping mode
     assert_eq!(
-        state.diag.connection_groups.mode(),
+        state.diag.connections_model.mode(),
         ConnectionGroupingMode::Flat
     );
 
@@ -385,7 +385,7 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
         ConnectionGroupingMode::ByProcess,
     ));
     assert_eq!(
-        state.diag.connection_groups.mode(),
+        state.diag.connections_model.mode(),
         ConnectionGroupingMode::ByProcess
     );
 
@@ -394,7 +394,7 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
         ConnectionGroupingMode::ByHost,
     ));
     assert_eq!(
-        state.diag.connection_groups.mode(),
+        state.diag.connections_model.mode(),
         ConnectionGroupingMode::ByHost
     );
 

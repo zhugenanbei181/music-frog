@@ -214,15 +214,15 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     .is_some_and(|failure| failure.code == ErrorCode::Permission)
         }
         FeatureId::LogsScrollLock => {
-            !state.diag.log_search.follow.should_follow()
-                && state.diag.log_search.source_current()
-                && state.diag.log_search.source_count() == 35
+            !state.diag.logs_page.follow().should_follow()
+                && state.diag.logs_page.source_current()
+                && state.diag.logs_page.source_count() == 35
         }
         FeatureId::LogsSearchHighlight => {
-            state.diag.log_search.query() == "api\\.example|timeout"
-                && state.diag.log_search.source_current()
-                && state.diag.log_search.source_count() == 3
-                && state.diag.log_search.matched_count() == 2
+            state.diag.logs_page.query() == "api\\.example|timeout"
+                && state.diag.logs_page.source_current()
+                && state.diag.logs_page.source_count() == 3
+                && state.diag.logs_page.matched_count() == 2
         }
         FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication => {
             let actions = &state.runtime.routing_intent_actions;
@@ -366,13 +366,13 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
             state.shell.confirmation == Some(ConfirmAction::CloseAllConnections)
         }
         FeatureId::ConnectionsSearchHighlight => {
-            state.diag.connection_groups.mode().is_flat()
+            state.diag.connections_model.mode().is_flat()
                 && state.runtime.runtime_connection_filter == "API-0"
-                && state.diag.connection_groups.matched_count() == 2
-                && state.diag.connection_groups.source_count() == 9
+                && state.diag.connections_model.matched_count() == 2
+                && state.diag.connections_model.source_count() == 9
                 && state
                     .diag
-                    .connection_groups
+                    .connections_model
                     .search_row("group-0")
                     .is_some_and(|row| {
                         row.endpoint
@@ -381,7 +381,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     })
         }
         FeatureId::ConnectionsGrouping => {
-            let groups = &state.diag.connection_groups;
+            let groups = &state.diag.connections_model;
             groups.mode() == ConnectionGroupingMode::ByProcess
                 && state.runtime.runtime_connection_filter == "CLIENT-0"
                 && groups.rows().len() == 1

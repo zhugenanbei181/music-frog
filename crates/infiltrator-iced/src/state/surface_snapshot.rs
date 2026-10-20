@@ -2,6 +2,7 @@ use super::proxy_probe;
 use super::*;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_presentation::log_page_model::LogLevelFilter;
 
 impl AppState {
     /// Apply the shared page read model as a monotonic render cache. The
@@ -50,7 +51,7 @@ impl AppState {
                 self.runtime.outbound_probe_batch_token.wrapping_add(1);
             self.runtime.outbound_probe_batch = proxy_probe::OutboundProbeBatchState::Idle;
             self.diag.connections = None;
-            self.diag.connection_groups.clear_observation();
+            self.diag.connections_model.clear_observation();
             self.diag.connection_rates = Default::default();
             self.diag.connection_rate_book = Default::default();
             self.diag.connection_activity = Default::default();
@@ -73,19 +74,23 @@ impl AppState {
         }
         self.observe_editor_surface(&snapshot.profile_editor);
         self.shell.readout = snapshot.shell_readout.clone();
-        self.diag.log_search.observe(
+        self.diag.logs_page.observe(
             snapshot.core.generation,
             snapshot.core.session_token,
             &snapshot.pages.logs,
         );
         if self.commands.is_some() {
-            self.diag.log_filter.level_filter = snapshot
+            // The owner is authoritative for the level filter; without an owner
+            // the surface keeps the level the user selected.
+            let active_level = snapshot
                 .pages
                 .logs
                 .data
                 .as_ref()
-                .and_then(|logs| logs.active_level.clone())
-                .unwrap_or_default();
+                .and_then(|logs| logs.active_level.as_deref());
+            self.diag
+                .logs_page
+                .observe_level(LogLevelFilter::from_active_level(active_level));
             self.diag.logs = snapshot
                 .pages
                 .logs
@@ -236,8 +241,7 @@ impl AppState {
             &snapshot.system_proxy.status,
             SystemProxyStatus::Enabled | SystemProxyStatus::Disabled
         ) {
-            self.runtime
-                .observe_system_proxy(snapshot.system_proxy.is_enabled());
+            self.runtime.observe_system_proxy(snapshot.system_proxy.is_enabled());
         }
         self.runtime.runtime_generation = snapshot.core.generation;
         self.runtime.core_session_token = snapshot.core.session_token;

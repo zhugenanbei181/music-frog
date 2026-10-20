@@ -11,10 +11,11 @@ use iced_runtime::task::into_stream;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
-use infiltrator_contract::logs::LogSession;
+use infiltrator_contract::logs::{LogLevel, LogSession};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use infiltrator_presentation::log_page_model::LogLevelFilter;
 use infiltrator_presentation::log_projection::project_log_facts;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::core_process::CoreProcessStartContext;
@@ -154,7 +155,7 @@ fn shared_logs_ignore_private_stream_and_clear_only_after_actual_command_executi
     );
 }
 #[test]
-fn shared_filter_has_actual_effect_and_invalid_selection_retains_typed_failure() {
+fn shared_filter_has_actual_effect_and_the_surface_cannot_ask_for_an_invalid_level() {
     let (mut state, core) = composed();
     let scope = LogSession::from_core_scope(core.snapshot().scope().expect("active core scope"))
         .expect("active owner log session");
@@ -163,19 +164,38 @@ fn shared_filter_has_actual_effect_and_invalid_selection_retains_typed_failure()
             .ingest(scope.clone(), RuntimeStreamEvent::Item(raw.into()));
     }
     observe(&mut state, &core, 1);
-    let task = state.update(Message::SetLogLevelFilter("WARN".into()));
+    let task = state.update(Message::SetLogLevelFilter(Some(LogLevel::Warn)));
     finish(&mut state, task);
     observe(&mut state, &core, 2);
     assert_eq!(
         state.diag.logs.iter().collect::<Vec<_>>(),
         vec!["WARN[1] visible"]
     );
-    let task = state.update(Message::SetLogLevelFilter("pretend".into()));
-    finish(&mut state, task);
+    // The owner's readback is the only authority for the level filter.
+    assert_eq!(state.diag.logs_page.active_level(), Some(LogLevel::Warn));
+
+    // The surface cannot express a level that is not a level: the message
+    // carries the shared level enum and the shared page model refuses an
+    // identifier that names no level.
     assert_eq!(
-        state.diag.log_command_failure.as_ref().unwrap().code,
-        ErrorCode::InvalidInput
+        LogLevelFilter::from_identifier("pretend"),
+        LogLevelFilter::All
     );
+
+    // The owner still rejects an invalid level with a typed failure.
+    let rejected = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(execute_at_observed_scope(
+            &core,
+            CommandIntent::SetLogLevelFilter {
+                level: Some("pretend".into()),
+            },
+        ))
+        .into_unit()
+        .expect_err("the owner rejects a level that names no level");
+    assert_eq!(rejected.code, ErrorCode::InvalidInput);
     observe(&mut state, &core, 3);
     assert_eq!(state.diag.logs.len(), 1);
 }
