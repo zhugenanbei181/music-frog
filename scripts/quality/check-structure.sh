@@ -13,6 +13,12 @@ python3 scripts/quality/adapter-operation-declarations-guard.py
 python3 scripts/quality/workspace-pin-guard.py --mode enforce
 python3 scripts/quality/bevy_bsn_guard.py --mode enforce
 python3 scripts/quality/bevy_rem_guard.py --mode enforce
+# Bevy 场景律法（BSN 唯一构造 + rem 唯一 authored 长度）的执行器随共享包
+# zhuge-ui-kit 一起发布；此处是同一份文件的拷贝，台账记录其摘要，改动必须同步。
+python3 scripts/quality/bevy_scene_gate.py \
+  --root crates/infiltrator-bevy-ui/src \
+  --root crates/infiltrator-bevy-widgets/src \
+  --baseline scripts/quality/bevy_scene_ratchet.json
 python3 scripts/quality/bevy_shader_guard.py --mode enforce
 python3 scripts/quality/line-guard.py --self-test
 python3 scripts/quality/line-guard.py --mode enforce
@@ -30,6 +36,9 @@ python3 scripts/quality/lurker-neutrality-guard.py --self-test
 python3 scripts/quality/lurker-neutrality-guard.py
 python3 scripts/quality/publish-order-guard.py --self-test
 python3 scripts/quality/publish-order-guard.py
+python3 scripts/quality/rustdoc-guard.py --self-test
+python3 scripts/quality/rustdoc-guard.py --mode structure
+python3 scripts/quality/rustdoc-guard.py --mode docs
 python3 scripts/quality/neutral-release-guard.py --self-test
 python3 scripts/quality/neutral-release-guard.py --mode structure
 python3 scripts/quality/closure-questions-guard.py --self-test
@@ -60,6 +69,6 @@ python3 scripts/quality/license-guard.py --mode enforce
 python3 scripts/quality/parity-coverage-guard.py --self-test
 python3 scripts/quality/parity-coverage-guard.py --mode enforce
 python3 scripts/quality/implicit-state-audit.py --self-test
-python3 scripts/quality/implicit-state-audit.py --mode report
+python3 scripts/quality/implicit-state-audit.py --mode enforce
 python3 -m unittest discover -s scripts/parity -p 'test_*.py'
 python3 scripts/parity/resolve_surface_evidence.py --structure-only --report-json target/parity/structure.json

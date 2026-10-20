@@ -22,7 +22,8 @@
         "focused",
         "visible"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "Two independent window-manager facts: the shared `RenderCadence::from_visible_focused(visible, focused)` consumes both as inputs, and a window can be visible but unfocused, so no mutual exclusion exists."
     },
     {
       "key": "crates/infiltrator-bevy-ui/src/ime.rs::NativeImeSession::multi-bool",
@@ -33,19 +34,8 @@
         "committed_after_composition",
         "ime_closed_by_back"
       ],
-      "verdict": ""
-    },
-    {
-      "key": "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs::DnsFormState::multi-bool",
-      "file": "crates/infiltrator-bevy-ui/src/pages/dns_edit.rs",
-      "type": "DnsFormState",
-      "kind": "multi-bool",
-      "fields": [
-        "dirty",
-        "submitted",
-        "host_missing"
-      ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "The IME stage is owned by the typed `ImeCompositionTracker { phase: ImePhase }` and by the widget layer's `PreeditStatus`; the two booleans are a one-shot duplicate-commit latch and an 'OS back closed the IME' fact, and the outcome field is already a typed enum."
     },
     {
       "key": "crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes.rs::ProfileEditorOptionsState::option-as-stage",
@@ -55,7 +45,8 @@
       "fields": [
         "requested_for"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "The option carries which profile's sidecar was requested, for command-pump de-duplication; the actual stage of that surface is the typed `MixinStudioState` sibling field."
     },
     {
       "key": "crates/infiltrator-bevy-ui/src/pages/profiles_editor_state.rs::ProfileEditorState::multi-bool",
@@ -66,7 +57,8 @@
         "focused",
         "dirty"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "'the keyboard is routed here only while focused' and 'the buffer has unsaved edits' are independent facts; the real stages of that surface are typed (`MixinPreflightState`, `ProfileWriteAuthorization`, `ProfileEditSession`)."
     },
     {
       "key": "crates/infiltrator-bevy-ui/src/pages/rules_draft.rs::RulesDraftState::multi-bool",
@@ -77,7 +69,8 @@
         "repaint",
         "input_composing"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "`repaint` is a render-pipeline dirty flag and `input_composing` projects one binary fact from the shared IME tracker; the real stage machine is the shared `RuleListEditor` with its typed observation and save phases, and the two flags never gate each other."
     },
     {
       "key": "crates/infiltrator-bevy-ui/tests/common/command_harness.rs::TypedPreferenceSinkState::option-as-stage",
@@ -87,7 +80,8 @@
       "fields": [
         "failure"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "A test fixture: the option carries the reason the next submit must fail, a single optional value with no flag combination."
     },
     {
       "key": "crates/infiltrator-bevy-widgets/src/accordion.rs::AccordionItemState::multi-bool",
@@ -98,7 +92,8 @@
         "is_expanded",
         "disabled"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "`is_expanded` (open) and `disabled` (interactable) are independent: a disabled item may legitimately be expanded, and `expand_all` only skips disabled items."
     },
     {
       "key": "crates/infiltrator-bevy-widgets/src/datagrid.rs::ColumnResizeState::option-as-stage",
@@ -108,7 +103,8 @@
       "fields": [
         "active_column_idx"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "A single option: the column being dragged. The record already drives typed transitions (`start_drag`/`end_drag`/`apply_drag`) and no second field encodes the same fact."
     },
     {
       "key": "crates/infiltrator-bevy-widgets/src/modal.rs::ModalState::multi-bool",
@@ -119,7 +115,8 @@
         "is_open",
         "dismiss_on_scrim"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "`is_open` (shown) and `dismiss_on_scrim` (policy preference) are independent facts."
     },
     {
       "key": "crates/infiltrator-bevy-widgets/src/radio.rs::RadioGroupState::option-as-stage",
@@ -129,7 +126,8 @@
       "fields": [
         "active_index"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "A single option: the selected radio index. No selection yet is the normal empty state, not a stage table."
     },
     {
       "key": "crates/infiltrator-bevy-widgets/src/text_input/state.rs::TextFieldState::multi-bool",
@@ -141,7 +139,8 @@
         "is_readonly",
         "is_disabled"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "`is_masked` (rendering), `is_readonly` (editable content) and `is_disabled` (interactive) are three orthogonal input attributes; the field's stage is already typed by `ValidationStatus` and `PreeditStatus`."
     },
     {
       "key": "crates/infiltrator-bevy-widgets/src/windowing.rs::PipOverlayState::multi-bool",
@@ -152,7 +151,8 @@
         "is_pinned_top",
         "is_click_through"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "After the fix the remaining flags are independent window attributes (`is_pinned_top`, `is_click_through`), consumed as such by the bevy-ui HUD readout. The duplicated `is_active` stage was removed."
     },
     {
       "key": "crates/infiltrator-iced/src/state/diagnostics.rs::DiagnosticsState::multi-bool",
@@ -252,8 +252,6 @@
       "kind": "multi-bool",
       "fields": [
         "runtime_auto_refresh",
-        "system_proxy_enabled",
-        "system_proxy_pending",
         "autostart_enabled",
         "filter_alive_only",
         "proxy_compact_view",
@@ -263,7 +261,8 @@
         "lan_sharing_dirty",
         "lan_security_dirty"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "The remaining flags are independent binary facts: the auto-refresh, autostart, alive-only and compact-view preferences, the visibility of two different modals (the manual add-node form and the protocol studio), the TLS toggle of the add-node form, and one dirty marker per LAN card. The two stage tables that used to hide in this struct are now typed stages: the system-proxy toggle is `SystemProxyStage`, and the probe/lifecycle/patch stages are `OutboundProbeStage`, `CoreLifecycleStage` and `RuntimePatchStage`."
     },
     {
       "key": "crates/infiltrator-iced/src/state/runtime.rs::RuntimeState::option-as-stage",
@@ -271,12 +270,10 @@
       "type": "RuntimeState",
       "kind": "option-as-stage",
       "fields": [
-        "host_composition_failure",
-        "outbound_probe_pending",
-        "outbound_probe_failure",
-        "pending_runtime_patch"
+        "host_composition_failure"
       ],
-      "verdict": ""
+      "verdict": "fixed",
+      "reason": "The lifecycle stage (`lifecycle_pending` plus `lifecycle_failure`), the outbound probe stage (`outbound_probe_pending`, `outbound_probe_failure`, `outbound_probe_blocked`) and the runtime patch stage (`pending_runtime_patch`) were three hidden stage tables; each now carries one typed stage with typed transitions. The remaining `host_composition_failure` is a terminal error fact about the host wiring with no pending counterpart, so it is not a stage."
     },
     {
       "key": "crates/infiltrator-iced/src/state/shell.rs::ShellState::multi-bool",
@@ -319,7 +316,8 @@
       "fields": [
         "pending_target"
       ],
-      "verdict": ""
+      "verdict": "legitimate",
+      "reason": "The switch stage is carried by the typed `EngineOwnerState::Switching { stage }` with `EngineSwitchStage`; `pending_target` and `reservation` are the payloads of the selection-changed and binding stages, and the code clears the complementary payload when the stage moves. Known follow-up: the binding stage keeps the previous pending target instead of clearing it, so a stale payload can linger even though the stage itself stays readable from the typed owner state."
     }
   ]
 }
