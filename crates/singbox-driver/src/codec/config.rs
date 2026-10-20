@@ -19,15 +19,19 @@ use tokio::sync::Mutex;
 
 static TEMP_CONFIG_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// The receipt of one committed sing-box configuration file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SingBoxConfigApplyReceipt {
+    /// The number of bytes the read-back file holds.
     pub persisted_byte_count: usize,
 }
 
 /// Exact pre-transaction state of the active native JSON file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SingBoxConfigFileState {
+    /// The configuration file does not exist.
     Missing,
+    /// The configuration file exists with the exact bytes.
     Present(Vec<u8>),
 }
 
@@ -48,10 +52,12 @@ pub struct SingBoxProfileConfigurationAdapter {
 }
 
 impl SingBoxProfileConfigurationAdapter {
+    /// Creates the adapter that launches the binary through tokio.
     pub fn with_tokio(binary_path: PathBuf, config_path: PathBuf) -> Self {
         Self::new(binary_path, config_path, Arc::new(TokioSingBoxCommandPort))
     }
 
+    /// Creates the adapter with an injected command boundary.
     pub fn new(
         binary_path: PathBuf,
         config_path: PathBuf,
@@ -66,6 +72,10 @@ impl SingBoxProfileConfigurationAdapter {
         }
     }
 
+    /// Validates the document with the native sing-box `check` transaction.
+    ///
+    /// A document that the JSON codec rejects is never staged; a document the
+    /// codec accepts is staged in a temporary file and checked by the engine.
     pub async fn validate_native(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, PortError> {
         match self.codec.inspect(raw_bytes)? {
             DocumentValidation::Invalid { diagnostics } => {
@@ -93,6 +103,10 @@ impl SingBoxProfileConfigurationAdapter {
         }
     }
 
+    /// Validates, installs and reads back the exact submitted bytes.
+    ///
+    /// A read-back that does not match rolls the previous file back and
+    /// reports the typed failure.
     pub async fn apply_and_readback(
         &self,
         raw_bytes: &[u8],
@@ -112,12 +126,14 @@ impl SingBoxProfileConfigurationAdapter {
         }
     }
 
+    /// Reads the exact bytes of the active configuration file.
     pub async fn readback(&self) -> Result<Vec<u8>, PortError> {
         fs::read(&self.config_path)
             .await
             .map_err(|error| map_storage_error(&self.config_path, error))
     }
 
+    /// Reads the exact state of the active configuration file.
     pub async fn file_state(&self) -> Result<SingBoxConfigFileState, PortError> {
         let _transaction = self.apply_lock.lock().await;
         read_previous_config(&self.config_path).await

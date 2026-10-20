@@ -6,13 +6,23 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+/// Why a profile name was rejected as a portable storage key.
+///
+/// The variants are typed so a surface can explain the exact rule that was
+/// broken instead of showing a generic "invalid name" message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProfileNameError {
+    /// The name was empty.
     Empty,
+    /// The name was longer than 128 characters.
     TooLong,
+    /// The name started or ended with whitespace.
     EdgeWhitespace,
+    /// The name contained a relative path segment such as `..`.
     RelativeSegment,
+    /// The name contained a character that is illegal on a target filesystem.
     IllegalCharacter(char),
+    /// The name ended with a dot or a space, which Windows silently drops.
     TrailingWindowsCharacter,
 }
 

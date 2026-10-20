@@ -15,6 +15,7 @@ use lurker_core_ports::error::PortError;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+/// The lease of the stopped-old-owner stage.
 pub struct ActiveOwnerStoppedSwitchLease<C: OwnerSwitchCodec> {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
@@ -24,6 +25,7 @@ pub struct ActiveOwnerStoppedSwitchLease<C: OwnerSwitchCodec> {
 }
 
 impl<C: OwnerSwitchCodec> ActiveOwnerStoppedSwitchLease<C> {
+    /// Creates the stopped-old-owner lease for one durable stage.
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,

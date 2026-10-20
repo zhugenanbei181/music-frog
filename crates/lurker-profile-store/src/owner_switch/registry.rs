@@ -1,4 +1,9 @@
 //! Process-local owner registrations paired with the cross-process owner lock.
+//!
+//! The registry is process-local: it records which configuration root this
+//! process owns, together with the fence token of that ownership. Every
+//! mutation is fenced by the token and by the exact registered state, so a
+//! stale lease can never mutate a registration that moved on.
 
 use crate::instance_lock::ThreadedInstanceLockGuard;
 use crate::owner_switch::owner::ActiveOwnerToken;
@@ -9,26 +14,40 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
+/// The process-local registration state of one configuration root.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LocalOwnerRegistrationState {
+    /// The owner is bound and running.
     Bound {
+        /// Stable identity of the bound owner.
         identity: CoreIdentity,
+        /// Exact generation the owner is bound to.
         generation: CoreGeneration,
     },
+    /// A candidate owner admission is reserved.
     Binding {
+        /// The token that identifies the running transition.
         transition_id: ActiveOwnerToken,
     },
+    /// The owner is being replaced.
     Switching {
+        /// The token that identifies the running transition.
         transition_id: ActiveOwnerToken,
+        /// Stable identity of the previous owner.
         identity: CoreIdentity,
+        /// Exact generation the previous owner is bound to.
         generation: CoreGeneration,
     },
 }
 
+/// The outcome of recovering a local switch registration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LocalSwitchRegistrationRecovery {
+    /// The registration was already switching for this transition.
     AlreadySwitching,
+    /// The registration was bound and has been promoted to switching.
     PromotedBound,
+    /// This owner does not hold the registration.
     NotHeldByThisOwner,
 }
 
@@ -40,10 +59,14 @@ struct LocalOwnerRegistration {
 
 static REGISTRATIONS: OnceLock<Mutex<HashMap<PathBuf, LocalOwnerRegistration>>> = OnceLock::new();
 
+/// The exclusive guard over the process-local owner registrations.
 pub struct LocalOwnerRegistryGuard<'a> {
     registrations: MutexGuard<'a, HashMap<PathBuf, LocalOwnerRegistration>>,
 }
 
+/// Locks the process-local owner registry.
+///
+/// Fails with a `Failed` port error when the registry lock is poisoned.
 pub fn lock_local_owner_registry() -> Result<LocalOwnerRegistryGuard<'static>, PortError> {
     let registrations = REGISTRATIONS.get_or_init(|| Mutex::new(HashMap::new()));
     let registrations = registrations
@@ -53,10 +76,12 @@ pub fn lock_local_owner_registry() -> Result<LocalOwnerRegistryGuard<'static>, P
 }
 
 impl LocalOwnerRegistryGuard<'_> {
+    /// Whether this process holds a registration for `config_root`.
     pub fn contains(&self, config_root: &Path) -> bool {
         self.registrations.contains_key(config_root)
     }
 
+    /// Whether the registration matches the exact token and state.
     pub fn matches(
         &self,
         config_root: &Path,
@@ -70,6 +95,7 @@ impl LocalOwnerRegistryGuard<'_> {
             })
     }
 
+    /// Returns the state of the registration, when the token matches.
     pub fn state(
         &self,
         config_root: &Path,
@@ -106,6 +132,10 @@ impl LocalOwnerRegistryGuard<'_> {
         Ok(())
     }
 
+    /// Registers a bound owner for `config_root`.
+    ///
+    /// Fails with a retryable `NotReady` failure when this process already
+    /// holds a registration for the same configuration root.
     pub fn register_bound(
         &mut self,
         config_root: PathBuf,
@@ -125,6 +155,7 @@ impl LocalOwnerRegistryGuard<'_> {
         )
     }
 
+    /// Registers a reserved candidate owner admission for `config_root`.
     pub fn register_binding(
         &mut self,
         config_root: PathBuf,
@@ -140,6 +171,10 @@ impl LocalOwnerRegistryGuard<'_> {
         )
     }
 
+    /// Moves a bound registration into the switching state.
+    ///
+    /// Fails with a retryable `NotReady` failure when the registration is
+    /// stale or does not carry the exact bound identity and generation.
     pub fn begin_switching(
         &mut self,
         config_root: &Path,
@@ -173,6 +208,9 @@ impl LocalOwnerRegistryGuard<'_> {
         }
     }
 
+    /// Cancels a switch that has not closed the previous owner yet.
+    ///
+    /// The registration returns to the bound state of the previous owner.
     pub fn cancel_switch_before_close(
         &mut self,
         config_root: &Path,
@@ -207,6 +245,7 @@ impl LocalOwnerRegistryGuard<'_> {
         }
     }
 
+    /// Finalizes a reserved candidate admission into a bound owner.
     pub fn finalize_binding(
         &mut self,
         config_root: &Path,
@@ -236,6 +275,10 @@ impl LocalOwnerRegistryGuard<'_> {
         }
     }
 
+    /// Removes the registration of `config_root`.
+    ///
+    /// Fails with a retryable `NotReady` failure when the token does not match
+    /// the registration, so a stale lease cannot release a live owner.
     pub fn remove(
         &mut self,
         config_root: &Path,
@@ -254,6 +297,10 @@ impl LocalOwnerRegistryGuard<'_> {
         }
     }
 
+    /// Recovers a local registration into the switching state.
+    ///
+    /// Returns whether the registration was already switching, was promoted
+    /// from the bound state, or is not held by this owner at all.
     pub fn recover_switch(
         &mut self,
         config_root: &Path,
@@ -298,10 +345,12 @@ impl LocalOwnerRegistryGuard<'_> {
     }
 }
 
+/// Builds the typed stale-registration failure of the local registry.
 fn stale_registration(message: &str) -> PortError {
     PortError::Rejected(Failure::new(ErrorCode::NotReady, message, true))
 }
 
+/// Whether the local registration of `config_root` matches token and state.
 pub fn local_owner_registration_matches(
     config_root: &Path,
     token: &ActiveOwnerToken,
@@ -310,6 +359,7 @@ pub fn local_owner_registration_matches(
     Ok(lock_local_owner_registry()?.matches(config_root, token, state))
 }
 
+/// Returns the local registration state of `config_root`, when the token matches.
 pub fn local_owner_registration_state(
     config_root: &Path,
     token: &ActiveOwnerToken,
@@ -317,6 +367,7 @@ pub fn local_owner_registration_state(
     Ok(lock_local_owner_registry()?.state(config_root, token))
 }
 
+/// Removes the local registration of `config_root`.
 pub fn remove_local_owner_registration(
     config_root: &Path,
     token: &ActiveOwnerToken,

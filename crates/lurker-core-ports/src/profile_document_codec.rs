@@ -14,8 +14,11 @@ use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 /// Immutable engine/format/schema identity of one document codec.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileDocumentCodecScope {
+    /// Engine the codec serves.
     pub engine_id: EngineId,
+    /// Native format the codec reads and writes.
     pub format_id: ProfileFormatId,
+    /// Schema version the codec speaks.
     pub schema_version: ProfileSchemaVersion,
 }
 
@@ -31,10 +34,15 @@ pub struct ProfileDocumentCaret {
 /// Format-neutral result of a successful editor snippet splice.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileDocumentSnippetInsertion {
+    /// Identifier of the snippet that was inserted.
     pub snippet_id: String,
+    /// The document content after the splice.
     pub content: String,
+    /// One-based line the caret ends up on.
     pub cursor_line: usize,
+    /// Zero-based column the caret ends up on.
     pub cursor_column: usize,
+    /// Validation of the spliced content.
     pub validation: DocumentValidation,
 }
 
@@ -42,8 +50,13 @@ pub struct ProfileDocumentSnippetInsertion {
 /// makes a valid document invalid is rejected with neutral diagnostics.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProfileDocumentSnippetOutcome {
+    /// The snippet was inserted and the content is reported back.
     Inserted(ProfileDocumentSnippetInsertion),
-    Rejected { validation: DocumentValidation },
+    /// The splice was refused; the validation explains why.
+    Rejected {
+        /// Validation of the content that was refused.
+        validation: DocumentValidation,
+    },
 }
 
 /// Pure format inspection for exact document bytes. Implementations must not

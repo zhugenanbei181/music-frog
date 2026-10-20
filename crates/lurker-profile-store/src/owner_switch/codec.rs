@@ -38,14 +38,18 @@ pub trait OwnerSwitchCodec: Send + Sync + 'static {
     /// Record for an absent durable file.
     fn pending() -> Self::Record;
 
+    /// Returns the selection the durable record carries.
     fn selection(record: &Self::Record) -> &Self::Selection;
+    /// Returns the durable owner state the record carries.
     fn owner(record: &Self::Record) -> &ActiveCoreOwnerState<Self::Selection>;
 
     /// Replace the selection. Product impls may also commit product-only
     /// metadata that marks an explicit selection.
     fn set_selection(record: &mut Self::Record, selection: Self::Selection);
+    /// Replace the durable owner state of the record.
     fn set_owner(record: &mut Self::Record, owner: ActiveCoreOwnerState<Self::Selection>);
 
+    /// Validates the durable record before it is written or read back.
     fn validate(record: &Self::Record) -> Result<(), PortError>;
 
     /// Encode the whole persisted record, product-only fields included.

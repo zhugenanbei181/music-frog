@@ -1,3 +1,10 @@
+//! Engine-neutral outbound inventory and selection observation.
+//!
+//! An inventory snapshot is immutable and fenced to one [`CoreScope`]; the
+//! constructor rejects any observation that mixes engines, repeats an ID, or
+//! selects a member the inventory does not contain. A consumer therefore
+//! never has to re-validate the snapshot it receives.
+
 use super::details::OutboundSnapshot;
 use super::details::{OutboundDetailsSnapshot, OutboundDetailsState};
 use super::identity::{OutboundContractError, OutboundId, SnapshotRevision};
@@ -26,9 +33,13 @@ pub enum SelectionAvailability {
 /// A selectable engine outbound, such as a Mihomo group or sing-box selector.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutboundSelectionSet {
+    /// Identity of the collection (group or selector).
     pub id: OutboundId,
+    /// Identities of the outbounds that may be selected in this collection.
     pub member_ids: Vec<OutboundId>,
+    /// Whether the current member may be changed.
     pub availability: SelectionAvailability,
+    /// The observed current member of the collection.
     pub selection: OutboundSelectionState,
 }
 
@@ -36,14 +47,22 @@ pub struct OutboundSelectionSet {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundInventoryState {
+    /// The inventory has not been observed yet.
     Unknown,
+    /// The inventory was observed; both lists satisfy the snapshot invariants.
     Ready {
+        /// Every observed outbound of the engine.
         entries: Vec<OutboundSnapshot>,
+        /// Every observed selectable collection of the engine.
         collections: Vec<OutboundSelectionSet>,
     },
+    /// The backend reported that the engine has no outbound at all.
     Empty,
+    /// The backend cannot report an inventory at all.
     Unsupported,
+    /// Reading the inventory failed.
     Failed {
+        /// The typed reason the read failed.
         failure: Failure,
     },
 }
@@ -52,23 +71,46 @@ pub enum OutboundInventoryState {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundSelectionState {
+    /// The current member has not been observed yet.
     Unknown,
-    Ready { selected: OutboundId },
+    /// The current member was observed and is a member of the collection.
+    Ready {
+        /// Identity of the currently selected member.
+        selected: OutboundId,
+    },
+    /// The collection exists but has no member at all.
     Empty,
+    /// The backend cannot report the current member.
     Unsupported,
-    Failed { failure: Failure },
+    /// Reading the current member failed.
+    Failed {
+        /// The typed reason the read failed.
+        failure: Failure,
+    },
 }
 
 /// Observed result of probing one outbound.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundProbeState {
+    /// The probe has not been started yet.
     Unknown,
+    /// The probe is still running.
     Probing,
-    Measured { delay_ms: u32 },
+    /// The probe finished and measured a delay.
+    Measured {
+        /// The measured round-trip delay in milliseconds.
+        delay_ms: u32,
+    },
+    /// The probe did not answer within its deadline.
     TimedOut,
+    /// The backend cannot probe this outbound.
     Unsupported,
-    Failed { failure: Failure },
+    /// The probe failed.
+    Failed {
+        /// The typed reason the probe failed.
+        failure: Failure,
+    },
 }
 
 /// A probe result fenced to the core activation and observation revision.
@@ -84,6 +126,10 @@ pub struct OutboundProbeSnapshot {
 }
 
 impl OutboundProbeSnapshot {
+    /// Builds a probe snapshot and validates it against its scope.
+    ///
+    /// Fails with [`OutboundContractError::EngineScopeMismatch`] when the
+    /// probed outbound belongs to another engine than the fenced scope.
     pub fn new(
         scope: CoreScope,
         observed_inventory_revision: SnapshotRevision,
@@ -103,22 +149,27 @@ impl OutboundProbeSnapshot {
         })
     }
 
+    /// Returns the core scope this probe result is fenced to.
     pub fn scope(&self) -> &CoreScope {
         &self.scope
     }
 
+    /// Returns the inventory revision the probe was authorised against.
     pub const fn observed_inventory_revision(&self) -> SnapshotRevision {
         self.observed_inventory_revision
     }
 
+    /// Returns the details revision observed after the probe completed.
     pub const fn detail_revision(&self) -> SnapshotRevision {
         self.detail_revision
     }
 
+    /// Returns the identity of the probed outbound.
     pub fn outbound_id(&self) -> &OutboundId {
         &self.outbound_id
     }
 
+    /// Returns the observed probe state.
     pub fn state(&self) -> &OutboundProbeState {
         &self.state
     }
@@ -159,6 +210,19 @@ pub struct OutboundInventorySnapshot {
 }
 
 impl OutboundInventorySnapshot {
+    /// Builds an inventory snapshot and validates it against its scope.
+    ///
+    /// Fails with [`OutboundContractError::EmptyReadyInventory`] when a
+    /// `Ready` state carries no outbound, with
+    /// [`OutboundContractError::DuplicateInventoryEntryId`] or
+    /// [`OutboundContractError::DuplicateSelectionCollectionId`] or
+    /// [`OutboundContractError::DuplicateSelectionMemberId`] on repeated IDs,
+    /// with [`OutboundContractError::UnknownMember`] when a collection
+    /// references an outbound the inventory does not contain, with
+    /// [`OutboundContractError::SelectedOutboundNotMember`] when the selected
+    /// member is not part of its own collection, and with
+    /// [`OutboundContractError::EngineScopeMismatch`] when any identifier
+    /// belongs to another engine.
     pub fn new(
         scope: CoreScope,
         revision: SnapshotRevision,
@@ -218,14 +282,17 @@ impl OutboundInventorySnapshot {
         })
     }
 
+    /// Returns the core scope this snapshot is fenced to.
     pub fn scope(&self) -> &CoreScope {
         &self.scope
     }
 
+    /// Returns the inventory revision this snapshot was observed at.
     pub const fn revision(&self) -> SnapshotRevision {
         self.revision
     }
 
+    /// Returns the observed inventory state.
     pub fn inventory(&self) -> &OutboundInventoryState {
         &self.inventory
     }
@@ -258,6 +325,12 @@ pub struct OutboundObservationSnapshot {
 }
 
 impl OutboundObservationSnapshot {
+    /// Combines an inventory and a details observation into one cycle.
+    ///
+    /// Fails with [`OutboundContractError::ObservationScopeMismatch`] when the
+    /// two observations are fenced to different core scopes, and with
+    /// [`OutboundContractError::InventoryDetailsMismatch`] when the observed
+    /// outbound sets do not correspond.
     pub fn new(
         inventory: OutboundInventorySnapshot,
         details: OutboundDetailsSnapshot,
@@ -286,10 +359,12 @@ impl OutboundObservationSnapshot {
         Ok(Self { inventory, details })
     }
 
+    /// Returns the inventory half of the observation cycle.
     pub fn inventory(&self) -> &OutboundInventorySnapshot {
         &self.inventory
     }
 
+    /// Returns the details half of the observation cycle.
     pub fn details(&self) -> &OutboundDetailsSnapshot {
         &self.details
     }

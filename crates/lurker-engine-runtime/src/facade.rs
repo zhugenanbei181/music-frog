@@ -51,42 +51,67 @@ pub const DEFAULT_READINESS_TIMEOUT: Duration = Duration::from_secs(30);
 pub enum LurkerRuntimeState {
     /// No Core process is owned. `selected` is the engine the runtime was
     /// configured to start.
-    Idle { selected: Option<EngineId> },
+    Idle {
+        /// The engine the runtime was configured to start.
+        selected: Option<EngineId>,
+    },
     /// A Core process is being prepared, started or probed for readiness.
-    Starting { engine: EngineId },
+    Starting {
+        /// The engine whose Core is being started.
+        engine: EngineId,
+    },
     /// The selected engine owns a ready Core process.
     Running {
+        /// The engine that owns the running Core.
         engine: EngineId,
+        /// The scope every scoped operation is fenced to.
         scope: CoreScope,
+        /// The version the running engine reported, when it is known.
         version: Option<CoreVersion>,
     },
     /// The coordinator is replacing the active owner and has published the
     /// exact durable stage it has reached.
     Switching {
+        /// The engine whose owner is being closed.
         from: EngineId,
+        /// The engine that will own the Core after the switch.
         to: EngineId,
+        /// The exact durable stage the switch reached.
         stage: EngineSwitchStage<EngineId>,
     },
     /// The active Core process is being stopped.
-    Stopping { engine: EngineId, scope: CoreScope },
+    Stopping {
+        /// The engine whose Core is being stopped.
+        engine: EngineId,
+        /// The scope of the owner that is being stopped.
+        scope: CoreScope,
+    },
     /// Stop reached the exact Stopped/no-PID terminal. `terminal` is the
     /// lifecycle readback derived from that terminal evidence.
     Stopped {
+        /// The engine that was stopped, when one was owned.
         engine: Option<EngineId>,
+        /// The lifecycle readback of the observed terminal.
         terminal: Option<CoreLifecycleSnapshot>,
     },
     /// A switch failed after the previous owner could no longer be restored.
     /// The journal keeps the exact stage and this state names the failure
     /// phase that must be resumed by the embedding host.
     RecoveryRequired {
+        /// The selection the journal holds.
         selection: EngineId,
+        /// The switch phase that must be resumed.
         phase: EngineSwitchFailurePhase,
+        /// The adapter failure that stopped the switch.
         failure: PortError,
     },
     /// A non-switch lifecycle operation failed.
     Failed {
+        /// The engine the failure belongs to, when one was known.
         engine: Option<EngineId>,
+        /// The lifecycle phase that failed.
         phase: RuntimeFailurePhase,
+        /// The adapter failure that stopped the operation.
         failure: PortError,
     },
 }
@@ -124,14 +149,27 @@ pub enum RuntimeError {
     /// Another start, stop or switch is already in flight.
     ControlBusy,
     /// The requested engine has no registered provider.
-    UnregisteredEngine { engine_id: EngineId, reason: String },
+    UnregisteredEngine {
+        /// The engine that has no registered provider.
+        engine_id: EngineId,
+        /// Human-readable reason the engine is unavailable.
+        reason: String,
+    },
     /// The operation is not legal in the current state.
-    InvalidState { state: Box<LurkerRuntimeState> },
+    InvalidState {
+        /// The state that refused the operation.
+        state: Box<LurkerRuntimeState>,
+    },
     /// The runtime is not running yet and cannot become ready by itself.
-    NotReady { state: Box<LurkerRuntimeState> },
+    NotReady {
+        /// The state that proved the runtime is not ready.
+        state: Box<LurkerRuntimeState>,
+    },
     /// The runtime did not reach `Running` before the supplied bound.
     ReadinessTimeout {
+        /// The engine that did not become ready, when one was known.
         engine_id: Option<EngineId>,
+        /// The bound that elapsed.
         timeout: Duration,
     },
     /// The state stream was closed before readiness was observed.
@@ -201,9 +239,15 @@ pub enum RuntimeBuildError {
     /// No engine was selected.
     MissingSelection,
     /// The selected engine has no registered provider.
-    EngineNotRegistered { engine_id: EngineId },
+    EngineNotRegistered {
+        /// The engine that has no registered provider.
+        engine_id: EngineId,
+    },
     /// A provider is already registered for the same engine.
-    DuplicateProvider { engine_id: EngineId },
+    DuplicateProvider {
+        /// The engine the duplicate registration targets.
+        engine_id: EngineId,
+    },
 }
 
 impl Display for RuntimeBuildError {
@@ -242,6 +286,7 @@ pub struct LurkerRuntimeBuilder {
 }
 
 impl LurkerRuntimeBuilder {
+    /// Creates an empty builder with no provider and no selection.
     pub fn new() -> Self {
         Self {
             registry: EngineBackendProviderRegistry::empty(),

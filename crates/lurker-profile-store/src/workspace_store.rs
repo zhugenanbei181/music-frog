@@ -27,7 +27,9 @@ use lurker_core_ports::error::PortError;
 /// `AuthorizedActive` is only used after the shared root/owner/profile fences
 /// and typed owner authorization have been acquired by the product coordinator.
 pub enum ProfileWorkspacePublicationTarget<'a> {
+    /// The publication targets a profile that is not the active one.
     InactiveSelection(&'a ActiveProfileReferenceState),
+    /// The publication targets the active profile with full authorization.
     AuthorizedActive,
 }
 
@@ -35,8 +37,11 @@ pub enum ProfileWorkspacePublicationTarget<'a> {
 /// direct editing of a protected document needs an explicit unlock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileWorkspaceEdit {
+    /// The publication is derived from another source, not a direct edit.
     Derived,
+    /// The publication is a direct edit of the document.
     DirectEdit {
+        /// The authorization the caller presented.
         authorization: ProfileWriteAuthorization,
     },
 }

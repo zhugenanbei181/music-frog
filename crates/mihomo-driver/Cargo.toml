@@ -6,6 +6,16 @@ description = "Engine driver for the mihomo (Clash.Meta) core: control API, conf
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
+[package.metadata.docs.rs]
+# docs.rs preview configuration (PUB-006.6).
+# `all-features` is required here: the `http`, `process`, `codec` and
+# `backend` feature slices each hide a public module, so only `all-features`
+# publishes the complete public API of the driver. The crate owns per-OS
+# process code, so both the Linux and the Windows branch are published.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+
 [features]
 # HTTP-only builds may omit process supervision entirely (for example the
 # Android host, which owns its own VPN service process).

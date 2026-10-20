@@ -28,10 +28,12 @@ pub struct MihomoNativeConfigCheck {
 }
 
 impl MihomoNativeConfigCheck {
+    /// Creates the dry-run owner that launches the binary through tokio.
     pub fn with_tokio(binary_path: PathBuf, config_dir: PathBuf) -> Self {
         Self::new(binary_path, config_dir, Arc::new(TokioMihomoCommandPort))
     }
 
+    /// Creates the dry-run owner with an injected command boundary.
     pub fn new(
         binary_path: PathBuf,
         config_dir: PathBuf,

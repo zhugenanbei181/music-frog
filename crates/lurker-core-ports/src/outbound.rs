@@ -12,10 +12,14 @@ use lurker_core_contract::outbound::{
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+/// Why a probe request was rejected before it reached the adapter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OutboundProbeRequestError {
+    /// The target was not an absolute HTTP(S) URL.
     InvalidHttpUrl,
+    /// The target carried embedded credentials.
     CredentialsNotAllowed,
+    /// The timeout was zero.
     ZeroTimeout,
 }
 
@@ -43,6 +47,12 @@ pub struct ProbeTarget {
 }
 
 impl ProbeTarget {
+    /// Validates and builds an absolute, credential-free HTTP(S) target.
+    ///
+    /// Fails with [`OutboundProbeRequestError::InvalidHttpUrl`] when the URL is
+    /// not absolute HTTP(S), and with
+    /// [`OutboundProbeRequestError::CredentialsNotAllowed`] when the URL
+    /// carries embedded credentials.
     pub fn http_url(url: impl Into<String>) -> Result<Self, OutboundProbeRequestError> {
         let url = url.into();
         let parsed =
@@ -58,6 +68,7 @@ impl ProbeTarget {
         })
     }
 
+    /// Borrows the normalised target URL.
     pub fn as_url(&self) -> &str {
         &self.url
     }
@@ -71,6 +82,10 @@ pub struct OutboundProbeRequest {
 }
 
 impl OutboundProbeRequest {
+    /// Builds a probe request.
+    ///
+    /// Fails with [`OutboundProbeRequestError::ZeroTimeout`] for a zero
+    /// timeout.
     pub fn new(target: ProbeTarget, timeout_ms: u64) -> Result<Self, OutboundProbeRequestError> {
         if timeout_ms == 0 {
             return Err(OutboundProbeRequestError::ZeroTimeout);
@@ -78,10 +93,12 @@ impl OutboundProbeRequest {
         Ok(Self { target, timeout_ms })
     }
 
+    /// Returns the target the probe must reach.
     pub fn target(&self) -> &ProbeTarget {
         &self.target
     }
 
+    /// Returns the per-probe timeout in milliseconds.
     pub const fn timeout_ms(&self) -> u64 {
         self.timeout_ms
     }
@@ -94,6 +111,7 @@ impl OutboundProbeRequest {
 /// engine-specific identifiers stay inside the adapter.
 #[async_trait]
 pub trait OutboundPort: Send + Sync {
+    /// Reads the current outbound inventory for one scope.
     async fn inventory(&self, scope: CoreScope) -> Result<OutboundInventorySnapshot, PortError>;
 
     /// Read inventory and details from one adapter observation cycle where
@@ -121,6 +139,10 @@ pub trait OutboundPort: Send + Sync {
         )))
     }
 
+    /// Select one member of one collection and return the new inventory.
+    ///
+    /// The adapter must refuse the call when `expected_revision` no longer
+    /// matches the inventory it observes.
     async fn select(
         &self,
         scope: CoreScope,
@@ -129,6 +151,10 @@ pub trait OutboundPort: Send + Sync {
         outbound_id: OutboundId,
     ) -> Result<OutboundInventorySnapshot, PortError>;
 
+    /// Probe one outbound and return the fenced probe snapshot.
+    ///
+    /// The adapter must refuse the call when `expected_revision` no longer
+    /// matches the inventory it observes.
     async fn probe(
         &self,
         scope: CoreScope,

@@ -35,6 +35,7 @@ pub struct SingBoxOutboundAdapter {
 }
 
 impl SingBoxOutboundAdapter {
+    /// Creates the outbound adapter over one API client and scope source.
     pub fn new(api: SingBoxClashApiClient, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             version_provider: SingBoxCoreVersionProvider::new(api.clone()),

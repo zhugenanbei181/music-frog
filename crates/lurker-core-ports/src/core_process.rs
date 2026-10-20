@@ -1,3 +1,9 @@
+//! Neutral Core process supervision and readiness ports.
+//!
+//! The ports never expose a process handle, an HTTP client or a timer to the
+//! application boundary: they answer in terms of the neutral lifecycle
+//! vocabulary and the typed [`PortError`] failure.
+
 use crate::error::PortError;
 use async_trait::async_trait;
 use lurker_core_contract::core_process::CoreProcessStartContext;
@@ -7,7 +13,9 @@ use lurker_core_contract::lifecycle::CoreLifecycle;
 /// Admission observed before a managed launch is persisted and dispatched.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoreProcessStartAdmission {
+    /// No owned process exists; the host may start a new one.
     LaunchNewProcess,
+    /// The exact owned process is still running and may be reused.
     ReuseExactOwnedProcess,
 }
 
@@ -30,6 +38,10 @@ pub trait CoreProcess: Send + Sync {
         Ok(CoreProcessStartAdmission::LaunchNewProcess)
     }
 
+    /// Starts the owned core process for the supplied ownership context.
+    ///
+    /// The host must honour the context: a `Managed` context binds the new
+    /// process to the given identity, generation and session token.
     async fn start(&self, context: CoreProcessStartContext) -> Result<(), PortError>;
     /// Stop the exact configured process instance and confirm its exit before
     /// returning success. A command acknowledgement or disappearance of a
@@ -37,9 +49,12 @@ pub trait CoreProcess: Send + Sync {
     /// stop deadlines fail. With no owned or recorded instance, stop is an
     /// idempotent no-op.
     async fn stop(&self) -> Result<(), PortError>;
+    /// Observes the lifecycle state of the owned process.
     async fn status(&self) -> Result<CoreLifecycle, PortError>;
+    /// Returns the controller endpoint of the owned process, when it has one.
     fn controller_endpoint(&self) -> Option<String>;
 
+    /// Returns the process id of the owned process, when the host can read it.
     async fn pid(&self) -> Option<u32> {
         None
     }
@@ -49,6 +64,10 @@ pub trait CoreProcess: Send + Sync {
 /// polling/timer implementation to the application boundary.
 #[async_trait]
 pub trait CoreReadiness: Send + Sync {
+    /// Probes the controller and returns the readiness evidence it observed.
+    ///
+    /// A successful probe proves the controller answers; it does not prove
+    /// that the engine applied a specific configuration.
     async fn probe(&self) -> Result<String, PortError>;
 
     /// Authoritative version reported by the ready running engine, when the

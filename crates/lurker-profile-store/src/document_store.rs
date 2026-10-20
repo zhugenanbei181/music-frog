@@ -17,6 +17,8 @@ const DURABILITY_UNCERTAIN_PREFIX: &str =
     "document replacement succeeded but directory durability is uncertain";
 const REMOVAL_DURABILITY_UNCERTAIN_PREFIX: &str =
     "document removal succeeded but directory durability is uncertain";
+/// The message prefix of a failure whose record replacement is visible but
+/// whose directory durability could not be proven.
 pub const RECORD_DURABILITY_UNCERTAIN_PREFIX: &str =
     "record rename succeeded but directory durability is uncertain";
 

@@ -1,3 +1,10 @@
+//! Engine-neutral outbound identity vocabulary.
+//!
+//! Every outbound-related identifier is scoped to the engine that owns it:
+//! two engines may use the same wire name for different things, so an
+//! identifier always carries its [`EngineId`] and is only ever meaningful
+//! inside that namespace.
+
 use crate::identity::EngineId;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -6,29 +13,57 @@ use std::fmt::{self, Display, Formatter};
 
 const MAX_OUTBOUND_ID_BYTES: usize = 512;
 
+/// Why an outbound-scoped value or snapshot was rejected.
+///
+/// Every variant is a contract violation of the outbound model: the snapshot
+/// invariants (unique IDs, matching engine scope, matching members) are
+/// checked before a snapshot is published, so a consumer never has to
+/// re-validate them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OutboundContractError {
+    /// The identifier was blank.
     EmptyId,
+    /// The identifier was longer than 512 bytes.
     OversizedId,
+    /// A `Ready` inventory carried no outbound at all.
     EmptyReadyInventory,
+    /// A `Ready` details state carried no outbound at all.
     EmptyReadyDetails,
+    /// An outbound, protocol or cipher belonged to another engine.
     EngineScopeMismatch,
+    /// A collection referenced a member that the inventory does not contain.
     UnknownMember,
+    /// The selected outbound was not a member of its own collection.
     SelectedOutboundNotMember,
+    /// The inventory contained the same entry ID twice.
     DuplicateInventoryEntryId,
+    /// The inventory contained the same collection ID twice.
     DuplicateSelectionCollectionId,
+    /// One collection contained the same member ID twice.
     DuplicateSelectionMemberId,
+    /// The details contained the same outbound ID twice.
     DuplicateOutboundDetailId,
+    /// The UI preferences contained the same outbound ID twice.
     DuplicateOutboundPreferenceId,
+    /// The probe batch contained the same result ID twice.
     DuplicateOutboundProbeResultId,
+    /// The probe results did not match the requested probe scope.
     ProbeBatchResultMismatch,
+    /// A probe target was not an absolute HTTP(S) URL.
     InvalidProbeUrl,
+    /// A probe target carried embedded credentials.
     ProbeCredentialsNotAllowed,
+    /// A probe timeout was zero.
     ZeroProbeTimeout,
+    /// A probe batch concurrency was outside the supported range.
     InvalidProbeBatchConcurrency,
+    /// A selected-outbound probe batch was empty.
     EmptySelectedProbeBatch,
+    /// A selected-outbound probe batch repeated a target.
     DuplicateSelectedProbeTarget,
+    /// Two observations that had to share one scope did not.
     ObservationScopeMismatch,
+    /// The details did not match the members of the inventory.
     InventoryDetailsMismatch,
 }
 
@@ -113,6 +148,10 @@ pub struct OutboundId {
 }
 
 impl OutboundId {
+    /// Builds an outbound ID inside one engine namespace.
+    ///
+    /// Fails with [`OutboundContractError::EmptyId`] for a blank value and
+    /// with [`OutboundContractError::OversizedId`] for more than 512 bytes.
     pub fn new(
         engine_id: EngineId,
         value: impl Into<String>,
@@ -127,10 +166,12 @@ impl OutboundId {
         Ok(Self { engine_id, value })
     }
 
+    /// Returns the engine namespace this ID belongs to.
     pub fn engine_id(&self) -> &EngineId {
         &self.engine_id
     }
 
+    /// Borrows the opaque, adapter-owned ID value.
     pub fn value(&self) -> &str {
         &self.value
     }
@@ -153,6 +194,10 @@ impl<'de> Deserialize<'de> for OutboundId {
 }
 
 /// Revision of one engine-scoped observation.
+///
+/// The revision is the ordering fence between two observations of the same
+/// scope: a consumer must discard an observation whose revision is older than
+/// the one it already rendered.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -160,10 +205,12 @@ impl<'de> Deserialize<'de> for OutboundId {
 pub struct SnapshotRevision(u64);
 
 impl SnapshotRevision {
+    /// Wraps a raw revision value.
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
 
+    /// Returns the raw revision value.
     pub const fn value(self) -> u64 {
         self.0
     }
@@ -178,6 +225,10 @@ pub struct OutboundProtocolId {
 }
 
 impl OutboundProtocolId {
+    /// Builds a protocol ID inside one engine namespace.
+    ///
+    /// Fails with [`OutboundContractError::EmptyId`] for a blank value and
+    /// with [`OutboundContractError::OversizedId`] for more than 512 bytes.
     pub fn new(
         engine_id: EngineId,
         value: impl Into<String>,
@@ -192,10 +243,12 @@ impl OutboundProtocolId {
         Ok(Self { engine_id, value })
     }
 
+    /// Returns the engine namespace this protocol ID belongs to.
     pub fn engine_id(&self) -> &EngineId {
         &self.engine_id
     }
 
+    /// Borrows the opaque, adapter-owned protocol name.
     pub fn value(&self) -> &str {
         &self.value
     }
@@ -217,6 +270,7 @@ impl<'de> Deserialize<'de> for OutboundProtocolId {
     }
 }
 
+/// Opaque engine-owned cipher identity, scoped to one engine namespace.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct OutboundCipherId {
     engine_id: EngineId,
@@ -224,6 +278,10 @@ pub struct OutboundCipherId {
 }
 
 impl OutboundCipherId {
+    /// Builds a cipher ID inside one engine namespace.
+    ///
+    /// Fails with [`OutboundContractError::EmptyId`] for a blank value and
+    /// with [`OutboundContractError::OversizedId`] for more than 512 bytes.
     pub fn new(
         engine_id: EngineId,
         value: impl Into<String>,
@@ -238,10 +296,12 @@ impl OutboundCipherId {
         Ok(Self { engine_id, value })
     }
 
+    /// Returns the engine namespace this cipher ID belongs to.
     pub fn engine_id(&self) -> &EngineId {
         &self.engine_id
     }
 
+    /// Borrows the opaque, adapter-owned cipher name.
     pub fn value(&self) -> &str {
         &self.value
     }

@@ -1,9 +1,9 @@
 //! Durable owner-switch lease transitions shared by all selection payloads.
 //!
 //! The persisted record keeps the wire stages; the leases expose the neutral
-//! [`EngineSwitchStage`] so the selector never orchestrates a second
-//! vocabulary. [`crate::owner_switch::stage`] is the only place that
-//! translates between the two.
+//! [`lurker_core_contract::engine_switch::EngineSwitchStage`] so the selector
+//! never orchestrates a second vocabulary. [`crate::owner_switch::stage`] is
+//! the only place that translates between the two.
 
 use crate::owner_switch::codec::OwnerSwitchCodec;
 use crate::owner_switch::file::OwnerSwitchFile;
@@ -15,11 +15,14 @@ use lurker_core_contract::identity::{CoreGeneration, CoreIdentity};
 use lurker_core_ports::error::PortError;
 use std::path::Path;
 
+/// The candidate-admission lease of the `BindingNew` stage.
 pub mod binding_lease;
+/// The lease of the committed-selection stage.
 pub mod changed_lease;
+/// The lease of the stopped-old-owner stage.
 pub mod stopped_lease;
+/// The lease of the closing-old-owner stage.
 pub mod switch_lease;
-
 pub(crate) fn sync_read_active_profile_record<C: OwnerSwitchCodec>(
     config_root: &Path,
 ) -> Result<C::Record, PortError> {
@@ -83,6 +86,11 @@ pub(crate) fn switching_state<C: OwnerSwitchCodec>(
     }
 }
 
+/// Returns the terminal generation the owner proof proves, when it matches.
+///
+/// The proof must belong to the same core instance, the same bound
+/// generation and the same owner token, and its terminal generation must not
+/// predate the bound generation.
 pub fn terminal_proof_generation(
     proof: &ActiveCoreOwnerProofRecord,
     identity: &CoreIdentity,

@@ -1,3 +1,10 @@
+//! Neutral adapter failure vocabulary.
+//!
+//! A port never leaks a transport, OS or runtime error type into the
+//! application boundary. It converts the concrete failure into a
+//! [`PortError`], which carries either the adapter's precise application
+//! category ([`PortError::Rejected`]) or the neutral fallback classes.
+
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::fmt::{Display, Formatter};
@@ -9,18 +16,27 @@ use std::{error, fmt, io};
 pub enum PortError {
     /// An adapter's precise application category and recovery policy.
     Rejected(Failure),
+    /// The engine cannot perform the requested capability at all.
     Unsupported {
+        /// The capability the engine does not provide.
         capability: Capability,
+        /// Human-readable reason the capability is absent.
         reason: String,
     },
+    /// The process lacks the permission the operation needs.
     PermissionDenied(String),
+    /// The requested resource does not exist.
     NotFound(String),
+    /// A filesystem or other input/output operation failed.
     Io(String),
+    /// A network operation failed.
     Network(String),
+    /// The adapter failed for a reason that has no neutral class.
     Failed(String),
 }
 
 impl PortError {
+    /// Builds an `Unsupported` failure for one capability.
     pub fn unsupported(capability: Capability, reason: impl Into<String>) -> Self {
         Self::Unsupported {
             capability,
@@ -36,6 +52,10 @@ impl From<io::Error> for PortError {
 }
 
 impl PortError {
+    /// Maps the port failure to the neutral application error code.
+    ///
+    /// A [`PortError::Rejected`] keeps the precise code the adapter chose;
+    /// every other variant maps to its neutral class.
     pub fn error_code(&self) -> ErrorCode {
         match self {
             Self::Rejected(failure) => failure.code.clone(),

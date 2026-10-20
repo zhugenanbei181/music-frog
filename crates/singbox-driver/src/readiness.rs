@@ -19,16 +19,19 @@ enum ReadinessWaitState {
     Ready,
 }
 
+/// The loopback readiness probe of the sing-box Clash API.
 pub struct SingBoxControllerReadiness {
     api: SingBoxClashApiClient,
     version_provider: SingBoxCoreVersionProvider,
 }
 
 impl SingBoxControllerReadiness {
+    /// Creates the readiness probe with the production HTTP boundary.
     pub fn with_reqwest(controller: SingBoxControllerConfiguration) -> Result<Self, PortError> {
         Self::new(controller, Arc::new(ReqwestSingBoxClashHttpPort))
     }
 
+    /// Creates the readiness probe with an injected HTTP boundary.
     pub fn new(
         controller: SingBoxControllerConfiguration,
         http: Arc<dyn SingBoxClashHttpPort>,
@@ -41,6 +44,10 @@ impl SingBoxControllerReadiness {
         })
     }
 
+    /// Waits until the controller answers, or the timeout elapses.
+    ///
+    /// The last failure is returned when the bound elapses; the probe never
+    /// reports readiness it did not observe.
     pub async fn wait_until_ready(&self, timeout: Duration) -> Result<(), PortError> {
         let deadline = Instant::now() + timeout;
         let mut state = ReadinessWaitState::Probe;

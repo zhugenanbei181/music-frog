@@ -95,6 +95,7 @@ pub fn parse_u64(value: Option<&toml::Value>) -> Option<u64> {
         .and_then(|value| u64::try_from(value).ok())
 }
 
+/// Writes an optional string into a TOML table, removing the key for `None`.
 pub fn set_optional_string(table: &mut Map<String, toml::Value>, key: &str, value: Option<String>) {
     match value {
         Some(value) => {
@@ -106,6 +107,7 @@ pub fn set_optional_string(table: &mut Map<String, toml::Value>, key: &str, valu
     }
 }
 
+/// Writes an optional 32-bit value into a TOML table.
 pub fn set_optional_u32(table: &mut Map<String, toml::Value>, key: &str, value: Option<u32>) {
     match value {
         Some(value) => {
@@ -117,6 +119,7 @@ pub fn set_optional_u32(table: &mut Map<String, toml::Value>, key: &str, value: 
     }
 }
 
+/// Writes an optional 64-bit value into a TOML table.
 pub fn set_optional_u64(table: &mut Map<String, toml::Value>, key: &str, value: Option<u64>) {
     match value {
         Some(value) => {
@@ -129,6 +132,7 @@ pub fn set_optional_u64(table: &mut Map<String, toml::Value>, key: &str, value: 
     }
 }
 
+/// Writes an optional signed 64-bit value into a TOML table.
 pub fn set_optional_i64(table: &mut Map<String, toml::Value>, key: &str, value: Option<i64>) {
     match value {
         Some(value) => {
@@ -140,6 +144,7 @@ pub fn set_optional_i64(table: &mut Map<String, toml::Value>, key: &str, value: 
     }
 }
 
+/// Writes a boolean into a TOML table.
 pub fn set_bool(table: &mut Map<String, toml::Value>, key: &str, value: bool) {
     table.insert(key.to_owned(), toml::Value::Boolean(value));
 }

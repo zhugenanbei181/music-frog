@@ -14,6 +14,7 @@ use url::Url;
 
 const API_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// The sing-box Clash API client.
 #[derive(Clone)]
 pub struct SingBoxClashApiClient {
     base_url: Url,
@@ -22,10 +23,15 @@ pub struct SingBoxClashApiClient {
 }
 
 impl SingBoxClashApiClient {
+    /// Creates the client with the production HTTP boundary.
+    ///
+    /// Fails with a `Failed` port error when the controller endpoint is not
+    /// an explicit HTTP loopback URL.
     pub fn with_reqwest(controller: SingBoxControllerConfiguration) -> Result<Self, PortError> {
         Self::new(controller, Arc::new(ReqwestSingBoxClashHttpPort))
     }
 
+    /// Creates the client with an injected HTTP boundary.
     pub fn new(
         controller: SingBoxControllerConfiguration,
         http: Arc<dyn SingBoxClashHttpPort>,
@@ -37,6 +43,7 @@ impl SingBoxClashApiClient {
         })
     }
 
+    /// Returns the loopback controller endpoint the client uses.
     pub fn endpoint(&self) -> &Url {
         &self.base_url
     }
@@ -89,10 +96,12 @@ pub struct SingBoxCoreVersionProvider {
 }
 
 impl SingBoxCoreVersionProvider {
+    /// Creates the version provider over one API client.
     pub fn new(api: SingBoxClashApiClient) -> Self {
         Self { api }
     }
 
+    /// Reads the running core version from the live Clash API.
     pub async fn observe(&self) -> Result<CoreVersion, PortError> {
         let response: VersionResponse = self.api.get_json(&["version"]).await?;
         parse_core_version(&response.version)

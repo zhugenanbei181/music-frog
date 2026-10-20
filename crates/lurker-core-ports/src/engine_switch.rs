@@ -26,11 +26,16 @@ use lurker_core_contract::lifecycle::CoreLifecycleSnapshot;
 /// owner after its process-local registration has disappeared.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OwnerRecoveryEvidence {
+    /// The owner never started a process at all.
     NeverStarted {
+        /// The terminal lifecycle fact proving the owner never ran.
         terminal: CoreLifecycleSnapshot,
     },
+    /// The managed child process exited and its exact terminal is known.
     ManagedChildExited {
+        /// The start context the child was launched with.
         context: CoreProcessStartContext,
+        /// The terminal lifecycle fact observed for the child.
         terminal: CoreLifecycleSnapshot,
     },
 }
@@ -38,7 +43,9 @@ pub enum OwnerRecoveryEvidence {
 /// Outcome of an explicit owner-terminal reconciliation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OwnerRecoveryOutcome<S> {
+    /// The persisted owner was already consistent; nothing was changed.
     NoRecoveryRequired,
+    /// The persisted owner was reconciled to the supplied selection.
     Recovered(S),
 }
 
@@ -50,6 +57,7 @@ pub enum OwnerRecoveryOutcome<S> {
 /// records the target `EngineId` for the selection-changed stage.
 #[async_trait]
 pub trait EngineSwitchJournal: Send + Sync {
+    /// The host's selection identity, persisted alongside the owner state.
     type Selection: Clone + Eq + Send + Sync + 'static;
 
     /// Read selection and owner state without changing the journal.
@@ -88,7 +96,6 @@ pub trait EngineSwitchJournal: Send + Sync {
         &self,
         expected_revision: EngineSwitchRevision,
     ) -> Result<EngineSwitchRecovery<Self::Selection>, PortError>;
-
     /// Rehydrate the stopped-old-owner stage after the exact terminal
     /// generation is known. Accepts only `ClosingOld`, `OldStopped` or
     /// `SelectionChanged`; a terminal generation older than the bound
@@ -119,7 +126,9 @@ pub trait EngineSwitchJournal: Send + Sync {
 /// protocol.
 #[async_trait]
 pub trait EngineOwnerLease: Send + Sync {
+    /// Returns the stable identity of the bound owner.
     fn identity(&self) -> &CoreIdentity;
+    /// Returns the exact generation the owner is bound to.
     fn generation(&self) -> CoreGeneration;
 
     /// Clear the bound owner after the caller observed its exact terminal.
@@ -146,6 +155,7 @@ pub trait EngineOwnerSwitchLease<S>: Send + Sync
 where
     S: Clone + Eq + Send + Sync + 'static,
 {
+    /// Returns the durable stage this lease is issued for.
     fn stage(&self) -> &EngineSwitchStage<S>;
 
     /// Cancel from the exact `ClosingOld` stage. The previous selection and
@@ -170,6 +180,7 @@ pub trait EngineOwnerStoppedSwitchLease<S>: Send + Sync
 where
     S: Clone + Eq + Send + Sync + 'static,
 {
+    /// Returns the durable stage this lease is issued for.
     fn stage(&self) -> &EngineSwitchStage<S>;
 
     /// Commit the new selection and target engine. The journal retains the
@@ -190,6 +201,7 @@ pub trait EngineSwitchSelectionChangedLease<S>: Send + Sync
 where
     S: Clone + Eq + Send + Sync + 'static,
 {
+    /// Returns the durable stage this lease is issued for.
     fn stage(&self) -> &EngineSwitchStage<S>;
 
     /// Reserve the new owner admission. The candidate identity must belong to
@@ -209,6 +221,7 @@ pub trait EngineOwnerBindingLease<S>: Send + Sync
 where
     S: Clone + Eq + Send + Sync + 'static,
 {
+    /// Returns the durable stage this lease is issued for.
     fn stage(&self) -> &EngineSwitchStage<S>;
 
     /// Bind the exact candidate identity and generation, clearing the switch.

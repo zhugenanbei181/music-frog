@@ -1,5 +1,6 @@
 //! Pure viewport policy shared by native log viewers; locking never stops log ingestion.
 
+/// The follow state of one log viewport.
 #[derive(Clone, Debug, Default)]
 pub struct LogFollowState {
     mode: FollowMode,
@@ -19,10 +20,12 @@ impl Default for FollowMode {
 }
 
 impl LogFollowState {
+    /// Whether the viewport currently follows the log tail.
     pub fn should_follow(&self) -> bool {
         matches!(self.mode, FollowMode::Following { .. })
     }
 
+    /// Toggles between following the tail and pausing the follow.
     pub fn toggle_follow(&mut self) {
         self.mode = match self.mode {
             FollowMode::Following { offset } => FollowMode::Paused { offset },
@@ -33,6 +36,7 @@ impl LogFollowState {
         };
     }
 
+    /// Returns the catalog key of the follow toggle button.
     pub fn label_key(&self) -> &'static str {
         if self.should_follow() {
             "logs_scroll_lock"
@@ -41,6 +45,10 @@ impl LogFollowState {
         }
     }
 
+    /// Folds one viewport observation into the follow state.
+    ///
+    /// Scrolling away from the tail stops the follow; scrolling back to the
+    /// end resumes it. Non-finite or negative measurements are ignored.
     pub fn observe_viewport(&mut self, offset: f32, content: f32, viewport: f32) {
         if !offset.is_finite()
             || !content.is_finite()
@@ -78,6 +86,7 @@ impl LogFollowState {
         };
     }
 
+    /// Returns the scroll offset the viewport should be restored to.
     pub fn restored_offset(&self, extent: f32) -> f32 {
         let extent = extent.max(0.0);
         match self.mode {

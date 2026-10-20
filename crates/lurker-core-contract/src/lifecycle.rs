@@ -8,11 +8,17 @@ use serde::{Deserialize, Serialize};
 /// Stable lifecycle vocabulary for REST, UI projection, and FFI.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CoreLifecycle {
+    /// No core process is running.
     Stopped,
+    /// The core process is starting and has not reached readiness yet.
     Starting,
+    /// The core process is up and answered its readiness probe.
     Ready,
+    /// The core process is running and serving traffic.
     Running,
+    /// The core process is being stopped.
     Stopping,
+    /// The core process failed; the snapshot carries the typed failure.
     Failed,
 }
 
@@ -21,13 +27,19 @@ pub enum CoreLifecycle {
 /// identity and failure cannot drift between UI implementations.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreLifecycleSnapshot {
+    /// Stable identity of the core, once it is known.
     #[serde(default)]
     pub identity: Option<CoreIdentity>,
+    /// The lifecycle state the core is in.
     pub lifecycle: CoreLifecycle,
+    /// The activation counter of the current core activation.
     pub generation: u64,
+    /// The session token of the owning session, when the core is managed.
     #[serde(default, with = "core_lifecycle_session_token_wire")]
     pub session_token: Option<SessionToken>,
+    /// Monotonic revision of the lifecycle observation.
     pub revision: u64,
+    /// The typed failure, when the lifecycle is `Failed`.
     pub failure: Option<Failure>,
 }
 
@@ -45,6 +57,10 @@ impl Default for CoreLifecycleSnapshot {
 }
 
 impl CoreLifecycleSnapshot {
+    /// Returns the scope this snapshot fences to, when the identity is known.
+    ///
+    /// A snapshot without an identity cannot fence anything, so it returns
+    /// `None` instead of inventing a placeholder scope.
     pub fn scope(&self) -> Option<CoreScope> {
         self.identity.clone().map(|identity| CoreScope {
             identity,
@@ -88,7 +104,9 @@ mod core_lifecycle_session_token_wire {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoreInactiveLifecycle {
+    /// The core is not running and did not fail.
     Stopped,
+    /// The core is not running because it failed.
     Failed,
 }
 

@@ -6,6 +6,15 @@ description = "Engine-neutral ports shared by every Lurker core host: process, o
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
+[package.metadata.docs.rs]
+# docs.rs preview configuration (PUB-006.6).
+# `all-features` covers every optional code path of the ports crate, and
+# `--cfg docsrs` lets the crate expose documentation-only items later without
+# changing the published API.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu"]
+
 [dependencies]
 lurker-core-contract = { version = "0.50.0", path = "../lurker-core-contract" }
 async-trait = { workspace = true }

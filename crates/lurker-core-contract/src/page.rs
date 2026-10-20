@@ -14,11 +14,22 @@ use serde::{Deserialize, Serialize};
 /// result: a surface must tell the user why a host capability is absent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PageStatus {
+    /// The read model has not produced an answer yet.
     Loading,
+    /// The read model produced a non-empty answer.
     Ready,
+    /// The read model produced a valid but empty answer.
     Empty,
-    Unavailable { failure: Failure },
-    Failed { failure: Failure },
+    /// The host does not offer this capability; the failure explains why.
+    Unavailable {
+        /// Typed reason the capability is absent.
+        failure: Failure,
+    },
+    /// The read model failed; the failure explains what went wrong.
+    Failed {
+        /// Typed reason the read failed.
+        failure: Failure,
+    },
 }
 
 /// Whether a surface snapshot is an explicit fixture or a host/application
@@ -26,17 +37,27 @@ pub enum PageStatus {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SurfaceOrigin {
+    /// The snapshot comes from an explicit demo fixture.
     Demo,
+    /// The snapshot comes from a live host or application observation.
     Live,
 }
 
+/// A page status together with the payload it belongs to.
+///
+/// The payload is present only for the states that carry data (`Ready` and
+/// `Empty`); the other states deliberately have no payload so a surface can
+/// never render stale content next to an error.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PageData<T> {
+    /// The state the read model is in.
     pub status: PageStatus,
+    /// The payload, present only for `Ready` and `Empty`.
     pub data: Option<T>,
 }
 
 impl<T> PageData<T> {
+    /// Builds the loading state without a payload.
     pub fn loading() -> Self {
         Self {
             status: PageStatus::Loading,
@@ -44,6 +65,7 @@ impl<T> PageData<T> {
         }
     }
 
+    /// Builds the ready state with its payload.
     pub fn ready(data: T) -> Self {
         Self {
             status: PageStatus::Ready,
@@ -51,6 +73,7 @@ impl<T> PageData<T> {
         }
     }
 
+    /// Builds the empty state with its (empty) payload.
     pub fn empty(data: T) -> Self {
         Self {
             status: PageStatus::Empty,
@@ -58,6 +81,7 @@ impl<T> PageData<T> {
         }
     }
 
+    /// Builds the unavailable state with the reason the capability is absent.
     pub fn unavailable(failure: Failure) -> Self {
         Self {
             status: PageStatus::Unavailable { failure },
@@ -65,6 +89,7 @@ impl<T> PageData<T> {
         }
     }
 
+    /// Builds the failed state with the reason the read failed.
     pub fn failed(failure: Failure) -> Self {
         Self {
             status: PageStatus::Failed { failure },

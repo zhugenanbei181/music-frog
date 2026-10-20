@@ -113,22 +113,27 @@ impl MihomoBackendOptions {
         })
     }
 
+    /// Returns the path of the Mihomo binary the host may launch.
     pub fn binary_path(&self) -> &PathBuf {
         &self.binary_path
     }
 
+    /// Returns the path of the configuration file the core reads.
     pub fn config_path(&self) -> &PathBuf {
         &self.config_path
     }
 
+    /// Returns the home directory the core may use.
     pub fn home_dir(&self) -> &PathBuf {
         &self.home_dir
     }
 
+    /// Returns the loopback controller endpoint of the core.
     pub fn controller_endpoint(&self) -> &str {
         &self.controller_endpoint
     }
 
+    /// Returns the controller secret, when the host configured one.
     pub fn secret(&self) -> Option<&str> {
         self.secret.as_deref()
     }
@@ -155,6 +160,7 @@ pub struct MihomoEngineBackendProvider {
 }
 
 impl MihomoEngineBackendProvider {
+    /// Creates the provider from validated host inputs.
     pub fn new(options: MihomoBackendOptions) -> Self {
         Self { options }
     }

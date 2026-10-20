@@ -31,6 +31,7 @@ use lurker_core_ports::error::PortError;
 /// failing hook cannot leak a running process.
 #[async_trait]
 pub trait AdapterConformanceRunningCheck: Send + Sync {
+    /// Runs the host-owned check while the Core is ready.
     async fn check(&self) -> Result<(), ConformanceFailure>;
 }
 

@@ -29,6 +29,7 @@ pub struct OwnerSwitchFile<C: OwnerSwitchCodec> {
 }
 
 impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
+    /// Creates the file owner for one configuration root.
     pub fn new(config_root: impl Into<PathBuf>) -> Self {
         Self {
             config_root: config_root.into(),
@@ -36,6 +37,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         }
     }
 
+    /// Returns the path of the durable active-profile reference record.
     pub fn path(&self) -> PathBuf {
         self.config_root
             .join(C::layout().active_profile_reference_file_name.as_str())
@@ -60,6 +62,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok((config_root, guard))
     }
 
+    /// Acquires the owner-state lock of the configuration root.
     pub async fn acquire_owner_state_lock(&self) -> Result<ThreadedInstanceLockGuard, PortError> {
         acquire_instance_lock_async(
             self.config_root
@@ -68,6 +71,9 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         .await
     }
 
+    /// Tries to acquire the cross-process owner lock without waiting.
+    ///
+    /// Returns `None` when another process already holds the lock.
     pub fn try_acquire_owner_lock(&self) -> Result<Option<ThreadedInstanceLockGuard>, PortError> {
         try_acquire_threaded_instance_lock(
             &self
@@ -77,6 +83,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         .map_err(|error| PortError::Io(error.to_string()))
     }
 
+    /// Reads the durable active-profile reference record, if it exists.
     pub async fn read_active_profile_record(&self) -> Result<Option<C::Record>, PortError> {
         let Some(text) = read_optional(&self.path()).await? else {
             return Ok(None);
@@ -86,6 +93,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok(Some(record))
     }
 
+    /// Reads the durable active-profile reference record, or the pending one.
     pub async fn read_active_profile_record_or_pending(&self) -> Result<C::Record, PortError> {
         Ok(self
             .read_active_profile_record()
@@ -93,6 +101,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
             .unwrap_or_else(C::pending))
     }
 
+    /// Reads the durable active-profile reference record synchronously.
     pub fn read_active_profile_record_sync(&self) -> Result<Option<C::Record>, PortError> {
         let text = match read_to_string(self.path()) {
             Ok(text) => text,
@@ -104,18 +113,24 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok(Some(record))
     }
 
+    /// Reads the durable record synchronously, or the pending one.
     pub fn read_active_profile_record_sync_or_pending(&self) -> Result<C::Record, PortError> {
         Ok(self
             .read_active_profile_record_sync()?
             .unwrap_or_else(C::pending))
     }
 
+    /// Writes the durable active-profile reference record synchronously.
     pub fn write_active_profile_record_sync(&self, record: &C::Record) -> Result<(), PortError> {
         C::validate(record)?;
         let bytes = C::encode(record)?;
         write_document_bytes_durable_sync(&self.path(), &bytes)
     }
 
+    /// Publishes the record durably and returns the committed selection.
+    ///
+    /// The write is read back; a readback that differs from the committed
+    /// record fails with a `Failed` port error.
     pub async fn publish_active_profile_record(
         &self,
         record: &C::Record,
@@ -134,6 +149,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok(C::selection(&observed).clone())
     }
 
+    /// Publishes the record synchronously and returns the committed selection.
     pub fn publish_active_profile_record_sync(
         &self,
         record: &C::Record,
@@ -151,6 +167,9 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok(C::selection(&observed).clone())
     }
 
+    /// Reads the durable owner proof record.
+    ///
+    /// A missing record reads as an unowned proof.
     pub fn read_owner_proof_sync(&self) -> Result<ActiveCoreOwnerProofRecord, PortError> {
         let path = self
             .config_root
@@ -165,6 +184,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         parse_active_core_owner_proof_record(&text)
     }
 
+    /// Writes the durable owner proof record.
     pub fn write_owner_proof_sync(
         &self,
         record: &ActiveCoreOwnerProofRecord,
@@ -180,6 +200,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         )
     }
 
+    /// Publishes the active-profile reference and reconciles uncertain writes.
     pub fn publish_active_profile_record_sync_reconciled(
         &self,
         record: &C::Record,
@@ -192,6 +213,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         })
     }
 
+    /// Publishes the owner proof and reconciles uncertain writes.
     pub fn publish_owner_proof_sync_reconciled(
         &self,
         record: &ActiveCoreOwnerProofRecord,
@@ -202,6 +224,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         })
     }
 
+    /// Reads and decodes the active-profile reference as an arbitrary type.
     pub async fn read<T: DeserializeOwned>(&self) -> Result<Option<T>, PortError> {
         let Some(text) = read_optional(&self.path()).await? else {
             return Ok(None);
@@ -211,6 +234,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
             .map_err(|error| PortError::Io(format!("invalid active-profile reference: {error}")))
     }
 
+    /// Reads and decodes the active-profile reference synchronously.
     pub fn read_sync<T: DeserializeOwned>(&self) -> Result<Option<T>, PortError> {
         let text = match read_to_string(self.path()) {
             Ok(text) => text,
@@ -222,18 +246,21 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
             .map_err(|error| PortError::Io(format!("invalid active-profile reference: {error}")))
     }
 
+    /// Writes the active-profile reference durably.
     pub async fn write<T: Serialize>(&self, record: &T) -> Result<(), PortError> {
         let text = serde_json::to_string_pretty(record)
             .map_err(|error| PortError::Io(error.to_string()))?;
         write_document_bytes_durable(&self.path(), text.as_bytes()).await
     }
 
+    /// Writes the active-profile reference durably, synchronously.
     pub fn write_sync<T: Serialize>(&self, record: &T) -> Result<(), PortError> {
         let bytes =
             serde_json::to_vec_pretty(record).map_err(|error| PortError::Io(error.to_string()))?;
         write_document_bytes_durable_sync(&self.path(), &bytes)
     }
 
+    /// Publishes the active-profile reference and returns the read-back value.
     pub async fn publish<T>(&self, record: &T) -> Result<T, PortError>
     where
         T: Serialize + DeserializeOwned + PartialEq,
@@ -250,6 +277,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok(observed)
     }
 
+    /// Publishes the active-profile reference synchronously and reads it back.
     pub fn publish_sync<T>(&self, record: &T) -> Result<T, PortError>
     where
         T: Serialize + DeserializeOwned + PartialEq,
@@ -266,11 +294,16 @@ impl<C: OwnerSwitchCodec> OwnerSwitchFile<C> {
         Ok(observed)
     }
 
+    /// Returns the configuration root this file owner works on.
     pub fn config_root(&self) -> &Path {
         &self.config_root
     }
 }
 
+/// Whether the failure means the replacement is visible but not provably durable.
+///
+/// Such a failure is reconciled by reading the record back; it is never
+/// treated as "the write did not happen".
 pub fn is_durability_uncertain(error: &PortError) -> bool {
     matches!(error, PortError::Failed(message) if message.starts_with(RECORD_DURABILITY_UNCERTAIN_PREFIX))
 }
@@ -293,6 +326,12 @@ async fn acquire_instance_lock_async(
     }
 }
 
+/// Reconciles a durable write whose durability is uncertain.
+///
+/// A write that failed with an uncertain durability is read back: a matching
+/// readback means the replacement is visible and is accepted, a differing
+/// readback fails with the original cause attached. Every other write failure
+/// is returned unchanged.
 pub fn reconcile_record_publication<T: PartialEq>(
     record_name: &str,
     expected: &T,

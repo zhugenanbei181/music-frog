@@ -22,22 +22,32 @@ use std::io::ErrorKind;
 use std::path::Path;
 use tokio::fs;
 
+/// The schema version this crate writes for the profile-reset intent record.
 pub const ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 2;
+/// The schema version of the legacy profile-reset intent record.
 pub const LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 1;
+/// The message returned while a durable profile reset is still pending.
 pub const PROFILE_RESET_PENDING_MUTATION_MESSAGE: &str =
     "a profile reset is awaiting durable cleanup; retry that reset before other profile mutations";
 
+/// The durable record of a pending profile reset.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ActiveProfileResetIntentRecord<S> {
+    /// The schema version the record was written with.
     pub schema_version: u32,
+    /// The reference the reset was requested against.
     pub expected_reference: S,
+    /// The reference the reset moves to.
     pub target_reference: S,
+    /// The SHA-256 digest of the default document bytes.
     pub default_document_sha256: String,
+    /// The exact default document bytes the reset restores.
     pub default_document: Vec<u8>,
 }
 
 impl<S> ActiveProfileResetIntentRecord<S> {
+    /// Builds a pending-reset record for one default document.
     pub fn new(expected_reference: S, target_reference: S, default_content: &[u8]) -> Self {
         Self {
             schema_version: ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION,
@@ -48,6 +58,10 @@ impl<S> ActiveProfileResetIntentRecord<S> {
         }
     }
 
+    /// Checks the schema version and the digest of the stored default bytes.
+    ///
+    /// Fails with an `Unsupported` port error for a foreign schema version and
+    /// with an `Io` port error when the digest does not match the bytes.
     pub fn validate(&self) -> Result<(), PortError> {
         if self.schema_version != ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION {
             return Err(PortError::unsupported(
@@ -76,6 +90,7 @@ impl<S> ActiveProfileResetIntentRecord<S> {
         Ok(())
     }
 
+    /// Whether the record describes exactly this expected-to-target transition.
     pub fn matches_transition(&self, expected: &S, target: &S) -> bool
     where
         S: PartialEq,
@@ -84,16 +99,23 @@ impl<S> ActiveProfileResetIntentRecord<S> {
     }
 }
 
+/// The legacy pending-reset record that carried only the digest.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LegacyActiveProfileResetIntentRecord<S> {
+    /// The reference the reset was requested against.
     pub expected_reference: S,
+    /// The reference the reset moves to.
     pub target_reference: S,
+    /// The SHA-256 digest of the default document bytes.
     pub default_document_sha256: String,
 }
 
+/// A parsed pending-reset record in either the legacy or the current format.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParsedActiveProfileResetIntentRecord<S> {
+    /// The legacy v1 record, which carries only the default digest.
     LegacyV1(LegacyActiveProfileResetIntentRecord<S>),
+    /// The current v2 record, which carries the default bytes as well.
     CurrentV2(ActiveProfileResetIntentRecord<S>),
 }
 
@@ -108,6 +130,7 @@ struct ActiveProfileResetIntentEnvelope<S> {
 }
 
 impl<S> ParsedActiveProfileResetIntentRecord<S> {
+    /// Returns the reference the reset was requested against.
     pub fn expected_reference(&self) -> &S {
         match self {
             Self::LegacyV1(record) => &record.expected_reference,
@@ -115,6 +138,7 @@ impl<S> ParsedActiveProfileResetIntentRecord<S> {
         }
     }
 
+    /// Returns the reference the reset moves to.
     pub fn target_reference(&self) -> &S {
         match self {
             Self::LegacyV1(record) => &record.target_reference,
@@ -122,6 +146,7 @@ impl<S> ParsedActiveProfileResetIntentRecord<S> {
         }
     }
 
+    /// Returns the current-format record, or `None` for a legacy record.
     pub fn current_record(&self) -> Option<&ActiveProfileResetIntentRecord<S>> {
         match self {
             Self::LegacyV1(_) => None,
@@ -130,8 +155,11 @@ impl<S> ParsedActiveProfileResetIntentRecord<S> {
     }
 }
 
+/// How a mutation may treat the per-engine pending-reset state.
 pub enum ActiveProfileResetMutationAccess {
+    /// The mutation is not a retry, so every engine namespace is checked.
     OrdinaryMutation,
+    /// The mutation retries one engine, whose own namespace is skipped.
     RetryEngine(EngineId),
 }
 
@@ -141,6 +169,10 @@ pub struct ResetFencedProfileMutationGuard {
     _profile: ProfileWriteGuard,
 }
 
+/// Parses a pending-reset record from its durable bytes.
+///
+/// Only the explicit v1 and v2 schemas are accepted; anything else fails with
+/// an `Unsupported` port error instead of being interpreted loosely.
 pub fn parse_reset_intent_record<S>(
     bytes: &[u8],
 ) -> Result<ParsedActiveProfileResetIntentRecord<S>, PortError>
@@ -185,6 +217,10 @@ where
     }
 }
 
+/// Fails when a profile reset is still pending in `config_dir`.
+///
+/// The failure is retryable: the caller has to finish the pending reset
+/// before it may run another profile mutation.
 pub async fn ensure_reset_not_pending_for_dir<C: OwnerSwitchCodec, S>(
     config_dir: &Path,
 ) -> Result<(), PortError>
@@ -201,6 +237,7 @@ where
     Ok(())
 }
 
+/// Whether a profile reset is still pending in `config_dir`.
 pub async fn reset_pending_for_dir<C: OwnerSwitchCodec, S>(
     config_dir: &Path,
 ) -> Result<bool, PortError>
@@ -227,6 +264,10 @@ where
     Ok(true)
 }
 
+/// Fails when any engine namespace still carries a pending profile reset.
+///
+/// A symlinked namespace entry fails closed: the scan cannot prove the reset
+/// state of a directory it does not own.
 pub async fn ensure_no_pending_reset_in_engine_namespaces<
     C: OwnerSwitchCodec,
     S: DeserializeOwned + PartialEq,

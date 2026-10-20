@@ -1,29 +1,52 @@
 //! One localization boundary for typed product reasons and opaque adapter details.
+//!
+//! The projection never interprets the raw adapter message: only the stable
+//! [`ErrorCode`] and the typed [`FailureReason`] decide the localization key.
+//! The adapter text stays a separate diagnostic detail.
 use crate::copy::{TextCatalog, interpolate};
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 
+/// The localization key of one projected failure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FailureLocalizationKey {
+    /// The caller supplied an invalid argument.
     InvalidInput,
+    /// The operation is not legal in the current state.
     InvalidState,
+    /// The target is not ready yet.
     NotReady,
+    /// The capability is not supported.
     Unsupported,
+    /// A network operation failed.
     Network,
+    /// Authentication or authorisation failed.
     Authentication,
+    /// The configuration was rejected.
     Configuration,
+    /// A storage operation failed.
     Storage,
+    /// The process lacks the permission the operation needs.
     Permission,
+    /// The operation was cancelled.
     Canceled,
+    /// An unexpected internal failure occurred.
     Internal,
+    /// The YAML document could not be parsed.
     YamlSyntax,
+    /// The YAML mixin could not be applied.
     MixinYaml,
+    /// The persisted active-profile record is inconsistent.
     ActiveProfileInconsistent,
+    /// The quota source changed while the request was in flight.
     QuotaSourceChanged,
+    /// The current time could not be determined.
     CurrentTimeUnavailable,
+    /// The download was cancelled by the caller.
     DownloadCanceled,
 }
 
 impl FailureLocalizationKey {
+    /// Returns the stable catalog key of this localization key.
     pub const fn shared_key(self) -> &'static str {
         match self {
             Self::InvalidInput => "failure_invalid_input",
@@ -47,10 +70,14 @@ impl FailureLocalizationKey {
     }
 }
 
+/// The localization projection of one typed failure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FailureLocalizationProjection {
+    /// The localization key of the failure.
     pub key: FailureLocalizationKey,
+    /// The line the failure points at, when the codec reported one.
     pub line: Option<usize>,
+    /// The column the failure points at, when the codec reported one.
     pub column: Option<usize>,
 }
 
@@ -97,6 +124,10 @@ fn localization_key_for_error_code(code: ErrorCode) -> FailureLocalizationKey {
     }
 }
 
+/// Renders the localized message of one typed failure.
+///
+/// A failure without a typed reason keeps its raw message; a failure with a
+/// reason renders the localized title plus the opaque diagnostic detail.
 pub fn failure_message(failure: &Failure, catalog: &dyn TextCatalog) -> String {
     if failure.reason.is_none() {
         return failure.message.clone();

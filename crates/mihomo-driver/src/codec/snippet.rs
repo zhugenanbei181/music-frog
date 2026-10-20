@@ -10,6 +10,7 @@ use lurker_core_ports::profile_document_codec::ProfileDocumentCaret;
 /// A document after one byte-faithful snippet splice.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SplicedDocument {
+    /// The identifier of the snippet that was spliced.
     pub snippet_id: String,
     /// The document after the splice; every untouched byte is preserved.
     pub content: String,

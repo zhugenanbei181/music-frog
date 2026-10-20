@@ -8,21 +8,32 @@ use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;
 use url::{Host, Url};
 
+/// The HTTP method of one Clash API request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SingBoxClashMethod {
+    /// The HTTP GET method.
     Get,
+    /// The HTTP PUT method.
     Put,
 }
 
+/// One Clash API response.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SingBoxClashResponse {
+    /// The HTTP status code of the response.
     pub status: u16,
+    /// The raw response body.
     pub body: Vec<u8>,
 }
 
+/// The authorization the sing-box controller expects.
 #[derive(Clone, PartialEq, Eq)]
 pub enum SingBoxControllerAuthorization {
+    /// The controller is reached without a secret.
     NoSecret,
+    /// The controller is reached with a bearer token.
+    ///
+    /// The token is never rendered: the `Debug` implementation redacts it.
     BearerToken(String),
 }
 
@@ -35,8 +46,10 @@ impl Debug for SingBoxControllerAuthorization {
     }
 }
 
+/// The injectable HTTP boundary of the sing-box Clash API client.
 #[async_trait]
 pub trait SingBoxClashHttpPort: Send + Sync {
+    /// Performs one request against the loopback controller.
     async fn request(
         &self,
         url: &Url,
@@ -47,6 +60,7 @@ pub trait SingBoxClashHttpPort: Send + Sync {
     ) -> Result<SingBoxClashResponse, PortError>;
 }
 
+/// The production HTTP boundary of the sing-box Clash API client.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ReqwestSingBoxClashHttpPort;
 

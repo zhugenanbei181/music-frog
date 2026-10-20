@@ -21,18 +21,25 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use toml::map::Map;
 
+/// The key of the schema marker inside the profile-state document.
 pub const PROFILE_NAMESPACE_SCHEMA_KEY: &str = "profile_namespace_schema";
 const ENGINE_SCOPED_SCHEMA_V1: &str = "engine_scoped_v1";
 
+/// The schema of the profile-state document of one engine namespace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileNamespaceSchema {
+    /// The legacy shared schema, without a schema marker.
     LegacyShared,
+    /// The engine-scoped v1 schema.
     EngineScopedV1,
 }
 
+/// How one engine namespace was initialized.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProfileNamespaceInitialization {
+    /// The namespace was initialized with the engine-scoped schema.
     EngineScoped,
+    /// The namespace was migrated from the legacy shared schema.
     LegacyV1(LegacyProfileNamespaceMigrationV1),
 }
 
@@ -45,6 +52,7 @@ pub struct LegacyProfileNamespaceMigrationV1 {
 }
 
 impl LegacyProfileNamespaceMigrationV1 {
+    /// Describes the legacy shared namespace to migrate.
     pub fn new(
         settings_file: impl Into<PathBuf>,
         sync_index_file_name: Option<String>,
@@ -57,18 +65,25 @@ impl LegacyProfileNamespaceMigrationV1 {
         }
     }
 
+    /// Returns the path of the legacy shared settings document.
     pub fn settings_file(&self) -> &Path {
         &self.settings_file
     }
 
+    /// Returns the file name of the legacy sync index, when it has one.
     pub fn sync_index_file_name(&self) -> Option<&str> {
         self.sync_index_file_name.as_deref()
     }
 
+    /// Returns the legacy directory names that move into the engine namespace.
     pub fn directories(&self) -> &[String] {
         &self.directories
     }
 
+    /// Checks that every configured name is a single relative component.
+    ///
+    /// Fails with a `Configuration` port error when a name could escape the
+    /// shared configuration root.
     pub fn validate(&self) -> Result<(), PortError> {
         if self
             .sync_index_file_name
@@ -88,6 +103,10 @@ impl LegacyProfileNamespaceMigrationV1 {
 }
 
 impl ProfileNamespaceSchema {
+    /// Parses the schema marker of a profile-state document.
+    ///
+    /// A missing marker means the legacy shared schema; an unknown marker
+    /// fails with a `Configuration` port error instead of being ignored.
     pub fn parse(value: Option<&toml::Value>) -> Result<Self, PortError> {
         match value {
             None => Ok(Self::LegacyShared),
@@ -103,6 +122,7 @@ impl ProfileNamespaceSchema {
         }
     }
 
+    /// Writes the engine-scoped v1 schema marker into a state document.
     pub fn write_engine_scoped_v1(state: &mut toml::Value) -> Result<(), PortError> {
         let table = state
             .as_table_mut()
@@ -155,6 +175,7 @@ pub async fn initialize_engine_scoped_namespace_unlocked_with_platform(
     write_profile_state_atomically_with_platform(platform, layout, settings_file, &state).await
 }
 
+/// Reads the profile-state document, recovering its backup first.
 pub async fn read_profile_state(
     layout: &ProfileStoreLayout,
     path: &Path,
@@ -177,6 +198,7 @@ pub async fn read_profile_state_with_platform(
     toml::from_str(&text).map_err(|error| namespace_configuration_error(error.to_string()))
 }
 
+/// Writes the profile-state document atomically and durably.
 pub async fn write_profile_state_atomically(
     layout: &ProfileStoreLayout,
     path: &Path,
@@ -434,6 +456,7 @@ pub async fn has_legacy_profile_data_with_platform(
 }
 
 /// Remove the legacy sync index after its data has been adopted.
+/// Removes the legacy sync index after its data has been adopted.
 pub async fn retire_legacy_sync_index(
     config_root: &Path,
     migration: &LegacyProfileNamespaceMigrationV1,
@@ -455,6 +478,7 @@ pub async fn retire_legacy_sync_index_with_platform(
     run_platform_io(platform, move |platform| platform.remove_file(&path)).await
 }
 
+/// Rewrite (or delete, when empty) the legacy shared settings after a merge.
 /// Rewrite (or delete, when empty) the legacy shared settings after a merge.
 pub async fn write_legacy_settings(
     layout: &ProfileStoreLayout,
@@ -613,6 +637,10 @@ fn namespace_configuration_error(message: impl Into<String>) -> PortError {
     PortError::Rejected(Failure::new(ErrorCode::Configuration, message, false))
 }
 
+/// Whether the value is exactly one relative path component.
+///
+/// An absolute path, a nested path, `.` and `..` are all rejected, so a
+/// configured name can never escape the shared configuration root.
 pub fn is_single_relative_component(value: &str) -> bool {
     let mut components = Path::new(value).components();
     matches!(

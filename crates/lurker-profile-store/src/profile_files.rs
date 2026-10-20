@@ -49,10 +49,15 @@ pub trait ProfileDeletionParticipant: Send + Sync {
 /// [`ProfileDeletionParticipant::retire_for_deletion`].
 #[async_trait]
 pub trait ProfileDeletionRollback: Send {
+    /// Undoes the retirement the participant performed.
     async fn rollback(self: Box<Self>) -> Result<(), PortError>;
 }
 
 impl ProfileStoreCore {
+    /// Validates document bytes with the engine document codec.
+    ///
+    /// Fails with a `Configuration` port error carrying the first diagnostic
+    /// the codec reported.
     pub fn validate_document_bytes(&self, document: &[u8]) -> Result<(), PortError> {
         match self.document_codec().inspect(document)? {
             DocumentValidation::Valid => Ok(()),
@@ -67,12 +72,14 @@ impl ProfileStoreCore {
         }
     }
 
+    /// Reads the exact document text of one profile.
     pub async fn read_profile_document(&self, profile: &ProfileId) -> Result<String, PortError> {
         let path = self.existing_profile_document_path(profile).await?;
         let bytes = read_required_bytes_with_platform(self.platform(), &path).await?;
         String::from_utf8(bytes).map_err(|error| PortError::Io(error.to_string()))
     }
 
+    /// Reads the backup document text of one profile, when it exists.
     pub async fn read_profile_document_backup(
         &self,
         profile: &ProfileId,
@@ -163,6 +170,10 @@ impl ProfileStoreCore {
         Ok(true)
     }
 
+    /// Restores the backup of an inactive profile under the selection lock.
+    ///
+    /// Fails when the profile is the active one: an active profile must not
+    /// be restored through an inactive-profile operation.
     pub async fn restore_inactive_profile_backup_under_selection_locked(
         &self,
         profile: &ProfileId,
@@ -179,6 +190,7 @@ impl ProfileStoreCore {
         self.restore_profile_document_backup_locked(profile).await
     }
 
+    /// Removes the backup document of one profile, when it exists.
     pub async fn clear_profile_document_backup(
         &self,
         profile: &ProfileId,
@@ -188,6 +200,7 @@ impl ProfileStoreCore {
             .await
     }
 
+    /// Whether a backup document exists for one profile.
     pub async fn profile_document_has_backup(
         &self,
         profile: &ProfileId,

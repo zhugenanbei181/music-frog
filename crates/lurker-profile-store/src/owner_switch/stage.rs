@@ -29,12 +29,19 @@ use lurker_core_ports::error::PortError;
 /// the previous selection and the exact owner fence itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersistedSwitchWire<C: OwnerSwitchCodec> {
+    /// The token that identifies the running transition.
     pub transition_id: ActiveOwnerToken,
+    /// The owner fence token of the previous binding.
     pub owner_token: ActiveOwnerToken,
+    /// The selection the previous owner was bound to.
     pub previous_reference: C::Selection,
+    /// Stable identity of the previous owner.
     pub owner_identity: CoreIdentity,
+    /// Exact generation the previous owner is bound to.
     pub owner_generation: CoreGeneration,
+    /// Exact terminal generation observed for the candidate reservation.
     pub binding_terminal_generation: CoreGeneration,
+    /// The fence token of the candidate reservation.
     pub binding_token: ActiveOwnerToken,
 }
 

@@ -11,6 +11,10 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use url::{Host, Url};
 
+/// The largest delay timeout the Mihomo controller accepts, in milliseconds.
+///
+/// The controller wire type is a signed 16-bit integer, so a larger value is
+/// refused before the request is sent.
 pub const MAX_MIHOMO_DELAY_TIMEOUT_MS: u32 = i16::MAX as u32;
 
 pub(crate) fn validate_mihomo_delay_timeout(timeout_ms: u32) -> Result<()> {
@@ -25,18 +29,26 @@ pub(crate) fn validate_mihomo_delay_timeout(timeout_ms: u32) -> Result<()> {
 /// Lifecycle-aware item emitted by a controller WebSocket stream.
 #[derive(Debug)]
 pub enum StreamEvent<T> {
+    /// The stream is establishing its WebSocket connection.
     Connecting,
+    /// The stream is connected and may deliver items.
     Connected,
+    /// One item the controller published.
     Item(T),
+    /// The stream lost its connection and is reconnecting.
     Reconnecting(Failure),
+    /// The stream ended; no further item will arrive.
     Terminal(StreamTerminal),
 }
 
 /// Terminal outcome of a controller WebSocket stream.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StreamTerminal {
+    /// The caller cancelled the stream.
     Cancelled,
+    /// The stream failed and will not be retried.
     Failed(Failure),
+    /// The controller does not support this stream.
     Unsupported(Failure),
 }
 
@@ -69,6 +81,11 @@ pub(crate) fn validate_loopback_controller(base_url: &Url) -> Result<()> {
     Ok(())
 }
 
+/// The Mihomo controller client.
+///
+/// The client only ever talks to an explicit HTTP loopback endpoint: any
+/// other URL would send the controller secret in cleartext to a LAN or
+/// internet host.
 #[derive(Clone)]
 pub struct MihomoClient {
     pub(crate) client: Client,
@@ -78,6 +95,10 @@ pub struct MihomoClient {
 }
 
 impl MihomoClient {
+    /// Creates a controller client for one loopback endpoint.
+    ///
+    /// Fails with a `Config` error when the endpoint is not an explicit HTTP
+    /// loopback URL with a non-zero port.
     pub fn new(base_url: &str, secret: Option<String>) -> Result<Self> {
         let base_url = Url::parse(base_url).map_err(|e| MihomoError::Config(e.to_string()))?;
         validate_loopback_controller(&base_url)?;
@@ -146,6 +167,7 @@ impl MihomoClient {
         req
     }
 
+    /// Reads the version of the running core.
     pub async fn get_version(&self) -> Result<Version> {
         let url = self.build_url("/version")?;
         let req = self.client.get(url);
@@ -154,6 +176,7 @@ impl MihomoClient {
         Ok(resp.json().await?)
     }
 
+    /// Reads the effective configuration of the running core.
     pub async fn get_config(&self) -> Result<ConfigResponse> {
         let url = self.build_url("/configs")?;
         let req = self.client.get(url);
@@ -162,6 +185,7 @@ impl MihomoClient {
         Ok(resp.json().await?)
     }
 
+    /// Reads the routing rules of the running core, in controller order.
     pub async fn get_rules(&self) -> Result<Vec<Rule>> {
         let url = self.build_url("/rules")?;
         let req = self.client.get(url);
@@ -171,6 +195,7 @@ impl MihomoClient {
         Ok(list.rules)
     }
 
+    /// Reads every outbound the controller knows, keyed by its name.
     pub async fn get_proxies(&self) -> Result<HashMap<String, ProxyObservation>> {
         let url = self.build_url("/proxies")?;
         log::debug!("Fetching proxies from: {}", url);
@@ -182,6 +207,7 @@ impl MihomoClient {
         Ok(data.proxies)
     }
 
+    /// Selects `name` as the active member of the group `group`.
     pub async fn switch_proxy(&self, group: &str, name: &str) -> Result<()> {
         let url = self.build_url_with_segments(&["proxies", group])?;
         let req = self.client.put(url).json(&json!({ "name": name }));
@@ -190,6 +216,10 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Measures the delay of one outbound against `url`.
+    ///
+    /// Fails with a `Config` error when the timeout is zero or above
+    /// [`MAX_MIHOMO_DELAY_TIMEOUT_MS`].
     pub async fn test_delay(&self, name: &str, url: &str, timeout: u32) -> Result<u32> {
         validate_mihomo_delay_timeout(timeout)?;
         let mut request_url = self.build_url_with_segments(&["proxies", name, "delay"])?;
@@ -204,6 +234,9 @@ impl MihomoClient {
         Ok(data.delay)
     }
 
+    /// Reloads the configuration of the running core.
+    ///
+    /// Without a path the core reloads the configuration it was started with.
     pub async fn reload_config(&self, path: Option<&str>) -> Result<()> {
         let url = self.build_url_with_query("/configs", &[("force", "true".to_owned())])?;
         let mut req = self.client.put(url);
@@ -215,6 +248,7 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Applies a partial configuration patch to the running core.
     pub async fn patch_config(&self, updates: Value) -> Result<()> {
         let url = self.build_url("/configs")?;
         let req = self.client.patch(url).json(&updates);
@@ -223,6 +257,7 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Reads every rule provider, keyed by its name.
     pub async fn get_rule_providers(&self) -> Result<HashMap<String, RuleProvider>> {
         let url = self.build_url("/providers/rules")?;
         let req = self.client.get(url);
@@ -252,6 +287,7 @@ impl MihomoClient {
             .filter(|payload| !payload.is_empty()))
     }
 
+    /// Triggers an update of one rule provider.
     pub async fn update_rule_provider(&self, name: &str) -> Result<()> {
         let url = self.build_url_with_segments(&["providers", "rules", name])?;
         let req = self.client.put(url);
@@ -260,6 +296,7 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Flushes the FakeIP cache of the running core.
     pub async fn flush_fakeip_cache(&self) -> Result<()> {
         let url = self.build_url("/cache/fakeip/flush")?;
         let req = self.client.post(url);
@@ -268,6 +305,7 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Resolves one DNS name through the resolver of the running core.
     pub async fn get_dns_query(&self, name: &str, q_type: &str) -> Result<Value> {
         let mut url = self.build_url("/dns/query")?;
         url.query_pairs_mut()
@@ -279,6 +317,7 @@ impl MihomoClient {
         Ok(resp.json().await?)
     }
 
+    /// Reads the script configuration of the running core.
     pub async fn get_script(&self) -> Result<Value> {
         let url = self.build_url("/script")?;
         let req = self.client.get(url);
@@ -295,6 +334,7 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Reads the observed connections and the traffic counters.
     pub async fn get_connections(&self) -> Result<ConnectionsResponse> {
         let url = self.build_url("/connections")?;
         log::debug!("Fetching connections from: {}", url);
@@ -306,6 +346,7 @@ impl MihomoClient {
         Ok(data)
     }
 
+    /// Closes one observed connection.
     pub async fn close_connection(&self, id: &str) -> Result<()> {
         let url = self.build_url(&format!("/connections/{}", id))?;
         let req = self.client.delete(url);
@@ -314,6 +355,7 @@ impl MihomoClient {
         Ok(())
     }
 
+    /// Closes every observed connection.
     pub async fn close_all_connections(&self) -> Result<()> {
         let url = self.build_url("/connections")?;
         let req = self.client.delete(url);

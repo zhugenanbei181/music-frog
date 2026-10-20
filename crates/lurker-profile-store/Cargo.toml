@@ -6,6 +6,15 @@ description = "Portable profile-store kernel: durable layout, atomic document I/
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
 
+[package.metadata.docs.rs]
+# docs.rs preview configuration (PUB-006.6).
+# `all-features` covers every optional code path of the store crate. The
+# crate owns per-OS code behind `StorePlatform`, so both the Linux and the
+# Windows branch are published; `--cfg docsrs` marks the docs.rs build.
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+
 [dependencies]
 lurker-core-contract = { version = "0.50.0", path = "../lurker-core-contract" }
 lurker-core-ports = { version = "0.50.0", path = "../lurker-core-ports" }

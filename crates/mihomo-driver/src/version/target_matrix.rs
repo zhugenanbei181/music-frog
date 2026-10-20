@@ -3,18 +3,26 @@
 /// Represents the CPU architecture of a target platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlatformArch {
+    /// The 64-bit x86 architecture.
     X86_64,
+    /// The 64-bit ARM architecture.
     Aarch64,
+    /// The 32-bit ARM architecture.
     Armv7,
+    /// The macOS universal binary architecture.
     Universal2,
 }
 
 /// Represents the Operating System of a target platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlatformOs {
+    /// Microsoft Windows.
     Windows,
+    /// Linux.
     Linux,
+    /// macOS.
     MacOS,
+    /// Android.
     Android,
 }
 

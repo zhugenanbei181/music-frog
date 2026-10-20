@@ -33,10 +33,18 @@ pub enum ProfileWriteAuthorization {
 }
 
 impl ProfileWriteAuthorization {
+    /// Whether this authorization permits a direct write to a protected
+    /// subscription profile.
+    ///
+    /// Only [`ProfileWriteAuthorization::ExplicitUnlock`] does; the default
+    /// [`ProfileWriteAuthorization::RequireUnlock`] always refuses.
     pub const fn allows_protected_write(self) -> bool {
         matches!(self, Self::ExplicitUnlock)
     }
 
+    /// Returns the opposite authorization.
+    ///
+    /// The toggle is total: it never yields a third, partially unlocked state.
     pub const fn toggled(self) -> Self {
         match self {
             Self::RequireUnlock => Self::ExplicitUnlock,
@@ -56,6 +64,8 @@ impl ProfileWriteProtection {
         }
     }
 
+    /// Whether the profile is owned by a subscription provider and therefore
+    /// protected from direct content edits.
     pub const fn is_protected(self) -> bool {
         matches!(self, Self::RemoteSubscription)
     }

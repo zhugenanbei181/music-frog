@@ -18,10 +18,15 @@ use std::str;
 /// identity failures without depending on a product crate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProfileDocumentIdentityError {
+    /// The profile ID was blank, too long, or contained path characters.
     InvalidProfileId,
+    /// The source ID was empty, too long, or contained non-identifier bytes.
     InvalidSourceId,
+    /// The document revision was blank, too long, or contained control bytes.
     InvalidRevision,
+    /// The format ID used characters outside the accepted identifier set.
     InvalidFormatId,
+    /// The schema version was zero.
     InvalidSchemaVersion,
 }
 
@@ -54,6 +59,11 @@ impl Error for ProfileDocumentIdentityError {}
 pub struct ProfileFormatId(String);
 
 impl ProfileFormatId {
+    /// Validates and builds a format identifier.
+    ///
+    /// Fails with [`ProfileDocumentIdentityError::InvalidFormatId`] when the
+    /// value is empty, longer than 64 bytes, or contains characters outside
+    /// `[a-z0-9._-]`.
     pub fn new(value: impl Into<String>) -> Result<Self, ProfileDocumentIdentityError> {
         let value = value.into();
         if value.is_empty()
@@ -67,6 +77,7 @@ impl ProfileFormatId {
         Ok(Self(value))
     }
 
+    /// Borrows the format identifier as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -88,6 +99,10 @@ impl<'de> Deserialize<'de> for ProfileFormatId {
 pub struct ProfileSchemaVersion(u32);
 
 impl ProfileSchemaVersion {
+    /// Builds a schema version.
+    ///
+    /// Fails with [`ProfileDocumentIdentityError::InvalidSchemaVersion`] for
+    /// the reserved version zero.
     pub const fn new(value: u32) -> Result<Self, ProfileDocumentIdentityError> {
         if value == 0 {
             return Err(ProfileDocumentIdentityError::InvalidSchemaVersion);
@@ -95,6 +110,7 @@ impl ProfileSchemaVersion {
         Ok(Self(value))
     }
 
+    /// Returns the raw schema version.
     pub const fn value(self) -> u32 {
         self.0
     }
@@ -116,6 +132,11 @@ impl<'de> Deserialize<'de> for ProfileSchemaVersion {
 pub struct ProfileId(String);
 
 impl ProfileId {
+    /// Validates and builds a profile identifier.
+    ///
+    /// Fails with [`ProfileDocumentIdentityError::InvalidProfileId`] when the
+    /// value is blank, longer than 256 bytes, contains control characters, or
+    /// contains a character that could escape a storage directory.
     pub fn new(value: impl Into<String>) -> Result<Self, ProfileDocumentIdentityError> {
         let value = value.into();
         if !valid_profile_identifier(&value) {
@@ -124,6 +145,7 @@ impl ProfileId {
         Ok(Self(value))
     }
 
+    /// Borrows the profile identifier as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -145,6 +167,11 @@ impl<'de> Deserialize<'de> for ProfileId {
 pub struct ProfileSourceId(String);
 
 impl ProfileSourceId {
+    /// Validates and builds a source identifier.
+    ///
+    /// Fails with [`ProfileDocumentIdentityError::InvalidSourceId`] when the
+    /// value is empty, longer than 256 bytes, or contains bytes outside
+    /// `[A-Za-z0-9._-]`. The value is a stable key, never a URL or path.
     pub fn new(value: impl Into<String>) -> Result<Self, ProfileDocumentIdentityError> {
         let value = value.into();
         if !valid_source_identifier(&value) {
@@ -153,6 +180,7 @@ impl ProfileSourceId {
         Ok(Self(value))
     }
 
+    /// Borrows the source identifier as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -172,20 +200,27 @@ impl<'de> Deserialize<'de> for ProfileSourceId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProfileDocumentSourceKind {
+    /// The document was created on this device.
     Local,
+    /// The document came from a subscription URL.
     Subscription,
+    /// The document was imported from a local file.
     Imported,
+    /// The document was synchronised from a remote store.
     Synchronized,
 }
 
 /// Stable origin identity, distinct from the profile ID and its CAS revision.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ProfileDocumentSourceIdentity {
+    /// The origin category of the document.
     pub kind: ProfileDocumentSourceKind,
+    /// The stable key of the concrete source record.
     pub source_id: ProfileSourceId,
 }
 
 impl ProfileDocumentSourceIdentity {
+    /// Assembles the origin identity of a stored document.
     pub fn new(kind: ProfileDocumentSourceKind, source_id: ProfileSourceId) -> Self {
         Self { kind, source_id }
     }
@@ -197,6 +232,10 @@ impl ProfileDocumentSourceIdentity {
 pub struct ProfileDocumentRevision(String);
 
 impl ProfileDocumentRevision {
+    /// Validates and builds an opaque compare-and-swap revision.
+    ///
+    /// Fails with [`ProfileDocumentIdentityError::InvalidRevision`] when the
+    /// value is blank, longer than 256 bytes, or contains control characters.
     pub fn new(value: impl Into<String>) -> Result<Self, ProfileDocumentIdentityError> {
         let value = value.into();
         if !valid_opaque_identifier(&value, 256) {
@@ -205,6 +244,7 @@ impl ProfileDocumentRevision {
         Ok(Self(value))
     }
 
+    /// Borrows the revision token as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -223,15 +263,22 @@ impl<'de> Deserialize<'de> for ProfileDocumentRevision {
 /// CAS identity for one profile document within one engine and source.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileDocumentIdentity {
+    /// Identity of the profile the document belongs to.
     pub profile_id: ProfileId,
+    /// Engine the document is written for.
     pub engine_id: EngineId,
+    /// Origin of the document.
     pub source: ProfileDocumentSourceIdentity,
+    /// Compare-and-swap token of the stored bytes.
     pub revision: ProfileDocumentRevision,
+    /// Native format of the stored bytes.
     pub format_id: ProfileFormatId,
+    /// Schema version of the native format.
     pub schema_version: ProfileSchemaVersion,
 }
 
 impl ProfileDocumentIdentity {
+    /// Assembles the complete identity of one stored document.
     pub fn new(
         profile_id: ProfileId,
         engine_id: EngineId,
@@ -256,18 +303,23 @@ impl ProfileDocumentIdentity {
 /// `Absent` and `Present` with an empty-byte revision are distinct states.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProfileSidecarRevision {
+    /// No options sidecar exists for the document.
     Absent,
+    /// An options sidecar exists and carries this revision.
     Present(ProfileDocumentRevision),
 }
 
 /// Compare-and-swap identity for a profile document and its options sidecar.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileWorkspaceIdentity {
+    /// Identity of the profile document.
     pub document: ProfileDocumentIdentity,
+    /// Revision of the options sidecar paired with the document.
     pub sidecar_revision: ProfileSidecarRevision,
 }
 
 impl ProfileWorkspaceIdentity {
+    /// Assembles the compare-and-swap identity of a document plus sidecar.
     pub fn new(
         document: ProfileDocumentIdentity,
         sidecar_revision: ProfileSidecarRevision,
@@ -282,11 +334,14 @@ impl ProfileWorkspaceIdentity {
 /// Native configuration bytes with an explicit engine, source, format and schema.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileDocument {
+    /// Identity of the document.
     pub identity: ProfileDocumentIdentity,
+    /// The exact native bytes as they are stored on disk.
     pub raw_bytes: Vec<u8>,
 }
 
 impl ProfileDocument {
+    /// Assembles a document from its identity and its exact native bytes.
     pub fn new(identity: ProfileDocumentIdentity, raw_bytes: Vec<u8>) -> Self {
         Self {
             identity,
@@ -294,6 +349,10 @@ impl ProfileDocument {
         }
     }
 
+    /// Borrows the native bytes as UTF-8 text.
+    ///
+    /// Fails with [`str::Utf8Error`] when the stored bytes are not valid
+    /// UTF-8; the raw bytes stay available in that case.
     pub fn utf8_text(&self) -> Result<&str, str::Utf8Error> {
         str::from_utf8(&self.raw_bytes)
     }

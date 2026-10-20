@@ -1,4 +1,9 @@
 //! Engine-neutral intent for choosing how traffic is routed.
+//!
+//! The shared vocabulary covers the three routing policies every engine
+//! understands. Anything beyond that stays adapter-owned and is named by an
+//! [`EngineDefinedRoutingIntent`], which carries the engine it belongs to so
+//! an intent can never be replayed against a different engine.
 
 use crate::error::Failure;
 use crate::identity::EngineId;
@@ -27,23 +32,35 @@ pub enum RoutingIntent {
 /// Availability of the currently observed routing intent.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RoutingIntentStatus {
+    /// The routing intent has not been observed yet.
     #[default]
     Unobserved,
+    /// The routing intent was observed and is current.
     Ready,
+    /// A change is still being applied.
     Pending,
+    /// The engine does not expose a routing intent at all.
     Unsupported,
+    /// Reading or changing the routing intent failed.
     Failed,
 }
 
 /// The observed routing policy and the status of the latest read or change.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingIntentSnapshot {
+    /// The routing policy currently in effect, when it is known.
     pub current: Option<RoutingIntent>,
+    /// The status of the latest read or change.
     pub status: RoutingIntentStatus,
+    /// The typed failure, when the status is `Failed`.
     pub failure: Option<Failure>,
 }
 
 impl RoutingIntentSnapshot {
+    /// Builds the explicit demo fixture of this snapshot type.
+    ///
+    /// The fixture is a first-class value so a demo surface never has to
+    /// fabricate a "live" observation.
     pub fn demo_fixture() -> Self {
         Self {
             current: Some(RoutingIntent::FollowRules),
@@ -52,6 +69,10 @@ impl RoutingIntentSnapshot {
         }
     }
 
+    /// Whether the snapshot carries an intent a surface may draw.
+    ///
+    /// Only `Ready` and `Pending` are drawable; `Unobserved`, `Unsupported`
+    /// and `Failed` are not.
     pub fn is_drawable(&self) -> bool {
         matches!(
             self.status,
@@ -80,6 +101,7 @@ pub struct EngineDefinedRoutingIntent {
 }
 
 impl EngineDefinedRoutingIntent {
+    /// Builds an engine-owned routing intent.
     pub fn new(engine: EngineId, extension_id: RoutingIntentExtensionId) -> Self {
         Self {
             engine,
@@ -87,10 +109,12 @@ impl EngineDefinedRoutingIntent {
         }
     }
 
+    /// Returns the engine that owns the policy.
     pub fn engine(&self) -> &EngineId {
         &self.engine
     }
 
+    /// Returns the stable identifier of the policy inside that engine.
     pub fn extension_id(&self) -> &RoutingIntentExtensionId {
         &self.extension_id
     }
@@ -102,6 +126,11 @@ impl EngineDefinedRoutingIntent {
 pub struct RoutingIntentExtensionId(String);
 
 impl RoutingIntentExtensionId {
+    /// Validates and builds an extension identifier.
+    ///
+    /// Fails with [`RoutingIntentExtensionIdError::Empty`] for an empty value
+    /// and with [`RoutingIntentExtensionIdError::Invalid`] when the value is
+    /// longer than 128 bytes or contains characters outside `[a-z0-9._-]`.
     pub fn new(value: impl Into<String>) -> Result<Self, RoutingIntentExtensionIdError> {
         let value = value.into();
         if value.is_empty() {
@@ -117,6 +146,7 @@ impl RoutingIntentExtensionId {
         Ok(Self(value))
     }
 
+    /// Borrows the extension identifier as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -132,9 +162,12 @@ impl<'de> Deserialize<'de> for RoutingIntentExtensionId {
     }
 }
 
+/// Why a routing-intent extension identifier was rejected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RoutingIntentExtensionIdError {
+    /// The identifier was empty.
     Empty,
+    /// The identifier used characters outside the accepted set.
     Invalid,
 }
 

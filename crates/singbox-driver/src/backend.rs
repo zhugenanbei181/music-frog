@@ -108,22 +108,27 @@ impl SingBoxBackendOptions {
         })
     }
 
+    /// Returns the path of the sing-box binary the host may launch.
     pub fn binary_path(&self) -> &PathBuf {
         &self.binary_path
     }
 
+    /// Returns the path of the configuration file the core reads.
     pub fn config_path(&self) -> &PathBuf {
         &self.config_path
     }
 
+    /// Returns the configured instance identity of the core.
     pub fn instance_id(&self) -> &CoreInstanceId {
         &self.instance_id
     }
 
+    /// Returns the socket address the controller binds to.
     pub fn controller_address(&self) -> SocketAddr {
         self.controller.address()
     }
 
+    /// Returns the explicit HTTP loopback endpoint of the controller.
     pub fn controller_endpoint(&self) -> String {
         self.controller.endpoint()
     }
@@ -167,6 +172,7 @@ pub struct SingBoxEngineBackendProvider {
 }
 
 impl SingBoxEngineBackendProvider {
+    /// Creates the provider from validated host inputs.
     pub fn new(options: SingBoxBackendOptions) -> Self {
         Self { options }
     }

@@ -14,12 +14,16 @@ use std::fmt::{self, Debug, Display, Formatter};
 /// One failed switch attempt with its phase, adapter cause and disposition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineSwitchError<S> {
+    /// How far the switch committed before it failed.
     pub phase: EngineSwitchFailurePhase,
+    /// The adapter failure that stopped the switch.
     pub cause: PortError,
+    /// Whether the previous binding was restored or the caller must resume.
     pub disposition: EngineSwitchDisposition<S>,
 }
 
 impl<S> EngineSwitchError<S> {
+    /// Assembles a switch failure from its phase, cause and disposition.
     pub fn new(
         phase: EngineSwitchFailurePhase,
         cause: PortError,
@@ -37,6 +41,7 @@ impl<S> EngineSwitchError<S> {
         Self::new(phase, cause, EngineSwitchDisposition::RecoveryRequired)
     }
 
+    /// Whether the caller must resume the switch from the journal.
     pub fn is_recovery_required(&self) -> bool {
         matches!(self.disposition, EngineSwitchDisposition::RecoveryRequired)
     }

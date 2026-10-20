@@ -12,6 +12,7 @@ use lurker_core_ports::error::PortError;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+/// The lease of the committed-selection stage.
 pub struct ReferenceChangedLease<C: OwnerSwitchCodec> {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
@@ -21,6 +22,7 @@ pub struct ReferenceChangedLease<C: OwnerSwitchCodec> {
 }
 
 impl<C: OwnerSwitchCodec> ReferenceChangedLease<C> {
+    /// Creates the committed-selection lease for one durable stage.
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,

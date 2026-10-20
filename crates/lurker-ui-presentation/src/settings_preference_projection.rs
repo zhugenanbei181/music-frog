@@ -2,13 +2,22 @@
 use crate::copy::TextCatalog;
 use lurker_core_contract::page::PageStatus;
 
+/// The presentation of one preference observation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreferencePresentation {
+    /// The catalog key the surface renders.
     pub key: &'static str,
+    /// The interpolation parameters of the catalog key.
     pub params: Vec<(&'static str, String)>,
+    /// Whether the surface may change the preference right now.
     pub editable: bool,
 }
 
+/// Projects one preference observation into its presentation.
+///
+/// An unknown value, a stale read and a failed read stay distinguishable: the
+/// projection reports the state text and the reason separately, and only a
+/// ready observation of a known value is editable.
 pub fn project(
     value: Option<bool>,
     status: &PageStatus,

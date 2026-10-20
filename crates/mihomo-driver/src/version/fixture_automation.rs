@@ -2,21 +2,31 @@ use super::capability::{CapabilitySet, capability_snapshot};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// The difference between the capability sets of two kernel versions.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CapabilityDiff {
+    /// The capabilities the newer version adds.
     pub added_features: Vec<String>,
+    /// The capabilities the newer version no longer provides.
     pub removed_features: Vec<String>,
+    /// Whether the newer version drops a capability of the older one.
     pub is_breaking_change: bool,
 }
 
+/// The generator of the version capability fixtures.
 pub struct VersionFixtureGenerator;
 
 impl VersionFixtureGenerator {
+    /// Builds the capability snapshot of one version tag.
+    ///
+    /// Panics when the tag is neither numeric nor a recognizable prerelease
+    /// tag; the generator is only used with the pinned fixture tags.
     pub fn generate_fixture_for_version(version_tag: &str) -> CapabilitySet {
         capability_snapshot(version_tag)
             .unwrap_or_else(|_| panic!("Failed to generate fixture for version: {}", version_tag))
     }
 
+    /// Builds the capability snapshots of the pinned fixture tags.
     pub fn generate_known_version_fixtures() -> Vec<(String, CapabilitySet)> {
         vec![
             (
@@ -38,6 +48,9 @@ impl VersionFixtureGenerator {
         ]
     }
 
+    /// Computes the capability difference between two snapshots.
+    ///
+    /// A removed capability makes the difference a breaking change.
     pub fn diff_capabilities(from: &CapabilitySet, to: &CapabilitySet) -> CapabilityDiff {
         let from_caps: HashSet<_> = from
             .capabilities

@@ -1,3 +1,11 @@
+//! Engine-scoped outbound presentation preferences.
+//!
+//! The preferences are expressed with outbound identities rather than
+//! controller names, so they stay valid across an engine restart and can be
+//! persisted per engine. Writes are revision-fenced intents: the caller
+//! states the revision it based its change on, and the write is only
+//! confirmed when the resulting snapshot actually matches that intent.
+
 use super::identity::{OutboundContractError, OutboundId, SnapshotRevision};
 use crate::identity::CoreScope;
 use serde::de::Error as _;
@@ -10,12 +18,19 @@ use std::collections::HashSet;
 pub struct OutboundUiPreferencesSnapshot {
     scope: CoreScope,
     revision: SnapshotRevision,
+    /// The free-text filter the user typed into the outbound list.
     pub search_query: String,
+    /// Outbounds the user pinned as favourites.
     pub favorite_outbound_ids: Vec<OutboundId>,
+    /// The user-defined order of the groups.
     pub group_order: Vec<OutboundId>,
+    /// Groups the user collapsed.
     pub collapsed_group_ids: Vec<OutboundId>,
+    /// The order the outbound list is sorted by.
     pub sort_order: OutboundSortOrder,
+    /// Which health states the list shows.
     pub health_filter: OutboundHealthFilter,
+    /// The layout the outbound list uses.
     pub layout: OutboundLayout,
 }
 
@@ -23,52 +38,76 @@ pub struct OutboundUiPreferencesSnapshot {
 /// Scope and revision remain snapshot metadata rather than presentation data.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OutboundUiPreferencesValues {
+    /// The free-text filter the user typed into the outbound list.
     pub search_query: String,
+    /// Outbounds the user pinned as favourites.
     pub favorite_outbound_ids: Vec<OutboundId>,
+    /// The user-defined order of the groups.
     pub group_order: Vec<OutboundId>,
+    /// Groups the user collapsed.
     pub collapsed_group_ids: Vec<OutboundId>,
+    /// The order the outbound list is sorted by.
     pub sort_order: OutboundSortOrder,
+    /// Which health states the list shows.
     pub health_filter: OutboundHealthFilter,
+    /// The layout the outbound list uses.
     pub layout: OutboundLayout,
 }
 
+/// The order the outbound list is sorted by.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundSortOrder {
+    /// Sort by latency, fastest first.
     #[default]
     LatencyAscending,
+    /// Sort by latency, slowest first.
     LatencyDescending,
+    /// Sort by display name, ascending.
     NameAscending,
+    /// Sort by display name, descending.
     NameDescending,
 }
 
+/// Which health states the outbound list shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundHealthFilter {
+    /// Show every outbound.
     #[default]
     All,
+    /// Show only outbounds the last probe reported as healthy.
     HealthyOnly,
 }
 
+/// The layout the outbound list uses.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundLayout {
+    /// A dense single-column list.
     #[default]
     CompactList,
+    /// A multi-column grid.
     Grid,
 }
 
+/// Whether a group is expanded or collapsed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundGroupExpansion {
+    /// The group's members are visible.
     Expanded,
+    /// The group is shown as a single collapsed row.
     Collapsed,
 }
 
+/// Whether an outbound is pinned as a favourite.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundFavoriteState {
+    /// The outbound is pinned as a favourite.
     Pinned,
+    /// The outbound is not pinned.
     Unpinned,
 }
 
@@ -76,28 +115,49 @@ pub enum OutboundFavoriteState {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "operation", content = "value", rename_all = "snake_case")]
 pub enum OutboundUiPreferenceIntent {
+    /// Replace the free-text filter.
     SetSearchQuery(String),
+    /// Pin or unpin one outbound.
     SetFavorite {
+        /// The outbound whose favourite state changes.
         outbound_id: OutboundId,
+        /// The new favourite state.
         state: OutboundFavoriteState,
     },
+    /// Replace the sort order.
     SetSortOrder(OutboundSortOrder),
+    /// Replace the health filter.
     SetHealthFilter(OutboundHealthFilter),
+    /// Replace the layout.
     SetLayout(OutboundLayout),
+    /// Expand or collapse one group.
     SetGroupExpansion {
+        /// The group whose expansion state changes.
         group_id: OutboundId,
+        /// The new expansion state.
         expansion: OutboundGroupExpansion,
     },
+    /// Apply a new group order.
     ReorderGroups {
+        /// The complete new group order.
         group_ids: Vec<OutboundId>,
+        /// Inventory revision the order was computed against.
         inventory_revision: SnapshotRevision,
     },
+    /// Drop the custom group order and fall back to the engine order.
     ResetGroupOrder {
+        /// Inventory revision the reset was computed against.
         inventory_revision: SnapshotRevision,
     },
 }
 
 impl OutboundUiPreferenceIntent {
+    /// Checks that every outbound identity in the intent belongs to `scope`.
+    ///
+    /// Fails with [`OutboundContractError::EngineScopeMismatch`] when an
+    /// identity belongs to another engine, and with
+    /// [`OutboundContractError::DuplicateOutboundPreferenceId`] when a group
+    /// reorder repeats an identity.
     pub fn validate_scope(&self, scope: &CoreScope) -> Result<(), OutboundContractError> {
         let ids: Vec<&OutboundId> = match self {
             Self::SetFavorite { outbound_id, .. } => vec![outbound_id],
@@ -133,6 +193,10 @@ pub struct OutboundUiPreferenceRequest {
 }
 
 impl OutboundUiPreferenceRequest {
+    /// Builds a revision-fenced preference request.
+    ///
+    /// Fails with [`OutboundContractError::DuplicateOutboundPreferenceId`]
+    /// when a group reorder repeats an identity.
     pub fn new(
         expected_revision: SnapshotRevision,
         intent: OutboundUiPreferenceIntent,
@@ -149,18 +213,26 @@ impl OutboundUiPreferenceRequest {
         })
     }
 
+    /// Returns the revision the request was based on.
     pub const fn expected_revision(&self) -> SnapshotRevision {
         self.expected_revision
     }
 
+    /// Returns the intent the request carries.
     pub fn intent(&self) -> &OutboundUiPreferenceIntent {
         &self.intent
     }
 
+    /// Checks that every outbound identity in the request belongs to `scope`.
     pub fn validate_scope(&self, scope: &CoreScope) -> Result<(), OutboundContractError> {
         self.intent.validate_scope(scope)
     }
 
+    /// Whether `snapshot` is the result this request asked for.
+    ///
+    /// The snapshot must be newer than the expected revision, must belong to
+    /// the same scope, and must actually carry the requested value. A stale
+    /// or unrelated snapshot is never treated as a confirmation.
     pub fn is_confirmed_by(&self, snapshot: &OutboundUiPreferencesSnapshot) -> bool {
         if snapshot.revision() <= self.expected_revision
             || self.validate_scope(snapshot.scope()).is_err()
@@ -218,6 +290,12 @@ impl<'de> Deserialize<'de> for OutboundUiPreferenceRequest {
 }
 
 impl OutboundUiPreferencesSnapshot {
+    /// Builds a preferences snapshot and validates it against its scope.
+    ///
+    /// Fails with [`OutboundContractError::EngineScopeMismatch`] when an
+    /// identity belongs to another engine, and with
+    /// [`OutboundContractError::DuplicateOutboundPreferenceId`] when a list
+    /// repeats an identity.
     pub fn new(
         scope: CoreScope,
         revision: SnapshotRevision,
@@ -251,10 +329,12 @@ impl OutboundUiPreferencesSnapshot {
         })
     }
 
+    /// Returns the core scope this snapshot is fenced to.
     pub fn scope(&self) -> &CoreScope {
         &self.scope
     }
 
+    /// Returns the revision this snapshot was observed at.
     pub const fn revision(&self) -> SnapshotRevision {
         self.revision
     }

@@ -1,3 +1,9 @@
+//! Engine-neutral outbound selection and probe requests.
+//!
+//! Every request carries the exact revision the caller observed. The
+//! application and the adapter can therefore refuse a request that was made
+//! against a stale observation instead of applying it to a newer state.
+
 use super::identity::{OutboundContractError, OutboundId, SnapshotRevision};
 use super::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot,
@@ -9,6 +15,7 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 
+/// The largest number of outbounds one probe batch may probe in parallel.
 pub const MAX_OUTBOUND_PROBE_BATCH_CONCURRENCY: u8 = 30;
 
 /// A user request to select one member from an observed selection collection.
@@ -23,6 +30,10 @@ pub struct OutboundSelectionRequest {
 }
 
 impl OutboundSelectionRequest {
+    /// Builds a selection request for one member of one collection.
+    ///
+    /// Fails with [`OutboundContractError::EngineScopeMismatch`] when the
+    /// collection and the member belong to different engines.
     pub fn new(
         collection_id: OutboundId,
         outbound_id: OutboundId,
@@ -38,18 +49,22 @@ impl OutboundSelectionRequest {
         })
     }
 
+    /// Returns the collection the request selects inside.
     pub fn collection_id(&self) -> &OutboundId {
         &self.collection_id
     }
 
+    /// Returns the member the request selects.
     pub fn outbound_id(&self) -> &OutboundId {
         &self.outbound_id
     }
 
+    /// Returns the inventory revision the request was based on.
     pub const fn expected_revision(&self) -> SnapshotRevision {
         self.expected_revision
     }
 
+    /// Checks that the request belongs to the engine of `scope`.
     pub fn validate_scope(&self, scope: &CoreScope) -> Result<(), OutboundContractError> {
         if self.collection_id.engine_id() == &scope.identity.engine
             && self.outbound_id.engine_id() == &scope.identity.engine
@@ -93,6 +108,13 @@ pub struct ProbeOutboundRequest {
 }
 
 impl ProbeOutboundRequest {
+    /// Builds a single-outbound probe request.
+    ///
+    /// Fails with [`OutboundContractError::ZeroProbeTimeout`] for a zero
+    /// timeout, with [`OutboundContractError::InvalidProbeUrl`] when the test
+    /// URL is not an absolute HTTP(S) URL, and with
+    /// [`OutboundContractError::ProbeCredentialsNotAllowed`] when the URL
+    /// carries embedded credentials.
     pub fn new(
         outbound_id: OutboundId,
         expected_inventory_revision: SnapshotRevision,
@@ -110,22 +132,27 @@ impl ProbeOutboundRequest {
         })
     }
 
+    /// Returns the outbound to probe.
     pub fn outbound_id(&self) -> &OutboundId {
         &self.outbound_id
     }
 
+    /// Returns the inventory revision the request was based on.
     pub const fn expected_inventory_revision(&self) -> SnapshotRevision {
         self.expected_inventory_revision
     }
 
+    /// Returns the normalised test URL the probe uses.
     pub fn test_url(&self) -> &str {
         &self.test_url
     }
 
+    /// Returns the probe timeout in milliseconds.
     pub const fn timeout_ms(&self) -> u64 {
         self.timeout_ms
     }
 
+    /// Checks that the request belongs to the engine of `scope`.
     pub fn validate_scope(&self, scope: &CoreScope) -> Result<(), OutboundContractError> {
         if self.outbound_id.engine_id() == &scope.identity.engine {
             Ok(())
@@ -134,6 +161,7 @@ impl ProbeOutboundRequest {
         }
     }
 
+    /// Whether the probe snapshot is the readback of this request.
     pub fn is_confirmed_by(&self, snapshot: &OutboundProbeSnapshot) -> bool {
         snapshot.outbound_id() == &self.outbound_id
             && snapshot.outbound_id().engine_id() == self.outbound_id.engine_id()
@@ -147,9 +175,13 @@ impl ProbeOutboundRequest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundProbeBatchScope {
+    /// Probe exactly one outbound.
     One(OutboundId),
+    /// Probe every observed member of one collection.
     Collection(OutboundId),
+    /// Probe an explicit, ordered set of outbounds.
     Selected(Vec<OutboundId>),
+    /// Probe every outbound of the observed inventory.
     All,
 }
 
@@ -167,6 +199,13 @@ impl OutboundProbeBatchScope {
         Ok(())
     }
 
+    /// Checks that every target of the scope belongs to the engine of `scope`.
+    ///
+    /// Fails with [`OutboundContractError::EngineScopeMismatch`] for a foreign
+    /// engine, with [`OutboundContractError::EmptySelectedProbeBatch`] for an
+    /// empty explicit set, and with
+    /// [`OutboundContractError::DuplicateSelectedProbeTarget`] when the
+    /// explicit set repeats an outbound.
     pub fn validate_scope(&self, scope: &CoreScope) -> Result<(), OutboundContractError> {
         self.validate_targets()?;
         let outbound_id = match self {
@@ -191,10 +230,18 @@ impl OutboundProbeBatchScope {
 }
 
 /// Bounded fan-out limit for one outbound probe batch.
+///
+/// The limit is validated once, at construction, so no adapter has to
+/// re-check the bound before it starts the fan-out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct OutboundProbeConcurrency(u8);
 
 impl OutboundProbeConcurrency {
+    /// Builds a concurrency limit.
+    ///
+    /// Fails with [`OutboundContractError::InvalidProbeBatchConcurrency`] when
+    /// the limit is zero or above
+    /// [`MAX_OUTBOUND_PROBE_BATCH_CONCURRENCY`].
     pub fn new(limit: u8) -> Result<Self, OutboundContractError> {
         if !(1..=MAX_OUTBOUND_PROBE_BATCH_CONCURRENCY).contains(&limit) {
             return Err(OutboundContractError::InvalidProbeBatchConcurrency);
@@ -202,6 +249,7 @@ impl OutboundProbeConcurrency {
         Ok(Self(limit))
     }
 
+    /// Returns the limit as the fan-out width an adapter should use.
     pub const fn limit(self) -> usize {
         self.0 as usize
     }
@@ -229,6 +277,14 @@ pub struct ProbeOutboundBatchRequest {
 }
 
 impl ProbeOutboundBatchRequest {
+    /// Builds a batch probe request.
+    ///
+    /// Fails with [`OutboundContractError::ZeroProbeTimeout`] for a zero
+    /// timeout, with [`OutboundContractError::InvalidProbeUrl`] for a test URL
+    /// that is not an absolute HTTP(S) URL, with
+    /// [`OutboundContractError::ProbeCredentialsNotAllowed`] for a URL with
+    /// embedded credentials, and with the target-specific errors of
+    /// [`OutboundProbeBatchScope::validate_scope`].
     pub fn new(
         target_scope: OutboundProbeBatchScope,
         expected_inventory_revision: SnapshotRevision,
@@ -249,26 +305,32 @@ impl ProbeOutboundBatchRequest {
         })
     }
 
+    /// Returns the scope the batch probes.
     pub fn target_scope(&self) -> &OutboundProbeBatchScope {
         &self.target_scope
     }
 
+    /// Returns the inventory revision the request was based on.
     pub const fn expected_inventory_revision(&self) -> SnapshotRevision {
         self.expected_inventory_revision
     }
 
+    /// Returns the normalised test URL the batch uses.
     pub fn test_url(&self) -> &str {
         &self.test_url
     }
 
+    /// Returns the per-target timeout in milliseconds.
     pub const fn timeout_ms(&self) -> u64 {
         self.timeout_ms
     }
 
+    /// Returns the fan-out limit of the batch.
     pub const fn concurrency(&self) -> OutboundProbeConcurrency {
         self.concurrency
     }
 
+    /// Checks that every target of the batch belongs to the engine of `scope`.
     pub fn validate_scope(&self, scope: &CoreScope) -> Result<(), OutboundContractError> {
         self.target_scope.validate_scope(scope)
     }
@@ -303,17 +365,30 @@ impl<'de> Deserialize<'de> for ProbeOutboundBatchRequest {
 /// One terminal result for a member of an outbound probe batch.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutboundProbeBatchItem {
+    /// The outbound this result belongs to.
     pub outbound_id: OutboundId,
+    /// The terminal outcome of the probe.
     pub outcome: OutboundProbeBatchOutcome,
 }
 
+/// The terminal outcome of probing one batch member.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutboundProbeBatchOutcome {
-    Measured { delay_ms: u32 },
+    /// The probe finished and measured a delay.
+    Measured {
+        /// The measured round-trip delay in milliseconds.
+        delay_ms: u32,
+    },
+    /// The probe did not answer within its deadline.
     TimedOut,
+    /// The backend cannot probe this outbound.
     Unsupported,
-    Failed { failure: Failure },
+    /// The probe failed.
+    Failed {
+        /// The typed reason the probe failed.
+        failure: Failure,
+    },
 }
 
 /// Immutable, request-correlated results for a complete batch probe.
@@ -326,6 +401,14 @@ pub struct OutboundProbeBatchSnapshot {
 }
 
 impl OutboundProbeBatchSnapshot {
+    /// Builds a batch snapshot and validates it against its scope and request.
+    ///
+    /// Fails with [`OutboundContractError::EngineScopeMismatch`] when a result
+    /// belongs to another engine, with
+    /// [`OutboundContractError::DuplicateOutboundProbeResultId`] when two
+    /// results share an outbound, and with
+    /// [`OutboundContractError::ProbeBatchResultMismatch`] when the result set
+    /// does not correspond to the requested scope.
     pub fn new(
         scope: CoreScope,
         request: ProbeOutboundBatchRequest,
@@ -367,22 +450,27 @@ impl OutboundProbeBatchSnapshot {
         })
     }
 
+    /// Returns the core scope this snapshot is fenced to.
     pub fn scope(&self) -> &CoreScope {
         &self.scope
     }
 
+    /// Returns the request this snapshot answers.
     pub fn request(&self) -> &ProbeOutboundBatchRequest {
         &self.request
     }
 
+    /// Returns the detail revision observed after the batch completed.
     pub const fn detail_revision(&self) -> SnapshotRevision {
         self.detail_revision
     }
 
+    /// Returns the terminal result of every probed member.
     pub fn items(&self) -> &[OutboundProbeBatchItem] {
         &self.items
     }
 
+    /// Whether this snapshot answers exactly `request`.
     pub fn is_confirmed_by(&self, request: &ProbeOutboundBatchRequest) -> bool {
         &self.request == request
     }
@@ -412,6 +500,10 @@ impl<'de> Deserialize<'de> for OutboundProbeBatchSnapshot {
     }
 }
 
+/// Validates a probe target URL and returns its normalised form.
+///
+/// Only absolute HTTP(S) URLs without embedded credentials are accepted, so a
+/// probe can never leak a secret through the target it is given.
 fn validate_probe_url(url: impl Into<String>) -> Result<String, OutboundContractError> {
     let parsed =
         url::Url::parse(&url.into()).map_err(|_| OutboundContractError::InvalidProbeUrl)?;

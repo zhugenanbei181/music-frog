@@ -12,12 +12,14 @@ use lurker_core_ports::error::PortError;
 use lurker_core_ports::routing_intent::RoutingIntentPort;
 use serde_json::json;
 
+/// The Mihomo adapter of the shared routing intent.
 #[derive(Clone)]
 pub struct MihomoRoutingIntentAdapter {
     client: MihomoClient,
 }
 
 impl MihomoRoutingIntentAdapter {
+    /// Creates the routing-intent adapter over one controller client.
     pub fn new(client: MihomoClient) -> Self {
         Self { client }
     }

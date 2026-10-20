@@ -15,6 +15,7 @@ use lurker_core_ports::error::PortError;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+/// The candidate-admission lease of the `BindingNew` stage.
 pub struct OwnerBindingLease<C: OwnerSwitchCodec> {
     pub(crate) config_root: PathBuf,
     pub(crate) transition_id: ActiveOwnerToken,
@@ -24,6 +25,7 @@ pub struct OwnerBindingLease<C: OwnerSwitchCodec> {
 }
 
 impl<C: OwnerSwitchCodec> OwnerBindingLease<C> {
+    /// Creates the candidate-admission lease for one durable stage.
     pub fn new(
         config_root: impl Into<PathBuf>,
         transition_id: ActiveOwnerToken,
@@ -216,6 +218,7 @@ pub struct OwnerFenceLease {
 }
 
 impl OwnerFenceLease {
+    /// Creates the engine-neutral owner fence of one bound owner.
     pub fn new(identity: CoreIdentity, generation: CoreGeneration) -> Self {
         Self {
             identity,

@@ -35,10 +35,12 @@ use std::fmt::{self, Display, Formatter};
 pub struct EngineSwitchRevision(u64);
 
 impl EngineSwitchRevision {
+    /// Wraps a raw revision value.
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
 
+    /// Returns the raw revision value.
     pub const fn value(self) -> u64 {
         self.0
     }
@@ -55,6 +57,7 @@ impl EngineSwitchRevision {
 /// Failure of a checked revision increment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineSwitchRevisionError {
+    /// The revision counter reached its maximum and cannot advance.
     Exhausted,
 }
 
@@ -73,8 +76,15 @@ impl Error for EngineSwitchRevisionError {}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "target", rename_all = "snake_case")]
 pub enum EngineSwitchTarget<S> {
+    /// No owner is selected; a switch to an unselected target is not legal.
     Unselected,
-    Selected { engine_id: EngineId, selection: S },
+    /// One engine and one selection become the new owner.
+    Selected {
+        /// The engine that must serve the selection.
+        engine_id: EngineId,
+        /// The engine-specific selection to publish.
+        selection: S,
+    },
 }
 
 /// Durable progress of one owner replacement.
@@ -89,41 +99,63 @@ pub enum EngineSwitchStage<S> {
     /// The old owner is still live. This is the only stage that can be
     /// cancelled back to the previous binding.
     ClosingOld {
+        /// The selection the old owner was bound to.
         previous: S,
+        /// Stable identity of the old owner.
         owner_identity: CoreIdentity,
+        /// Exact generation the old owner is bound to.
         owner_generation: CoreGeneration,
     },
     /// The old owner has an exact terminal generation. No transition back to
     /// the previous owner is legal from here.
     OldStopped {
+        /// The selection the old owner was bound to.
         previous: S,
+        /// Stable identity of the old owner.
         owner_identity: CoreIdentity,
+        /// Exact generation the old owner was bound to.
         owner_generation: CoreGeneration,
+        /// Exact generation observed as terminal; never older than the bound one.
         terminal_generation: CoreGeneration,
     },
     /// The new selection is committed, but the candidate owner has not been
     /// reserved yet. The target engine identity is retained by the journal.
     SelectionChanged {
+        /// The selection the old owner was bound to.
         previous: S,
+        /// The newly committed selection.
         selection: S,
+        /// Stable identity of the old owner.
         owner_identity: CoreIdentity,
+        /// Exact generation observed as terminal.
         terminal_generation: CoreGeneration,
     },
     /// Candidate owner admission is reserved; the candidate has not been
     /// started yet.
-    BindingNew { selection: S, engine_id: EngineId },
+    BindingNew {
+        /// The committed selection the candidate will serve.
+        selection: S,
+        /// The engine the candidate must be.
+        engine_id: EngineId,
+    },
 }
 
 /// Owner state of the journal snapshot.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "owner", rename_all = "snake_case")]
 pub enum EngineOwnerState<S> {
+    /// No owner is bound; only an offline selection may exist.
     Unowned,
+    /// One owner is bound to the current selection.
     Bound {
+        /// Stable identity of the bound owner.
         identity: CoreIdentity,
+        /// Exact generation the owner is bound to.
         generation: CoreGeneration,
     },
+    /// A replacement is in progress.
     Switching {
+        /// The durable stage of the running switch.
         stage: EngineSwitchStage<S>,
     },
 }
@@ -131,8 +163,11 @@ pub enum EngineOwnerState<S> {
 /// One atomic readback of selection plus owner state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineSwitchSnapshot<S> {
+    /// The revision the snapshot was read at.
     pub revision: EngineSwitchRevision,
+    /// The currently committed selection.
     pub selection: S,
+    /// The owner state that belongs to the selection.
     pub owner: EngineOwnerState<S>,
 }
 
@@ -158,26 +193,44 @@ impl<S> EngineSwitchSnapshot<S> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "recovery", rename_all = "snake_case")]
 pub enum EngineSwitchRecovery<S> {
+    /// No switch was pending when the journal was read.
     NoPendingSwitch,
+    /// The switch stopped while the old owner was still live.
     ResumeClosingOld {
+        /// The selection the old owner was bound to.
         previous: S,
+        /// Stable identity of the old owner.
         owner_identity: CoreIdentity,
+        /// Exact generation the old owner is bound to.
         owner_generation: CoreGeneration,
     },
+    /// The switch stopped after the old owner reached a terminal generation.
     ResumeOldStopped {
+        /// The selection the old owner was bound to.
         previous: S,
+        /// Stable identity of the old owner.
         owner_identity: CoreIdentity,
+        /// Exact generation the old owner was bound to.
         owner_generation: CoreGeneration,
+        /// Exact generation observed as terminal.
         terminal_generation: CoreGeneration,
     },
+    /// The switch stopped after the new selection was committed.
     ResumeSelectionChanged {
+        /// The selection the old owner was bound to.
         previous: S,
+        /// The newly committed selection.
         selection: S,
+        /// Stable identity of the old owner.
         owner_identity: CoreIdentity,
+        /// Exact generation observed as terminal.
         terminal_generation: CoreGeneration,
     },
+    /// The switch stopped after the candidate admission was reserved.
     ResumeBindingNew {
+        /// The committed selection the candidate will serve.
         selection: S,
+        /// The engine the candidate must be.
         engine_id: EngineId,
     },
 }
@@ -249,7 +302,10 @@ pub enum EngineSwitchFailurePhase {
 #[serde(tag = "disposition", rename_all = "snake_case")]
 pub enum EngineSwitchDisposition<S> {
     /// The journal is back at the previous binding; the caller keeps using it.
-    RolledBackToPrevious { selection: S },
+    RolledBackToPrevious {
+        /// The selection that is bound again.
+        selection: S,
+    },
     /// The journal retained an unfinished stage; the caller must resume or
     /// surface a recovery-required state.
     RecoveryRequired,

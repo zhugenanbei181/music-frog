@@ -17,7 +17,9 @@ use std::path::Path;
 /// that case and must not report the write as durably committed.
 #[derive(Debug)]
 pub enum DurableReplaceError {
+    /// The replacement did not become visible; the old content is intact.
     NotCommitted(io::Error),
+    /// The replacement became visible but its durability could not be proven.
     DurabilityUncertain(io::Error),
 }
 

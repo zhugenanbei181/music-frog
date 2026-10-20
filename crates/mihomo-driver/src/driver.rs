@@ -51,6 +51,7 @@ pub struct ControllerReadiness {
 
 #[cfg(feature = "http")]
 impl ControllerReadiness {
+    /// Creates the readiness probe for one controller endpoint.
     pub fn new(endpoint: impl Into<String>, secret: Option<String>) -> Self {
         Self {
             endpoint: endpoint.into(),
@@ -58,6 +59,7 @@ impl ControllerReadiness {
         }
     }
 
+    /// Returns the loopback controller endpoint the probe uses.
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }

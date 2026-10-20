@@ -20,7 +20,9 @@ use lurker_core_ports::profile_document_codec::{
 use std::str::from_utf8;
 use yaml_rust2::YamlLoader;
 
+/// The native format identifier of the Mihomo YAML profile document.
 pub const PROFILE_FORMAT: &str = "mihomo-yaml";
+/// The schema version of the Mihomo YAML profile document.
 pub const PROFILE_SCHEMA_VERSION: u32 = 1;
 
 /// Resolves one editor snippet id to its exact YAML body.
@@ -30,6 +32,7 @@ pub const PROFILE_SCHEMA_VERSION: u32 = 1;
 /// insertion closed.
 pub type SnippetBodyLookup = fn(&str) -> Option<&'static str>;
 
+/// The neutral Mihomo YAML document codec.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MihomoProfileDocumentCodec {
     snippet_body: Option<SnippetBodyLookup>,

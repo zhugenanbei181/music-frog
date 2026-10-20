@@ -27,10 +27,12 @@ pub struct SingBoxCoreOperationGate {
 }
 
 impl SingBoxCoreOperationGate {
+    /// Creates the gate.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Acquires the gate and returns its owned guard.
     pub async fn acquire(&self) -> OwnedMutexGuard<()> {
         Arc::clone(&self.lock).lock_owned().await
     }
@@ -42,6 +44,7 @@ enum ProcessState {
     Exited,
 }
 
+/// The owner-local sing-box process adapter.
 pub struct SingBoxProcess {
     binary_path: PathBuf,
     config_path: PathBuf,
@@ -53,6 +56,10 @@ pub struct SingBoxProcess {
 }
 
 impl SingBoxProcess {
+    /// Creates the process adapter that launches the binary through tokio.
+    ///
+    /// Fails with a `Failed` port error when the controller address is not a
+    /// fixed loopback address.
     pub fn with_tokio(
         binary_path: PathBuf,
         config_path: PathBuf,
@@ -68,6 +75,7 @@ impl SingBoxProcess {
         )
     }
 
+    /// Creates the process adapter with an injected command boundary.
     pub fn new(
         binary_path: PathBuf,
         config_path: PathBuf,
@@ -85,6 +93,7 @@ impl SingBoxProcess {
         )
     }
 
+    /// Creates the process adapter that shares one operation gate.
     pub fn new_with_operation_gate(
         binary_path: PathBuf,
         config_path: PathBuf,
@@ -110,14 +119,17 @@ impl SingBoxProcess {
         })
     }
 
+    /// Returns the path of the sing-box binary the adapter launches.
     pub fn binary_path(&self) -> &PathBuf {
         &self.binary_path
     }
 
+    /// Returns the path of the configuration file the core reads.
     pub fn config_path(&self) -> &PathBuf {
         &self.config_path
     }
 
+    /// Returns the gate that serializes process activation with file commits.
     pub fn operation_gate(&self) -> Arc<SingBoxCoreOperationGate> {
         Arc::clone(&self.operation_gate)
     }

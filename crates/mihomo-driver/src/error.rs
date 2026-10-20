@@ -3,45 +3,63 @@ use thiserror::Error;
 #[cfg(feature = "http")]
 use tokio_tungstenite::tungstenite;
 
+/// The typed failure of the Mihomo driver.
+///
+/// The variants name the concrete subsystem that failed; the driver converts
+/// them into the neutral [`lurker_core_ports::error::PortError`] at the
+/// adapter boundary.
 #[derive(Error, Debug)]
 pub enum MihomoError {
+    /// The controller request failed at the HTTP layer.
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 
+    /// A filesystem or process operation failed.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 
+    /// A controller payload could not be decoded.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
+    /// A native YAML document could not be scanned.
     #[error("YAML error: {0}")]
     Yaml(#[from] yaml_rust2::ScanError),
 
+    /// A native YAML document could not be emitted.
     #[error("YAML emit error: {0}")]
     YamlEmit(String),
 
+    /// A URL could not be parsed.
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),
 
+    /// The controller WebSocket failed.
     #[cfg(feature = "http")]
     #[error("WebSocket error: {0}")]
     WebSocket(Box<tungstenite::Error>),
 
+    /// The driver was configured with an invalid value.
     #[error("Config error: {0}")]
     Config(String),
 
+    /// The core service itself failed.
     #[error("Service error: {0}")]
     Service(String),
 
+    /// The core version could not be determined or is unsupported.
     #[error("Version error: {0}")]
     Version(String),
 
+    /// The operation was cancelled by the caller.
     #[error("Operation canceled")]
     Canceled,
 
+    /// A proxy operation failed.
     #[error("Proxy error: {0}")]
     Proxy(String),
 
+    /// The requested resource does not exist.
     #[error("Not found: {0}")]
     NotFound(String),
 }
@@ -54,6 +72,7 @@ impl From<tungstenite::Error> for MihomoError {
     }
 }
 
+/// The result type of every fallible Mihomo driver operation.
 pub type Result<T> = result::Result<T, MihomoError>;
 
 #[cfg(test)]

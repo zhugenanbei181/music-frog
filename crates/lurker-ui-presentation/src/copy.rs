@@ -13,6 +13,7 @@ use std::borrow::Cow;
 /// matches the existing product localizer (`fn tr(&self, key: &str) ->
 /// Cow<'static, str>`) so a product adapter is a single delegating `impl`.
 pub trait TextCatalog {
+    /// Resolves one stable localization key against the product catalog.
     fn text(&self, key: &str) -> Cow<'static, str>;
 }
 

@@ -9,9 +9,15 @@ use std::fmt::{self, Display, Formatter};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineBackendRegistryError {
     /// A provider is already registered for this engine.
-    DuplicateProvider { engine_id: EngineId },
+    DuplicateProvider {
+        /// The engine the duplicate registration targets.
+        engine_id: EngineId,
+    },
     /// No provider is registered for this engine.
-    UnknownProvider { engine_id: EngineId },
+    UnknownProvider {
+        /// The engine that has no registered provider.
+        engine_id: EngineId,
+    },
 }
 
 impl Display for EngineBackendRegistryError {

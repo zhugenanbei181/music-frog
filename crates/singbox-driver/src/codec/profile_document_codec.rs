@@ -8,9 +8,12 @@ use lurker_core_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
 
+/// The native format identifier of the sing-box JSON profile document.
 pub const PROFILE_FORMAT: &str = "sing-box-json";
+/// The schema version of the sing-box JSON profile document.
 pub const PROFILE_SCHEMA_VERSION: u32 = 1;
 
+/// The neutral sing-box JSON document codec.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SingBoxProfileDocumentCodec;
 

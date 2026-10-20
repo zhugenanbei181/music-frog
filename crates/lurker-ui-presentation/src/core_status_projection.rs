@@ -5,6 +5,7 @@ use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::SurfaceOrigin;
 use lurker_core_contract::redact::redact_line;
 
+/// Returns the catalog text of one lifecycle state.
 pub fn lifecycle_copy(lifecycle: &CoreLifecycle, catalog: &dyn TextCatalog) -> String {
     let key = match lifecycle {
         CoreLifecycle::Stopped => "status_stopped",
@@ -16,6 +17,10 @@ pub fn lifecycle_copy(lifecycle: &CoreLifecycle, catalog: &dyn TextCatalog) -> S
     catalog.text(key).into_owned()
 }
 
+/// Returns the redacted reason text of one lifecycle failure.
+///
+/// A failed lifecycle without an observed reason renders the explicit
+/// "unobserved" copy instead of an empty string.
 pub fn failure_copy(
     lifecycle: &CoreLifecycle,
     reason: Option<&str>,
@@ -30,6 +35,7 @@ pub fn failure_copy(
     }
 }
 
+/// Returns the copy that names the origin of the observed snapshot.
 pub fn source_copy(
     origin: SurfaceOrigin,
     version: Option<&str>,
@@ -68,6 +74,10 @@ pub enum OverviewBannerVerdict {
     Transitioning,
 }
 
+/// Projects the banner verdict of the overview banner.
+///
+/// A running core whose proxy or VPN has not taken over never renders as
+/// "running": it stays the warning verdict.
 pub fn project_banner_verdict(
     origin: SurfaceOrigin,
     lifecycle: &CoreLifecycle,
@@ -92,6 +102,7 @@ pub fn project_banner_verdict(
     }
 }
 
+/// Returns the catalog text of one banner verdict.
 pub fn banner_verdict_copy(
     verdict: OverviewBannerVerdict,
     lifecycle: &CoreLifecycle,

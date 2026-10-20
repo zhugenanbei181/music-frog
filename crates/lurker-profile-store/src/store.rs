@@ -28,11 +28,14 @@ use tokio::sync::OnceCell;
 /// Native filename suffix selected alongside the engine-owned document codec.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileDocumentExtension {
+    /// The native document format is JSON.
     Json,
+    /// The native document format is YAML.
     Yaml,
 }
 
 impl ProfileDocumentExtension {
+    /// Returns the filename suffix of the native document format.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Json => "json",
@@ -121,22 +124,27 @@ impl ProfileStoreCore {
         })
     }
 
+    /// Returns the engine this store belongs to.
     pub fn engine_id(&self) -> EngineId {
         self.engine_id.clone()
     }
 
+    /// Returns the on-disk layout this store resolves its paths with.
     pub fn layout(&self) -> &Arc<ProfileStoreLayout> {
         &self.layout
     }
 
+    /// Returns the shared configuration root of the store.
     pub fn config_root(&self) -> &Path {
         &self.config_root
     }
 
+    /// Returns the engine-scoped configuration directory of the store.
     pub fn config_dir(&self) -> &Path {
         &self.config_dir
     }
 
+    /// Returns the profile-state document of the engine namespace.
     pub fn settings_file(&self) -> &Path {
         &self.settings_file
     }
@@ -146,22 +154,27 @@ impl ProfileStoreCore {
         &self.platform
     }
 
+    /// Returns the injected engine document codec.
     pub fn document_codec(&self) -> &Arc<dyn ProfileDocumentCodecPort> {
         &self.document_codec
     }
 
+    /// Returns the identity the injected document codec reported.
     pub fn document_codec_scope(&self) -> &ProfileDocumentCodecScope {
         &self.document_codec_scope
     }
 
+    /// Returns the native filename suffix of the document format.
     pub const fn document_extension(&self) -> ProfileDocumentExtension {
         self.document_extension
     }
 
+    /// Returns how this engine namespace was initialized.
     pub fn namespace_initialization(&self) -> &ProfileNamespaceInitialization {
         &self.namespace_initialization
     }
 
+    /// Whether the one-shot namespace initialization already ran.
     pub fn namespace_is_initialized(&self) -> bool {
         self.namespace_initialized.get().is_some()
     }

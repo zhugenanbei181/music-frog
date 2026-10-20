@@ -52,6 +52,7 @@ pub struct OwnerSwitchCoordinator<C: OwnerSwitchCodec> {
 }
 
 impl<C: OwnerSwitchCodec> OwnerSwitchCoordinator<C> {
+    /// Creates the coordinator for one configuration root.
     pub fn new(config_root: impl Into<PathBuf>) -> Self {
         Self {
             config_root: config_root.into(),
@@ -59,6 +60,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchCoordinator<C> {
         }
     }
 
+    /// Returns the configuration root this coordinator works on.
     pub fn config_root(&self) -> &Path {
         &self.config_root
     }
@@ -286,6 +288,10 @@ impl<C: OwnerSwitchCodec> OwnerSwitchCoordinator<C> {
         ))
     }
 
+    /// Normalizes the durable owner state of a record.
+    ///
+    /// The caller must hold the product-root reference lock; the coordinator
+    /// acquires the owner-state lock afterwards.
     pub async fn normalize_owner_state_unlocked(
         &self,
         record: &mut C::Record,
@@ -542,6 +548,11 @@ impl<C: OwnerSwitchCodec> OwnerSwitchCoordinator<C> {
     }
 }
 
+/// Validates that a terminal lifecycle snapshot proves the owner really stopped.
+///
+/// The snapshot must report `Stopped` for the same engine and instance, must
+/// not carry a session token and must not predate the minimum generation. The
+/// validated terminal generation is returned so the caller can fence with it.
 pub fn validate_terminal_for_owner(
     terminal: &CoreLifecycleSnapshot,
     identity: &CoreIdentity,

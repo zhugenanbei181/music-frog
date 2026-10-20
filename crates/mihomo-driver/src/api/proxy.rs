@@ -12,41 +12,56 @@ use std::collections::HashMap;
 /// One latency sample published in a proxy's observation history.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxyHistory {
+    /// The timestamp of the sample.
     pub time: String,
+    /// The measured delay in milliseconds.
     pub delay: u32,
 }
 
 /// Partial runtime facts reported by the controller for one outbound.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxyObservation {
+    /// The outbound type the controller reports, for example `Selector`.
     #[serde(rename = "type")]
     pub proxy_type: String,
+    /// The name of the outbound.
     pub name: String,
+    /// Whether the outbound carries UDP traffic, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub udp: Option<bool>,
+    /// Whether the outbound is alive, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alive: Option<bool>,
+    /// The published latency history of the outbound.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history: Option<Vec<ProxyHistory>>,
+    /// The measured delay of the outbound, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delay: Option<u32>,
+    /// The server address of the outbound, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server: Option<String>,
+    /// The server port of the outbound, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
+    /// The cipher of the outbound, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cipher: Option<String>,
+    /// The published member list, when the outbound is a group.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub all: Option<Vec<String>>,
+    /// The currently selected member, when the controller reports it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub now: Option<String>,
 }
 
 impl ProxyObservation {
+    /// Returns the reported name of the outbound.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the reported outbound type.
     pub fn proxy_type(&self) -> &str {
         &self.proxy_type
     }
@@ -57,18 +72,24 @@ impl ProxyObservation {
         self.all.is_some()
     }
 
+    /// Returns the published member list of a group, when there is one.
     pub fn all(&self) -> Option<&[String]> {
         self.all.as_deref()
     }
 
+    /// Returns the currently selected member, when the controller reports it.
     pub fn now(&self) -> Option<&str> {
         self.now.as_deref()
     }
 
+    /// Returns the published latency history, or an empty slice.
     pub fn history(&self) -> &[ProxyHistory] {
         self.history.as_deref().unwrap_or_default()
     }
 
+    /// Returns the reported UDP support, when the controller reports it.
+    ///
+    /// A group or an `Unknown` outbound carries no UDP fact.
     pub fn udp_observation(&self) -> Option<bool> {
         if self.is_group() || self.proxy_type == "Unknown" {
             return None;
@@ -76,6 +97,9 @@ impl ProxyObservation {
         self.udp
     }
 
+    /// Returns the reported health, when the controller reports it.
+    ///
+    /// A group or an `Unknown` outbound carries no health fact.
     pub fn health_observation(&self) -> Option<bool> {
         if self.is_group() || self.proxy_type == "Unknown" {
             return None;
@@ -91,8 +115,10 @@ impl ProxyObservation {
     }
 }
 
+/// The controller `/proxies` response.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProxiesResponse {
+    /// The observed outbounds, keyed by their reported name.
     #[serde(deserialize_with = "deserialize_proxy_map")]
     pub proxies: HashMap<String, ProxyObservation>,
 }
@@ -109,6 +135,10 @@ where
     Ok(observation)
 }
 
+/// Decodes the controller `/proxies` map.
+///
+/// A key that disagrees with the reported name is rejected: the identity of
+/// an outbound must be unambiguous.
 pub fn deserialize_proxy_map<'de, D>(
     deserializer: D,
 ) -> Result<HashMap<String, ProxyObservation>, D::Error>

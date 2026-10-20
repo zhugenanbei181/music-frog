@@ -1,36 +1,57 @@
 //! Shared typed group-order draft, inventory fence, and correlated receipt reducer.
+//!
+//! The editor owns one explicit draft state. Every apply is fenced by the
+//! inventory revision the draft was opened against, and every receipt is
+//! correlated by the monotonic token of the pending order, so a late receipt
+//! of a superseded order can never publish a wrong baseline.
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::{OutboundId, SnapshotRevision};
 use std::collections::HashSet;
 
+/// The direction of one group move inside the draft.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GroupMove {
+    /// Move the group one position towards the front.
     Up,
+    /// Move the group one position towards the back.
     Down,
 }
 
+/// The kind of group-order change the draft carries.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GroupOrderOperation {
+    /// The draft holds a user-defined order.
     #[default]
     Reorder,
+    /// The draft asks to fall back to the engine order.
     ResetToInventory,
 }
 
+/// One in-flight group-order change.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingGroupOrder {
+    /// The monotonic identity of this change.
     pub token: u64,
+    /// The complete new group order.
     pub groups: Vec<OutboundId>,
+    /// The inventory revision the change is fenced to.
     pub inventory_revision: SnapshotRevision,
+    /// The kind of change the draft carries.
     pub operation: GroupOrderOperation,
 }
 
+/// The outcome of folding one receipt into the editor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GroupOrderFinish {
+    /// The receipt did not match the pending order and was ignored.
     Stale,
+    /// The receipt was applied and the baseline advanced.
     Applied,
+    /// The receipt reported a failure.
     Failed,
 }
 
+/// The presentation reducer of the proxy-group order editor.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProxyGroupOrderEditor {
     draft: Vec<OutboundId>,
@@ -71,6 +92,9 @@ enum GroupOrderActionState {
     Failed(Failure),
 }
 
+/// Validates that a group order contains unique identities.
+///
+/// Fails with an `InvalidInput` failure when the order repeats a group.
 pub fn validate_order(groups: &[OutboundId]) -> Result<(), Failure> {
     let unique: HashSet<_> = groups.iter().collect();
     if unique.len() != groups.len() {
@@ -84,6 +108,11 @@ pub fn validate_order(groups: &[OutboundId]) -> Result<(), Failure> {
 }
 
 impl ProxyGroupOrderEditor {
+    /// Opens the editor against one accepted outbound inventory.
+    ///
+    /// Fails with an `InvalidState` failure when a change is already pending,
+    /// with an `InvalidInput` failure when the order is not unique, and with an
+    /// `InvalidInput` failure when the order does not match the inventory.
     pub fn open(
         &mut self,
         groups: Vec<OutboundId>,
@@ -120,6 +149,10 @@ impl ProxyGroupOrderEditor {
         Ok(())
     }
 
+    /// Folds one inventory observation into the editor.
+    ///
+    /// An observation that differs from the accepted inventory marks the
+    /// editor stale and requires the caller to reopen it.
     pub fn observe(&mut self, observation: Result<(Vec<OutboundId>, SnapshotRevision), Failure>) {
         let Some(accepted) = self.inventory.accepted().cloned() else {
             return;
@@ -142,6 +175,10 @@ impl ProxyGroupOrderEditor {
         };
     }
 
+    /// Moves one group inside the draft.
+    ///
+    /// Returns `false` when the editor is pending, when the group is unknown
+    /// or when the move would leave the draft.
     pub fn move_group(&mut self, id: &OutboundId, direction: GroupMove) -> bool {
         if self.is_pending() {
             return false;
@@ -160,6 +197,7 @@ impl ProxyGroupOrderEditor {
         true
     }
 
+    /// Resets the draft to the engine order of the accepted inventory.
     pub fn reset_draft(&mut self) {
         if self.is_pending() {
             return;
@@ -172,6 +210,7 @@ impl ProxyGroupOrderEditor {
         self.action = GroupOrderActionState::Ready;
     }
 
+    /// Cancels the draft and restores the accepted baseline.
     pub fn cancel(&mut self) {
         if self.is_pending() {
             return;
@@ -185,6 +224,7 @@ impl ProxyGroupOrderEditor {
         self.action = GroupOrderActionState::Ready;
     }
 
+    /// Whether the draft can be applied right now.
     pub fn can_apply(&self) -> bool {
         !self.is_pending()
             && matches!(&self.inventory, GroupOrderInventoryState::Current(_))
@@ -194,6 +234,11 @@ impl ProxyGroupOrderEditor {
                 .is_some_and(|accepted| self.draft != accepted.baseline)
     }
 
+    /// Starts one group-order change.
+    ///
+    /// Fails with an `InvalidState` failure when a change is already pending or
+    /// when the draft has no unapplied changes, and with a `NotReady` failure
+    /// when the inventory is not open.
     pub fn begin(&mut self) -> Result<PendingGroupOrder, Failure> {
         if self.is_pending() {
             return Err(Failure::new(
@@ -242,6 +287,10 @@ impl ProxyGroupOrderEditor {
         Ok(pending)
     }
 
+    /// Folds the receipt of one group-order change into the editor.
+    ///
+    /// A receipt whose token does not match the pending order is stale and is
+    /// ignored.
     pub fn finish(&mut self, token: u64, result: Result<(), Failure>) -> GroupOrderFinish {
         let pending = match &self.action {
             GroupOrderActionState::Pending(pending) if pending.token == token => pending.clone(),
@@ -267,36 +316,43 @@ impl ProxyGroupOrderEditor {
         }
     }
 
+    /// Records a rejection that happened before the change was started.
     pub fn reject(&mut self, failure: Failure) {
         if !self.is_pending() {
             self.action = GroupOrderActionState::Rejected(failure);
         }
     }
 
+    /// Returns the current draft order.
     pub fn draft(&self) -> &[OutboundId] {
         &self.draft
     }
 
+    /// Returns the accepted baseline order, when the inventory is open.
     pub fn baseline(&self) -> Option<&[OutboundId]> {
         self.inventory
             .accepted()
             .map(|accepted| accepted.baseline.as_slice())
     }
 
+    /// Returns the engine order, when the inventory is open.
     pub fn default_order(&self) -> Option<&[OutboundId]> {
         self.inventory
             .accepted()
             .map(|accepted| accepted.default_order.as_slice())
     }
 
+    /// Returns the inventory revision the draft is fenced to.
     pub fn inventory_revision(&self) -> Option<SnapshotRevision> {
         self.inventory.accepted().map(|accepted| accepted.revision)
     }
 
+    /// Returns the kind of change the draft carries.
     pub fn operation(&self) -> GroupOrderOperation {
         self.operation
     }
 
+    /// Returns the in-flight change, when one is pending.
     pub fn pending(&self) -> Option<&PendingGroupOrder> {
         match &self.action {
             GroupOrderActionState::Pending(pending) => Some(pending),
@@ -306,10 +362,12 @@ impl ProxyGroupOrderEditor {
         }
     }
 
+    /// Whether one group-order change is in flight.
     pub fn is_pending(&self) -> bool {
         matches!(&self.action, GroupOrderActionState::Pending(_))
     }
 
+    /// Returns the recorded failure, when the editor carries one.
     pub fn failure(&self) -> Option<&Failure> {
         match &self.action {
             GroupOrderActionState::Rejected(failure) | GroupOrderActionState::Failed(failure) => {
@@ -319,6 +377,7 @@ impl ProxyGroupOrderEditor {
         }
     }
 
+    /// Returns the inventory observation failure, when there is one.
     pub fn observation_failure(&self) -> Option<&Failure> {
         match &self.inventory {
             GroupOrderInventoryState::ReadFailed { failure, .. }

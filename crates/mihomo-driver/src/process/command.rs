@@ -13,13 +13,16 @@ use tokio::process::Command;
 /// Whether the selected binary accepted the staged candidate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeConfigCheck {
+    /// The selected binary accepted the staged candidate.
     Accepted,
+    /// The selected binary rejected the staged candidate.
     Rejected,
 }
 
 /// Outcome of one native `-t` invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NativeConfigCheckOutcome {
+    /// Whether the selected binary accepted the staged candidate.
     pub check: NativeConfigCheck,
     /// Trimmed stderr (falling back to stdout) printed by the rejected check.
     pub detail: String,
@@ -28,6 +31,7 @@ pub struct NativeConfigCheckOutcome {
 /// Injectable command boundary for the Mihomo `-t` dry run.
 #[async_trait]
 pub trait MihomoCommandPort: Send + Sync {
+    /// Runs the native `-t` dry run of the selected binary.
     async fn check_config(
         &self,
         binary_path: &Path,

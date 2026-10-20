@@ -11,11 +11,16 @@ use lurker_core_ports::error::PortError;
 /// is held. This is a transient decision input, not a second persisted state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OwnerSwitchFence {
+    /// No owner is bound.
     Unowned,
+    /// One owner is bound to the current selection.
     Bound {
+        /// Stable identity of the bound owner.
         identity: CoreIdentity,
+        /// Exact generation the owner is bound to.
         generation: CoreGeneration,
     },
+    /// An owner switch is in progress.
     Switching,
 }
 
@@ -29,6 +34,9 @@ pub struct OwnerSwitchCasReady<C: OwnerSwitchCodec> {
 }
 
 impl<C: OwnerSwitchCodec> OwnerSwitchCasReady<C> {
+    /// Compares the current selection against the expected revision.
+    ///
+    /// Fails with a retryable `NotReady` failure when the revision moved on.
     pub fn compare(
         current: &C::Selection,
         expected_revision: EngineSwitchRevision,
@@ -46,6 +54,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchCasReady<C> {
         })
     }
 
+    /// Returns the selection the compare observed.
     pub fn previous(&self) -> &C::Selection {
         &self.previous
     }

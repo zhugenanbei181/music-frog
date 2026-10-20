@@ -1,4 +1,4 @@
-//! [缺口02] Mihomo kernel capability matrix.
+//! Mihomo kernel capability matrix (upstream gap 缺口02).
 //!
 //! Maps an installed (or candidate) kernel version to the feature set this
 //! workspace may rely on (Sniffer, `.mrs` rule sets, VLESS-Reality, TUIC v5,
@@ -43,7 +43,7 @@ pub enum Capability {
 
 impl Capability {
     /// All tracked capabilities, stable order (used for serialization and
-    /// for building [`CapabilitySet::supported`]).
+    /// for building [`CapabilitySet::capabilities`]).
     pub const ALL: [Capability; 7] = [
         Capability::Sniffer,
         Capability::MrsRuleSet,

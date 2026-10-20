@@ -45,12 +45,16 @@ pub enum ProbeBehavior {
 pub enum RoutingBehavior {
     /// Observation and read-back-after-write are supported.
     Writable {
+        /// The routing intent the adapter must report before the write.
         initial: RoutingIntent,
+        /// The routing intent the check writes and reads back.
         requested: RoutingIntent,
     },
     /// Observation is supported but writes are typed unsupported.
     ReadOnlyUnsupported {
+        /// The routing intent the adapter must report before the write.
         initial: RoutingIntent,
+        /// The routing intent the check tries to write.
         requested: RoutingIntent,
     },
 }
@@ -58,24 +62,40 @@ pub enum RoutingBehavior {
 /// Everything the neutral kit needs to exercise one adapter.
 #[derive(Clone, Debug)]
 pub struct AdapterConformanceCase {
+    /// Engine the adapter under test serves.
     pub engine: EngineId,
+    /// Version the adapter must report once the core is ready.
     pub expected_version: CoreVersion,
+    /// Native format the document codec speaks.
     pub profile_format: ProfileFormatId,
+    /// Schema version the document codec speaks.
     pub profile_schema: ProfileSchemaVersion,
+    /// Bytes the codec and the engine must both accept.
     pub valid_document: Vec<u8>,
+    /// Bytes the codec must reject.
     pub invalid_document: Vec<u8>,
     /// Syntactically valid for the neutral codec but rejected by the engine's
     /// native validator; it distinguishes native validation from parsing.
     pub native_invalid_document: Vec<u8>,
+    /// The selector collection the selection check operates on.
     pub collection_id: OutboundId,
+    /// The member the selector starts on.
     pub initial_member_id: OutboundId,
+    /// The member the selection check switches to.
     pub alternate_member_id: OutboundId,
+    /// The outbound the probe check measures.
     pub probe_outbound_id: OutboundId,
+    /// The probe request the probe check issues.
     pub probe_request: OutboundProbeRequest,
+    /// What the adapter must report for neutral outbound details.
     pub details: DetailsBehavior,
+    /// What the adapter must report for a neutral outbound probe.
     pub probe: ProbeBehavior,
+    /// What the adapter must report for the shared routing intent.
     pub routing: RoutingBehavior,
+    /// How the adapter is expected to expose the Core process lifecycle.
     pub lifecycle: LifecycleExpectation,
+    /// Bound for the readiness wait of this run.
     pub readiness_timeout: Duration,
 }
 

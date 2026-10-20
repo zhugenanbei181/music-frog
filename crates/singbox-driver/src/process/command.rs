@@ -7,33 +7,46 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
 
+/// The verdict of one native configuration check.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeConfigCheck {
+    /// The selected binary accepted the candidate configuration.
     Accepted,
+    /// The selected binary rejected the candidate configuration.
     Rejected,
 }
 
+/// The state of one polled child process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SingBoxChildPoll {
+    /// The child process is still running.
     Running,
+    /// The child process has exited.
     Exited,
 }
 
+/// The owned child process of a running sing-box core.
 #[async_trait]
 pub trait SingBoxChildProcess: Send {
+    /// Returns the process id of the child.
     fn pid(&self) -> u32;
+    /// Polls whether the child is still running.
     async fn poll(&mut self) -> Result<SingBoxChildPoll, PortError>;
+    /// Terminates the child and waits for its exit.
     async fn terminate(&mut self) -> Result<(), PortError>;
 }
 
+/// The injectable command boundary of the sing-box driver.
 #[async_trait]
 pub trait SingBoxCommandPort: Send + Sync {
+    /// Runs the native `check` transaction of the selected binary.
     async fn check_config(
         &self,
         binary_path: &Path,
         config_path: &Path,
     ) -> Result<NativeConfigCheck, PortError>;
 
+    /// Starts the sing-box core with the selected configuration.
     async fn spawn_core(
         &self,
         binary_path: &Path,
@@ -41,6 +54,7 @@ pub trait SingBoxCommandPort: Send + Sync {
     ) -> Result<Box<dyn SingBoxChildProcess>, PortError>;
 }
 
+/// The production command boundary of the sing-box driver.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TokioSingBoxCommandPort;
 

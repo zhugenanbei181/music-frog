@@ -42,6 +42,7 @@ pub struct MihomoOutboundAdapter {
 }
 
 impl MihomoOutboundAdapter {
+    /// Creates the outbound adapter over one controller client.
     pub fn new(api: Arc<MihomoClient>, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             api,

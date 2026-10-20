@@ -150,6 +150,7 @@ where
     B: EngineBackendBundle,
     J: EngineSwitchJournal + ?Sized,
 {
+    /// Creates a coordinator over one registry, journal and switch host.
     pub fn new(
         registry: Arc<EngineBackendProviderRegistry<B>>,
         journal: Arc<J>,
@@ -162,10 +163,12 @@ where
         }
     }
 
+    /// Returns the durable journal the coordinator drives.
     pub fn journal(&self) -> &J {
         &self.journal
     }
 
+    /// Reads the current selection and owner state from the journal.
     pub async fn snapshot(&self) -> Result<EngineSwitchSnapshot<J::Selection>, PortError> {
         self.journal.snapshot().await
     }

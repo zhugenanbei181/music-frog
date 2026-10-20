@@ -31,6 +31,7 @@ pub const ENGINE_BACKEND_CAPABILITY: Capability = Capability::CoreLifecycle;
 /// Implementations must report the identical engine identity that they were
 /// requested with; a registry rejects any other bundle.
 pub trait EngineBackendBundle: Send + Sync + 'static {
+    /// Returns the engine identity this bundle serves.
     fn engine_id(&self) -> &EngineId;
 }
 
@@ -60,6 +61,7 @@ enum OwnerScopeIdentityState {
 }
 
 impl EngineBackendOwnerScopeBinding {
+    /// Creates an unbound owner-scope binding for one engine.
     pub fn new(engine_id: EngineId) -> Self {
         Self {
             engine_id,
@@ -67,10 +69,16 @@ impl EngineBackendOwnerScopeBinding {
         }
     }
 
+    /// Returns the engine this binding belongs to.
     pub fn engine_id(&self) -> &EngineId {
         &self.engine_id
     }
 
+    /// Binds the owner scope source to this binding.
+    ///
+    /// Fails when no process identity was bound yet, when a source is already
+    /// bound, or when the bound source observes a scope of a different core
+    /// instance than the bound process identity.
     pub fn bind(&self, source: Arc<dyn CoreScopeSource>) -> Result<(), PortError> {
         let process_identity = {
             let state = self.state.lock().map_err(|_| {
@@ -205,7 +213,9 @@ fn owner_scope_identity(
 /// process, lifecycle, and local configuration ports remain usable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EngineBackendOwnerScopeBindingResult {
+    /// The bundle has no dispatchable operation, so no owner scope is needed.
     NotRequired,
+    /// The owner scope source was bound to the bundle.
     Bound,
 }
 
@@ -214,17 +224,24 @@ pub enum EngineBackendOwnerScopeBindingResult {
 /// operation owner for this backend.
 #[derive(Clone)]
 pub enum EngineOperationPort<T> {
-    Unsupported { reason: String },
+    /// No adapter is composed for this operation.
+    Unsupported {
+        /// Human-readable reason the operation is unavailable.
+        reason: String,
+    },
+    /// The composed adapter for this operation.
     Available(T),
 }
 
 impl<T> EngineOperationPort<T> {
+    /// Builds the unsupported variant with a reason.
     pub fn unsupported(reason: impl Into<String>) -> Self {
         Self::Unsupported {
             reason: reason.into(),
         }
     }
 
+    /// Builds the available variant around a composed adapter.
     pub fn available(port: T) -> Self {
         Self::Available(port)
     }
@@ -234,23 +251,31 @@ impl<T> EngineOperationPort<T> {
 /// carry their own operation extensions beside this value.
 #[derive(Clone)]
 pub enum EngineOperationPorts {
+    /// No runtime operation is composed for this engine.
     Unsupported {
+        /// Human-readable reason the operations are unavailable.
         reason: String,
     },
+    /// The runtime operations composed for this engine.
     Available {
+        /// The outbound observation and selection port.
         outbound: Arc<dyn OutboundPort>,
+        /// The routing intent observation and apply port.
         routing_intent: Arc<dyn RoutingIntentPort>,
+        /// The owner scope binding the operations are fenced to.
         owner_scope: Arc<EngineBackendOwnerScopeBinding>,
     },
 }
 
 impl EngineOperationPorts {
+    /// Builds the unsupported variant with a reason.
     pub fn unsupported(reason: impl Into<String>) -> Self {
         Self::Unsupported {
             reason: reason.into(),
         }
     }
 
+    /// Builds the available variant around the composed operation ports.
     pub fn available(
         outbound: Arc<dyn OutboundPort>,
         routing_intent: Arc<dyn RoutingIntentPort>,
@@ -263,6 +288,7 @@ impl EngineOperationPorts {
         }
     }
 
+    /// Returns the outbound port, or an `Unsupported` failure.
     pub fn outbound(&self) -> Result<Arc<dyn OutboundPort>, PortError> {
         match self {
             Self::Unsupported { reason } => Err(PortError::unsupported(
@@ -273,6 +299,7 @@ impl EngineOperationPorts {
         }
     }
 
+    /// Returns the routing intent port, or an `Unsupported` failure.
     pub fn routing_intent(&self) -> Result<Arc<dyn RoutingIntentPort>, PortError> {
         match self {
             Self::Unsupported { reason } => Err(PortError::unsupported(
@@ -323,6 +350,11 @@ impl EngineBackendBundle for EngineBackendPorts {
 }
 
 impl EngineBackendPorts {
+    /// Composes the backend bundle for one engine.
+    ///
+    /// Fails when the process adapter reports no identity, when the process
+    /// adapter or the configuration codec belongs to another engine, or when
+    /// the operation ports are scoped to another engine.
     pub fn new(
         engine_id: EngineId,
         process: Arc<dyn CoreProcess>,
@@ -374,26 +406,37 @@ impl EngineBackendPorts {
         })
     }
 
+    /// Returns the engine this bundle serves.
     pub fn engine_id(&self) -> &EngineId {
         &self.engine_id
     }
 
+    /// Returns the process supervision port.
     pub fn process(&self) -> Arc<dyn CoreProcess> {
         Arc::clone(&self.process)
     }
 
+    /// Returns the readiness probe port.
     pub fn readiness(&self) -> Arc<dyn CoreReadiness> {
         Arc::clone(&self.readiness)
     }
 
+    /// Returns the pure document codec port.
     pub fn configuration(&self) -> Arc<dyn ProfileDocumentCodecPort> {
         Arc::clone(&self.configuration)
     }
 
+    /// Returns the composed runtime operations.
     pub fn operations(&self) -> EngineOperationPorts {
         self.operations.clone()
     }
 
+    /// Attaches the single Core owner's scope source to this bundle.
+    ///
+    /// Returns [`EngineBackendOwnerScopeBindingResult::NotRequired`] when the
+    /// bundle has no dispatchable operation, and
+    /// [`EngineBackendOwnerScopeBindingResult::Bound`] when the source was
+    /// bound.
     pub fn bind_owner_core_scope(
         &self,
         source: Arc<dyn CoreScopeSource>,
@@ -414,8 +457,13 @@ impl EngineBackendPorts {
 /// backend. It is intentionally not a boolean readiness flag.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineBackendProviderAvailability {
+    /// A provider for the requested engine is registered.
     Registered,
-    Unsupported { reason: String },
+    /// No provider exists for the requested engine.
+    Unsupported {
+        /// Human-readable reason the engine is unavailable.
+        reason: String,
+    },
 }
 
 /// Creates the backend bundle for one engine identity.
@@ -424,7 +472,9 @@ pub enum EngineBackendProviderAvailability {
 /// effect while creating the bundle; starting remains an explicit application
 /// operation after the returned bundle is accepted.
 pub trait EngineBackendProvider<B: EngineBackendBundle>: Send + Sync {
+    /// Returns the engine this provider creates backends for.
     fn engine_id(&self) -> EngineId;
+    /// Creates the backend bundle without starting any Core.
     fn create_backend(&self) -> Result<B, PortError>;
 }
 

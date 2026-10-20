@@ -39,7 +39,9 @@ fn next_temporary_sequence() -> u64 {
 /// One directory entry as seen by the kernel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StoreDirEntry {
+    /// The absolute path of the entry.
     pub path: PathBuf,
+    /// The kind of the entry.
     pub kind: StoreEntryKind,
 }
 
@@ -47,8 +49,11 @@ pub struct StoreDirEntry {
 /// directory stays explicit so migrations can refuse it instead of guessing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoreEntryKind {
+    /// A regular file.
     File,
+    /// A directory.
     Directory,
+    /// Anything else, for example a symlink or a device node.
     Other,
 }
 
@@ -81,17 +86,20 @@ pub trait StorePlatform: Send + Sync {
     /// Move `source` to `target` without any durability claim.
     fn rename(&self, source: &Path, target: &Path) -> Result<(), PortError>;
 
+    /// Create `path` and every missing parent directory.
     fn create_dir_all(&self, path: &Path) -> Result<(), PortError>;
 
     /// Remove one empty directory.
     fn remove_dir(&self, path: &Path) -> Result<(), PortError>;
 
+    /// Whether `path` exists.
     fn exists(&self, path: &Path) -> Result<bool, PortError>;
 
     /// Canonical absolute path. Must report [`PortError::NotFound`] for a
     /// missing path so callers keep distinguishing absence from I/O failure.
     fn canonicalize(&self, path: &Path) -> Result<PathBuf, PortError>;
 
+    /// Read the entries of one directory.
     fn read_dir(&self, path: &Path) -> Result<Vec<StoreDirEntry>, PortError>;
 
     /// Acquire the shared engine write fence in process-local and cross-process
@@ -119,6 +127,7 @@ pub trait StorePlatform: Send + Sync {
 pub struct NativeStorePlatform;
 
 impl NativeStorePlatform {
+    /// Creates the native platform.
     pub const fn new() -> Self {
         Self
     }

@@ -6,16 +6,30 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+/// Why a typed identity value was rejected at the construction boundary.
+///
+/// The failure is typed instead of a string so callers can distinguish "the
+/// caller passed nothing" from "the caller passed something malformed"
+/// without re-parsing messages.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CoreIdentityError {
+    /// The engine ID was empty.
     EmptyEngineId,
+    /// The engine ID contained characters outside the accepted set.
     InvalidEngineId,
+    /// The core instance ID was empty or blank.
     EmptyInstanceId,
+    /// The core instance ID exceeded the 128-byte limit.
     OversizedInstanceId,
+    /// The core version string was empty or blank.
     EmptyVersion,
 }
 
 /// Monotonic activation counter for a core instance within one owner process.
+///
+/// The counter is the ordering fence between activations of the *same*
+/// instance: a readback carrying an older generation belongs to a previous
+/// activation and must be rejected.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -23,10 +37,12 @@ pub enum CoreIdentityError {
 pub struct CoreGeneration(u64);
 
 impl CoreGeneration {
+    /// Wraps a raw counter value.
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
 
+    /// Returns the raw counter value.
     pub const fn value(self) -> u64 {
         self.0
     }
@@ -61,19 +77,30 @@ impl Display for CoreIdentityError {
 impl Error for CoreIdentityError {}
 
 /// Stable identifier for an engine adapter, such as `mihomo` or `sing-box`.
+///
+/// The value is restricted to lowercase ASCII letters, digits, `-` and `_`
+/// (at most 64 bytes) so it can be embedded in file names, URLs and log lines
+/// without escaping.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct EngineId(String);
 
 impl EngineId {
+    /// The engine ID of the mihomo (Clash.Meta) core.
     pub fn mihomo() -> Self {
         Self::new("mihomo").expect("Mihomo engine ID is valid")
     }
 
+    /// The engine ID of the sing-box core.
     pub fn sing_box() -> Self {
         Self::new("sing-box").expect("sing-box engine ID is valid")
     }
 
+    /// Validates and builds an engine ID.
+    ///
+    /// Fails with [`CoreIdentityError::EmptyEngineId`] for an empty value and
+    /// with [`CoreIdentityError::InvalidEngineId`] when the value is longer
+    /// than 64 bytes or contains characters outside `[a-z0-9_-]`.
     pub fn new(value: impl Into<String>) -> Result<Self, CoreIdentityError> {
         let value = value.into();
         if value.is_empty() {
@@ -89,6 +116,7 @@ impl EngineId {
         Ok(Self(value))
     }
 
+    /// Borrows the engine ID as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -105,11 +133,19 @@ impl<'de> Deserialize<'de> for EngineId {
 }
 
 /// Stable identity for one installed/configured core instance.
+///
+/// The instance ID names a *configuration*, not a process: restarting the
+/// same instance keeps the same ID, while replacing the installation yields a
+/// different one. It is at most 128 bytes and must not be blank.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct CoreInstanceId(String);
 
 impl CoreInstanceId {
+    /// Validates and builds a core instance ID.
+    ///
+    /// Fails with [`CoreIdentityError::EmptyInstanceId`] for a blank value and
+    /// with [`CoreIdentityError::OversizedInstanceId`] for more than 128 bytes.
     pub fn new(value: impl Into<String>) -> Result<Self, CoreIdentityError> {
         let value = value.into();
         if value.trim().is_empty() {
@@ -121,6 +157,7 @@ impl CoreInstanceId {
         Ok(Self(value))
     }
 
+    /// Borrows the instance ID as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -143,6 +180,10 @@ impl<'de> Deserialize<'de> for CoreInstanceId {
 pub struct CoreVersion(String);
 
 impl CoreVersion {
+    /// Validates and builds a core version.
+    ///
+    /// Fails with [`CoreIdentityError::EmptyVersion`] for a blank value. The
+    /// value is otherwise opaque: no comparison or ordering is implied.
     pub fn new(value: impl Into<String>) -> Result<Self, CoreIdentityError> {
         let value = value.into();
         if value.trim().is_empty() {
@@ -151,6 +192,7 @@ impl CoreVersion {
         Ok(Self(value))
     }
 
+    /// Borrows the raw version string as reported by the engine.
     pub fn raw(&self) -> &str {
         &self.0
     }
@@ -175,12 +217,19 @@ impl<'de> Deserialize<'de> for CoreVersion {
 /// observations and requests.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CoreIdentity {
+    /// The engine adapter that serves this instance.
     pub engine: EngineId,
+    /// The stable instance (configuration) this observation belongs to.
     pub instance: CoreInstanceId,
+    /// The observed engine version, when it is already known.
+    ///
+    /// `None` before readiness or while the version is unknown; the value may
+    /// be refreshed later without invalidating the owner fence.
     pub version: Option<CoreVersion>,
 }
 
 impl CoreIdentity {
+    /// Assembles a runtime identity observation.
     pub fn new(engine: EngineId, instance: CoreInstanceId, version: Option<CoreVersion>) -> Self {
         Self {
             engine,
@@ -197,10 +246,21 @@ impl CoreIdentity {
 }
 
 /// One activation of one engine instance. Every scoped request must match it.
+///
+/// The scope carries the stable identity, the activation counter and — when
+/// the activation belongs to a managed session — the session token. A request
+/// is only allowed to act on a core when all three fields match the current
+/// scope, so a delayed event from a previous activation is rejected instead of
+/// mutating the new one.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreScope {
+    /// Stable identity of the active core instance.
     pub identity: CoreIdentity,
+    /// Activation counter of the active core instance.
     pub generation: CoreGeneration,
+    /// Session token of the owning session, when the activation is managed.
+    ///
+    /// `None` for standalone activations that no session fence applies to.
     pub session_token: Option<SessionToken>,
 }
 

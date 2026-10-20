@@ -142,6 +142,10 @@ impl MihomoClient {
         Ok(rx)
     }
 
+    /// Streams the controller log lines.
+    ///
+    /// The stream reconnects on its own and reports every lifecycle step as a
+    /// typed [`StreamEvent`].
     pub async fn stream_logs_events(
         &self,
         level: Option<&str>,
@@ -154,6 +158,7 @@ impl MihomoClient {
         .await
     }
 
+    /// Streams the controller traffic counters.
     pub async fn stream_traffic_events(
         &self,
     ) -> Result<UnboundedReceiver<StreamEvent<TrafficData>>> {
@@ -163,6 +168,7 @@ impl MihomoClient {
         .await
     }
 
+    /// Streams the controller connection snapshots.
     pub async fn stream_connections_events(
         &self,
     ) -> Result<UnboundedReceiver<StreamEvent<ConnectionSnapshot>>> {

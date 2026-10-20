@@ -31,14 +31,18 @@ use std::sync::Arc;
 /// One coherent document and sidecar snapshot owned by the kernel.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProfileWorkspaceRecord {
+    /// The stored document with its complete identity.
     pub document: ProfileDocument,
+    /// The revision of the options sidecar paired with the document.
     pub sidecar_revision: ProfileSidecarRevision,
+    /// Whether the document is protected against direct edits.
     pub write_protection: ProfileWriteProtection,
     /// Opaque exact sidecar bytes, retained for source-bound rollback.
     pub sidecar_bytes: Option<Vec<u8>>,
 }
 
 impl ProfileWorkspaceRecord {
+    /// Returns the compare-and-swap identity of this workspace.
     pub fn identity(&self) -> ProfileWorkspaceIdentity {
         ProfileWorkspaceIdentity::new(
             self.document.identity.clone(),
@@ -289,6 +293,7 @@ async fn publish_sidecar(
     }
 }
 
+/// Builds the typed "invalid workspace recovery" failure.
 pub fn invalid_workspace_recovery(message: &str) -> PortError {
     PortError::Rejected(Failure::new(ErrorCode::InvalidInput, message, false))
 }

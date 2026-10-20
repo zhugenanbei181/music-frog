@@ -44,7 +44,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// Observable lifecycle phase of [`FakeProcess`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FakeProcessPhase {
+    /// The fake process is not running.
     Stopped,
+    /// The fake process is running.
     Running,
 }
 
@@ -55,6 +57,7 @@ pub struct FakeProcess {
 }
 
 impl FakeProcess {
+    /// Creates a stopped fake process for one core identity.
     pub fn new(identity: CoreIdentity) -> Self {
         Self {
             identity,
@@ -71,6 +74,7 @@ impl FakeProcess {
         }
     }
 
+    /// Returns the current observable phase of the fake process.
     pub fn phase(&self) -> FakeProcessPhase {
         *self.phase.lock().expect("fake process phase lock")
     }
@@ -158,6 +162,7 @@ pub struct FakeCodec {
 }
 
 impl FakeCodec {
+    /// Creates a codec that accepts the valid and the native-invalid bytes.
     pub fn new(
         scope: ProfileDocumentCodecScope,
         valid_document: &[u8],
@@ -170,6 +175,7 @@ impl FakeCodec {
         }
     }
 
+    /// Creates a codec from the fixtures of one conformance case.
     pub fn for_case(case: &AdapterConformanceCase) -> Self {
         Self::new(
             ProfileDocumentCodecScope {
@@ -213,6 +219,7 @@ pub struct FakeOutbound {
 }
 
 impl FakeOutbound {
+    /// Creates the in-memory inventory and selector of one case and scope.
     pub fn new(scope: CoreScope, case: &AdapterConformanceCase) -> Self {
         let member_ids = vec![
             case.initial_member_id.clone(),
@@ -400,6 +407,7 @@ pub struct FakeRouting {
 }
 
 impl FakeRouting {
+    /// Creates an in-memory routing adapter for one scope and behavior.
     pub fn new(scope: CoreScope, behavior: RoutingBehavior) -> Self {
         let current = match &behavior {
             RoutingBehavior::Writable { initial, .. }
@@ -473,6 +481,7 @@ pub struct InMemoryEngineSwitchJournal {
 }
 
 impl InMemoryEngineSwitchJournal {
+    /// Creates an in-memory journal that starts with one selection.
     pub fn new(selection: EngineId) -> Self {
         Self {
             journal: MemoryEngineSwitchJournal::new(selection),

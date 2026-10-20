@@ -25,6 +25,7 @@ pub struct SingBoxRoutingIntentAdapter {
 }
 
 impl SingBoxRoutingIntentAdapter {
+    /// Creates the routing-intent adapter over one API client and scope source.
     pub fn new(api: SingBoxClashApiClient, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             version_provider: SingBoxCoreVersionProvider::new(api.clone()),

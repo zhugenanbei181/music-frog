@@ -30,6 +30,10 @@ use lurker_core_ports::engine_switch::EngineOwnerStoppedSwitchLease;
 use lurker_core_ports::error::PortError;
 use std::path::{Path, PathBuf};
 
+/// Observes the durable recovery stage of an unfinished owner switch.
+///
+/// The root lock and the owner-state lock are held while the durable record
+/// is read, so the observed stage belongs to one committed revision.
 pub async fn recover_owner_switch<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     expected_revision: EngineSwitchRevision,
@@ -161,6 +165,10 @@ fn repair_candidate_reservation_proof<C: OwnerSwitchCodec>(
     sync_publish_active_core_owner_proof::<C>(config_root, &proof)
 }
 
+/// Rehydrates the stopped-old-owner stage after its exact terminal is known.
+///
+/// The returned lease may only be used for the `OldStopped` stage; a terminal
+/// generation older than the bound generation is rejected.
 pub async fn recover_old_owner_after_terminal<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     expected_revision: EngineSwitchRevision,
@@ -336,6 +344,10 @@ pub async fn recover_old_owner_after_terminal<C: OwnerSwitchCodec>(
     )))
 }
 
+/// Releases a reserved candidate after its never-started terminal is known.
+///
+/// The committed selection stays; the owner becomes unowned because no live
+/// lease can retry the reservation.
 pub async fn recover_candidate_after_terminal<C: OwnerSwitchCodec>(
     config_root: PathBuf,
     expected_revision: EngineSwitchRevision,

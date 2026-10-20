@@ -13,9 +13,11 @@ use tokio::process::Command;
 /// Reads the version reported by one sing-box executable.
 #[async_trait]
 pub trait SingBoxBinaryInspector: Send + Sync {
+    /// Reads the version the executable reports for itself.
     async fn version(&self, binary: &Path) -> Result<CoreVersion, PortError>;
 }
 
+/// The production binary inspector that runs the executable.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProcessSingBoxBinaryInspector;
 

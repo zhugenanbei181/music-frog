@@ -30,6 +30,7 @@ impl ConformanceGroup {
         Self::Errors,
     ];
 
+    /// Returns the stable, machine-readable label of the group.
     pub fn label(self) -> &'static str {
         match self {
             Self::Lifecycle => "lifecycle",
