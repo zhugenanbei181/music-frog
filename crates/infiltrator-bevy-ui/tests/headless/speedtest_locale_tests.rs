@@ -61,10 +61,7 @@ fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     let detail = entity::<OverviewSpeedtestDetailBodyText>(&mut app);
     let detail_button = entity::<OverviewSpeedtestDetailButton>(&mut app);
     click_entity(&mut app, detail_button);
-    assert_eq!(
-        app.world().resource::<ModalState>().stage,
-        ModalStage::Open
-    );
+    assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);
     let proxy = entity::<SidebarSystemProxyToggle>(&mut app);
     let tun = entity::<SidebarTunToggle>(&mut app);
     let proxy_label = *app.world().get::<Children>(proxy).unwrap().first().unwrap();
@@ -82,10 +79,7 @@ fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     assert_eq!(text(&app, tun_label), "On");
     assert_eq!(entity::<OverviewSpeedtestMetricsText>(&mut app), metrics);
     assert_eq!(entity::<OverviewSpeedtestDetailBodyText>(&mut app), detail);
-    assert_eq!(
-        app.world().resource::<ModalState>().stage,
-        ModalStage::Open
-    );
+    assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);
     assert!(text(&app, metrics).starts_with("node {stars}/中文🙂"));
     assert!(text(&app, metrics).contains("Jitter — · Loss 0.0%"));
     assert!(text(&app, history).starts_with("Recent tests:"));

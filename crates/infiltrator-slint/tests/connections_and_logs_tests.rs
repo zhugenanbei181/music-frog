@@ -295,9 +295,7 @@ fn the_log_search_folds_the_shared_regex_pattern_and_not_a_literal_substring() {
     surface.search_logs("api\\.example|timeout");
     let rows = surface.log_rows();
     assert_eq!(
-        rows.iter()
-            .map(|row| row.id.as_str())
-            .collect::<Vec<_>>(),
+        rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
         ["2", "3"],
         "the alternation and the escaped dot must match, the other records must not"
     );

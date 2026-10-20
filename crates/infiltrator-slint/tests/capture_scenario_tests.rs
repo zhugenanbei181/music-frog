@@ -7,7 +7,9 @@
 //! matrix lists exactly the businesses the surface carries.
 
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::{
+    ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
+};
 use infiltrator_slint::capture_scenario::{CarriedScenario, ScenarioCarrier, activate};
 use infiltrator_slint::surface::harness;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -50,8 +52,7 @@ fn capture_snapshot() -> SurfaceSnapshot {
 
 /// The rows of the crate's capture matrix.
 fn matrix_rows() -> Vec<(String, String, String, String)> {
-    let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("docs/capture/parity_scenarios.tsv");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("docs/capture/parity_scenarios.tsv");
     let text = fs::read_to_string(&path).expect("capture matrix");
     let mut rows = Vec::new();
     for line in text.lines().skip(1) {
@@ -77,12 +78,7 @@ fn every_carried_scenario_really_opens_its_carrier() {
 
     for scenario in CarriedScenario::ALL {
         assert!(
-            activate(
-                window,
-                scenario.name(),
-                &snapshot,
-                surface.workbenches(),
-            ),
+            activate(window, scenario.name(), &snapshot, surface.workbenches(),),
             "the surface carries {} and must open it",
             scenario.name()
         );

@@ -276,7 +276,10 @@ pub(crate) fn sync_connections_virtual_window(
     let Some(projection) = last.as_ref().and_then(|last| last.0.clone()) else {
         return;
     };
-    let sort = view.as_ref().map(|view| view.page.sort_key()).unwrap_or_default();
+    let sort = view
+        .as_ref()
+        .map(|view| view.page.sort_key())
+        .unwrap_or_default();
 
     // Recompute the render permutation only when the projection or the shared
     // sort key actually changed, so a live rate tick keeps its window.

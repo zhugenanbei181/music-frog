@@ -10,9 +10,9 @@
 //! [`CarriedScenario`], so the capture path can never publish it as
 //! activated.
 
+use crate::AppWindow;
 use crate::lumen_projection::project_workbench;
 use crate::surface::workbenches::Workbenches;
-use crate::AppWindow;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use slint::ComponentHandle;
 
@@ -134,7 +134,9 @@ impl CarriedScenario {
     /// A name the surface does not carry has no business, so the capture
     /// path can refuse it.
     pub fn from_name(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|scenario| scenario.name() == value)
+        Self::ALL
+            .into_iter()
+            .find(|scenario| scenario.name() == value)
     }
 
     /// The surface state this business is carried by.

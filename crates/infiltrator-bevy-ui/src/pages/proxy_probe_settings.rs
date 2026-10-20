@@ -16,9 +16,8 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{Scene, bsn, on};
 use bevy::ui::GlobalZIndex;
 use bevy::ui::prelude::{
-    BorderRadius,
-    AlignItems, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect,
-    percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{

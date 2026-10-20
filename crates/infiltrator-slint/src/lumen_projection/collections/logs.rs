@@ -33,7 +33,9 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
         window.get_log_level().as_str(),
     ));
     if let Some(page) = snapshot.pages.logs.data.as_ref() {
-        model.observe_level(LogLevelFilter::from_active_level(page.active_level.as_deref()));
+        model.observe_level(LogLevelFilter::from_active_level(
+            page.active_level.as_deref(),
+        ));
     }
     let active_level = model.active_level();
     let rows = model
@@ -44,7 +46,11 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
         .map(|row| {
             let message: String = row.message.iter().map(|run| run.text.as_str()).collect();
             let timestamp: String = row.timestamp.iter().map(|run| run.text.as_str()).collect();
-            let level: String = row.level_label.iter().map(|run| run.text.as_str()).collect();
+            let level: String = row
+                .level_label
+                .iter()
+                .map(|run| run.text.as_str())
+                .collect();
             let tag: String = row.tag.iter().map(|run| run.text.as_str()).collect();
             ObservationRow {
                 id: row.id.to_string().into(),

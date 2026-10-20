@@ -20,8 +20,8 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
-    Overflow, PositionType, UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow,
+    PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::{
     Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
