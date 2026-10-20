@@ -100,6 +100,82 @@ val javaTargetVersion = toolchainValue("java.major")
 
 fun launcherActivityClass(activity: String): String = if (activity.startsWith('.')) "$androidNamespace$activity" else activity
 
+// ---------------------------------------------------------------------------
+// Release signing
+//
+// The release identity is the user's persistent keystore and nothing else.
+// The keystore itself is materialised by whoever holds the secret (the release
+// workflow decodes the base64 blob into a private directory outside the
+// repository and hands the path over); Gradle only consumes the path and the
+// three credentials. The outcome is a typed sum: either a complete keystore
+// or the exact list of what is missing. A release artifact is never signed
+// with the debug key and never published unsigned — requesting a release
+// variant without the material fails the build.
+// ---------------------------------------------------------------------------
+
+/** The release signing outcome: a complete keystore, or what is still missing. */
+interface ReleaseSigningOutcome
+
+/** A complete release keystore: the only thing that may sign a release artifact. */
+class ReleaseKeystore(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+) : ReleaseSigningOutcome
+
+/** The release signing material is incomplete; the list says exactly what is missing. */
+class MissingReleaseMaterial(val missing: List<String>) : ReleaseSigningOutcome
+
+fun releaseSigningValue(property: String, environment: String): String? =
+    providers.gradleProperty(property).orNull?.takeIf { it.isNotBlank() }
+        ?: providers.environmentVariable(environment).orNull?.takeIf { it.isNotBlank() }
+
+val releaseKeystorePath = releaseSigningValue("releaseKeystorePath", "RELEASE_KEYSTORE_PATH")
+val releaseStorePassword = releaseSigningValue("releaseKeystorePassword", "RELEASE_KEYSTORE_PASSWORD")
+val releaseKeyAlias = releaseSigningValue("releaseKeyAlias", "RELEASE_KEY_ALIAS")
+val releaseKeyPassword = releaseSigningValue("releaseKeyPassword", "RELEASE_KEY_PASSWORD")
+
+val releaseSigning: ReleaseSigningOutcome =
+    when {
+        releaseKeystorePath == null ->
+            MissingReleaseMaterial(listOf("RELEASE_KEYSTORE_PATH (the release keystore)"))
+        !File(releaseKeystorePath).isFile ->
+            MissingReleaseMaterial(listOf("the release keystore file $releaseKeystorePath does not exist"))
+        releaseStorePassword == null ->
+            MissingReleaseMaterial(listOf("RELEASE_KEYSTORE_PASSWORD"))
+        releaseKeyAlias == null ->
+            MissingReleaseMaterial(listOf("RELEASE_KEY_ALIAS"))
+        releaseKeyPassword == null ->
+            MissingReleaseMaterial(listOf("RELEASE_KEY_PASSWORD"))
+        else ->
+            ReleaseKeystore(
+                File(releaseKeystorePath),
+                releaseStorePassword,
+                releaseKeyAlias,
+                releaseKeyPassword,
+            )
+    }
+
+// A release artifact task without the material is a hard failure, not a
+// silent fallback and not an unsigned artifact.
+val releaseArtifactRequested =
+    gradle.startParameter.taskNames.any { task ->
+        val simple = task.substringAfterLast(':')
+        !simple.contains("Test") &&
+            (simple.startsWith("assemble") || simple.startsWith("package") || simple.startsWith("bundle")) &&
+            simple.contains("Release")
+    }
+
+if (releaseArtifactRequested && releaseSigning is MissingReleaseMaterial) {
+    throw GradleException(
+        "A release artifact was requested without the release keystore. Missing: " +
+            releaseSigning.missing.joinToString(", ") +
+            ". A release artifact is never signed with the debug key; provide the release " +
+            "signing material as Gradle properties or as the matching environment variables.",
+    )
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -173,6 +249,20 @@ android {
         }
     }
 
+    signingConfigs {
+        // The release identity comes from the user-held keystore only. It is
+        // created only when the material is complete, so a release build can
+        // never sign with the debug key.
+        if (releaseSigning is ReleaseKeystore) {
+            create("release") {
+                storeFile = releaseSigning.storeFile
+                storePassword = releaseSigning.storePassword
+                keyAlias = releaseSigning.keyAlias
+                keyPassword = releaseSigning.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -181,7 +271,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("debug")
+            // No debug fallback: without the release keystore the release
+            // variant has no signing config at all, and the release pipeline
+            // fails closed before anything is published.
+            signingConfig = signingConfigs.findByName("release")
         }
         debug {
             isMinifyEnabled = false

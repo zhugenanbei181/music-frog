@@ -489,6 +489,56 @@ jobs:
       - name: Verify pinned Android toolchain
         run: python3 scripts/android-toolchain.py check
 
+      # The release identity is the user's persistent keystore and nothing else.
+      # A missing secret must fail the job here, before the expensive build:
+      # the release variant is never signed with the debug key and never
+      # published unsigned.
+      - name: Resolve the release signing material (fail closed)
+        shell: bash
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "::error::The release signing material is incomplete: ${missing[*]} are not configured. A release artifact is never signed with the debug key."
+            exit 1
+          fi
+          # The private key never enters the repository: it lives in a private
+          # directory outside the checkout and is removed when the job ends.
+          KEYSTORE_DIR="$RUNNER_TEMP/infiltrator-release-keystore"
+          mkdir -p "$KEYSTORE_DIR"
+          chmod 700 "$KEYSTORE_DIR"
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_DIR/release.jks"
+          chmod 600 "$KEYSTORE_DIR/release.jks"
+          {
+            echo "RELEASE_KEYSTORE_PATH<<EOF_KS_PATH"
+            echo "$KEYSTORE_DIR/release.jks"
+            echo "EOF_KS_PATH"
+            echo "RELEASE_KEYSTORE_PASSWORD<<EOF_KS_STORE_PASSWORD"
+            echo "$RELEASE_KEYSTORE_PASSWORD"
+            echo "EOF_KS_STORE_PASSWORD"
+            echo "RELEASE_KEY_ALIAS<<EOF_KS_ALIAS"
+            echo "$RELEASE_KEY_ALIAS"
+            echo "EOF_KS_ALIAS"
+            echo "RELEASE_KEY_PASSWORD<<EOF_KS_KEY_PASSWORD"
+            echo "$RELEASE_KEY_PASSWORD"
+            echo "EOF_KS_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Remove the release keystore
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${RUNNER_TEMP:?}/infiltrator-release-keystore"
+
       - name: Build all Android release flavors
         shell: bash
         run: |

@@ -238,8 +238,8 @@ opinions. Each one is reproducible with the command that is given.
 | --- | --- | --- |
 | the candidate release tag `v0.50.0` already exists locally and on the remote, and it points at commit `58158da6`, not at HEAD | `bash scripts/blocked/tag-ci-evidence.sh --dry-run` | a receipt bound to the current code needs a tag whose commit is HEAD; the product identity registry pins the release version to `0.50.0`, so that means a version bump in the same commit as the tag, or a deliberate decision to move the existing tag |
 | the `release` workflow already ran successfully for that tag | `gh run list --workflow release.yml --branch v0.50.0` | a `C`-level receipt of the tag pipeline exists, but it is bound to the older commit `58158da6`; it does not cover the current code |
-| `release-neutral-crates.yml` is not published on the default branch | `gh api repos/:owner/:repo/contents/.github/workflows` | a tag push today would not start the neutral crates workflow at all; it has to be published before the crates.io legs can produce a `C` receipt |
-| the release build type is signed with the debug key and the release workflow carries no keystore secret | `bash scripts/blocked/release-keystore-evidence.sh --dry-run` | the board entry of §三 claims that the fail-closed path is registered; in the current tree it is not. The three gaps below have to be landed before the environment can help |
+| `release-neutral-crates.yml` is not published on the default branch | `gh api repos/:owner/:repo/contents/.github/workflows` | the workflow is committed on `main` but the remote default branch is still at `58158da6` while the local branch is ahead of it, so the file becomes visible on the remote when `main` is pushed; until then a tag push today would not start the neutral crates workflow |
+| the release build type is signed with the debug key and the release workflow carries no keystore secret | `bash scripts/blocked/release-keystore-evidence.sh --dry-run` | **closed**: the release variant has a dedicated signing config that reads the keystore, the release job fails closed when a secret is missing, and nothing falls back to the debug key |
 | the local candidate APK predates HEAD | `bash scripts/blocked/arm64-device-evidence.sh --dry-run` | the APK in the build output is not a valid device candidate for the current code; it must be rebuilt before the device run |
 | the local release APK is signed with the debug key and carries version `0.41.0` while the product identity registry says `0.50.0` | `bash scripts/blocked/release-keystore-evidence.sh --dry-run --apk-a android/app/build/outputs/apk/compose/release/app-compose-universal-release.apk` | the aapt identity check rejects it; a release candidate has to be rebuilt before it can be signed and verified |
 | the aarch64 Android clippy leg fails on `clippy::missing-const-for-thread-local` in `crates/infiltrator-slint/src/surface/harness.rs` | `bash scripts/blocked/foreign-target-evidence.sh --dry-run` | the Android gate that the ARM64 board entries depend on does not compile clean at the moment; the defect is in a file another workstream is editing, so the procedure reports it as a `FAIL` and exits `1` instead of hiding it |
@@ -253,17 +253,19 @@ release workflow and the Gradle build are owned by another stream.
 
 | Gap | Where | What has to change |
 | --- | --- | --- |
-| the release buildType is signed with the debug key | `android/app/build.gradle.kts` | a dedicated release signing config must read the keystore from the environment and must fail closed when the secret is absent, instead of `signingConfig = signingConfigs.getByName("debug")` |
-| the release workflow carries no keystore secret | `.github/workflows/release.yml` | the publish job must read the four secrets, must fail loudly when they are absent and must never fall back to a debug key |
-| the release signing config does not exist | `android/app/build.gradle.kts` | a `signingConfigs.create("release")` block that binds `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` |
+| ~~the release buildType is signed with the debug key~~ | `android/app/build.gradle.kts` | **closed**: the release variant uses a dedicated `release` signing config; the debug key is never used for a release artifact |
+| ~~the release workflow carries no keystore secret~~ | `.github/workflows/release.yml` | **closed**: the release job reads the four secrets, fails loudly when one is missing and never falls back to the debug key |
+| ~~the release signing config does not exist~~ | `android/app/build.gradle.kts` | **closed**: the signing config reads the keystore path, the store password, the key alias and the key password, and the build fails closed when the material is incomplete |
 
-The keystore procedure reports the third gap from two angles (the file does
-not read the secret, and it has no dedicated release signing config); they are
-one change, not two.
+The three gaps were one change, not three: the release identity is the user's
+persistent keystore, the release job materialises it from the base64 secret
+into a private directory outside the repository, hands the path to the Gradle
+build and removes it when the job ends. A release artifact task without that
+material fails the Gradle configuration with the exact list of what is missing,
+so an unsigned or debug-signed release can never reach the publish step.
 
-Until those three gaps are closed, the board entries of §三 cannot produce a
-signed release artifact even if the secret arrives. The scripts print them as
-`GAP` on every run, so the gap cannot be forgotten.
+The keystore procedure now reports `gap=0`: what remains is the environment —
+the keystore and its four secrets, and the device legs.
 
 ## The coverage checker
 

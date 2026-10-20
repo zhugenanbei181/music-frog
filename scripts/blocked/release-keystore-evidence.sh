@@ -123,10 +123,22 @@ CONTRACT="$EVIDENCE/signing-contract.txt"
 
 if [ ! -f "$GRADLE_FILE" ]; then
     blocked_fail "missing $GRADLE_FILE"
-elif ! grep -q "$SECRET_BASE64" "$GRADLE_FILE"; then
-    blocked_gap "$GRADLE_FILE does not read $SECRET_BASE64: the release signing config is not wired yet"
+elif ! grep -q "RELEASE_KEYSTORE_PATH" "$GRADLE_FILE"; then
+    blocked_gap "$GRADLE_FILE does not read RELEASE_KEYSTORE_PATH: the release signing config is not wired yet"
 else
-    blocked_ok "$GRADLE_FILE reads the release keystore from the environment"
+    blocked_ok "$GRADLE_FILE reads the release keystore path from the environment"
+fi
+
+if ! grep -q "$SECRET_BASE64" "$WORKFLOW_FILE"; then
+    blocked_gap "$WORKFLOW_FILE does not carry $SECRET_BASE64: the release job cannot materialise the keystore"
+else
+    blocked_ok "$WORKFLOW_FILE carries $SECRET_BASE64 and materialises the keystore outside the repository"
+fi
+
+if ! grep -q "RELEASE_KEYSTORE_PATH" "$WORKFLOW_FILE"; then
+    blocked_gap "$WORKFLOW_FILE does not hand RELEASE_KEYSTORE_PATH to the Gradle build"
+else
+    blocked_ok "$WORKFLOW_FILE hands RELEASE_KEYSTORE_PATH to the Gradle build"
 fi
 
 if grep -qE 'signingConfig = signingConfigs\.getByName\("debug"\)' "$GRADLE_FILE"; then
@@ -141,7 +153,7 @@ else
     blocked_ok "$WORKFLOW_FILE carries the release keystore secrets"
 fi
 
-if grep -qE 'signingConfigs\.create\("release"\)|signingConfig = signingConfigs\.getByName\("release"\)' "$GRADLE_FILE"; then
+if grep -qE 'signingConfigs\.create\("release"\)|signingConfig = signingConfigs\.(get|find)ByName\("release"\)' "$GRADLE_FILE"; then
     blocked_ok "a dedicated release signing config exists"
 else
     blocked_gap "$GRADLE_FILE has no dedicated release signing config"
@@ -305,7 +317,7 @@ else
 fi
 
 blocked_step "what still needs the environment"
-blocked_pending "the dedicated release signing config and the fail-closed publish job (repository change, see the report)"
+blocked_pending "the persistent release keystore and its four CI secrets ($SECRET_BASE64, $SECRET_STORE_PASSWORD, $SECRET_KEY_ALIAS, $SECRET_KEY_PASSWORD)"
 if [ "$DRY_RUN" -eq 1 ] && [ -n "$KEYSTORE" ]; then
     blocked_ok "dry run finished; the keystore was only read, never copied into the repository"
 fi

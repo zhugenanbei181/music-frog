@@ -183,7 +183,9 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
     done
     while read -r state; do
         case "$state" in
-            *NOT\ published*) blocked_gap "$state: a tag push today would not start this workflow" ;;
+            *NOT\ published*)
+                blocked_gap "$state: a tag push today would not start this workflow; the file is on the local main branch, so pushing main publishes it"
+                ;;
         esac
     done < "$PUBLISHED"
     blocked_ok "workflow publication on the default branch recorded in ${PUBLISHED#"$REPO_ROOT"/}"
