@@ -85,6 +85,16 @@ def write_workspace(
     return root
 
 
+
+def workspace_version() -> str:
+    """The version every neutral crate publishes, read from the workspace."""
+    import tomllib
+
+    manifest = ROOT / "Cargo.toml"
+    with manifest.open("rb") as handle:
+        data = tomllib.load(handle)
+    return str(data["workspace"]["package"]["version"])
+
 class NeutralReleaseTopologyTests(unittest.TestCase):
     def test_repository_chain_is_publishable(self) -> None:
         problems, rows = GUARD.topology_problems(ROOT)
@@ -161,7 +171,9 @@ class NeutralReleaseTopologyTests(unittest.TestCase):
         table = GUARD.render_table(rows)
         for name in GUARD.CANONICAL_ORDER:
             self.assertIn(name, table)
-        self.assertIn("0.50.0", table)
+        # The version is the workspace's, not a literal in the test: a release
+        # bump must not need a test edit.
+        self.assertIn(workspace_version(), table)
         markdown = GUARD.render_markdown_table(rows)
         self.assertIn("| lurker-core-contract |", markdown)
 
