@@ -292,7 +292,13 @@ pub mod space {
 }
 
 /// Corner radius scale (px), mirroring `design_tokens::radius`.
-/// [`SHEET_TOP`] is the surface-only sheet radius.
+///
+/// The mirror must stay the contract's ladder: every rung owns one role and
+/// the roles are mutually exclusive. A centered dialog is [`MODAL`], a
+/// panel-style dialog is [`CARD`] and a bottom sheet is [`BOTTOM_SHEET`].
+/// The retired `DIALOG` and the surface-only `SHEET_TOP` are gone: the first
+/// duplicated a rung with an overlapping role, the second contradicted the
+/// contract's bottom sheet role.
 pub mod radius {
     pub const XS: f32 = 4.0;
     pub const SM: f32 = 8.0;
@@ -301,10 +307,7 @@ pub mod radius {
     pub const MODAL: f32 = 24.0;
     /// Mobile bottom sheet top edge radius (28px).
     pub const BOTTOM_SHEET: f32 = 28.0;
-    /// Dialog corner radius (28px).
-    pub const DIALOG: f32 = 28.0;
     pub const PILL: f32 = 999.0;
-    pub const SHEET_TOP: f32 = 16.0;
 }
 
 /// Continuous curvature / superellipse specification (Squircle / G2 continuity).

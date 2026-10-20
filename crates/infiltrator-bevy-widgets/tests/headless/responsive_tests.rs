@@ -481,7 +481,8 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
         assert_eq!(roots.iter(world).next().unwrap().display, Display::None);
     }
 
-    // 2. Open on Expanded (1000px): CenteredDialog (JustifyContent::Center, width 480px, radius::CARD all corners)
+    // 2. Open on Expanded (1000px): CenteredDialog (JustifyContent::Center, width 480px,
+    // the contract's modal rung on all corners)
     app.world_mut().commands().trigger(OpenModal);
     app.update();
 
@@ -496,8 +497,8 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
         let card = cards.iter(world).next().unwrap();
         assert_eq!(card.width, rem(480.0));
-        assert_eq!(card.border_radius.top_left, rem(radius::CARD).into());
-        assert_eq!(card.border_radius.bottom_left, rem(radius::CARD).into());
+        assert_eq!(card.border_radius.top_left, rem(radius::MODAL).into());
+        assert_eq!(card.border_radius.bottom_left, rem(radius::MODAL).into());
     }
 
     // 3. Resize to Compact (375px): ActionSheet morphology (JustifyContent::FlexEnd, width 100%, rounded top only)
@@ -517,7 +518,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
         let card = cards.iter(world).next().unwrap();
         assert_eq!(card.width, percent(100));
-        assert_eq!(card.border_radius.top_left, rem(radius::SHEET_TOP).into());
+        assert_eq!(card.border_radius.top_left, rem(radius::BOTTOM_SHEET).into());
         assert_eq!(card.border_radius.bottom_left, Val::Px(0.0).into());
     }
 

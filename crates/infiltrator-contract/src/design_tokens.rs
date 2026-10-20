@@ -198,6 +198,25 @@ pub mod space {
 }
 
 /// Corner radius ladder (logical pixels).
+///
+/// Every rung owns exactly one role, and the roles are mutually exclusive:
+/// a surface that needs a radius looks the role up here instead of picking
+/// a number.
+///
+/// | rung | role |
+/// | --- | --- |
+/// | [`XS`] | micro tag, compact tooltip bubble |
+/// | [`SM`] | secondary button, input inner chip, segmented control pill |
+/// | [`CONTROL`] | standard control, text input, primary button |
+/// | [`CARD`] | standard card container, **panel-style** dialog card |
+/// | [`MODAL`] | **centered** modal dialog, **centered** command palette |
+/// | [`BOTTOM_SHEET`] | mobile **bottom sheet** top edge |
+/// | [`PILL`] | fully rounded pill capsule, status chip |
+///
+/// A centered dialog is a [`MODAL`]; a panel-style dialog is a [`CARD`];
+/// a bottom sheet is a [`BOTTOM_SHEET`]. There is no fourth "dialog" rung:
+/// the old `DIALOG` constant duplicated `BOTTOM_SHEET` with an overlapping
+/// role and was retired, so the ladder cannot be read two ways.
 pub mod radius {
     /// Micro tag, compact tooltip bubble (4px).
     pub const XS: f32 = 4.0;
@@ -205,14 +224,12 @@ pub mod radius {
     pub const SM: f32 = 8.0;
     /// Standard control, text input, primary button (10px).
     pub const CONTROL: f32 = 10.0;
-    /// Standard card container, sheet top edge (16px).
+    /// Standard card container, panel-style dialog card (16px).
     pub const CARD: f32 = 16.0;
-    /// Centered modal dialog, command palette (24px).
+    /// Centered modal dialog, centered command palette (24px).
     pub const MODAL: f32 = 24.0;
     /// Mobile bottom sheet top edge radius (28px).
     pub const BOTTOM_SHEET: f32 = 28.0;
-    /// Dialog corner radius (28px).
-    pub const DIALOG: f32 = 28.0;
     /// Fully-rounded pill capsule, status chip (999px).
     pub const PILL: f32 = 999.0;
 }
@@ -485,7 +502,6 @@ mod tests {
         assert_eq!(space::SCREEN_MARGIN_MOBILE, 16.0);
         assert_eq!(space::SCREEN_MARGIN_TABLET, 24.0);
         assert_eq!(radius::BOTTOM_SHEET, 28.0);
-        assert_eq!(radius::DIALOG, 28.0);
         assert_eq!(type_scale::BODY_LARGE, 16.0);
         assert_eq!(type_scale::LABEL_LARGE, 14.0);
         assert_eq!(type_scale::LABEL_SMALL, 11.0);
@@ -511,6 +527,23 @@ mod tests {
         const _: () = assert!(radius::MODAL > radius::CARD);
         const _: () = assert!(radius::PILL > radius::MODAL);
         const _: () = assert!(metrics::HAIRLINE > 0.0);
+    }
+
+    /// The radius roles are mutually exclusive: a centered dialog, a
+    /// panel-style dialog and a bottom sheet each have exactly one rung,
+    /// and no two roles share a rung.
+    #[test]
+    fn every_radius_role_owns_exactly_one_rung() {
+        // The three dialog roles are decided by the contract: a centered
+        // dialog is the modal rung, a panel-style dialog is the card rung
+        // and a bottom sheet is the bottom sheet rung.
+        assert_eq!(radius::MODAL, 24.0, "the centered dialog role");
+        assert_eq!(radius::CARD, 16.0, "the panel-style dialog role");
+        assert_eq!(radius::BOTTOM_SHEET, 28.0, "the bottom sheet role");
+        // The centered dialog is rounder than the panel-style one, and the
+        // bottom sheet is rounder than the centered dialog.
+        assert!(radius::MODAL > radius::CARD);
+        assert!(radius::BOTTOM_SHEET > radius::MODAL);
     }
 
     #[test]

@@ -55,6 +55,9 @@ pub struct UiPalette {
     pub warning: Color,
     pub danger: Color,
     pub card_radius_px: f32,
+    /// The radius of a **centered** dialog: the contract's modal rung.
+    /// A panel-style card keeps [`Self::card_radius_px`].
+    pub modal_radius_px: f32,
     pub control_radius_px: f32,
     pub control_height_px: f32,
     pub control_square_px: f32,
@@ -70,7 +73,6 @@ pub struct UiPalette {
     pub label_small_font_px: f32,
     pub mono_font_px: f32,
     pub bottom_sheet_radius_px: f32,
-    pub dialog_radius_px: f32,
     pub touch_target_compact_px: f32,
     pub touch_target_comfortable_px: f32,
     pub bottom_nav_height_px: f32,
@@ -108,6 +110,7 @@ impl UiPalette {
             warning: theme_color(theme.warning),
             danger: theme_color(theme.danger),
             card_radius_px: radius::CARD,
+            modal_radius_px: radius::MODAL,
             control_radius_px: radius::CONTROL,
             control_height_px: metrics::CONTROL_HEIGHT,
             control_square_px: metrics::CONTROL_SQUARE,
@@ -123,7 +126,6 @@ impl UiPalette {
             label_small_font_px: type_scale::LABEL_SMALL,
             mono_font_px: type_scale::MONO,
             bottom_sheet_radius_px: radius::BOTTOM_SHEET,
-            dialog_radius_px: radius::DIALOG,
             touch_target_compact_px: metrics::TOUCH_TARGET_COMPACT,
             touch_target_comfortable_px: metrics::TOUCH_TARGET_COMFORTABLE,
             bottom_nav_height_px: metrics::BOTTOM_NAV_HEIGHT,

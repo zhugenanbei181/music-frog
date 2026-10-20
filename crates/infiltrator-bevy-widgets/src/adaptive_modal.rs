@@ -52,7 +52,7 @@ pub struct ModalState {
     /// The field keeps the name the product's readers already use; the value
     /// is the typed stage itself, never a flag: `!stage` answers "no dialog
     /// is presented".
-    pub is_open: ModalStage,
+    pub stage: ModalStage,
     /// The adaptive layer's own fact: the current presentation form.
     pub current_form: ModalForm,
 }
@@ -60,7 +60,7 @@ pub struct ModalState {
 impl Default for ModalState {
     fn default() -> Self {
         Self {
-            is_open: ModalStage::Hidden,
+            stage: ModalStage::Hidden,
             current_form: ModalForm::CenteredDialog,
         }
     }
@@ -69,12 +69,12 @@ impl Default for ModalState {
 impl ModalState {
     /// Present the modal.
     pub fn open(&mut self) {
-        self.is_open = ModalStage::Open;
+        self.stage = ModalStage::Open;
     }
 
     /// The user dismissed the modal: the official layer asked for the close.
     pub fn dismiss(&mut self) {
-        self.is_open = match self.is_open {
+        self.stage = match self.stage {
             ModalStage::Open => ModalStage::Dismissed,
             stage => stage,
         };
@@ -82,7 +82,7 @@ impl ModalState {
 
     /// The owner closed the modal for good.
     pub fn close(&mut self) {
-        self.is_open = match self.is_open {
+        self.stage = match self.stage {
             ModalStage::Open | ModalStage::Dismissed => ModalStage::Hidden,
             ModalStage::Hidden => ModalStage::Hidden,
         };
@@ -90,7 +90,7 @@ impl ModalState {
 
     /// Whether a dialog is presented.
     pub fn is_presented(&self) -> bool {
-        self.is_open.is_open()
+        self.stage.is_open()
     }
 }
 
@@ -185,7 +185,10 @@ pub fn adaptive_modal_scene(
                     padding: UiRect::all(rem(space::S20)),
                     row_gap: rem(space::S16),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(rem(radius::CARD)),
+                    // The centered form of this modal is a centered dialog,
+                    // so it takes the contract's modal rung; the action
+                    // sheet form below takes the bottom sheet rung.
+                    border_radius: BorderRadius::all(rem(radius::MODAL)),
                 }
                 BackgroundColor({ card_fill })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -304,8 +307,8 @@ pub fn sync_adaptive_modal_morphology(
                     card.max_width = percent(100);
                     card.padding = UiRect::all(rem(space::S16));
                     card.border_radius = BorderRadius {
-                        top_left: rem(radius::SHEET_TOP).into(),
-                        top_right: rem(radius::SHEET_TOP).into(),
+                        top_left: rem(radius::BOTTOM_SHEET).into(),
+                        top_right: rem(radius::BOTTOM_SHEET).into(),
                         bottom_left: Val::Px(0.0).into(),
                         bottom_right: Val::Px(0.0).into(),
                     };
@@ -314,7 +317,9 @@ pub fn sync_adaptive_modal_morphology(
                     card.width = rem(ADAPTIVE_MODAL_CARD_WIDTH_PX);
                     card.max_width = percent(90);
                     card.padding = UiRect::all(rem(space::S20));
-                    card.border_radius = BorderRadius::all(rem(radius::CARD));
+                    // The centered form is a centered dialog: the contract's
+                    // modal rung, not the panel-style card rung.
+                    card.border_radius = BorderRadius::all(rem(radius::MODAL));
                 }
             }
         }

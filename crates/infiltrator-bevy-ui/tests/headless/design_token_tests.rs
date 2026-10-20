@@ -136,7 +136,6 @@ fn assert_interaction_palette(skin: theme::ThemeSkin) {
         ))
     );
     assert_eq!(palette.bottom_sheet_radius_px, radius::BOTTOM_SHEET);
-    assert_eq!(palette.dialog_radius_px, radius::DIALOG);
     assert_eq!(
         palette.touch_target_compact_px,
         metrics::TOUCH_TARGET_COMPACT
@@ -190,19 +189,24 @@ fn the_widget_ladders_mirror_the_shared_contract_numbers() {
     assert_eq!(space::S24, XXL);
     assert_eq!(space::SCREEN_MARGIN_MOBILE, space::SCREEN_MARGIN_MOBILE);
     assert_eq!(space::SCREEN_MARGIN_TABLET, space::SCREEN_MARGIN_TABLET);
-    let widget_xs = radius::XS;
-    let widget_sm = radius::SM;
+    // The widget kit's radius ladder mirrors the contract's, rung by rung:
+    // one source of truth for every radius in the product. The comparison is
+    // written against the two ladders explicitly, so a rung that exists on
+    // one side only cannot pass as "mirrored".
     {
-        use infiltrator_contract::design_tokens::radius;
-        assert_eq!(widget_xs, radius::XS);
-        assert_eq!(widget_sm, radius::SM);
+        use infiltrator_contract::design_tokens::radius as contract_radius;
+        assert_eq!(radius::XS, contract_radius::XS);
+        assert_eq!(radius::SM, contract_radius::SM);
+        assert_eq!(radius::CONTROL, CONTROL);
+        assert_eq!(radius::CARD, CARD);
+        assert_eq!(radius::MODAL, MODAL);
+        assert_eq!(radius::PILL, PILL);
+        assert_eq!(
+            radius::BOTTOM_SHEET,
+            contract_radius::BOTTOM_SHEET,
+            "the bottom sheet rung is the contract's",
+        );
     }
-    assert_eq!(radius::CONTROL, CONTROL);
-    assert_eq!(radius::CARD, CARD);
-    assert_eq!(radius::MODAL, MODAL);
-    assert_eq!(radius::PILL, PILL);
-    assert_eq!(radius::BOTTOM_SHEET, radius::BOTTOM_SHEET);
-    assert_eq!(radius::DIALOG, radius::DIALOG);
     assert_eq!(type_scale::DISPLAY, DISPLAY);
     assert_eq!(type_scale::TITLE, TITLE);
     assert_eq!(type_scale::HEADING, HEADING);

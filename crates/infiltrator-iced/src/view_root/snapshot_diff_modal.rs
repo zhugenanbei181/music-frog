@@ -198,7 +198,8 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
             container::Style {
                 background: Some(tk.card_bg.into()),
                 border: Border {
-                    radius: border::Radius::from(theme::R_CARD),
+                    // The centered modal follows the contract's modal rung.
+                    radius: border::Radius::from(theme::R_MODAL),
                     width: theme::HAIRLINE,
                     color: tk.card_border,
                 },

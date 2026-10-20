@@ -1,7 +1,7 @@
 //! Shared modal chrome: the scrim backdrop and the floating card surface.
 
 use crate::types::message::Message;
-use crate::view::theme::{HAIRLINE, R_CARD, tokens};
+use crate::view::theme::{HAIRLINE, R_MODAL, tokens};
 use iced::advanced::Renderer;
 use iced::widget::{container, mouse_area};
 use iced::{Border, Element, Length, Theme, border};
@@ -44,7 +44,9 @@ pub(in crate::view_root) fn modal_card<'a, R: Renderer + 'a>(
             container::Style {
                 background: Some(tk.card_bg.into()),
                 border: Border {
-                    radius: border::Radius::from(R_CARD),
+                    // The contract owns the radius role: this chrome is
+                    // the centered modal, so it is the modal rung.
+                    radius: border::Radius::from(R_MODAL),
                     width: HAIRLINE,
                     color: tk.card_border,
                 },
