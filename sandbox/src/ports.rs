@@ -278,7 +278,10 @@ impl EngineBackendProvider<EngineBackendPorts> for ChaosProvider {
     fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
         EngineBackendPorts::new(
             self.engine.clone(),
-            Arc::clone(&self.process),
+            // The port owns the process adapter as a trait object: the
+            // sandbox injects its behaviour through the neutral port, not
+            // through a concrete chaos type.
+            Arc::clone(&self.process) as Arc<dyn CoreProcess>,
             Arc::new(self.process.readiness()),
             Arc::new(ChaosCodec::new(
                 Self::codec_scope(&self.engine),
