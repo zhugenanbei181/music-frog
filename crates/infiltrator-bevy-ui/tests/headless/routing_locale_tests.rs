@@ -26,7 +26,7 @@ fn native_routing_copy_matches_domain_policy_and_keeps_raw_identity_and_command_
     app.world_mut().trigger(RouteChanged(Route::AppRouting));
     app.update();
     let mut facts = AppRoutingProjection::demo();
-    facts.mode = AppRoutingMode::BypassSelected;
+    facts.mode = Some(AppRoutingMode::BypassSelected);
     facts.apps[0].name = "OS 应用 {count}".into();
     facts.apps[0].process_name = "process-{mode}-{count}".into();
     app.world_mut()
@@ -94,5 +94,47 @@ fn native_routing_copy_matches_domain_policy_and_keeps_raw_identity_and_command_
         app.world().get::<Text>(policy).unwrap().0,
         "Proxy",
         "submitting an intent cannot fabricate an observed policy change"
+    );
+}
+
+/// An app-routing page whose mode the owner never published says so.
+///
+/// The mode is one typed observation: an unobserved page renders the shared
+/// unobserved copy instead of claiming a default mode the owner never
+/// reported.
+#[test]
+fn an_unobserved_routing_mode_says_not_observed() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink.clone());
+    app.add_plugins(ButtonPlugin);
+    app.insert_resource(UiLocale::new("en-US"));
+    app.world_mut().trigger(RouteChanged(Route::AppRouting));
+    app.update();
+
+    let mut facts = AppRoutingProjection::demo();
+    facts.mode = None;
+    app.world_mut()
+        .trigger(AppRoutingProjectionUpdated(facts.clone()));
+    app.update();
+
+    let summary = app
+        .world_mut()
+        .query::<(&AppRoutingLine, &Text)>()
+        .iter(app.world())
+        .map(|(_, text)| text.0.clone())
+        .next()
+        .expect("the app-routing summary line");
+    assert_eq!(
+        summary,
+        routing_summary(None, facts.apps.len(), &Lang("en-US")),
+        "an unobserved mode renders the shared unobserved summary"
+    );
+    assert!(
+        summary.contains("not observed"),
+        "the summary never claims a default mode, got {summary}"
+    );
+    assert!(
+        sink.submitted().is_empty(),
+        "reading an unobserved mode never writes routing policy"
     );
 }

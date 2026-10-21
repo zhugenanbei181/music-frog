@@ -4,6 +4,57 @@
 use super::*;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
+use infiltrator_bevy_ui::pages::settings::settings_core::{SettingsLine, SettingsLineKind};
+use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::lan::LanSharingSnapshot;
+
+/// The LAN card's current-binding line: the owner's bind address, or the
+/// shared "not observed" copy when the owner published no readback.
+fn lan_binding_line(app: &mut App) -> String {
+    app.world_mut()
+        .query::<(&SettingsLine, &Text)>()
+        .iter(app.world())
+        .find(|(line, _)| line.0 == SettingsLineKind::LanBindAddress)
+        .map(|(_, text)| text.0.clone())
+        .expect("the LAN card's current-binding line")
+}
+
+/// The LAN card reads the owner's *one* LAN sharing readback.
+///
+/// The owner publishes the configuration whole or not at all, so the card
+/// shows the owner's facts when the owner published them and says "not
+/// observed" when it published none — it never claims the sharing is off.
+#[test]
+fn the_lan_card_reads_the_owner_lan_sharing_readback() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Settings);
+    app.insert_resource(UiLocale::new("en-US"));
+    app.update();
+
+    // The observed readback is rendered verbatim.
+    let mut observed = SettingsProjection::demo();
+    observed.lan_sharing = Some(LanSharingSnapshot::new(3, true, 8080, "192.168.1.10"));
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(observed));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "192.168.1.10"));
+    assert_eq!(lan_binding_line(&mut app), "192.168.1.10");
+
+    // An owner that published no readback is "not observed", never "off".
+    let mut unobserved = SettingsProjection::demo();
+    unobserved.lan_sharing = None;
+    app.world_mut()
+        .commands()
+        .trigger(SettingsProjectionUpdated(unobserved));
+    app.update();
+    assert_eq!(
+        lan_binding_line(&mut app),
+        "Not observed",
+        "an unobserved readback says so instead of claiming the sharing is off"
+    );
+}
 
 #[test]
 fn test_settings_lan_fields_submit_the_live_listener_intent() {
@@ -12,9 +63,7 @@ fn test_settings_lan_fields_submit_the_live_listener_intent() {
     let (root, _) = navigate_to(&mut app, Route::Settings);
 
     let mut projection = SettingsProjection::demo();
-    projection.allow_lan = Some(true);
-    projection.mixed_port = Some(8080);
-    projection.lan_bind_address = Some("192.168.1.10".to_owned());
+    projection.lan_sharing = Some(LanSharingSnapshot::new(2, true, 8080, "192.168.1.10"));
     app.world_mut()
         .commands()
         .trigger(SettingsProjectionUpdated(projection));

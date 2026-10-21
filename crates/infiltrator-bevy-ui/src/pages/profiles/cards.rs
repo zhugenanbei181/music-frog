@@ -6,6 +6,9 @@ use crate::pages::profiles::{
     ProfileTrafficText, ProfilesLine, ProfilesLineKind, UpdateAllSubscriptionsButton,
     UpdateProfileButton, profile_schedule_summary,
 };
+use crate::pages::profiles_outcome::{
+    ProfileDeleteOutcomeText, ProfileImportOutcomeText, ProfileRefreshText,
+};
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::ThemeBackgroundColor;
@@ -63,6 +66,10 @@ pub(super) fn header_card_scene(
                                 Text(summary) ProfilesLine(ProfilesLineKind::Summary) TextRole(Role::Heading)
                                 --
                                 Text(auto_update) ProfilesLine(ProfilesLineKind::AutoUpdate) TextRole(Role::Caption)
+                                --
+                                Text({ String::new() }) ProfileDeleteOutcomeText TextRole(Role::Mono)
+                                --
+                                Text({ String::new() }) ProfileImportOutcomeText TextRole(Role::Mono)
                             ]
                         ]
                         --
@@ -129,6 +136,11 @@ pub(super) fn profile_card_scene(
     } else {
         palette.surface_elevated
     };
+    let failure_str = profile
+        .failure
+        .as_ref()
+        .map(|failure| failure.message.clone())
+        .unwrap_or_default();
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -163,6 +175,8 @@ pub(super) fn profile_card_scene(
                             Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono)
                             --
                             Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption)
+                            --
+                            Text({ failure_str }) ProfileRefreshText(idx) TextRole(Role::Mono)
                         ]
                         --
                         Node {

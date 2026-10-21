@@ -14,20 +14,26 @@ use infiltrator_bevy_ui::pages::business_panel::{BusinessPanelState, PanelKind};
 use infiltrator_bevy_ui::pages::dns_leak_actions::LeakActions;
 use infiltrator_bevy_ui::pages::logs_search::LogsViewState;
 use infiltrator_bevy_ui::pages::page_models::DoctorPageModelState;
+use infiltrator_bevy_ui::pages::page_models::RulesPageModelState;
+use infiltrator_bevy_ui::pages::profiles_script_workbench::ScriptWorkbenchState;
 use infiltrator_bevy_ui::pages::proxies_form::CustomNodeForm;
 use infiltrator_bevy_ui::pages::rules_view::RulesViewState;
 use infiltrator_bevy_ui::pages::settings_language::LanguageChoiceResource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::app_routing::AppRoutingRule;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
+use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::language_choice::{LanguageChoicePhase, LanguageReadPhase};
+use infiltrator_presentation::script_workbench::ScriptExportPhase;
 use lurker_core_contract::error::ErrorCode;
+use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 use std::sync::Arc;
 
@@ -241,9 +247,141 @@ fn capture_rules_search_types_the_keyword_and_the_shared_filter_narrows_the_list
     let mut app = capture_app(FeatureId::RulesSearchHighlight, Route::Rules);
     drive(&mut app, 8);
     let view = app.world().resource::<RulesViewState>();
+    println!(
+        "DEBUG filter={:?} filtered={:?} for={:?}",
+        app.world()
+            .resource::<RulesPageModelState>()
+            .0
+            .filter_text(),
+        view.filtered_indices,
+        view.filtered_for
+    );
     assert_eq!(
         view.filtered_indices.as_slice(),
         &[1usize][..],
         "the shared filter kept only the matching rule"
+    );
+}
+
+/// The app-routing capture activates the row's own policy control, so the
+/// shared `SetAppRule` command really reaches the routing owner and the
+/// owner's readback comes back on the page's own projection.
+#[test]
+fn capture_app_routing_policy_editor_writes_the_rule_through_the_shared_command() {
+    let mut app = capture_app(FeatureId::AppRoutingPolicyEditor, Route::AppRouting);
+    drive(&mut app, 12);
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    let page = latest
+        .0
+        .pages
+        .app_routing
+        .data
+        .as_ref()
+        .expect("the app-routing page carries the owner's readback");
+    let rule = page
+        .apps
+        .iter()
+        .find(|app| app.id == "app-1")
+        .map(|app| app.rule);
+    assert_eq!(
+        rule,
+        Some(AppRoutingRule::Direct),
+        "the shared SetAppRule command really persisted the owner's rule"
+    );
+}
+
+/// The lifecycle recovery capture activates the doctor page's own bootstrap
+/// control, so the shared `BootstrapDoctor` command really reaches the
+/// diagnostic owner and the panel really reports the terminal answer.
+#[test]
+fn capture_lifecycle_recovery_panel_runs_the_shared_bootstrap_command() {
+    let mut app = capture_app(FeatureId::LifecycleRecoveryPanel, Route::Doctor);
+    drive(&mut app, 16);
+    let actions = app.world().resource::<DoctorPageModelState>();
+    match &actions.0.action().phase {
+        DoctorActionPhase::Failed {
+            failure,
+            retry_action,
+        } => {
+            assert_eq!(
+                *retry_action,
+                DoctorAction::Bootstrap,
+                "the failed action is the lifecycle recovery itself"
+            );
+            assert!(
+                !failure.message.is_empty(),
+                "the owner reported why the recovery failed"
+            );
+        }
+        _ => panic!("the shared bootstrap command must reach its terminal answer"),
+    }
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    assert!(
+        matches!(latest.0.pages.doctor.status, PageStatus::Failed { .. }),
+        "the owner published the failed recovery readback"
+    );
+}
+
+/// The script sandbox capture activates the workbench's own preset and run
+/// controls, so the shared `RunScriptSandbox` command really runs the script
+/// owner and the console really shows the run's own rows.
+#[test]
+fn capture_script_sandbox_runs_the_shared_script_command() {
+    let mut app = capture_app(FeatureId::ProfilesScriptSandbox, Route::Profiles);
+    drive(&mut app, 16);
+    let state = app.world().resource::<ScriptWorkbenchState>();
+    let snapshot = state
+        .model
+        .snapshot()
+        .expect("the shared script owner really ran the selected preset");
+    assert_eq!(
+        snapshot.selected_preset.as_deref(),
+        Some("auto-country-groups"),
+        "the capture really selected the catalogue preset"
+    );
+    assert_eq!(
+        snapshot.hook_stage, "pre_merge",
+        "the shared engine really ran the preset at its declared stage"
+    );
+    assert!(
+        !state.rows.is_empty(),
+        "the workbench console really shows the run's own rows"
+    );
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    assert!(
+        latest.0.script_sandbox.is_some(),
+        "the owner published the sandbox readback"
+    );
+}
+
+/// The script export capture activates the workbench's own export control, so
+/// the shared `PrepareScriptExport` command really reaches the export owner
+/// and the review really carries the owner's artifact bytes.
+#[test]
+fn capture_script_export_review_prepares_the_shared_export_review() {
+    let mut app = capture_app(FeatureId::ProfilesScriptExportReview, Route::Profiles);
+    drive(&mut app, 16);
+    let state = app.world().resource::<ScriptWorkbenchState>();
+    assert!(
+        matches!(state.model.export_phase(), ScriptExportPhase::Review { .. }),
+        "the shared export owner really prepared the review"
+    );
+    assert!(
+        state.model.is_export_visible(),
+        "the workbench really opened the export review"
+    );
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    let export = latest
+        .0
+        .script_export
+        .as_ref()
+        .expect("the owner published the export readback");
+    assert!(
+        !export.content.is_empty(),
+        "the review carries the owner's real artifact bytes"
+    );
+    assert!(
+        !export.file_name.is_empty(),
+        "the review carries the owner's real file name"
     );
 }

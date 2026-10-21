@@ -259,3 +259,74 @@ fn test_rules_provider_cache_line_reports_observed_facts() {
         "规则集缓存不可读: permission denied"
     ));
 }
+
+/// DUAL-11-05: one provider's refresh can fail while the others succeed, so
+/// the failure belongs to that provider's row. The row publishes the shared
+/// per-provider refresh intent and renders the owner's typed refusal.
+#[test]
+fn a_refused_provider_refresh_is_rendered_on_the_provider_row() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    let reference = RuleProviderControllerReference {
+        id: RuleProviderId::new(
+            EngineId::new("mihomo").expect("the demo engine id"),
+            "geoip-cn",
+        )
+        .expect("the provider id"),
+        inventory_revision: RuleProviderRevision::initial(),
+    };
+    let mut projection = RulesProjection::demo();
+    projection.providers[1].controller = Some(reference.clone());
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+
+    let button = app
+        .world_mut()
+        .query::<(Entity, &RuleProviderRefreshButton)>()
+        .iter(app.world())
+        .find(|(_, marker)| marker.0 == 1)
+        .map(|(entity, _)| entity)
+        .expect("the second provider row's refresh control");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::RefreshRuleProvider {
+            reference: reference.clone(),
+        }],
+        "the provider row publishes the shared per-provider refresh intent"
+    );
+
+    app.world_mut().commands().trigger(CommandExecutedEvent {
+        command: UiCommand::RefreshRuleProvider { reference },
+        request_id: RequestId::new(1),
+        result: Err(Failure::new(
+            ErrorCode::Network,
+            "the rule provider host refused",
+            true,
+        )),
+    });
+    app.update();
+
+    let line = app
+        .world_mut()
+        .query::<(Entity, &RuleProviderFailureText)>()
+        .iter(app.world())
+        .find(|(_, marker)| marker.0 == 1)
+        .map(|(entity, _)| entity)
+        .expect("the second provider row's failure line");
+    let rendered = app
+        .world()
+        .get::<Text>(line)
+        .expect("the provider failure text")
+        .0
+        .clone();
+    assert_eq!(rendered, "the rule provider host refused");
+}

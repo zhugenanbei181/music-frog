@@ -28,6 +28,11 @@ use crate::pages::profiles::{
 };
 use crate::pages::profiles_editor_body::editor_rows_scene;
 use crate::pages::profiles_editor_copy::replay_document_copy;
+use crate::pages::profiles_editor_large::{
+    large_document_window_scene, large_window_button_scene, on_large_window_close_activated,
+    on_large_window_open_activated, on_large_window_scrolled_activated,
+    refresh_large_document_window,
+};
 use crate::pages::profiles_editor_panes::{
     ProfileEditorOptionsState, ProfileEditorPane, ProfileEditorPaneArea, filter_pane_scene,
     mixin_pane_scene, pane_switch_scene,
@@ -176,6 +181,8 @@ pub fn profile_editor_scene(
         generation: 0,
         // The first Update pass renders the body from this state.
         last_rendered: u64::MAX,
+        large_window: Default::default(),
+        last_large_rendered: u64::MAX,
     };
     if let Some(document) = document {
         state.load_document(document);
@@ -223,6 +230,8 @@ pub fn profile_editor_scene(
                                 ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                                 Children [
                                     @{ action_button("editor_focus_keyboard", palette.surface_elevated) }
+                                    --
+                                    @{ large_window_button_scene(palette) }
                                     --
                                     @{ protection_toggle(protection, palette) }
                                     --
@@ -294,6 +303,8 @@ pub fn profile_editor_scene(
                                 ]
                             ]
             }),
+            // DUAL-09-13: the large-document window over the same buffer.
+            Box::new(large_document_window_scene(&state, palette)),
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
@@ -750,6 +761,11 @@ impl Plugin for ProfilesEditorPlugin {
         app.add_observer(on_profile_editor_snippet_activated);
         app.add_observer(on_profile_editor_save);
         app.add_observer(on_profile_editor_protection_toggle);
+        // DUAL-09-13: the large-document window's controls.
+        app.add_observer(on_large_window_open_activated);
+        app.add_observer(on_large_window_close_activated);
+        app.add_observer(on_large_window_scrolled_activated);
+        app.add_systems(Update, refresh_large_document_window);
         app.add_observer(sync_profile_editor);
         app.add_systems(
             Update,

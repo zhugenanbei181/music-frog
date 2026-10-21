@@ -11,6 +11,8 @@ pub mod query_access;
 use self::query_access::RuleProjectionTargets;
 
 use super::rules::{LastRulesProjection, RulesProjectionUpdated};
+use crate::pages::command_outcome::CommandOutcomes;
+use crate::pages::rules_outcome::fold_provider_failures;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
@@ -101,6 +103,7 @@ pub(crate) fn apply_rules_projection(
     palette: Res<UiPalette>,
     locale: Res<UiLocale>,
     targets: RuleProjectionTargets,
+    outcomes: Option<Res<CommandOutcomes>>,
 ) {
     let RuleProjectionTargets {
         mut type_fills,
@@ -114,8 +117,11 @@ pub(crate) fn apply_rules_projection(
         mut provider_updates,
     } = targets;
 
-    let projection = &update.0;
-
+    let mut projection = update.0.clone();
+    if let Some(outcomes) = outcomes.as_deref() {
+        fold_provider_failures(&mut projection, outcomes);
+    }
+    let projection = &projection;
     for (mut fill, marker) in &mut type_fills {
         if let Some(rule) = projection.rules.get(marker.0) {
             let want = rule_type_chip_fill(&rule.rule_type, &palette);

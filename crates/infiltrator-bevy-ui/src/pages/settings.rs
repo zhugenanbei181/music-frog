@@ -71,6 +71,8 @@ pub mod settings_network_roaming;
 pub mod settings_offline_startup;
 #[path = "settings_pac.rs"]
 pub mod settings_pac;
+#[path = "settings_port_conflict.rs"]
+pub mod settings_port_conflict;
 #[path = "settings_preferences.rs"]
 pub mod settings_preferences;
 #[path = "settings_privileged_network.rs"]
@@ -526,6 +528,10 @@ impl Plugin for SettingsPagePlugin {
             PostUpdate,
             settings_privileged_network::replay.before(sync_button_disabled),
         );
+        app.add_systems(
+            PostUpdate,
+            settings_port_conflict::sync_port_conflict_outcome.before(sync_button_disabled),
+        );
     }
 }
 
@@ -566,10 +572,10 @@ pub(crate) fn on_settings_action_activated(
             value: "true".to_owned(),
         });
     } else if prepare_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::UpdateSetting {
-            key: "tun_privilege".to_owned(),
-            value: "prepare".to_owned(),
-        });
+        // The TUN permission banner asks for the host-owned privileged service
+        // mode through the shared command, exactly like the service-mode row
+        // does: the shared owner answers it, not a settings-store key.
+        handle.submit(UiCommand::PrepareServiceMode);
     } else if tray_toggles.contains(activate.entity) {
         if let Some(value) = policy.preference("close_to_tray") {
             handle.submit(UiCommand::UpdateSetting {
@@ -704,10 +710,15 @@ mod tests {
         let proj = SettingsProjection::demo();
         assert!(proj.autostart);
         assert!(proj.system_proxy);
-        assert_eq!(proj.mixed_port, Some(7890));
         assert_eq!(proj.controller_port, Some(9090));
-        assert_eq!(proj.allow_lan, Some(false));
         assert_eq!(proj.log_level.as_deref(), Some("info"));
         assert_eq!(proj.tun_stack.as_deref(), Some("gvisor"));
+        // The LAN sharing configuration is one readback: the demo owner
+        // publishes the sharing as confirmed-off, never as unobserved.
+        let sharing = proj
+            .lan_sharing
+            .expect("the demo owner published the LAN sharing");
+        assert_eq!(sharing.mixed_port, 7890);
+        assert!(sharing.is_disabled());
     }
 }

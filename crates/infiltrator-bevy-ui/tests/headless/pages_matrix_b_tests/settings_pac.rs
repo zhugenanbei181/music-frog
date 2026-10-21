@@ -17,6 +17,8 @@ fn test_settings_pac_projection_and_apply_submit_shared_request() {
         },
         script_bytes: 2048,
         bypass_domains: vec!["example.com".to_owned(), "*.lan".to_owned()],
+        bypass_lan: true,
+        minify: false,
         revision: 3,
     };
     app.world_mut()

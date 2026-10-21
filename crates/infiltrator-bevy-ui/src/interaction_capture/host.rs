@@ -23,12 +23,15 @@ pub(super) enum CaptureCapability {
     Search,
     Language,
     Doctor,
+    DoctorBootstrap,
     DnsLeak,
     DnsQuery,
     Hosts,
     RuleTrace,
     RuleList,
     SnapshotRestore,
+    AppRouting,
+    Script,
 }
 
 /// The route one capture command travels.
@@ -125,6 +128,10 @@ impl UiCommandSink for CaptureCommandSink {
                     UiCommand::ImportCustomNodeUri { .. }
                 ) | (CaptureCapability::Language, UiCommand::SetLanguage { .. })
                     | (CaptureCapability::Doctor, UiCommand::RunDoctorDiagnostics)
+                    | (
+                        CaptureCapability::DoctorBootstrap,
+                        UiCommand::BootstrapDoctor
+                    )
                     | (CaptureCapability::DnsLeak, UiCommand::TestDnsLeak)
                     | (CaptureCapability::DnsQuery, UiCommand::QueryDns { .. })
                     | (CaptureCapability::Hosts, UiCommand::ApplyDnsSettings { .. })
@@ -135,6 +142,15 @@ impl UiCommandSink for CaptureCommandSink {
                     | (
                         CaptureCapability::RuleList,
                         UiCommand::CommitRuleList { .. }
+                    )
+                    | (CaptureCapability::AppRouting, UiCommand::SetAppRule { .. })
+                    | (
+                        CaptureCapability::Script,
+                        UiCommand::RunScriptSandbox { .. }
+                            | UiCommand::ClearScriptSandbox { .. }
+                            | UiCommand::PrepareScriptExport { .. }
+                            | UiCommand::SaveScriptExport { .. }
+                            | UiCommand::CancelScriptExport { .. }
                     )
             ),
         };

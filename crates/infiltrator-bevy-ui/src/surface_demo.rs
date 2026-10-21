@@ -11,12 +11,10 @@ use crate::pages::sync::SyncProjection;
 use crate::projection::DemoOverviewSource;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
-use infiltrator_contract::dns::parse_server_list;
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_hosts::DnsHostsProfile;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
-use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
@@ -26,8 +24,6 @@ use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
-use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
-use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::snapshot::CoreSnapshot;
@@ -589,9 +585,7 @@ fn fill_demo_runtime_fields(snapshot: &mut surface_snapshot::SurfaceSnapshot) {
         return;
     };
     let runtime = &mut snapshot.runtime_control;
-    runtime.mixed_port = settings.mixed_port;
-    runtime.allow_lan = settings.allow_lan;
-    runtime.lan_bind_address = settings.lan_bind_address.clone();
+    runtime.lan_sharing = settings.lan_sharing.clone();
     runtime.lan_security = settings.lan_security.clone();
     runtime.ipv6_routing = settings.ipv6_routing;
     runtime.tun_enabled = settings.tun_enabled;

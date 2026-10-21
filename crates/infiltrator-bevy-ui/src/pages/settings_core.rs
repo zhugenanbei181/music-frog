@@ -4,6 +4,7 @@
 //! the main Settings page below the source-size budget without moving any
 //! business decision into the widget layer.
 
+use super::settings_port_conflict::PortConflictOutcomeText;
 use super::settings_runtime::{RuntimeField, RuntimePolicy};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
@@ -30,7 +31,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
-use infiltrator_contract::lan::LanSecuritySnapshot;
+use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
@@ -150,9 +151,9 @@ pub struct SettingsProjection {
     pub system_proxy: bool,
     pub system_proxy_snapshot: SystemProxySnapshot,
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
-    pub mixed_port: Option<u16>,
-    pub allow_lan: Option<bool>,
-    pub lan_bind_address: Option<String>,
+    /// The confirmed LAN sharing configuration. `None` means the owner never
+    /// observed it — not that the sharing is off.
+    pub lan_sharing: Option<LanSharingSnapshot>,
     pub lan_security: Option<LanSecuritySnapshot>,
     pub ipv6_routing: Option<Ipv6RoutingSnapshot>,
     pub pac: PacSnapshot,
@@ -673,6 +674,8 @@ pub(super) fn port_conflicts_row_scene(
                     LocalizedText::plain("settings_port_conflict_title") TextRole(Role::Body)
                     --
                     Text(status) SettingsLine(SettingsLineKind::PortConflicts) TextRole(Role::Mono)
+                    --
+                    Text({ String::new() }) PortConflictOutcomeText TextRole(Role::Mono)
                 ]
                 --
                 Node {

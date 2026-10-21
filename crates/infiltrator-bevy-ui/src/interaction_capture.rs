@@ -25,6 +25,7 @@ use bevy::window::{PrimaryWindow, Window};
 use infiltrator_contract::parity::FeatureId;
 use std::env;
 
+mod app_routing;
 mod capability;
 mod connections;
 mod dns_cache;
@@ -32,6 +33,7 @@ mod dns_hosts;
 mod dns_leak;
 mod dns_query;
 mod doctor;
+mod doctor_recovery;
 mod filter;
 mod geometry;
 mod group_order;
@@ -52,6 +54,7 @@ mod rule_list;
 mod rule_statistics;
 mod rule_trace;
 mod rules_search;
+mod script;
 mod scroll;
 mod search;
 mod snapshot_restore;
@@ -258,6 +261,30 @@ impl InteractionCapture {
             proxy_inspection::install(app);
             app.add_systems(Update, proxy_inspection::activate);
         }
+        if feature == FeatureId::AppRoutingPolicyEditor {
+            app_routing::install(app);
+            app.add_systems(Update, app_routing::activate);
+            app.add_systems(
+                PostUpdate,
+                app_routing::observe.in_set(CaptureObservationSet),
+            );
+        }
+        if feature == FeatureId::LifecycleRecoveryPanel {
+            doctor_recovery::install(app);
+            app.add_systems(Update, doctor_recovery::activate);
+            app.add_systems(
+                PostUpdate,
+                doctor_recovery::observe.in_set(CaptureObservationSet),
+            );
+        }
+        if matches!(
+            feature,
+            FeatureId::ProfilesScriptSandbox | FeatureId::ProfilesScriptExportReview
+        ) {
+            script::install(app);
+            app.add_systems(Update, script::activate);
+            app.add_systems(PostUpdate, script::observe.in_set(CaptureObservationSet));
+        }
         app.insert_resource(Self {
             feature,
             activated: false,
@@ -365,6 +392,10 @@ fn has_specialized_activator(feature: FeatureId) -> bool {
             | FeatureId::ProfilesAggregatorWizard
             | FeatureId::ProfilesDiffViewer
             | FeatureId::RulesSearchHighlight
+            | FeatureId::AppRoutingPolicyEditor
+            | FeatureId::LifecycleRecoveryPanel
+            | FeatureId::ProfilesScriptSandbox
+            | FeatureId::ProfilesScriptExportReview
     )
 }
 

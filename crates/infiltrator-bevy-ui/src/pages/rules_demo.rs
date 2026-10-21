@@ -81,6 +81,8 @@ impl RulesProjection {
                     ),
                     refresh_interval_secs: Some(86_400),
                     cache_fingerprint: None,
+                    controller: None,
+                    failure: None,
                 },
                 RuleProviderItem {
                     name: "geoip-cn".to_owned(),
@@ -95,6 +97,8 @@ impl RulesProjection {
                     ),
                     refresh_interval_secs: Some(86_400),
                     cache_fingerprint: None,
+                    controller: None,
+                    failure: None,
                 },
                 RuleProviderItem {
                     name: "custom-reject-ads".to_owned(),
@@ -106,6 +110,8 @@ impl RulesProjection {
                     source_url: None,
                     refresh_interval_secs: None,
                     cache_fingerprint: None,
+                    controller: None,
+                    failure: None,
                 },
             ],
             rules: vec![

@@ -77,10 +77,9 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
     assert_eq!(
         sink.submitted(),
         vec![
-            UiCommand::UpdateSetting {
-                key: "tun_privilege".to_owned(),
-                value: "prepare".to_owned(),
-            },
+            // The TUN permission banner asks the shared owner for the
+            // privileged service mode, exactly like the service-mode row.
+            UiCommand::PrepareServiceMode,
             UiCommand::UpdateSetting {
                 key: "close_to_tray".to_owned(),
                 value: "false".to_owned(),
@@ -93,5 +92,38 @@ fn test_settings_prepare_tun_and_toggles_submit_commands() {
             UiCommand::PrepareServiceMode,
             UiCommand::RepairPortConflicts,
         ]
+    );
+}
+
+/// The TUN permission banner and the service-mode row are two doors to the
+/// *same* shared owner command: the banner no longer writes a settings-store
+/// key that no owner answers.
+#[test]
+fn the_tun_permission_banner_submits_the_shared_service_mode_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Settings);
+
+    let banner = app
+        .world_mut()
+        .query_filtered::<Entity, With<PrepareTunPermissionButton>>()
+        .single(app.world())
+        .expect("the TUN permission banner's prepare button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: banner });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::PrepareServiceMode],
+        "the banner submits the shared service-mode command"
+    );
+    assert!(
+        !sink.submitted().iter().any(|command| matches!(
+            command,
+            UiCommand::UpdateSetting { key, .. } if key == "tun_privilege"
+        )),
+        "no settings-store key stands in for the shared command"
     );
 }

@@ -15,7 +15,6 @@ use crate::pages::proxies_form::{
 };
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::component::Component;
-use bevy::ecs::hierarchy::Children;
 use bevy::ecs::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy::feathers::theme::ThemeBackgroundColor;

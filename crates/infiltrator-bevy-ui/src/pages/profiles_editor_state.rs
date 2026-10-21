@@ -36,6 +36,26 @@ use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 /// [`EditorViewport`] — the same window arithmetic the Iced editor uses.
 pub const PROFILE_EDITOR_RENDER_LIMIT: usize = 240;
 
+/// The number of lines the large-document window renders at once.
+///
+/// The window size is a surface parameter of the shared [`EditorViewport`];
+/// the large-document view is the bounded window over a long document that
+/// the inline editor cannot show at once.
+pub const LARGE_DOCUMENT_WINDOW_LINES: usize = 600;
+
+/// The editor's large-document window.
+///
+/// The window is one typed state: it is either closed, or open over the
+/// buffer at one exact first line.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LargeDocumentWindow {
+    /// The window is closed.
+    #[default]
+    Closed,
+    /// The window is open over the buffer, starting at this 0-based line.
+    Open { first_line: usize },
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ProfileValidationSource {
     #[default]
@@ -82,6 +102,10 @@ pub struct ProfileEditorState {
     pub generation: u64,
     /// Last generation the scene body was rendered for.
     pub last_rendered: u64,
+    /// The editor's large-document window.
+    pub large_window: LargeDocumentWindow,
+    /// Last generation the large-document window body was rendered for.
+    pub last_large_rendered: u64,
 }
 
 impl ProfileEditorState {
@@ -300,7 +324,11 @@ impl ProfileEditorState {
 
     /// The lines of the rendered window, with their shared indentation levels.
     pub fn rendered_lines(&self) -> Vec<(usize, &str, usize)> {
-        let viewport = self.viewport();
+        self.rendered_lines_of(&self.viewport())
+    }
+
+    /// The lines of one explicit window, with their shared indentation levels.
+    pub fn rendered_lines_of(&self, viewport: &EditorViewport) -> Vec<(usize, &str, usize)> {
         (viewport.first_line()..=viewport.last_line())
             .filter_map(|index| {
                 self.buffer
@@ -309,6 +337,47 @@ impl ProfileEditorState {
                     .map(|line| (index + 1, line.as_str(), line_indent_level(line)))
             })
             .collect()
+    }
+
+    /// Open the large-document window over the buffer.
+    pub fn open_large_window(&mut self) {
+        self.large_window = LargeDocumentWindow::Open { first_line: 0 };
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// Close the large-document window.
+    pub fn close_large_window(&mut self) {
+        self.large_window = LargeDocumentWindow::Closed;
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// Whether the large-document window is open.
+    pub fn large_window_is_open(&self) -> bool {
+        matches!(self.large_window, LargeDocumentWindow::Open { .. })
+    }
+
+    /// Move the large-document window by a number of pages.
+    pub fn scroll_large_window(&mut self, pages: i32) {
+        let LargeDocumentWindow::Open { first_line } = self.large_window else {
+            return;
+        };
+        let delta = pages.saturating_mul(LARGE_DOCUMENT_WINDOW_LINES as i32);
+        let next = self.large_window_viewport().scrolled(delta).first_line();
+        self.large_window = LargeDocumentWindow::Open { first_line: next };
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// The shared window the large-document view renders.
+    pub fn large_window_viewport(&self) -> EditorViewport {
+        let first_line = match self.large_window {
+            LargeDocumentWindow::Closed => 0,
+            LargeDocumentWindow::Open { first_line } => first_line,
+        };
+        EditorViewport::new(
+            self.buffer.line_count(),
+            LARGE_DOCUMENT_WINDOW_LINES,
+            first_line,
+        )
     }
 
     /// Adopt a splice returned by the identity-scoped document codec.

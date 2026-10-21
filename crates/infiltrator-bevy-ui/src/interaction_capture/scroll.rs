@@ -18,8 +18,8 @@ use bevy::ui_widgets::ScrollArea;
 /// never the node it wants to reveal.
 pub fn owning_scroll_area<'w, 's>(
     entity: Entity,
-    parents: &Query<'w, 's, &'static ChildOf>,
-    areas: &Query<'w, 's, Entity, With<ScrollArea>>,
+    parents: &Query<&'static ChildOf>,
+    areas: &Query<Entity, With<ScrollArea>>,
 ) -> Option<Entity> {
     let mut current = entity;
     while let Ok(child_of) = parents.get(current) {

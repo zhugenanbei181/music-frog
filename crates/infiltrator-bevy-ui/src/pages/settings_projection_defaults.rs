@@ -1,7 +1,7 @@
 //! Default shared Settings projection used by demo and empty compositions.
 
 use super::settings_core::SettingsProjection;
-use infiltrator_contract::lan::DEFAULT_BIND_ADDRESS;
+use infiltrator_contract::lan::{DEFAULT_BIND_ADDRESS, LanSharingSnapshot};
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
@@ -27,9 +27,14 @@ impl SettingsProjection {
             system_proxy: true,
             system_proxy_snapshot: SystemProxySnapshot::default(),
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
-            mixed_port: Some(7890),
-            allow_lan: Some(false),
-            lan_bind_address: Some(DEFAULT_BIND_ADDRESS.to_owned()),
+            // One confirmed LAN sharing readback: the demo owner publishes the
+            // sharing as off, never as unobserved.
+            lan_sharing: Some(LanSharingSnapshot::new(
+                1,
+                false,
+                7890,
+                DEFAULT_BIND_ADDRESS,
+            )),
             lan_security: Some(Default::default()),
             ipv6_routing: Some(Default::default()),
             pac: Default::default(),

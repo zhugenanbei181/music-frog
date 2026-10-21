@@ -118,7 +118,7 @@ fn test_app_routing_projection_in_place_update() {
     let (root, _) = navigate_to(&mut app, Route::AppRouting);
 
     let mut updated = AppRoutingProjection::demo();
-    updated.mode = AppRoutingMode::BypassSelected;
+    updated.mode = Some(AppRoutingMode::BypassSelected);
     updated.apps[0].rule = AppRoutingRule::Block;
 
     app.world_mut()

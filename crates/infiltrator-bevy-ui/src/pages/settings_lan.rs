@@ -37,7 +37,7 @@ use infiltrator_bevy_widgets::text_input::{
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_presentation::settings_page_model::SettingsPageModel;
-use infiltrator_presentation::settings_status_projection::format_lan_auth;
+use infiltrator_presentation::settings_status_projection::{format_lan_auth, optional_copy};
 use std::collections::HashMap;
 
 /// The mixed-port field's fixed width in baseline pixels.
@@ -105,11 +105,20 @@ pub struct LanAuthPasswordField;
 pub struct LanSecurityApplyButton;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    let mixed_port = projection
-        .mixed_port
-        .map(|value| value.to_string())
+    // The LAN sharing configuration is one owner readback: an owner that never
+    // published it is "not observed", never "off".
+    let sharing = projection.lan_sharing.as_ref();
+    let mixed_port = sharing
+        .map(|value| value.mixed_port.to_string())
         .unwrap_or_default();
-    let bind_address = projection.lan_bind_address.clone().unwrap_or_default();
+    let bind_address = sharing
+        .map(|value| value.bind_address.clone())
+        .unwrap_or_default();
+    let current_binding = optional_copy(
+        sharing.map(|value| &value.bind_address),
+        &Lang(UiLocale::default().code()),
+    );
+    let sharing_enabled = sharing.is_some_and(|value| value.enabled);
     let allowed_ips = projection
         .lan_security
         .as_ref()
@@ -158,7 +167,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 LanSharingToggle
                                 Children [
-                                    @{ localized_checkbox_scene(LocalizedText::plain("lan_allow_sharing"), projection.allow_lan == Some(true), palette) }
+                                    @{ localized_checkbox_scene(LocalizedText::plain("lan_allow_sharing"), sharing_enabled, palette) }
                                 ]
                                 --
                                 Node {
@@ -206,7 +215,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     LocalizedText::plain("settings_current_bind_label") TextRole(Role::Caption)
                                     --
-                                    Text({ bind_address.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono)
+                                    Text({ current_binding.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono)
                                     --
                                     Node {
                                         min_height: rem(palette.control_height_px),
@@ -557,12 +566,14 @@ pub(super) fn apply_projection(
         .0
         .retain(|entity, _| text_fields.contains(*entity));
     let projection = &update.0;
+    let sharing = projection.lan_sharing.as_ref();
+    let sharing_enabled = sharing.is_some_and(|value| value.enabled);
     for children in &lan_toggles {
         for child in children.iter() {
             if let Ok((entity, checked)) = checkboxes.get(*child)
-                && checked != (projection.allow_lan == Some(true))
+                && checked != sharing_enabled
             {
-                if projection.allow_lan == Some(true) {
+                if sharing_enabled {
                     commands.entity(entity).insert(Checked);
                 } else {
                     commands.entity(entity).remove::<Checked>();
@@ -597,9 +608,8 @@ pub(super) fn apply_projection(
         &focus,
         &initial,
         &mut observations,
-        &projection
-            .mixed_port
-            .map(|value| value.to_string())
+        &sharing
+            .map(|value| value.mixed_port.to_string())
             .unwrap_or_default(),
     );
     restamp_field(
@@ -608,7 +618,9 @@ pub(super) fn apply_projection(
         &focus,
         &initial,
         &mut observations,
-        projection.lan_bind_address.as_deref().unwrap_or_default(),
+        sharing
+            .map(|value| value.bind_address.as_str())
+            .unwrap_or_default(),
     );
     restamp_field(
         &allowed_fields,

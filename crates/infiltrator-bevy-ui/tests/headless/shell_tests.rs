@@ -110,6 +110,8 @@ mod bottom;
 mod content;
 #[path = "shell_tests/gamepad_focus_tests.rs"]
 mod gamepad_focus_tests;
+#[path = "shell_tests/keyboard_focus_tests.rs"]
+mod keyboard_focus_tests;
 #[path = "shell_tests/nav.rs"]
 mod nav;
 #[path = "shell_tests/responsive.rs"]

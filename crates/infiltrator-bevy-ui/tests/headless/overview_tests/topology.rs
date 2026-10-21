@@ -143,6 +143,26 @@ fn topology_stage_activation_uses_shared_navigation_targets() {
             .commands()
             .trigger(Activate { entity: button });
         app.update();
+
+        // The activation opens the drilldown on the Overview page itself: the
+        // business shows its result on the page that owns the topology.
+        assert_eq!(page_root(app.world_mut()).1, Route::Overview);
+        let drilldown = app.world().resource::<TopologyDrilldownFilter>();
+        assert_eq!(drilldown.stage, Some(stage));
+
+        // The drilldown offers the shared navigation target of that stage.
+        let navigate = {
+            let world = app.world_mut();
+            let mut buttons = world.query::<(Entity, &TopologyDrilldownNavigateButton)>();
+            buttons
+                .single(world)
+                .expect("the drilldown's navigate control")
+                .0
+        };
+        app.world_mut()
+            .commands()
+            .trigger(Activate { entity: navigate });
+        app.update();
         assert_eq!(page_root(app.world_mut()).1, target);
     }
 

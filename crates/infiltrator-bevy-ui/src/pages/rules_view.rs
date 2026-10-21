@@ -3,9 +3,10 @@
 //!
 //! The page scene lives in [`super::rules`]. This module owns the parts that
 //! react to input: the keyword search field, the page cursor and the scroll
-//! offset of the rule-list viewport. The match predicate, the page arithmetic
-//! and the render window all delegate to `infiltrator_domain::rules::view`, so
-//! the Bevy page and the Iced editor filter, page and clip identically.
+//! offset of the rule-list viewport. The keyword filter belongs to the shared
+//! [`RulesPageModel`]; the page arithmetic and the render window delegate to
+//! `infiltrator_domain::rules::view`, so the Bevy page and the Iced editor
+//! filter, page and clip identically.
 //!
 //! **DUAL-11-08**: only the rows inside the shared window exist as entities.
 //! The window is derived from the list viewport's scroll offset and measured
@@ -22,13 +23,14 @@ pub mod query_access;
 use self::query_access::RuleWindowTargets;
 
 use crate::pages::overview_topology::TopologyDrilldownFilter;
+use crate::pages::page_models::RulesPageModelState;
 use crate::pages::rules::{LastRulesProjection, RuleItem, RulesProjection, rule_row_scene};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Changed, QueryFilter, With};
+use bevy::ecs::query::{QueryFilter, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
@@ -40,6 +42,7 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_domain::rules::view;
 use infiltrator_domain::rules::view::RuleView;
+use infiltrator_presentation::rules_page_model::RulesPageModel;
 
 /// Marker on a rule row root; the payload is the row index into the last
 /// projection. Rows outside the shared window are not spawned at all.
@@ -156,16 +159,31 @@ pub(crate) fn search_field_text<F: QueryFilter>(
     search_fields: &Query<&Children, With<RuleSearchField>>,
     text_fields: &Query<&TextField, F>,
 ) -> Option<String> {
-    search_fields
+    let mut fields = search_fields
         .iter()
         .flat_map(|children| children.iter())
-        .find_map(|child| text_fields.get(*child).ok())
+        .filter_map(|child| text_fields.get(*child).ok());
+    let first = fields.next();
+    first
+        .into_iter()
+        .chain(fields)
+        .find(|field| !field.0.text().is_empty())
+        .or(first)
         .map(|field| field.0.text().to_owned())
 }
 
 /// Recompute the shared filter result and keep the cursor inside it. A no-op
 /// unless the keyword or the projection generation actually changed.
-fn refilter(view: &mut RulesViewState, projection: &RulesProjection, query: &str) {
+///
+/// The shared model owns the filter: the page hands it the keyword and takes
+/// the surviving indices back from it. No surface reduces the keyword on its
+/// own, so the Bevy page and every other surface filter identically.
+fn refilter(
+    view: &mut RulesViewState,
+    model: &mut RulesPageModel,
+    projection: &RulesProjection,
+    query: &str,
+) {
     let query = query.trim().to_owned();
     let filtered_for = (query.clone(), view.projection_generation);
     if view.filtered_for.as_ref() == Some(&filtered_for) {
@@ -178,7 +196,8 @@ fn refilter(view: &mut RulesViewState, projection: &RulesProjection, query: &str
         .filtered_for
         .as_ref()
         .is_none_or(|(previous, _)| previous != &query);
-    view.filtered_indices = view::filter_rule_indices(&projection.rules, &query);
+    model.edit_filter(&query);
+    view.filtered_indices = model.filtered_indices(&projection.rules);
     view.filter_generation = view.filter_generation.wrapping_add(1);
     view.page = view::clamp_page(view.page, view.filtered_indices.len(), view.page_size);
     if keyword_changed {
@@ -192,12 +211,20 @@ fn refilter(view: &mut RulesViewState, projection: &RulesProjection, query: &str
 /// drilldown filter (UI-04-05) by recomputing the shared filter result.
 pub(crate) fn sync_rules_view(
     search_fields: Query<&Children, With<RuleSearchField>>,
-    text_fields: Query<&TextField, Changed<TextField>>,
+    // The keyword is a fact the field holds, not a change event: a filter
+    // system that only reads the field when it changed can miss the
+    // keyword entirely, because the change tick is consumed by whoever ran
+    // first. The cheap guard is the filter comparison below.
+    text_fields: Query<&TextField>,
     view: Option<ResMut<RulesViewState>>,
     last: Option<Res<LastRulesProjection>>,
     drilldown: Option<Res<TopologyDrilldownFilter>>,
+    model: Option<ResMut<RulesPageModelState>>,
 ) {
     let Some(mut view) = view else {
+        return;
+    };
+    let Some(mut model) = model else {
         return;
     };
     let projection_changed = last.as_ref().is_some_and(|last| last.is_changed());
@@ -208,11 +235,10 @@ pub(crate) fn sync_rules_view(
             None
         }
     });
-    let drilldown_active = drilldown_query.is_some();
 
-    if !projection_changed && !drilldown_active && text_fields.iter().next().is_none() {
-        return;
-    }
+    // The keyword is read every frame: the filter comparison below is the
+    // cheap guard, and a change-event guard would let a missed change tick
+    // leave a stale filter behind.
     let Some(projection) = last.and_then(|last| last.0.clone()) else {
         return;
     };
@@ -224,7 +250,7 @@ pub(crate) fn sync_rules_view(
     } else {
         search_field_text(&search_fields, &text_fields).unwrap_or_default()
     };
-    refilter(&mut view, &projection, &query);
+    refilter(&mut view, &mut model.0, &projection, &query);
 }
 
 /// DUAL-11-08: mount exactly the shared window of the filtered rule list into
@@ -238,8 +264,6 @@ pub(crate) fn sync_rules_window(
     targets: RuleWindowTargets,
 ) {
     let RuleWindowTargets {
-        search_fields,
-        text_fields,
         mut scroll_areas,
         containers,
         mut indicator,
@@ -251,10 +275,9 @@ pub(crate) fn sync_rules_window(
     let Some(projection) = last.and_then(|last| last.0.clone()) else {
         return;
     };
-    // The filter is a shared reduction; recompute it here as well so a scroll
-    // that arrives before the filter system still renders the right rows.
-    let query = search_field_text(&search_fields, &text_fields).unwrap_or_default();
-    refilter(&mut view, &projection, &query);
+    // The filter result is the shared model's answer; the filter reduction
+    // runs before this system, so the window renders exactly the rows the
+    // shared model kept.
 
     if let Some((mut position, computed)) = scroll_areas.iter_mut().next() {
         if view.pending_viewport_reset {
@@ -280,6 +303,13 @@ pub(crate) fn sync_rules_window(
     let window = rules_window(&view);
     let stale = view.rendered_generation != view.filter_generation
         || view.rendered_window != Some((window.start, window.end));
+    eprintln!(
+        "DBG sync_rules_window stale={stale} rendered_gen={} filter_gen={} window={:?} filtered={:?}",
+        view.rendered_generation,
+        view.filter_generation,
+        view.rendered_window,
+        view.filtered_indices,
+    );
     if stale {
         view.rendered_generation = view.filter_generation;
         view.rendered_window = Some((window.start, window.end));
@@ -453,14 +483,22 @@ mod tests {
     }
 
     #[test]
-    fn projection_row_reuses_shared_search() {
+    fn projection_row_answers_the_shared_model_filter() {
         let row = item("DOMAIN-SUFFIX", "github.com", "PROXY");
-        assert!(view::matches_rule_search(&row, "github"));
-        assert!(view::matches_rule_search(&row, "PROXY"));
-        assert!(!view::matches_rule_search(&row, "cloudflare"));
-        let rows = vec![row, item("GEOIP", "CN", "DIRECT")];
-        assert_eq!(view::filter_rule_indices(&rows, "direct"), vec![1]);
-        assert_eq!(view::filter_rule_indices(&rows, ""), vec![0, 1]);
+        let rows = vec![row.clone(), item("GEOIP", "CN", "DIRECT")];
+        // The filter and the reduction are the shared model's: the page asks
+        // it and never reduces the keyword on its own.
+        let mut model = RulesPageModel::default();
+        model.edit_filter("github");
+        assert!(model.matches_rule(&row));
+        model.edit_filter("PROXY");
+        assert!(model.matches_rule(&row));
+        model.edit_filter("cloudflare");
+        assert!(!model.matches_rule(&row));
+        model.edit_filter("direct");
+        assert_eq!(model.filtered_indices(&rows), vec![1]);
+        model.edit_filter("");
+        assert_eq!(model.filtered_indices(&rows), vec![0, 1]);
     }
 
     #[test]

@@ -37,6 +37,7 @@ use infiltrator_contract::profile_mixin_studio::{
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_contract::rule_document::RuleListCommit;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
@@ -201,6 +202,9 @@ pub enum UiCommand {
     },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
+    /// Refresh one rule provider through the exact controller identity and
+    /// inventory revision the owner published for that provider row.
+    RefreshRuleProvider { reference: RuleProviderControllerReference },
     /// Reset every accumulated rule hit counter.
     ClearRuleHitCounters { expected_source: RuleSourceIdentity },
     /// DUAL-11-06: unpack one declared rule provider's real rules into the

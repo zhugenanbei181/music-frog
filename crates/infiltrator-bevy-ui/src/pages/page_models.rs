@@ -23,7 +23,7 @@
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Res, ResMut};
-use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
+use infiltrator_contract::lan::LanSecuritySnapshot;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
@@ -35,7 +35,7 @@ use infiltrator_presentation::overview_page_model::{
 use infiltrator_presentation::profiles_page_model::{ProfilesOperation, ProfilesPageModel};
 use infiltrator_presentation::proxies_page_model::ProxiesPageModel;
 use infiltrator_presentation::rules_page_model::RulesPageModel;
-use infiltrator_presentation::settings_page_model::SettingsPageModel;
+use infiltrator_presentation::settings_page_model::{SettingsPageModel, observe_settings_page};
 use infiltrator_presentation::sync_page_model::SyncPageModel;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferencesSnapshot;
 use lurker_core_contract::page::PageStatus;
@@ -121,19 +121,14 @@ pub fn observe_proxies_model(model: &mut ProxiesPageModel, snapshot: &SurfaceSna
 
 /// Fold the owner facts of the settings page into the shared model.
 ///
-/// The LAN sharing draft needs an observed `allow_lan` and an observed mixed
-/// port; an unobserved runtime control leaves the draft alone instead of
-/// pretending the sharing is off.
+/// The LAN sharing readback is one typed observation: the shared fold reads
+/// it from the owner's snapshot, so an unobserved runtime configuration leaves
+/// the model unobserved instead of pretending the sharing is off.
 pub fn observe_settings_model(model: &mut SettingsPageModel, snapshot: &SurfaceSnapshot) {
-    if let Some(sharing) = observed_lan_sharing(snapshot) {
-        model.observe_lan_sharing(&sharing);
-    }
-    if let Some(security) = observed_lan_security(snapshot) {
-        model.observe_lan_security(&security);
-    }
-    if let Some(page) = snapshot.pages.settings.data.as_ref() {
-        model.observe_pac(&page.pac);
-    }
+    // The LAN sharing / LAN security / PAC readbacks are folded by the shared
+    // model itself, so this surface never rebuilds them from the individual
+    // runtime-control fields.
+    observe_settings_page(model, snapshot);
     // The Bevy command bus is fire-and-forget: the owner's next publication
     // is the only answer this surface can observe, so it ends a submitted
     // write instead of leaving it running forever.
@@ -152,19 +147,6 @@ pub fn observe_settings_model(model: &mut SettingsPageModel, snapshot: &SurfaceS
     {
         model.pac_write_phase_mut().succeed(token);
     }
-}
-
-/// The owner's LAN sharing configuration, when the runtime control observed it.
-fn observed_lan_sharing(snapshot: &SurfaceSnapshot) -> Option<LanSharingSnapshot> {
-    let runtime = &snapshot.runtime_control;
-    let enabled = runtime.allow_lan?;
-    let mixed_port = runtime.mixed_port?;
-    Some(LanSharingSnapshot::new(
-        0,
-        enabled,
-        mixed_port,
-        runtime.lan_bind_address.clone().unwrap_or_default(),
-    ))
 }
 
 /// The owner's LAN security configuration, when it was observed.

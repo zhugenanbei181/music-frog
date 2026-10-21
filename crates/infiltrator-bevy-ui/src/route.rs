@@ -721,12 +721,13 @@ impl Plugin for PagesPlugin {
                 )
                     .chain(),
                 // DUAL-11-08: the filter reduction runs first, then the window
-                // rebuild mounts exactly the rows the window covers.
-                (sync_rules_view, sync_rules_window).chain(),
-                // The shared page models are folded from the accepted snapshot
-                // first; the rules editor then edits the folded draft, so the
-                // two never write the same model in the same frame.
+                // rebuild mounts exactly the rows the window covers. The shared
+                // page models are folded from the accepted snapshot first, and
+                // every writer of the rules model runs in this one chain, so
+                // two of them never write the same model in the same frame.
                 (
+                    sync_rules_view,
+                    sync_rules_window,
                     sync_rules_tabs,
                     refresh_rules_json_body,
                     restamp_rules_json,

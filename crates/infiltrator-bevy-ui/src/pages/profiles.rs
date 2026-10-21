@@ -16,8 +16,12 @@ use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::business_panel::{PanelKind, launcher_scene, profiles_panels};
+use crate::pages::command_outcome::CommandOutcomes;
 use crate::pages::profiles_editor_copy::replay_profile_protection;
 use crate::pages::profiles_filter_dedup::FilterDedupPlugin;
+use crate::pages::profiles_outcome::{
+    SubmittedProfileDelete, fold_refresh_failures, sync_profiles_outcomes,
+};
 use crate::pages::profiles_snapshot_copy;
 use crate::pages::profiles_subscription_copy::sync_status_copy;
 use infiltrator_bevy_widgets::localization::UiLocale;
@@ -58,7 +62,7 @@ use crate::pages::profiles_subscription_policy::{
     subscription_policy_card_scene, sync_subscription_policy_controls,
 };
 use crate::route::{PageRoot, Route};
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
@@ -194,6 +198,10 @@ pub struct ProfileItem {
     /// DUAL-09-12: the same write classification the Iced editor and the
     /// application guard use.
     pub write_protection: ProfileWriteProtection,
+    /// The owner's typed answer to this profile's last refresh, when the
+    /// refresh was refused. `None` means the owner published no failure for
+    /// this profile — never "the refresh succeeded".
+    pub failure: Option<Failure>,
 }
 
 impl ProfileFilterTarget for ProfileItem {
@@ -288,6 +296,7 @@ impl ProfilesProjection {
                     )
                     .map(|observation| observation.workspace_identity),
                     write_protection: ProfileWriteProtection::RemoteSubscription,
+                    failure: None,
                 },
                 ProfileItem {
                     id: "sub-2".to_owned(),
@@ -316,6 +325,7 @@ impl ProfilesProjection {
                     )
                     .map(|observation| observation.workspace_identity),
                     write_protection: ProfileWriteProtection::RemoteSubscription,
+                    failure: None,
                 },
                 ProfileItem {
                     id: "sub-3".to_owned(),
@@ -344,6 +354,7 @@ impl ProfilesProjection {
                     )
                     .map(|observation| observation.workspace_identity),
                     write_protection: ProfileWriteProtection::Editable,
+                    failure: None,
                 },
             ],
             yaml_ast_diff: None,
@@ -467,6 +478,7 @@ impl Plugin for ProfilesPagePlugin {
         app.add_plugins(FilterDedupPlugin);
         app.init_resource::<AggregatorComposerState>();
         app.init_resource::<LastProfilesProjection>();
+        app.init_resource::<SubmittedProfileDelete>();
         app.add_observer(apply_profiles_projection);
         app.add_systems(
             Update,
@@ -477,6 +489,7 @@ impl Plugin for ProfilesPagePlugin {
                 profiles_snapshot_copy::replay,
             ),
         );
+        app.add_systems(PostUpdate, sync_profiles_outcomes);
         app.add_observer(on_profiles_action_activated);
         app.add_observer(on_update_profile_activated);
         app.add_observer(on_update_all_subscriptions_activated);
@@ -599,6 +612,7 @@ pub(crate) fn on_delete_profile_activated(
     buttons: Query<&DeleteProfileButton>,
     last: Option<Res<LastProfilesProjection>>,
     handle: Option<Res<CommandSinkHandle>>,
+    mut submitted: Option<ResMut<SubmittedProfileDelete>>,
 ) {
     let Some(handle) = handle else {
         return;
@@ -616,14 +630,25 @@ pub(crate) fn on_delete_profile_activated(
     if profile.is_some_and(|profile| profile.is_active) {
         return;
     }
+    let name = profile
+        .map(|profile| profile.name.clone())
+        .unwrap_or_else(|| button.profile_id.clone());
+    if let Some(submitted) = submitted.as_deref_mut() {
+        submitted.0 = Some((profile_id.clone(), name));
+    }
     handle.submit(UiCommand::DeleteProfile { id: profile_id });
 }
 
 pub(crate) fn apply_profiles_projection(
     update: On<ProfilesProjectionUpdated>,
     mut last: ResMut<LastProfilesProjection>,
+    outcomes: Option<Res<CommandOutcomes>>,
 ) {
-    last.0 = Some(update.0.clone());
+    let mut projection = update.0.clone();
+    if let Some(outcomes) = outcomes.as_deref() {
+        fold_refresh_failures(&mut projection, outcomes);
+    }
+    last.0 = Some(projection);
 }
 
 pub(crate) fn replay_profiles_projection(

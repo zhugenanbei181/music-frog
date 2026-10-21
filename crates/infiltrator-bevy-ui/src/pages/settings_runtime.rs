@@ -64,11 +64,7 @@ impl RuntimePolicy<'_> {
             }
             RuntimeField::Stack => value.tun_stack.is_some(),
             RuntimeField::Ipv6 => value.ipv6_routing.is_some(),
-            RuntimeField::Lan => {
-                value.allow_lan.is_some()
-                    && value.mixed_port.is_some()
-                    && value.lan_bind_address.is_some()
-            }
+            RuntimeField::Lan => value.lan_sharing.is_some(),
             RuntimeField::Security => value.lan_security.is_some(),
             RuntimeField::LogLevel => value.log_level.is_some(),
         }

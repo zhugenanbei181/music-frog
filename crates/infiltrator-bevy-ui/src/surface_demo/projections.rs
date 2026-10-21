@@ -1,4 +1,9 @@
 use super::*;
+use infiltrator_contract::app_routing::AppRoutingMode;
+use infiltrator_contract::dns::parse_server_list;
+use infiltrator_contract::logs::LogStreamState;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_contract::rule_snapshot::RuleSnapshot;
 
 impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
     fn from(value: ProfilesProjection) -> Self {
@@ -187,7 +192,12 @@ impl From<DoctorProjection> for surface_snapshot::DoctorPageSnapshot {
 impl From<AppRoutingProjection> for surface_snapshot::AppRoutingPageSnapshot {
     fn from(value: AppRoutingProjection) -> Self {
         Self {
-            mode: value.mode.into(),
+            // The demo owner publishes a routing mode; an unobserved one
+            // would mean the demo has no owner at all.
+            mode: value
+                .mode
+                .map(Into::into)
+                .unwrap_or(AppRoutingMode::ProxyAll),
             include_system: value.include_system,
             uwp_loopback: value.uwp_loopback,
             apps: value

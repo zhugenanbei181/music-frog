@@ -32,12 +32,22 @@ pub fn line(kind: SettingsLineKind, projection: &SettingsProjection, code: &str)
             "settings_port_value",
             &[(
                 "port",
-                optional_copy(projection.mixed_port.as_ref(), &Lang(code)),
+                optional_copy(
+                    projection
+                        .lan_sharing
+                        .as_ref()
+                        .map(|value| &value.mixed_port),
+                    &Lang(code),
+                ),
             )],
         ),
-        SettingsLineKind::LanBindAddress => {
-            optional_copy(projection.lan_bind_address.as_ref(), &Lang(code))
-        }
+        SettingsLineKind::LanBindAddress => optional_copy(
+            projection
+                .lan_sharing
+                .as_ref()
+                .map(|value| &value.bind_address),
+            &Lang(code),
+        ),
         SettingsLineKind::LanSecurity => {
             format_lan_auth(projection.lan_security.as_ref(), &Lang(code))
         }

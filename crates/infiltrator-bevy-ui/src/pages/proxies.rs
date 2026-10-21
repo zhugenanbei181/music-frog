@@ -830,7 +830,8 @@ mod tests {
 
     #[test]
     fn the_proxy_node_answers_the_shared_filter_rule() {
-        use infiltrator_presentation::proxies_page_model::{ProxyFilterQuery, proxy_protocol_chip};
+        use infiltrator_presentation::filter_query::FilterQuery;
+        use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 
         let node = ProxyNode {
             outbound_id: None,
@@ -845,19 +846,19 @@ mod tests {
 
         // The shared rule answers for the Bevy node: name, protocol (raw and
         // alias), feature tag, UDP capability, latency bound and pinyin.
-        assert!(ProxyFilterQuery::parse("").matches(&node));
-        assert!(ProxyFilterQuery::parse("香港").matches(&node));
-        assert!(ProxyFilterQuery::parse("xg").matches(&node));
-        assert!(ProxyFilterQuery::parse("Shadowsocks").matches(&node));
-        assert!(ProxyFilterQuery::parse("ss").matches(&node));
-        assert!(ProxyFilterQuery::parse("udp").matches(&node));
-        assert!(ProxyFilterQuery::parse("tfo").matches(&node));
-        assert!(ProxyFilterQuery::parse("<100").matches(&node));
-        assert!(!ProxyFilterQuery::parse("<30").matches(&node));
-        assert!(ProxyFilterQuery::parse(">20").matches(&node));
-        assert!(!ProxyFilterQuery::parse(">50").matches(&node));
-        assert!(!ProxyFilterQuery::parse("日本").matches(&node));
-        assert!(!ProxyFilterQuery::parse("jp").matches(&node));
+        assert!(FilterQuery::parse("").matches(&node));
+        assert!(FilterQuery::parse("香港").matches(&node));
+        assert!(FilterQuery::parse("xg").matches(&node));
+        assert!(FilterQuery::parse("Shadowsocks").matches(&node));
+        assert!(FilterQuery::parse("ss").matches(&node));
+        assert!(FilterQuery::parse("udp").matches(&node));
+        assert!(FilterQuery::parse("tfo").matches(&node));
+        assert!(FilterQuery::parse("<100").matches(&node));
+        assert!(!FilterQuery::parse("<30").matches(&node));
+        assert!(FilterQuery::parse(">20").matches(&node));
+        assert!(!FilterQuery::parse(">50").matches(&node));
+        assert!(!FilterQuery::parse("日本").matches(&node));
+        assert!(!FilterQuery::parse("jp").matches(&node));
 
         // The shared protocol chip is the one label every surface renders.
         assert_eq!(proxy_protocol_chip("Shadowsocks"), "Shadowsocks");

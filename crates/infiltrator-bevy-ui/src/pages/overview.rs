@@ -32,7 +32,6 @@
 //!
 //! Remaining localized status folds are tracked by the shared-copy quality gate.
 
-use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{ScrubberAction, TrafficHistory, TrafficReplay, chart_inputs};
 use crate::localized_widgets::localized_button_scene;
 use crate::pages::overview_lifecycle::core_control_scene;
@@ -47,7 +46,8 @@ use crate::pages::overview_speedtest::{
     on_overview_speedtest_detail_activated, speedtest_button_scene,
 };
 use crate::pages::overview_topology::on_topology_stage_activated;
-use crate::pages::{overview_cards, overview_public_ip, overview_topology};
+use crate::pages::overview_topology_drilldown;
+use crate::pages::{overview_card_order, overview_cards, overview_topology};
 use crate::projection::{OverviewOrigin, OverviewProjection};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
@@ -215,6 +215,12 @@ pub struct OverviewStatusCard;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewCardSlot(pub OverviewCardKind);
 
+impl Default for OverviewCardSlot {
+    fn default() -> Self {
+        Self(default_overview_card_kind())
+    }
+}
+
 /// Marker on the reload / reconnect graceful degradation overlay mask (DUAL-03-13).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewReloadMask;
@@ -227,9 +233,32 @@ pub struct OverviewReloadMaskText;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewCardMoveUpButton(pub OverviewCardKind);
 
+impl Default for OverviewCardMoveUpButton {
+    fn default() -> Self {
+        Self(default_overview_card_kind())
+    }
+}
+
 /// Reorder button action on an Overview card slot (Move Down).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewCardMoveDownButton(pub OverviewCardKind);
+
+impl Default for OverviewCardMoveDownButton {
+    fn default() -> Self {
+        Self(default_overview_card_kind())
+    }
+}
+
+/// The card kind a scene marker carries when the scene does not name one.
+///
+/// The canonical order's first card is the default: a marker without a card
+/// is the page's first card, not an invented one.
+fn default_overview_card_kind() -> OverviewCardKind {
+    OverviewCardKind::DEFAULT_ORDER
+        .first()
+        .copied()
+        .unwrap_or(OverviewCardKind::RoutingIntentSegment)
+}
 
 /// Marker for the Overview metrics chip band container.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -543,6 +572,9 @@ pub fn overview_page(
     history: &TrafficHistory,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let order = overview_card_order::published_order(&projection.layout);
+    let cards = overview_card_order::overview_card_scenes(projection, history, palette, &order);
+
     bsn! {
             Node {
                 width: percent(100),
@@ -560,23 +592,9 @@ pub fn overview_page(
             Children [
                 @{ banner_scene(projection, palette) }
                 --
-                @{ overview_cards::routing_intent_segmented_controller_scene_with_snapshot(&projection.routing_intent, palette) }
-                --
-                @{ traffic_card_scene(projection, history, palette) } OverviewTrafficCard
-                --
-                @{ chips_row_scene(projection, palette) }
+                { cards }
                 --
                 @{ overview_reactive::reactive_summary_scene(palette) }
-                --
-                @{ overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) }
-                --
-                @{ overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) }
-                --
-                @{ overview_public_ip::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) }
-                --
-                @{ overview_topology::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) }
-                --
-                @{ overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) }
                 --
                 @{ reload_mask_scene(palette) }
             ]
@@ -675,7 +693,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
 /// pump's recorded ring. The widget's own `sync_charts` rasterizes the
 /// plate and re-derives every ink from the live palette, so a theme
 /// switch recolors the chart in place.
-fn traffic_card_scene(
+pub(crate) fn traffic_card_scene(
     projection: &OverviewProjection,
     history: &TrafficHistory,
     palette: &UiPalette,
@@ -842,7 +860,10 @@ fn rate_line(arrow: &str, kind: OverviewLineKind, value: String) -> impl Scene +
 /// The metrics band: four stat chips sharing the width evenly. Each chip
 /// root carries a labeled `Group` semantic node ("name value") that the
 /// refresh observer restamps alongside the visible value.
-fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
+pub(crate) fn chips_row_scene(
+    projection: &OverviewProjection,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let connections = projection.active_connections.to_string();
     let memory = format_memory(&projection.memory_bytes);
     let cpu = format_cpu(&projection.cpu_percent);
@@ -939,12 +960,16 @@ impl Plugin for OverviewPagePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TrafficReplay>();
         overview_reactive::register(app);
+        // The drilldown writes its own texts, and its queries are disjoint
+        // from the overview's scrubber status, so the two systems do not
+        // fight over the same component.
         app.add_systems(
             Update,
             (
                 overview_rates::refresh,
                 overview_quota_copy::replay,
                 sync_overview_replay,
+                overview_topology_drilldown::sync_topology_drilldown,
             ),
         );
         app.add_observer(apply_overview_projection);
@@ -955,8 +980,10 @@ impl Plugin for OverviewPagePlugin {
         app.add_observer(on_overview_speedtest_concurrency_stepped);
         app.add_observer(on_overview_speedtest_detail_activated);
         app.add_observer(on_overview_public_ip_refresh_activated);
-        app.add_observer(on_overview_card_move_up_activated);
-        app.add_observer(on_overview_card_move_down_activated);
+        app.add_observer(overview_card_order::on_card_move_up_activated);
+        app.add_observer(overview_card_order::on_card_move_down_activated);
+        app.add_observer(overview_topology_drilldown::on_drilldown_navigate_activated);
+        app.add_observer(overview_topology_drilldown::on_drilldown_close_activated);
     }
 }
 
@@ -973,35 +1000,6 @@ pub(crate) fn on_overview_scrubber_activated(
         return;
     };
     replay.apply(&history, button.0);
-}
-
-/// Convert an Overview card move up action into a UiCommand::MoveOverviewCardUp.
-pub(crate) fn on_overview_card_move_up_activated(
-    activate: On<Activate>,
-    buttons: Query<&OverviewCardMoveUpButton>,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
-    let Some(handle) = handle else {
-        return;
-    };
-    let Ok(btn) = buttons.get(activate.entity) else {
-        return;
-    };
-    handle.submit(UiCommand::MoveOverviewCardUp(btn.0));
-}
-
-pub(crate) fn on_overview_card_move_down_activated(
-    activate: On<Activate>,
-    buttons: Query<&OverviewCardMoveDownButton>,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
-    let Some(handle) = handle else {
-        return;
-    };
-    let Ok(btn) = buttons.get(activate.entity) else {
-        return;
-    };
-    handle.submit(UiCommand::MoveOverviewCardDown(btn.0));
 }
 
 /// Pin the Overview metrics chip band to the shared tier column count

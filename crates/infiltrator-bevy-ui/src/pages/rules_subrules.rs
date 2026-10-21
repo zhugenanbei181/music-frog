@@ -13,6 +13,7 @@ use crate::pages::rules_draft::{RuleDraftMutationButton, RulesDraftState};
 use crate::pages::rules_statistics::RulesStatisticsState;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;

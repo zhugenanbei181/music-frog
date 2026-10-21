@@ -27,6 +27,10 @@ use crate::pages::rules_mrs::{
     RulesMrsState, apply_mrs_projection, apply_provider_cache_projection,
     on_rules_mrs_action_activated, rules_mrs_scene,
 };
+use crate::pages::rules_outcome::{
+    RuleProviderFailureText, on_rule_provider_refresh_activated, rule_provider_refresh_scene,
+    sync_rule_provider_outcomes,
+};
 use crate::pages::rules_projection::{
     ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleHitText, RuleIndexText,
     RulePayloadText, RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind,
@@ -50,7 +54,7 @@ use crate::pages::rules_view::{
 };
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
@@ -83,6 +87,7 @@ use infiltrator_contract::provider_cache::{
 };
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesTab};
 use infiltrator_domain::rules::matrix::matrix_label;
@@ -154,6 +159,14 @@ pub struct RuleProviderItem {
     /// (size + SHA-256 + last-modified, compared with the previous observation).
     /// `None` means no local file was observed; this is never an HTTP validator.
     pub cache_fingerprint: Option<ProviderCacheFingerprint>,
+    /// The owner-fenced controller identity and inventory revision of this
+    /// provider row. `None` means the owner published no live controller
+    /// observation for it, so this surface cannot refresh it.
+    pub controller: Option<RuleProviderControllerReference>,
+    /// The owner's typed answer to this provider's last refresh, when the
+    /// refresh was refused. `None` means the owner published no failure for
+    /// this provider — never "the refresh succeeded".
+    pub failure: Option<Failure>,
 }
 
 /// Snapshot of the Rules domain.
@@ -481,6 +494,11 @@ fn provider_item_scene(
             )
         })
         .unwrap_or(updated);
+    let failure = provider
+        .failure
+        .as_ref()
+        .map(|failure| failure.message.clone())
+        .unwrap_or_default();
 
     bsn! {
             Node {
@@ -502,7 +520,18 @@ fn provider_item_scene(
                     Text(count_info) ProviderCountText(idx) TextRole(Role::Caption)
                 ]
                 --
-                Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption)
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::FlexEnd,
+                    row_gap: rem(space::S4),
+                }
+                Children [
+                    Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption)
+                    --
+                    Text({ failure }) RuleProviderFailureText(idx) TextRole(Role::Mono)
+                    --
+                    @{ rule_provider_refresh_scene(idx, provider.controller.is_some(), palette) }
+                ]
             ]
     }
 }
@@ -807,6 +836,9 @@ impl Plugin for RulesPagePlugin {
         app.add_observer(on_rules_json_action_activated);
         app.add_observer(sync_rules_json);
         app.add_observer(on_rules_action_activated);
+        // DUAL-11-05: the per-provider refresh control and its failure line.
+        app.add_observer(on_rule_provider_refresh_activated);
+        app.add_systems(PostUpdate, sync_rule_provider_outcomes);
     }
 }
 

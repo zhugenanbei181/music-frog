@@ -12,23 +12,35 @@ use crate::route::NavigateBack;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::{Has, Or, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::input::ButtonInput;
+use bevy::input::keyboard::KeyCode;
 use bevy::math::Vec2;
+use bevy::scene::CommandsSceneExt;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
-use infiltrator_bevy_widgets::focus::Focused;
+use infiltrator_bevy_widgets::focus::{Focused, focus_ring_scene};
 use infiltrator_bevy_widgets::gamepad_ui::{
     GamepadDirection, GamepadFocusController, GamepadFocusTarget, GamepadNavAction,
 };
+use infiltrator_bevy_widgets::palette::UiPalette;
 
 /// Marker on every shell control reachable by D-pad / analog-stick focus.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ShellFocusable;
+
+/// The focus ring drawn over the focused control.
+///
+/// The ring carries the control it decorates, so the shell knows when the
+/// focus moved and the ring has to follow.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShellFocusRing(pub Entity);
 
 /// Shell focus targets: the explicit shell markers plus every mounted button, so
 /// D-pad focus reaches page content without each page re-declaring the seam.
@@ -193,6 +205,105 @@ pub fn apply_shell_focus_marker(
     }
 }
 
+/// Move the shell focus with the keyboard's Tab / Shift+Tab gesture.
+///
+/// The D-pad focus already lands on the first measured control without any
+/// gesture, so the keyboard gesture is what actually *moves* the focus ring
+/// onto another control.
+pub fn advance_shell_focus_by_keyboard(
+    keyboard: Option<Res<ButtonInput<KeyCode>>>,
+    mut controller: ResMut<GamepadFocusController>,
+) {
+    let Some(keyboard) = keyboard else {
+        return;
+    };
+    if !keyboard.just_pressed(KeyCode::Tab) {
+        return;
+    }
+    let backwards = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    if backwards {
+        focus_previous(&mut controller);
+    } else {
+        focus_next(&mut controller);
+    }
+}
+
+/// Focus the next control in the shell's focus order.
+fn focus_next(controller: &mut GamepadFocusController) {
+    if controller.targets.is_empty() {
+        return;
+    }
+    let Some(current) = controller.focused else {
+        controller.focused = controller.targets.first().map(|target| target.entity);
+        return;
+    };
+    let Some(index) = controller
+        .targets
+        .iter()
+        .position(|target| target.entity == current)
+    else {
+        return;
+    };
+    let next = (index + 1) % controller.targets.len();
+    controller.focused = Some(controller.targets[next].entity);
+}
+
+/// Focus the previous control in the shell's focus order.
+fn focus_previous(controller: &mut GamepadFocusController) {
+    if controller.targets.is_empty() {
+        return;
+    }
+    let Some(current) = controller.focused else {
+        controller.focused = controller.targets.first().map(|target| target.entity);
+        return;
+    };
+    let Some(index) = controller
+        .targets
+        .iter()
+        .position(|target| target.entity == current)
+    else {
+        return;
+    };
+    let previous = (index + controller.targets.len() - 1) % controller.targets.len();
+    controller.focused = Some(controller.targets[previous].entity);
+}
+
+/// Draw the shared focus ring over the focused control.
+///
+/// The ring marks a focus that *moved*: the shell's own landing on the first
+/// measured control is the route-only baseline, and a gesture that moves the
+/// focus onto another control is what the ring makes visible.
+pub fn apply_shell_focus_ring(
+    state: Res<ShellFocusState>,
+    controller: Res<GamepadFocusController>,
+    palette: Res<UiPalette>,
+    mut commands: Commands,
+    rings: Query<(Entity, &ShellFocusRing)>,
+) {
+    let target = state.focused_entity();
+    let moved = match (target, controller.targets.first()) {
+        (Some(target), Some(first)) => target != first.entity,
+        _ => false,
+    };
+    let existing = rings.iter().next();
+    if let Some((entity, ring)) = existing {
+        if moved && Some(ring.0) == target {
+            return;
+        }
+        commands.entity(entity).despawn();
+    }
+    if !moved {
+        return;
+    }
+    let Some(target) = target else {
+        return;
+    };
+    commands
+        .spawn_scene(focus_ring_scene(&palette))
+        .insert(ChildOf(target))
+        .insert(ShellFocusRing(target));
+}
+
 /// Install the shell focus controller, configuration, typed state, and systems.
 pub struct ShellFocusPlugin;
 
@@ -207,8 +318,10 @@ impl Plugin for ShellFocusPlugin {
             (
                 sync_shell_focus_targets,
                 advance_shell_focus,
+                advance_shell_focus_by_keyboard,
                 sync_shell_focus_state,
                 apply_shell_focus_marker,
+                apply_shell_focus_ring,
             )
                 .chain(),
         );

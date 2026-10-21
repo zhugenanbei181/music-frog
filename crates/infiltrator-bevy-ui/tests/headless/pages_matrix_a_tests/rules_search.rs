@@ -46,3 +46,35 @@ fn test_rules_search_hides_non_matching_rows() {
     app.update();
     assert!(mounted_rule_rows(&mut app).is_empty());
 }
+
+/// The rule list filters through the shared page model.
+///
+/// The page hands the keyword to the shared model and mounts exactly the
+/// rows the shared model kept: the reduction is the model's, not the page's.
+#[test]
+fn the_rule_list_filters_through_the_shared_page_model() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Rules);
+
+    let projection = rules_projection_with(1_000);
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection.clone()));
+    app.update();
+
+    let field_entity = rules_search_field(&mut app);
+    app.world_mut()
+        .get_mut::<TextField>(field_entity)
+        .expect("text field")
+        .0 = TextFieldState::new("host-42.example");
+    app.update();
+
+    // The shared model owns the filter text and the reduction.
+    let model = app.world().resource::<RulesPageModelState>();
+    assert_eq!(model.0.filter_text(), "host-42.example");
+    assert_eq!(model.0.filtered_indices(&projection.rules), vec![42]);
+
+    // The page mounts exactly the rows the shared model kept.
+    assert_eq!(mounted_rule_rows(&mut app), vec![42]);
+}

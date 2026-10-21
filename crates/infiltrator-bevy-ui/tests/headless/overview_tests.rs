@@ -23,11 +23,12 @@ use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
-    CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
-    OverviewChipKind, OverviewLine, OverviewLineKind, OverviewProjectionUpdated,
-    OverviewReloadMask, OverviewReloadMaskText, OverviewRoutingIntentChip,
-    OverviewRoutingIntentPill, OverviewStatusCard, StatusDot, format_memory, format_rate,
-    subscription_quota_scene, topology_chain_scene,
+    CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardMoveDownButton,
+    OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardState, OverviewChip, OverviewChipKind,
+    OverviewLine, OverviewLineKind, OverviewProjectionUpdated, OverviewReloadMask,
+    OverviewReloadMaskText, OverviewRoutingIntentChip, OverviewRoutingIntentPill,
+    OverviewStatusCard, StatusDot, format_memory, format_rate, subscription_quota_scene,
+    topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
@@ -41,6 +42,10 @@ use infiltrator_bevy_ui::pages::overview_restamp::{
 };
 use infiltrator_bevy_ui::pages::overview_topology::{
     TopologyChainCard, TopologyDrilldownFilter, TopologyStageButton, TopologyText, TopologyTextKind,
+};
+use infiltrator_bevy_ui::pages::overview_topology_drilldown::{
+    TopologyDrilldownKeywordText, TopologyDrilldownNavigateButton, TopologyDrilldownPanel,
+    TopologyDrilldownText,
 };
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, SourceKind,

@@ -20,6 +20,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::editor_viewport::EditorViewport;
 
 /// The line-number gutter's minimum width in baseline pixels.
 const EDITOR_LINE_NUMBER_GUTTER_WIDTH_PX: f32 = 36.0;
@@ -43,7 +44,19 @@ fn token_color(kind: SyntaxTokenKind, palette: &UiPalette) -> Color {
 /// the hidden-line counts and the indentation levels come from the shared
 /// `EditorViewport`, so every pane and the Iced editor never drift.
 pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette) -> Box<dyn Scene> {
-    let viewport = state.viewport();
+    editor_rows_scene_for(state, &state.viewport(), palette)
+}
+
+/// Gutter + code rows for one explicit window, with the cursor line washed and
+/// the diagnostic line painted in the danger token.
+///
+/// The window, the hidden-line counts and the indentation levels come from the
+/// shared `EditorViewport`, so every pane and the Iced editor never drift.
+pub(crate) fn editor_rows_scene_for(
+    state: &ProfileEditorState,
+    viewport: &EditorViewport,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
     let diagnostic_row = state.diagnostic.as_ref().map(|diagnostic| diagnostic.line);
     let cursor_row = state.buffer.cursor_row + 1;
     let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(viewport.rendered_len() + 2);
@@ -56,7 +69,7 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
             palette,
         ));
     }
-    for (number, line, indent_level) in state.rendered_lines() {
+    for (number, line, indent_level) in state.rendered_lines_of(viewport) {
         let is_diagnostic = diagnostic_row == Some(number);
         let is_cursor = cursor_row == number && state.focused;
         let background = if is_diagnostic {

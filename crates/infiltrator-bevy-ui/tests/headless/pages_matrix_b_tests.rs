@@ -256,6 +256,8 @@ mod settings_network;
 mod settings_pac;
 #[path = "pages_matrix_b_tests/settings_page.rs"]
 mod settings_page;
+#[path = "pages_matrix_b_tests/settings_port_conflict.rs"]
+mod settings_port_conflict;
 #[path = "pages_matrix_b_tests/settings_prepare.rs"]
 mod settings_prepare;
 #[path = "pages_matrix_b_tests/settings_projection.rs"]

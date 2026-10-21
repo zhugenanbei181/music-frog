@@ -185,6 +185,9 @@ impl UiCommand {
                 })
             }
             Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
+            Self::RefreshRuleProvider { reference } => Some(CommandIntent::RefreshRuleProvider {
+                reference: reference.clone(),
+            }),
             Self::ClearRuleHitCounters { expected_source } => {
                 Some(CommandIntent::ResetRuleHitCounters {
                     expected_source: expected_source.clone(),

@@ -27,7 +27,6 @@ use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
-use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::dns_page_model::DnsPageModel;
 use infiltrator_presentation::overview_page_model::OverviewPageModel;
@@ -314,6 +313,10 @@ fn shared_visible_profiles(
             filter: profile.filter.clone(),
             filter_source: profile.filter_source.clone(),
             write_protection: profile.write_protection,
+            // The owner publishes no per-profile refresh failure yet; the
+            // page folds the owner's own answer to the refresh it submitted
+            // into this item.
+            failure: None,
         })
         .collect();
     model
@@ -457,6 +460,11 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                     source_url: provider.source_url.clone(),
                     refresh_interval_secs: provider.refresh_interval_secs,
                     cache_fingerprint: provider.cache_fingerprint.clone(),
+                    controller: provider.controller.clone(),
+                    // The owner publishes no per-provider refresh failure yet;
+                    // the page folds the owner's own answer to the refresh it
+                    // submitted into this item.
+                    failure: None,
                 })
                 .collect(),
             rules: value
@@ -617,10 +625,7 @@ pub(super) fn app_routing_projection(
     uwp_loopback.packages = model.uwp_packages().to_vec();
     uwp_loopback.revision = model.uwp_revision();
     AppRoutingProjection {
-        mode: model
-            .mode()
-            .map(Into::into)
-            .unwrap_or(AppRoutingMode::ProxyAll),
+        mode: model.mode(),
         include_system: model.include_system().unwrap_or(false),
         uwp_loopback,
         apps: model
@@ -696,9 +701,7 @@ pub(super) fn settings_projection(
             system_proxy: value.system_proxy,
             system_proxy_snapshot: snapshot.system_proxy.clone(),
             system_proxy_recovery: snapshot.system_proxy_recovery.clone(),
-            mixed_port: value.mixed_port,
-            allow_lan: value.allow_lan,
-            lan_bind_address: value.lan_bind_address.clone(),
+            lan_sharing: value.lan_sharing.clone(),
             lan_security: value.lan_security.clone(),
             ipv6_routing: value.ipv6_routing,
             pac: value.pac.clone(),
@@ -741,9 +744,7 @@ pub(super) fn settings_projection(
         });
     let observed = &snapshot.runtime_control;
     projection.runtime_status = observed.status.clone();
-    projection.mixed_port = observed.mixed_port;
-    projection.allow_lan = observed.allow_lan;
-    projection.lan_bind_address = observed.lan_bind_address.clone();
+    projection.lan_sharing = observed.lan_sharing.clone();
     projection.lan_security = observed.lan_security.clone();
     projection.ipv6_routing = observed.ipv6_routing;
     projection.tun_enabled = observed.tun_enabled;

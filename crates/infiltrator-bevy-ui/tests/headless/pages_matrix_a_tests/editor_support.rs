@@ -86,6 +86,7 @@ pub(super) fn snapshot_diff_page_projection(
             filter_source: observation("main", FIXTURE_DOCUMENT, Default::default())
                 .map(|obs| obs.workspace_identity),
             write_protection: ProfileWriteProtection::RemoteSubscription,
+            failure: None,
         }],
         auto_update_interval_hours: 0,
         updating: false,

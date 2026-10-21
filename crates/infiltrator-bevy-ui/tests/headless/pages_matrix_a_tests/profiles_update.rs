@@ -2,6 +2,59 @@
 //! test-intent: behavior
 
 use super::*;
+
+/// A refused subscription refresh is rendered on that profile's own card:
+/// the profile item carries the failure and the page shows it.
+#[test]
+fn a_refused_subscription_refresh_is_rendered_on_the_profile_card() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut().commands().trigger(CommandExecutedEvent {
+        command: UiCommand::UpdateProfile {
+            id: "sub-2".to_owned(),
+        },
+        request_id: RequestId::new(1),
+        result: Err(Failure::new(
+            ErrorCode::Network,
+            "the subscription host refused the refresh",
+            true,
+        )),
+    });
+    app.update();
+
+    let line = app
+        .world_mut()
+        .query::<(Entity, &ProfileRefreshText)>()
+        .iter(app.world())
+        .find(|(_, marker)| marker.0 == 1)
+        .map(|(entity, _)| entity)
+        .expect("the second profile card's refresh line");
+    let rendered = app
+        .world()
+        .get::<Text>(line)
+        .expect("the refresh outcome text")
+        .0
+        .clone();
+    assert_eq!(rendered, "the subscription host refused the refresh");
+
+    // The other profile's card stays honest: it never shows this failure.
+    let other = app
+        .world_mut()
+        .query::<(Entity, &ProfileRefreshText)>()
+        .iter(app.world())
+        .find(|(_, marker)| marker.0 == 0)
+        .map(|(entity, _)| entity)
+        .expect("the first profile card's refresh line");
+    let untouched = app
+        .world()
+        .get::<Text>(other)
+        .expect("the refresh outcome text")
+        .0
+        .clone();
+    assert!(untouched.is_empty(), "got {untouched}");
+}
 use bevy::ecs::query::With;
 
 #[test]

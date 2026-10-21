@@ -59,6 +59,7 @@ use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::doctor::DoctorStatus;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
+use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
@@ -253,6 +254,7 @@ fn profiles_page_in_place_update() {
             filter_source: observation("sub-custom", FIXTURE_DOCUMENT, Default::default())
                 .map(|observation| observation.workspace_identity),
             write_protection: Default::default(),
+            failure: None,
         }],
     };
 
@@ -292,6 +294,8 @@ fn rules_page_in_place_update() {
             source_url: None,
             refresh_interval_secs: Some(86_400),
             cache_fingerprint: None,
+            controller: None,
+            failure: None,
         }],
         rules: vec![RuleItem {
             edit_id: None,
@@ -441,9 +445,7 @@ fn settings_page_in_place_update() {
         system_proxy: false,
         system_proxy_snapshot: Default::default(),
         system_proxy_recovery: Default::default(),
-        mixed_port: Some(7895),
-        allow_lan: Some(true),
-        lan_bind_address: Some("192.168.1.10".to_owned()),
+        lan_sharing: Some(LanSharingSnapshot::new(4, true, 7895, "192.168.1.10")),
         lan_security: Some(Default::default()),
         ipv6_routing: Some(Ipv6RoutingSnapshot::new(1, false, true)),
         pac: Default::default(),
@@ -667,7 +669,7 @@ fn app_routing_page_in_place_update() {
     app.update();
 
     let updated = AppRoutingProjection {
-        mode: AppRoutingMode::BypassSelected,
+        mode: Some(AppRoutingMode::BypassSelected),
         include_system: true,
         apps: vec![AppItem {
             id: "app-block".to_owned(),

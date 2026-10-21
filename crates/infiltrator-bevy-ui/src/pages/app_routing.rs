@@ -110,7 +110,7 @@ pub struct AppItem {
 /// Snapshot of the App Routing domain.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppRoutingProjection {
-    pub mode: AppRoutingMode,
+    pub mode: Option<AppRoutingMode>,
     pub include_system: bool,
     pub apps: Vec<AppItem>,
     pub uwp_loopback: UwpLoopbackSnapshot,
@@ -121,7 +121,7 @@ impl AppRoutingProjection {
     #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
-            mode: AppRoutingMode::ProxySelected,
+            mode: Some(AppRoutingMode::ProxySelected),
             include_system: false,
             apps: vec![
                 AppItem {
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn demo_app_routing_fixture() {
         let proj = AppRoutingProjection::demo();
-        assert_eq!(proj.mode, AppRoutingMode::ProxySelected);
+        assert_eq!(proj.mode, Some(AppRoutingMode::ProxySelected));
         assert_eq!(proj.apps.len(), 6);
         assert_eq!(proj.apps[0].id, "app-1");
         assert_eq!(proj.apps[0].name, "Google Chrome");

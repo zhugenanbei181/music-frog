@@ -5,6 +5,7 @@ use super::*;
 use bevy::ecs::hierarchy::Children;
 use infiltrator_bevy_ui::route::PageRoot;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::lan::{DEFAULT_BIND_ADDRESS, LanSharingSnapshot};
 
 #[test]
 fn test_settings_projection_in_place_update() {
@@ -14,7 +15,12 @@ fn test_settings_projection_in_place_update() {
     let (root, _) = navigate_to(&mut app, Route::Settings);
 
     let mut updated = SettingsProjection::demo();
-    updated.mixed_port = Some(7899);
+    updated.lan_sharing = Some(LanSharingSnapshot::new(
+        2,
+        false,
+        7899,
+        DEFAULT_BIND_ADDRESS,
+    ));
     updated.controller_port = Some(9191);
     updated.log_level = Some("debug".to_owned());
     updated.tun_auto_route = Some(false);

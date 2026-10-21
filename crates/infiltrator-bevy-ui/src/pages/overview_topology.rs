@@ -6,7 +6,7 @@ use crate::app::{LayoutMode, ShellLayoutState};
 use crate::pages::overview::{
     AccentContainerFill, LastOverviewProjection, SurfaceElevatedFill, SurfaceFill,
 };
-use crate::route::{Route, RouteChanged};
+use crate::pages::overview_topology_drilldown::drilldown_panel_scene;
 use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -36,11 +36,9 @@ use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
-use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
 };
-use infiltrator_presentation::traffic_topology_projection;
 use infiltrator_presentation::traffic_topology_projection::status_label;
 use infiltrator_shared::locales::Lang;
 
@@ -135,6 +133,8 @@ pub fn topology_chain_scene_with_snapshot(
                             --
                             @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::Outbound, IconId::Globe, palette.success, palette) }
                         ]
+                        --
+                        @{ drilldown_panel_scene(palette) }
                     ]
         })],
         palette,
@@ -431,8 +431,13 @@ pub fn sync_topology_hover_highlight(
     }
 }
 
-/// Translate a Bevy `Activate` gesture through the shared application
-/// topology-navigation policy, inject drilldown filtering, and trigger route event.
+/// Translate a Bevy `Activate` gesture on a topology stage into the shared
+/// application drilldown.
+///
+/// The activation opens the Overview page's own drilldown panel: the stage's
+/// result is rendered on the page that owns the topology, and the shared
+/// navigation target is offered *inside* that panel. The business therefore
+/// never leaves its own page to show its outcome.
 pub(crate) fn on_topology_stage_activated(
     activate: On<Activate>,
     buttons: Query<&TopologyStageButton>,
@@ -446,9 +451,6 @@ pub(crate) fn on_topology_stage_activated(
     if !button.enabled {
         return;
     }
-    let Some(page) = traffic_topology_projection::page_for_stage(button.stage) else {
-        return;
-    };
 
     // Extract filter keyword from the topology stage node detail
     let filter_query = last_overview
@@ -473,14 +475,6 @@ pub(crate) fn on_topology_stage_activated(
             filter_query,
         });
     }
-
-    let route = match page {
-        PageId::Settings => Route::Settings,
-        PageId::Rules => Route::Rules,
-        PageId::Proxies => Route::Proxies,
-        _ => return,
-    };
-    commands.trigger(RouteChanged(route));
 }
 
 /// Sync overview topology chain responsive layout according to layout mode.

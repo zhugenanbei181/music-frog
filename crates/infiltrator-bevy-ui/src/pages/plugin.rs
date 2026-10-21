@@ -1,5 +1,6 @@
 //! Product assembly owns page resources and observers; route entities carry no wiring hooks.
 use crate::pages::app_routing::AppRoutingPagePlugin;
+use crate::pages::command_outcome::CommandOutcomePlugin;
 use crate::pages::connections::ConnectionsPagePlugin;
 use crate::pages::dns::DnsPagePlugin;
 use crate::pages::doctor::DoctorPagePlugin;
@@ -29,6 +30,7 @@ pub struct PageBindingsPlugin;
 impl Plugin for PageBindingsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
+            CommandOutcomePlugin,
             OverviewPagePlugin,
             ProxiesPagePlugin,
             ProfilesPagePlugin,
@@ -42,6 +44,8 @@ impl Plugin for PageBindingsPlugin {
             SettingsPagePlugin,
             feedback::FeedbackPlugin,
             chaos_console::ChaosConsolePlugin,
+        ));
+        app.add_plugins((
             widget_sandbox::WidgetSandboxPlugin,
             acceptance_list::AcceptanceListPlugin,
         ));

@@ -26,6 +26,7 @@ use filter_support::{filter_field_entity, filter_field_text};
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
+use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::connections::*;
 use infiltrator_bevy_ui::pages::connections_confirm::{
     CloseAllConfirmationAction, CloseAllConfirmationRoot, RequestCloseAllConfirmation,
@@ -34,6 +35,7 @@ use infiltrator_bevy_ui::pages::connections_drawer::*;
 use infiltrator_bevy_ui::pages::connections_idle::*;
 use infiltrator_bevy_ui::pages::connections_view::*;
 use infiltrator_bevy_ui::pages::logs::*;
+use infiltrator_bevy_ui::pages::page_models::RulesPageModelState;
 use infiltrator_bevy_ui::pages::profiles::*;
 use infiltrator_bevy_ui::pages::profiles_aggregator::{
     AddAggregatorCustomGroupButton, AggregatorCustomGroupKeywordsField,
@@ -56,6 +58,9 @@ use infiltrator_bevy_ui::pages::profiles_import_channels::{
     ImportSubscriptionNameField, ImportSubscriptionUrlButton, ImportSubscriptionUrlField,
     SaveSubscriptionFilterButton, SubscriptionFilterIncludeField,
 };
+use infiltrator_bevy_ui::pages::profiles_outcome::{
+    ProfileDeleteOutcomeText, ProfileImportOutcomeText, ProfileRefreshText,
+};
 use infiltrator_bevy_ui::pages::profiles_subscription_policy::{
     SaveSubscriptionAutoReloadButton, SaveSubscriptionPolicyButton, SubscriptionAutoReloadToggle,
     SubscriptionPolicyCronField, SubscriptionPolicyIntervalField,
@@ -70,6 +75,9 @@ use infiltrator_bevy_ui::pages::rules_edit::{
     RuleMoveDownButton, RuleMoveUpButton, RuleToggleButton,
 };
 use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButton};
+use infiltrator_bevy_ui::pages::rules_outcome::{
+    RuleProviderFailureText, RuleProviderRefreshButton,
+};
 use infiltrator_bevy_ui::pages::rules_projection::{RuleTypeBadge, RuleTypeText};
 use infiltrator_bevy_ui::pages::rules_subrules::{
     RulesSubRuleState, SubRuleConditionRow, SubRuleInsertButton, SubRuleOperatorChip,
@@ -95,10 +103,14 @@ use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationReport,
 };
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command::RequestId;
+use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
+use infiltrator_contract::rule_provider_runtime::{RuleProviderId, RuleProviderRevision};
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
@@ -109,6 +121,7 @@ use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use infiltrator_test_support::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;
@@ -430,6 +443,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
                 ..Default::default()
             },
             write_protection: ProfileWriteProtection::RemoteSubscription,
+            failure: None,
         }],
     }
 }
@@ -572,6 +586,9 @@ mod profiles_auto;
 mod profiles_delete;
 #[path = "pages_matrix_a_tests/profiles_editor.rs"]
 mod profiles_editor;
+
+#[path = "pages_matrix_a_tests/profiles_editor_large.rs"]
+mod profiles_editor_large;
 
 #[path = "pages_matrix_a_tests/profiles_editor_locale.rs"]
 mod profiles_editor_locale;

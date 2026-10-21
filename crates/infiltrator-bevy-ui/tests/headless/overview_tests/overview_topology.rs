@@ -57,17 +57,44 @@ fn overview_topology_hover_chain_highlight_and_activation_drilldown() {
         assert_eq!(plate.0.hovered_stage, None);
     }
 
-    // 5. Activate the RuleSet button and verify drilldown navigation and filter injection.
+    // 5. Activate the RuleSet button: the drilldown opens on the Overview page.
     app.world_mut().commands().trigger(Activate {
         entity: ruleset_button_entity,
     });
     app.update();
 
-    // Verify navigation landed on Rules page
-    assert_eq!(page_root(app.world_mut()).1, Route::Rules);
+    // The business shows its result on its own page: the route never leaves
+    // the Overview page.
+    assert_eq!(page_root(app.world_mut()).1, Route::Overview);
 
     // Verify TopologyDrilldownFilter resource contains RuleSet stage and demo detail query
     let drilldown = app.world().resource::<TopologyDrilldownFilter>();
     assert_eq!(drilldown.stage, Some(TrafficTopologyStage::RuleSet));
     assert_eq!(drilldown.filter_query.as_deref(), Some("MRS / GeoIP"));
+
+    // The drilldown panel is visible and renders the stage's own result.
+    {
+        let world = app.world_mut();
+        let mut panels = world.query::<(&TopologyDrilldownPanel, &Node)>();
+        let (_, panel) = panels
+            .single(world)
+            .expect("the drilldown panel is mounted");
+        assert_eq!(panel.display, Display::Flex);
+    }
+    {
+        let world = app.world_mut();
+        let mut texts = world.query::<(&TopologyDrilldownText, &Text)>();
+        let (_, text) = texts.single(world).expect("the drilldown result line");
+        assert!(
+            text.0.contains("RuleSet"),
+            "the drilldown shows the activated stage, got {}",
+            text.0
+        );
+    }
+    {
+        let world = app.world_mut();
+        let mut texts = world.query::<(&TopologyDrilldownKeywordText, &Text)>();
+        let (_, text) = texts.single(world).expect("the drilldown keyword line");
+        assert_eq!(text.0, "MRS / GeoIP");
+    }
 }
