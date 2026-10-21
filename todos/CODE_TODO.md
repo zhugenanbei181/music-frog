@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 194 pt（66 条）/ 过去佛 117 pt（46 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
+- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 191 pt（65 条）/ 过去佛 120 pt（47 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
 - 本板 67 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -116,13 +116,6 @@
 - **cargo 纪律（减少 cargo 次数）**：并行期**禁止各流跑 nextest/clippy/build**，每条流的编译验证与像素取证统一走捕获脚本 `bash scripts/capture-bevy-matrix.sh <场景>`（脚本自建 Bevy 二进制，兼作编译检查），全仓 nextest 与结构门由收口流在末批**只跑一次**；捕获是共享资源，同一时刻只允许一条流在跑。
 - **依赖与次序**：001（`shell_readout.rs`）、004（规则列表接官方 Scrollbar）、006（日志行内排版接 InlineBox）与 BEVY-020.1 的三条流**抢同一批文件**，按"0.20 流先落、视觉整改后落"的次序排队；002/003/005/007 与 0.20 流文件不重叠，立即并行开工。
 
-
-
-- [ ] BEVYUI-004 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 规则系统与分段标签收口（#53~#68）
-  - 产物：解决 #53 头部堆砌技术日志长文本、#54 辅助操作按钮体积过大、#55 Rules 分段标签切换生硬、#56 Retained draft for 悬挂句号、#57 草稿保存丢弃禁用态对比度过低、#58 分页工具栏插在搜索栏右侧压缩空间、#59 长规则列表缺失滚动条退化分页、#60 规则行圆角梯级白线框杂乱、#61 规则序号未等宽对齐、#62 匹配类型徽标色彩单调、#63 目标动作 DIRECT/REJECT 缺乏语义色彩、#64 Toggle rule 样式割裂、#65 重排序箭头蓝底黑图对比度反转、#66 命中统计与状态纯文本混杂、#67 编辑抽屉无渐入动效、#68 JSON Editor 缺乏代码高亮与行号槽。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
-  - 验收：消除长文本堆砌，规则列表接入官方 Scrollbar，双视口像素回执通过。
-  - 计划：重构 rules_tabs.rs 与 rules_view.rs，将分页工具栏移出并接入滚动条。
 
 
 
@@ -501,6 +494,7 @@
   - 追加（日志簇交付时提出）：软折行开关的可见文案需要两个本地化键 `logs_wrap_soft`（自动换行/Soft wrap）与 `logs_wrap_single`（单行显示/Single line），落在 `infiltrator-shared/src/locales_table_ext.rs` 与 `locales_table_en_ext.rs`，随后由日志页消费。
   - 追加（焦点真源流交付时提出）：`crates/infiltrator-bevy-widgets/src/lib.rs` 由**控件层**拥有按钮的官方焦点标记 `app.register_required_components::<Button, TabIndex>()`（现由壳层插件注册，owner 位置不对）。
   - 追加（捕获几何簇交付时提出，**契约级改动，不得半落地**）：新增业务 `DoctorRepairProgress` 需要连带落地五处——① `crates/infiltrator-contract/src/parity.rs` 的 `DoctorRepairProgress => ("doctor-repair-progress", "doctor", "doctor", "doctor", ["pending", "success", "error", "retry"])` 及其 typed `FeatureId` 变体（三个表面的 carried 列表与 spec 表同步）；② `scripts/parity/cross_surface_manifest.tsv` 三行（iced/slint `pending`+理由，bevy `implemented`）；③ `scripts/parity/feature_evidence.tsv` 六行（bevy 的 contract/scenario 两行 `anchored`，其余 `pending`）；④ `scripts/capture_bevy_scenarios.tsv` 两行（`doctor-repair-progress-standard` 1180x780、`-compact` 720x480）；⑤ `crates/infiltrator-test-support/src/doctor_capture_fixtures.rs` 的 owner 侧 `hold_pending()`（可选：捕获侧已用 `AnswerDelivery::Hold` 留住 owner 的答复，owner 侧挂起是备选）。捕获侧已用注册表稳定 id 暂代 typed 变体，落地后必须换成 typed 变体。
+  - 追加（规则簇交付时提出，共 8 项，逐项见该条目的「共享改动需求」）：空档案名的草稿文案键、禁用墨对比度、`modern_surface.wesl` 边框 alpha 丢弃（全应用卡片边框的根因）、滚动条滑块墨色、命中统计拆分、代码编辑器按 token 着色、抽屉过渡驱动、规则页双视口捕获场景行。
   - 依赖：与 `BEVYUI-003R` 同属共享层批次，收口流须把两批共享改动合并成一次落地，避免两条流同时改 `widgets/src/` 与 `infiltrator-shared/src/`。
   - 验收：图标盒走 rem 通道（`bevy_rem_guard` 零新增物理 px 命名值）、路由图标不再重复、悬停与 tooltip 有双视口像素回执。
   - 事实依据：2026-10-21 壳层整改交付时给出的三段共享改动需求（文件 + 符号 + 可落地片段）。
