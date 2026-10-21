@@ -1,6 +1,5 @@
 //! Behaviour of the isolated profile-store port fixture.
 
-use std::slice;
 use infiltrator_contract::aggregator::{AggregationDraft, AggregationTemplate};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
@@ -9,6 +8,7 @@ use infiltrator_test_support::profile_store_fixtures::{
 };
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_ports::error::PortError;
+use std::slice;
 
 fn profile_id(name: &str) -> ProfileId {
     ProfileId::new(name).expect("valid capture profile ID")
