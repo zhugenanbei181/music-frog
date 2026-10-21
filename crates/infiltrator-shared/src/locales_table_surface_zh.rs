@@ -182,7 +182,7 @@ pub(super) fn translate_surface_zh(key: &str) -> Cow<'static, str> {
         "acceptance_list_title" => "验收清单 · {scenario}".into(),
         "acceptance_list_desc" => "50 行虚拟列表状态机验收 · 视口高度 {viewport}px · 行高 {row}px".into(),
         "acceptance_btn_top" => "顶部".into(),
-        "acceptance_btn_center" => "居中 (25)".into(),
+        "acceptance_btn_reveal" => "显示 (25)".into(),
         "acceptance_btn_bottom" => "底部 (50)".into(),
         "acceptance_btn_menu" => "操作菜单 ▼".into(),
         "touch_diag_not_entered_bevy" => "触摸未入 Bevy：Android 原生 MotionEvent 未转换为 winit TouchInput".into(),

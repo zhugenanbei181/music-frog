@@ -9,6 +9,20 @@ use image::{ImageFormat, RgbaImage};
 #[cfg(any(feature = "capture-tools", test))]
 use std::sync::atomic::Ordering;
 
+/// How many consecutive native readbacks must repeat the same pixels before
+/// the capture publishes that frame.
+///
+/// The compositor receipt is compared against the published readback, so the
+/// capture may only publish a frame the compositor shows as well. A pointer
+/// that settles on a control, an entrance that finishes, or any other late
+/// visual change lands *after* the first readback: the surface then renders a
+/// different native frame and the compositor shows that one. Requiring the
+/// surface to repeat the same frame for a full window of readbacks proves the
+/// surface has settled, so the published frame is the frame the compositor
+/// still shows.
+pub(crate) const SETTLED_READBACKS: u8 = 8;
+
+/// The native frame the capture published.
 #[derive(Default)]
 pub struct CaptureFrameGate {
     revision: u64,
@@ -16,6 +30,10 @@ pub struct CaptureFrameGate {
     redraws: u8,
     pending: bool,
     ready: bool,
+    /// The pixels of the previous native readback.
+    previous: Option<Vec<u8>>,
+    /// How many consecutive readbacks repeated [`Self::previous`].
+    repeated: u8,
 }
 
 impl CaptureFrameGate {
@@ -99,6 +117,8 @@ impl AppState {
         self.shell.capture_frame.pending = false;
         if !valid {
             self.shell.capture_frame.redraws = 0;
+            self.shell.capture_frame.previous = None;
+            self.shell.capture_frame.repeated = 0;
             return;
         }
         let Some(parent) = self
@@ -109,6 +129,21 @@ impl AppState {
         else {
             return;
         };
+        // The readback tells whether the surface still renders the frame the
+        // previous readback showed. A surface that changed resets the window:
+        // the capture keeps reading back instead of publishing a frame the
+        // compositor has already left behind.
+        let pixels = screenshot.rgba.as_ref();
+        let gate = &mut self.shell.capture_frame;
+        if gate.previous.as_deref() == Some(pixels) {
+            gate.repeated = gate.repeated.saturating_add(1);
+        } else {
+            gate.previous = Some(pixels.to_vec());
+            gate.repeated = 1;
+        }
+        if gate.repeated < SETTLED_READBACKS {
+            return;
+        }
         let Some(image) = RgbaImage::from_raw(
             screenshot.size.width,
             screenshot.size.height,

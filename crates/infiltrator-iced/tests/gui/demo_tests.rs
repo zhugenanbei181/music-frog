@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
+use crate::capture_frame::SETTLED_READBACKS;
 use crate::types::options::EditorPane;
 use crate::types::runtime::RuntimeStatus;
 use crate::view::theme::{FOREST, forest_theme, is_forest, theme_to_name, tokens};
@@ -181,15 +182,21 @@ fn capture_marker_is_idempotent_and_formats_the_contract_line() {
     assert_eq!(state.capture_frame_task().units(), 0);
     assert!(state.capture_frame_task().units() > 0);
     let size = Size::new(DEFAULT_WINDOW.0 as u32, DEFAULT_WINDOW.1 as u32);
-    state.finish_capture_frame(
-        state.surface.revision(),
-        None,
-        Screenshot::new(
-            [30u8, 60, 90, 255].repeat((size.width * size.height) as usize),
-            size,
-            1.0,
-        ),
+    let frame = Screenshot::new(
+        [30u8, 60, 90, 255].repeat((size.width * size.height) as usize),
+        size,
+        1.0,
     );
+    // The receipt is published only once the surface repeats the frame: the
+    // compositor receipt is compared against that very readback.
+    for _ in 0..SETTLED_READBACKS {
+        for _ in 0..4 {
+            if state.capture_frame_task().units() > 0 {
+                break;
+            }
+        }
+        state.finish_capture_frame(state.surface.revision(), None, frame.clone());
+    }
     state.write_capture_marker();
     state.write_capture_marker();
 

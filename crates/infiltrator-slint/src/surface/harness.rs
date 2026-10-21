@@ -262,6 +262,31 @@ impl SurfaceHarness {
         self.drive(|| window.set_profile_add_open(true))
     }
 
+    /// Opens the clear-traffic confirmation, exactly as its traffic tile does.
+    ///
+    /// The confirmation is the toolkit's popup window, so the surface only
+    /// asks the popup to open and the popup owns the open state.
+    pub fn open_clear_traffic_dialog(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_open_clear_traffic_dialog())
+    }
+
+    /// Whether the toolkit's clear-traffic popup is open.
+    pub fn clear_traffic_dialog_open(&self) -> bool {
+        self.window.get_clear_traffic_dialog_open()
+    }
+
+    /// Opens the network-mode confirmation, exactly as its control does.
+    pub fn open_network_mode_dialog(&self, draft: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_open_network_mode_dialog(draft.into()))
+    }
+
+    /// Whether the toolkit's network-mode popup is open.
+    pub fn network_mode_dialog_open(&self) -> bool {
+        self.window.get_network_mode_dialog_open()
+    }
+
     /// Dismisses the add-profile sheet, exactly as its close button does.
     pub fn cancel_profile_add(&self) -> SurfaceOutcome {
         let window = &self.window;

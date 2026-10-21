@@ -43,42 +43,51 @@ export component AppBottomBar inherits Rectangle {
     }
 }
 
-export component ClearTrafficDialog inherits Rectangle {
+export component ClearTrafficDialog inherits PopupWindow {
     in property <bool> compact-layout;
 
     callback cancel();
     callback confirm();
 
-    x: 0;
-    y: 0;
+    // The modal overlay is the toolkit's popup: it owns the layer above the
+    // page, the input focus and the open/close lifecycle. The scrim and the
+    // card stay the product's skin.
+    close_policy: no_auto_close;
     width: 100%;
     height: 100%;
-    background: #99000000;
 
     Rectangle {
-        x: root.compact-layout ? 16px * LumenUiScale.factor : (parent.width - 420px * LumenUiScale.factor) / 2;
-        y: (parent.height - 180px * LumenUiScale.factor) / 2;
-        width: root.compact-layout ? parent.width - 32px * LumenUiScale.factor : 420px * LumenUiScale.factor;
-        height: 180px * LumenUiScale.factor;
-        border-radius: 12px * LumenUiScale.factor;
-        background: LumenTheme.surface;
-        border-width: 1px * LumenUiScale.factor;
-        border-color: LumenTheme.border;
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        background: #99000000;
 
-        VerticalLayout {
-            x: 20px * LumenUiScale.factor;
-            y: 18px * LumenUiScale.factor;
-            width: parent.width - 40px * LumenUiScale.factor;
-            height: parent.height - 36px * LumenUiScale.factor;
-            spacing: 10px * LumenUiScale.factor;
+        Rectangle {
+            x: root.compact-layout ? 16px * LumenUiScale.factor : (parent.width - 420px * LumenUiScale.factor) / 2;
+            y: (parent.height - 180px * LumenUiScale.factor) / 2;
+            width: root.compact-layout ? parent.width - 32px * LumenUiScale.factor : 420px * LumenUiScale.factor;
+            height: 180px * LumenUiScale.factor;
+            border-radius: 12px * LumenUiScale.factor;
+            background: LumenTheme.surface;
+            border-width: 1px * LumenUiScale.factor;
+            border-color: LumenTheme.border;
 
-            Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 650; }
-            Text { text: @tr("将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
-            Rectangle { vertical-stretch: 1; background: transparent; }
-            HorizontalLayout {
-                Rectangle { horizontal-stretch: 1; background: transparent; }
-                Button { text: @tr("取消"); clicked => { root.cancel(); } }
-                Button { text: @tr("清空"); clicked => { root.confirm(); } }
+            VerticalLayout {
+                x: 20px * LumenUiScale.factor;
+                y: 18px * LumenUiScale.factor;
+                width: parent.width - 40px * LumenUiScale.factor;
+                height: parent.height - 36px * LumenUiScale.factor;
+                spacing: 10px * LumenUiScale.factor;
+
+                Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 650; }
+                Text { text: @tr("将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
+                Rectangle { vertical-stretch: 1; background: transparent; }
+                HorizontalLayout {
+                    Rectangle { horizontal-stretch: 1; background: transparent; }
+                    Button { text: @tr("取消"); clicked => { root.cancel(); } }
+                    Button { text: @tr("清空"); clicked => { root.confirm(); } }
+                }
             }
         }
     }

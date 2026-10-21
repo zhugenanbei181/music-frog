@@ -11,10 +11,12 @@ use crate::view::svg_icons::Icon;
 use crate::view::theme::Tokens;
 use crate::view::{svg_icons, theme};
 use canvas::gradient::Linear;
-use iced::widget::{Scrollable, Space, button, canvas, column, container, row, scrollable, text};
+use iced::advanced::text::Renderer;
+use iced::widget::{
+    Scrollable, Space, button, canvas, column, container, row, scrollable, text, toggler,
+};
 use iced::{
-    Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector,
-    border, mouse,
+    Border, Color, Element, Length, Point, Rectangle, Shadow, Theme, Vector, border, mouse,
 };
 use zhuge_ui_kit_iced::surface::{self, BadgeGeometry, SurfaceGeometry, rgba, surface_style};
 use zhuge_ui_tokens::surface::SurfaceColors;
@@ -366,7 +368,7 @@ impl<Message> canvas::Program<Message> for ShimmerSkeleton {
     fn draw(
         &self,
         _state: &Self::State,
-        renderer: &Renderer,
+        renderer: &iced::Renderer,
         theme: &Theme,
         bounds: Rectangle,
         _cursor: mouse::Cursor,
@@ -584,86 +586,73 @@ pub fn icon_button<'a, Message: 'a + Clone>(
         .into()
 }
 
-/// Canvas-drawn iOS-style toggle: 44x26 pill, sliding 22px knob.
-struct Switch {
-    value: bool,
-}
+/// The switch geometry.
+///
+/// The toolkit's toggle switch is a 2:1 pill, so the product's 44 px wide
+/// switch keeps its width and takes the toolkit's height from it.
+const SWITCH_SIZE_PX: f32 = 22.0;
 
-impl<Message> canvas::Program<Message> for Switch {
-    type State = ();
+/// The knob inset as a ratio of the switch height. The toolkit rounds it to
+/// whole pixels, so this keeps the knob two pixels inside the track.
+const SWITCH_PADDING_RATIO: f32 = 0.09;
 
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &Renderer,
-        theme: &Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<canvas::Geometry> {
-        let tk = theme::tokens(theme);
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
-        let height = 26.0_f32.min(bounds.height);
-        let radius = height / 2.0;
-        let track_size = Size::new(bounds.width.min(44.0), height);
-        let track = if self.value {
-            tk.accent
+/// The product's skin for the toolkit's toggle switch.
+///
+/// The toolkit owns the switch geometry and the interaction; the product only
+/// owns the colours, so the track, the knob and the pill radius live here.
+fn switch_style(t: &Theme, status: toggler::Status) -> toggler::Style {
+    let tk = theme::tokens(t);
+    let is_toggled = match status {
+        toggler::Status::Active { is_toggled }
+        | toggler::Status::Hovered { is_toggled }
+        | toggler::Status::Disabled { is_toggled } => is_toggled,
+    };
+    toggler::Style {
+        background: if is_toggled {
+            tk.accent.into()
         } else {
-            tk.switch_track
-        };
-        frame.fill(
-            &canvas::Path::rounded_rectangle(
-                Point::ORIGIN,
-                track_size,
-                border::Radius::from(radius),
-            ),
-            track,
-        );
-
-        let knob_radius = radius - 2.0;
-        let inset = 2.0;
-        let knob_x = if self.value {
-            track_size.width - knob_radius - inset
-        } else {
-            knob_radius + inset
-        };
-        let knob_y = radius;
-
-        frame.fill(
-            &canvas::Path::circle(Point::new(knob_x, knob_y + 0.5), knob_radius),
-            Color {
-                a: 0.20,
-                ..Color::BLACK
-            },
-        );
-        frame.fill(
-            &canvas::Path::circle(Point::new(knob_x, knob_y), knob_radius),
-            tk.switch_knob,
-        );
-
-        vec![frame.into_geometry()]
+            tk.switch_track.into()
+        },
+        foreground: tk.switch_knob.into(),
+        foreground_border_width: 0.0,
+        foreground_border_color: Color::TRANSPARENT,
+        background_border_width: 0.0,
+        background_border_color: Color::TRANSPARENT,
+        text_color: None,
+        border_radius: Some(border::Radius::from(SWITCH_SIZE_PX / 2.0)),
+        padding_ratio: SWITCH_PADDING_RATIO,
     }
 }
 
-/// iOS-style toggle switch (26pt tall pill, sliding knob). Emits
-/// `on_change(!value)` when pressed.
-pub fn toggle_switch<'a, Message: 'a + Clone>(
+/// The switch control: the toolkit's own toggle switch.
+///
+/// The behaviour belongs to [`iced::widget::toggler`]: a press publishes the
+/// toggled value, and an action the surface refuses leaves the control inert.
+/// The product keeps only the skin.
+pub fn toggle_switch<'a, Message, R>(
     value: bool,
     on_change: impl Fn(bool) -> Message + 'a,
-) -> Element<'a, Message> {
+) -> Element<'a, Message, Theme, R>
+where
+    Message: 'a + Clone,
+    R: Renderer + 'a,
+{
     toggle_switch_with_actions(value, move |value| Some(on_change(value)))
 }
 
-pub fn toggle_switch_with_actions<'a, Message: 'a + Clone>(
+pub fn toggle_switch_with_actions<'a, Message, R>(
     value: bool,
     on_change: impl Fn(bool) -> Option<Message> + 'a,
-) -> Element<'a, Message> {
-    button(canvas::Canvas::new(Switch { value }).width(44).height(26))
-        .padding(0)
-        .style(|_t: &Theme, _status| button::Style {
-            background: None,
-            ..Default::default()
-        })
-        .on_press_maybe(on_change(!value))
+) -> Element<'a, Message, Theme, R>
+where
+    Message: 'a + Clone,
+    R: Renderer + 'a,
+{
+    let message = on_change(!value);
+    toggler(value)
+        .size(SWITCH_SIZE_PX)
+        .style(switch_style)
+        .on_toggle_maybe(message.map(|message| move |_| message.clone()))
         .into()
 }
 
@@ -861,6 +850,10 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
 #[cfg(test)]
 #[path = "../../tests/gui/view_components_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/gui/toggle_switch_tests.rs"]
+mod toggle_switch_tests;
 
 /// Compact icon button for the responsive rail mode sidebar.
 pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Message> {

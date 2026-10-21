@@ -14,7 +14,6 @@ export component SettingsOverlays inherits Rectangle {
     in property <string> user-agent-error;
     in property <bool> user-agent-saving;
     in property <string> network-mode-draft-label;
-    in property <bool> network-mode-dialog-open;
 
     in-out property <float> theme-hue-draft;
     in-out property <float> theme-saturation-draft;
@@ -90,7 +89,16 @@ export component SettingsOverlays inherits Rectangle {
         save(draft) => { root.save-user-agent(draft); }
     }
 
-    if root.network-mode-dialog-open: NetworkModeConfirmDialog {
+    // The network-mode confirmation is the toolkit's popup window, so the
+    // popup owns the open/close lifecycle and this property only reads it.
+    out property <bool> network-mode-dialog-open: network-mode-dialog.is-open;
+
+    public function show-network-mode() { network-mode-dialog.show(); }
+    public function close-network-mode() { network-mode-dialog.close(); }
+
+    network-mode-dialog := NetworkModeConfirmDialog {
+        width: root.width;
+        height: root.height;
         compact-layout: root.compact-layout;
         network-mode-draft-label: root.network-mode-draft-label;
         cancel => { root.cancel-network-mode(); }

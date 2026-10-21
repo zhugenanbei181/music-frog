@@ -175,31 +175,43 @@ export component UserAgentSheet inherits ModalBottomSheet {
     }
 }
 
-export component NetworkModeConfirmDialog inherits Rectangle {
+export component NetworkModeConfirmDialog inherits PopupWindow {
     in property <bool> compact-layout;
     in property <string> network-mode-draft-label;
 
     callback cancel();
     callback confirm();
 
-    x: 0; y: 0; width: 100%; height: 100%;
-    background: #99000000;
+    // The modal overlay is the toolkit's popup: it owns the layer above the
+    // page, the input focus and the open/close lifecycle. The scrim and the
+    // card stay the product's skin.
+    close_policy: no_auto_close;
+    width: 100%;
+    height: 100%;
 
     Rectangle {
-        x: root.compact-layout ? 12px * LumenUiScale.factor : (parent.width - 480px * LumenUiScale.factor) / 2;
-        y: (parent.height - 230px * LumenUiScale.factor) / 2;
-        width: root.compact-layout ? parent.width - 24px * LumenUiScale.factor : 480px * LumenUiScale.factor;
-        height: 230px * LumenUiScale.factor; border-radius: 12px * LumenUiScale.factor;
-        background: LumenTheme.surface; border-width: 1px * LumenUiScale.factor; border-color: LumenTheme.border;
-        VerticalLayout {
-            x: 22px * LumenUiScale.factor; y: 20px * LumenUiScale.factor; width: parent.width - 44px * LumenUiScale.factor; height: parent.height - 40px * LumenUiScale.factor; spacing: 12px * LumenUiScale.factor;
-            Text { text: @tr("切换网络接管模式？"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 650; }
-            Text { text: @tr("将停止当前 Mihomo，再以「") + root.network-mode-draft-label + @tr("」重新启动；切换期间网络可能短暂中断。若配置校验或平台状态确认失败，Runtime 会保持停止并显示恢复提示。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
-            Rectangle { vertical-stretch: 1; background: transparent; }
-            HorizontalLayout {
-                Rectangle { horizontal-stretch: 1; background: transparent; }
-                Button { text: @tr("取消"); clicked => { root.cancel(); } }
-                Button { text: @tr("切换并重启"); clicked => { root.confirm(); } }
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        background: #99000000;
+
+        Rectangle {
+            x: root.compact-layout ? 12px * LumenUiScale.factor : (parent.width - 480px * LumenUiScale.factor) / 2;
+            y: (parent.height - 230px * LumenUiScale.factor) / 2;
+            width: root.compact-layout ? parent.width - 24px * LumenUiScale.factor : 480px * LumenUiScale.factor;
+            height: 230px * LumenUiScale.factor; border-radius: 12px * LumenUiScale.factor;
+            background: LumenTheme.surface; border-width: 1px * LumenUiScale.factor; border-color: LumenTheme.border;
+            VerticalLayout {
+                x: 22px * LumenUiScale.factor; y: 20px * LumenUiScale.factor; width: parent.width - 44px * LumenUiScale.factor; height: parent.height - 40px * LumenUiScale.factor; spacing: 12px * LumenUiScale.factor;
+                Text { text: @tr("切换网络接管模式？"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; font-weight: 650; }
+                Text { text: @tr("将停止当前 Mihomo，再以「") + root.network-mode-draft-label + @tr("」重新启动；切换期间网络可能短暂中断。若配置校验或平台状态确认失败，Runtime 会保持停止并显示恢复提示。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
+                Rectangle { vertical-stretch: 1; background: transparent; }
+                HorizontalLayout {
+                    Rectangle { horizontal-stretch: 1; background: transparent; }
+                    Button { text: @tr("取消"); clicked => { root.cancel(); } }
+                    Button { text: @tr("切换并重启"); clicked => { root.confirm(); } }
+                }
             }
         }
     }

@@ -139,7 +139,9 @@ export component AppWindow inherits MaterialWindow {
     in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证");
     in-out property <string> lan-sharing-heading: "";
     in-out property <string> lan-sharing-detail: "";
-    in-out property <bool> network-mode-dialog-open: false;
+    // The network-mode confirmation is the toolkit's popup window, so the
+    // popup owns the open/close lifecycle and this property only reads it.
+    out property <bool> network-mode-dialog-open: settings-overlays.network-mode-dialog-open;
     in-out property <string> network-mode-draft: "";
     in-out property <string> notice: "";
     in-out property <string> snapshot-window-warning: "";
@@ -209,7 +211,9 @@ export component AppWindow inherits MaterialWindow {
     in-out property <bool> traffic-week-has-data: false;
     in-out property <string> traffic-range: "today";
     in-out property <string> traffic-selected-detail: "";
-    in-out property <bool> clear-traffic-dialog-open: false;
+    // The clear-traffic confirmation is the toolkit's popup window, so the
+    // popup owns the open/close lifecycle and this property only reads it.
+    out property <bool> clear-traffic-dialog-open: clear-traffic-dialog.is-open;
     in-out property <[ObservationRow]> traffic-samples: [];
     in-out property <[ObservationRow]> rules: [];
     in-out property <[ObservationRow]> providers: [];
@@ -364,6 +368,11 @@ export component AppWindow inherits MaterialWindow {
     changed profiles => { if root.profile-add-open && root.profiles.length > root.profile-count-at-open { root.close-profile-add(); } }
 
     function update-color-scheme() { LumenTheme.dark-mode = root.application-dark-mode; MaterialPalette.schemes = LumenTheme.material-schemes; root.color-scheme-changed(root.application-dark-mode); }
+
+    // The window's own gesture entry points for the toolkit popups it owns.
+    // The popups own their open state, so these functions are the only way in.
+    public function open-clear-traffic-dialog() { clear-traffic-dialog.show(); }
+    public function open-network-mode-dialog(draft: string) { root.network-mode-draft = draft; settings-overlays.show-network-mode(); }
     function locate-current-node() { app-body.locate-current-node(root.proxy-active-node-position, root.proxy-current-node-available); }
     function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; root.profile-type-menu-open = false; root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
     function close-profile-add() { root.profile-add-open = false; root.profile-type-menu-open = false; root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; }
@@ -450,7 +459,7 @@ export component AppWindow inherits MaterialWindow {
         select-group(g) => { root.selected-group = g; } select-proxy(g, n) => { root.select-proxy(g, n); }
         search-proxy-nodes(q) => { root.search-proxy-nodes(q); } test-proxy(g, n) => { root.test-proxy(g, n); }
         set-route-mode(m) => { root.set-route-mode(m); }
-        request-network-mode-change(m) => { root.network-mode-draft = m; root.network-mode-dialog-open = true; }
+        request-network-mode-change(m) => { root.open-network-mode-dialog(m); }
         check-core => { root.check-core(); } set-auto-start(v) => { root.set-auto-start(v); }
         set-refresh-profile-on-start(v) => { root.set-refresh-profile-on-start(v); }
         set-invert-theme-foreground(v) => { root.set-invert-theme-foreground(v); }
@@ -478,7 +487,7 @@ export component AppWindow inherits MaterialWindow {
         search-logs(q) => { root.search-logs(q); } set-log-level(l) => { root.set-log-level(l); }
         export-logs => { root.export-logs(); } search-rules(q) => { root.search-rules(q); }
         toggle-rule(i, en) => { root.set-rule-enabled(i, en); } update-provider(id) => { root.update-provider(id); }
-        open-clear-dialog => { root.clear-traffic-dialog-open = true; }
+        open-clear-dialog => { root.open-clear-traffic-dialog(); }
         search-licenses(q) => { root.search-licenses(q); } retry-license-catalog => { root.retry-license-catalog(); }
         select-license(item) => {
         root.license-detail-name = item.name; root.license-detail-version = item.version; root.license-detail-identifier = item.identifier; root.license-detail-text = ""; root.license-detail-error = "";
@@ -540,10 +549,12 @@ export component AppWindow inherits MaterialWindow {
         }
     }
 
-    if root.clear-traffic-dialog-open: ClearTrafficDialog {
+    clear-traffic-dialog := ClearTrafficDialog {
+        width: root.width;
+        height: root.height;
         compact-layout: root.compact-layout;
-        cancel => { root.clear-traffic-dialog-open = false; }
-        confirm => { root.clear-traffic-history(); root.clear-traffic-dialog-open = false; root.traffic-selected-detail = ""; }
+        cancel => { clear-traffic-dialog.close(); }
+        confirm => { root.clear-traffic-history(); clear-traffic-dialog.close(); root.traffic-selected-detail = ""; }
     }
 
     app-theme-menu := PopupMenu {
@@ -567,7 +578,7 @@ export component AppWindow inherits MaterialWindow {
     settings-overlays := SettingsOverlays {
         width: root.width; height: root.height; app-settings-bottom-inset: root.app-settings-bottom-inset; profile-dialog-content-width: root.profile-dialog-content-width; theme-sheet-height: min(540px * LumenUiScale.factor, max(0px * LumenUiScale.factor, root.height - root.safe-area-insets.top - root.app-settings-bottom-inset - 40px * LumenUiScale.factor));
         user-agent-sheet-height: min(root.user-agent-error == "" ? 260px * LumenUiScale.factor : 320px * LumenUiScale.factor, max(0px * LumenUiScale.factor, root.height - root.safe-area-insets.top - root.app-settings-bottom-inset - 60px * LumenUiScale.factor)); android-platform: root.android-platform; layout-debug-bounds: root.layout-debug-bounds; compact-layout: root.compact-layout; product-version: root.product-version; theme-color-error: root.theme-color-error; theme-color-saving: root.theme-color-saving;
-        user-agent-error: root.user-agent-error; user-agent-saving: root.user-agent-saving; network-mode-draft-label: root.network-mode-draft-label; network-mode-dialog-open: root.network-mode-dialog-open;
+        user-agent-error: root.user-agent-error; user-agent-saving: root.user-agent-saving; network-mode-draft-label: root.network-mode-draft-label;
         theme-hue-draft <=> root.theme-hue-draft; theme-saturation-draft <=> root.theme-saturation-draft;
         theme-value-draft <=> root.theme-value-draft; theme-color-code-draft <=> root.theme-color-code-draft;
         theme-color-code-edited <=> root.theme-color-code-edited; page-scale-draft <=> root.page-scale-draft;
@@ -579,8 +590,8 @@ export component AppWindow inherits MaterialWindow {
         apply-page-scale(draft) => { root.page-scale-committing = true; root.page-scale-percent = draft; root.set-page-scale(draft); root.page-scale-dialog-open = false; }
         close-user-agent => { root.user-agent-dialog-open = false; }
         save-user-agent(draft) => { root.user-agent-saving = true; root.user-agent-error = ""; root.save-user-agent(draft); }
-        cancel-network-mode => { root.network-mode-dialog-open = false; root.network-mode-draft = ""; }
-        confirm-network-mode => { root.set-network-mode(root.network-mode-draft); root.network-mode-dialog-open = false; root.network-mode-draft = ""; }
+        cancel-network-mode => { settings-overlays.close-network-mode(); root.network-mode-draft = ""; }
+        confirm-network-mode => { root.set-network-mode(root.network-mode-draft); settings-overlays.close-network-mode(); root.network-mode-draft = ""; }
     }
 
     if root.notice != "" && !root.profile-add-open: NoticeBanner {
