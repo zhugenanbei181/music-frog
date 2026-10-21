@@ -239,7 +239,7 @@ async fn prove_node_speed_test(
     target: &RealProcessTarget,
 ) -> Result<ProofOutcome, String> {
     let deadline = Instant::now() + PROBE_TIMEOUT;
-    let mut last_reason = String::new();
+    let mut last_reason;
     loop {
         match probe_once(outbound, scope, target).await {
             Ok(outcome) => return Ok(outcome),
@@ -306,7 +306,7 @@ async fn probe_once(
 /// startup race.
 async fn prove_traffic_dispatch(target: &RealProcessTarget) -> Result<ProofOutcome, String> {
     let deadline = Instant::now() + DISPATCH_TIMEOUT;
-    let mut last_reason = String::new();
+    let mut last_reason;
     loop {
         match dispatch_once(target).await {
             Ok(detail) => return Ok(ProofOutcome::Proven { detail }),
@@ -550,7 +550,7 @@ async fn wait_for_inventory(
     timeout: Duration,
 ) -> Result<OutboundInventorySnapshot, String> {
     let deadline = Instant::now() + timeout;
-    let mut last_error = String::new();
+    let mut last_error;
     loop {
         match outbound.inventory(scope.clone()).await {
             Ok(snapshot) => {

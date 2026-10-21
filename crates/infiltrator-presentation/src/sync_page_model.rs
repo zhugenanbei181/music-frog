@@ -156,9 +156,7 @@ impl SyncPageModel {
     /// merge selection resolves to the keep-local intent and the surface
     /// still shows what the user chose.
     pub fn resolve_conflict_intent(&self) -> Option<CommandIntent> {
-        if self.conflict().is_none() {
-            return None;
-        }
+        self.conflict()?;
         Some(match self.resolution {
             ConflictResolution::KeepLocal | ConflictResolution::MergeBoth => {
                 CommandIntent::ResolveConflictKeepLocal

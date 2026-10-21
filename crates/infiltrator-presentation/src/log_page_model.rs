@@ -284,7 +284,7 @@ impl LogsPageModel {
     pub fn session_token(&self) -> Option<SessionToken> {
         match &self.page {
             LogPageObservation::Unobserved => None,
-            LogPageObservation::Observed { token, .. } => token.clone(),
+            LogPageObservation::Observed { token, .. } => *token,
         }
     }
 

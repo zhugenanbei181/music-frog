@@ -166,7 +166,7 @@ fn the_android_owner_hands_the_script_export_review_to_the_surface() {
         panic!("the owner produced a typed output");
     };
     assert_eq!(
-        output,
+        *output,
         CommandOutput::ScriptExportPrepared(Box::new(review.clone()))
     );
 
@@ -187,7 +187,7 @@ fn the_android_owner_hands_the_script_export_review_to_the_surface() {
             .export_phase(),
         ScriptExportPhase::Preparing { .. }
     ));
-    assert!(workbenches.settle(Ok(output)));
+    assert!(workbenches.settle(Ok(*output)));
     let script = workbenches.script.lock().expect("script workbench lock");
     let ScriptExportPhase::Review { review: observed } = script.export_phase() else {
         panic!("the export business observed the owner's review");

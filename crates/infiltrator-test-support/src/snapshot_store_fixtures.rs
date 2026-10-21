@@ -27,9 +27,12 @@ pub const CAPTURE_ROOT: &str = "/isolated-snapshots";
 pub const CAPTURE_FIRST_TIMESTAMP_MILLIS: i64 = 1_760_000_000_000;
 
 /// An isolated snapshot store that publishes real snapshot metadata.
+/// The saved snapshots of one profile: the file path and its content.
+type SavedSnapshots = BTreeMap<PathBuf, (SnapshotMeta, String)>;
+
 pub struct SnapshotStoreCapture {
     engine_id: EngineId,
-    snapshots: Mutex<BTreeMap<String, BTreeMap<PathBuf, (SnapshotMeta, String)>>>,
+    snapshots: Mutex<BTreeMap<String, SavedSnapshots>>,
     next_timestamp: Mutex<i64>,
 }
 
@@ -111,7 +114,7 @@ impl SnapshotStore for SnapshotStoreCapture {
             .lock()
             .expect("snapshot capture state")
             .entry(profile.to_owned())
-            .or_insert_with(BTreeMap::new)
+            .or_default()
             .insert(path, (meta.clone(), content.to_owned()));
         Ok(meta)
     }

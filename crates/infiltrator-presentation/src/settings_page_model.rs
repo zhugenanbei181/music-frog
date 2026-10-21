@@ -457,14 +457,12 @@ pub fn observe_settings_page(model: &mut SettingsPageModel, snapshot: &SurfaceSn
             .and_then(|page| page.lan_sharing.as_ref())
     });
     model.observe_lan_sharing(sharing);
-    if let Some(security) = snapshot
-        .pages
-        .settings
-        .data
-        .as_ref()
+    let settings = snapshot.pages.settings.data.as_ref();
+    let runtime_security = snapshot.runtime_control.lan_security.as_ref();
+    let security = settings
         .and_then(|page| page.lan_security.as_ref())
-        .or_else(|| snapshot.runtime_control.lan_security.as_ref())
-    {
+        .or(runtime_security);
+    if let Some(security) = security {
         model.observe_lan_security(security);
     }
     if let Some(page) = snapshot.pages.settings.data.as_ref() {

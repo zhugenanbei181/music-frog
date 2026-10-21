@@ -1,5 +1,6 @@
 //! Behaviour of the isolated profile-store port fixture.
 
+use std::slice;
 use infiltrator_contract::aggregator::{AggregationDraft, AggregationTemplate};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
@@ -135,7 +136,7 @@ async fn the_aggregation_template_library_round_trips() {
         },
         updated_at: "2026-10-20T00:00:00Z".to_owned(),
     };
-    port.save_aggregation_templates(&[template.clone()])
+    port.save_aggregation_templates(slice::from_ref(&template))
         .await
         .expect("save templates");
 

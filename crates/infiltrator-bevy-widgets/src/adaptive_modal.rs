@@ -273,10 +273,14 @@ pub fn on_modal_close(_trigger: On<CloseModal>, mut state: Option<ResMut<ModalSt
 }
 
 /// System to sync ModalRoot visibility and ModalCard morphology (ActionSheet vs Centered Dialog).
+/// The adaptive modal's own roots: the modal card is excluded, so the
+/// morphology system and the card's own system never fight over a node.
+type AdaptiveModalRootFilter = (With<AdaptiveModalRoot>, Without<ModalCard>);
+
 pub fn sync_adaptive_modal_morphology(
     ctx: Option<Res<ResponsiveContext>>,
     state: Option<Res<ModalState>>,
-    mut roots: Query<(Entity, &mut Node), (With<AdaptiveModalRoot>, Without<ModalCard>)>,
+    mut roots: Query<(Entity, &mut Node), AdaptiveModalRootFilter>,
     mut cards: Query<&mut Node, (With<ModalCard>, Without<AdaptiveModalRoot>)>,
     mut commands: Commands,
     mut focus: ResMut<InputFocus>,

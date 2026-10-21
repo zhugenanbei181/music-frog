@@ -23,7 +23,7 @@ use lurker_core_contract::identity::CoreScope;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OwnerAnswer {
     /// The owner produced a typed output for the command.
-    Produced(CommandOutput),
+    Produced(Box<CommandOutput>),
     /// The owner finished the command without a typed output.
     Completed,
 }
@@ -110,7 +110,7 @@ pub fn execute_owner_commands(
             None => {}
         }
         if let OwnerAnswer::Produced(produced) = answer {
-            output = produced;
+            output = *produced;
         }
     }
     Ok(output)
@@ -142,7 +142,7 @@ pub fn decode_owner_terminal(raw: &str) -> Result<OwnerTerminal, Failure> {
                 }
                 CommandResult::Produced { output, .. } => Ok(OwnerTerminal {
                     scope,
-                    answer: OwnerAnswer::Produced(*output),
+                    answer: OwnerAnswer::Produced(Box::new(*output)),
                 }),
                 CommandResult::Rejected { failure, .. } => Err(failure),
             }

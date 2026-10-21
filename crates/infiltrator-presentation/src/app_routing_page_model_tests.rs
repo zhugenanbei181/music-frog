@@ -1,10 +1,10 @@
 //! test-intent: behavior
-use infiltrator_domain::app_routing;
 use crate::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_contract::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface_snapshot::{AppRoutingPageSnapshot, AppSnapshot};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
+use infiltrator_domain::app_routing;
 
 fn app(id: &str, name: &str, process: &str) -> AppSnapshot {
     AppSnapshot {

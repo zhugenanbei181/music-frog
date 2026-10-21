@@ -1,7 +1,5 @@
 //! File/keyring/WebDAV adapter for the runtime-neutral sync port.
 
-use std::time::UNIX_EPOCH;
-use std::time::SystemTime;
 use crate::remote_profile_namespace::{migrate_remote_profile_namespace, remote_profile_path};
 use crate::settings_io::load_webdav_password;
 use dav_client::DavClient;
@@ -28,6 +26,8 @@ use std::collections::HashSet;
 use std::fs::canonicalize;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 use sync_engine::executor::SyncExecutor;
 use sync_engine::{SyncAction, SyncPlanner};
 use tokio::fs::read_dir;

@@ -51,14 +51,14 @@ impl FilterQuery {
         let mut characters = trimmed.chars();
         let operator = characters.next();
         let rest = characters.as_str();
-        if matches!(operator, Some('<' | '>')) {
-            if let Ok(milliseconds) = rest.trim().parse::<u32>() {
-                return Self::Latency(if operator == Some('<') {
-                    LatencyBound::FasterThan(milliseconds)
-                } else {
-                    LatencyBound::SlowerThan(milliseconds)
-                });
-            }
+        if matches!(operator, Some('<' | '>'))
+            && let Ok(milliseconds) = rest.trim().parse::<u32>()
+        {
+            return Self::Latency(if operator == Some('<') {
+                LatencyBound::FasterThan(milliseconds)
+            } else {
+                LatencyBound::SlowerThan(milliseconds)
+            });
         }
         Self::text_query(trimmed)
     }
