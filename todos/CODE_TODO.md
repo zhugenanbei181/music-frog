@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 196 pt（67 条）/ 过去佛 106 pt（42 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
+- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 199 pt（68 条）/ 过去佛 106 pt（42 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
 - 本板 67 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -106,13 +106,6 @@
 
 
 
-- [ ] BEVY-020.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: InProgress] Bevy 0.20 未采用能力收口（滚动条 / 滚动入视 / 官方菜单）
-  - 产物：① 列表与规则页挂官方 `bevy_ui_widgets::Scrollbar` + `ScrollbarThumb`（滑块与 `ScrollArea` 的滚动位置绑定），替掉"只有一行文字页码"的现状；② 用官方 `ScrollIntoView` 事件替掉 `infiltrator-bevy-widgets/src/list.rs` 里自算偏移的 `scroll_to_item`；③ 菜单层迁回官方 `MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout`，删除本地 `MenuState`/`MenuNavEvent`/`MenuOutcome` 状态机与旧回归路径。
-  - 依赖：0.20 官方 `bevy_ui_widgets` 的 `ScrollbarPlugin`、`ScrollIntoView` 观察者、`MenuLayout` 键盘导航已就位（已核对上游 0.20.0 源码）；本地 rem 通道与 token 体系不变（滑块颜色走 `ThemeBackgroundColor`/`ThemeBorderColor`）。
-  - 验收：全仓 nextest 全绿；官方滑块可拖动且与滚动位置一致；键盘导航能滚动到聚焦项；菜单的方向键导航与焦点圈闭由官方提供；「Bevy 0.20 UI 能力规范」的「0.20 未采用能力台账」里 SCROLL-01/SCROLL-02/MENU-01 三行清零。
-  - 剩余缺口（NAV-01 收口）：官方方向导航已接上并有 7 条测试，但**可见焦点真源仍是本地的**（`crates/infiltrator-bevy-ui/src/shell_focus.rs` 的 `ShellFocusState`/`GamepadFocusController`/本地空间搜索），控件也没有官方 `TabIndex`，所以官方指针焦点够不到按钮、可见焦点环不跟随。收口需要「一个焦点真源」：`shell_focus.rs` 改为从官方 `InputFocus` 派生可见焦点并退役本地空间搜索，控件补官方 `TabIndex`。
-  - 推进方式：按文件所有权拆成互不相干的三条流并行推进——官方菜单（`menu.rs`/`context_menu.rs`）、滚动条与滚动入视（`list.rs`）、行内文字与方向导航（`text.rs`/`shell_readout.rs`）；Iced/Slint/Android 三个表面的同类「框架能力自研重造」由第四条流审计并给出整改清单。
-  - 事实依据：2026-10-21 在两个生产树上按官方符号名实测——`Scrollbar`/`ScrollbarThumb`/`ScrollbarPlugin` 0 处、`ScrollIntoView` 0 处（官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，本仓从不触发）、`MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` 0 处（仅头注释提及）。0.20 官方菜单已带键盘导航与焦点圈闭，本地实现"官方仅指针驱动"的旧理由已失效。
 
 ## 八、Bevy UI 表现层与视觉质感 105 点攻坚（GPUI 标杆收口，7条 / 21pt）
 
@@ -516,6 +509,12 @@
   - 依赖：BEVYUI-003 已交付的部分（现在佛已无此条）。
   - 验收：代理页双视口像素回执；#47/#48/#52 的像素证据到位（#48 需带指针的捕获台架，取不到就明确标注为代码级证据）。
   - 事实依据：BEVYUI-003 交付时逐条列出的共享改动需求（文件 + 符号 + 代码片段）。
+
+- [ ] BEVY-020.2 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-bevy-ui] [status: Planned] 可见焦点归一：官方 `InputFocus` 成为唯一焦点真源
+  - 产物：`crates/infiltrator-bevy-ui/src/shell_focus.rs` 的 `ShellFocusState`/`GamepadFocusController`/`apply_shell_focus_marker`/`apply_shell_focus_ring`/`advance_shell_focus_by_keyboard` 改为从官方 `bevy_input_focus::InputFocus` 派生可见焦点，退役本地空间搜索 `crate::focus::find_spatial_neighbor`；控件补官方 `TabIndex`（widgets 插件的必需组件）使官方指针/标签焦点可达；非按钮的 `ShellFocusable` 补 `AutoDirectionalNavigation`。
+  - 依赖：BEVY-020.1 已交付的官方方向导航（手势已存在，只差焦点真源归一）。
+  - 验收：方向键移动焦点时可见焦点环跟随官方焦点；本地空间搜索与其回归路径删除；全仓 nextest 全绿。
+  - 事实依据：2026-10-21 官方方向导航接线时实测——官方导航确实移动 `InputFocus`，但本仓可见焦点是本地的、控件无官方 `TabIndex`，官方焦点在壳层里是空的，故可见环不跟随。
 
 ## 十一、办结与登记
 
