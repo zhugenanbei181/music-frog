@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261021-v259`：现在佛 7 pt（2 条）/ 过去佛 94 pt（38 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 173 pt；已归档交付 715 pt（278 条）；累计 888 pt，严格归档完成率 80.5%。
-- 本板 2 条 = 桌面两端剩余业务的真实捕获（`PARITY-001.5`，5 pt）与 Slint 概览卡片排序（`SLINT-001.10`，2 pt）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261021-v260`：现在佛 10 pt（3 条）/ 过去佛 94 pt（38 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 176 pt；已归档交付 715 pt（278 条）；累计 891 pt，严格归档完成率 80.2%。
+- 本板 3 条 = 桌面两端剩余业务的真实捕获（`PARITY-001.5`，5 pt）、Slint 概览卡片排序（`SLINT-001.10`，2 pt）与 Bevy 0.20 未采用能力收口（`BEVY-020.1`，3 pt）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -105,6 +105,12 @@
   - 缺口来源：应用层实现批次的报告（Slint 端没有任何概览排序动作）。
 
 
+
+- [ ] BEVY-020.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: Planned] Bevy 0.20 未采用能力收口（滚动条 / 滚动入视 / 官方菜单）
+  - 产物：① 列表与规则页挂官方 `bevy_ui_widgets::Scrollbar` + `ScrollbarThumb`（滑块与 `ScrollArea` 的滚动位置绑定），替掉"只有一行文字页码"的现状；② 用官方 `ScrollIntoView` 事件替掉 `infiltrator-bevy-widgets/src/list.rs` 里自算偏移的 `scroll_to_item`；③ 菜单层迁回官方 `MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout`，删除本地 `MenuState`/`MenuNavEvent`/`MenuOutcome` 状态机与旧回归路径。
+  - 依赖：0.20 官方 `bevy_ui_widgets` 的 `ScrollbarPlugin`、`ScrollIntoView` 观察者、`MenuLayout` 键盘导航已就位（已核对上游 0.20.0 源码）；本地 rem 通道与 token 体系不变（滑块颜色走 `ThemeBackgroundColor`/`ThemeBorderColor`）。
+  - 验收：全仓 nextest 全绿；官方滑块可拖动且与滚动位置一致；键盘导航能滚动到聚焦项；菜单的方向键导航与焦点圈闭由官方提供；「Bevy 0.20 UI 能力规范」的「0.20 未采用能力台账」里 SCROLL-01/SCROLL-02/MENU-01 三行清零。
+  - 事实依据：2026-10-21 在两个生产树上按官方符号名实测——`Scrollbar`/`ScrollbarThumb`/`ScrollbarPlugin` 0 处、`ScrollIntoView` 0 处（官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，本仓从不触发）、`MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` 0 处（仅头注释提及）。0.20 官方菜单已带键盘导航与焦点圈闭，本地实现"官方仅指针驱动"的旧理由已失效。
 
 ## 九、办结与登记
 

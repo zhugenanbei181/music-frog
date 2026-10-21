@@ -23,9 +23,27 @@
 | ② 两段式上下文主题 | 机器：`BEVY-BSN-011`（浮层 owner 模块必须声明 `ThemeContext(SurfaceLevel::Floating)`；owner 由标记定义自动推导，不写死文件表） | 九个浮层 owner（modal / adaptive modal / 菜单 / popover / combobox / 上下文菜单 / mini HUD / toast 栈 / 命令面板）全部声明 | 无 |
 | ③ headless 标签页 | 人工评审 | 已迁到官方 `TabList`/`Tab`/`SelectedTab`；无守卫（判定需语义规则，机械不可靠） | 保持评审口径 |
 | ④ `FixedNode` 视口定位 | 机器：视口级浮层根必须挂官方 `FixedNode`（与 ② 同批补齐，9 个浮层 owner 全部挂载） | 官方 `FixedNode` 已挂在全部九个浮层 owner | 无 |
-| ⑤ 行内内容 | 人工评审 | 已迁到 `InlineBox`/`InlineImage`；无守卫（判定需语义规则） | 保持评审口径 |
-| ⑥ 官方行为层优先 | 机器：全部模态面（共享 modal、命令面板、13 个产品模态页、adaptive modal）挂载官方 `ModalDialogBarrier`／`ModalDialog`／`RequestClose`，barrier 点击外关闭、焦点圈闭（`Dialog` → `TabGroup { modal: true }`）、`DialogStack` 与 Esc 拦截由 Bevy 提供；打开时把输入焦点交接进对话框（`TabIndex` + `AcquireFocus`），关闭时释放，手写 Esc 分支已删除；模态阶段为 typed `ModalStage{Hidden,Open,Dismissed}`（旧 bool 对已消失）；**menu 层是已评审的本地例外**（见文末）；无守卫（判定需语义规则）；圆角角色按契约阶梯互斥裁决：**居中**模态对话框/居中命令面板 = `MODAL`(24)，面板式对话框卡/浮层面板 = `CARD`(16)，底部抽屉 = `BOTTOM_SHEET`(28)，旧 `DIALOG` 档已退役（阶梯不得有两种读法） | 无 |
+| ⑤ 行内内容 | 人工评审 | 只迁到 `InlineImage`（`bevy_ui::widget::InlineImage`，6 处：状态点与图标）；`bevy_text::InlineBox` **直接使用 0 处**，行内文字/徽标仍随文本流动这条语义未落地；无守卫（判定需语义规则） | 行内文字内容迁到 `InlineBox`，或按 ⑤ 的落点清单逐条证明不需要 |
+| ⑥ 官方行为层优先 | 机器：全部模态面（共享 modal、命令面板、13 个产品模态页、adaptive modal）挂载官方 `ModalDialogBarrier`／`ModalDialog`／`RequestClose`，barrier 点击外关闭、焦点圈闭（`Dialog` → `TabGroup { modal: true }`）、`DialogStack` 与 Esc 拦截由 Bevy 提供；打开时把输入焦点交接进对话框（`TabIndex` + `AcquireFocus`），关闭时释放，手写 Esc 分支已删除；模态阶段为 typed `ModalStage{Hidden,Open,Dismissed}`（旧 bool 对已消失）；**menu 层仍是本地实现**（`infiltrator-bevy-widgets/src/menu.rs` 自建 `MenuState`/`MenuNavEvent`/`MenuOutcome`），而 0.20 官方 `bevy_ui_widgets::MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` **已支持键盘导航与焦点圈闭**，本地实现的旧理由（"官方仅指针驱动"）在 0.20 已失效；本地实现的头注释与本节落点互相矛盾，按官方 API 的事实，迁回官方是唯一正确方向（见「0.20 未采用能力台账」的 MENU-01）；无守卫（判定需语义规则）；圆角角色按契约阶梯互斥裁决：**居中**模态对话框/居中命令面板 = `MODAL`(24)，面板式对话框卡/浮层面板 = `CARD`(16)，底部抽屉 = `BOTTOM_SHEET`(28)，旧 `DIALOG` 档已退役（阶梯不得有两种读法） | 无 |
 | ⑦ 小件收敛 | 机器：`scripts/quality/bevy_bsn_guard.py`（`BEVY-BSN-008` 列表场景必须 `bsn_list!`、`BEVY-BSN-009` 批量退役必须 `despawn_all`、`BEVY-BSN-010` 胶囊必须 `BorderRadius::MAX`、`BEVY-BSN-007` `template_value` 硬零）+ 评审口径（`Ready` 事件语义无法词法判定） | 6 处真实列表场景改 `bsn_list!` + `SceneList`；1 处挂载后初始化改订阅 `bevy_scene::Ready`；1 处批量退役改 `despawn_all`；胶囊圆角 29 处全量 `BorderRadius::MAX`；固定 2–3 个手写子项的静态 `Children [ ... ]` 明确保留（非列表场景） | 真实交互与像素验收随本批截图批次 |
+
+### 0.20 未采用能力台账（2026-10-21 实测）
+
+本节是 **0.20 提供而本仓尚未使用** 的能力的单一事实源。实测方式：在 `infiltrator-bevy-ui/src` 与
+`infiltrator-bevy-widgets/src` 两个生产树上按官方符号名计数，0 处即"未采用"。未采用必须是**有记录的取舍**，
+不得是"以为用了"。
+
+| 编号 | 0.20 能力 | 实测 | 事实与处置 |
+| --- | --- | --- | --- |
+| SCROLL-01 | `bevy_ui_widgets::Scrollbar` / `ScrollbarThumb` / `ScrollbarPlugin` | 0 处 | 本仓只挂了 `ScrollAreaPlugin`（官方滚动容器），**没有滚动条**：既未用官方滑块，也无自有滑块；规则列表只有一行文字页码指示器。处置：接官方 `Scrollbar`+`ScrollbarThumb`（滑块需 `Scrollbar::new(target, orientation, min_thumb_length)`），并把列表容器的滚动位置与滑块绑定。 |
+| SCROLL-02 | `bevy_ui_widgets::ScrollIntoView`（事件） | 0 处 | 官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，但本仓**从不触发该事件**，而是在 `infiltrator-bevy-widgets/src/list.rs` 自算偏移（`scroll_to_item`）。处置：改为触发官方 `ScrollIntoView`，删除自算偏移路径。 |
+| MENU-01 | `bevy_ui_widgets::MenuPopup` / `MenuItem` / `MenuFocusState` / `MenuLayout` | 0 处（仅头注释提及） | 0.20 官方菜单**已支持键盘导航与焦点圈闭**（`MenuLayout` 专供键盘导航方向），本地实现的"官方仅指针驱动"理由已失效；本地 `MenuState`/`MenuNavEvent`/`MenuOutcome` 与官方重复。处置：迁回官方并删除本地菜单状态机与旧回归路径。 |
+| TEXT-01 | `bevy_text::InlineBox`（`InFlow`/`OutOfFlow`） | 0 处 | 只用了 `InlineImage`（图片侧）。行内文字/徽标随文流动这条语义未落地，见台账 ⑤。 |
+| NAV-01 | `bevy_ui::auto_directional_navigation` | 0 处 | 0.20 的空间/方向导航（a11y 方向键）未接入。处置：待无障碍验收提出方向导航要求时接入。 |
+| RENDER-01 | `bevy_ui::gradients`（`LinearGradient`/`RadialGradient`） | 0 处 | 0.20 的 UI 渐变未接入。处置：纯视觉增强，按需立项（当前 token 体系无渐变语义 token）。 |
+| RENDER-02 | `bevy_ui::stack`（CSS 式层叠） | 0 处 | 0.20 的层叠原语未接入；本仓的浮层层级靠显式 `SurfaceLevel` 枚举与 `FixedNode` 表达。处置：按需立项。 |
+| EXP-01 | `bevy_ui::experimental::ghost_hierarchy` | 0 处 | 0.20 的实验性幽灵层级未接入（上游标 experimental）。处置：上游转正后评估。 |
+| LABEL-01 | `bevy_ui::widget::Label` | 0 处 | 文字一律走 `bevy::ui::widget::Text` + 本仓 role 排版（token 驱动字号/行高）。**这是有意取舍**（官方 Label 绑定 feathers 式排版），不是遗漏。 |
 
 ### 产品侧 rem 守卫（`BEVYCAP-001.1` 交付物）
 
