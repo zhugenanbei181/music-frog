@@ -178,7 +178,7 @@ fn the_android_owner_hands_the_script_export_review_to_the_surface() {
             .prepare_export(draft.clone())
             .expect("the export draft starts a business");
     }
-    workbenches.record(PendingBusiness::Script);
+    workbenches.record(Some(PendingBusiness::Script));
     assert!(matches!(
         workbenches
             .script
@@ -242,7 +242,7 @@ fn the_android_owner_hands_the_applied_subscription_filter_to_the_surface() {
         }));
         filter.begin().expect("the filter form starts a write");
     }
-    workbenches.record(PendingBusiness::Filter);
+    workbenches.record(Some(PendingBusiness::Filter));
     assert!(workbenches.settle(Ok(output)));
     let filter = workbenches.filter.lock().expect("filter editor lock");
     assert!(filter.applied());
@@ -280,7 +280,7 @@ fn the_android_owner_refusal_reaches_the_surface_as_the_owners_failure() {
             .prepare_export(draft.clone())
             .expect("the export draft starts a business");
     }
-    workbenches.record(PendingBusiness::Script);
+    workbenches.record(Some(PendingBusiness::Script));
     assert!(workbenches.settle(Err(error)));
     let script = workbenches.script.lock().expect("script workbench lock");
     assert!(matches!(
@@ -323,7 +323,7 @@ fn a_command_without_a_typed_output_leaves_the_business_dispatched() {
         }));
         filter.begin().expect("the filter form starts a write");
     }
-    workbenches.record(PendingBusiness::Filter);
+    workbenches.record(Some(PendingBusiness::Filter));
     assert!(!workbenches.settle(Ok(output)));
     let filter = workbenches.filter.lock().expect("filter editor lock");
     assert!(!filter.applied());

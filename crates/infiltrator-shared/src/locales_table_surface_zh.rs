@@ -3,6 +3,10 @@ use std::borrow::Cow;
 
 pub(super) fn translate_surface_zh(key: &str) -> Cow<'static, str> {
     match key {
+        "proxies_group_kind_fallback" => "故障转移".into(),
+        "proxies_group_kind_load_balance" => "负载均衡".into(),
+        "proxies_group_kind_relay" => "链式中继".into(),
+        "proxies_test_ready_hint" => "测速就绪 · 点「全部测速」可立即测速所有节点".into(),
         "editor_read_failed" => "编辑器读取失败：{reason}".into(),
         "editor_read_loading" => "正在读取已存储的编辑文档…".into(),
         "editor_source_verification_failed" => "无法核验当前来源：{reason}".into(),

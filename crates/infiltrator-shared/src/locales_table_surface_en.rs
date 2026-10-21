@@ -3,6 +3,10 @@ use std::borrow::Cow;
 
 pub(super) fn translate_surface_en(key: &str) -> Cow<'static, str> {
     match key {
+        "proxies_group_kind_fallback" => "Failover".into(),
+        "proxies_group_kind_load_balance" => "Load Balance".into(),
+        "proxies_group_kind_relay" => "Relay Chain".into(),
+        "proxies_test_ready_hint" => "Ready · run Test All to probe every node".into(),
         "editor_read_failed" => "Editor read failed: {reason}".into(),
         "editor_read_loading" => "Reading the stored editor document…".into(),
         "editor_source_verification_failed" => "Cannot verify the current source: {reason}".into(),
