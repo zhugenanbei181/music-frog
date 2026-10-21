@@ -20,6 +20,7 @@ use crate::view::subscription_quota::subscription_quota_card;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::overview_layout::OverviewCardKind;
@@ -111,6 +112,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     ..Default::default()
                 }
             })
+            .id(InteractionRegion::OverviewReconnectMask.id())
             .into(),
         )
     } else {
@@ -177,8 +179,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
     let content = content.spacing(theme::SP_LG).max_width(1100);
 
-    modern_scrollable(content).height(Length::Fill).into()
+    modern_scrollable(content)
+        .id(OVERVIEW_SCROLL_ID)
+        .height(Length::Fill)
+        .into()
 }
+
+/// Stable identity of the Overview page scrollable.
+///
+/// The capture scrolls this element to bring a card that lives below the fold
+/// into the measured region, so the identity is part of the capture contract.
+pub const OVERVIEW_SCROLL_ID: &str = "overview-scroll";
 
 /// Wrap one reorderable Overview card with its up/down controls so both
 /// surfaces expose the same shared-layout reorder intent.

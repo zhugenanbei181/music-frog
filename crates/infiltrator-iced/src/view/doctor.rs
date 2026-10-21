@@ -361,5 +361,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     scrollable(content)
         .width(Length::Fill)
         .height(Length::Fill)
+        .id(DOCTOR_SCROLL_ID)
         .into()
 }
+
+/// Stable identity of the Doctor page scrollable.
+///
+/// The capture scrolls this element to bring the lifecycle recovery panel into
+/// the measured region, so the identity is part of the capture contract.
+pub const DOCTOR_SCROLL_ID: &str = "doctor-scroll";

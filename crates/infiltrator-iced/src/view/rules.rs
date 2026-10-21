@@ -52,7 +52,7 @@ pub fn semantic_badge_kind(rule_type: &str, kind: RuleBadgeKind) -> BadgeKind {
 }
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let filtered_count = state.editor.rules_filtered_indices.len();
+    let filtered_count = state.editor.rules_filtered_count();
     let save_rules_action = container(
         button(text(lang.tr("rules_save_btn").to_string())).on_press_maybe(
             state

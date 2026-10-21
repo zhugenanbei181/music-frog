@@ -3,16 +3,28 @@
 //! the shared owner and holds no second derivation of the page state.
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::components::BadgeKind;
+use crate::view::lan_sharing_card::lan_sharing_status;
+use infiltrator_composition::capture_fixtures::list_document;
+use infiltrator_contract::app_routing::AppRoutingMode;
+use infiltrator_contract::lan::LanSharingSnapshot;
+use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::{AppRoutingPageSnapshot, SurfaceSnapshot};
+use infiltrator_domain::app_routing;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsOperation, DnsPageTab};
 use infiltrator_presentation::editable_draft::EditableDraft;
+use infiltrator_presentation::filter_query::FilterQuery;
 use infiltrator_presentation::operation_phase::OperationState;
 use infiltrator_presentation::overview_page_model::OverviewRunState;
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
-use infiltrator_presentation::proxies_page_model::{
-    PROXY_SORT_OPTIONS, ProxyFilterQuery, proxy_protocol_chip,
-};
+use infiltrator_presentation::proxies_page_model::{PROXY_SORT_OPTIONS, proxy_protocol_chip};
 use infiltrator_presentation::rules_page_model::RulesOperation;
+use infiltrator_shared::locales::Lang;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::preferences::{OutboundHealthFilter, OutboundSortOrder};
 
 #[test]
@@ -23,7 +35,7 @@ fn the_proxies_page_reads_the_shared_page_model() {
     let _ = state.update(Message::FilterProxies("HK".into()));
     assert_eq!(
         state.runtime.proxies_model.query(),
-        &ProxyFilterQuery::Text("hk".into())
+        &FilterQuery::Text("hk".into())
     );
     assert_eq!(state.runtime.proxies_model.search_text(), "hk");
 
@@ -32,7 +44,7 @@ fn the_proxies_page_reads_the_shared_page_model() {
     let _ = state.update(Message::FilterProxies("<120".into()));
     assert!(matches!(
         state.runtime.proxies_model.query(),
-        ProxyFilterQuery::Latency(_)
+        FilterQuery::Latency(_)
     ));
 
     // The sort order and the health filter are the shared model's.
@@ -214,7 +226,7 @@ fn the_app_routing_page_reads_the_shared_page_model() {
 
 #[test]
 fn the_overview_page_reads_the_shared_page_model() {
-    let (mut state, _) = AppState::new();
+    let (state, _) = AppState::new();
 
     // The run tri-state is the shared model's.
     assert_eq!(
@@ -242,4 +254,139 @@ fn the_sync_page_reads_the_shared_page_model() {
     let token = phase.begin();
     assert!(phase.is_running());
     assert!(phase.succeed(token));
+}
+
+#[test]
+fn the_lan_sharing_card_reads_the_owner_readback_and_says_unobserved_without_one() {
+    let (mut state, _) = AppState::new();
+
+    // Without an owner readback the card says "not observed" — it never
+    // reports an unobserved sharing as "off".
+    assert!(!state.runtime.settings_model.lan_sharing_observed());
+    assert_eq!(state.runtime.settings_model.lan_sharing_revision(), None);
+    let (copy, kind) = lan_sharing_status(false, false, &Lang("en-US"));
+    assert_eq!(copy, "Not observed");
+    assert_eq!(kind, BadgeKind::Neutral);
+
+    // The owner's readback is one typed fact: the surface renders it whole,
+    // with the revision the write can be fenced against.
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "test snapshot", true),
+    );
+    snapshot.revision = 1;
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Ready,
+        tun_enabled: Some(false),
+        lan_sharing: Some(LanSharingSnapshot::new(12, true, 7891, "192.168.1.10")),
+        ..Default::default()
+    };
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    assert!(state.runtime.settings_model.lan_sharing_observed());
+    assert_eq!(
+        state.runtime.settings_model.lan_sharing_revision(),
+        Some(12)
+    );
+    assert!(state.runtime.settings_model.lan_sharing().enabled);
+    assert_eq!(state.runtime.settings_model.lan_sharing().mixed_port, 7891);
+    assert_eq!(
+        state.runtime.settings_model.lan_sharing().bind_address,
+        "192.168.1.10"
+    );
+    let (copy, kind) = lan_sharing_status(true, true, &Lang("en-US"));
+    assert_eq!(copy, "LAN Active");
+    assert_eq!(kind, BadgeKind::Success);
+}
+
+#[test]
+fn the_pac_write_carries_the_owner_bypass_lan_and_minify() {
+    let (mut state, _) = AppState::new();
+
+    // The owner's PAC readback is the draft: the LAN bypass and the minifier
+    // are the values the owner applied, not surface defaults.
+    let snapshot = PacSnapshot {
+        state: PacServiceState::Running {
+            url: "http://127.0.0.1:25211/proxy.pac".to_owned(),
+        },
+        script_bytes: 128,
+        bypass_domains: vec!["example.com".to_owned()],
+        bypass_lan: true,
+        minify: true,
+        revision: 4,
+    };
+    let _ = state.update(Message::PacApplied(Ok(snapshot)));
+
+    let draft = state.runtime.settings_model.pac();
+    assert!(draft.bypass_lan);
+    assert!(draft.minify);
+
+    // The request the write builds is that draft's own shared conversion, so
+    // the write carries the owner's values.
+    let request = draft.to_request();
+    assert!(request.bypass_lan);
+    assert!(request.minify);
+    assert_eq!(request.bypass_domains, vec!["example.com".to_owned()]);
+}
+
+#[test]
+fn the_app_routing_mode_says_not_observed_instead_of_claiming_a_default() {
+    let (mut state, _) = AppState::new();
+
+    // The owner published no routing mode: the page says so instead of
+    // claiming the default the owner never reported.
+    assert_eq!(state.shell.uwp_loopback.mode(), None);
+    assert!(!state.shell.uwp_loopback.mode_observed());
+    assert_eq!(
+        state.shell.uwp_loopback.mode_copy_key(),
+        "app_routing_mode_unobserved"
+    );
+
+    // The owner's page readback is the only source of the mode.
+    state
+        .shell
+        .uwp_loopback
+        .observe_page(AppRoutingPageSnapshot {
+            mode: AppRoutingMode::ProxySelected,
+            include_system: false,
+            apps: Vec::new(),
+            uwp_loopback: Default::default(),
+        });
+    assert_eq!(
+        state.shell.uwp_loopback.mode(),
+        Some(app_routing::AppRoutingMode::ProxySelected)
+    );
+    assert!(state.shell.uwp_loopback.mode_observed());
+    assert_eq!(
+        state.shell.uwp_loopback.mode_copy_key(),
+        "app_routing_mode_selected_proxy"
+    );
+}
+
+#[test]
+fn the_rules_list_filters_through_the_shared_model() {
+    let (mut state, _) = AppState::new();
+    let rules: Vec<RuleEntry> = (0..5)
+        .map(|index| RuleEntry {
+            rule: format!("DOMAIN-SUFFIX,site{index}.com,DIRECT"),
+            enabled: true,
+        })
+        .collect();
+    let _ = state.update(Message::RulesLoaded(Ok(list_document(rules))));
+
+    // The query is the shared model's typed filter, not a surface-local
+    // string: the surface keeps no second copy of it.
+    let _ = state.update(Message::FilterRules("site4".into()));
+    assert_eq!(state.editor.rules_model.filter_text(), "site4");
+    assert_eq!(state.editor.rules_filtered_count(), 1);
+    assert_eq!(state.editor.rules_filtered_indices(), vec![4]);
+
+    // The shared model answers the same question the surface renders from.
+    assert_eq!(
+        state
+            .editor
+            .rules_model
+            .filtered_indices(&state.editor.rule_list.draft),
+        vec![4]
+    );
 }

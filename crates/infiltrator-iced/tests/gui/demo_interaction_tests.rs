@@ -6,19 +6,21 @@
 //! only repainted its page could not satisfy any of these assertions.
 use super::*;
 use crate::state::AppState;
+use crate::test_mounts::surface_task_harness::drain_surface_task;
 use crate::types::app::ConfirmAction;
-use futures_util::StreamExt;
-use iced_runtime::Action;
-use iced_runtime::task::into_stream;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::privileged_network::PrivilegedNetworkState;
+use infiltrator_contract::reconnect_mask::ReconnectMaskStatus;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::shell_readout::ShellObservation;
+use infiltrator_contract::snapshot::CoreWatchdogState;
+use infiltrator_contract::speedtest::SpeedtestRunState;
+use infiltrator_ports::host_runtime::TunServiceStatus;
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::routing_intent::RoutingIntent;
-use std::collections::VecDeque;
-use tokio::runtime::Builder;
 
 fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
     DemoEnv {
@@ -36,24 +38,12 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
 
 /// Drive the demo activation's task to the end, feeding every message the
 /// surface produces back into the real update pipeline.
+///
+/// The demo pipeline is the surface pipeline plus the demo's own scenario
+/// routing, so the drained messages travel through the same update path the
+/// demo runtime uses.
 fn drain(state: &mut AppState, task: Task<Message>) {
-    let mut pending = VecDeque::from([task]);
-    Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            while let Some(task) = pending.pop_front() {
-                let Some(mut stream) = into_stream(task) else {
-                    continue;
-                };
-                while let Some(action) = stream.next().await {
-                    if let Action::Output(message) = action {
-                        pending.push_back(update(state, message));
-                    }
-                }
-            }
-        });
+    drain_surface_task(state, task, update);
 }
 
 #[test]
@@ -108,7 +98,10 @@ fn the_proxy_group_starts_folded_and_the_demo_opens_it() {
 #[test]
 fn the_overview_card_order_moves_one_real_card() {
     let env = demo_env(Route::Overview, FeatureId::OverviewCardReorder);
-    let (state, _task) = AppState::demo(&env);
+    let (mut state, task) = AppState::demo(&env);
+    // The move is the owner's business: the surface dispatches the shared
+    // intent and the owner's published order is what the page renders.
+    drain(&mut state, task);
     let order = &state.diag.overview_card_order;
     assert_eq!(order.first(), Some(&OverviewCardKind::Traffic));
     assert_ne!(order, &OverviewCardKind::DEFAULT_ORDER.to_vec());
@@ -118,8 +111,8 @@ fn the_overview_card_order_moves_one_real_card() {
 fn the_rule_search_narrows_the_shared_rule_list() {
     let env = demo_env(Route::Rules, FeatureId::RulesSearchHighlight);
     let (state, _task) = AppState::demo(&env);
-    assert_eq!(state.editor.rules_filter, "google.com");
-    assert_eq!(state.editor.rules_filtered_indices.len(), 1);
+    assert_eq!(state.editor.rules_model.filter_text(), "google.com");
+    assert_eq!(state.editor.rules_filtered_count(), 1);
     assert!(state.editor.rule_list.draft.len() > 1);
 }
 
@@ -282,4 +275,192 @@ fn the_filter_capture_lands_the_owner_permission_refusal() {
             .failure()
             .is_some_and(|failure| failure.code == ErrorCode::Permission)
     );
+}
+
+#[test]
+fn the_tun_permission_capture_reports_the_missing_privilege_and_the_host_answer() {
+    let env = demo_env(Route::Settings, FeatureId::SettingsTunPermission);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert_eq!(
+        state.runtime.tun_service_status,
+        Some(TunServiceStatus::MissingPrivilege),
+        "the host reported that the TUN service lacks the elevation privilege"
+    );
+    // The host's refusal is the shell's error banner: the toast that
+    // announces it is auto-dismissed, the banner is the durable fact.
+    let refusal = state
+        .shell
+        .error_msg
+        .as_deref()
+        .expect("the TUN permission preparation was answered by the host");
+    assert!(
+        refusal.contains("TUN"),
+        "the refusal names the TUN service the host could not prepare: {refusal}"
+    );
+}
+
+#[test]
+fn the_lan_security_capture_types_the_shared_allow_list_draft() {
+    let env = demo_env(Route::Settings, FeatureId::SettingsLanSecurity);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert_eq!(
+        state.runtime.settings_text.lan_allowed_ips, "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16",
+        "the surface carries the allow list the user typed"
+    );
+    assert_eq!(
+        state
+            .runtime
+            .settings_model
+            .lan_security()
+            .allowed_ips
+            .len(),
+        3,
+        "the shared settings model parsed the typed allow list"
+    );
+}
+
+#[test]
+fn the_port_conflict_capture_lands_the_owner_conflict_report() {
+    let env = demo_env(Route::Settings, FeatureId::SettingsPortConflictRepair);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        state.runtime.port_conflicts.has_conflicts(),
+        "the shared port-conflict owner reported the taken proxy port"
+    );
+    assert_eq!(state.runtime.port_conflicts.conflicts.len(), 1);
+}
+
+#[test]
+fn the_permission_panel_capture_lands_the_typed_unsupported_status() {
+    let env = demo_env(Route::Settings, FeatureId::SettingsPermissionPanel);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        matches!(
+            state.runtime.privileged_network.state,
+            PrivilegedNetworkState::Unsupported { .. }
+        ),
+        "the host answered the privileged regression with its typed unsupported status"
+    );
+}
+
+#[test]
+fn the_core_rollback_capture_arms_the_confirmation_instead_of_rolling_back() {
+    let env = demo_env(Route::Settings, FeatureId::CoreVersionRollbackConfirm);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert_eq!(
+        state.runtime.core_versions.rollback.target.as_deref(),
+        Some("v1.18.8"),
+        "the owner published the previously runnable core the rollback control offers"
+    );
+    assert!(
+        matches!(
+            state.shell.confirmation,
+            Some(ConfirmAction::RollbackCore(_))
+        ),
+        "the destructive rollback is armed behind the shared confirmation, never dispatched"
+    );
+}
+
+#[test]
+fn the_topology_drilldown_capture_lands_on_the_shared_navigation_target() {
+    let env = demo_env(Route::Overview, FeatureId::OverviewTopologyDrilldown);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert_eq!(
+        state.shell.current_route,
+        Route::Rules,
+        "the topology stage drilled down to its shared navigation target"
+    );
+    assert_eq!(
+        state.editor.rules_model.filter_text(),
+        "mrs / geoip",
+        "the drill-down carried the stage detail into the target page"
+    );
+}
+
+#[test]
+fn the_speedtest_cancel_capture_lands_the_owner_cancellation() {
+    let env = demo_env(Route::Overview, FeatureId::SpeedtestProgressCancel);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        matches!(
+            state.diag.speedtest.state,
+            SpeedtestRunState::CancelRequested { .. }
+        ),
+        "the owner accepted the cancellation of the running probe"
+    );
+}
+
+#[test]
+fn the_speedtest_history_capture_compares_two_recorded_runs() {
+    let env = demo_env(Route::Runtime, FeatureId::SpeedtestHistoryComparison);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(state.diag.speedtest_detail_open);
+    assert_eq!(
+        state.diag.speedtest.recent_history.len(),
+        2,
+        "the comparison view carries two recorded runs"
+    );
+}
+
+#[test]
+fn the_keyboard_focus_capture_moves_the_focus_ring_with_the_arrow_key() {
+    let env = demo_env(Route::Overview, FeatureId::ShellKeyboardFocus);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(state.shell.command_palette_open);
+    assert_eq!(
+        state.shell.command_selected_index, 1,
+        "the arrow key moved the focus ring to the next catalogue row"
+    );
+}
+
+#[test]
+fn the_reconnect_mask_capture_lands_the_watchdog_reconnection() {
+    let env = demo_env(Route::Overview, FeatureId::OverviewReconnectMask);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert_eq!(
+        state.runtime.reconnect_mask.status,
+        ReconnectMaskStatus::Reconnecting,
+        "the mask is the projection of the watchdog's waiting state"
+    );
+    assert_eq!(state.runtime.reconnect_mask.attempt, Some(1));
+}
+
+#[test]
+fn the_lifecycle_recovery_capture_lands_the_watchdog_recovery_state() {
+    let env = demo_env(Route::Doctor, FeatureId::LifecycleRecoveryPanel);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        matches!(
+            state.diag.crash_watchdog.shared.state,
+            CoreWatchdogState::Waiting { .. }
+        ),
+        "the lifecycle recovery panel shows the watchdog's own recovery state"
+    );
+    assert!(
+        matches!(state.diag.doctor.action.phase, DoctorActionPhase::Idle),
+        "the diagnostic command phase stays untouched, so the two doctor states cannot fight"
+    );
+}
+
+#[test]
+fn the_profile_import_capture_types_the_subscription_url() {
+    let env = demo_env(Route::Profiles, FeatureId::ProfilesImportModal);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert_eq!(
+        state.profile.import_url, "https://sub.example.com/api/v1/client/subscribe?token=demo",
+        "the import form carries the subscription URL the user typed"
+    );
+    assert!(!state.profile.import_name.is_empty());
 }

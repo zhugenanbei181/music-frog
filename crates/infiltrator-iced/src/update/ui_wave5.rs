@@ -345,7 +345,9 @@ impl AppState {
                 match result {
                     Ok(snapshot) => {
                         self.runtime.settings_model.discard_lan_sharing();
-                        self.runtime.settings_model.observe_lan_sharing(&snapshot);
+                        self.runtime
+                            .settings_model
+                            .observe_lan_sharing(Some(&snapshot));
                         if let Some(token) = token {
                             self.runtime
                                 .settings_model

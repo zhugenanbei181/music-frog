@@ -8,6 +8,7 @@ use crate::view::components::{chip, premium_card, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::core_control::CoreControlAction;
@@ -101,22 +102,26 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
     } else {
         "Close".to_owned()
     };
-    let cancel_btn = button(
-        row![
-            icon_themed(Icon::X, 13.0, |t: &Theme| tokens(t).danger),
-            Space::new().width(theme::SP_XS),
-            text(dismiss_label)
-                .size(12)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).danger)
-                }),
-        ]
-        .align_y(Alignment::Center),
+    let cancel_btn: Element<'a, Message> = container(
+        button(
+            row![
+                icon_themed(Icon::X, 13.0, |t: &Theme| tokens(t).danger),
+                Space::new().width(theme::SP_XS),
+                text(dismiss_label)
+                    .size(12)
+                    .font(FONT_SEMIBOLD)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).danger)
+                    }),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding([6, 12])
+        .style(style_ghost)
+        .on_press(dismiss_message),
     )
-    .padding([6, 12])
-    .style(style_ghost)
-    .on_press(dismiss_message);
+    .id(InteractionRegion::SpeedtestProgressCancel.id())
+    .into();
 
     row![test_btn, Space::new().width(theme::SP_XS), cancel_btn]
         .align_y(Alignment::Center)

@@ -99,6 +99,9 @@ mod gesture_tests;
 #[path = "../tests/common/command_harness.rs"]
 pub(crate) mod command_harness;
 
+#[path = "../tests/common/surface_task_harness.rs"]
+pub(crate) mod surface_task_harness;
+
 #[path = "../tests/common/identified_core_application.rs"]
 pub(crate) mod identified_core_application;
 

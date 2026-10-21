@@ -13,6 +13,7 @@ use crate::view::components::BadgeKind;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
@@ -33,7 +34,7 @@ pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     let search_box = container(search_input(
         lang.tr("profiles_search_placeholder").as_ref(),
-        &state.profile.profiles_model.filter(),
+        state.profile.profiles_model.filter(),
         Message::UpdateProfilesFilter,
         Message::UpdateProfilesFilter(String::new()),
     ))
@@ -211,7 +212,7 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
             .into()
         };
 
-    card(
+    container(card(
         Some(lang.tr("profiles_import_sub").to_string()),
         column![
             row![
@@ -261,7 +262,9 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
                 Message::UpdateImportActivate
             ),
         ],
-    )
+    ))
+    .id(InteractionRegion::ProfilesImportForm.id())
+    .into()
 }
 
 pub(super) fn local_import_section<'a>(state: &'a AppState) -> Element<'a, Message> {

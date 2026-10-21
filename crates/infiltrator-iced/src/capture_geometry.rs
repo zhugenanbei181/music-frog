@@ -1,11 +1,15 @@
 //! Read native widget layout after rendering. A route or state flag never proves visible controls.
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::doctor::DOCTOR_SCROLL_ID;
+use crate::view::overview::OVERVIEW_SCROLL_ID;
+use crate::view::profiles::PROFILES_SCROLL_ID;
 use crate::view::proxies::node_region_id;
 use crate::view::proxies_controls::search_region_id;
 use crate::view::rules::rules_list::row_region_id;
 use crate::view::rules_tracer::TRACER_SCROLL_ID;
 use crate::view::runtime::connection_search::{highlight_id, row_id};
+use crate::view::settings::SETTINGS_SCROLL_ID;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::widget::operation::{Outcome, Scrollable};
 use iced::advanced::widget::{Id, Operation, operate};
@@ -305,6 +309,21 @@ impl AppState {
             }
             FeatureId::SpeedtestDetailsModal => InteractionRegion::Speedtest.id(),
             FeatureId::ShellCommandPalette => InteractionRegion::Palette.id(),
+            FeatureId::SettingsTunPermission => InteractionRegion::SettingsTunPermission.id(),
+            FeatureId::SettingsLanSecurity => InteractionRegion::SettingsLanSecurity.id(),
+            FeatureId::SettingsPortConflictRepair => InteractionRegion::SettingsPortConflict.id(),
+            FeatureId::SettingsPermissionPanel => InteractionRegion::SettingsPermissionPanel.id(),
+            // The core rollback is armed behind the shared confirmation
+            // surface, so the business control the capture measures is the
+            // confirmation itself.
+            FeatureId::CoreVersionRollbackConfirm => InteractionRegion::Confirmation.id(),
+            FeatureId::OverviewTopologyDrilldown => InteractionRegion::RulesSearchInput.id(),
+            FeatureId::SpeedtestProgressCancel => InteractionRegion::SpeedtestProgressCancel.id(),
+            FeatureId::SpeedtestHistoryComparison => InteractionRegion::SpeedtestHistory.id(),
+            FeatureId::ShellKeyboardFocus => InteractionRegion::ShellKeyboardFocus.id(),
+            FeatureId::OverviewReconnectMask => InteractionRegion::OverviewReconnectMask.id(),
+            FeatureId::LifecycleRecoveryPanel => InteractionRegion::LifecycleRecovery.id(),
+            FeatureId::ProfilesImportModal => InteractionRegion::ProfilesImportForm.id(),
             _ => Id::new("page-content"),
         };
         let mut probe = VisibleRegion::new(
@@ -415,7 +434,30 @@ impl AppState {
                 .requiring(InteractionRegion::RestoreCancel.id());
         }
         if feature == FeatureId::SettingsLanguageChoice {
-            probe = probe.requiring_peer(InteractionRegion::TunPermissionAction.id());
+            // The language card is the business control: the capture scrolls
+            // the settings page until the card itself is the measured region.
+            probe = probe.revealing(Id::new(SETTINGS_SCROLL_ID));
+        }
+        if matches!(
+            feature,
+            FeatureId::SettingsTunPermission
+                | FeatureId::SettingsLanSecurity
+                | FeatureId::SettingsPortConflictRepair
+                | FeatureId::SettingsPermissionPanel
+        ) {
+            probe = probe.revealing(Id::new(SETTINGS_SCROLL_ID));
+        }
+        if feature == FeatureId::LifecycleRecoveryPanel {
+            probe = probe.revealing(Id::new(DOCTOR_SCROLL_ID));
+        }
+        if feature == FeatureId::ProfilesImportModal {
+            probe = probe.revealing(Id::new(PROFILES_SCROLL_ID));
+        }
+        if matches!(
+            feature,
+            FeatureId::OverviewReconnectMask | FeatureId::SpeedtestProgressCancel
+        ) {
+            probe = probe.revealing(Id::new(OVERVIEW_SCROLL_ID));
         }
         if matches!(
             feature,

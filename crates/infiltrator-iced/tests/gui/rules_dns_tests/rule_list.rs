@@ -270,6 +270,6 @@ fn tea_rule_rows_retain_source_parameters_invalid_raw_and_exact_search_without_i
     );
     assert!(state.editor.rules_render_cache[1].target.is_empty());
     let _ = state.update(Message::FilterRules("src,no-resolve".into()));
-    assert_eq!(state.editor.rules_filtered_indices, vec![0]);
+    assert_eq!(state.editor.rules_filtered_indices(), vec![0]);
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
 }

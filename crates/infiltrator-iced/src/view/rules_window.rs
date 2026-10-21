@@ -24,7 +24,7 @@ pub fn rules_window(state: &AppState) -> view::RuleWindow {
     view::rule_window(
         state.editor.rules_scroll_offset_px,
         state.editor.rules_viewport_px,
-        state.editor.rules_filtered_indices.len(),
+        state.editor.rules_filtered_count(),
     )
 }
 
@@ -70,7 +70,7 @@ pub fn rules_window_range(state: &AppState) -> (usize, usize) {
 /// scroll offset — specifically the page of the topmost *visible* row, which
 /// the overscan above the band does not shift — instead of a second cursor.
 pub fn rules_window_page(state: &AppState) -> usize {
-    let total = state.editor.rules_filtered_indices.len();
+    let total = state.editor.rules_filtered_count();
     if total == 0 {
         return 0;
     }
@@ -83,12 +83,12 @@ pub fn rules_window_page(state: &AppState) -> usize {
 pub fn page_scroll_offset(state: &AppState, page: usize) -> f32 {
     let page = view::clamp_page(
         page,
-        state.editor.rules_filtered_indices.len(),
+        state.editor.rules_filtered_count(),
         state.editor.rules_page_size,
     );
     let (start, _) = view::page_bounds(
         page,
-        state.editor.rules_filtered_indices.len(),
+        state.editor.rules_filtered_count(),
         state.editor.rules_page_size,
     );
     view::rule_scroll_offset_for_index(start)
@@ -98,7 +98,7 @@ pub fn page_scroll_offset(state: &AppState, page: usize) -> f32 {
 pub fn rules_page_bounds(state: &AppState) -> (usize, usize) {
     view::page_bounds(
         rules_window_page(state),
-        state.editor.rules_filtered_indices.len(),
+        state.editor.rules_filtered_count(),
         state.editor.rules_page_size,
     )
 }

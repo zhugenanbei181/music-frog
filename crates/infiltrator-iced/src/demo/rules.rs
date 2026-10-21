@@ -12,7 +12,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::RulesSearchHighlight => {
             // The user types a rule filter: the shared rules page narrows to
             // the matching rows and highlights the matched text.
-            state.update(Message::FilterRules(RULE_SEARCH_QUERY.into()));
+            let _ = state.update(Message::FilterRules(RULE_SEARCH_QUERY.into()));
             Task::none()
         }
         _ => Task::none(),

@@ -33,17 +33,15 @@ impl AppState {
     /// The loopback packages are a shared fact: the surface keeps no private
     /// copy of them.
     fn apply_uwp_snapshot(&mut self, snapshot: UwpLoopbackSnapshot) {
-        let mode = self
-            .shell
-            .uwp_loopback
-            .mode()
-            .unwrap_or(AppRoutingMode::ProxyAll);
+        // The routing mode is the shared model's fact; the page snapshot
+        // carries it in the contract's vocabulary.
+        let mode = self.shell.uwp_loopback.mode().map(AppRoutingMode::from);
         let include_system = self.shell.uwp_loopback.include_system().unwrap_or(false);
         let apps = self.shell.uwp_loopback.apps().to_vec();
         self.shell
             .uwp_loopback
             .observe_page(AppRoutingPageSnapshot {
-                mode,
+                mode: mode.unwrap_or(AppRoutingMode::ProxyAll),
                 include_system,
                 apps,
                 uwp_loopback: snapshot,

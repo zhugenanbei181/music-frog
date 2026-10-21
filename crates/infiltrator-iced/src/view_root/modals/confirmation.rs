@@ -176,6 +176,11 @@ fn confirmation_copy(action: &ConfirmAction, lang: &Lang<'_>) -> (String, String
             ),
             lang.tr("modal_delete").to_string(),
         ),
+        ConfirmAction::RollbackCore(version) => (
+            lang.tr("settings_core_rollback_title").to_string(),
+            interpolate(&lang.tr("core_rollback_target"), &[("version", version)]),
+            lang.tr("core_rollback_action").to_string(),
+        ),
         ConfirmAction::CloseAllConnections => (
             lang.tr("modal_confirm_disconnect_all_title").to_string(),
             lang.tr("modal_confirm_disconnect_all_desc").to_string(),

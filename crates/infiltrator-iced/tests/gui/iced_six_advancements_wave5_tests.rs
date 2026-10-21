@@ -381,8 +381,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
     snapshot.runtime_control = RuntimeControlSnapshot {
         status: RuntimeControlStatus::Ready,
         tun_enabled: Some(true),
-        mixed_port: Some(7890),
-        allow_lan: Some(false),
+        lan_sharing: Some(LanSharingSnapshot::new(3, false, 7890, "*")),
         ..Default::default()
     };
     snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
@@ -392,9 +391,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         theme: "system".into(),
         autostart: false,
         system_proxy: false,
-        mixed_port: Some(7890),
-        allow_lan: Some(false),
-        lan_bind_address: Some("*".to_owned()),
+        lan_sharing: Some(LanSharingSnapshot::new(3, false, 7890, "*")),
         lan_security: Some(Default::default()),
         ipv6_routing: Some(Ipv6RoutingSnapshot::new(2, false, true)),
         pac: Default::default(),
@@ -669,8 +666,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
     snapshot.runtime_control = RuntimeControlSnapshot {
         status: RuntimeControlStatus::Ready,
         tun_enabled: Some(false),
-        mixed_port: Some(7890),
-        allow_lan: Some(false),
+        lan_sharing: Some(LanSharingSnapshot::new(4, false, 7890, "*")),
         ..Default::default()
     };
     snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
@@ -680,9 +676,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         theme: "system".into(),
         autostart: false,
         system_proxy: false,
-        mixed_port: Some(7890),
-        allow_lan: Some(false),
-        lan_bind_address: Some("*".to_owned()),
+        lan_sharing: Some(LanSharingSnapshot::new(3, false, 7890, "*")),
         lan_security: Some(LanSecuritySnapshot::new(
             8,
             vec!["192.168.0.0/16".to_owned()],

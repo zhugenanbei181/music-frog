@@ -1,11 +1,11 @@
 use super::proxy_probe;
 use super::*;
-use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_presentation::log_page_model::LogLevelFilter;
 use infiltrator_presentation::overview_page_model::OverviewHost;
+use infiltrator_presentation::settings_page_model::observe_settings_page;
 
 impl AppState {
     /// Apply the shared page read model as a monotonic render cache. The
@@ -265,6 +265,12 @@ impl AppState {
         self.runtime.core_session_token = snapshot.core.session_token;
         self.runtime.core_versions = snapshot.versions.clone();
         self.runtime.core_integrity = snapshot.versions.verification.clone();
+        // The settings page facts are owned by the shared settings page
+        // model: the owner's readbacks become the committed baselines of the
+        // drafts. The LAN sharing readback is published whole or not at all,
+        // so a readback the owner never published stays "unobserved" instead
+        // of being reported as "off".
+        observe_settings_page(&mut self.runtime.settings_model, &snapshot);
         if let Some(settings) = snapshot.pages.settings.data.as_ref()
             && snapshot.runtime_control.status == RuntimeControlStatus::Ready
         {
@@ -274,31 +280,13 @@ impl AppState {
             if let Some(strict_route) = settings.tun_strict_route {
                 self.editor.tun_strict_route = strict_route;
             }
-            // The LAN sharing and LAN security drafts are owned by the
-            // shared settings page model: the observation becomes the
-            // committed baseline of the draft.
-            let current = self.runtime.settings_model.lan_sharing().clone();
-            let sharing = LanSharingSnapshot {
-                enabled: settings.allow_lan.unwrap_or(current.enabled),
-                mixed_port: settings.mixed_port.unwrap_or(current.mixed_port),
-                bind_address: settings
-                    .lan_bind_address
-                    .clone()
-                    .unwrap_or(current.bind_address),
-                revision: 0,
-            };
-            self.runtime.settings_model.observe_lan_sharing(&sharing);
-
-            if let Some(security) = &settings.lan_security {
-                let security_modified = self.runtime.settings_model.lan_security_modified();
-                self.runtime.settings_model.observe_lan_security(security);
-                if !security_modified {
-                    self.runtime.settings_text.lan_allowed_ips = security.allowed_ips.join(", ");
-                    self.runtime.settings_text.lan_disallowed_ips =
-                        security.disallowed_ips.join(", ");
-                    self.runtime.settings_text.lan_skip_auth_prefixes =
-                        security.skip_auth_prefixes.join(", ");
-                }
+            if let Some(security) = &settings.lan_security
+                && !self.runtime.settings_model.lan_security_modified()
+            {
+                self.runtime.settings_text.lan_allowed_ips = security.allowed_ips.join(", ");
+                self.runtime.settings_text.lan_disallowed_ips = security.disallowed_ips.join(", ");
+                self.runtime.settings_text.lan_skip_auth_prefixes =
+                    security.skip_auth_prefixes.join(", ");
             }
         }
         if let Some(app_routing) = snapshot.pages.app_routing.data.as_ref() {

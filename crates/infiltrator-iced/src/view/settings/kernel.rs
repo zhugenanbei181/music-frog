@@ -11,7 +11,7 @@ use infiltrator_presentation::settings_status_projection::{
     format_offline_startup, optional_copy,
 };
 use infiltrator_shared::byte_units::format_bytes;
-use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::i18n_interpolator::{interpolate, localize};
 
 use crate::view::component_card::card;
 use crate::view::component_forms::{
@@ -21,6 +21,7 @@ use crate::view::components::{BadgeKind, badge, icon_button, section_header};
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, R_CONTROL, SP_MD, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, pick_list, progress_bar, row, text};
 use iced::{Alignment, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -101,15 +102,24 @@ pub(super) fn kernel_management_card<'a>(
     ));
     let rollback_target = state.runtime.core_versions.rollback.target.clone();
     kernel_rows = kernel_rows.push(secondary_text(rollback_target.as_deref().map_or_else(
-        || "Rollback: no previous runnable core".to_owned(),
-        |version| format!("Rollback target: {version}"),
+        || lang.tr("core_rollback_none").into_owned(),
+        |version| interpolate(&lang.tr("core_rollback_target"), &[("version", version)]),
     )));
-    if rollback_target.is_some() {
+    if let Some(version) = rollback_target {
         kernel_rows = kernel_rows.push(
             row![
                 secondary_text(lang.tr("settings_previous_kernel_hint").into_owned()),
                 Space::new().width(Length::Fill),
-                text_btn("Rollback core", style_ghost, Some(Message::RollbackCore)),
+                // The rollback is destructive: the surface arms the
+                // confirmation before the command is dispatched.
+                container(text_btn(
+                    lang.tr("core_rollback_action").to_string(),
+                    style_ghost,
+                    Some(Message::RequestConfirmation(ConfirmAction::RollbackCore(
+                        version,
+                    ))),
+                ),)
+                .id(InteractionRegion::CoreRollbackAction.id()),
             ]
             .align_y(Alignment::Center),
         );

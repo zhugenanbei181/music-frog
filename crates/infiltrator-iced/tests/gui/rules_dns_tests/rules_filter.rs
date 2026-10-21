@@ -19,7 +19,7 @@ fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
         .collect();
     let _ = state.update(Message::RulesLoaded(Ok(list_document(rules))));
     assert_eq!(
-        state.editor.rules_filtered_indices,
+        state.editor.rules_filtered_indices(),
         filter_rule_indices(&state.editor.rule_list.draft, "")
     );
 
@@ -53,5 +53,5 @@ fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
 
     let _ = state.update(Message::FilterRules("site4".into()));
     assert_eq!(state.editor.rules_page, 0);
-    assert_eq!(state.editor.rules_filtered_indices.len(), 1);
+    assert_eq!(state.editor.rules_filtered_count(), 1);
 }

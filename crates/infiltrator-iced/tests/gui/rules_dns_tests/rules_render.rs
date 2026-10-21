@@ -23,10 +23,10 @@ fn test_rules_render_cache_and_filter() {
     ]))));
 
     assert_eq!(state.editor.rules_render_cache.len(), 3);
-    assert_eq!(state.editor.rules_filtered_indices.len(), 3);
+    assert_eq!(state.editor.rules_filtered_count(), 3);
     assert_eq!(state.editor.rules_render_cache[0].payload, "example.com");
 
     let _ = state.update(Message::FilterRules("example.net".into()));
     assert_eq!(state.editor.rules_page, 0);
-    assert_eq!(state.editor.rules_filtered_indices.len(), 1);
+    assert_eq!(state.editor.rules_filtered_count(), 1);
 }

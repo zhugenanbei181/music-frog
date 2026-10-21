@@ -14,10 +14,13 @@ use crate::types::rule_trace::RuleTraceAction;
 use crate::types::script::ScriptAction;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_contract::app_routing::AppRoutingMode;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_contract::surface_snapshot::AppRoutingPageSnapshot;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
-use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_domain::app_routing;
+use infiltrator_domain::app_routing::AppRoutingRule;
 use lurker_core_contract::error::ErrorCode;
 use std::sync::atomic::Ordering;
 use zhuge_ui_core::virtual_list::VirtualListConfig;
@@ -107,17 +110,32 @@ fn test_advancement_1_live_rule_tracer_contract() {
 fn test_advancement_2_app_routing_grid_state_and_transitions() {
     let (mut state, _) = AppState::new();
 
-    // Initial state
-    assert_eq!(state.app_routing.mode, AppRoutingMode::ProxyAll);
+    // Initial state: the owner published no routing mode, so the surface has
+    // none to show and never claims the default.
+    assert_eq!(state.shell.uwp_loopback.mode(), None);
+    assert!(!state.shell.uwp_loopback.mode_observed());
+    assert_eq!(
+        state.shell.uwp_loopback.mode_copy_key(),
+        "app_routing_mode_unobserved"
+    );
     assert!(state.app_routing.processes.is_empty());
     assert!(state.app_routing.custom_rules.is_empty());
 
-    // Switch mode: Global -> Whitelist -> Blacklist
-    let _ = state.update(Message::SetAppRoutingMode(AppRoutingMode::ProxySelected));
-    assert_eq!(state.app_routing.mode, AppRoutingMode::ProxySelected);
-
-    let _ = state.update(Message::SetAppRoutingMode(AppRoutingMode::BypassSelected));
-    assert_eq!(state.app_routing.mode, AppRoutingMode::BypassSelected);
+    // The owner's page readback is the only source of the routing mode.
+    state
+        .shell
+        .uwp_loopback
+        .observe_page(AppRoutingPageSnapshot {
+            mode: AppRoutingMode::ProxySelected,
+            include_system: false,
+            apps: Vec::new(),
+            uwp_loopback: Default::default(),
+        });
+    assert_eq!(
+        state.shell.uwp_loopback.mode(),
+        Some(app_routing::AppRoutingMode::ProxySelected)
+    );
+    assert!(state.shell.uwp_loopback.mode_observed());
 
     // Mock loaded processes
     let sample_procs = vec![

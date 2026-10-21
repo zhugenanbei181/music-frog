@@ -38,8 +38,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     content_items.push(Space::new().height(theme::SP_XL).into());
 
     let content = column(content_items).spacing(10);
-    modern_scrollable(content).height(Length::Fill).into()
+    modern_scrollable(content)
+        .id(PROFILES_SCROLL_ID)
+        .height(Length::Fill)
+        .into()
 }
+
+/// Stable identity of the Profiles page scrollable.
+///
+/// The capture scrolls this element to bring the import form into the measured
+/// region, so the identity is part of the capture contract.
+pub const PROFILES_SCROLL_ID: &str = "profiles-scroll";
 
 #[cfg(test)]
 #[path = "../../tests/gui/view_profiles_tests.rs"]

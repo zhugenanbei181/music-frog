@@ -253,7 +253,17 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                 })
                 .on_press(Message::ExecuteCommand(target));
 
-            list_col = list_col.push(item_btn);
+            // The focused row carries the one stable identity of the focus
+            // ring, so the capture can measure the keyboard focus cycle.
+            let item: Element<'_, Message> = if is_selected {
+                container(item_btn)
+                    .id(InteractionRegion::ShellKeyboardFocus.id())
+                    .into()
+            } else {
+                item_btn.into()
+            };
+
+            list_col = list_col.push(item);
         }
 
         modern_scrollable(list_col)

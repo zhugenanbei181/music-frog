@@ -89,6 +89,18 @@ pub(crate) enum InteractionRegion {
     FilterStatus,
     FilterSave,
     FilterDiscard,
+    SettingsTunPermission,
+    SettingsLanSecurity,
+    SettingsPortConflict,
+    SettingsPermissionPanel,
+    CoreRollbackAction,
+    OverviewReconnectMask,
+    SpeedtestProgressCancel,
+    SpeedtestHistory,
+    ShellKeyboardFocus,
+    LifecycleRecovery,
+    ProfilesImportForm,
+    RulesSearchInput,
 }
 impl InteractionRegion {
     pub fn id(self) -> Id {
@@ -180,6 +192,18 @@ impl InteractionRegion {
             Self::ProxyProbeTimeout => "proxy-probe-timeout",
             Self::ProxyProbeSettings => "proxy-probe-settings",
             Self::ProxyInspectionHistory => "proxy-inspection-history",
+            Self::SettingsTunPermission => "settings-tun-permission",
+            Self::SettingsLanSecurity => "settings-lan-security",
+            Self::SettingsPortConflict => "settings-port-conflict",
+            Self::SettingsPermissionPanel => "settings-permission-panel",
+            Self::CoreRollbackAction => "core-rollback-action",
+            Self::OverviewReconnectMask => "overview-reconnect-mask",
+            Self::SpeedtestProgressCancel => "speedtest-progress-cancel",
+            Self::SpeedtestHistory => "speedtest-history",
+            Self::ShellKeyboardFocus => "shell-keyboard-focus",
+            Self::LifecycleRecovery => "lifecycle-recovery-panel",
+            Self::ProfilesImportForm => "profiles-import-form",
+            Self::RulesSearchInput => "rules-search-input",
         })
     }
 }

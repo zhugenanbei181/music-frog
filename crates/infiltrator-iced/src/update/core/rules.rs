@@ -19,7 +19,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_domain::rules::view::{
-    clamp_page, effective_page_size, filter_rule_indices, page_count, rule_scroll_offset_for_index,
+    clamp_page, effective_page_size, page_count, rule_scroll_offset_for_index,
 };
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::rule_list_projection::draft_page;
@@ -84,16 +84,15 @@ impl AppState {
     /// Recompute the filtered rules page indices. pub(crate) so the demo
     /// constructor can apply its empty filter once at boot. DUAL-11-13: the
     /// match predicate, page size fallback, clamp and visible-row arithmetic
-    /// all delegate to `infiltrator_domain::rules::view` so both surfaces page
-    /// identically. DUAL-11-08: the visible rows are the shared virtual window
-    /// at the current scroll offset, not a whole page.
+    /// all delegate to the shared rules page model and the shared domain
+    /// reduction, so both surfaces page identically. DUAL-11-08: the visible
+    /// rows are the shared virtual window at the current scroll offset, not a
+    /// whole page.
     pub(crate) fn apply_rules_filter(&mut self) {
-        self.editor.rules_filtered_indices =
-            filter_rule_indices(&self.editor.rule_list.draft, &self.editor.rules_filter);
         self.editor.rules_page_size = effective_page_size(self.editor.rules_page_size);
         self.editor.rules_page = clamp_page(
             self.editor.rules_page,
-            self.editor.rules_filtered_indices.len(),
+            self.editor.rules_filtered_count(),
             self.editor.rules_page_size,
         );
         self.sync_rules_window_facts();
@@ -104,7 +103,7 @@ impl AppState {
     /// arithmetic is O(1): it is derived from the offset and the viewport, so
     /// this never walks the rule list.
     pub(crate) fn sync_rules_window_facts(&mut self) {
-        let total = self.editor.rules_filtered_indices.len();
+        let total = self.editor.rules_filtered_count();
         let content_height = rule_scroll_offset_for_index(total);
         if self.editor.rules_scroll_offset_px > content_height {
             self.editor.rules_scroll_offset_px = content_height;
@@ -132,7 +131,7 @@ impl AppState {
     pub(crate) fn goto_rules_page(&mut self, page: usize) -> Task<Message> {
         self.editor.rules_page = clamp_page(
             page,
-            self.editor.rules_filtered_indices.len(),
+            self.editor.rules_filtered_count(),
             self.editor.rules_page_size,
         );
         let offset = page_scroll_offset(self, self.editor.rules_page);
@@ -184,7 +183,9 @@ impl AppState {
     pub(super) fn update_core_rules(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::FilterRules(filter) => {
-                self.editor.rules_filter = filter;
+                // The filter is the shared rules page model's: the surface
+                // keeps no second copy of the query text.
+                self.editor.rules_model.edit_filter(&filter);
                 self.editor.rules_page = 0;
                 // DUAL-11-08: the filtered list shrank or changed shape, so the
                 // viewport returns to the top of the new result set — the
@@ -400,7 +401,7 @@ impl AppState {
             }
             Message::RulesNextPage => {
                 let total_pages = page_count(
-                    self.editor.rules_filtered_indices.len(),
+                    self.editor.rules_filtered_count(),
                     self.editor.rules_page_size,
                 );
                 let target = if self.editor.rules_page + 1 < total_pages {

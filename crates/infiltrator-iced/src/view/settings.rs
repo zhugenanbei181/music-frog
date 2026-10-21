@@ -265,7 +265,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     content = content
-        .push(system_proxy_section)
+        .push(container(system_proxy_section).id(InteractionRegion::SettingsPortConflict.id()))
         .push(Space::new().height(10))
         .push(pac_card(state, &lang))
         .push(Space::new().height(10))
@@ -275,17 +275,23 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(10))
         .push(lan_sharing_card(state, &lang))
         .push(Space::new().height(10))
-        .push(lan_security_card(state, &lang))
+        .push(
+            container(lan_security_card(state, &lang))
+                .id(InteractionRegion::SettingsLanSecurity.id()),
+        )
         .push(Space::new().height(10))
         .push(integration::shell_export_card(&lang))
         .push(Space::new().height(10))
-        .push(tun_section)
+        .push(container(tun_section).id(InteractionRegion::SettingsTunPermission.id()))
         .push(Space::new().height(10))
         .push(net_roam_card(state, &lang))
         .push(Space::new().height(10))
         .push(vpn_card(state, &lang))
         .push(Space::new().height(10))
-        .push(privileged_network_card(state, &lang))
+        .push(
+            container(privileged_network_card(state, &lang))
+                .id(InteractionRegion::SettingsPermissionPanel.id()),
+        )
         .push(Space::new().height(10))
         .push(sniffer_section)
         .push(Space::new().height(10))
@@ -313,8 +319,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ))
         .push(Space::new().height(40));
 
-    modern_scrollable(content).height(Length::Fill).into()
+    modern_scrollable(content)
+        .id(SETTINGS_SCROLL_ID)
+        .height(Length::Fill)
+        .into()
 }
+
+/// Stable identity of the Settings page scrollable.
+///
+/// The capture scrolls this element to bring a card that lives below the fold
+/// into the measured region, so the identity is part of the capture contract.
+pub const SETTINGS_SCROLL_ID: &str = "settings-scroll";
 
 #[cfg(test)]
 #[path = "../../tests/gui/view_settings_tests.rs"]

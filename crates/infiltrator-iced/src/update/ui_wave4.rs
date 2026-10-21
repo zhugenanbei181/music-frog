@@ -14,7 +14,7 @@ use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
-use infiltrator_contract::pac::{PacRequest, PacSnapshot};
+use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
@@ -92,15 +92,10 @@ impl AppState {
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
-        let draft = self.runtime.settings_model.pac().clone();
-        // The LAN bypass and the minifier keep the Iced wire semantics; the
-        // shared draft only carries the fields the page edits.
-        let request = PacRequest {
-            enabled: draft.enabled,
-            bypass_domains: draft.bypass_domains,
-            bypass_lan: true,
-            minify: false,
-        };
+        // The request is the shared draft's own conversion: the LAN bypass
+        // and the minifier are the owner's readback values, so the write
+        // never hardcodes a policy the owner never applied.
+        let request = self.runtime.settings_model.pac().to_request();
         self.runtime.settings_model.pac_write_phase_mut().begin();
         let scope_source = runtime.core_scope_source();
         let configuration_ports = runtime.runtime_configuration_ports();

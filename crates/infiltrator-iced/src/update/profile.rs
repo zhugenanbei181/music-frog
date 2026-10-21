@@ -26,7 +26,6 @@ impl AppState {
         self.editor.rules_loaded_once = false;
         self.editor.advanced_configs_loaded_once = false;
         self.editor.rules_render_cache.clear();
-        self.editor.rules_filtered_indices.clear();
         self.editor.rules_page = 0;
         self.editor.rules_heavy_ready = false;
         self.editor.dns_heavy_ready = false;

@@ -93,7 +93,7 @@ fn demo_fixture_inventory_covers_all_pages() {
     // rules / dns / misc
     assert_eq!(state.editor.rule_list.draft.len(), 15);
     assert!(!state.editor.rules_render_cache.is_empty());
-    assert!(!state.editor.rules_filtered_indices.is_empty());
+    assert!(state.editor.rules_filtered_count() > 0);
     assert!(!state.editor.dns_nameservers.is_empty());
     assert!(state.editor.dns_form.switches.enable);
     assert!(state.editor.fake_ip_form.store_fake_ip);

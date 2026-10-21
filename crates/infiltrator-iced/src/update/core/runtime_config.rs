@@ -20,7 +20,9 @@ use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_desktop::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
-use infiltrator_ports::runtime_configuration::ObservedValue;
+use infiltrator_ports::runtime_configuration::{
+    ConfigurationObservation, LanSharingConfiguration, ObservedValue,
+};
 use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_presentation::system_toggle_projection;
 use infiltrator_shared::i18n_interpolator::localize;
@@ -243,30 +245,18 @@ impl AppState {
                         }
                         // The LAN sharing and LAN security drafts are owned
                         // by the shared settings page model: the observation
-                        // becomes the committed baseline of the draft.
-                        let mut lan_sharing = self.runtime.settings_model.lan_sharing().clone();
-                        if let ObservedValue::Reported(enabled) = &config.lan_sharing.value.enabled
-                        {
-                            lan_sharing.enabled = *enabled;
-                        }
-                        if let ObservedValue::Reported(mixed_port) =
-                            &config.lan_sharing.value.mixed_port
-                        {
-                            lan_sharing.mixed_port = *mixed_port;
-                        }
-                        if let ObservedValue::Reported(bind_address) =
-                            &config.lan_sharing.value.bind_address
-                        {
-                            lan_sharing.bind_address = bind_address.clone();
-                        }
+                        // becomes the committed baseline of the draft. The
+                        // readback carries the owner's configuration revision,
+                        // so a write can be fenced against the observation it
+                        // was derived from.
+                        // The LAN sharing readback is one observation: a read
+                        // that knows the port but not the bind address is not
+                        // a confirmed configuration, so the whole readback
+                        // stays unobserved rather than being half-published.
+                        let lan_sharing = lan_sharing_observation(&config.lan_sharing);
                         self.runtime
                             .settings_model
-                            .observe_lan_sharing(&LanSharingSnapshot {
-                                enabled: lan_sharing.enabled,
-                                mixed_port: lan_sharing.mixed_port,
-                                bind_address: lan_sharing.bind_address,
-                                revision: 0,
-                            });
+                            .observe_lan_sharing(lan_sharing.as_ref());
                         if let Some(security) = lan_security_observation(&config) {
                             let security_modified =
                                 self.runtime.settings_model.lan_security_modified();
@@ -689,6 +679,34 @@ impl AppState {
             other => self.update_core_rules(other),
         }
     }
+}
+
+/// The LAN sharing readback, as one fact.
+///
+/// The three configuration values are one observation: a read that knows the
+/// port but not the bind address is not a confirmed configuration, so the
+/// whole readback stays unobserved rather than being half-published.
+fn lan_sharing_observation(
+    observation: &ConfigurationObservation<LanSharingConfiguration>,
+) -> Option<LanSharingSnapshot> {
+    let enabled = match &observation.value.enabled {
+        ObservedValue::Reported(value) => *value,
+        ObservedValue::Unreported => return None,
+    };
+    let mixed_port = match &observation.value.mixed_port {
+        ObservedValue::Reported(value) => *value,
+        ObservedValue::Unreported => return None,
+    };
+    let bind_address = match &observation.value.bind_address {
+        ObservedValue::Reported(value) => value.clone(),
+        ObservedValue::Unreported => return None,
+    };
+    Some(LanSharingSnapshot::new(
+        observation.revision.value(),
+        enabled,
+        mixed_port,
+        bind_address,
+    ))
 }
 
 fn tun_status(state: ServiceModeState) -> TunServiceStatus {

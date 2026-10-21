@@ -9,6 +9,7 @@ use crate::view::doctor::status_badge_kind;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::doctor_projection::{watchdog_badge, watchdog_status_text};
@@ -99,7 +100,7 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
         Element::from(Space::new().height(0))
     };
 
-    card(
+    container(card(
         Some(lang.tr("crash_watchdog_title").to_string()),
         column![
             text(lang.tr("crash_watchdog_desc").to_string())
@@ -120,5 +121,7 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
             .align_y(Alignment::Center),
         ]
         .spacing(theme::SP_SM),
-    )
+    ))
+    .id(InteractionRegion::LifecycleRecovery.id())
+    .into()
 }

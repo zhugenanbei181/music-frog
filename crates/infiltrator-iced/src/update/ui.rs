@@ -281,6 +281,7 @@ impl AppState {
                     ConfirmAction::DeleteKernel(version) => {
                         self.update_core(Message::DeleteKernel(version))
                     }
+                    ConfirmAction::RollbackCore(_) => self.update_core(Message::RollbackCore),
                     ConfirmAction::CloseAllConnections => {
                         self.update_core(Message::CloseAllConnections)
                     }
@@ -566,7 +567,9 @@ impl AppState {
             }
             Message::AppRoutingConfigLoaded(result) => match result {
                 Ok(config) => {
-                    self.app_routing.mode = config.mode;
+                    // The routing mode is the owner's readback: the shared
+                    // app-routing page model owns it, so the config store
+                    // never writes a second copy into the surface.
                     self.app_routing.custom_rules = config.rules;
                     Task::none()
                 }
@@ -586,7 +589,8 @@ impl AppState {
                 Task::none()
             }
             Message::SetAppRoutingMode(m) => {
-                self.app_routing.mode = m;
+                // The mode is the owner's readback: the surface never keeps a
+                // local copy of the value the user picked.
                 let mode = m;
                 Task::perform(
                     async move {

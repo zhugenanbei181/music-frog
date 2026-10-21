@@ -4,16 +4,24 @@
 //! the business owns. A demo that only repaints its page can never satisfy
 //! one of them, so the pixel judge never sees a route-only render published
 //! as an activated business.
+use crate::demo::profiles::IMPORT_URL;
 use crate::demo::rules::RULE_SEARCH_QUERY;
+use crate::demo::settings::LAN_ALLOWED_IPS;
 use crate::state::AppState;
 use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
-use crate::types::app::ConfirmAction;
+use crate::types::app::{ConfirmAction, Route};
 use infiltrator_contract::fixture_identities::HK_PRIMARY;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::privileged_network::PrivilegedNetworkState;
+use infiltrator_contract::reconnect_mask::ReconnectMaskStatus;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::shell_readout::ShellObservation;
+use infiltrator_contract::snapshot::CoreWatchdogState;
+use infiltrator_contract::speedtest::SpeedtestRunState;
+use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
@@ -309,8 +317,8 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         }
         FeatureId::RulesSearchHighlight => {
             // The rule list really narrowed to the searched rule.
-            state.editor.rules_filter == RULE_SEARCH_QUERY
-                && state.editor.rules_filtered_indices.len() == 1
+            state.editor.rules_model.filter_text() == RULE_SEARCH_QUERY
+                && state.editor.rules_filtered_count() == 1
                 && state.editor.rule_list.draft.len() > 1
         }
         FeatureId::ProfilesAggregatorWizard => state.profile.aggregator_modal_open,
@@ -345,21 +353,94 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     matches!(detail.current_latency_ms, OutboundObservation::Observed(_))
                 })
             }),
+        FeatureId::SettingsTunPermission => {
+            // The host reported the TUN service without the privilege the
+            // preparation flow asks for, and the preparation request itself
+            // was answered by the host.
+            matches!(
+                state.runtime.tun_service_status,
+                Some(TunServiceStatus::MissingPrivilege)
+            ) && state.shell.error_msg.is_some()
+        }
+        FeatureId::SettingsLanSecurity => {
+            // The shared LAN draft carries the allow list the user typed.
+            state.runtime.settings_text.lan_allowed_ips == LAN_ALLOWED_IPS
+                && state
+                    .runtime
+                    .settings_model
+                    .lan_security()
+                    .allowed_ips
+                    .len()
+                    == 3
+        }
+        FeatureId::SettingsPortConflictRepair => state.runtime.port_conflicts.has_conflicts(),
+        FeatureId::SettingsPermissionPanel => matches!(
+            state.runtime.privileged_network.state,
+            PrivilegedNetworkState::Unsupported { .. }
+        ),
+        FeatureId::CoreVersionRollbackConfirm => {
+            // The owner published a rollback target and the destructive
+            // rollback is armed behind the shared confirmation surface: the
+            // command itself is never dispatched by the capture.
+            state
+                .runtime
+                .core_versions
+                .rollback
+                .target
+                .clone()
+                .is_some_and(|target| !target.is_empty())
+                && matches!(
+                    state.shell.confirmation,
+                    Some(ConfirmAction::RollbackCore(_))
+                )
+        }
+        FeatureId::OverviewTopologyDrilldown => {
+            // The drill-down landed on the shared navigation target and
+            // carried the stage's own detail into the target page.
+            let stage_detail = state
+                .runtime
+                .traffic_topology
+                .node(TrafficTopologyStage::RuleSet)
+                .map(|node| node.detail.clone())
+                .unwrap_or_default();
+            state.shell.current_route == Route::Rules
+                && !stage_detail.is_empty()
+                && state.editor.rules_model.filter_text() == stage_detail.to_ascii_lowercase()
+        }
+        FeatureId::SpeedtestProgressCancel => matches!(
+            state.diag.speedtest.state,
+            SpeedtestRunState::CancelRequested { .. }
+        ),
+        FeatureId::SpeedtestHistoryComparison => {
+            state.diag.speedtest_detail_open && state.diag.speedtest.recent_history.len() == 2
+        }
+        FeatureId::ShellKeyboardFocus => {
+            // The palette is open and the keyboard moved the focus ring to the
+            // next catalogue row.
+            state.shell.command_palette_open && state.shell.command_selected_index == 1
+        }
+        FeatureId::OverviewReconnectMask => {
+            state.runtime.reconnect_mask.status == ReconnectMaskStatus::Reconnecting
+                && state.runtime.reconnect_mask.attempt.is_some()
+        }
+        FeatureId::LifecycleRecoveryPanel => {
+            // The lifecycle recovery panel shows the watchdog's own recovery
+            // state; the diagnostic command phase stays untouched so the two
+            // certified doctor states cannot fight over the same phase.
+            matches!(
+                state.diag.crash_watchdog.shared.state,
+                CoreWatchdogState::Waiting { .. }
+                    | CoreWatchdogState::Restarting { .. }
+                    | CoreWatchdogState::Tripped { .. }
+            ) && matches!(state.diag.doctor.action.phase, DoctorActionPhase::Idle)
+        }
+        FeatureId::ProfilesImportModal => {
+            state.profile.import_url == IMPORT_URL && !state.profile.import_name.is_empty()
+        }
         // The remaining businesses have no activator in this demo yet: the
         // capture refuses to publish them as activated instead of claiming a
         // route-only render as a performed business.
-        FeatureId::LifecycleRecoveryPanel
-        | FeatureId::CoreVersionRollbackConfirm
-        | FeatureId::SettingsPermissionPanel
-        | FeatureId::SettingsPortConflictRepair
-        | FeatureId::SettingsTunPermission
-        | FeatureId::SettingsLanSecurity
-        | FeatureId::AppRoutingPolicyEditor
-        | FeatureId::OverviewTopologyDrilldown
-        | FeatureId::OverviewReconnectMask
-        | FeatureId::SpeedtestProgressCancel
-        | FeatureId::SpeedtestHistoryComparison
-        | FeatureId::ProfilesImportModal
+        FeatureId::AppRoutingPolicyEditor
         | FeatureId::ProfilesSubscriptionError
         | FeatureId::ProfilesAggregatorPreview
         | FeatureId::ProfilesScriptSandbox
@@ -370,7 +451,6 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         | FeatureId::EditorLargeDocumentWindow
         | FeatureId::RulesProviderRefreshError
         | FeatureId::SyncConflictResolver
-        | FeatureId::SyncRestoreConfirm
-        | FeatureId::ShellKeyboardFocus => false,
+        | FeatureId::SyncRestoreConfirm => false,
     }
 }

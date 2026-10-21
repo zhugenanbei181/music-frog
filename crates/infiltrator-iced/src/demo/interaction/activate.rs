@@ -9,6 +9,7 @@ use crate::demo::dns_query;
 use crate::demo::doctor;
 use crate::demo::filter;
 use crate::demo::language;
+use crate::demo::lifecycle;
 use crate::demo::logs;
 use crate::demo::overview;
 use crate::demo::profiles;
@@ -18,6 +19,7 @@ use crate::demo::rule_list;
 use crate::demo::rule_statistics;
 use crate::demo::rule_trace;
 use crate::demo::rules;
+use crate::demo::settings;
 use crate::demo::shell;
 use crate::demo::snapshot_restore;
 use crate::demo::speedtest;
@@ -33,16 +35,20 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         | FeatureId::ConnectionsDetailsDrawer
         | FeatureId::ConnectionsGrouping
         | FeatureId::ConnectionsSearchHighlight => connections::activate(state, feature),
-        FeatureId::DnsFakeIpFlushConfirm => shell::activate(state, feature),
+        FeatureId::DnsFakeIpFlushConfirm
+        | FeatureId::ShellCommandPalette
+        | FeatureId::ShellKeyboardFocus => shell::activate(state, feature),
         FeatureId::DnsHostsEditor => dns_hosts::activate(state),
         FeatureId::DnsLeakAlert => dns_leak::activate(state),
         FeatureId::DnsQueryDetails => dns_query::activate(state),
         FeatureId::DoctorFailureRecovery => doctor::activate(state),
-        FeatureId::ShellCommandPalette => shell::activate(state, feature),
+        FeatureId::LifecycleRecoveryPanel => lifecycle::activate(state, feature),
         FeatureId::LogsRedactedExport
         | FeatureId::LogsScrollLock
         | FeatureId::LogsSearchHighlight => logs::activate(state, feature),
-        FeatureId::OverviewCardReorder => overview::activate(state, feature),
+        FeatureId::OverviewCardReorder
+        | FeatureId::OverviewTopologyDrilldown
+        | FeatureId::OverviewReconnectMask => overview::activate(state, feature),
         FeatureId::ProxiesCustomNodeModal
         | FeatureId::ProxiesGroupExpanded
         | FeatureId::ProxiesGroupReorder
@@ -50,9 +56,9 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         | FeatureId::ProxiesProbeSettings
         | FeatureId::ProxiesSearchHighlight
         | FeatureId::ProxiesUriImportPreview => proxies::activate(state, feature),
-        FeatureId::ProfilesAggregatorWizard | FeatureId::ProfilesDeleteConfirm => {
-            profiles::activate(state, feature)
-        }
+        FeatureId::ProfilesAggregatorWizard
+        | FeatureId::ProfilesDeleteConfirm
+        | FeatureId::ProfilesImportModal => profiles::activate(state, feature),
         FeatureId::ProfilesFilterEditor => filter::activate(state),
         FeatureId::ProfilesSnapshotRestoreConfirm => snapshot_restore::activate(state),
         FeatureId::RulesListEditor => rule_list::activate(state),
@@ -63,10 +69,17 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::RulesStatisticsInspector => rule_statistics::activate(state),
         FeatureId::RuntimeTelemetryObservation => telemetry::activate(state),
         FeatureId::SettingsLanguageChoice => language::activate(state),
+        FeatureId::SettingsTunPermission
+        | FeatureId::SettingsLanSecurity
+        | FeatureId::SettingsPortConflictRepair
+        | FeatureId::SettingsPermissionPanel
+        | FeatureId::CoreVersionRollbackConfirm => settings::activate(state, feature),
         FeatureId::ShellRoutingIntentAuthentication | FeatureId::ShellRoutingIntentControl => {
             routing_intent::activate(state, feature)
         }
-        FeatureId::SpeedtestDetailsModal => speedtest::activate(state, feature),
+        FeatureId::SpeedtestDetailsModal
+        | FeatureId::SpeedtestProgressCancel
+        | FeatureId::SpeedtestHistoryComparison => speedtest::activate(state, feature),
         _ => Task::none(),
     }
 }

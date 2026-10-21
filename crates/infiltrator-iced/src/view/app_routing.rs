@@ -45,6 +45,22 @@ fn category_icon(cat: ProcessCategory) -> Icon {
     }
 }
 
+/// The segment index that selects nothing: the owner published no mode.
+const NO_MODE_SEGMENT: usize = usize::MAX;
+
+/// The segment the owner's routing mode selects.
+///
+/// `None` means the owner published no mode: no segment is selected, so the
+/// control never highlights a mode the owner never reported.
+fn mode_segment(mode: Option<AppRoutingMode>) -> usize {
+    match mode {
+        Some(AppRoutingMode::ProxyAll) => 0,
+        Some(AppRoutingMode::ProxySelected) => 1,
+        Some(AppRoutingMode::BypassSelected) => 2,
+        None => NO_MODE_SEGMENT,
+    }
+}
+
 pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
 
@@ -58,11 +74,9 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     .into_iter()
     .map(|mode| lang.tr(mode_key(mode)).into_owned())
     .collect::<Vec<_>>();
-    let mode_idx = match state.app_routing.mode {
-        AppRoutingMode::ProxyAll => 0,
-        AppRoutingMode::ProxySelected => 1,
-        AppRoutingMode::BypassSelected => 2,
-    };
+    // The routing mode is the owner's readback: the shared app-routing page
+    // model owns it, so the surface never keeps a second copy of the value.
+    let mode_idx = mode_segment(state.shell.uwp_loopback.mode());
     let mode_switcher = segmented_control(&mode_labels, mode_idx, |idx| {
         Message::SetAppRoutingMode(match idx {
             1 => AppRoutingMode::ProxySelected,
@@ -70,6 +84,17 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
             _ => AppRoutingMode::ProxyAll,
         })
     });
+    // The status names the owner's mode — including the unobserved case, which
+    // never falls back to a default the owner never reported.
+    let mode_status = badge(
+        lang.tr(state.shell.uwp_loopback.mode_copy_key())
+            .into_owned(),
+        if state.shell.uwp_loopback.mode_observed() {
+            BadgeKind::Accent
+        } else {
+            BadgeKind::Neutral
+        },
+    );
 
     let refresh_btn = button(
         row![
@@ -98,6 +123,8 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let top_controls = row![
         container(mode_switcher).width(Length::FillPortion(3)),
         Space::new().width(theme::SP_MD),
+        mode_status,
+        Space::new().width(theme::SP_SM),
         refresh_btn,
     ]
     .align_y(Alignment::Center);

@@ -145,6 +145,11 @@ pub enum ConfirmAction {
     ClearProfiles,
     DeleteProfile(String),
     DeleteKernel(String),
+    /// Roll the active core back to a previously runnable version.
+    ///
+    /// The version is the owner's rollback target, so the confirmation names
+    /// the exact core the rollback would select.
+    RollbackCore(String),
     CloseAllConnections,
     TracerOverride(TracerRuleOverride),
 }

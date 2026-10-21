@@ -159,18 +159,30 @@ fn connection_drawer_goes_full_bleed_on_narrow_viewport() {
 
 #[test]
 fn overview_card_order_follows_shared_layout_moves() {
+    use crate::test_mounts::command_harness::attach_product_application_with_accepted_owner_snapshot;
+    use crate::test_mounts::surface_task_harness::{
+        drain_surface_task, overview_layout_application,
+    };
     use infiltrator_contract::overview_layout::OverviewCardKind;
 
     let (mut state, _) = AppState::new();
+    // The card order is the owner's fact: the surface dispatches the shared
+    // move intent and renders the order the owner publishes, so the test
+    // needs an owner that answers that intent.
+    attach_product_application_with_accepted_owner_snapshot(
+        &mut state,
+        overview_layout_application(),
+    );
     assert_eq!(
         state.diag.overview_card_order,
         OverviewCardKind::DEFAULT_ORDER.to_vec()
     );
 
     // Move the first card down: it swaps with the second card.
-    let _ = state.update(Message::MoveOverviewCardDown(
+    let moved = state.update(Message::MoveOverviewCardDown(
         OverviewCardKind::RoutingIntentSegment,
     ));
+    drain_surface_task(&mut state, moved, AppState::update);
     assert_eq!(state.diag.overview_card_order[0], OverviewCardKind::Traffic);
     assert_eq!(
         state.diag.overview_card_order[1],
@@ -178,30 +190,34 @@ fn overview_card_order_follows_shared_layout_moves() {
     );
 
     // Move it back up restores the canonical order.
-    let _ = state.update(Message::MoveOverviewCardUp(
+    let moved = state.update(Message::MoveOverviewCardUp(
         OverviewCardKind::RoutingIntentSegment,
     ));
+    drain_surface_task(&mut state, moved, AppState::update);
     assert_eq!(
         state.diag.overview_card_order,
         OverviewCardKind::DEFAULT_ORDER.to_vec()
     );
 
     // Moving the top card up is a no-op (already first).
-    let _ = state.update(Message::MoveOverviewCardUp(
+    let moved = state.update(Message::MoveOverviewCardUp(
         OverviewCardKind::RoutingIntentSegment,
     ));
+    drain_surface_task(&mut state, moved, AppState::update);
     assert_eq!(
         state.diag.overview_card_order[0],
         OverviewCardKind::RoutingIntentSegment
     );
 
     // After a custom order, reset restores the default.
-    let _ = state.update(Message::MoveOverviewCardUp(OverviewCardKind::Quota));
+    let moved = state.update(Message::MoveOverviewCardUp(OverviewCardKind::Quota));
+    drain_surface_task(&mut state, moved, AppState::update);
     assert_ne!(
         state.diag.overview_card_order,
         OverviewCardKind::DEFAULT_ORDER.to_vec()
     );
-    let _ = state.update(Message::ResetOverviewCardOrder);
+    let moved = state.update(Message::ResetOverviewCardOrder);
+    drain_surface_task(&mut state, moved, AppState::update);
     assert_eq!(
         state.diag.overview_card_order,
         OverviewCardKind::DEFAULT_ORDER.to_vec()

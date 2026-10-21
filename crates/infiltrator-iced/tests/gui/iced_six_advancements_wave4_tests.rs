@@ -246,6 +246,8 @@ fn test_pac_live_result_updates_url_and_committed_snapshot() {
         },
         script_bytes: 4096,
         bypass_domains: vec!["example.com".to_owned()],
+        bypass_lan: false,
+        minify: false,
         revision: 5,
     };
 

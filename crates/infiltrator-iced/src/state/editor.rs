@@ -106,11 +106,6 @@ impl SnapshotDiffModalState {
     }
 }
 
-/// DNS server latency probing phase.
-///
-/// The probe phase is owned by the shared DNS page model
-/// (`DnsOperation::ProbeLatency`); the surface keeps no private copy.
-
 /// Load phase for profile snapshot history.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SnapshotsLoadPhase {
@@ -167,11 +162,6 @@ impl MrsScanPhase {
     }
 }
 
-/// Load phase for inspecting rule provider diff.
-///
-/// The diff-load phase is owned by the shared rules page model
-/// (`RulesOperation::LoadProviderDiff`); the surface keeps no private copy.
-
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
 /// 表单双模式编辑状态、脏标记、懒加载与校验(UI-002)。
 pub struct ConfigEditorState {
@@ -180,7 +170,6 @@ pub struct ConfigEditorState {
     pub tun_strict_route: bool,
     pub sniffer_enabled: bool,
     pub rule_list: RuleListEditor,
-    pub rules_filter: String,
     pub rules_loaded_once: bool,
     /// The one page model of the rules page: the active tab, the active JSON
     /// section, the JSON document drafts and the eight operation phases.
@@ -213,7 +202,6 @@ pub struct ConfigEditorState {
     pub rules_tracer_override_target: String,
     pub rules_providers_expanded: bool,
     pub rules_render_cache: Vec<RuleRenderItem>,
-    pub rules_filtered_indices: Vec<usize>,
     pub rules_heavy_ready: bool,
     /// DUAL-11-08: publish cap of the shared rules read model (0 = uncapped)
     /// and the rules it dropped, when the published view is truncated. The
@@ -346,6 +334,22 @@ pub struct ConfigEditorState {
 }
 
 impl ConfigEditorState {
+    /// The number of rules that survive the shared filter.
+    ///
+    /// The filter and the reduction belong to the shared rules page model, so
+    /// the surface keeps no second copy of the query or of the indices it
+    /// produced.
+    pub fn rules_filtered_count(&self) -> usize {
+        self.rules_model
+            .filtered_indices(&self.rule_list.draft)
+            .len()
+    }
+
+    /// The indices of the rules that survive the shared filter.
+    pub fn rules_filtered_indices(&self) -> Vec<usize> {
+        self.rules_model.filtered_indices(&self.rule_list.draft)
+    }
+
     /// Begin one DNS page operation and return its submission token.
     pub fn begin_dns_operation(&mut self, operation: DnsOperation) -> u64 {
         self.dns_model.operation_mut(operation).begin()

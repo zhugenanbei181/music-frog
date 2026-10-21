@@ -13,9 +13,10 @@ use crate::view::theme::{FONT_SEMIBOLD, HAIRLINE, MONO, R_SM, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestResultState};
+use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestResultState, SpeedtestSnapshot};
 use infiltrator_contract::speedtest_details::{SpeedtestDetailRow, SpeedtestDetails};
 use infiltrator_presentation::speedtest_detail_projection::project_details;
+use infiltrator_presentation::speedtest_summary_projection::history_lines;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn metric(label: String, value: String) -> Element<'static, Message> {
@@ -143,6 +144,37 @@ fn body(snapshot: &SpeedtestDetails, lang: &Lang<'_>, height: f32) -> Element<'s
     scrollable(content).height(Length::Fixed(height)).into()
 }
 
+fn history_section(snapshot: &SpeedtestSnapshot, lang: &Lang<'_>) -> Element<'static, Message> {
+    // The persisted run history is a shared fact: every line is a real run the
+    // owner recorded, and an empty history stays an explicit empty state.
+    let lines = history_lines(snapshot, &Lang(lang.0));
+    let mut content = column![
+        text(lang.tr("speedtest_history_title").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            })
+    ]
+    .spacing(2);
+    if lines.is_empty() {
+        content = content.push(
+            text(lang.tr("speedtest_history_empty").to_string())
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+        );
+    } else {
+        for line in lines {
+            content = content.push(text(line).size(11).font(MONO));
+        }
+    }
+    container(content)
+        .id(InteractionRegion::SpeedtestHistory.id())
+        .into()
+}
+
 pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let snapshot = project_details(&state.diag.speedtest);
@@ -175,7 +207,9 @@ pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
     let card = column![
         header,
         Space::new().height(8),
-        body(&snapshot, &lang, height)
+        body(&snapshot, &lang, height),
+        Space::new().height(8),
+        history_section(&state.diag.speedtest, &lang),
     ]
     .spacing(4);
 

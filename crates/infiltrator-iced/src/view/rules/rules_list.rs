@@ -22,6 +22,7 @@ use crate::view::subrules_builder::subrules_panel;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::scrollable::Viewport;
 use iced::widget::{Id, Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -316,15 +317,16 @@ pub(super) fn rules_list_view<'a>(
 ) -> Element<'a, Message> {
     let add_rule_form = add_rule_panel(state, lang, available_targets);
 
-    let search_bar = search_input(
+    let search_bar = container(search_input(
         lang.tr("rules_filter_placeholder").as_ref(),
-        &state.editor.rules_filter,
+        state.editor.rules_model.filter_text(),
         Message::FilterRules,
         Message::FilterRules(String::new()),
-    );
+    ))
+    .id(InteractionRegion::RulesSearchInput.id());
 
     let page_size = state.editor.rules_page_size.max(1);
-    let total_count = state.editor.rules_filtered_indices.len();
+    let total_count = state.editor.rules_filtered_count();
     let total_pages = page_count(total_count, page_size);
     // DUAL-11-08: the rendered band is the shared virtual window of the
     // filtered list — fixed-height rows, visible band + overscan, spacers for

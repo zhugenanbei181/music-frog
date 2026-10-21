@@ -1,6 +1,5 @@
 use crate::types::script::ScriptAction;
 use crate::types::snapshot_restore::RestoreAction;
-use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 pub mod aggregator;
 mod chrome;
@@ -22,8 +21,10 @@ mod ui_wave5;
 
 use crate::state::AppState;
 use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
+use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_contract::overview_layout::OverviewCardMoveDirection;
 use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsWriteOutcome;
 
 impl AppState {
@@ -101,8 +102,7 @@ impl AppState {
                 {
                     return Task::none();
                 }
-                Message::SetAppRoutingMode(mode) => {
-                    self.app_routing.mode = mode;
+                Message::SetAppRoutingMode(_) => {
                     return Task::none();
                 }
                 Message::SetAppRouteRule { process, rule } => {
@@ -120,7 +120,6 @@ impl AppState {
                 | Message::CoreLogLevelFinished(_, _)
                 | Message::ServiceModePrepared(_)
                 | Message::RepairPortConflicts
-                | Message::PortConflictsRepaired(_)
                 | Message::SetIpv6Routing(_)
                 | Message::SetTunEnabled(_)
                 | Message::SetTunStack(_)
@@ -171,14 +170,26 @@ impl AppState {
                 | Message::FactoryReset
                 | Message::OpenConfigDir
                 | Message::RequestAdminPrivilege
-                | Message::InstallTunService
                 | Message::RefreshTunServiceStatus
                 | Message::RunDnsLatencyProbe
                 | Message::DnsLeakProbed { .. }
                 | Message::RunStunProbe
-                | Message::StunProbed(_)
-                | Message::RunPrivilegedNetworkRegression
-                | Message::PrivilegedNetworkRegressionUpdated(_) => return Task::none(),
+                | Message::StunProbed(_) => return Task::none(),
+                // The demo composes no host runtime, so the TUN preparation
+                // and the privileged-network regression cannot reach the
+                // platform: the surface answers them with the host's typed
+                // refusal instead of touching the host. A demo that ever
+                // composes a host runtime keeps them as no-ops.
+                Message::InstallTunService | Message::RunPrivilegedNetworkRegression => {
+                    if self.runtime.runtime.is_some() {
+                        return Task::none();
+                    }
+                }
+                // The owner's typed answers are read-model updates, not side
+                // effects: a capture must be able to show what the owner
+                // published, so they are never swallowed by the demo guard.
+                Message::PortConflictsRepaired(_)
+                | Message::PrivilegedNetworkRegressionUpdated(_) => {}
                 Message::SaveRules
                 | Message::RunDnsLeakProbe
                 | Message::RetryDnsLeakProbe
@@ -279,18 +290,21 @@ impl AppState {
             }
             // Overview card order is the shared `OverviewLayoutSnapshot`; the
             // view assembles its cards from this local projection of it.
-            Message::MoveOverviewCardUp(kind) => {
-                self.move_overview_card(kind, true);
+            Message::OverviewCardOrderApplied(snapshot) => {
+                // The owner published the order; the surface renders it.
+                self.diag.overview_card_order = snapshot.order;
                 Task::none()
+            }
+            Message::OverviewCardOrderFailed(failure) => {
+                Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
+            }
+            Message::MoveOverviewCardUp(kind) => {
+                self.dispatch_overview_card_move(kind, OverviewCardMoveDirection::Up)
             }
             Message::MoveOverviewCardDown(kind) => {
-                self.move_overview_card(kind, false);
-                Task::none()
+                self.dispatch_overview_card_move(kind, OverviewCardMoveDirection::Down)
             }
-            Message::ResetOverviewCardOrder => {
-                self.diag.overview_card_order = OverviewCardKind::DEFAULT_ORDER.to_vec();
-                Task::none()
-            }
+            Message::ResetOverviewCardOrder => self.dispatch_overview_card_reset(),
             // DUAL-08 multi-subscription aggregator: the modal state, the real
             // shared preview and the "save as new profile" action.
             Message::OpenAggregatorModal
