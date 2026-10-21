@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 193 pt（66 条）/ 过去佛 103 pt（41 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
+- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 196 pt（67 条）/ 过去佛 106 pt（42 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
 - 本板 67 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -128,11 +128,6 @@
   - 计划：重构 shell_scene.rs 与 shell_readout.rs 布局约束，添加 Tooltip 与 Hover 状态。
 
 
-- [ ] BEVYUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 代理选择与节点卡片重构（#33~#52）
-  - 产物：解决 #33 顶部操作按钮杂乱、#34 Test All 浅蓝块撕裂、#35 搜索框与 Clear/Retry 挤压、#36 Alive Only 与排序垂直错位、#37 排序标签未走 TabList、#38 Probe settings 文本粘连、#39 Custom Node Editor 栏目条缺乏交互暗示、#40 分组标题技术术语生硬外露、#41 分组折叠上移下移按钮微小、#42 激活节点整卡亮蓝底色遮蔽内容、#43 卡片内图标过密、#44 未激活卡片死灰单调、#45 协议特性标签重复啰嗦、#46 延迟方块锐角嵌套、#47 延迟折线图微小抽象、#48 卡片悬停无位移阴影、#49 卡片网格换行留白断裂、#50 两端横条/卡片形态分裂、#51 Ready to test 状态缺乏指引、#52 长节点名称缺失渐隐截断。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets::tabs。
-  - 验收：代理页双视口像素回执消除高亮遮蔽与拥挤，排序走 TabList。
-  - 计划：重构 proxies/scene.rs 与 node 卡片渲染，优化调色板高亮与内联间距。
 
 - [ ] BEVYUI-004 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 规则系统与分段标签收口（#53~#68）
   - 产物：解决 #53 头部堆砌技术日志长文本、#54 辅助操作按钮体积过大、#55 Rules 分段标签切换生硬、#56 Retained draft for 悬挂句号、#57 草稿保存丢弃禁用态对比度过低、#58 分页工具栏插在搜索栏右侧压缩空间、#59 长规则列表缺失滚动条退化分页、#60 规则行圆角梯级白线框杂乱、#61 规则序号未等宽对齐、#62 匹配类型徽标色彩单调、#63 目标动作 DIRECT/REJECT 缺乏语义色彩、#64 Toggle rule 样式割裂、#65 重排序箭头蓝底黑图对比度反转、#66 命中统计与状态纯文本混杂、#67 编辑抽屉无渐入动效、#68 JSON Editor 缺乏代码高亮与行号槽。
@@ -515,6 +510,12 @@
   - 依赖：Iced/Slint 表面各自可在自己的视图层内推进；⑥ 需共享 owner 决策。
   - 验收：三个表面各自 nextest 全绿；每项都有「改前/改后」证据；Iced 开关像素回执需重取（改用工具链 2:1 药丸后像素变了，`source_fingerprint` 绑定要重绑）。
   - 事实依据：2026-10-21 按 pinned 依赖源码符号名实测（iced 0.14 / iced_widget 0.14.2 / slint 1.18.1 / Compose M3）：Iced 手绘开关（`canvas::Program`）已改官方 `toggler` 并补 4 条测试；Slint 两个 `inherits Rectangle` 手搓模态已改官方 `PopupWindow` 并删掉产品层 open bool，补 2 条测试；Android Compose 零命中。
+
+- [ ] BEVYUI-003R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui + infiltrator-bevy-widgets + infiltrator-shared] [status: Planned] 代理页余项与共享改动落地
+  - 产物：① #47 延迟迷你折线图（需 owner 的延迟采样历史进投影：`surface_projection.rs` 的 `ProxyNode` 增加 `latency_samples`）；② #39 Custom Node Editor 栏目条加描边与尾部箭头（`business_panel.rs` 的 `launcher_scene`）；③ #52 长名的像素渐隐（需 `palette.rs` 新增不透明 `card_fill()`，否则渐变会二次合成出色带）；④ locale 表新增四个键（分组类型 Fallback/LoadBalance/Relay、测速就绪提示）；⑤ `ProxiesProjection` 增加 `sort_order`，排序条由 owner 顺序播种而非采用备忘；⑥ `widgets/src/tabs.rs` 增加带自定义标记的分段控件入口；⑦ 把"卡片填色必须跑 `Last` 调度"写进共享控件层说明。
+  - 依赖：BEVYUI-003 已交付的部分（现在佛已无此条）。
+  - 验收：代理页双视口像素回执；#47/#48/#52 的像素证据到位（#48 需带指针的捕获台架，取不到就明确标注为代码级证据）。
+  - 事实依据：BEVYUI-003 交付时逐条列出的共享改动需求（文件 + 符号 + 代码片段）。
 
 ## 十一、办结与登记
 

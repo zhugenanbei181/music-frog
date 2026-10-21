@@ -403,3 +403,15 @@
   - 证据身份：改后捕获 3/3 ok（`.evidence/captures/bevy/20261021T123803Z_c11e55a3be03_dirty_1904104/`）；改前对照取自 2026-10-20 基线跑批的 `baseline-overview-720x480`（紧凑视口里地球卡占满全屏、hero 零像素可见）与 `baseline-r2-overview-1180x780`。
   - 已证明层：#19~#32 共 14 条逐条处置（空态改线框地球骨架 + typed 原因；地球模式改走共享 owner 的官方 `TabList` 分段控件并只观察官方 `ValueChange`；副标题字重上调；贯穿线改短标；Demo Mode 蓝块压成两行紧凑带；状态圆点按 `MotionPreference` 呼吸并尊重 Reduced 动效；删除 hero 里重复的 Follow rules 药丸；三档圆角各归其位；拓扑空状态补插画与 typed 原因；卡片内外留白改用共享 `surface_scene`）。**#29 的根因**：地球段原被 `Add<PageRoot>` 观察者插成页根第一个子节点，把 hero 顶出视口——改为页面拥有 `GlobeSectionSlot`、地球段自己声明进槽位，页内顺序由页面决定。
   - 未证明层：本条改动的 headless 测试文件按并行协议未编译验证，须由收口流的 `cargo nextest run -p infiltrator-bevy-ui` 覆盖；共享分段控件的滑动药丸比页签宽约 2–3px（百分比定位在 padding box 上），像素级对齐需改 widgets crate，本条未擅改共享文件。
+
+- [ ] BEVYUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 代理选择与节点卡片重构（#33~#52）
+  - 产物：解决 #33 顶部操作按钮杂乱、#34 Test All 浅蓝块撕裂、#35 搜索框与 Clear/Retry 挤压、#36 Alive Only 与排序垂直错位、#37 排序标签未走 TabList、#38 Probe settings 文本粘连、#39 Custom Node Editor 栏目条缺乏交互暗示、#40 分组标题技术术语生硬外露、#41 分组折叠上移下移按钮微小、#42 激活节点整卡亮蓝底色遮蔽内容、#43 卡片内图标过密、#44 未激活卡片死灰单调、#45 协议特性标签重复啰嗦、#46 延迟方块锐角嵌套、#47 延迟折线图微小抽象、#48 卡片悬停无位移阴影、#49 卡片网格换行留白断裂、#50 两端横条/卡片形态分裂、#51 Ready to test 状态缺乏指引、#52 长节点名称缺失渐隐截断。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets::tabs。
+  - 验收：代理页双视口像素回执消除高亮遮蔽与拥挤，排序走 TabList。
+  - 计划：重构 proxies/scene.rs 与 node 卡片渲染，优化调色板高亮与内联间距。
+  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ 代理页双视口像素回执复核（1180x780 / 720x480）+ 本条改动的 headless 测试按并行协议未编译验证，须由收口流的 `cargo nextest run -p infiltrator-bevy-ui` 覆盖。
+  - 证据身份：改后捕获 4/4 ok（`.evidence/captures/bevy/20261021T132353Z_6d39d986b658_dirty_2146509/`）；改前对照取自 `.evidence/runs/20261020T081015Z_175409/bevy-published/proxies-group-expanded-{standard,compact}.png`。量化像素：选中卡片内芯由 `rgb(30,143,245)`（accent 实心，内容被埋）变为 `rgb(83,85,86)`（与其余卡片同一阅读面），accent 收成 1px 边线 + 3px 选中轨（x=286..288）；协议芯片不再裁切，`udp`/`UDP` 只出现一次。
+  - 已证明层（#33~#52 共 20 条）：14 条已修——顶部动作并入一个带框组、Test All 改 accent 描边触发、搜索与 Clear/Retry 分组且 Retry 仅在搜索被拒后出现、Alive Only 与排序同轴居中、排序标签走官方 `TabList`/`Tab`/`SelectedTab`/`TabActivation` 并由 owner 已发布顺序驱动、分组标题去技术黑话、协议芯片去重、卡片图标改为"旗标+名字在前、操作在后"独立行、延迟方块圆角分档、上区改卡片式带分组动作条与筛选行、上下移改 28px 命中区的箭头图标板、Probe settings 改带框触发+独立说明、选中卡片不再埋内容、未选中卡片不再是死灰。
+  - 未证明层（诚实列出，不计为完成）：#48 悬停位移与阴影**只有代码与单测**（捕获台架无指针，取不到像素）；#52 长名截断已做 grapheme 安全省略，但**像素渐隐**需共享不透明卡片填充色（`UiPalette::card_fill`）；#50/#51 仅部分；**#47 延迟迷你折线图未做**（需 owner 的延迟采样历史进投影）；**#39 Custom Node Editor 栏目条未做**（需共享 `business_panel.rs`）；#49 判定为非页面缺陷（换行网格末行留白属共享 `FluidCardGrid` owner 的平衡问题）。
+  - 遗留共享改动需求（转 `BEVYUI-003R`）：`business_panel.rs` 的 `launcher_scene` 加描边与尾部箭头；`infiltrator-shared` locale 表新增四个键（分组类型 Fallback/LoadBalance/Relay + 测速就绪提示）；`infiltrator-bevy-widgets/src/palette.rs` 新增 `card_fill()`；`infiltrator-bevy-ui/src/surface_projection.rs` 的 `ProxyNode` 增加 `latency_samples`、`ProxiesProjection` 增加 `sort_order`；`infiltrator-bevy-widgets/src/tabs.rs` 增加带自定义标记的分段控件入口。
+  - 已知风险（须写进共享控件层说明）：卡片填色必须跑在 `Last` 调度——共享皮肤在 `Update` 把每个 `ControlVisual.0 == true` 的控件重涂成实心 accent，若把卡片填色移回 `Update` 会重新引入 #42（"选中控件=实心 accent 填色"与"卡片必须保留阅读面"不可组合）。
