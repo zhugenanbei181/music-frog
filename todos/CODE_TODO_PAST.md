@@ -373,3 +373,13 @@
   - 验收：契约有字段或读回，共享模型有消费面，三端的降级分支清零搜索为空。
   - 当前证据：① **LAN 共享读回成为一份事实**——契约的 `RuntimeControlSnapshot` 与 `SettingsPageSnapshot` 用 `lan_sharing: Option<LanSharingSnapshot>` 取代三个必须互相吻合的独立 `Option`（`None` = 未观测，不是「关闭」），共享层新增 typed `LanSharingObservation` 与 `observe_settings_page` 折叠；Iced、Bevy、Slint 三端的私有合成（`revision: 0`）全部删除。② **PAC 读回能回环请求**——`PacSnapshot` 增 `bypass_lan`/`minify`（`#[serde(default)]`），共享草稿读 owner 的值，Iced 写路径不再硬编码 `bypass_lan: true, minify: false`。③ **规则列表过滤归共享层**——`FilterQuery` 成为每个页面共用的 typed 查询，规则页过滤进 `RulesPageModel`，三端的私有字符串过滤删除。④ **应用路由「未观测」有文案**——`app_routing_mode_unobserved` / `app_routing_unobserved_summary` 两种语言齐备，模型报 `Option<AppRoutingMode>`，三端不再回落到 `ProxyAll`。⑤ **闭合连接并入共享模型**——`infiltrator-domain` 补 `ConnectionView` 实现，闭合历史按共享模型过滤、排序与分组。
   - 批次证据：全仓 `cargo nextest run --workspace --no-fail-fast --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools` **全绿**、`bash scripts/quality/check-structure.sh` **exit 0**、`cargo fmt --all --check` 通过；三端的清零搜索（`allow_lan`/`lan_bind_address`/`observed_lan_sharing`/`filter_rule_indices`/`ProxyFilterQuery`/`revision: 0`）全部为空。
+
+- [ ] BEVYUI-005 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 活动连接与详情抽屉打磨（#69~#82）
+  - 产物：解决 #69 Close all 鲜红按钮过大诱发误触、#70 总上下行流量字阶过小、#71 live 绿点与基线错位、#72 视图筛选未走 TabList、#73 空闲超时胶囊与 Sweep 按钮风格打架、#74 Active connections 标题与 6 个排序过滤挤压、#75 外层与条目双层白框嵌套、#76 域名端口未分色、#77 进程路由纯文本堆砌缺少 Tag、#78 传输速率数字变宽左右拉扯、#79 High-Throughput Pulse 标签生硬、#80 Details/Disconnect 逐行重复制造噪点、#81 滚动无边缘渐隐羽化、#82 详情抽屉弹出未锁定底层滚动。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：连接页双视口像素回执消除双层嵌套与错位，危险操作增加保护。
+  - 计划：重构 connections_view.rs，按钮改为悬停露出，数据指标采用等宽字体。
+  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ Bevy 连接页双视口像素回执（1180x780 / 720x480）复核 + Iced/Slint/Android 三表面的同构处理尚未开始（另立条目）。
+  - 证据身份：捕获跑批 `.evidence/captures/bevy/20261021T121856Z_c11e55a3be03_dirty_1836213/`（connections 10 个场景全部 `ok`）；改前/改后像素副本 `.evidence/wip/bevyui-005/`；帧级差异 33.48% 的通道变化，危险红像素 3339→0、表格色阶断点 23→9、滚动边缘羽化实测 `(37,41,44)→(21,24,26)`。
+  - 已证明层：#69~#82 共 14 条逐条处置（全部已修并给出像素事实）；官方 `TabList`/`Tab`/`SelectedTab` 接管三组筛选/排序条，本地 `ConnAggregationPill`/`ConnSortPill` 已退役；抽屉打开时页面滚动轴锁为 `Clip`。
+  - 未证明层：仓库本批尚无统一验证批次回执；Iced/Slint/Android 三表面的同构整改未做。

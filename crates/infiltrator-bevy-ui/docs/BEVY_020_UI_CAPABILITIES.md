@@ -24,7 +24,7 @@
 | ③ headless 标签页 | 人工评审 | 已迁到官方 `TabList`/`Tab`/`SelectedTab`；无守卫（判定需语义规则，机械不可靠） | 保持评审口径 |
 | ④ `FixedNode` 视口定位 | 机器：视口级浮层根必须挂官方 `FixedNode`（与 ② 同批补齐，9 个浮层 owner 全部挂载） | 官方 `FixedNode` 已挂在全部九个浮层 owner | 无 |
 | ⑤ 行内内容 | 人工评审 | 只迁到 `InlineImage`（`bevy_ui::widget::InlineImage`，6 处：状态点与图标）；`bevy_text::InlineBox` **直接使用 0 处**，行内文字/徽标仍随文本流动这条语义未落地；无守卫（判定需语义规则） | 行内文字内容迁到 `InlineBox`，或按 ⑤ 的落点清单逐条证明不需要 |
-| ⑥ 官方行为层优先 | 机器：全部模态面（共享 modal、命令面板、13 个产品模态页、adaptive modal）挂载官方 `ModalDialogBarrier`／`ModalDialog`／`RequestClose`，barrier 点击外关闭、焦点圈闭（`Dialog` → `TabGroup { modal: true }`）、`DialogStack` 与 Esc 拦截由 Bevy 提供；打开时把输入焦点交接进对话框（`TabIndex` + `AcquireFocus`），关闭时释放，手写 Esc 分支已删除；模态阶段为 typed `ModalStage{Hidden,Open,Dismissed}`（旧 bool 对已消失）；**menu 层仍是本地实现**（`infiltrator-bevy-widgets/src/menu.rs` 自建 `MenuState`/`MenuNavEvent`/`MenuOutcome`），而 0.20 官方 `bevy_ui_widgets::MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` **已支持键盘导航与焦点圈闭**，本地实现的旧理由（"官方仅指针驱动"）在 0.20 已失效；本地实现的头注释与本节落点互相矛盾，按官方 API 的事实，迁回官方是唯一正确方向（见「0.20 未采用能力台账」的 MENU-01）；无守卫（判定需语义规则）；圆角角色按契约阶梯互斥裁决：**居中**模态对话框/居中命令面板 = `MODAL`(24)，面板式对话框卡/浮层面板 = `CARD`(16)，底部抽屉 = `BOTTOM_SHEET`(28)，旧 `DIALOG` 档已退役（阶梯不得有两种读法） | 无 |
+| ⑥ 官方行为层优先 | 机器：全部模态面（共享 modal、命令面板、13 个产品模态页、adaptive modal）挂载官方 `ModalDialogBarrier`／`ModalDialog`／`RequestClose`，barrier 点击外关闭、焦点圈闭（`Dialog` → `TabGroup { modal: true }`）、`DialogStack` 与 Esc 拦截由 Bevy 提供；打开时把输入焦点交接进对话框（`TabIndex` + `AcquireFocus`），关闭时释放，手写 Esc 分支已删除；模态阶段为 typed `ModalStage{Hidden,Open,Dismissed}`（旧 bool 对已消失）；**menu 层已迁回官方**（`infiltrator-bevy-widgets/src/menu.rs` 用官方 `MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState`；本地 `MenuState`/`MenuNav`/`MenuNavEvent`/`Menu`/`MenuScrim`/`menu_overlay_scene`/`advance_menus` 与 `context_menu.rs` 的 `ContextMenuPlacement`/`ContextMenuState.is_open` 已删除）；无守卫（判定需语义规则）；圆角角色按契约阶梯互斥裁决：**居中**模态对话框/居中命令面板 = `MODAL`(24)，面板式对话框卡/浮层面板 = `CARD`(16)，底部抽屉 = `BOTTOM_SHEET`(28)，旧 `DIALOG` 档已退役（阶梯不得有两种读法） | 无 |
 | ⑦ 小件收敛 | 机器：`scripts/quality/bevy_bsn_guard.py`（`BEVY-BSN-008` 列表场景必须 `bsn_list!`、`BEVY-BSN-009` 批量退役必须 `despawn_all`、`BEVY-BSN-010` 胶囊必须 `BorderRadius::MAX`、`BEVY-BSN-007` `template_value` 硬零）+ 评审口径（`Ready` 事件语义无法词法判定） | 6 处真实列表场景改 `bsn_list!` + `SceneList`；1 处挂载后初始化改订阅 `bevy_scene::Ready`；1 处批量退役改 `despawn_all`；胶囊圆角 29 处全量 `BorderRadius::MAX`；固定 2–3 个手写子项的静态 `Children [ ... ]` 明确保留（非列表场景） | 真实交互与像素验收随本批截图批次 |
 
 ### 0.20 未采用能力台账（2026-10-21 实测）
@@ -37,7 +37,7 @@
 | --- | --- | --- | --- |
 | SCROLL-01 | `bevy_ui_widgets::Scrollbar` / `ScrollbarThumb` / `ScrollbarPlugin` | 0 处 | 本仓只挂了 `ScrollAreaPlugin`（官方滚动容器），**没有滚动条**：既未用官方滑块，也无自有滑块；规则列表只有一行文字页码指示器。处置：接官方 `Scrollbar`+`ScrollbarThumb`（滑块需 `Scrollbar::new(target, orientation, min_thumb_length)`），并把列表容器的滚动位置与滑块绑定。 |
 | SCROLL-02 | `bevy_ui_widgets::ScrollIntoView`（事件） | 0 处 | 官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，但本仓**从不触发该事件**，而是在 `infiltrator-bevy-widgets/src/list.rs` 自算偏移（`scroll_to_item`）。处置：改为触发官方 `ScrollIntoView`，删除自算偏移路径。 |
-| MENU-01 | `bevy_ui_widgets::MenuPopup` / `MenuItem` / `MenuFocusState` / `MenuLayout` | 0 处（仅头注释提及） | 0.20 官方菜单**已支持键盘导航与焦点圈闭**（`MenuLayout` 专供键盘导航方向），本地实现的"官方仅指针驱动"理由已失效；本地 `MenuState`/`MenuNavEvent`/`MenuOutcome` 与官方重复。处置：迁回官方并删除本地菜单状态机与旧回归路径。 |
+| MENU-01 | `bevy_ui_widgets::MenuPopup` / `MenuItem` / `MenuFocusState` / `MenuLayout` | **已采用**（2026-10-21 迁完） | 官方 `MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState` 接管打开/关闭/方向键导航/焦点圈闭；本地菜单状态机与手写视口翻转（`ContextMenuPlacement`）已删除。宿主需具备 `InputDispatchPlugin`（键盘→焦点实体）、`PointerFocusPlugin`（点外关闭）与可见性传播（`VisibilityPlugin` + mesh asset store），否则官方焦点账本够不到条目。 |
 | TEXT-01 | `bevy_text::InlineBox`（`InFlow`/`OutOfFlow`） | 0 处 | 只用了 `InlineImage`（图片侧）。行内文字/徽标随文流动这条语义未落地，见台账 ⑤。 |
 | NAV-01 | `bevy_ui::auto_directional_navigation` | 0 处 | 0.20 的空间/方向导航（a11y 方向键）未接入。处置：待无障碍验收提出方向导航要求时接入。 |
 | RENDER-01 | `bevy_ui::gradients`（`LinearGradient`/`RadialGradient`） | 0 处 | 0.20 的 UI 渐变未接入。处置：纯视觉增强，按需立项（当前 token 体系无渐变语义 token）。 |
@@ -121,7 +121,7 @@
 
 - 对话框（模态/非模态）：`bevy_ui_widgets::Dialog`/`ModalDialog` + `RequestClose` + 官方 barrier/焦点圈闭/`DialogStack`。禁止手写 barrier 点击外关闭、Esc 拦截、焦点圈闭。
 - 弹层定位：`bevy_ui_widgets::Popover`（`PopoverSide`/`PopoverAlign`/`PopoverPlacement` 自动翻转）。禁止手写视口翻转几何（combobox 下拉、context menu 定位迁到官方 placement）。
-- 菜单：`bevy_ui_widgets::MenuPopup`/`MenuItem`/`MenuEvent`（官方 `MenuFocusState::{Opening,Open,Closed}` 显式状态机 + 方向键导航）。`W/menu.rs` 曾以"官方仅指针驱动"为由自建键盘导航；0.20 官方已支持键盘（`MenuLayout` + arrow keys），该理由失效，迁回官方。
+- 菜单：`bevy_ui_widgets::MenuPopup`/`MenuItem`/`MenuEvent`（官方 `MenuFocusState::{Opening,Open,Closed}` 显式状态机 + 方向键导航）。`W/menu.rs` 曾以"官方仅指针驱动"为由自建键盘导航；0.20 官方已支持键盘（`MenuLayout` + arrow keys），该理由失效，**已于 2026-10-21 迁回官方**，本地 `MenuState`/`MenuNavEvent` 导航状态机已退役。宿主侧保留的 `MenuOutcome` 只是宿主面向的类型化结果，其来源是官方 `MenuEvent`，不再自带第二份导航状态。
 - `bevy_feathers` 样式控件（`FeathersSelect`、`FeathersNumberInput`、`ListView`、`ColorInput`）暂不接入：它们绑定 feathers 视觉基线，与自研 token 体系冲突。触发条件：产品立项需要对应控件（如设置页拖拽步进 → `FeathersNumberInput`；主题编辑器 → `ColorInput`），接入时必须连 `UiTheme` 补齐其语义 token。此为已评审的取舍，不是"未验证"。
 - 落点：`W/modal.rs`、`W/adaptive_modal.rs`、`U/command_palette.rs` → 官方 Dialog/ModalDialog；`W/popover.rs` → 官方 Popover；`W/menu.rs`、`W/context_menu.rs` → 官方 MenuPopup。已删除旧入口：`MenuNavEvent`/`MenuState` 自研循环、`ModalState.is_open: bool`。
 
