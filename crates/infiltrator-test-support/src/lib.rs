@@ -1,19 +1,32 @@
 //! Engine-neutral fake ports and deterministic test/capture fixtures.
 
 pub mod connection_grouping_fixtures;
+pub mod core_process_fixtures;
 pub mod dns_cache_fixtures;
 pub mod dns_hosts_fixtures;
 pub mod dns_leak_fixtures;
 pub mod dns_query_fixtures;
 pub mod doctor_capture_fixtures;
 pub mod filter_capture_store;
+pub mod lan_configuration_fixtures;
 pub mod language_choice_fixtures;
 pub mod log_capture_fixtures;
 pub mod memory_credential_store;
+pub mod port_conflict_fixtures;
+pub mod privileged_network_fixtures;
+pub mod profile_document_codec_fixtures;
 pub mod profile_document_codec_test_support;
+pub mod profile_store_fixtures;
 pub mod profile_workspace_test_support;
 pub mod routing_intent_fixtures;
 pub mod rule_list_fixtures;
+pub mod rule_provider_fixtures;
 pub mod rule_trace_fixtures;
 pub mod rule_workspace_test_support;
+pub mod service_mode_fixtures;
+pub mod snapshot_store_fixtures;
+pub mod speedtest_history_fixtures;
 pub mod subscription_filter_fixture;
+pub mod subscription_import_fixtures;
+pub mod subscription_source_fixtures;
+pub mod version_fixtures;
