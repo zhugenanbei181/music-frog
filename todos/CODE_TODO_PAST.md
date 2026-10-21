@@ -393,3 +393,13 @@
   - 证据身份：改后整页捕获 6/6 ok（`.evidence/captures/bevy/20261021T123324Z_..._1880922`）、改前整页 6/6 ok（`20261021T122645Z_..._1854539`）、交互场景 12 中 9 ok（`20261021T121710Z_..._1831009`）；改前/改后像素副本在 `/tmp/opencode/bevyui007/`。
   - 已证明层：#95~#105 共 11 条逐条处置（法律英文整段移出设置页进官方模态、告警进带框告警井、开关行去重复文字、配置行分离成圆角行卡、审阅恢复接 owner 自己的 Myers diff 双栏对照、弹窗操作收拢、语言错误进 typed 相位告警条、诊断转圈按共享 typed 相位显形）。
   - 未证明层：#103 仅有代码无像素回执（pending 相位是瞬态，缺可停在该相位的捕获场景）；`dns-hosts-editor-standard/compact` 与 `doctor-failure-recovery-compact` 三个 failed-marker 为 2026-10-20 基线既有失败，非本条引入；披露按钮文案复用 `common_details`，更贴切的许可协议文案需共享 locale 表新增键（未擅改共享表）。
+
+- [ ] BEVYUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 总览页与地球组件质感提升（#19~#32）
+  - 产物：解决 #19 空状态卡片暗哑死板、#20 地球模式切换未走 TabList、#21 副标题字重过轻、#22 贯穿横向分割线生硬、#23 底部 Demo Mode 蓝块失衡、#24 状态圆点缺乏呼吸动画、#25 Follow rules 徽标与按钮重名混淆、#26 提示小框圆角过大、#27 Start probes 次级操作层级过弱、#28 拓扑空状态插画缺失、#29 紧凑模式下横幅被挤出视口、#30 地球未保留骨架屏、#31 卡片内外留白比例失调、#32 卡片圆角规格不统一。
+  - 依赖：BEVY-020.1。
+  - 验收：总览页双视口像素回执消除蓝块失衡与内容溢出，TabList 接入官方控件。
+  - 计划：接入 TabList 替换普通按钮组，重构 Demo Mode 横幅与 Geo Globe 空态卡片。
+  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ 总览/地球双视口像素回执复核（1180x780 dark/light、720x480 dark）+ 官方捕获矩阵是否登记 `overview-page-1180`/`overview-page-720`/`overview-page-light-1180` 三个场景名待定。
+  - 证据身份：改后捕获 3/3 ok（`.evidence/captures/bevy/20261021T123803Z_c11e55a3be03_dirty_1904104/`）；改前对照取自 2026-10-20 基线跑批的 `baseline-overview-720x480`（紧凑视口里地球卡占满全屏、hero 零像素可见）与 `baseline-r2-overview-1180x780`。
+  - 已证明层：#19~#32 共 14 条逐条处置（空态改线框地球骨架 + typed 原因；地球模式改走共享 owner 的官方 `TabList` 分段控件并只观察官方 `ValueChange`；副标题字重上调；贯穿线改短标；Demo Mode 蓝块压成两行紧凑带；状态圆点按 `MotionPreference` 呼吸并尊重 Reduced 动效；删除 hero 里重复的 Follow rules 药丸；三档圆角各归其位；拓扑空状态补插画与 typed 原因；卡片内外留白改用共享 `surface_scene`）。**#29 的根因**：地球段原被 `Add<PageRoot>` 观察者插成页根第一个子节点，把 hero 顶出视口——改为页面拥有 `GlobeSectionSlot`、地球段自己声明进槽位，页内顺序由页面决定。
+  - 未证明层：本条改动的 headless 测试文件按并行协议未编译验证，须由收口流的 `cargo nextest run -p infiltrator-bevy-ui` 覆盖；共享分段控件的滑动药丸比页签宽约 2–3px（百分比定位在 padding box 上），像素级对齐需改 widgets crate，本条未擅改共享文件。
