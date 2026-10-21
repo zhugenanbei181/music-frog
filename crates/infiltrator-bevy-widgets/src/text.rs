@@ -7,6 +7,10 @@
 //! taskmanager-proven observer idiom: runtime changes never rebuild the
 //! tree, they restamp components in place. The same projection re-stamps
 //! every role on a theme switch — see [`crate::switch`].
+//!
+//! The role also travels with the *inline* parts of a line: a badge is a
+//! caption run of the same paragraph, so it wears the same role seam as the
+//! sentence around it.
 
 use crate::fonts::FontSources;
 use crate::palette::UiPalette;
@@ -94,10 +98,21 @@ pub fn style_text_roles(
     ink.0 = typography.ink;
 }
 
-use crate::palette::rem;
-use crate::theme::radius;
-use crate::theme::space;
 use bevy::scene::Scene;
+
+/// What a rich text span contributes to its line.
+///
+/// The kind is a typed state, never a flag: a span is either a run of the
+/// line's own text or a badge — a caption run drawn on a chip background,
+/// so it rides the line's baseline and wraps with it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RichTextKind {
+    /// A plain run of text in the line's own role.
+    #[default]
+    Text,
+    /// A badge: a caption run on a chip background.
+    Badge,
+}
 
 /// A styled segment of rich inline text.
 #[derive(Clone, Debug, PartialEq)]
@@ -105,7 +120,7 @@ pub struct RichTextSpan {
     pub text: String,
     pub role: Role,
     pub color_override: Option<Color>,
-    pub is_badge: bool,
+    pub kind: RichTextKind,
 }
 
 impl RichTextSpan {
@@ -114,7 +129,7 @@ impl RichTextSpan {
             text: text.into(),
             role,
             color_override: None,
-            is_badge: false,
+            kind: RichTextKind::Text,
         }
     }
 
@@ -123,59 +138,59 @@ impl RichTextSpan {
             text: text.into(),
             role: Role::Caption,
             color_override: Some(color),
-            is_badge: true,
+            kind: RichTextKind::Badge,
         }
     }
 }
 
-/// Construct a declarative scene for a line of rich text with inline badges.
+/// Construct a declarative scene for a line of rich text.
+///
+/// The line is ONE text block: the root `Text` node owns the flow and every
+/// span is a `TextSpan` child of it, so the sentence wraps as a paragraph
+/// and a badge rides the line's baseline. The banned shape — a row of
+/// sibling nodes glued together with a column gap — cannot break the line,
+/// because there is no row: the flexbox never lays this line out.
+///
+/// A badge is a caption run on a chip background (upstream's per-run text
+/// background), so it hugs its label; a padded, rounded chip stays a node
+/// for the rows that are *not* inline.
 pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Box<dyn Scene> {
-    use bevy::color::Alpha;
     use bevy::ecs::hierarchy::Children;
-    use bevy::scene::{Scene, bsn};
-    use bevy::ui::prelude::{
-        AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect,
-    };
+    use bevy::scene::{bsn, bsn_list};
     use bevy::ui::widget::Text;
 
-    let span_nodes: Vec<Box<dyn Scene>> = spans
+    let span_scenes: Vec<Box<dyn Scene>> = spans
         .into_iter()
-        .map(|span| {
-            let ink = span.color_override.unwrap_or(palette.ink);
-            let role = span.role;
-            if span.is_badge {
-                Box::new(bsn! {
-                                    Node {
-                                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                        border_radius: BorderRadius::all(rem(radius::XS)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                    }
-                                    BackgroundColor({ ink.with_alpha(0.15) })
-                                    Children [
-                                        Text({ span.text })
-                                        TextRole(Role::Caption)
-                                        TextColor({ ink })
-                                    ]
-                }) as Box<dyn Scene>
-            } else {
-                Box::new(bsn! {
-                                    Text({ span.text })
-                                    TextRole({ role })
-                                    TextColor({ ink })
-                }) as Box<dyn Scene>
-            }
-        })
+        .map(|span| rich_text_span_scene(span, palette))
         .collect();
-
+    let span_list = bsn_list! { { span_scenes } };
     Box::new(bsn! {
-            Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: rem(space::S8),
-            }
+            Text({ String::new() })
+            TextRole(Role::Body)
             Children [
-                { span_nodes }
+                { span_list }
             ]
     })
+}
+
+/// The scene of one rich text span: a run of the line's own paragraph.
+fn rich_text_span_scene(span: RichTextSpan, palette: &UiPalette) -> Box<dyn Scene> {
+    use bevy::color::Alpha;
+    use bevy::scene::bsn;
+    use bevy::text::{TextBackgroundColor, TextSpan};
+
+    let ink = span.color_override.unwrap_or(palette.ink);
+    match span.kind {
+        RichTextKind::Text => Box::new(bsn! {
+            TextSpan({ span.text })
+            TextRole({ span.role })
+            TextColor({ ink })
+        }),
+        RichTextKind::Badge => Box::new(bsn! {
+            TextSpan({ span.text })
+            TextRole({ span.role })
+            TextColor({ ink })
+            TextBackgroundColor({ ink.with_alpha(0.15) })
+        }),
+    }
 }

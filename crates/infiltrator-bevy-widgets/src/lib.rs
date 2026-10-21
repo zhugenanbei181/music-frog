@@ -43,6 +43,7 @@ pub mod context_menu;
 pub mod datagrid;
 pub mod density;
 pub mod desktop;
+pub mod directional_nav;
 pub mod drawer;
 pub mod editor;
 pub mod feathers_theme;
@@ -57,6 +58,7 @@ pub mod haptics;
 pub mod i18n;
 pub mod icon;
 pub mod icon_tile;
+pub mod inline;
 pub mod list;
 pub mod localization;
 pub mod master_detail;
@@ -120,7 +122,8 @@ use bevy::shader::Shader;
 use bevy::text::RemSize;
 use bevy::ui::UiScale;
 use bevy::ui::UiSystems;
-use bevy::ui_widgets::{TabPlugin, tablist_self_update};
+use bevy::ui::auto_directional_navigation::AutoDirectionalNavigation;
+use bevy::ui_widgets::{MenuFocusSystem, TabPlugin, tablist_self_update};
 
 /// Installs the resolved palette resource, the embedded font sources, the
 /// icon plate store, the typography/theme observers and the per-control
@@ -142,6 +145,10 @@ impl Plugin for WidgetsPlugin {
         // Native required components attach at spawn, before any navigation can retire a control.
         app.register_required_components::<Button, responsive::TouchHitbox>()
             .register_required_components::<Button, ButtonDisabled>();
+        // Official directional navigation (Bevy 0.20): the app marks the
+        // focusable controls and the upstream navigator owns the arrow-key
+        // movement between them, measured from the laid-out geometry.
+        app.register_required_components::<Button, AutoDirectionalNavigation>();
         // The globe enhancement's own stage attaches with its plate: a plate
         // without a stage is a live enhancement.
         app.register_required_components::<globe::GlobePlate, GlobeStage>();
@@ -154,6 +161,17 @@ impl Plugin for WidgetsPlugin {
         app.add_message::<PointerInput>();
         if !app.is_plugin_added::<ScrollAreaPlugin>() {
             app.add_plugins(ScrollAreaPlugin);
+        }
+        // Official directional navigation: the upstream plugin, the
+        // repository's configuration and the arrow-key gesture.
+        if !app.is_plugin_added::<directional_nav::DirectionalNavPlugin>() {
+            app.add_plugins(directional_nav::DirectionalNavPlugin);
+        }
+        // The official scroll primitives for the shared list: the scrollbar
+        // plugin, the bar-to-container binding and the official
+        // scroll-into-view that reveals the selected row.
+        if !app.is_plugin_added::<list::ListScrollPlugin>() {
+            app.add_plugins(list::ListScrollPlugin);
         }
         app.init_resource::<scrollarea::ScrollMotionState>()
             .init_resource::<scrollarea::ScrollMotionPreference>()
@@ -204,6 +222,12 @@ impl Plugin for WidgetsPlugin {
         if !app.is_plugin_added::<modal::ModalWidgetsPlugin>() {
             app.add_plugins(modal::ModalWidgetsPlugin);
         }
+        // The official headless menu layer: the popup focus bookkeeping, the
+        // arrow-key navigation, the activation and the dismissal all come
+        // from bevy_ui_widgets.
+        if !app.is_plugin_added::<menu::MenuWidgetsPlugin>() {
+            app.add_plugins(menu::MenuWidgetsPlugin);
+        }
         app.add_observer(tablist_self_update);
         app.add_observer(tabs::stamp_initial_tab_ink);
         app.init_resource::<ResponsiveContext>();
@@ -235,8 +259,8 @@ impl Plugin for WidgetsPlugin {
         app.add_observer(adaptive_modal::on_modal_open);
         app.add_observer(adaptive_modal::on_modal_close);
 
-        app.add_message::<menu::MenuNavEvent>();
         app.add_message::<menu::MenuOutcome>();
+        app.add_message::<context_menu::ContextMenuOutcome>();
         app.add_message::<list::VirtualListScroll>();
         app.add_message::<list::VirtualListSelect>();
         app.add_message::<radio::RadioGroupNavEvent>();
@@ -267,6 +291,10 @@ impl Plugin for WidgetsPlugin {
                 sync_field_carets,
                 sync_ime_cursor_areas,
                 icon::sync_icon_tints,
+                // Inline boxes are measured by the text layout, so their
+                // size follows the root font size like every other size.
+                inline::sync_inline_sizes,
+                inline::sync_inline_image_sizes,
             ),
         );
         app.add_systems(
@@ -290,6 +318,10 @@ impl Plugin for WidgetsPlugin {
                 .chain()
                 .before(UiSystems::Prepare),
         );
+        // The menu's highlight is the official input focus, so the repaint
+        // follows the official focus bookkeeping instead of guessing a
+        // selection of our own.
+        app.add_systems(PostUpdate, menu::sync_menu_visuals.after(MenuFocusSystem));
 
         app.add_systems(
             Update,
@@ -298,7 +330,6 @@ impl Plugin for WidgetsPlugin {
                 nav::sync_nav_visuals,
                 stat_chip::sync_stat_chip_visuals,
                 surface::sync_surface_visuals,
-                (menu::advance_menus, menu::sync_menu_visuals).chain(),
                 popover::sync_popover_visuals,
                 list::advance_virtual_lists,
                 list::sync_list_selection.before(nav::sync_nav_visuals),

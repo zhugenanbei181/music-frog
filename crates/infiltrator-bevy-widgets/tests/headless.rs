@@ -16,6 +16,8 @@ mod chart_tests;
 mod checkbox_tests;
 #[path = "headless/combobox_tests.rs"]
 mod combobox_tests;
+#[path = "headless/context_menu_tests.rs"]
+mod context_menu_tests;
 #[path = "headless/drawer_tests.rs"]
 mod drawer_tests;
 #[path = "headless/fonts_tests.rs"]
@@ -28,6 +30,8 @@ mod globe_tests;
 mod icon_tests;
 #[path = "headless/icon_tile_tests.rs"]
 mod icon_tile_tests;
+#[path = "headless/list_scroll_tests.rs"]
+mod list_scroll_tests;
 #[path = "headless/list_tests.rs"]
 mod list_tests;
 #[path = "headless/menu_tests.rs"]

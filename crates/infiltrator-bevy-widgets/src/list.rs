@@ -10,8 +10,14 @@
 //!
 //! **Scene adapter**: [`list_scene`] and [`list_row_scene`] build clipped token-spaced columns
 //! over nav-vocabulary rows with in-place component restamping on selection and theme flips.
+//!
+//! **Scrolling**: the viewport is Bevy's official [`ScrollArea`], the bar beside it is the
+//! official [`bevy::ui_widgets::Scrollbar`], and a row is revealed through the official
+//! [`bevy::ui_widgets::ScrollIntoView`] event. The list never keeps a scroll offset of its
+//! own next to the viewport's.
 
 pub mod scroll_core;
+pub mod scrollbar;
 use scroll_core::*;
 use zhuge_ui_core::virtual_list::{ExtentUpdate, VariableExtentIndex, VirtualListConfig};
 
@@ -21,16 +27,24 @@ use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
+use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::{Changed, QueryFilter, With};
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Query;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, BorderRadius, FlexDirection, Node, Overflow, UiRect, percent};
+use bevy::ui::prelude::{
+    AlignItems, BorderRadius, FlexDirection, GridPlacement, Node, Overflow, UiRect, percent,
+};
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::ScrollArea;
+use bevy::ui::{UiSystems, ui_layout_system};
+use bevy::ui_widgets::{ScrollArea, ScrollbarPlugin};
+use scrollbar::{
+    ListScrollContainer, bind_list_scrollbars, list_scroll_frame, reveal_selected_list_rows,
+};
 
 // ===========================================================================
 // 5. Virtual List State
@@ -92,37 +106,6 @@ pub enum ScrollOffsetOutcome {
     },
 }
 
-/// Explicit result of revealing one item in a list viewport.
-#[must_use]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ScrollToItemOutcome {
-    IndexOutOfRange {
-        index: usize,
-        item_count: usize,
-    },
-    InvalidRequest {
-        index: usize,
-        requested_offset_px: f32,
-    },
-    AlreadyVisible {
-        index: usize,
-    },
-    Unchanged {
-        index: usize,
-        offset_px: f32,
-    },
-    Clamped {
-        index: usize,
-        requested_offset_px: f32,
-        offset_px: f32,
-    },
-    Scrolled {
-        index: usize,
-        previous_offset_px: f32,
-        offset_px: f32,
-    },
-}
-
 /// Explicit result of changing a selected row.
 #[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,14 +122,6 @@ pub enum SelectionOutcome {
         previous_index: Option<usize>,
         selected_index: Option<usize>,
     },
-}
-
-/// Both typed outcomes produced by selecting an item and revealing it.
-#[must_use]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SelectionAndRevealOutcome {
-    pub selection: SelectionOutcome,
-    pub reveal: ScrollToItemOutcome,
 }
 
 /// High-performance virtual list model with explicit height modes and operation outcomes.
@@ -337,21 +312,6 @@ impl VirtualListState {
         }
     }
 
-    /// Scroll to place the item centered in the viewport.
-    pub fn scroll_to_index_centered(&mut self, index: usize) -> ScrollToItemOutcome {
-        if index >= self.item_count {
-            return ScrollToItemOutcome::IndexOutOfRange {
-                index,
-                item_count: self.item_count,
-            };
-        }
-        let item_top = self.item_offset(index).unwrap_or(0.0);
-        let item_h = self.item_extent(index).unwrap_or(36.0);
-        let item_center = item_top + item_h * 0.5;
-        let target_offset = item_center - (self.viewport_height_px * 0.5);
-        Self::scroll_to_item_result(index, target_offset, self.set_scroll_offset(target_offset))
-    }
-
     /// Item vertical bounds (top_y, bottom_y) in content space.
     pub fn item_rect_y(&self, index: usize) -> Option<(f32, f32)> {
         let top = self.item_offset(index)?;
@@ -518,59 +478,6 @@ impl VirtualListState {
         self.set_scroll_offset(self.scroll_offset_px + delta_px)
     }
 
-    /// Scroll to make the given item visible in the viewport.
-    pub fn scroll_to_index(&mut self, index: usize) -> ScrollToItemOutcome {
-        if index >= self.item_count {
-            return ScrollToItemOutcome::IndexOutOfRange {
-                index,
-                item_count: self.item_count,
-            };
-        }
-        let item_top = self.item_offset(index).unwrap_or(0.0);
-        let item_h = self.item_extent(index).unwrap_or(36.0);
-        let item_bottom = item_top + item_h;
-        let view_top = self.scroll_offset_px;
-        let view_bottom = view_top + self.viewport_height_px;
-
-        if item_top < view_top {
-            Self::scroll_to_item_result(index, item_top, self.set_scroll_offset(item_top))
-        } else if item_bottom > view_bottom {
-            let target_offset = item_bottom - self.viewport_height_px;
-            Self::scroll_to_item_result(index, target_offset, self.set_scroll_offset(target_offset))
-        } else {
-            ScrollToItemOutcome::AlreadyVisible { index }
-        }
-    }
-
-    fn scroll_to_item_result(
-        index: usize,
-        requested_offset_px: f32,
-        outcome: ScrollOffsetOutcome,
-    ) -> ScrollToItemOutcome {
-        match outcome {
-            ScrollOffsetOutcome::InvalidRequest { .. } => ScrollToItemOutcome::InvalidRequest {
-                index,
-                requested_offset_px,
-            },
-            ScrollOffsetOutcome::Unchanged { offset_px } => {
-                ScrollToItemOutcome::Unchanged { index, offset_px }
-            }
-            ScrollOffsetOutcome::Clamped { offset_px, .. } => ScrollToItemOutcome::Clamped {
-                index,
-                requested_offset_px,
-                offset_px,
-            },
-            ScrollOffsetOutcome::Changed {
-                previous_offset_px,
-                offset_px,
-            } => ScrollToItemOutcome::Scrolled {
-                index,
-                previous_offset_px,
-                offset_px,
-            },
-        }
-    }
-
     /// Scroll to top.
     pub fn scroll_to_top(&mut self) -> ScrollOffsetOutcome {
         self.set_scroll_offset(0.0)
@@ -637,13 +544,6 @@ impl VirtualListState {
         };
         self.select(Some(prev))
     }
-
-    /// Select an item and scroll it into view.
-    pub fn select_and_reveal(&mut self, index: usize) -> SelectionAndRevealOutcome {
-        let selection = self.select(Some(index));
-        let reveal = self.scroll_to_index(index);
-        SelectionAndRevealOutcome { selection, reveal }
-    }
 }
 
 // ===========================================================================
@@ -686,7 +586,7 @@ pub fn advance_virtual_lists(
     }
 }
 
-/// Marker on the list column root.
+/// Marker on the list's scroll container: the column that owns the rows.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct List;
 
@@ -714,23 +614,31 @@ pub fn list_row_scene(label: String, selected: bool, palette: &UiPalette) -> Box
     })
 }
 
-/// The list: a clipped, token-spaced column over caller-composed rows.
+/// The list: a clipped, token-spaced column over caller-composed rows, framed
+/// by the official scrollbar beside the official scroll container.
+///
+/// The container owns the rows and the selection; the bar is its sibling, so
+/// the official scrollbar can drive the container's own scroll position.
 pub fn list_scene(rows: Vec<Box<dyn Scene>>, selected: Option<usize>) -> impl Scene + use<> {
-    bsn! {
+    let container = Box::new(bsn! {
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S4),
                 overflow: Overflow::scroll_y(),
+                grid_row: GridPlacement::start(1),
+                grid_column: GridPlacement::start(1),
             }
             ThemeBackgroundColor({ Token::Surface })
             List
             ListSelection({ selected })
             ScrollArea
+            ListScrollContainer
             Children [
                 { rows }
             ]
-    }
+    }) as Box<dyn Scene>;
+    list_scroll_frame(container)
 }
 
 /// Project the list's [`ListSelection`] onto its rows' [`NavActive`] bits.
@@ -747,6 +655,28 @@ pub fn sync_list_selection(
                 }
             }
         }
+    }
+}
+
+/// The official scroll primitives the shared list needs: the scrollbar
+/// plugin, the bar-to-container binding and the official scroll-into-view
+/// that reveals the selected row.
+pub struct ListScrollPlugin;
+
+impl Plugin for ListScrollPlugin {
+    fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<ScrollbarPlugin>() {
+            app.add_plugins(ScrollbarPlugin);
+        }
+        app.add_systems(Update, bind_list_scrollbars);
+        // The reveal runs after the official layout so the viewport's measured
+        // geometry is the one the observer reads.
+        app.add_systems(
+            PostUpdate,
+            reveal_selected_list_rows
+                .in_set(UiSystems::Layout)
+                .after(ui_layout_system),
+        );
     }
 }
 

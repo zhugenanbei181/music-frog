@@ -19,8 +19,7 @@ use infiltrator_bevy_widgets::list::scroll_core::{
     visible_window_with_overscan,
 };
 use infiltrator_bevy_widgets::list::{
-    FixedExtentUpdate, RowHeightMode, RowMeasurementOutcome, ScrollOffsetOutcome,
-    ScrollToItemOutcome, SelectionAndRevealOutcome, SelectionOutcome,
+    FixedExtentUpdate, RowHeightMode, RowMeasurementOutcome, ScrollOffsetOutcome, SelectionOutcome,
 };
 use infiltrator_bevy_widgets::list::{
     List, ListSelection, VirtualList, VirtualListScroll, VirtualListSelect, VirtualListState,
@@ -78,8 +77,8 @@ fn virtual_list_massive_dataset_o1_geometry() {
 
     // Jump to middle: item 500,000.
     assert!(matches!(
-        state.scroll_to_index_centered(500_000),
-        ScrollToItemOutcome::Scrolled { index: 500_000, .. }
+        state.set_scroll_offset(state.max_scroll_offset() * 0.5),
+        ScrollOffsetOutcome::Changed { .. }
     ));
     assert!(!state.is_at_top());
     assert!(!state.is_at_bottom());
@@ -140,43 +139,15 @@ fn virtual_list_scrolling_and_navigation_actions() {
     );
     assert_eq!(state.scroll_offset_px(), 90.0);
 
-    // scroll_to_index: item already visible -> no scroll
-    assert_eq!(
-        state.scroll_to_index(5),
-        ScrollToItemOutcome::AlreadyVisible { index: 5 }
-    );
+    // scroll_to_index: the list no longer owns a scroll-into-view offset; the
+    // official viewport event owns that arithmetic (see list_scroll_tests).
     assert_eq!(state.scroll_offset_px(), 90.0);
-
-    // scroll_to_index: item below viewport -> scrolls so item bottom aligns with viewport bottom
-    assert_eq!(
-        state.scroll_to_index(20),
-        ScrollToItemOutcome::Scrolled {
-            index: 20,
-            previous_offset_px: 90.0,
-            offset_px: 330.0,
-        }
-    );
-    let expected_offset = (21.0 * 30.0) - 300.0;
-    assert_eq!(state.scroll_offset_px(), expected_offset);
-    assert!(state.is_item_visible(20));
-
-    // scroll_to_index: item above viewport -> scrolls so item top aligns with viewport top
-    assert_eq!(
-        state.scroll_to_index(2),
-        ScrollToItemOutcome::Scrolled {
-            index: 2,
-            previous_offset_px: 330.0,
-            offset_px: 60.0,
-        }
-    );
-    assert_eq!(state.scroll_offset_px(), 60.0);
-    assert!(state.is_item_visible(2));
 
     // scroll_to_top
     assert_eq!(
         state.scroll_to_top(),
         ScrollOffsetOutcome::Changed {
-            previous_offset_px: 60.0,
+            previous_offset_px: 90.0,
             offset_px: 0.0,
         }
     );
@@ -246,23 +217,9 @@ fn virtual_list_selection_reports_typed_transitions() {
     );
     assert_eq!(state.selected_index(), Some(3));
 
-    // select_and_reveal
-    assert_eq!(
-        state.select_and_reveal(9),
-        SelectionAndRevealOutcome {
-            selection: SelectionOutcome::Changed {
-                previous_index: Some(3),
-                selected_index: Some(9),
-            },
-            reveal: ScrollToItemOutcome::Scrolled {
-                index: 9,
-                previous_offset_px: 0.0,
-                offset_px: 150.0,
-            },
-        }
-    );
-    assert_eq!(state.selected_index(), Some(9));
-    assert!(state.is_item_visible(9));
+    // The reveal of a selected row is the official viewport event's job; the
+    // model only owns the selection (see list_scroll_tests).
+    assert_eq!(state.selected_index(), Some(3));
 
     // Out of bounds selection is rejected, keeping previous selection
     assert_eq!(
@@ -272,13 +229,13 @@ fn virtual_list_selection_reports_typed_transitions() {
             item_count: 10,
         }
     );
-    assert_eq!(state.selected_index(), Some(9));
+    assert_eq!(state.selected_index(), Some(3));
 
     // Clear selection
     assert_eq!(
         state.select(None),
         SelectionOutcome::Changed {
-            previous_index: Some(9),
+            previous_index: Some(3),
             selected_index: None,
         }
     );

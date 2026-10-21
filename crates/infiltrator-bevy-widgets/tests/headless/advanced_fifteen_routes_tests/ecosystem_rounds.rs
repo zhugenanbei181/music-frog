@@ -7,28 +7,26 @@ fn test_advanced_ecosystem_round_three_capabilities() {
     use infiltrator_bevy_widgets::auto_heal::MultiNodeCircuitRegistry;
     use infiltrator_bevy_widgets::chart::quantiles::{LatencyQuantiles, compute_empirical_cdf};
     use infiltrator_bevy_widgets::context_menu::{
-        ContextMenuItem, ContextMenuPlacement, ContextMenuState,
+        ContextMenuItem, ContextMenuStage, ContextMenuState,
     };
     use infiltrator_bevy_widgets::fluid_grid::compute_ideal_column_layout;
     use infiltrator_bevy_widgets::sandbox::{WidgetManifest, WidgetPermission};
     use infiltrator_bevy_widgets::signal_dag::ReactiveDag;
 
-    // 1. Context Menu boundary flipping
-    let origin = ContextMenuPlacement::calculate_origin(
-        Vec2::new(980.0, 780.0),
-        Vec2::new(180.0, 150.0),
-        Vec2::new(1000.0, 800.0),
-    );
-    assert_eq!(origin, Vec2::new(980.0 - 180.0, 780.0 - 150.0));
-
+    // 1. Context Menu: the typed stage replaces the old `is_open` flag, and
+    // the placement belongs to the official `Popover` now.
     let mut menu_state = ContextMenuState::new();
-    menu_state.open_at(
-        Vec2::new(100.0, 100.0),
-        vec![ContextMenuItem::new("act1", "Ping Action")],
-        Vec2::new(180.0, 50.0),
-        Vec2::new(800.0, 600.0),
-    );
-    assert!(menu_state.is_open);
+    assert_eq!(menu_state.stage, ContextMenuStage::Closed);
+    assert!(!menu_state.is_open());
+
+    menu_state.open(vec![ContextMenuItem::new("act1", "Ping Action")]);
+    assert_eq!(menu_state.stage, ContextMenuStage::Open);
+    assert!(menu_state.is_open());
+    assert_eq!(menu_state.items.len(), 1);
+
+    menu_state.close();
+    assert_eq!(menu_state.stage, ContextMenuStage::Closed);
+    assert!(menu_state.items.is_empty());
 
     // 2. Fluid grid ideal column layout
     let layout = compute_ideal_column_layout(1000.0, 240.0, 16.0, 4);

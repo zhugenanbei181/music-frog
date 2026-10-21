@@ -1,8 +1,12 @@
 use crate::support::headless_app;
 use bevy::app::Startup;
 use bevy::color::Color;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::CommandsSceneExt;
+use bevy::text::{TextBackgroundColor, TextSpan};
 use bevy::ui::{prelude, widget};
 use infiltrator_bevy_widgets::desktop::ClipboardPayload;
 use infiltrator_bevy_widgets::motion::{SpringAnimator, StaggeredEnterAnimation};
@@ -104,8 +108,37 @@ fn test_rich_text_spans_and_scene_mounting() {
     app.update();
 
     let world = app.world_mut();
-    let mut texts = world.query::<&widget::Text>();
-    assert_eq!(texts.iter(world).count(), 3);
+    // The line is one paragraph: a single text block owns the flow, so the
+    // badge wraps with the sentence instead of drifting off its baseline.
+    let mut texts = world.query_filtered::<Entity, With<widget::Text>>();
+    let lines: Vec<Entity> = texts.iter(world).collect();
+    assert_eq!(lines.len(), 1, "the rich text line is one text block");
+    let line = lines[0];
+
+    // The runs are read in the line's own order: the children of the text
+    // block are the paragraph, in sequence.
+    let children = world
+        .get::<Children>(line)
+        .expect("the line owns the flow its spans run in");
+    let mut runs: Vec<(String, Option<Color>)> = Vec::new();
+    for child in children.iter() {
+        let Some(span) = world.get::<TextSpan>(*child) else {
+            continue;
+        };
+        let chip = world.get::<TextBackgroundColor>(*child).map(|chip| chip.0);
+        runs.push((span.0.clone(), chip));
+    }
+    assert_eq!(runs.len(), 3, "every span is a run of the same paragraph");
+    assert_eq!(runs[0].0, "协议: ");
+    assert_eq!(runs[1].0, "Shadowsocks");
+    assert!(
+        runs[1].1.is_some(),
+        "the badge rides the line on a chip background"
+    );
+    assert!(
+        runs[0].1.is_none(),
+        "a plain run carries no chip background"
+    );
 }
 
 #[test]
