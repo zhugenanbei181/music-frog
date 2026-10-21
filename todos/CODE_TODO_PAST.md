@@ -438,3 +438,14 @@
   - 像素证据：改后捕获 4/4 ok（`.evidence/captures/bevy/20261021T173059Z_7261c8326541_dirty_3002393/`，dark+light × 1180×780/720×480）；改前对照 `20261021T133305Z_8a3c2e16724e_dirty_2187724/`。**渐隐无接缝的数值证明**：卡片底 `(83,85,86)`，渐隐区最暗像素 **83**（完全一致 → 无缝）；首版在 sRGB 空间合成时产生 30 级暗带（最暗 53 vs 卡片 83，见 `20261021T170433Z_..._2919115/proxies-dark/image.png`），改为线性空间合成后消除（实测 `over(7% 白, 37 sRGB) = 83` 线性 / `52` sRGB）。
   - 未证明层：#48 悬停/按下**仅代码级**（捕获台无指针）；`proxies_test_ready_hint` 已加键但**未被可见面消费**（会让页头状态在每个表面变长，属文案与布局决定，留给收口流，未擅自改页头）；带标记分段控件已作为共享能力交付并有 headless 测试，但代理排序条**仍自建**（它需要固定 440px 宽与 25% 页签宽，共享条不提供），改接会改几何与页签查找，故证明 API 而不半接线。
   - 依赖提示：`BEVYUI-001R` 的共享层需求（图标 rem 通道、专属图标资产）与本批**必须合并成一次落地**。
+
+- [ ] BEVYUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 实时日志与控制台流式重构（#83~#94）
+  - 产物：解决 #83 日志条目整行大圆角胶囊堆叠臃肿、#84 时间戳未等宽且颜色过亮、#85 日志级别标签缺乏底衬被底灰冲淡、#86 模块标签方括号间距松散、#87 级别过滤栏未走 TabList、#88 控制台顶部按钮主次不分、#89 正则输入框 Placeholder 对比度过低、#90 长日志无软折行开关撑破卡片、#91 代码字体行高偏小易串行、#92 刷新追加缺乏渐隐指示、#93 缺少行号与单行快速复制、#94 紧凑模式下日志卡片右侧冲出屏幕。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：日志页双视口像素回执呈现流式控制台质感，消除胶囊卡片堆叠。
+  - 计划：重构 logs_rows.rs 与 logs_virtual.rs，采用单行平铺流与 InlineBox 排版。
+  - 交付实况：#83~#94 共 12 条**全部已修**——日志行去圆角胶囊改为扁平发丝行带（行区底色=卡片面 `(37,41,44)`，旧为浅灰 `(83,85,86)`）；时间戳进 mono 段落且用暗墨 `(69,72,75)`；级别徽章是带官方 per-run `TextBackgroundColor` 的 `TextSpan`（level 色 @0.18，如 INFO `(36,73,119)`）；模块标签进入同一段落（`[TCP] 127.0.0.1:54120` 只一个空格）；级别过滤改官方 `TabList`/`Tab`/`SelectedTab`（`TabActivation::Automatic`，唯一真源=官方 `SelectedTab`）；顶部按钮分 Ghost/Secondary/Outline 三级；搜索框底色改与页面同面，placeholder 对比度 **4.34:1 → 7.91:1**（实测）；长记录在列内折行且可切单行；控制台行高统一 `LineHeight::RelativeToFont(1.45)`；新记录到达时实况条 0.85 alpha 亮起并 2.5s 渐隐回常态（typed `StreamAppendPulse{Idle,Fading}`，无 bool 组合）；每行有右对齐行号与行尾「复制」按钮（走 `ClipboardHost` 裁剪板缝 + typed toast）；紧凑视口行不再横向溢出。
+  - **与计划的一处有意偏离**：日志行实现为**两个文本块**（meta rail 段落 + message 段落），而非计划里的单块。原因是共享交互捕获 `interaction_capture/logs.rs` 以 `LogMessageText` 实体的首 run 与 accent 墨色作为"高亮已生效"的观测事实；把 meta 并进同一段会让 message 移出根 `Text`，`logs-search-highlight-*` 场景会直接失败。徽章仍是 rail 段落内带官方 per-run 背景芯片的 `TextSpan`。
+  - 像素证据：改后捕获 **8/8 ok**（含交互场景 `logs-search-highlight-*` 仍能观测高亮文本与 accent 墨色）；改前对照 `20261021T115155Z_..._1705499` / `20261021T133305Z_..._2187724`；量测：行底色 `(37,41,44)`、徽章 `(36,73,119)`、placeholder 对比度 4.34→7.91。
+  - 未证明层：软折行开关的**可见文案**缺本地化键（当前只有无文字开关 + 英文 a11y label）；追加指示条的**亮起→渐隐过程**未进截图（捕获在 60 帧就绪后拍摄，2.5s 渐隐已结束），像素证据只有常态实况条。
+  - 共享改动需求（并入 `BEVYUI-001R` 那一批）：`infiltrator-shared/src/locales_table_ext.rs` 与 `locales_table_en_ext.rs` 各加 `logs_wrap_soft`（自动换行/Soft wrap）与 `logs_wrap_single`（单行显示/Single line），随后 `pages/logs.rs` 的软折行开关旁挂 `LocalizedText::plain("logs_wrap_soft")`（i18n 守卫禁止引用不存在的键，故本切片未加）。

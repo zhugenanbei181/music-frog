@@ -21,7 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 199 pt（68 条）/ 过去佛 112 pt（44 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
+- Point 基线 `musicfrog-todo-20261021-v263`：现在佛 196 pt（67 条）/ 过去佛 115 pt（45 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 368 pt；已归档交付 715 pt（278 条）；累计 1080 pt，严格归档完成率 80.2%。
 - 本板 67 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
@@ -124,12 +124,6 @@
   - 验收：消除长文本堆砌，规则列表接入官方 Scrollbar，双视口像素回执通过。
   - 计划：重构 rules_tabs.rs 与 rules_view.rs，将分页工具栏移出并接入滚动条。
 
-
-- [ ] BEVYUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 实时日志与控制台流式重构（#83~#94）
-  - 产物：解决 #83 日志条目整行大圆角胶囊堆叠臃肿、#84 时间戳未等宽且颜色过亮、#85 日志级别标签缺乏底衬被底灰冲淡、#86 模块标签方括号间距松散、#87 级别过滤栏未走 TabList、#88 控制台顶部按钮主次不分、#89 正则输入框 Placeholder 对比度过低、#90 长日志无软折行开关撑破卡片、#91 代码字体行高偏小易串行、#92 刷新追加缺乏渐隐指示、#93 缺少行号与单行快速复制、#94 紧凑模式下日志卡片右侧冲出屏幕。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
-  - 验收：日志页双视口像素回执呈现流式控制台质感，消除胶囊卡片堆叠。
-  - 计划：重构 logs_rows.rs 与 logs_virtual.rs，采用单行平铺流与 InlineBox 排版。
 
 
 ## 九、Slint UI 表现层与现代架构 34 点攻坚（Qt/GPUI 对标收口，7条 / 20pt）
@@ -509,6 +503,7 @@
 
 - [ ] BEVYUI-001R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-shared + infiltrator-bevy-ui] [status: Planned] 壳层余项：图标 rem 通道、专属图标资产、悬停像素回执
   - 产物：① `widgets/src/icon.rs` 增加 `icon_scene_val(icon: IconId, size: Val, tint: Color)`（图标底板是物理资产，但盒子是布局尺寸，必须随根字号缩放），壳层改用它（#14 残余抖动）；② `infiltrator-shared/src/assets.rs` 的 `bevy_icon_png` 增补 `minus/square/x/chevron-left/chevron-right` 与 11 条路由的专属图标（`shield/list-checks/server/layout-grid/code-2/target`），由既有 Iced Lucide 源按现有 currentColor→白 流程栅格化；`widgets/src/icon.rs` 的 `IconId`/`index()`/`asset_name()` 同步——窗口三键与历史箭头脱离文本字形（合规 tofu law），路由图标不再重复（#5/#7/#16）；③ 捕获台增加「指针悬停轨道行」的 capture feature（`infiltrator-bevy-ui/src/capture.rs` + `interaction_capture/`），使 hover 填充与 tooltip 获得真实像素回执（#4/#18 的证据缺口）。
+  - 追加（日志簇交付时提出）：软折行开关的可见文案需要两个本地化键 `logs_wrap_soft`（自动换行/Soft wrap）与 `logs_wrap_single`（单行显示/Single line），落在 `infiltrator-shared/src/locales_table_ext.rs` 与 `locales_table_en_ext.rs`，随后由日志页消费。
   - 依赖：与 `BEVYUI-003R` 同属共享层批次，收口流须把两批共享改动合并成一次落地，避免两条流同时改 `widgets/src/` 与 `infiltrator-shared/src/`。
   - 验收：图标盒走 rem 通道（`bevy_rem_guard` 零新增物理 px 命名值）、路由图标不再重复、悬停与 tooltip 有双视口像素回执。
   - 事实依据：2026-10-21 壳层整改交付时给出的三段共享改动需求（文件 + 符号 + 可落地片段）。
