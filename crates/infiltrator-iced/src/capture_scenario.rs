@@ -24,14 +24,6 @@ pub(crate) fn carried(feature: FeatureId) -> bool {
     !feature.spec().iced_page.is_empty()
 }
 
-/// Every business the Iced surface carries.
-pub(crate) fn carried_features() -> impl Iterator<Item = FeatureId> {
-    FeatureId::ALL
-        .iter()
-        .copied()
-        .filter(|feature| carried(*feature))
-}
-
 /// Opens the business a capture scenario names.
 ///
 /// A business the surface does not carry is never opened, so the capture can
