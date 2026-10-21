@@ -427,3 +427,14 @@
   - 未证明层（诚实列出）：#4 路由行 hover 缓动与 #18 纯图标模式 Tooltip **只有代码路径**——捕获台不注入指针，hover/焦点态无法成像（已按共享动效 owner `Spring` + `HostPreferences::effective_motion()` 实现，`Reduced` 时直接落位）；#14 rem 物理对齐抖动**部分**修复（壳层自身尺寸全部走 rem 通道，残余抖动源是共享图标底板仍是物理 px）；#16 导航架构**结构已对齐但图标仍重复**（共享底板只有 10 个 id）。
   - 像素证据：改后捕获 3/3 ok（`.evidence/captures/bevy/20261021T173243Z_7261c8326541_dirty_3006708/`）；改前对照取自 `20261021T133305Z_8a3c2e16724e_dirty_2187724/`；量测：路由文字带 80–139（三丸互压）→80–185（三行分离）、计数徽标 `#0D3971`+accent 字→`#535556`+dim 字、侧栏卡片面 `(80,81,82)`→`(37,41,44)`。
   - 共享改动需求（转 `BEVYUI-001R`）：S1 `crates/infiltrator-bevy-widgets/src/icon.rs` 增 `icon_scene_val(icon, size: Val, tint)` 让图标盒走 rem 通道；S2 `crates/infiltrator-shared/src/assets.rs` 的 `bevy_icon_png` 增补 `minus/square/x/chevron-left/chevron-right` 与 11 条路由的专属图标（由既有 Lucide 源栅格化），`widgets/src/icon.rs` 的 `IconId` 同步；S3 捕获台增加「指针悬停轨道行」的 capture feature，使 hover 填充与 tooltip 获得真实像素回执。
+
+- [ ] BEVYUI-003R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui + infiltrator-bevy-widgets + infiltrator-shared] [status: Integrated] 代理页余项与共享改动落地
+  - 产物：① #47 延迟迷你折线图（需 owner 的延迟采样历史进投影：`surface_projection.rs` 的 `ProxyNode` 增加 `latency_samples`）；② #39 Custom Node Editor 栏目条加描边与尾部箭头（`business_panel.rs` 的 `launcher_scene`）；③ #52 长名的像素渐隐（需 `palette.rs` 新增不透明 `card_fill()`，否则渐变会二次合成出色带）；④ locale 表新增四个键（分组类型 Fallback/LoadBalance/Relay、测速就绪提示）；⑤ `ProxiesProjection` 增加 `sort_order`，排序条由 owner 顺序播种而非采用备忘；⑥ `widgets/src/tabs.rs` 增加带自定义标记的分段控件入口；⑦ 把"卡片填色必须跑 `Last` 调度"写进共享控件层说明。
+  - 依赖：BEVYUI-003 已交付的部分（现在佛已无此条）。
+  - 验收：代理页双视口像素回执；#47/#48/#52 的像素证据到位（#48 需带指针的捕获台架，取不到就明确标注为代码级证据）。
+  - 事实依据：BEVYUI-003 交付时逐条列出的共享改动需求（文件 + 符号 + 代码片段）。
+  - 交付实况：共享层与代理页两处一并落地——`UiPalette::card_fill()`（`surface_elevated` over `surface` 解析成**不透明**色）与 `UiPalette::over_surface()`（在**线性空间**合成，即渲染器混合所处的空间）；`segmented_control_with_marked_labels_scene`（调用方的标记成为所属页签的子节点，且与既有实现共用同一份胶囊/边框逻辑，防止漂移）；四个 locale 键；`ProxyNode.latency_samples` 与 `ProxiesProjection.sort_order` 进入投影，排序条改由 owner 已发布顺序播种。
+  - 缺陷处置：#39 栏目条加发丝描边 + `column_gap` + 尾部暗色 `›`（字形真实渲染，非豆腐）；**#47 迷你折线图**改画 owner 自己的历史（未测量的节点没有线，不造数据），📈 emoji 已删；**#52 长名像素渐隐**在卡片**自身不透明填色**上绘制，绝不二次合成；#48 hover/press 渐隐从卡片实时 `BackgroundColor` 于 `Last` 重贴（在 `sync_proxy_card_visuals` 之后），随静止/悬停/按下/禁用四态跟随；分组类型文案改用新键（英文面不再漏中文）。
+  - 像素证据：改后捕获 4/4 ok（`.evidence/captures/bevy/20261021T173059Z_7261c8326541_dirty_3002393/`，dark+light × 1180×780/720×480）；改前对照 `20261021T133305Z_8a3c2e16724e_dirty_2187724/`。**渐隐无接缝的数值证明**：卡片底 `(83,85,86)`，渐隐区最暗像素 **83**（完全一致 → 无缝）；首版在 sRGB 空间合成时产生 30 级暗带（最暗 53 vs 卡片 83，见 `20261021T170433Z_..._2919115/proxies-dark/image.png`），改为线性空间合成后消除（实测 `over(7% 白, 37 sRGB) = 83` 线性 / `52` sRGB）。
+  - 未证明层：#48 悬停/按下**仅代码级**（捕获台无指针）；`proxies_test_ready_hint` 已加键但**未被可见面消费**（会让页头状态在每个表面变长，属文案与布局决定，留给收口流，未擅自改页头）；带标记分段控件已作为共享能力交付并有 headless 测试，但代理排序条**仍自建**（它需要固定 440px 宽与 25% 页签宽，共享条不提供），改接会改几何与页签查找，故证明 API 而不半接线。
+  - 依赖提示：`BEVYUI-001R` 的共享层需求（图标 rem 通道、专属图标资产）与本批**必须合并成一次落地**。
