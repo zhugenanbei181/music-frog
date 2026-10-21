@@ -1,6 +1,7 @@
 //! Typed command output independent of runtime and toolkit implementations.
 use crate::command::CommandIntent;
 use crate::log_export::{LogExportReceipt, LogExportSummary};
+use crate::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
 use crate::profile_document::{
     ProfileDocumentSaved, ProfileDocumentSnapshot, ProfileWorkspaceReceipt,
 };
@@ -17,6 +18,7 @@ use crate::snapshot_restore::{
 };
 use crate::speedtest::{SpeedtestCancelOutcome, SpeedtestStartReceipt};
 use crate::subscription_filter_result::SubscriptionFilterApplied;
+use crate::sync::{SyncConflictResolution, SyncConflictResolutionReceipt};
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::inventory::{
@@ -35,8 +37,12 @@ pub enum CommandOutput {
     ScriptExportPrepared(Box<ScriptExportReview>),
     ScriptExportSaved(Box<ScriptExportSaved>),
     Unit,
-    RoutingIntentApplied { observed: RoutingIntent },
-    RoutingIntentObserved { snapshot: RoutingIntentSnapshot },
+    RoutingIntentApplied {
+        observed: RoutingIntent,
+    },
+    RoutingIntentObserved {
+        snapshot: RoutingIntentSnapshot,
+    },
     OutboundInventory(OutboundInventorySnapshot),
     OutboundProbe(OutboundProbeSnapshot),
     OutboundProbeBatch(OutboundProbeBatchSnapshot),
@@ -58,6 +64,10 @@ pub enum CommandOutput {
     SnapshotHistoryLoaded(SnapshotHistorySnapshot),
     SnapshotDiffLoaded(Option<Box<YamlAstDiffSnapshot>>),
     SnapshotsPruned(SnapshotPrunedReceipt),
+    /// The Overview layout owner answered with the card order it now holds.
+    OverviewLayoutApplied(OverviewLayoutSnapshot),
+    /// The sync owner answered with the conflict resolution it applied.
+    SyncConflictResolved(SyncConflictResolutionReceipt),
 }
 
 impl CommandOutput {
@@ -231,6 +241,23 @@ impl CommandOutput {
                 *profile == options.workspace_identity.document.profile_id.as_str()
             }),
             (
+                CommandIntent::ReorderOverviewCards { order },
+                Self::OverviewLayoutApplied(snapshot),
+            ) => snapshot.order == *order,
+            (
+                CommandIntent::MoveOverviewCard { kind, .. },
+                Self::OverviewLayoutApplied(snapshot),
+            ) => snapshot.order.contains(kind),
+            (CommandIntent::ResetOverviewCardOrder, Self::OverviewLayoutApplied(snapshot)) => {
+                snapshot.order == OverviewCardKind::DEFAULT_ORDER.to_vec()
+            }
+            (CommandIntent::ResolveConflictKeepLocal, Self::SyncConflictResolved(receipt)) => {
+                receipt.resolution == SyncConflictResolution::KeepLocal
+            }
+            (CommandIntent::ResolveConflictTakeRemote, Self::SyncConflictResolved(receipt)) => {
+                receipt.resolution == SyncConflictResolution::TakeRemote
+            }
+            (
                 CommandIntent::PrepareSnapshotRestore { .. }
                 | CommandIntent::ConfirmSnapshotRestore { .. }
                 | CommandIntent::CancelSnapshotRestore { .. }
@@ -258,7 +285,12 @@ impl CommandOutput {
                 | CommandIntent::ProbeOutboundBatch { .. }
                 | CommandIntent::ApplyOutboundUiPreference { .. }
                 | CommandIntent::StartSpeedtest { .. }
-                | CommandIntent::CancelSpeedtestRun { .. },
+                | CommandIntent::CancelSpeedtestRun { .. }
+                | CommandIntent::ReorderOverviewCards { .. }
+                | CommandIntent::MoveOverviewCard { .. }
+                | CommandIntent::ResetOverviewCardOrder
+                | CommandIntent::ResolveConflictKeepLocal
+                | CommandIntent::ResolveConflictTakeRemote,
                 _,
             ) => false,
             (_, Self::Unit) => true,
@@ -385,6 +417,30 @@ impl CommandOutput {
             _ => Err(Failure::new(
                 ErrorCode::InvalidState,
                 "Filter command returned no applied source or report",
+                false,
+            )),
+        }
+    }
+
+    /// The Overview layout the owner holds after the mutation.
+    pub fn into_overview_layout(self) -> Result<OverviewLayoutSnapshot, Failure> {
+        match self {
+            Self::OverviewLayoutApplied(snapshot) => Ok(snapshot),
+            _ => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Expected the Overview layout readback",
+                false,
+            )),
+        }
+    }
+
+    /// The conflict resolution the sync owner applied.
+    pub fn into_sync_conflict_resolution(self) -> Result<SyncConflictResolutionReceipt, Failure> {
+        match self {
+            Self::SyncConflictResolved(receipt) => Ok(receipt),
+            _ => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Expected a synchronization conflict resolution receipt",
                 false,
             )),
         }

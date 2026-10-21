@@ -25,7 +25,7 @@ use crate::dns_query::DnsQuerySnapshot;
 use crate::dns_self_heal::DnsSelfHealSnapshot;
 use crate::doctor::{DoctorCheckKind, DoctorStatus};
 use crate::ipv6::Ipv6RoutingSnapshot;
-use crate::lan::LanSecuritySnapshot;
+use crate::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use crate::language::LanguageSettingsSnapshot;
 use crate::logs::LogStreamState;
 use crate::mini_hud::MiniHudPlacement;
@@ -488,10 +488,10 @@ pub struct SettingsPageSnapshot {
     pub theme: String,
     pub autostart: bool,
     pub system_proxy: bool,
-    pub mixed_port: Option<u16>,
-    pub allow_lan: Option<bool>,
+    /// The confirmed LAN sharing configuration. `None` means the owner never
+    /// observed it — not that the sharing is off.
     #[serde(default)]
-    pub lan_bind_address: Option<String>,
+    pub lan_sharing: Option<LanSharingSnapshot>,
     #[serde(default)]
     pub lan_security: Option<LanSecuritySnapshot>,
     #[serde(default)]

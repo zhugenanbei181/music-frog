@@ -7,7 +7,7 @@ use crate::dns_query::{DnsQueryOperationId, DnsQueryRequest};
 use crate::lan::LanCredentials;
 use crate::language::LanguagePreference;
 use crate::log_export::LogExportIdentity;
-use crate::overview_layout::OverviewCardKind;
+use crate::overview_layout::{OverviewCardKind, OverviewCardMoveDirection};
 use crate::profile_configuration::ProfileConfigurationRequest;
 use crate::protocol_fidelity::ProtocolDraft;
 use crate::protocol_trust::TlsTrustParams;
@@ -155,6 +155,15 @@ pub enum CommandIntent {
     },
     ReorderOverviewCards {
         order: Vec<OverviewCardKind>,
+    },
+    /// Move one Overview card one step up or down in the shared layout.
+    ///
+    /// The surface names the card and the direction; the shared owner applies
+    /// the swap against its own snapshot and reads the new order back, so no
+    /// surface derives the next order on its own.
+    MoveOverviewCard {
+        kind: OverviewCardKind,
+        direction: OverviewCardMoveDirection,
     },
     ResetOverviewCardOrder,
     UpdateProfile {
@@ -633,6 +642,7 @@ impl CommandIntent {
             | Self::ApplyTracerRuleOverride { .. }
             | Self::ResetRuleHitCounters { .. }
             | Self::ReorderOverviewCards { .. }
+            | Self::MoveOverviewCard { .. }
             | Self::ResetOverviewCardOrder => CommandKind::Runtime,
             Self::SetRoutingIntent { .. }
             | Self::GetRoutingIntent

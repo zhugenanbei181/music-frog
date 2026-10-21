@@ -1,7 +1,8 @@
 //! test-intent: behavior
+use crate::filter_query::{FilterQuery, LatencyBound};
 use crate::proxies_page_model::{
-    LatencyBound, PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterQuery, ProxyFilterTarget,
-    proxy_name_runs, proxy_protocol_chip, sort_option_at, sort_option_index,
+    PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterTarget, proxy_name_runs, proxy_protocol_chip,
+    sort_option_at, sort_option_index,
 };
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
 use lurker_core_contract::outbound::preferences::{OutboundHealthFilter, OutboundSortOrder};
@@ -63,34 +64,34 @@ impl ProxyFilterTarget for Node {
 
 #[test]
 fn the_query_parses_into_one_typed_form() {
-    assert_eq!(ProxyFilterQuery::parse(""), ProxyFilterQuery::MatchAll);
-    assert_eq!(ProxyFilterQuery::parse("   "), ProxyFilterQuery::MatchAll);
+    assert_eq!(FilterQuery::parse(""), FilterQuery::MatchAll);
+    assert_eq!(FilterQuery::parse("   "), FilterQuery::MatchAll);
     assert_eq!(
-        ProxyFilterQuery::parse("<100"),
-        ProxyFilterQuery::Latency(LatencyBound::FasterThan(100))
+        FilterQuery::parse("<100"),
+        FilterQuery::Latency(LatencyBound::FasterThan(100))
     );
     assert_eq!(
-        ProxyFilterQuery::parse(" > 250 "),
-        ProxyFilterQuery::Latency(LatencyBound::SlowerThan(250))
+        FilterQuery::parse(" > 250 "),
+        FilterQuery::Latency(LatencyBound::SlowerThan(250))
     );
     // A bound that is not a millisecond count stays free text, so a node
     // named `<abc` is still reachable.
     assert_eq!(
-        ProxyFilterQuery::parse("<abc"),
-        ProxyFilterQuery::Text("<abc".to_owned())
+        FilterQuery::parse("<abc"),
+        FilterQuery::Text("<abc".to_owned())
     );
     assert_eq!(
-        ProxyFilterQuery::parse("Hong Kong"),
-        ProxyFilterQuery::Text("hong kong".to_owned())
+        FilterQuery::parse("Hong Kong"),
+        FilterQuery::Text("hong kong".to_owned())
     );
 
-    assert!(ProxyFilterQuery::parse("").matches_all());
-    assert_eq!(ProxyFilterQuery::parse("").text(), "");
+    assert!(FilterQuery::parse("").matches_all());
+    assert_eq!(FilterQuery::parse("").text(), "");
     assert_eq!(
-        ProxyFilterQuery::parse("<100").latency_bound(),
+        FilterQuery::parse("<100").latency_bound(),
         Some(LatencyBound::FasterThan(100))
     );
-    assert!(ProxyFilterQuery::parse("hk").latency_bound().is_none());
+    assert!(FilterQuery::parse("hk").latency_bound().is_none());
 }
 
 #[test]
@@ -98,19 +99,19 @@ fn the_shared_rule_matches_the_name_the_identity_the_protocol_and_the_tags() {
     let mut node = Node::new("Hong Kong 01", "VLESS", Some(45));
     node.features = vec!["Reality".to_owned(), "Vision".to_owned()];
 
-    assert!(ProxyFilterQuery::parse("").matches(&node));
-    assert!(ProxyFilterQuery::parse("hong").matches(&node));
-    assert!(ProxyFilterQuery::parse("id-hong").matches(&node));
-    assert!(ProxyFilterQuery::parse("vless").matches(&node));
-    assert!(ProxyFilterQuery::parse("reality").matches(&node));
-    assert!(!ProxyFilterQuery::parse("tokyo").matches(&node));
+    assert!(FilterQuery::parse("").matches(&node));
+    assert!(FilterQuery::parse("hong").matches(&node));
+    assert!(FilterQuery::parse("id-hong").matches(&node));
+    assert!(FilterQuery::parse("vless").matches(&node));
+    assert!(FilterQuery::parse("reality").matches(&node));
+    assert!(!FilterQuery::parse("tokyo").matches(&node));
 
     // The pinyin initials: the product's node names are Chinese, and the
     // initials of "香港" are "xg".
     let mut chinese = Node::new("香港 01", "VLESS", Some(45));
     chinese.features = vec!["Reality".to_owned(), "Vision".to_owned()];
-    assert!(ProxyFilterQuery::parse("xg").matches(&chinese));
-    assert!(!ProxyFilterQuery::parse("xk").matches(&chinese));
+    assert!(FilterQuery::parse("xg").matches(&chinese));
+    assert!(!FilterQuery::parse("xk").matches(&chinese));
 }
 
 #[test]
@@ -119,19 +120,19 @@ fn the_shared_rule_answers_the_two_old_disagreements_the_same_way() {
     // alias while Iced answered "no".
     let mut shadowsocks = Node::new("Tokyo 01", "Shadowsocks", Some(120));
     shadowsocks.features = vec!["Reality".to_owned()];
-    assert!(ProxyFilterQuery::parse("ss").matches(&shadowsocks));
-    assert!(ProxyFilterQuery::parse("reality").matches(&shadowsocks));
+    assert!(FilterQuery::parse("ss").matches(&shadowsocks));
+    assert!(FilterQuery::parse("reality").matches(&shadowsocks));
 
     let hysteria = Node::new("Osaka 01", "Hysteria2", Some(80));
-    assert!(ProxyFilterQuery::parse("hy2").matches(&hysteria));
-    assert!(ProxyFilterQuery::parse("hy").matches(&hysteria));
+    assert!(FilterQuery::parse("hy2").matches(&hysteria));
+    assert!(FilterQuery::parse("hy").matches(&hysteria));
 
     // Iced used to answer "yes" for the UDP capability while Bevy answered
     // "no".
     let mut udp_node = Node::new("Seoul 01", "VMess", Some(60));
     udp_node.udp = true;
-    assert!(ProxyFilterQuery::parse("udp").matches(&udp_node));
-    assert!(!ProxyFilterQuery::parse("udp").matches(&Node::new("Berlin 01", "VMess", Some(60))));
+    assert!(FilterQuery::parse("udp").matches(&udp_node));
+    assert!(!FilterQuery::parse("udp").matches(&Node::new("Berlin 01", "VMess", Some(60))));
 }
 
 #[test]
@@ -141,13 +142,13 @@ fn a_latency_bound_keeps_the_measured_side_and_drops_the_unmeasured() {
     let unmeasured = Node::new("Unknown", "VLESS", None);
     let zero = Node::new("Zero", "VLESS", Some(0));
 
-    let faster = ProxyFilterQuery::parse("<100");
+    let faster = FilterQuery::parse("<100");
     assert!(faster.matches(&fast));
     assert!(!faster.matches(&slow));
     assert!(!faster.matches(&unmeasured));
     assert!(!faster.matches(&zero));
 
-    let slower = ProxyFilterQuery::parse(">100");
+    let slower = FilterQuery::parse(">100");
     assert!(!slower.matches(&fast));
     assert!(slower.matches(&slow));
     assert!(!slower.matches(&unmeasured));
@@ -267,16 +268,16 @@ fn the_protocol_chip_has_one_shared_spelling() {
 
 #[test]
 fn the_name_highlight_follows_the_shared_match_rule() {
-    let query = ProxyFilterQuery::parse("hong");
+    let query = FilterQuery::parse("hong");
     let runs = proxy_name_runs("Hong Kong 01", &query);
     assert!(runs.iter().any(|run| run.highlighted));
 
     // A pinyin-only reach highlights the whole name.
-    let query = ProxyFilterQuery::parse("xg");
+    let query = FilterQuery::parse("xg");
     let runs = proxy_name_runs("香港 01", &query);
     assert!(runs.iter().all(|run| run.highlighted));
 
     // The empty query highlights nothing.
-    let runs = proxy_name_runs("Hong Kong 01", &ProxyFilterQuery::MatchAll);
+    let runs = proxy_name_runs("Hong Kong 01", &FilterQuery::MatchAll);
     assert!(!runs.iter().any(|run| run.highlighted));
 }

@@ -11,6 +11,18 @@ pub const fn mode_key(mode: AppRoutingMode) -> &'static str {
         AppRoutingMode::BypassSelected => "app_routing_mode_selected_direct",
     }
 }
+
+/// The copy key of the routing mode, including the unobserved case.
+///
+/// A page that has not observed the routing mode has no mode to render, so
+/// it renders the unobserved copy instead of falling back to a default
+/// mode that the owner never reported.
+pub const fn mode_option_key(mode: Option<AppRoutingMode>) -> &'static str {
+    match mode {
+        Some(mode) => mode_key(mode),
+        None => "app_routing_mode_unobserved",
+    }
+}
 pub const fn rule_key(rule: AppRoutingRule) -> &'static str {
     match rule {
         AppRoutingRule::Proxy => "app_routing_rule_proxy",
@@ -18,14 +30,30 @@ pub const fn rule_key(rule: AppRoutingRule) -> &'static str {
         AppRoutingRule::Block => "app_routing_rule_block",
     }
 }
-pub fn routing_summary(mode: AppRoutingMode, count: usize, catalog: &dyn TextCatalog) -> String {
-    interpolate(
-        catalog.text("app_routing_observed_summary").as_ref(),
-        &[
-            ("mode", catalog.text(mode_key(mode)).as_ref()),
-            ("count", &count.to_string()),
-        ],
-    )
+
+/// The summary of the routing mode and the configured applications.
+///
+/// The mode is optional because the owner may not have published one yet;
+/// the summary then says so instead of naming a mode the owner never
+/// reported.
+pub fn routing_summary(
+    mode: Option<AppRoutingMode>,
+    count: usize,
+    catalog: &dyn TextCatalog,
+) -> String {
+    match mode {
+        Some(mode) => interpolate(
+            catalog.text("app_routing_observed_summary").as_ref(),
+            &[
+                ("mode", catalog.text(mode_key(mode)).as_ref()),
+                ("count", &count.to_string()),
+            ],
+        ),
+        None => interpolate(
+            catalog.text("app_routing_unobserved_summary").as_ref(),
+            &[("count", &count.to_string())],
+        ),
+    }
 }
 pub fn process_copy(process: &str, catalog: &dyn TextCatalog) -> String {
     interpolate(

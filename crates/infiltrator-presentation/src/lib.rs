@@ -34,6 +34,7 @@ pub mod doctor_actions;
 pub mod doctor_page_model;
 pub mod doctor_projection;
 pub mod editable_draft;
+pub mod filter_query;
 pub mod host_network_projection;
 pub mod language_choice;
 pub mod latency_projection;

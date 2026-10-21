@@ -31,10 +31,12 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
 
         "app_routing_mode_selected_proxy" => "Proxy selected apps only".into(),
         "app_routing_mode_selected_direct" => "Bypass selected apps; proxy the rest".into(),
+        "app_routing_mode_unobserved" => "Routing mode not observed".into(),
         "app_routing_rule_proxy" => "Proxy".into(),
         "app_routing_rule_direct" => "Direct".into(),
         "app_routing_rule_block" => "Block".into(),
         "app_routing_observed_summary" => "App routing · {mode} ({count} configured apps)".into(),
+        "app_routing_unobserved_summary" => "App routing · mode not observed ({count} configured apps)".into(),
         "app_routing_process_copy" => "Process: {process}".into(),
 
         "mrs_accel_entries" => "entries".into(),

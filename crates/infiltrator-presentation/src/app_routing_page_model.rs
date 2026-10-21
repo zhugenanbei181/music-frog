@@ -11,10 +11,12 @@
 //! folds of the observed snapshot.
 
 use crate::operation_phase::OperationPhase;
+use crate::routing_projection::mode_option_key;
 use infiltrator_contract::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface_snapshot::{AppRoutingPageSnapshot, AppSnapshot};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
+use infiltrator_domain::app_routing;
 
 /// The one page model of the app-routing page.
 ///
@@ -42,8 +44,23 @@ impl AppRoutingPageModel {
     ///
     /// A page that has not been observed reports no mode: the surface shows
     /// "unknown" instead of guessing the default.
-    pub fn mode(&self) -> Option<AppRoutingMode> {
-        self.page.as_ref().map(|page| page.mode)
+    pub fn mode(&self) -> Option<app_routing::AppRoutingMode> {
+        self.page
+            .as_ref()
+            .map(|page| app_routing::AppRoutingMode::from(page.mode))
+    }
+
+    /// The copy key of the routing mode, including the unobserved case.
+    ///
+    /// An unobserved page renders the unobserved copy; it never falls back
+    /// to a mode the owner never reported.
+    pub fn mode_copy_key(&self) -> &'static str {
+        mode_option_key(self.mode())
+    }
+
+    /// Whether the owner published a routing mode.
+    pub fn mode_observed(&self) -> bool {
+        self.page.is_some()
     }
 
     /// Whether the owner includes the system applications.

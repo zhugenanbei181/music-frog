@@ -41,6 +41,32 @@ pub struct SyncConflict {
     pub remote_path: String,
 }
 
+/// How the owner resolves one pending synchronization conflict.
+///
+/// The resolution is one typed choice instead of a set of per-surface buttons,
+/// so every surface dispatches the same decision to the same owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncConflictResolution {
+    /// Keep the local configuration and discard the remote conflict copy.
+    KeepLocal,
+    /// Take the remote configuration and discard the local difference.
+    TakeRemote,
+}
+
+/// The owner's readback of one applied conflict resolution.
+///
+/// The receipt is the authoritative readback: it names the conflict the owner
+/// resolved and the resolution it applied, so a surface never infers the
+/// outcome from the absence of an error.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncConflictResolutionReceipt {
+    /// The conflict the owner resolved.
+    pub conflict: SyncConflict,
+    /// The resolution the owner applied.
+    pub resolution: SyncConflictResolution,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncTransferReport {
     pub uploaded: u64,

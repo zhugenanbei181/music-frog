@@ -4,6 +4,7 @@ use crate::android_control::{
     VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
 use crate::offline_startup::StartupNetworkPolicy;
+use crate::pac::PacServiceState;
 use crate::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use crate::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceOwnerObservation,
@@ -570,6 +571,60 @@ fn unavailable_surface_defaults_to_offline_first_without_claiming_ready() {
         StartupNetworkPolicy::OfflineFirst
     );
     assert!(!snapshot.offline_startup.is_offline_startable());
+}
+
+#[test]
+fn the_settings_page_publishes_the_lan_sharing_readback_and_the_pac_request_facts() {
+    let sharing = LanSharingSnapshot::new(9, false, 7890, "*");
+    let page = SettingsPageSnapshot {
+        close_to_tray: Some(true),
+        notifications_enabled: Some(false),
+        language: "zh-CN".to_owned(),
+        theme: "system".to_owned(),
+        autostart: false,
+        system_proxy: false,
+        lan_sharing: Some(sharing.clone()),
+        lan_security: None,
+        ipv6_routing: None,
+        pac: PacSnapshot {
+            state: PacServiceState::Running {
+                url: "http://127.0.0.1:25211/proxy.pac".to_owned(),
+            },
+            script_bytes: 64,
+            bypass_domains: vec!["example.com".to_owned()],
+            bypass_lan: true,
+            minify: true,
+            revision: 3,
+        },
+        tun_enabled: Some(false),
+        tun_stack: None,
+        tun_auto_route: None,
+        tun_strict_route: None,
+        controller_port: None,
+        log_level: None,
+        core_channel: "stable".to_owned(),
+        mini_hud: MiniHudPlacement::default(),
+        refresh_current_profile_on_start: false,
+        custom_accent_color: None,
+    };
+
+    // The LAN sharing readback is published as one fact, so an off sharing
+    // is distinguishable from an unobserved one.
+    let observed = page.lan_sharing.clone().expect("the LAN sharing readback");
+    assert!(observed.is_disabled());
+    assert_eq!(observed.revision, 9);
+
+    // The PAC readback carries the two request facts the snapshot used to
+    // drop, so the owner value is never read as the default.
+    assert!(page.pac.bypass_lan);
+    assert!(page.pac.minify);
+
+    // The page round-trips through the wire without losing either fact.
+    let encoded = serde_json::to_string(&page).expect("serialize the settings page");
+    let decoded: SettingsPageSnapshot =
+        serde_json::from_str(&encoded).expect("decode the settings page");
+    assert_eq!(decoded.lan_sharing, page.lan_sharing);
+    assert_eq!(decoded.pac, page.pac);
 }
 
 fn core_identity(engine: &str, instance: &str) -> CoreIdentity {

@@ -18,6 +18,7 @@
 //! details and preference snapshot are the truth, and this model is their
 //! typed fold into what the page renders.
 
+use crate::filter_query::{FilterQuery, LatencyBound};
 use crate::operation_phase::OperationPhase;
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
@@ -86,89 +87,17 @@ pub fn proxy_protocol_chip(raw: &str) -> String {
     }
 }
 
-/// The comparison a latency filter applies.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LatencyBound {
-    /// Keep the nodes that are faster than the bound.
-    FasterThan(u32),
-    /// Keep the nodes that are slower than the bound.
-    SlowerThan(u32),
-}
-
-/// The typed parse of the proxies page search query.
+/// The proxies page match rule of the shared filter query.
 ///
-/// A query is one of three things, never a free-text string that may or may
-/// not be a latency bound: the parse decides, and the page renders from the
-/// parsed value.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub enum ProxyFilterQuery {
-    /// The query is empty: every node matches.
-    #[default]
-    MatchAll,
-    /// The query is free text.
-    Text(String),
-    /// The query is a latency bound.
-    Latency(LatencyBound),
-}
-
-impl ProxyFilterQuery {
-    /// Parse the raw search text into its typed form.
-    ///
-    /// A bound is only a bound when the remainder is a real millisecond
-    /// count; `<abc` stays free text so a node named `<abc` is still
-    /// reachable.
-    pub fn parse(raw: &str) -> Self {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            return Self::MatchAll;
-        }
-        // The operator is one character, not one byte: a name or a query may
-        // start with a character that is not ASCII.
-        let mut characters = trimmed.chars();
-        let operator = characters.next();
-        let rest = characters.as_str();
-        if matches!(operator, Some('<' | '>')) {
-            if let Ok(milliseconds) = rest.trim().parse::<u32>() {
-                return Self::Latency(if operator == Some('<') {
-                    LatencyBound::FasterThan(milliseconds)
-                } else {
-                    LatencyBound::SlowerThan(milliseconds)
-                });
-            }
-        }
-        Self::Text(trimmed.to_ascii_lowercase())
-    }
-
-    /// The free-text form of the query.
-    pub fn text(&self) -> &str {
-        match self {
-            Self::MatchAll => "",
-            Self::Text(text) => text,
-            Self::Latency(_) => "",
-        }
-    }
-
-    /// The latency bound of the query, when it is one.
-    pub fn latency_bound(&self) -> Option<LatencyBound> {
-        match self {
-            Self::Latency(bound) => Some(*bound),
-            Self::MatchAll | Self::Text(_) => None,
-        }
-    }
-
-    /// Whether the query keeps every node.
-    pub fn matches_all(&self) -> bool {
-        matches!(self, Self::MatchAll)
-    }
-
+/// The query type is shared with the other pages; what a query *matches*
+/// belongs to the page that owns the rows. This rule is the one answer for
+/// an outbound node: a free-text query matches the display name, the engine
+/// identity, the protocol (raw spelling and shared aliases), an advertised
+/// feature tag, the UDP capability, or the pinyin initials of the name. A
+/// latency bound keeps the nodes whose measured latency is on the requested
+/// side of the bound; a node without a measurement never satisfies a bound.
+impl FilterQuery {
     /// Whether the given node satisfies the query.
-    ///
-    /// The rule is shared: a free-text query matches the display name, the
-    /// engine identity, the protocol (raw spelling and shared aliases), an
-    /// advertised feature tag, the UDP capability, or the pinyin initials of
-    /// the name. A latency bound keeps the nodes whose measured latency is on
-    /// the requested side of the bound; a node without a measurement never
-    /// satisfies a bound.
     pub fn matches<T: ProxyFilterTarget>(&self, target: &T) -> bool {
         match self {
             Self::MatchAll => true,
@@ -259,13 +188,13 @@ fn protocol_matches(protocol: &str, query: &str) -> bool {
 /// The highlight follows the same rule as the match: a node the pinyin
 /// initials reach is highlighted as a whole, so a search result never shows
 /// an unhighlighted match.
-pub fn proxy_name_runs(name: &str, query: &ProxyFilterQuery) -> Vec<SearchTextRun> {
+pub fn proxy_name_runs(name: &str, query: &FilterQuery) -> Vec<SearchTextRun> {
     let text = match query {
-        ProxyFilterQuery::MatchAll => {
+        FilterQuery::MatchAll => {
             return project_text_runs(name, "", CaseSensitivity::AsciiInsensitive);
         }
-        ProxyFilterQuery::Text(text) => text,
-        ProxyFilterQuery::Latency(_) => {
+        FilterQuery::Text(text) => text,
+        FilterQuery::Latency(_) => {
             return project_text_runs(name, "", CaseSensitivity::AsciiInsensitive);
         }
     };
@@ -286,7 +215,7 @@ pub fn proxy_name_runs(name: &str, query: &ProxyFilterQuery) -> Vec<SearchTextRu
 /// member come from here, and the surface only dispatches typed intents back.
 #[derive(Clone, Debug, Default)]
 pub struct ProxiesPageModel {
-    query: ProxyFilterQuery,
+    query: FilterQuery,
     sort_order: OutboundSortOrder,
     health_filter: OutboundHealthFilter,
     layout: OutboundLayout,
@@ -302,7 +231,7 @@ impl ProxiesPageModel {
     /// The preference snapshot is the truth for what the owner confirmed; the
     /// surface's own edits stay local until the owner publishes them back.
     pub fn observe_preferences(&mut self, preferences: &OutboundUiPreferencesSnapshot) {
-        self.query = ProxyFilterQuery::parse(&preferences.search_query);
+        self.query = FilterQuery::parse(&preferences.search_query);
         self.sort_order = preferences.sort_order;
         self.health_filter = preferences.health_filter;
         self.layout = preferences.layout;
@@ -313,11 +242,11 @@ impl ProxiesPageModel {
 
     /// Edit the search query the page applies.
     pub fn edit_query(&mut self, raw: &str) {
-        self.query = ProxyFilterQuery::parse(raw);
+        self.query = FilterQuery::parse(raw);
     }
 
     /// The typed search query of the page.
-    pub fn query(&self) -> &ProxyFilterQuery {
+    pub fn query(&self) -> &FilterQuery {
         &self.query
     }
 
@@ -421,9 +350,9 @@ impl ProxiesPageModel {
     /// A latency bound never matches a group: a group has no latency.
     pub fn group_matches(&self, group_name: &str) -> bool {
         match &self.query {
-            ProxyFilterQuery::MatchAll => true,
-            ProxyFilterQuery::Latency(_) => false,
-            ProxyFilterQuery::Text(query) => {
+            FilterQuery::MatchAll => true,
+            FilterQuery::Latency(_) => false,
+            FilterQuery::Text(query) => {
                 contains_ignore_case(group_name, query) || pinyin_fuzzy_match(group_name, query)
             }
         }

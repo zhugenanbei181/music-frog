@@ -31,10 +31,12 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
 
         "app_routing_mode_selected_proxy" => "仅代理选中应用".into(),
         "app_routing_mode_selected_direct" => "选中应用直连，其余代理".into(),
+        "app_routing_mode_unobserved" => "尚未观测分流模式".into(),
         "app_routing_rule_proxy" => "代理 (Proxy)".into(),
         "app_routing_rule_direct" => "直连 (Direct)".into(),
         "app_routing_rule_block" => "拦截 (Block)".into(),
         "app_routing_observed_summary" => "应用分流 · {mode} (已配置 {count} 个应用)".into(),
+        "app_routing_unobserved_summary" => "应用分流 · 尚未观测分流模式 (已配置 {count} 个应用)".into(),
         "app_routing_process_copy" => "进程名: {process}".into(),
 
         "mrs_accel_entries" => "条目".into(),

@@ -10,12 +10,50 @@
 //! draft carries its own baseline, and "modified" is a derived fact of the
 //! two. The typed owner intents are built here too, so no surface has to
 //! re-translate a draft into a command.
+//!
+//! The LAN sharing fact is one typed observation: the owner publishes the
+//! whole [`LanSharingSnapshot`] or nothing at all, so the page can tell
+//! "sharing is off" from "sharing was never observed" instead of guessing.
 
 use crate::editable_draft::EditableDraft;
 use crate::operation_phase::OperationPhase;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+
+/// The LAN sharing observation the owner published.
+///
+/// The two states are exclusive and explicit: a page that has no observation
+/// reports "unobserved", never "off".
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum LanSharingObservation {
+    /// The owner has not published a LAN sharing readback yet.
+    #[default]
+    Unobserved,
+    /// The owner published a confirmed configuration.
+    Observed(LanSharingSnapshot),
+}
+
+impl LanSharingObservation {
+    /// The confirmed readback, when the owner published one.
+    pub fn snapshot(&self) -> Option<&LanSharingSnapshot> {
+        match self {
+            Self::Unobserved => None,
+            Self::Observed(snapshot) => Some(snapshot),
+        }
+    }
+
+    /// Whether the owner published a confirmed readback.
+    pub fn is_observed(&self) -> bool {
+        matches!(self, Self::Observed(_))
+    }
+
+    /// The configuration revision the readback was taken at.
+    pub fn revision(&self) -> Option<u64> {
+        self.snapshot().map(|snapshot| snapshot.revision)
+    }
+}
 
 /// The editable LAN sharing configuration.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -118,6 +156,7 @@ impl PacDraft {
 #[derive(Clone, Debug, Default)]
 pub struct SettingsPageModel {
     lan_sharing: EditableDraft<LanSharingDraft>,
+    lan_sharing_observation: LanSharingObservation,
     lan_security: EditableDraft<LanSecurityDraft>,
     pac: EditableDraft<PacDraft>,
     pac_service: Option<PacServiceState>,
@@ -128,13 +167,69 @@ pub struct SettingsPageModel {
 }
 
 impl SettingsPageModel {
-    /// Fold the owner's LAN sharing snapshot into the page model.
+    /// Fold the owner's LAN sharing readback into the page model.
     ///
     /// The owner value becomes the new baseline; an edit the owner has not
-    /// accepted yet stays visible as a modification.
-    pub fn observe_lan_sharing(&mut self, snapshot: &LanSharingSnapshot) {
-        self.lan_sharing
-            .adopt(LanSharingDraft::from_snapshot(snapshot));
+    /// accepted yet stays visible as a modification. A readback the owner
+    /// never published leaves the draft alone and reports "unobserved":
+    /// the page must not claim the sharing is off.
+    pub fn observe_lan_sharing(&mut self, sharing: Option<&LanSharingSnapshot>) {
+        match sharing {
+            Some(snapshot) => {
+                self.lan_sharing_observation = LanSharingObservation::Observed(snapshot.clone());
+                let owner = LanSharingDraft::from_snapshot(snapshot);
+                // The owner's readback becomes the baseline. The fields the
+                // user did not change follow the owner: a write must not
+                // clear a field the user never touched.
+                let previous = self.lan_sharing.baseline().cloned();
+                let current = self.lan_sharing.value().clone();
+                self.lan_sharing.adopt(owner.clone());
+                let keep_enabled = previous
+                    .as_ref()
+                    .is_some_and(|previous| current.enabled != previous.enabled);
+                let keep_port = previous
+                    .as_ref()
+                    .is_some_and(|previous| current.mixed_port != previous.mixed_port);
+                let keep_bind = previous
+                    .as_ref()
+                    .is_some_and(|previous| current.bind_address != previous.bind_address);
+                let owner_bind = owner.bind_address.clone();
+                self.lan_sharing.edit_with(|draft: &mut LanSharingDraft| {
+                    if keep_enabled {
+                        draft.enabled = current.enabled;
+                    }
+                    if keep_port {
+                        draft.mixed_port = current.mixed_port;
+                    }
+                    if keep_bind {
+                        draft.bind_address = current.bind_address.clone();
+                    } else {
+                        draft.bind_address = owner_bind.clone();
+                    }
+                });
+            }
+            None => {
+                self.lan_sharing_observation = LanSharingObservation::Unobserved;
+            }
+        }
+    }
+
+    /// The LAN sharing observation the owner published.
+    pub fn lan_sharing_observation(&self) -> &LanSharingObservation {
+        &self.lan_sharing_observation
+    }
+
+    /// Whether the owner published a confirmed LAN sharing readback.
+    pub fn lan_sharing_observed(&self) -> bool {
+        self.lan_sharing_observation.is_observed()
+    }
+
+    /// The configuration revision the LAN sharing readback was taken at.
+    ///
+    /// `None` means the owner never published a readback, so a write cannot
+    /// be fenced against an observation.
+    pub fn lan_sharing_revision(&self) -> Option<u64> {
+        self.lan_sharing_observation.revision()
     }
 
     /// Fold the owner's LAN security snapshot into the page model.
@@ -148,13 +243,16 @@ impl SettingsPageModel {
     }
 
     /// Fold the owner's PAC snapshot into the page model.
+    ///
+    /// The readback carries every fact of the applied request, so the draft
+    /// starts from the owner's real values instead of the defaults.
     pub fn observe_pac(&mut self, snapshot: &PacSnapshot) {
         self.pac_service = Some(snapshot.state.clone());
         let draft = PacDraft {
             enabled: !matches!(&snapshot.state, PacServiceState::Disabled),
             bypass_domains: snapshot.bypass_domains.clone(),
-            bypass_lan: false,
-            minify: false,
+            bypass_lan: snapshot.bypass_lan,
+            minify: snapshot.minify,
         };
         self.pac.adopt(draft);
     }
@@ -223,9 +321,10 @@ impl SettingsPageModel {
     /// The owner intent the LAN sharing draft expresses.
     ///
     /// A draft that still equals the owner value has no intent: the owner
-    /// already knows it.
+    /// already knows it. A draft without an observed owner value has no
+    /// intent either: there is no baseline to write against.
     pub fn lan_sharing_intent(&self) -> Option<CommandIntent> {
-        if !self.lan_sharing.is_modified() {
+        if !self.lan_sharing.is_modified() || !self.lan_sharing_observed() {
             return None;
         }
         let draft = self.lan_sharing.value();
@@ -338,6 +437,38 @@ impl SettingsPageModel {
     /// The phase of the submitted PAC write, for the fold that changes it.
     pub fn pac_write_phase_mut(&mut self) -> &mut OperationPhase {
         &mut self.pac_write
+    }
+}
+
+/// Fold the owner's settings facts of one surface snapshot into the model.
+///
+/// The LAN sharing readback is the runtime configuration readback the owner
+/// published — the same fact the settings page projects — so a surface never
+/// has to rebuild it from the individual runtime-control fields. A readback
+/// the owner never published leaves the model unobserved instead of guessing
+/// that the sharing is off.
+pub fn observe_settings_page(model: &mut SettingsPageModel, snapshot: &SurfaceSnapshot) {
+    let sharing = snapshot.runtime_control.lan_sharing.as_ref().or_else(|| {
+        snapshot
+            .pages
+            .settings
+            .data
+            .as_ref()
+            .and_then(|page| page.lan_sharing.as_ref())
+    });
+    model.observe_lan_sharing(sharing);
+    if let Some(security) = snapshot
+        .pages
+        .settings
+        .data
+        .as_ref()
+        .and_then(|page| page.lan_security.as_ref())
+        .or_else(|| snapshot.runtime_control.lan_security.as_ref())
+    {
+        model.observe_lan_security(security);
+    }
+    if let Some(page) = snapshot.pages.settings.data.as_ref() {
+        model.observe_pac(&page.pac);
     }
 }
 

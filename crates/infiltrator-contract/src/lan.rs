@@ -8,15 +8,27 @@ pub const DEFAULT_BIND_ADDRESS: &str = "*";
 
 /// A confirmed live Allow-LAN configuration. Failures stay in the enclosing
 /// application result instead of being represented as guessed UI state.
+///
+/// This is the one LAN sharing readback of the product. The snapshots that
+/// carry it publish it whole or not at all, so a consumer can tell
+/// "sharing is off" (`Some` with `enabled == false`) from "sharing was never
+/// observed" (`None`). The `revision` is the configuration revision the
+/// observation was taken at, so a write can be fenced against the
+/// observation it was derived from.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LanSharingSnapshot {
+    /// Whether the proxy shares its port with the local network.
     pub enabled: bool,
+    /// The port the shared proxy listens on.
     pub mixed_port: u16,
+    /// The address the shared proxy binds to.
     pub bind_address: String,
+    /// The configuration revision this observation was taken at.
     pub revision: u64,
 }
 
 impl LanSharingSnapshot {
+    /// The confirmed configuration the owner reported.
     pub fn new(
         revision: u64,
         enabled: bool,
@@ -29,6 +41,14 @@ impl LanSharingSnapshot {
             bind_address: bind_address.into(),
             revision,
         }
+    }
+
+    /// Whether the shared proxy is confirmed off.
+    ///
+    /// A missing readback is not "off": the caller has to answer that from
+    /// the absence of the observation itself.
+    pub fn is_disabled(&self) -> bool {
+        !self.enabled
     }
 }
 
@@ -97,5 +117,33 @@ impl LanSecuritySnapshot {
             authentication_username,
             revision,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_lan_sharing_readback_tells_off_from_unobserved() {
+        let off = LanSharingSnapshot::new(7, false, 7890, "*");
+        assert!(off.is_disabled());
+        assert_eq!(off.revision, 7);
+
+        // The snapshot that carries the readback publishes it whole or not at
+        // all: an absent readback is "never observed", never "off".
+        let observed: Option<LanSharingSnapshot> = Some(off.clone());
+        let unobserved: Option<LanSharingSnapshot> = None;
+        assert!(observed.is_some_and(|sharing| sharing.is_disabled()));
+        assert!(unobserved.is_none());
+    }
+
+    #[test]
+    fn the_lan_sharing_readback_round_trips_through_the_wire() {
+        let sharing = LanSharingSnapshot::new(11, true, 8080, "192.168.1.10");
+        let encoded = serde_json::to_string(&sharing).expect("serialize the LAN sharing readback");
+        let decoded: LanSharingSnapshot =
+            serde_json::from_str(&encoded).expect("decode the LAN sharing readback");
+        assert_eq!(decoded, sharing);
     }
 }

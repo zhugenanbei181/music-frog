@@ -66,6 +66,19 @@ impl OverviewCardKind {
     }
 }
 
+/// The direction of a one-step Overview card reorder.
+///
+/// The surface names the card and the direction; the shared owner applies the
+/// swap against its own snapshot, so no surface derives the next order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverviewCardMoveDirection {
+    /// Swap the card with the entry directly above it.
+    Up,
+    /// Swap the card with the entry directly below it.
+    Down,
+}
+
 /// Shared layout snapshot indicating the sequential display order of Overview cards.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OverviewLayoutSnapshot {
@@ -121,6 +134,19 @@ impl OverviewLayoutSnapshot {
             true
         } else {
             false
+        }
+    }
+
+    /// Move a card one step in the requested direction. Returns true if the
+    /// position changed.
+    pub fn move_card(
+        &mut self,
+        kind: OverviewCardKind,
+        direction: OverviewCardMoveDirection,
+    ) -> bool {
+        match direction {
+            OverviewCardMoveDirection::Up => self.move_up(kind),
+            OverviewCardMoveDirection::Down => self.move_down(kind),
         }
     }
 

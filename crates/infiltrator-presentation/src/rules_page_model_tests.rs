@@ -1,7 +1,15 @@
 //! test-intent: behavior
 use crate::rules_page_model::{RulesOperation, RulesPageModel};
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+use infiltrator_domain::rules::RuleEntry;
 use lurker_core_contract::error::{ErrorCode, Failure};
+
+fn rule(expression: &str) -> RuleEntry {
+    RuleEntry {
+        rule: expression.to_owned(),
+        enabled: true,
+    }
+}
 
 #[test]
 fn the_tab_selection_is_one_shared_value() {
@@ -111,4 +119,46 @@ fn the_json_section_selection_is_one_shared_value() {
 
     model.select_json_section(RulesJsonSection::ProxyProviders);
     assert_eq!(model.json_section(), RulesJsonSection::ProxyProviders);
+}
+
+#[test]
+fn the_rule_list_filter_is_owned_by_the_shared_model() {
+    let mut model = RulesPageModel::default();
+    let rules = vec![
+        rule("DOMAIN-SUFFIX,github.com,PROXY"),
+        rule("GEOIP,CN,DIRECT"),
+        rule("DOMAIN-KEYWORD,google,GLOBAL"),
+    ];
+
+    // An empty filter keeps every rule.
+    assert_eq!(model.filter_text(), "");
+    assert_eq!(model.filtered_indices(&rules), vec![0, 1, 2]);
+    assert!(model.matches_rule(&rules[0]));
+
+    model.edit_filter("github");
+    assert_eq!(model.filter_text(), "github");
+    assert_eq!(model.filtered_indices(&rules), vec![0]);
+    assert!(model.matches_rule(&rules[0]));
+    assert!(!model.matches_rule(&rules[1]));
+
+    // The match rule is the shared domain reduction, so the target and the
+    // payload both answer the same query.
+    model.edit_filter("DIRECT");
+    assert_eq!(model.filtered_indices(&rules), vec![1]);
+
+    model.edit_filter("  ");
+    assert_eq!(model.filter_text(), "");
+    assert_eq!(model.filtered_indices(&rules), vec![0, 1, 2]);
+}
+
+#[test]
+fn a_latency_bound_is_free_text_on_the_rule_list() {
+    let mut model = RulesPageModel::default();
+    let rules = vec![rule("DOMAIN-SUFFIX,<100,PROXY")];
+
+    // A rule carries no latency, so the bound never empties the list.
+    model.edit_filter("<100");
+    assert_eq!(model.filter_text(), "<100");
+    assert_eq!(model.filtered_indices(&rules), vec![0]);
+    assert!(model.matches_rule(&rules[0]));
 }

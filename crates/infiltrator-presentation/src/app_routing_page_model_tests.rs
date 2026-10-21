@@ -1,4 +1,5 @@
 //! test-intent: behavior
+use infiltrator_domain::app_routing;
 use crate::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_contract::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_contract::command::CommandIntent;
@@ -49,11 +50,18 @@ fn the_page_reports_the_owner_values_without_a_second_shape() {
     let mut model = AppRoutingPageModel::default();
     // Before the owner published anything the page reports no mode at all.
     assert!(model.mode().is_none());
+    assert!(!model.mode_observed());
+    assert_eq!(model.mode_copy_key(), "app_routing_mode_unobserved");
     assert!(model.apps().is_empty());
     assert!(model.uwp_packages().is_empty());
 
     model.observe_page(page());
-    assert_eq!(model.mode(), Some(AppRoutingMode::ProxySelected));
+    assert_eq!(
+        model.mode(),
+        Some(app_routing::AppRoutingMode::ProxySelected)
+    );
+    assert!(model.mode_observed());
+    assert_eq!(model.mode_copy_key(), "app_routing_mode_selected_proxy");
     assert_eq!(model.include_system(), Some(true));
     assert_eq!(model.apps().len(), 2);
     assert_eq!(model.uwp_packages().len(), 2);

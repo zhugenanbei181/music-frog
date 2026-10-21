@@ -81,3 +81,5 @@ pub mod zeroize_guard;
 pub mod myers_diff;
 
 mod connection_snapshot_view;
+
+mod rule_snapshot_view;

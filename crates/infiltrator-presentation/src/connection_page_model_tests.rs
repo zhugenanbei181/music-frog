@@ -3,6 +3,7 @@ use crate::connection_page_model::{
     CONNECTION_SORT_OPTIONS, ConnectionsPageModel, sort_option_at, sort_option_index,
 };
 use infiltrator_contract::connection::ConnectionRateObservation;
+use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRates};
 use infiltrator_domain::connection_view::{
     ConnectionGroupingMode, ConnectionSortKey, ConnectionView,
@@ -184,4 +185,65 @@ fn the_rate_keys_rank_on_the_shared_rate_book() {
             .collect::<Vec<_>>(),
         ["2", "1"]
     );
+}
+
+#[test]
+fn the_closed_history_joins_the_shared_connection_page_model() {
+    let closed = vec![
+        ClosedConnectionSnapshot {
+            id: "1".to_owned(),
+            destination: "b.example".to_owned(),
+            duration_ms: 1_000,
+            upload_bytes: 100,
+            download_bytes: 500,
+            rule: "DomainSuffix".to_owned(),
+            outbound: "PROXY".to_owned(),
+            closed_at: "2026-10-20T00:00:00Z".to_owned(),
+        },
+        ClosedConnectionSnapshot {
+            id: "2".to_owned(),
+            destination: "a.example".to_owned(),
+            duration_ms: 2_000,
+            upload_bytes: 900,
+            download_bytes: 200,
+            rule: "GeoIP".to_owned(),
+            outbound: "DIRECT".to_owned(),
+            closed_at: "2026-10-20T00:00:00Z".to_owned(),
+        },
+    ];
+
+    let mut model = ConnectionsPageModel::<ClosedConnectionSnapshot>::default();
+    model.observe(&closed);
+    assert_eq!(model.source_count(), 2);
+    assert_eq!(model.matched_count(), 2);
+
+    // The query folds the closed history exactly like the open one.
+    model.edit_query("a.example");
+    assert_eq!(model.matched_count(), 1);
+    assert_eq!(
+        model
+            .visible_rows()
+            .iter()
+            .map(|row| row.view_id())
+            .collect::<Vec<_>>(),
+        ["2"]
+    );
+
+    // The shared sort order applies to the closed history too.
+    model.edit_query("");
+    model.select_sort(ConnectionSortKey::HostAsc);
+    let mut ordered: Vec<ClosedConnectionSnapshot> =
+        model.visible_rows().into_iter().cloned().collect();
+    model.sort_rows(&mut ordered);
+    assert_eq!(
+        ordered
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<Vec<_>>(),
+        ["2", "1"]
+    );
+
+    // The grouping fold buckets the closed history by its own facts.
+    model.select(ConnectionGroupingMode::ByHost);
+    assert_eq!(model.rows().len(), 2);
 }

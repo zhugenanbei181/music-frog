@@ -11,12 +11,18 @@
 //! another operation's phase. The JSON document buffers are typed drafts with
 //! their own baseline, so the page can no longer carry a `Vec<bool>` of
 //! dirty flags beside the documents it edits.
+//!
+//! The rule-list filter belongs here too: the pages share one typed filter
+//! query, so a surface renders the filtered rows the model reports instead
+//! of keeping a private string filter of its own.
 
 use crate::editable_draft::EditableDraft;
+use crate::filter_query::FilterQuery;
 use crate::operation_phase::OperationPhase;
 use infiltrator_contract::rules_workspace::{
     RulesJsonDocumentSnapshot, RulesJsonSection, RulesTab,
 };
+use infiltrator_domain::rules::view::{RuleView, filter_rule_indices, matches_rule_search};
 
 /// The rules page operations the shared model tracks.
 ///
@@ -93,6 +99,7 @@ impl RulesOperation {
 pub struct RulesPageModel {
     tab: RulesTab,
     json_section: RulesJsonSection,
+    filter: FilterQuery,
     rule_providers_json: EditableDraft<String>,
     proxy_providers_json: EditableDraft<String>,
     sniffer_json: EditableDraft<String>,
@@ -107,6 +114,37 @@ pub struct RulesPageModel {
 }
 
 impl RulesPageModel {
+    /// The typed rule-list filter the page applies.
+    pub fn filter(&self) -> &FilterQuery {
+        &self.filter
+    }
+
+    /// The raw filter text the page's search box shows.
+    pub fn filter_text(&self) -> &str {
+        self.filter.text()
+    }
+
+    /// Edit the rule-list filter the page applies.
+    ///
+    /// A rule carries no latency, so the parse stays textual: a query that
+    /// reads like a latency bound is free text here, never an empty list.
+    pub fn edit_filter(&mut self, filter: &str) {
+        self.filter = FilterQuery::parse_text(filter);
+    }
+
+    /// Whether the given rule satisfies the filter.
+    ///
+    /// The match rule is the shared domain reduction, so a rule is filtered
+    /// the same way on every surface.
+    pub fn matches_rule<T: RuleView>(&self, rule: &T) -> bool {
+        matches_rule_search(rule, self.filter.text())
+    }
+
+    /// The indices of the rules that survive the filter, in list order.
+    pub fn filtered_indices<T: RuleView>(&self, rules: &[T]) -> Vec<usize> {
+        filter_rule_indices(rules, self.filter.text())
+    }
+
     /// The active tab of the rules workspace.
     pub fn tab(&self) -> RulesTab {
         self.tab
