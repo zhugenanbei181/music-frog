@@ -4,10 +4,13 @@
 //! the business owns. A demo that only repaints its page can never satisfy
 //! one of them, so the pixel judge never sees a route-only render published
 //! as an activated business.
+use crate::demo::app_routing::DEMO_PROCESS;
 use crate::demo::profiles::IMPORT_URL;
 use crate::demo::rules::RULE_SEARCH_QUERY;
 use crate::demo::settings::LAN_ALLOWED_IPS;
+use crate::demo::sync::demo_conflict_key;
 use crate::state::AppState;
+use crate::state::editor::SnapshotDiffModalState;
 use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::app::{ConfirmAction, Route};
 use infiltrator_contract::fixture_identities::HK_PRIMARY;
@@ -20,6 +23,7 @@ use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::speedtest::SpeedtestRunState;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
+use infiltrator_domain::app_routing::AppRoutingRule;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
@@ -437,20 +441,76 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         FeatureId::ProfilesImportModal => {
             state.profile.import_url == IMPORT_URL && !state.profile.import_name.is_empty()
         }
+        FeatureId::AppRoutingPolicyEditor => {
+            // The per-application routing policy the page renders really
+            // carries the rule the user picked.
+            state.app_routing.custom_rules.get(DEMO_PROCESS) == Some(&AppRoutingRule::Direct)
+                && !state.app_routing.processes.is_empty()
+        }
+        FeatureId::ProfilesSubscriptionError => {
+            // The owner's typed refusal is on screen: the shell's durable
+            // error banner carries the shared failure's message.
+            state
+                .shell
+                .error_msg
+                .as_deref()
+                .is_some_and(|message| message.contains("capture subscription source is offline"))
+        }
+        FeatureId::ProfilesAggregatorPreview => {
+            // The modal renders the shared aggregation report, not a local
+            // summary: the report carries the sources it aggregated.
+            state
+                .profile
+                .aggregator_report
+                .as_ref()
+                .is_some_and(|report| report.source_count > 0 && !report.yaml.is_empty())
+        }
+        FeatureId::ProfilesScriptSandbox => {
+            // The console renders the shared engine's report.
+            state
+                .editor
+                .script_sandbox
+                .snapshot()
+                .is_some_and(|snapshot| snapshot.execution_time_ms > 0 || snapshot.has_error())
+        }
+        FeatureId::ProfilesScriptExportReview => {
+            // The review modal is open over the owner's frozen export bytes.
+            state.editor.script_sandbox.is_export_visible()
+                && state
+                    .editor
+                    .script_sandbox
+                    .export()
+                    .is_some_and(|export| !export.file_name.is_empty())
+        }
+        FeatureId::ProfilesDiffViewer => {
+            // The modal renders the shared application's real diff.
+            matches!(
+                state.editor.snapshot_diff_modal,
+                SnapshotDiffModalState::Loaded { .. }
+            )
+        }
+        FeatureId::EditorYamlErrorNavigation => {
+            // The shared codec's own diagnostic names the line the editor
+            // navigated to.
+            state.editor.syntax_error.is_some() && state.editor.syntax_error_line.is_some()
+        }
+        FeatureId::SyncConflictResolver => {
+            // The merge session really carries the user's per-key decision.
+            let Some(key) = demo_conflict_key(state) else {
+                return false;
+            };
+            state
+                .profile
+                .sync_diff
+                .as_ref()
+                .is_some_and(|diff| diff.picks.get(&key) == Some(&true))
+        }
         // The remaining businesses have no activator in this demo yet: the
         // capture refuses to publish them as activated instead of claiming a
         // route-only render as a performed business.
-        FeatureId::AppRoutingPolicyEditor
-        | FeatureId::ProfilesSubscriptionError
-        | FeatureId::ProfilesAggregatorPreview
-        | FeatureId::ProfilesScriptSandbox
-        | FeatureId::ProfilesScriptExportReview
-        | FeatureId::ProfilesDiffViewer
-        | FeatureId::EditorYamlErrorNavigation
-        | FeatureId::EditorSnippetInsertion
+        FeatureId::EditorSnippetInsertion
         | FeatureId::EditorLargeDocumentWindow
         | FeatureId::RulesProviderRefreshError
-        | FeatureId::SyncConflictResolver
         | FeatureId::SyncRestoreConfirm => false,
     }
 }

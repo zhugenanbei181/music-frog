@@ -14,6 +14,7 @@ use crate::view::script_export::export_section;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::script_application::ScriptApplication;
@@ -60,6 +61,21 @@ fn preset_chip<'a>(
             }
         })
         .on_press_maybe((!busy).then_some(Message::Script(ScriptAction::SelectPreset(preset_id))))
+        .into()
+}
+
+/// The selected preset chip: the sandbox's own control.
+///
+/// Only the active chip carries the identity, so the capture measures the
+/// control the business drives.
+fn active_preset_chip<'a>(
+    label: String,
+    preset_id: String,
+    is_active: bool,
+    busy: bool,
+) -> Element<'a, Message> {
+    container(preset_chip(label, preset_id, is_active, busy))
+        .id(InteractionRegion::ScriptSandbox.id())
         .into()
 }
 
@@ -308,14 +324,22 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     .align_y(Alignment::Center);
     for definition in preset_definitions {
         let is_active = active_preset == Some(definition.id.as_str());
-        preset_row = preset_row
-            .push(preset_chip(
+        let chip = if is_active {
+            active_preset_chip(
                 definition.name,
                 definition.id,
                 is_active,
                 state.editor.script_sandbox.busy(),
-            ))
-            .push(Space::new().width(theme::SP_SM));
+            )
+        } else {
+            preset_chip(
+                definition.name,
+                definition.id,
+                is_active,
+                state.editor.script_sandbox.busy(),
+            )
+        };
+        preset_row = preset_row.push(chip).push(Space::new().width(theme::SP_SM));
     }
     let preset_row = preset_row
         .push(Space::new().width(Length::Fill))
@@ -349,7 +373,11 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 (!state.editor.script_sandbox.busy() && !state.shell.ime.is_composing())
                     .then_some(Message::Script(ScriptAction::Run)),
             ),
-        );
+        )
+        .align_y(Alignment::Center);
+    // The preset row is the sandbox's own control: the capture measures the
+    // control the business drives.
+    let preset_row = container(preset_row).width(Length::Fill);
 
     let script_input = column![
         text("function main(config, profile) { ... }")

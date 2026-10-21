@@ -27,7 +27,7 @@ use view::sidebar::sidebar_for_tier;
 use view::{
     app_routing, dns, doctor, editor, overview, profiles, proxies, rules, runtime, settings, sync,
 };
-mod aggregator_modal;
+pub(crate) mod aggregator_modal;
 mod command_palette;
 mod connection_drawer;
 mod custom_node_modal;
@@ -35,6 +35,8 @@ pub(crate) mod interaction_regions;
 pub(crate) mod modals;
 mod snapshot_diff_modal;
 pub(crate) mod speedtest_detail_modal;
+
+use crate::view_root::interaction_regions::InteractionRegion;
 
 use crate::state::AppState;
 use crate::state::runtime::ProbeSettingsDialogState;
@@ -237,6 +239,7 @@ impl AppState {
                 .padding([16, 24])
                 .align_x(Alignment::Center)
                 .align_y(Alignment::Start)
+                .id(InteractionRegion::OperationError.id())
                 .into(),
             );
         }

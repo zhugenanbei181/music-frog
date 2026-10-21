@@ -1,6 +1,7 @@
 pub mod active_exit;
 pub mod app_routing;
 pub mod apply_guard_card;
+pub mod checkbox;
 pub mod chrome;
 pub mod component_card;
 pub mod component_forms;

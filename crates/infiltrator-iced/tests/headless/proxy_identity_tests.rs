@@ -285,7 +285,7 @@ fn newly_published_typed_collection_expands_without_reopening_a_collapsed_group(
 }
 
 #[test]
-fn nonanimated_proxy_capture_requests_real_frames_until_its_receipt_is_written() {
+fn nonanimated_proxy_capture_requests_real_frames_until_the_published_frame_is_current() {
     use infiltrator_contract::parity::FeatureId;
     use std::path::PathBuf;
     use std::sync::atomic::Ordering;
@@ -301,8 +301,11 @@ fn nonanimated_proxy_capture_requests_real_frames_until_its_receipt_is_written()
         .shell
         .capture_marker_written
         .store(true, Ordering::SeqCst);
+    // The receipt is written, but the capture keeps reading back: the
+    // published frame has to show what the compositor shows now, so a late
+    // change cannot leave a stale frame proof behind.
     assert_eq!(state.subscription().units(), baseline);
-    assert_eq!(state.update(Message::TickFrame(Instant::now())).units(), 0);
+    assert_eq!(state.update(Message::TickFrame(Instant::now())).units(), 1);
 }
 
 #[test]

@@ -10,6 +10,8 @@ use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::uwp_card::uwp_card;
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_desktop::process_enumerator::ProcessCategory;
@@ -161,7 +163,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
         )
     } else {
         let mut proc_column = column![].spacing(theme::SP_SM);
-        for proc in filtered_processes {
+        for (index, proc) in filtered_processes.into_iter().enumerate() {
             let cat_icon = category_icon(proc.category);
             let bkind = category_badge_kind(proc.category);
 
@@ -234,13 +236,29 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
             )
             .padding([12, 16])
             .style(row_card_surface);
+            // The first row carries the policy grid's own identity, so the
+            // capture can measure the control the business edits.
+            let proc_card: Element<'_, Message> = if index == 0 {
+                proc_card
+                    .id(InteractionRegion::AppRoutingPolicy.id())
+                    .into()
+            } else {
+                proc_card.into()
+            };
 
             proc_column = proc_column.push(proc_card);
         }
-        modern_scrollable(proc_column).height(Length::Fill).into()
+        if state.shell.viewport.tier.is_narrow() {
+            // The compact tier stacks the sidebar under the content, so the
+            // page itself scrolls: the per-application policy grid has to stay
+            // reachable in that tier.
+            proc_column.into()
+        } else {
+            modern_scrollable(proc_column).height(Length::Fill).into()
+        }
     };
 
-    column![
+    let content = column![
         title_line,
         Space::new().height(theme::SP_SM),
         top_controls,
@@ -251,6 +269,21 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
         Space::new().height(theme::SP_MD),
         list_content,
     ]
-    .spacing(theme::SP_SM)
-    .into()
+    .spacing(theme::SP_SM);
+
+    if state.shell.viewport.tier.is_narrow() {
+        // The compact tier stacks the sidebar under the content, so the page
+        // itself scrolls: every card stays reachable in that tier.
+        modern_scrollable(content)
+            .id(Id::new(APP_ROUTING_SCROLL_ID))
+            .height(Length::Fill)
+            .width(Length::Fill)
+            .into()
+    } else {
+        content.into()
+    }
 }
+
+/// The scrollable the compact App Routing page scrolls in, so the capture can
+/// bring the per-application policy grid into view.
+pub const APP_ROUTING_SCROLL_ID: &str = "app-routing-scroll";

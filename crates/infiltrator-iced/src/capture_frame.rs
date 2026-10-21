@@ -65,7 +65,11 @@ impl AppState {
     }
 
     pub(crate) fn capture_frame_task(&mut self) -> Task<Message> {
-        if !self.capture_state_ready() {
+        // The capture path stays open while the demo holds a marker file: the
+        // published frame has to stay current, because the compositor
+        // screenshots the window after the surface settled. A frame the
+        // compositor already left behind proves nothing.
+        if !self.shell.demo || self.shell.capture_marker.is_none() {
             self.shell.capture_frame = CaptureFrameGate::default();
             return Task::none();
         }
@@ -79,7 +83,7 @@ impl AppState {
                 ..Default::default()
             };
         }
-        if gate.pending || gate.ready {
+        if gate.pending {
             return Task::none();
         }
         gate.redraws = gate.redraws.saturating_add(1);
@@ -107,8 +111,7 @@ impl AppState {
         bounds: Option<Rectangle>,
         screenshot: Screenshot,
     ) {
-        let valid = self.capture_state_ready()
-            && revision == self.surface.revision()
+        let valid = revision == self.surface.revision()
             && bounds == self.shell.capture_region_bounds
             && self.shell.capture_frame.pending
             && screenshot.scale_factor == 1.0
@@ -141,20 +144,28 @@ impl AppState {
             gate.previous = Some(pixels.to_vec());
             gate.repeated = 1;
         }
+        // The published frame follows the surface: every frame that differs
+        // from the last one is written, so the file always shows what the
+        // compositor shows now.
+        if gate.repeated == 1 {
+            let Some(image) = RgbaImage::from_raw(
+                screenshot.size.width,
+                screenshot.size.height,
+                screenshot.rgba.to_vec(),
+            ) else {
+                return;
+            };
+            if let Err(error) =
+                image.save_with_format(parent.join("rendered-frame.png"), ImageFormat::Png)
+            {
+                eprintln!("native capture readback could not be saved: {error}");
+                return;
+            }
+        }
         if gate.repeated < SETTLED_READBACKS {
             return;
         }
-        let Some(image) = RgbaImage::from_raw(
-            screenshot.size.width,
-            screenshot.size.height,
-            screenshot.rgba.to_vec(),
-        ) else {
-            return;
-        };
-        if let Err(error) =
-            image.save_with_format(parent.join("rendered-frame.png"), ImageFormat::Png)
-        {
-            eprintln!("native capture readback could not be saved: {error}");
+        if !self.capture_state_ready() {
             return;
         }
         self.shell.capture_frame.ready = true;

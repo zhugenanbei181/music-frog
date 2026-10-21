@@ -17,6 +17,7 @@ use crate::view::components::{
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::yaml_ast_diff::{DiffKind, DiffLine, SplitDiffRow, YamlAstDiffSnapshot};
@@ -209,6 +210,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         });
 
     container(modal_card)
+        .id(InteractionRegion::SnapshotDiff.id())
         .width(Length::Fill)
         .height(Length::Fill)
         .align_x(Alignment::Center)

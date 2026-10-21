@@ -32,6 +32,7 @@ use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
 use iced::Task;
 use infiltrator_contract::parity::FeatureId;
 use std::env::{args, var};
+mod app_routing;
 mod capabilities;
 mod capture;
 mod connections;
@@ -39,6 +40,7 @@ mod dns_hosts;
 mod dns_leak;
 mod dns_query;
 mod doctor;
+mod editor_capture;
 mod filter;
 mod fixtures;
 pub(crate) mod interaction;
@@ -48,6 +50,7 @@ mod logs;
 mod overview;
 mod owner;
 mod profiles;
+mod profiles_capture;
 mod proxies;
 mod proxy_fixtures;
 mod routing_intent;
@@ -55,11 +58,13 @@ mod rule_list;
 mod rule_statistics;
 mod rule_trace;
 mod rules;
+mod script_capture;
 mod settings;
 mod shell;
 mod snapshot_restore;
 mod speedtest;
 mod state;
+mod sync;
 mod telemetry;
 mod watchdog;
 
@@ -205,6 +210,11 @@ fn update(state: &mut AppState, message: Message) -> Task<Message> {
         filter::update(state, message)
     } else if state.shell.capture_scenario == Some(FeatureId::RulesStatisticsInspector) {
         rule_statistics::update(state, message)
+    } else if matches!(
+        state.shell.capture_scenario,
+        Some(FeatureId::EditorYamlErrorNavigation) | Some(FeatureId::ProfilesDiffViewer)
+    ) {
+        editor_capture::update(state, message)
     } else {
         rule_list::update(state, message)
     }

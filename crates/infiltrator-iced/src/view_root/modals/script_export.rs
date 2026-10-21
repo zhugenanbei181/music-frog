@@ -4,7 +4,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::script::ScriptAction;
 use crate::view::component_forms::{style_accent, style_ghost};
-use iced::widget::{Scrollable, Space, button, column, row, text};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::widget::{Scrollable, Space, button, column, container, row, text};
 use iced::{Element, Length};
 use infiltrator_presentation::script_export_projection::project_script_export;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -57,8 +58,12 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
         );
     }
     let content = column![Scrollable::new(body).height(Length::Fill), actions].spacing(16);
-    modal_backdrop(modal_card(
+    container(modal_backdrop(modal_card(
         content.into(),
         (state.shell.viewport.width_px - 48.0).clamp(96.0, 560.0),
-    ))
+    )))
+    .id(InteractionRegion::ScriptExportReview.id())
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }

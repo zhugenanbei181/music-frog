@@ -10,6 +10,7 @@ use crate::view::svg_icons::Icon;
 use crate::view::sync_diff::diff_panel;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
+use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, progress_bar, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
@@ -64,10 +65,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(SP_LG));
 
     modern_scrollable(content)
+        .id(Id::new(SYNC_SCROLL_ID))
         .height(Length::Fill)
         .width(Length::Fill)
         .into()
 }
+
+/// The scrollable the sync page scrolls in, so the capture can bring the
+/// conflict merge panel into view.
+pub const SYNC_SCROLL_ID: &str = "sync-scroll";
 
 fn build_status_card<'a>(
     state: &'a AppState,

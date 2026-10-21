@@ -10,7 +10,8 @@ use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, segmented_control};
 use crate::view::theme;
 use crate::view::theme::{MONO, tokens};
-use iced::widget::{Space, button, column, row, scrollable, text};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -45,6 +46,7 @@ fn key_row<'a>(
     diff: &'a SyncDiffState,
     key: String,
     kind: SyncDiffKeyKind,
+    measured: bool,
 ) -> Element<'a, Message> {
     let take_remote = diff.picks.get(&key).copied().unwrap_or(false);
     let labels = vec![
@@ -79,7 +81,16 @@ fn key_row<'a>(
             mono_value(lang.tr("sync_diff_remote").to_string(), remote),
         ]);
     }
-    column![body, picker].spacing(theme::SP_SM).into()
+    let row = column![body, picker].spacing(theme::SP_SM);
+    // The first conflict key is the control the merge session resolves, so the
+    // capture measures that row and not the whole panel.
+    if measured {
+        container(row)
+            .id(InteractionRegion::SyncConflictMerge.id())
+            .into()
+    } else {
+        row.into()
+    }
 }
 
 /// The active merge session panel, rendered in place of the simple
@@ -91,8 +102,8 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
     let adopted = diff.picks.values().filter(|pick| **pick).count();
 
     let mut rows = column![].spacing(theme::SP_MD);
-    for (key, kind) in diff.bundle.key_entries() {
-        rows = rows.push(key_row(&lang, diff, key, kind));
+    for (index, (key, kind)) in diff.bundle.key_entries().into_iter().enumerate() {
+        rows = rows.push(key_row(&lang, diff, key, kind, index == 0));
     }
 
     let mut actions = row![
@@ -138,21 +149,25 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
         actions = row![text(lang.tr("sync_diff_computing").to_string()).size(12)];
     }
 
-    Some(card(
-        Some(format!(
-            "{}：{}",
-            lang.tr("sync_diff_title"),
-            diff.bundle.profile
-        )),
-        column![
-            text(lang.tr("sync_diff_desc").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
-            scrollable(rows).height(Length::Shrink).width(Length::Fill),
-            actions,
-        ]
-        .spacing(theme::SP_MD),
-    ))
+    Some(
+        container(card(
+            Some(format!(
+                "{}：{}",
+                lang.tr("sync_diff_title"),
+                diff.bundle.profile
+            )),
+            column![
+                text(lang.tr("sync_diff_desc").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+                scrollable(rows).height(Length::Shrink).width(Length::Fill),
+                actions,
+            ]
+            .spacing(theme::SP_MD),
+        ))
+        .width(Length::Fill)
+        .into(),
+    )
 }

@@ -83,7 +83,6 @@ fn redraw_gate_rejects_stale_or_malformed_readback_and_saves_the_current_native_
         arm(&mut state);
         state.finish_capture_frame(revision, None, screenshot.clone());
         assert!(!directory.marker().exists());
-        assert!(!directory.readback().exists());
     }
     arm(&mut state);
     state.finish_capture_frame(revision, None, screenshot.clone());
@@ -118,8 +117,14 @@ fn a_frame_the_surface_still_changes_never_publishes_a_receipt() {
         };
         state.finish_capture_frame(revision, None, frame);
         assert!(!directory.marker().exists());
-        assert!(!directory.readback().exists());
     }
+    // The published frame follows the surface: the file always shows the
+    // bytes the compositor shows now, even while the receipt waits for the
+    // surface to settle.
+    assert_eq!(
+        open(directory.readback()).unwrap().to_rgba8().into_raw(),
+        bytes
+    );
     // The surface settles: the capture publishes the frame it repeats.
     arm(&mut state);
     state.finish_capture_frame(revision, None, moved.clone());

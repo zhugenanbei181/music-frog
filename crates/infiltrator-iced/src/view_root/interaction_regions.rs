@@ -101,6 +101,22 @@ pub(crate) enum InteractionRegion {
     LifecycleRecovery,
     ProfilesImportForm,
     RulesSearchInput,
+    /// The per-app routing policy row of the App Routing page.
+    AppRoutingPolicy,
+    /// The durable operation-error banner the shell paints over the page.
+    OperationError,
+    /// The aggregation preview report of the aggregator modal.
+    AggregatorPreview,
+    /// The script console card of the editor's script pane.
+    ScriptSandbox,
+    /// The script export review modal.
+    ScriptExportReview,
+    /// The configuration snapshot difference modal.
+    SnapshotDiff,
+    /// The YAML syntax alert of the editor page.
+    YamlSyntaxAlert,
+    /// The sync conflict merge panel of the sync page.
+    SyncConflictMerge,
 }
 impl InteractionRegion {
     pub fn id(self) -> Id {
@@ -204,6 +220,14 @@ impl InteractionRegion {
             Self::LifecycleRecovery => "lifecycle-recovery-panel",
             Self::ProfilesImportForm => "profiles-import-form",
             Self::RulesSearchInput => "rules-search-input",
+            Self::AppRoutingPolicy => "app-routing-policy",
+            Self::OperationError => "operation-error",
+            Self::AggregatorPreview => "aggregator-preview",
+            Self::ScriptSandbox => "script-sandbox",
+            Self::ScriptExportReview => "script-export-review",
+            Self::SnapshotDiff => "snapshot-diff",
+            Self::YamlSyntaxAlert => "yaml-syntax-alert",
+            Self::SyncConflictMerge => "sync-conflict-merge",
         })
     }
 }

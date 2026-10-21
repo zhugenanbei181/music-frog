@@ -16,6 +16,7 @@ use crate::view::script_export::export_section;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{editor_viewport, script_console, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Row, Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::script_export::ScriptExportKind;
@@ -476,6 +477,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(theme::SP_XS);
 
             container(banner_body)
+                .id(InteractionRegion::YamlSyntaxAlert.id())
                 .padding([10, 14])
                 .width(Length::Fill)
                 .style(|t: &Theme| {

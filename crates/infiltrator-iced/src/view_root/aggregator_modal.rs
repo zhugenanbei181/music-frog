@@ -14,11 +14,14 @@ use infiltrator_presentation::aggregation_preview_projection::{
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::checkbox::check_box;
 use crate::view::component_forms::{form_input_style, style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, icon_button, modern_scrollable};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::aggregator::{
@@ -26,6 +29,10 @@ use infiltrator_contract::aggregator::{
 };
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// The scrollable the wizard's body scrolls in, so the capture can bring the
+/// preview report into view.
+pub(crate) const AGGREGATOR_SCROLL_ID: &str = "aggregator-scroll";
 
 pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
@@ -164,32 +171,17 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             .contains(&prof.name);
         let prof_name = prof.name.clone();
 
-        let checkbox_glyph = if is_selected { "☑" } else { "☐" };
+        // The selection control is the toolkit's own check box: the box and
+        // its label are the click target, so the source badge beside them is
+        // no longer a button of its own.
+        let selection = check_box(is_selected, prof.name.clone(), move |_| {
+            Message::ToggleAggregatorProfileSelection(prof_name.clone())
+        });
 
-        let item_row = button(
+        let item_row = container(
             row![
-                text(checkbox_glyph)
-                    .size(14)
-                    .font(MONO)
-                    .style(move |t: &Theme| {
-                        let tk = tokens(t);
-                        text::Style {
-                            color: Some(if is_selected {
-                                tk.accent
-                            } else {
-                                tk.text_tertiary
-                            }),
-                        }
-                    }),
+                selection,
                 Space::new().width(theme::SP_SM),
-                text(prof.name.clone())
-                    .size(13)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| {
-                        text::Style {
-                            color: Some(tokens(t).text_primary),
-                        }
-                    }),
                 Space::new().width(Length::Fill),
                 badge(
                     if prof.subscription_url.is_some() {
@@ -203,16 +195,13 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             .align_y(Alignment::Center),
         )
         .padding([8, 12])
-        .style(move |t: &Theme, status| {
+        .style(move |t: &Theme| {
             let tk = tokens(t);
-            button::Style {
+            container::Style {
                 background: if is_selected {
                     Some(tk.accent_soft.into())
                 } else {
-                    match status {
-                        button::Status::Hovered => Some(tk.control_bg.into()),
-                        _ => None,
-                    }
+                    None
                 },
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
@@ -228,8 +217,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 },
                 ..Default::default()
             }
-        })
-        .on_press(Message::ToggleAggregatorProfileSelection(prof_name));
+        });
 
         profiles_list = profiles_list.push(item_row);
     }
@@ -253,7 +241,9 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         });
 
     let preview_section: Element<'_, Message> = match &state.profile.aggregator_report {
-        Some(report) => preview_section(report, &lang),
+        Some(report) => container(preview_section(report, &lang))
+            .id(InteractionRegion::AggregatorPreview.id())
+            .into(),
         None => container(
             text(lang.tr("aggregator_preview_hint").to_string())
                 .size(11)
@@ -264,7 +254,6 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         .padding([8, 12])
         .into(),
     };
-
     let template_section = template_section(state, &lang);
 
     let actions = row![
@@ -344,6 +333,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             ]
             .spacing(theme::SP_SM),
         )
+        .id(Id::new(AGGREGATOR_SCROLL_ID))
         .height(Length::Fixed(body_height)),
     )
     .padding([20, 24])
@@ -399,41 +389,17 @@ fn labeled_field<'a>(label: &str, field: impl Into<Element<'a, Message>>) -> Ele
     .into()
 }
 
-/// One cleaning/topology switch rendered as the same checkbox button the
-/// source list uses.
+/// One cleaning/topology switch rendered as the toolkit's own check box.
+///
+/// The click target is the box plus its label: the toolkit's control owns the
+/// hit area, so the row around it is no longer a button.
 fn toggle_row<'a>(
     lang: &Lang<'_>,
     key: &str,
     checked: bool,
     message: Message,
 ) -> Element<'a, Message> {
-    let glyph = if checked { "☑" } else { "☐" };
-    button(
-        row![
-            text(glyph)
-                .size(14)
-                .font(MONO)
-                .style(move |t: &Theme| text::Style {
-                    color: Some(if checked {
-                        tokens(t).accent
-                    } else {
-                        tokens(t).text_tertiary
-                    }),
-                }),
-            Space::new().width(theme::SP_SM),
-            text(lang.tr(key).to_string())
-                .size(12)
-                .font(FONT_MEDIUM)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([4, 8])
-    .style(style_ghost)
-    .on_press(message)
-    .into()
+    check_box(checked, lang.tr(key).to_string(), move |_| message.clone()).into()
 }
 
 /// DUAL-08-10: the appended custom groups with their remove action.

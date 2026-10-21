@@ -5,6 +5,7 @@
 //! capture pipeline uses) and then reads the real surface state. A demo that
 //! only repainted its page could not satisfy any of these assertions.
 use super::*;
+use crate::demo::sync::demo_conflict_key;
 use crate::state::AppState;
 use crate::test_mounts::surface_task_harness::drain_surface_task;
 use crate::types::app::ConfirmAction;
@@ -16,6 +17,7 @@ use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::speedtest::SpeedtestRunState;
+use infiltrator_domain::app_routing::AppRoutingRule;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
@@ -463,4 +465,150 @@ fn the_profile_import_capture_types_the_subscription_url() {
         "the import form carries the subscription URL the user typed"
     );
     assert!(!state.profile.import_name.is_empty());
+}
+
+#[test]
+fn the_app_routing_capture_edits_the_per_application_rule() {
+    let env = demo_env(Route::AppRouting, FeatureId::AppRoutingPolicyEditor);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        !state.app_routing.processes.is_empty(),
+        "the policy grid renders the demo's processes"
+    );
+    assert_eq!(
+        state.app_routing.custom_rules.get("chrome").copied(),
+        Some(AppRoutingRule::Direct),
+        "the page carries the rule the user picked"
+    );
+}
+
+#[test]
+fn the_subscription_capture_lands_the_owner_network_refusal() {
+    let env = demo_env(Route::Profiles, FeatureId::ProfilesSubscriptionError);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let refusal = state
+        .shell
+        .error_msg
+        .as_deref()
+        .expect("the owner refused the subscription refresh");
+    assert!(
+        refusal.contains("capture subscription source is offline"),
+        "the banner carries the owner's own refusal: {refusal}"
+    );
+}
+
+#[test]
+fn the_aggregation_preview_capture_renders_the_shared_report() {
+    let env = demo_env(Route::Profiles, FeatureId::ProfilesAggregatorPreview);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let report = state.profile.aggregator_report.as_ref().unwrap_or_else(|| {
+        panic!(
+            "the shared aggregation application published its report: error={:?} selected={:?}",
+            state.shell.error_msg, state.profile.aggregator_selected_profiles
+        )
+    });
+    assert!(
+        report.source_count > 0,
+        "the report names the sources the shared application aggregated"
+    );
+    assert!(
+        !report.yaml.is_empty(),
+        "the report carries the generated document"
+    );
+}
+
+#[test]
+fn the_script_sandbox_capture_runs_the_shared_engine() {
+    let env = demo_env(Route::Editor, FeatureId::ProfilesScriptSandbox);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let snapshot = state
+        .editor
+        .script_sandbox
+        .snapshot()
+        .expect("the shared script engine published its report");
+    assert!(
+        !snapshot.matched_directives.is_empty(),
+        "the shared engine really evaluated the preset directives"
+    );
+}
+
+#[test]
+fn the_script_export_capture_opens_the_owner_review() {
+    let env = demo_env(Route::Editor, FeatureId::ProfilesScriptExportReview);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        state.editor.script_sandbox.is_export_visible(),
+        "the export review is open over the owner's frozen bytes"
+    );
+    let export = state
+        .editor
+        .script_sandbox
+        .export()
+        .expect("the review carries the owner's export snapshot");
+    assert!(
+        !export.file_name.is_empty(),
+        "the review names the artifact the owner composed"
+    );
+}
+
+#[test]
+fn the_diff_viewer_capture_renders_the_shared_diff() {
+    let env = demo_env(Route::Editor, FeatureId::ProfilesDiffViewer);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let diff = state
+        .editor
+        .snapshot_diff_modal
+        .diff()
+        .expect("the shared snapshot application published its diff");
+    assert!(
+        !diff.unified_lines.is_empty(),
+        "the modal renders the shared application's real diff"
+    );
+}
+
+#[test]
+fn the_yaml_error_capture_navigates_to_the_codec_diagnostic() {
+    let env = demo_env(Route::Editor, FeatureId::EditorYamlErrorNavigation);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let line = state.editor.syntax_error_line.unwrap_or_else(|| {
+        panic!(
+            "the shared codec reported the offending line: syntax_error={:?} lines={} can_edit={}",
+            state.editor.syntax_error,
+            state.editor.editor_content.lines().count(),
+            state.editor.document_session.can_edit()
+        )
+    });
+    assert!(
+        state.editor.syntax_error.is_some(),
+        "the editor carries the codec's own diagnostic"
+    );
+    assert!(
+        line > 1,
+        "the diagnostic names the line the editor navigated to: {line}"
+    );
+}
+
+#[test]
+fn the_sync_conflict_capture_records_the_per_key_decision() {
+    let env = demo_env(Route::Sync, FeatureId::SyncConflictResolver);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let diff = state
+        .profile
+        .sync_diff
+        .as_ref()
+        .expect("the merge session is open");
+    let key = demo_conflict_key(&state).expect("the merge session has a key");
+    assert_eq!(
+        diff.picks.get(&key).copied(),
+        Some(true),
+        "the session carries the user's per-key decision"
+    );
 }

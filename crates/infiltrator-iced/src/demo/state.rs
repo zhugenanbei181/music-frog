@@ -329,8 +329,10 @@ impl AppState {
                 "7897".to_string(),
             )],
         }));
+        // The merge session starts unresolved: every key keeps the local
+        // value until the user picks the remote one.
         if let Some(diff) = &mut state.profile.sync_diff {
-            diff.picks.insert("dns".to_string(), true);
+            diff.picks.clear();
         }
         state.runtime.installed_kernels = vec![
             InstalledCoreVersion {

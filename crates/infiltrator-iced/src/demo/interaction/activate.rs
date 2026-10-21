@@ -2,27 +2,32 @@
 //!
 //! The dispatch table is closed and typed: a business the surface does not
 //! carry has no arm here, so the capture can never publish it as activated.
+use crate::demo::app_routing;
 use crate::demo::connections;
 use crate::demo::dns_hosts;
 use crate::demo::dns_leak;
 use crate::demo::dns_query;
 use crate::demo::doctor;
+use crate::demo::editor_capture;
 use crate::demo::filter;
 use crate::demo::language;
 use crate::demo::lifecycle;
 use crate::demo::logs;
 use crate::demo::overview;
 use crate::demo::profiles;
+use crate::demo::profiles_capture;
 use crate::demo::proxies;
 use crate::demo::routing_intent;
 use crate::demo::rule_list;
 use crate::demo::rule_statistics;
 use crate::demo::rule_trace;
 use crate::demo::rules;
+use crate::demo::script_capture;
 use crate::demo::settings;
 use crate::demo::shell;
 use crate::demo::snapshot_restore;
 use crate::demo::speedtest;
+use crate::demo::sync;
 use crate::demo::telemetry;
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -59,6 +64,17 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::ProfilesAggregatorWizard
         | FeatureId::ProfilesDeleteConfirm
         | FeatureId::ProfilesImportModal => profiles::activate(state, feature),
+        FeatureId::ProfilesSubscriptionError | FeatureId::ProfilesAggregatorPreview => {
+            profiles_capture::activate(state, feature)
+        }
+        FeatureId::ProfilesScriptSandbox | FeatureId::ProfilesScriptExportReview => {
+            script_capture::activate(state, feature)
+        }
+        FeatureId::EditorYamlErrorNavigation | FeatureId::ProfilesDiffViewer => {
+            editor_capture::activate(state, feature)
+        }
+        FeatureId::AppRoutingPolicyEditor => app_routing::activate(state),
+        FeatureId::SyncConflictResolver => sync::activate(state),
         FeatureId::ProfilesFilterEditor => filter::activate(state),
         FeatureId::ProfilesSnapshotRestoreConfirm => snapshot_restore::activate(state),
         FeatureId::RulesListEditor => rule_list::activate(state),

@@ -1,6 +1,7 @@
 //! Read native widget layout after rendering. A route or state flag never proves visible controls.
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::app_routing::APP_ROUTING_SCROLL_ID;
 use crate::view::doctor::DOCTOR_SCROLL_ID;
 use crate::view::overview::OVERVIEW_SCROLL_ID;
 use crate::view::profiles::PROFILES_SCROLL_ID;
@@ -10,6 +11,8 @@ use crate::view::rules::rules_list::row_region_id;
 use crate::view::rules_tracer::TRACER_SCROLL_ID;
 use crate::view::runtime::connection_search::{highlight_id, row_id};
 use crate::view::settings::SETTINGS_SCROLL_ID;
+use crate::view::sync::SYNC_SCROLL_ID;
+use crate::view_root::aggregator_modal::AGGREGATOR_SCROLL_ID;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::widget::operation::{Outcome, Scrollable};
 use iced::advanced::widget::{Id, Operation, operate};
@@ -324,6 +327,14 @@ impl AppState {
             FeatureId::OverviewReconnectMask => InteractionRegion::OverviewReconnectMask.id(),
             FeatureId::LifecycleRecoveryPanel => InteractionRegion::LifecycleRecovery.id(),
             FeatureId::ProfilesImportModal => InteractionRegion::ProfilesImportForm.id(),
+            FeatureId::AppRoutingPolicyEditor => InteractionRegion::AppRoutingPolicy.id(),
+            FeatureId::ProfilesSubscriptionError => InteractionRegion::OperationError.id(),
+            FeatureId::ProfilesAggregatorPreview => InteractionRegion::AggregatorPreview.id(),
+            FeatureId::ProfilesScriptSandbox => InteractionRegion::ScriptSandbox.id(),
+            FeatureId::ProfilesScriptExportReview => InteractionRegion::ScriptExportReview.id(),
+            FeatureId::ProfilesDiffViewer => InteractionRegion::SnapshotDiff.id(),
+            FeatureId::EditorYamlErrorNavigation => InteractionRegion::YamlSyntaxAlert.id(),
+            FeatureId::SyncConflictResolver => InteractionRegion::SyncConflictMerge.id(),
             _ => Id::new("page-content"),
         };
         let mut probe = VisibleRegion::new(
@@ -452,6 +463,17 @@ impl AppState {
         }
         if feature == FeatureId::ProfilesImportModal {
             probe = probe.revealing(Id::new(PROFILES_SCROLL_ID));
+        }
+        if feature == FeatureId::AppRoutingPolicyEditor {
+            // The compact tier stacks the sidebar under the content, so the
+            // per-application policy grid is only reachable by scrolling.
+            probe = probe.revealing(Id::new(APP_ROUTING_SCROLL_ID));
+        }
+        if feature == FeatureId::SyncConflictResolver {
+            probe = probe.revealing(Id::new(SYNC_SCROLL_ID));
+        }
+        if feature == FeatureId::ProfilesAggregatorPreview {
+            probe = probe.revealing(Id::new(AGGREGATOR_SCROLL_ID));
         }
         if matches!(
             feature,

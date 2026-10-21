@@ -2,16 +2,35 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::checkbox::check_box;
 use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, modern_scrollable};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::{FONT_MEDIUM, tokens};
 use crate::view::{svg_icons, theme};
-use iced::widget::{Space, button, column, container, row, text};
+use iced::widget::{Column, Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_presentation::routing_projection::uwp_summary;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// The exemption list of the card.
+///
+/// The wide tier keeps the list in its own scrollable, so a long package
+/// list never pushes the card out of the page. The compact tier scrolls the
+/// page itself, so the list is plain content there.
+fn apps_list<'a, Message: 'a>(
+    state: &AppState,
+    content: Column<'a, Message>,
+) -> Element<'a, Message> {
+    if state.shell.viewport.tier.is_narrow() {
+        content.into()
+    } else {
+        modern_scrollable(content)
+            .height(Length::Fixed(110.0))
+            .into()
+    }
+}
 
 pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let uwp = &state.shell.uwp_loopback;
@@ -75,22 +94,18 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     for app in uwp.uwp_packages() {
         let sid = app.sid.clone();
         let is_exempt = app.loopback_exempt;
-        let glyph = if is_exempt { "☑" } else { "☐" };
 
-        let item = button(
+        // The exemption control is the toolkit's own check box: the box and
+        // its label are the click target, so the state badge beside them is no
+        // longer a button of its own.
+        let exemption = check_box(is_exempt, app.display_name.clone(), move |_| {
+            Message::ToggleUwpAppExemption(sid.clone())
+        });
+
+        let item = container(
             row![
-                text(glyph)
-                    .size(14)
-                    .font(MONO)
-                    .style(move |t: &Theme| text::Style {
-                        color: Some(if is_exempt {
-                            tokens(t).accent
-                        } else {
-                            tokens(t).text_tertiary
-                        }),
-                    }),
+                exemption,
                 Space::new().width(theme::SP_SM),
-                text(app.display_name.clone()).size(12).font(FONT_MEDIUM),
                 Space::new().width(Length::Fill),
                 badge(
                     if is_exempt { "Exempted" } else { "Isolated" },
@@ -104,13 +119,12 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
             .align_y(Alignment::Center),
         )
         .padding([4, 8])
-        .style(|_t: &Theme, _| button::Style::default())
-        .on_press(Message::ToggleUwpAppExemption(sid));
+        .style(|_t: &Theme| container::Style::default());
 
         apps_column = apps_column.push(item);
     }
 
-    let apps_container = container(modern_scrollable(apps_column).height(Length::Fixed(110.0)))
+    let apps_container = container(apps_list(state, apps_column))
         .padding(6)
         .style(|t: &Theme| {
             let tk = tokens(t);
@@ -124,7 +138,6 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
                 ..Default::default()
             }
         });
-
     card(
         Some(lang.tr("uwp_title").to_string()),
         column![

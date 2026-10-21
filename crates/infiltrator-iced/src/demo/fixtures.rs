@@ -2,6 +2,7 @@
 //! snapshots, rules, profiles and the JSON/YAML editor cache contents.
 
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
@@ -455,4 +456,55 @@ pub(super) fn profile_yaml_fixture() -> String {
         "",
     ]
     .join("\n")
+}
+
+/// The process grid of the App Routing page.
+///
+/// The demo never enumerates the host's processes, so the policy editor
+/// renders a small believable grid instead of an empty page.
+pub(super) fn demo_app_routing_processes() -> Vec<ExtendedProcessInfo> {
+    vec![
+        ExtendedProcessInfo {
+            pid: 1001,
+            ppid: None,
+            name: "chrome".to_string(),
+            display_name: "Google Chrome".to_string(),
+            canonical_name: "chrome".to_string(),
+            binary_path: Some("/usr/bin/chrome".to_string()),
+            is_system: false,
+            category: ProcessCategory::Browser,
+            icon_hint: Some("browser".to_string()),
+            memory_bytes: 512 * 1024 * 1024,
+            total_memory_bytes: 512 * 1024 * 1024,
+            child_pids: vec![],
+        },
+        ExtendedProcessInfo {
+            pid: 2002,
+            ppid: None,
+            name: "code".to_string(),
+            display_name: "Visual Studio Code".to_string(),
+            canonical_name: "code".to_string(),
+            binary_path: Some("/usr/bin/code".to_string()),
+            is_system: false,
+            category: ProcessCategory::Developer,
+            icon_hint: Some("editor".to_string()),
+            memory_bytes: 256 * 1024 * 1024,
+            total_memory_bytes: 256 * 1024 * 1024,
+            child_pids: vec![],
+        },
+        ExtendedProcessInfo {
+            pid: 3003,
+            ppid: None,
+            name: "telegram".to_string(),
+            display_name: "Telegram".to_string(),
+            canonical_name: "telegram".to_string(),
+            binary_path: Some("/usr/bin/telegram".to_string()),
+            is_system: false,
+            category: ProcessCategory::Communication,
+            icon_hint: None,
+            memory_bytes: 128 * 1024 * 1024,
+            total_memory_bytes: 128 * 1024 * 1024,
+            child_pids: vec![],
+        },
+    ]
 }
