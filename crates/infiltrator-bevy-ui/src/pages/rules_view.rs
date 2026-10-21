@@ -82,7 +82,9 @@ pub struct RulesWindowRows;
 pub struct RulesViewState {
     pub page: usize,
     pub page_size: usize,
-    /// Last observed scroll offset of the rule-list viewport.
+    /// The rule-list viewport's scroll offset, read back from the viewport's
+    /// own `ScrollPosition`. The viewport owns the offset; this is its
+    /// read-back, never a second offset of the page's own.
     pub scroll_offset_px: f32,
     /// Measured viewport height, or the shared declared fallback until the
     /// layout reports one.
@@ -418,6 +420,16 @@ fn spacer_scene(height: f32) -> impl Scene {
 
 /// Move the page cursor from the paging buttons: the page decides the scroll
 /// offset, and the window follows it through the shared reduction.
+///
+/// The page jump is an *exact* offset — the shared page's first row at the
+/// top of the viewport — which is the contract the Iced surface keeps too
+/// (`page_scroll_offset`). The official scroll-into-view mechanism cannot
+/// express it: it scrolls the **minimum** distance that brings a row into
+/// view, so revealing the page's first row from below lands that row on the
+/// viewport's *bottom* edge, and the viewport would still show the previous
+/// page (`page_for_rule_index` reads the page off the scroll offset). The
+/// viewport's own `ScrollPosition` therefore stays the offset's only owner,
+/// and the page's copy of it is the read-back in [`sync_rules_window`].
 pub(crate) fn on_rules_paging_activated(
     activate: On<Activate>,
     prev: Query<(), With<RulesPagePrevButton>>,
@@ -442,7 +454,8 @@ pub(crate) fn on_rules_paging_activated(
     view.page = view::clamp_page(view.page, total, view.page_size);
     let (start, _) = view::page_bounds(view.page, total, view.page_size);
     let offset = view::rule_scroll_offset_for_index(start);
-    view.scroll_offset_px = offset;
+    // The viewport owns the offset. The page's own copy of it is the
+    // read-back in `sync_rules_window`, never a second offset.
     for mut position in scroll_areas {
         position.0.y = offset;
     }

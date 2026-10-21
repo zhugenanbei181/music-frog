@@ -48,6 +48,13 @@ const TOPOLOGY_STAGE_FLEX_BASIS_PX: f32 = 140.0;
 /// The topology stage card's minimum width in baseline pixels.
 const TOPOLOGY_STAGE_MIN_WIDTH_PX: f32 = 110.0;
 
+/// The empty state's height in baseline pixels: the card keeps a stable
+/// frame while the observation is missing.
+const TOPOLOGY_EMPTY_STATE_MIN_HEIGHT_PX: f32 = 180.0;
+
+/// The empty state's illustration tile size in baseline pixels.
+const TOPOLOGY_EMPTY_ICON_SIZE_PX: f32 = 56.0;
+
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 #[cfg(any(feature = "capture-tools", test))]
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
@@ -101,7 +108,7 @@ pub fn topology_chain_scene_with_snapshot(
                             ]
                         ]
                         --
-                        @{ topology_flow_scene(snapshot) }
+                        @{ topology_flow_or_empty_scene(snapshot, palette) }
                         --
                         Node {
                             width: percent(100),
@@ -143,6 +150,61 @@ pub fn topology_chain_scene_with_snapshot(
 
 fn topology_flow_scene(snapshot: &TrafficTopologySnapshot) -> impl Scene + use<> {
     topology_scene(topology_spec(snapshot))
+}
+
+/// The flow strip, or the card's empty state when the observation has not
+/// arrived. An empty graph is not an explanation: the card shows an
+/// illustration and the typed reason instead.
+fn topology_flow_or_empty_scene(
+    snapshot: &TrafficTopologySnapshot,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    if snapshot.is_drawable() {
+        Box::new(topology_flow_scene(snapshot))
+    } else {
+        Box::new(topology_empty_scene(snapshot, palette))
+    }
+}
+
+/// The topology card's empty state: the icon tile plus the typed reason the
+/// flow graph is missing.
+fn topology_empty_scene(
+    snapshot: &TrafficTopologySnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let detail = snapshot
+        .failure
+        .clone()
+        .unwrap_or_else(|| status_label(snapshot, &Lang(UiLocale::default().code())));
+    bsn! {
+            Node {
+                width: percent(100),
+                min_height: rem(TOPOLOGY_EMPTY_STATE_MIN_HEIGHT_PX),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_direction: FlexDirection::Column,
+                row_gap: rem(space::S8),
+                padding: UiRect::all(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(radius::SM)),
+            }
+            ThemeBackgroundColor({ Token::SurfaceElevated })
+            TopologyEmptyState
+            Children [
+                Node {
+                    width: rem(TOPOLOGY_EMPTY_ICON_SIZE_PX),
+                    height: rem(TOPOLOGY_EMPTY_ICON_SIZE_PX),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::all(rem(radius::SM)),
+                }
+                ThemeBackgroundColor({ Token::AccentContainer })
+                Children [
+                    @{ icon_scene(IconId::Network, 24.0, palette.accent) }
+                ]
+                --
+                Text({ detail }) TextRole(Role::Caption)
+            ]
+    }
 }
 
 /// Convert the shared contract into the generic widget graph. The widget
@@ -315,6 +377,11 @@ fn topology_arrow_scene(_palette: &UiPalette) -> impl Scene + use<> {
 /// Marker on the traffic topology chain card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TopologyChainCard;
+
+/// Marker on the topology card's empty state (the observation has not
+/// arrived, so the flow graph has nothing honest to draw).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TopologyEmptyState;
 
 /// Marker on the middle connecting arrow between stage pairs in the topology chain.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

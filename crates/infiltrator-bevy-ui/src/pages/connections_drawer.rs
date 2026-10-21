@@ -12,7 +12,9 @@ pub mod query_access;
 use self::query_access::ConnectionDrawerControls;
 
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::connections::{ConnectionsProjection, LastConnectionsProjection};
+use crate::pages::connections::{
+    ConnectionsProjection, ConnectionsScrollArea, LastConnectionsProjection,
+};
 use crate::pages::connections_clipboard::CopyConnectionHostButton;
 use bevy::ecs::change_detection::DetectChanges;
 use infiltrator_presentation::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
@@ -29,8 +31,8 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::{ButtonInput, keyboard::KeyCode};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType,
-    UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, OverflowAxis,
+    PositionType, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -386,11 +388,26 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
 /// Toggle the drawer layer's visibility from the shared drawer state.
 pub(crate) fn sync_connections_drawer(
     state: Option<Res<ConnectionsDrawerState>>,
-    mut layers: Query<&mut Node, With<ConnectionDrawerLayer>>,
+    mut layers: Query<&mut Node, (With<ConnectionDrawerLayer>, Without<ConnectionsScrollArea>)>,
+    mut scrolls: Query<&mut Node, (With<ConnectionsScrollArea>, Without<ConnectionDrawerLayer>)>,
 ) {
     let open = state.map(|state| state.is_open()).unwrap_or(false);
     for mut node in &mut layers {
         node.display = if open { Display::Flex } else { Display::None };
+    }
+    // The open drawer owns the viewport: the layer below stops scrolling, so
+    // neither the wheel nor the touch drag can move the connection list under
+    // the panel. The official scroll container honours the same rule — it
+    // scrolls only while its own overflow axis is `scroll`.
+    for mut node in &mut scrolls {
+        let want = if open {
+            OverflowAxis::Clip
+        } else {
+            OverflowAxis::Scroll
+        };
+        if node.overflow.y != want {
+            node.overflow.y = want;
+        }
     }
 }
 

@@ -2,10 +2,11 @@
 //! inspection, matched rule tracer, throughput rates, and disconnect actions.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`ConnectionsLine`],
-//! [`ConnSpeedText`], [`ConnHostText`], [`ConnProcessText`],
-//! [`ConnChainHopText`],
-//! [`CloseConnectionButton`]). [`ConnectionsPagePlugin`] registers [`apply_connections_projection`]
-//! and action observers once at product assembly.
+//! [`ConnSpeedText`], [`ConnHostText`], [`ConnPortText`],
+//! [`ConnProcessTagText`], [`ConnRuleText`], [`ConnChainHopText`],
+//! [`CloseConnectionButton`]). [`ConnectionsPagePlugin`] registers
+//! [`apply_connections_projection`] and action observers once at product
+//! assembly.
 //!
 //! Row-level rendering ([`connection_chain_scenes`], [`connection_pulse_scene`])
 //! and route chain derivation ([`connection_view::route_chain`]) are organized
@@ -25,33 +26,35 @@ use crate::pages::connections_search::{
     ConnectionsSearchSummary,
 };
 use crate::pages::connections_view::{
-    CloseAllConnectionsLabel, CloseFilteredConnectionsButton, ConnAggregationSummary,
-    ConnAggregationSummaryContainer, ConnRowsContainer, ConnSearchField, ConnSortPill,
-    ConnectionsViewState, on_connections_sort_activated, restamp_aggregation_pills,
-    restamp_sort_pills, search_field_text, sort_pills_scene,
+    CloseFilteredConnectionsButton, ConnAggregationSummary, ConnAggregationSummaryContainer,
+    ConnRowsContainer, ConnSearchField, ConnectionsViewState, on_connections_strip_changed,
+    search_field_text, seed_connections_strips, sort_strip_scene, sync_connections_strips,
+    view_filter_strip_scene,
 };
 use crate::pages::connections_virtual::{CONNECTIONS_VIRTUAL_THRESHOLD, ConnectionsVirtualNodes};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, Update};
+use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::picking::Pickable;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
-use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
-    Node, Overflow, UiRect, Val, percent, px,
+    Node, Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_bevy_widgets::button::ButtonDisabled;
+use bevy::ui_widgets::{Activate, ScrollArea};
+use infiltrator_bevy_widgets::button::{
+    ButtonDisabled, ButtonSize, ButtonVariant, button_with_label_scene,
+};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -64,13 +67,22 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
-use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
-use infiltrator_domain::connection_view::ConnectionGroupingMode;
-use infiltrator_presentation::connection_grouping::grouping_label_key;
+use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
 use infiltrator_shared::byte_units::format_bytes;
+use infiltrator_shared::locales::{Lang, Localizer};
+
+/// Diameter of the stream-phase status dot (baseline pixels).
+const STREAM_PHASE_DOT_PX: f32 = 6.0;
+
+/// Height of one strip of the scroll-edge feather (baseline pixels).
+const SCROLL_FADE_STRIP_PX: f32 = 3.0;
+
+/// Number of strips the scroll-edge feather is built from.
+const SCROLL_FADE_STRIPS: usize = 8;
 
 /// Root marker on the Connections page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -91,8 +103,6 @@ pub enum ConnectionsLineKind {
     Summary,
     /// Total traffic uploaded & downloaded.
     TrafficSummary,
-    /// DUAL-13-01: connections telemetry stream-phase badge.
-    Stream,
 }
 
 /// Marker for a connection row's rate display.
@@ -105,14 +115,33 @@ pub struct ConnSpeedText(pub usize);
 #[require(ConnectionRowText)]
 pub struct ConnHostText(pub usize);
 
-/// Marker for a connection row's process/rule display.
+/// Marker for a connection row's destination port display. The port is its
+/// own text so it can carry its own ink (the endpoint is not one flat string).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(ConnectionRowText)]
-pub struct ConnProcessText(pub usize);
+pub struct ConnPortText(pub usize);
+
+/// Marker for a connection row's process tag. The tag is the process name in
+/// its own chip, so the rule beside it is not a flat text pile.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(ConnectionRowText)]
+pub struct ConnProcessTagText(pub usize);
+
+/// Marker for a connection row's matched-rule display.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(ConnectionRowText)]
+pub struct ConnRuleText(pub usize);
+
+/// Marker for the connections telemetry stream-phase label.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnStreamPhaseLabel;
+
+/// Marker for the connections telemetry stream-phase status dot.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnStreamPhaseDot;
 
 /// Marker for a connection row's route-chain hop display (DUAL-13-06).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[require(ConnectionRowText)]
 pub struct ConnChainHopText {
     /// Owning flat row index.
     pub row: usize,
@@ -135,12 +164,6 @@ pub struct CloseConnectionButton {
     pub connection_id: String,
     pub connection_idx: usize,
 }
-
-/// Marker component for the connection aggregation segmented control pills.
-/// The payload is the shared domain grouping mode (DUAL-13-02), so Bevy and
-/// Iced switch the same modes.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ConnAggregationPill(pub ConnectionGroupingMode);
 
 /// Snapshot of the Connections domain.
 #[derive(Clone, Debug, PartialEq)]
@@ -170,6 +193,22 @@ fn stream_phase_key(phase: ConnectionStreamPhase) -> &'static str {
         ConnectionStreamPhase::Live => "connections_stream_live",
         ConnectionStreamPhase::Reconnecting => "connections_stream_reconnecting",
         ConnectionStreamPhase::Unavailable => "connections_stream_unavailable",
+    }
+}
+
+/// The shared phase copy carries a leading bullet glyph; the page draws the
+/// live marker as its own aligned dot, so the glyph leaves the label.
+pub fn strip_phase_marker(label: &str) -> &str {
+    label.trim_start_matches('●').trim_start()
+}
+
+/// The status dot's ink for one telemetry phase.
+fn stream_phase_color(phase: ConnectionStreamPhase, palette: &UiPalette) -> Color {
+    match phase {
+        ConnectionStreamPhase::Live => palette.success,
+        ConnectionStreamPhase::Connecting | ConnectionStreamPhase::Reconnecting => palette.warning,
+        ConnectionStreamPhase::Idle => palette.ink_dim,
+        ConnectionStreamPhase::Unavailable => palette.disabled_ink,
     }
 }
 
@@ -232,10 +271,50 @@ pub fn connections_page(
                 ]
                 --
                 @{ connection_drawer_scene(palette) }
+                --
+                @{ scroll_fade_scene(palette) }
             ]
     }
 }
 
+/// The scroll-edge feather: the content dissolves into the page background
+/// instead of being cut off by the viewport edge.
+///
+/// The feather never blocks the pointer, so the wheel keeps scrolling the
+/// list underneath it.
+fn scroll_fade_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let strips: Vec<Box<dyn Scene>> = (0..SCROLL_FADE_STRIPS)
+        .map(|index| {
+            let alpha = (index + 1) as f32 / SCROLL_FADE_STRIPS as f32;
+            Box::new(bsn! {
+                    Node {
+                        width: percent(100),
+                        height: rem(SCROLL_FADE_STRIP_PX),
+                    }
+                    BackgroundColor({ palette.window_clear.with_alpha(alpha) })
+            }) as Box<dyn Scene>
+        })
+        .collect();
+    bsn! {
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(0.0),
+                right: px(0.0),
+                bottom: px(0.0),
+                height: rem(SCROLL_FADE_STRIP_PX * SCROLL_FADE_STRIPS as f32),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::FlexEnd,
+                overflow: Overflow::clip(),
+            }
+            Pickable { should_block_lower: false, is_hoverable: true }
+            Children [
+                { strips }
+            ]
+    }
+}
+
+/// The header card: the identity column, the view filter and the quiet
+/// destructive trigger.
 fn header_card_scene(
     summary: LocalizedText,
     traffic: LocalizedText,
@@ -252,7 +331,7 @@ fn header_card_scene(
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
                                 flex_wrap: FlexWrap::Wrap,
-                                row_gap: rem(space::S8),
+                                row_gap: rem(space::S12),
                                 column_gap: rem(space::S16),
                             }
                             AccessibilityNode(header_a11y) LocalizedLabel::plain("nav_connections")
@@ -260,6 +339,8 @@ fn header_card_scene(
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: rem(space::S12),
+                                    flex_grow: 1.0,
+                                    min_width: px(0.0),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Network, 36.0, palette) }
@@ -271,56 +352,25 @@ fn header_card_scene(
                                     Children [
                                         LocalizedText { .. { summary } } ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading)
                                         --
-                                        LocalizedText { .. { traffic } } ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Caption)
+                                        LocalizedText { .. { traffic } } ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Body)
                                         --
-                                        LocalizedText::plain("connections_stream_idle") ConnectionsLine(ConnectionsLineKind::Stream) TextRole(Role::Caption)
+                                        @{ stream_phase_line_scene(palette) }
                                     ]
                                 ]
                                 --
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: rem(space::S8),
-                                    flex_wrap: FlexWrap::Wrap,
-                                    row_gap: rem(space::S8),
-                                }
-                                Children [
-                                    Node {
-                                        align_items: AlignItems::Center,
-                                        padding: UiRect::all(rem(space::S2)),
-                                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                        column_gap: rem(space::S4),
-                                        flex_wrap: FlexWrap::Wrap,
-                                    }
-                                    ThemeBackgroundColor({ Token::SurfaceElevated })
-                                    BorderColor {
-                                        top: { palette.border },
-                                        right: { palette.border },
-                                        bottom: { palette.border },
-                                        left: { palette.border },
-                                    }
-                                    Children [
-                                        @{ conn_aggregation_pill(ConnectionGroupingMode::Flat, true, palette) }
-                                        --
-                                        @{ conn_aggregation_pill(ConnectionGroupingMode::ByProcess, false, palette) }
-                                        --
-                                        @{ conn_aggregation_pill(ConnectionGroupingMode::ByHost, false, palette) }
-                                    ]
-                                    --
-                                    Node {
-                                        min_height: rem(palette.control_height_px),
-                                        padding: UiRect::horizontal(rem(space::S12)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                    }
-                                    ThemeBackgroundColor({ Token::Danger })
-                                    Button
-                                    CloseAllConnectionsButton
-                                    Children [
-                                        LocalizedText::plain("connections_close_all_action") CloseAllConnectionsLabel TextRole(Role::BodyStrong)
-                                    ]
-                                ]
+                                @{ close_all_button_scene(palette) }
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: rem(space::S8),
+                                flex_wrap: FlexWrap::Wrap,
+                                row_gap: rem(space::S8),
+                            }
+                            Children [
+                                @{ view_filter_strip_scene(ConnectionGroupingMode::default(), palette) }
                             ]
             }),
             Box::new(conn_idle_controls_scene(palette)),
@@ -329,38 +379,59 @@ fn header_card_scene(
     )
 }
 
+/// The close-all trigger: a quiet outlined control, never a solid danger
+/// slab.
+///
+/// The destructive moment is the CONFIRMATION modal (the official
+/// `ModalDialog` layer with the danger confirm button), so the trigger only
+/// asks for it — a red block would invite the very mis-click the modal
+/// exists to prevent.
+fn close_all_button_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+            @{ button_with_label_scene(
+                bsn! { LocalizedText::plain("connections_close_all_action") TextRole(Role::Body) },
+                ButtonVariant::Outline,
+                ButtonSize::Sm,
+                palette,
+            ) }
+            CloseAllConnectionsButton
+    }
+}
+
+/// The stream-phase line: the telemetry state as a status dot and a label.
+///
+/// The dot is its own element, so it is tinted by the phase and sits on the
+/// label's optical centre instead of riding the baseline as a glyph.
+fn stream_phase_line_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let language = UiLocale::default().code().to_string();
+    let label = strip_phase_marker(&Lang(&language).tr("connections_stream_live")).to_owned();
+    bsn! {
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: rem(space::S6),
+            }
+            Children [
+                Node {
+                    width: rem(STREAM_PHASE_DOT_PX),
+                    height: rem(STREAM_PHASE_DOT_PX),
+                    border_radius: BorderRadius::MAX,
+                    margin: UiRect::bottom(rem(space::S4)),
+                }
+                BackgroundColor({ palette.success })
+                ConnStreamPhaseDot
+                --
+                Text({ label }) ConnStreamPhaseLabel TextRole(Role::Caption)
+            ]
+    }
+}
+
 /// DUAL-13-11: shared idle-timeout choices + manual sweep + honest status.
 fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
     connections_idle::conn_idle_controls_scene(palette)
 }
 
-fn conn_aggregation_pill(
-    mode: ConnectionGroupingMode,
-    active: bool,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let (bg, text_color) = if active {
-        (palette.accent_container, palette.accent)
-    } else {
-        (palette.surface, palette.ink_dim)
-    };
-    let label = LocalizedText::plain(grouping_label_key(mode));
-
-    bsn! {
-            Node {
-                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                border_radius: BorderRadius::all(rem(radius::XS)),
-                align_items: AlignItems::Center,
-            }
-            BackgroundColor({ bg })
-            ConnAggregationPill(mode)
-            Button
-            Children [
-                LocalizedText { .. { label } } TextRole(Role::Caption) TextColor({ text_color })
-            ]
-    }
-}
-
+/// The connection table card: the title, the row-order strip, the search row
+/// and the rows themselves.
 fn connections_table_scene(
     connection_scenes: Vec<Box<dyn Scene>>,
     virtualized: bool,
@@ -384,7 +455,6 @@ fn connections_table_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: rem(space::S8),
             }
             ConnRowsContainer
             Children [
@@ -397,17 +467,25 @@ fn connections_table_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                align_items: AlignItems::Center,
+                                align_items: AlignItems::FlexStart,
                                 justify_content: JustifyContent::SpaceBetween,
+                                flex_direction: FlexDirection::Column,
                                 column_gap: rem(space::S8),
-                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("connections_sessions_title") TextRole(Role::BodyStrong)
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    column_gap: rem(space::S8),
+                                }
+                                Children [
+                                    LocalizedText::plain("connections_sessions_title") TextRole(Role::BodyStrong)
+                                    --
+                                    LocalizedText::plain("connections_sessions_hint") TextRole(Role::Caption)
+                                ]
                                 --
-                                @{ sort_pills_scene(palette) }
-                                --
-                                LocalizedText::plain("connections_sessions_hint") TextRole(Role::Caption)
+                                @{ sort_strip_scene(ConnectionSortKey::default(), palette) }
                             ]
             }),
             Box::new(bsn! {
@@ -430,23 +508,9 @@ fn connections_table_scene(
                                     ) } LocalizedPlaceholder::plain("connections_search_placeholder") NativeTextField(10)
                                 ]
                                 --
-                                Node { min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S8)), align_items: AlignItems::Center }
-                                Button ClearConnectionsSearch
-                                Children [ LocalizedText::plain("common_clear") TextRole(Role::Caption) ]
+                                @{ quiet_button_scene("common_clear", ClearConnectionsSearch, palette) }
                                 --
-                                Node {
-                                    min_height: rem(palette.control_height_px),
-                                    padding: UiRect::horizontal(rem(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                }
-                                ThemeBackgroundColor({ Token::SurfaceElevated })
-                                Button
-                                CloseFilteredConnectionsButton
-                                Children [
-                                    LocalizedText::plain("conn_close_filtered_btn") TextRole(Role::Caption)
-                                ]
+                                @{ quiet_button_scene("conn_close_filtered_btn", CloseFilteredConnectionsButton, palette) }
                             ]
             }),
             Box::new(bsn! {
@@ -462,7 +526,6 @@ fn connections_table_scene(
                                 display: Display::None,
                                 flex_direction: FlexDirection::Column,
                                 align_items: AlignItems::Stretch,
-                                row_gap: rem(space::S8),
                             }
                             ConnAggregationSummaryContainer
                             Children [
@@ -475,6 +538,24 @@ fn connections_table_scene(
         ],
         palette,
     )
+}
+
+/// A quiet inline action: no fill, no frame — the row's own actions must not
+/// read as a wall of buttons.
+fn quiet_button_scene<M: Component + Clone + Unpin>(
+    key: &'static str,
+    marker: M,
+    palette: &UiPalette,
+) -> impl Scene + use<M> {
+    bsn! {
+            @{ button_with_label_scene(
+                bsn! { LocalizedText::plain(key) TextRole(Role::Caption) },
+                ButtonVariant::Ghost,
+                ButtonSize::Sm,
+                palette,
+            ) }
+            marker
+    }
 }
 
 // ---- Plugin assembly and native observers -----------------------------------------------
@@ -493,8 +574,15 @@ impl Plugin for ConnectionsPagePlugin {
         app.add_observer(apply_connections_projection);
         app.add_observer(on_connections_action_activated);
         app.add_observer(on_confirmation_activated);
-        app.add_observer(on_connections_view_activated);
-        app.add_observer(on_connections_sort_activated);
+        app.add_systems(
+            Update,
+            (
+                seed_connections_strips.before(sync_connections_strips),
+                sync_connections_strips,
+                sync_connections_phase_line,
+            ),
+        );
+        app.add_observer(on_connections_strip_changed);
         app.add_observer(on_connections_drawer_activated);
         app.add_observer(copy_connection_host);
         app.add_observer(connections_idle::on_connections_idle_activated);
@@ -567,49 +655,8 @@ pub(crate) fn on_connections_action_activated(
     }
 }
 
-/// DUAL-13-02: the aggregation segmented control switches the shared grouping
-/// mode and restamps the summary line + row visibility from the shared
-/// reduction.
-pub(crate) fn on_connections_view_activated(
-    activate: On<Activate>,
-    mut pills: Query<(&mut BackgroundColor, &ConnAggregationPill)>,
-    mut summary_containers: Query<
-        &mut Node,
-        (
-            With<ConnAggregationSummaryContainer>,
-            Without<ConnRowsContainer>,
-        ),
-    >,
-    mut rows_containers: Query<
-        &mut Node,
-        (
-            With<ConnRowsContainer>,
-            Without<ConnAggregationSummaryContainer>,
-        ),
-    >,
-    palette: Res<UiPalette>,
-    mut view_state: Option<ResMut<ConnectionsViewState>>,
-) {
-    let Ok((_, pill)) = pills.get(activate.entity) else {
-        return;
-    };
-    let mode = pill.0;
-    if let Some(state) = view_state.as_deref_mut() {
-        state.page.select(mode);
-    }
-    restamp_aggregation_pills(&palette, &mut pills, mode);
-    let flat = mode.is_flat();
-    for mut node in &mut summary_containers {
-        node.display = if flat { Display::None } else { Display::Flex };
-    }
-    for mut node in &mut rows_containers {
-        node.display = if flat { Display::Flex } else { Display::None };
-    }
-}
-
 #[derive(SystemParam)]
 pub(crate) struct ConnectionPresentation<'w, 's> {
-    palette: Res<'w, UiPalette>,
     locale: Res<'w, UiLocale>,
     view_state: Option<ResMut<'w, ConnectionsViewState>>,
     idle: Option<ResMut<'w, ConnectionsIdleState>>,
@@ -624,32 +671,17 @@ pub(crate) struct ConnectionPresentation<'w, 's> {
         ),
         With<ConnectionsLine>,
     >,
-    pills: Query<
-        'w,
-        's,
-        (&'static mut BackgroundColor, &'static ConnAggregationPill),
-        Without<ConnSortPill>,
-    >,
-    sort_pills: Query<
-        'w,
-        's,
-        (&'static mut BackgroundColor, &'static ConnSortPill),
-        Without<ConnAggregationPill>,
-    >,
 }
 pub(crate) fn apply_connections_projection(
     update: On<ConnectionsProjectionUpdated>,
     presentation: ConnectionPresentation,
 ) {
     let ConnectionPresentation {
-        palette,
         locale,
         mut view_state,
         mut idle,
         mut last,
         mut lines,
-        mut pills,
-        mut sort_pills,
     } = presentation;
     let projection = &update.0;
     if projection.stream_phase != ConnectionStreamPhase::Live {
@@ -660,12 +692,6 @@ pub(crate) fn apply_connections_projection(
             && let Some(previous) = last.0.as_mut()
         {
             previous.stream_phase = projection.stream_phase;
-        }
-        for (mut text, line, mut copy) in &mut lines {
-            if line.0 == ConnectionsLineKind::Stream {
-                *copy = LocalizedText::plain(stream_phase_key(projection.stream_phase));
-                text.0 = copy.render(&locale);
-            }
         }
         return;
     }
@@ -692,9 +718,6 @@ pub(crate) fn apply_connections_projection(
                     ("download", format_bytes(projection.total_download_bytes)),
                 ],
             ),
-            ConnectionsLineKind::Stream => {
-                LocalizedText::plain(stream_phase_key(projection.stream_phase))
-            }
         };
         if *copy != value {
             *copy = value;
@@ -702,23 +725,37 @@ pub(crate) fn apply_connections_projection(
         text.0 = copy.render(&locale);
     }
 
-    // DUAL-13-02: a new projection restamps the aggregation view from the
-    // shared reduction so grouped mode never shows stale buckets.
-    let grouping = view_state
-        .as_ref()
-        .map(|state| state.page.mode())
-        .unwrap_or_default();
-    restamp_aggregation_pills(&palette, &mut pills, grouping);
-
-    // DUAL-13-12: the flat rows follow the shared sort key of the view state;
-    // a fresh snapshot is re-ordered without touching the row markers.
-    let sort = view_state
-        .as_ref()
-        .map(|state| state.page.sort_key())
-        .unwrap_or_default();
-    restamp_sort_pills(&palette, &mut sort_pills, sort);
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());
+    }
+}
+
+/// The telemetry phase line: the dot's ink and the label follow the shared
+/// phase, and the label follows the locale.
+pub(crate) fn sync_connections_phase_line(
+    palette: Res<UiPalette>,
+    locale: Res<UiLocale>,
+    last: Option<Res<LastConnectionsProjection>>,
+    mut labels: Query<&mut Text, With<ConnStreamPhaseLabel>>,
+    mut dots: Query<&mut BackgroundColor, With<ConnStreamPhaseDot>>,
+) {
+    let phase = last
+        .as_ref()
+        .and_then(|last| last.0.as_ref())
+        .map(|projection| projection.stream_phase)
+        .unwrap_or(ConnectionStreamPhase::Unavailable);
+    let copy = Lang(locale.code()).tr(stream_phase_key(phase));
+    let label = strip_phase_marker(&copy);
+    for mut text in &mut labels {
+        if text.0 != label {
+            text.0 = label.to_owned();
+        }
+    }
+    let color = stream_phase_color(phase, &palette);
+    for mut dot in &mut dots {
+        if dot.0 != color {
+            dot.0 = color;
+        }
     }
 }
 
@@ -736,5 +773,14 @@ mod tests {
         assert_eq!(proj.connections[0].process, "git (pid: 14238)");
         assert_eq!(proj.total_upload_bytes, 14_200_000);
         assert_eq!(proj.total_download_bytes, 88_900_000);
+    }
+
+    #[test]
+    fn the_phase_marker_leaves_the_label() {
+        assert_eq!(strip_phase_marker("● 连接流 · 实时"), "连接流 · 实时");
+        assert_eq!(
+            strip_phase_marker("● Connection stream · live"),
+            "Connection stream · live"
+        );
     }
 }

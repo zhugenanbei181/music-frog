@@ -17,14 +17,16 @@ use self::query_access::ProxyActionControls;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_contract::fixture_identities::{AUTO, HK_PRIMARY, JP, PROXIES, SG, STREAMING, US};
 
+use self::sort::{on_proxy_sort_selected, submit_proxy_sort_order, sync_proxy_sort_selection};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
+use crate::pages::proxies_card::node_card::{sync_proxy_card_visuals, sync_proxy_selection_rails};
 use crate::pages::proxies_custom::{on_custom_node_action_activated, sync_custom_node_studio};
 use crate::pages::proxies_refresh::apply_proxies_projection;
 use crate::pages::proxies_virtual::ProxiesVirtualState;
 use crate::route::Route;
 use crate::surface::LatestSurfaceSnapshot;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Last, Plugin, PostUpdate, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
@@ -32,10 +34,12 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::prelude::{ComputedNode, Node, Val};
 /// Root marker on the Proxies page scene.
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::button::sync_control_visuals;
 use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
@@ -59,6 +63,7 @@ use std::collections::BTreeMap;
 use zhuge_ui_core::text::SearchTextRun;
 
 pub mod scene;
+pub mod sort;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ProxiesPageRoot;
@@ -174,8 +179,24 @@ pub enum ProxySortMode {
     NameDesc,
 }
 
+/// Marker for one position of the sort strip. The strip itself is the
+/// official headless tab list, so the position carries the sort order the
+/// page submits when that tab is selected.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProxySortPill(pub ProxySortMode);
+
+/// Marker on the sort strip: the official tab list that owns the selection.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProxySortTabs;
+
+/// The owner's sort order the strip last adopted.
+///
+/// The official tab list selects optimistically, so the strip must remember
+/// which order it shows: a click is not undone while the owner's answer is
+/// still on the way, and the owner's published order wins as soon as it
+/// disagrees with what the strip shows.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProxySortAdopted(pub OutboundSortOrder);
 
 /// Marker for favorite pin icon / button on proxy node cards.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
@@ -489,6 +510,23 @@ impl Plugin for ProxiesPagePlugin {
         // DUAL-05: the custom-node studio is re-covered from the same event in a
         // separate observer so it never shares the page restamp query set.
         app.add_observer(sync_custom_node_studio);
+        // The node card is the page's own surface: the shared skin paints a
+        // control's hover wash, but a full-card accent fill would bury the
+        // node's own text, so the page paints the card after the skin.
+        app.add_systems(
+            Update,
+            (
+                sync_proxy_selection_rails.after(sync_control_visuals),
+                sync_proxy_sort_selection,
+            ),
+        );
+        // The card's surface is repainted after the shared skin's own pass
+        // (the skin runs in `Update`), so the selected card keeps its reading
+        // surface and marks itself with an accent edge and rail instead.
+        app.add_systems(Last, sync_proxy_card_visuals);
+        // The sort strip is the official tab list: its selection change is
+        // the page's cue to submit the owner's sort preference.
+        app.add_observer(on_proxy_sort_selected);
     }
 }
 
@@ -647,18 +685,7 @@ pub(crate) fn on_proxies_action_activated(
             }
         }
     } else if let Ok(pill) = sort_pills.get(activate.entity) {
-        let order = match pill.0 {
-            ProxySortMode::LatencyAsc => OutboundSortOrder::LatencyAscending,
-            ProxySortMode::LatencyDesc => OutboundSortOrder::LatencyDescending,
-            ProxySortMode::NameAsc => OutboundSortOrder::NameAscending,
-            ProxySortMode::NameDesc => OutboundSortOrder::NameDescending,
-        };
-        if let Some(request) = outbound_ui_preference_request(
-            snapshot,
-            OutboundUiPreferenceIntent::SetSortOrder(order),
-        ) {
-            handle.submit(UiCommand::ApplyOutboundUiPreference { request });
-        }
+        submit_proxy_sort_order(pill.0, &handle, snapshot);
     } else if let Ok(pin) = pin_buttons.get(activate.entity) {
         let Some(outbound_id) = pin.outbound_id.as_ref() else {
             return;

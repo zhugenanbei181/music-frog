@@ -14,7 +14,7 @@ use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui::{BackgroundColor, BorderColor, Display, Node};
+use bevy::ui::{Display, Node};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -59,12 +59,7 @@ pub fn apply_proxies_projection(
     mut labels: Query<ProxyTextParts>,
     identities: ProxyIdentityQueries,
     mut containers: Query<(Entity, &mut Node, &GroupNodesContainer)>,
-    mut visuals: Query<(
-        &ProxyNodeButton,
-        &mut BackgroundColor,
-        &mut BorderColor,
-        &mut ControlVisual,
-    )>,
+    mut visuals: Query<(&ProxyNodeButton, &mut ControlVisual)>,
 ) {
     let projection = &update.0;
     for mut label in &mut labels {
@@ -148,7 +143,7 @@ pub fn apply_proxies_projection(
             Display::None
         };
     }
-    for (identity, mut fill, mut border, mut visual) in &mut visuals {
+    for (identity, mut visual) in &mut visuals {
         if let Some(node) = projection
             .groups
             .iter()
@@ -171,21 +166,10 @@ pub fn apply_proxies_projection(
                 })
             })
         {
+            // The selected bit is the card's own state; the card's paint is
+            // the page's (see `proxies_card::node_card`), so the projection
+            // only carries the fact the page paints from.
             visual.0 = node.selected;
-            fill.0 = if node.selected {
-                context.palette.accent_container
-            } else {
-                context.palette.surface_elevated
-            };
-            let color = if node.selected {
-                context.palette.accent
-            } else {
-                context.palette.border
-            };
-            border.top = color;
-            border.bottom = color;
-            border.left = color;
-            border.right = color;
         }
     }
     last.0 = Some(projection.clone());

@@ -2,7 +2,7 @@
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::pages::snapshot_restore_scene::{RestoreControl, spawn_review};
-use crate::pages::snapshot_restore_view::replay;
+use crate::pages::snapshot_restore_view::{RenderedRestoreDiff, replay, sync_restore_diff};
 use crate::route::{ActiveRoute, Route};
 use bevy::app::{App, Plugin, PostUpdate, Startup};
 use bevy::ecs::entity::Entity;
@@ -41,13 +41,14 @@ pub struct SnapshotRestorePlugin;
 impl Plugin for SnapshotRestorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RestoreState>()
+            .init_resource::<RenderedRestoreDiff>()
             .add_observer(open)
             .add_observer(action)
             .add_observer(completed)
             .add_systems(Startup, spawn_review)
             .add_systems(
                 PostUpdate,
-                (dismiss, replay, ApplyDeferred)
+                (dismiss, replay, sync_restore_diff, ApplyDeferred)
                     .chain()
                     .before(sync_button_disabled)
                     .before(sync_control_visuals)

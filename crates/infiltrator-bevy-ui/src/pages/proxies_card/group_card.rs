@@ -8,7 +8,7 @@ use crate::pages::proxies::{
 };
 use crate::pages::proxies_identity::{ProxyGroupIdentity, ProxyGroupOutboundIdentity};
 use bevy::ecs::hierarchy::Children;
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect,
@@ -17,15 +17,40 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::feathers_theme::Token;
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::proxies::ProxyGroupClassification;
 
 /// The group header action button's minimum height in baseline pixels.
 const GROUP_HEADER_ACTION_MIN_HEIGHT_PX: f32 = 28.0;
+
+/// The group header's reorder icon plate size, in baseline pixels.
+const GROUP_HEADER_ICON_SIZE_PX: f32 = 14.0;
+
+/// The group's product label.
+///
+/// The shared copy table words the two kinds the product offers most; the
+/// remaining kinds keep the contract's own product label until the shared
+/// table grows the matching keys (the localizer falls back to the key, and
+/// the contract's label IS the key here).
+fn group_kind_label(classification: ProxyGroupClassification) -> LocalizedText {
+    match classification {
+        ProxyGroupClassification::Selector => {
+            LocalizedText::plain("outbound_availability_selectable")
+        }
+        ProxyGroupClassification::UrlTest => {
+            LocalizedText::plain("outbound_availability_automatic")
+        }
+        ProxyGroupClassification::Fallback
+        | ProxyGroupClassification::LoadBalance
+        | ProxyGroupClassification::Relay => LocalizedText::plain(classification.label_zh()),
+    }
+}
 
 /// Renders a strategy group card with collapsible nodes and group test trigger.
 pub fn group_card_scene(
@@ -54,7 +79,7 @@ fn group_card_scene_impl(
     with_nodes: bool,
 ) -> impl Scene + use<> {
     let title = group.name.clone();
-    let type_badge = format!("[{}]", group.group_type);
+    let kind_label = group_kind_label(group.classification);
     let current_label = LocalizedText::new(
         "proxies_group_current",
         vec![("node", group.current.clone())],
@@ -116,10 +141,11 @@ fn group_card_scene_impl(
                                         border_radius: BorderRadius::all(rem(radius::XS)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
+                                        flex_shrink: 0.0,
                                     }
-                                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                                    ThemeBackgroundColor({ Token::AccentContainer })
                                     Children [
-                                        Text(type_badge) TextRole(Role::Caption)
+                                        LocalizedText { .. { kind_label } } TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
                                     ]
                                 ]
                                 --
@@ -149,10 +175,12 @@ fn group_card_scene_impl(
                                     --
                                     Node {
                                         min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
+                                        min_width: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
                                         padding: UiRect::axes(rem(space::S6), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
                                         border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                        flex_shrink: 0.0,
                                     }
                                     ThemeBackgroundColor({ Token::SurfaceElevated })
                                     ProxyGroupMoveUpButton {
@@ -162,15 +190,17 @@ fn group_card_scene_impl(
                                     }
                                     Button
                                     Children [
-                                        Text({ "▲".to_owned() }) TextRole(Role::Caption)
+                                        @{ icon_scene(IconId::ArrowUp, GROUP_HEADER_ICON_SIZE_PX, palette.ink_dim) }
                                     ]
                                     --
                                     Node {
                                         min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
+                                        min_width: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
                                         padding: UiRect::axes(rem(space::S6), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
                                         border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                        flex_shrink: 0.0,
                                     }
                                     ThemeBackgroundColor({ Token::SurfaceElevated })
                                     ProxyGroupMoveDownButton {
@@ -180,7 +210,7 @@ fn group_card_scene_impl(
                                     }
                                     Button
                                     Children [
-                                        Text({ "▼".to_owned() }) TextRole(Role::Caption)
+                                        @{ icon_scene(IconId::ArrowDown, GROUP_HEADER_ICON_SIZE_PX, palette.ink_dim) }
                                     ]
                                     --
                                     Node {

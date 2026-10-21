@@ -17,33 +17,44 @@ use infiltrator_shared::locales::Lang;
 
 use crate::appearance::{refresh_tonal_ladder_preview, tonal_ladder_preview_scene};
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::localized_widgets::{localized_checkbox_scene, localized_segmented_scene};
+use crate::localized_widgets::{
+    localized_button_scene, localized_checkbox_scene, localized_segmented_scene,
+};
 use crate::pages::settings::settings_network_roaming::{
     NetworkRoamingInterfacesLine, NetworkRoamingRouteLine, NetworkRoamingStatusLine,
 };
 use crate::pages::settings_language::language_card;
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
-use bevy::app::{App, Plugin, PostUpdate, Update};
+use bevy::app::{App, Plugin, PostUpdate, Startup, Update};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
-use bevy::ecs::system::{Res, ResMut};
-use bevy::scene::{Scene, bsn};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::input_focus::tab_navigation::TabIndex;
+use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
+use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node, Overflow, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node,
+    Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use bevy::ui_widgets::{
+    Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose, ScrollArea,
+};
+use bevy::window::PrimaryWindow;
+use infiltrator_bevy_widgets::button::ButtonVariant;
 use infiltrator_bevy_widgets::button::sync_button_disabled;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -149,6 +160,26 @@ pub struct CloseToTrayToggle;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SystemNotificationsToggle;
 
+/// Marker for the control that opens the full font licence.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FontLicenseButton;
+
+/// Marker on the font-licence dialog's own root.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FontLicenseDialog;
+
+/// Marker for the font-licence dialog's dismiss control.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FontLicenseCloseButton;
+
+/// One-off layout value (not a ladder rung): the widest the font-licence
+/// dialog card may grow on a wide viewport.
+const FONT_LICENSE_MODAL_MAX_WIDTH_PX: f32 = 640.0;
+
+/// One-off layout value (not a ladder rung): the tallest the font-licence
+/// dialog card may grow before its own scroll area takes over.
+const FONT_LICENSE_MODAL_MAX_HEIGHT_PX: f32 = 480.0;
+
 /// The typed event dispatched when settings data updates.
 #[derive(Event, Clone, Debug, PartialEq)]
 pub struct SettingsProjectionUpdated(pub SettingsProjection);
@@ -187,11 +218,18 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
                 }
                 ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
-                    LocalizedText::plain("Font attribution") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("settings_font_attribution_title") TextRole(Role::BodyStrong)
                     --
-                    LocalizedText::plain("HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd.") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                    LocalizedText::plain("settings_font_attribution_copy") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                     --
-                    Text({ harmonyos_font_license_text().to_owned() }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::FlexEnd,
+                    }
+                    Children [
+                        @{ (localized_button_scene(LocalizedText::plain("common_details"), ButtonVariant::Default, palette), bsn! { FontLicenseButton }) }
+                    ]
                 ]
                 --
                 @{ tun_permission_alert_banner_scene(palette) }
@@ -203,6 +241,82 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
                 @{ settings_tun::card(projection, palette) }
                 --
                 @{ settings_core::controller_settings_card(projection, palette) }
+            ]
+    }
+}
+
+/// The font-licence dialog.
+///
+/// The redistribution agreement is hundreds of lines of all-caps legal
+/// English: it must never be laid out down the settings page. It lives in
+/// its own dialog, on the official behaviour layer, with its own scroll area.
+fn font_license_dialog_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let semantic = accesskit::Node::new(accesskit::Role::Dialog);
+    bsn! {
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100), height: percent(100),
+                display: Display::None,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+            }
+            FontLicenseDialog GlobalZIndex(118)
+            // The dialog sits on Bevy's official behaviour layer: the barrier
+            // owns the click-outside close and the Escape interception, and
+            // every close request travels as the official `RequestClose`.
+            ModalDialogBarrier
+            on(|close: On<RequestClose>, closes: Query<(Entity, &FontLicenseCloseButton)>, mut commands: Commands| {
+                // A close request that names the dialog's own dismiss control
+                // is that control's business; every other close request — the
+                // barrier's click-outside and the Escape interception — runs
+                // the dialog's own close path.
+                for (entity, _) in &closes {
+                    if entity != close.original_event_target() {
+                        commands.trigger(Activate { entity });
+                    }
+                }
+            })
+            Children [
+                Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
+                ModalScrim ThemeBackgroundColor({ Token::Scrim })
+                --
+                Node {
+                    width: percent(90), max_width: rem(FONT_LICENSE_MODAL_MAX_WIDTH_PX),
+                    max_height: rem(FONT_LICENSE_MODAL_MAX_HEIGHT_PX),
+                    padding: UiRect::all(rem(space::S16)),
+                    flex_direction: FlexDirection::Column, row_gap: rem(space::S12),
+                    border_radius: BorderRadius::all(rem(palette.modal_radius_px)),
+                }
+                ModalDialogCard ModalDialog
+                AccessibilityNode(semantic) LocalizedLabel::plain("settings_font_attribution_title")
+                ThemeBackgroundColor({ Token::Surface })
+                Children [
+                    LocalizedText::plain("settings_font_attribution_title") TextRole(Role::Heading)
+                    --
+                    Node {
+                        width: percent(100), flex_grow: 1.0, min_height: px(0.0),
+                        overflow: Overflow::scroll_y(),
+                        padding: UiRect::all(rem(space::S12)),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                    }
+                    ScrollArea
+                    Children [
+                        Text({ harmonyos_font_license_text().to_owned() }) TextRole(Role::Mono)
+                    ]
+                    --
+                    Node { width: percent(100), justify_content: JustifyContent::FlexEnd }
+                    Children [
+                        @{ (localized_button_scene(LocalizedText::plain("关闭"), ButtonVariant::Default, palette), bsn! {
+                            FontLicenseCloseButton
+                            // The dismiss control asks the official layer to
+                            // close; the page never closes the licence on its own.
+                            on(|activate: On<Activate>, mut commands: Commands| {
+                                commands.trigger(RequestClose { source: activate.entity });
+                            })
+                        }) }
+                    ]
+                ]
             ]
     }
 }
@@ -490,6 +604,9 @@ impl Plugin for SettingsPagePlugin {
         settings_render_strategy::register(app);
         app.add_observer(apply_settings_projection);
         app.add_observer(on_settings_action_activated);
+        app.add_observer(on_font_license_open);
+        app.add_observer(on_font_license_close);
+        app.add_systems(Startup, spawn_font_license_dialog);
         app.add_observer(settings_core::on_mtu_probe_activated);
         app.add_observer(settings_core::on_tun_route_changed);
         app.add_observer(settings_core::on_tun_enabled_changed);
@@ -532,6 +649,74 @@ impl Plugin for SettingsPagePlugin {
             PostUpdate,
             settings_port_conflict::sync_port_conflict_outcome.before(sync_button_disabled),
         );
+    }
+}
+
+/// Mount the font-licence dialog once: it is a page-root overlay, so it
+/// never lives inside the settings page's own scroll area.
+pub fn spawn_font_license_dialog(mut commands: Commands, palette: Res<UiPalette>) {
+    commands.spawn_scene(font_license_dialog_scene(&palette));
+}
+
+/// The disclosure control presents the licence dialog.
+pub(crate) fn on_font_license_open(
+    activate: On<Activate>,
+    buttons: Query<(), With<FontLicenseButton>>,
+    closes: Query<Entity, With<FontLicenseCloseButton>>,
+    mut dialogs: Query<&mut Node, With<FontLicenseDialog>>,
+    mut focus: ResMut<InputFocus>,
+    windows: Query<Entity, With<PrimaryWindow>>,
+    mut commands: Commands,
+) {
+    if !buttons.contains(activate.entity) {
+        return;
+    }
+    for mut node in &mut dialogs {
+        if node.display != Display::Flex {
+            node.display = Display::Flex;
+        }
+    }
+    // The official focus hand-off: the dialog's dismiss control is the
+    // dialog's focusable entity and the official `AcquireFocus` moves the
+    // input focus into the dialog, so Bevy's own `ModalDialogBarrier` owns
+    // the Escape interception and the focus containment.
+    let Ok(control) = closes.single() else {
+        return;
+    };
+    commands
+        .entity(control)
+        .entry::<TabIndex>()
+        .or_insert(TabIndex(0));
+    if let Ok(window) = windows.single() {
+        commands.trigger(AcquireFocus {
+            focused_entity: control,
+            window,
+        });
+    }
+    focus.set(control, FocusCause::Navigated);
+}
+
+/// The dismiss control hides the licence dialog again.
+pub(crate) fn on_font_license_close(
+    activate: On<Activate>,
+    buttons: Query<(), With<FontLicenseCloseButton>>,
+    disclosures: Query<Entity, With<FontLicenseButton>>,
+    mut dialogs: Query<&mut Node, With<FontLicenseDialog>>,
+    mut focus: ResMut<InputFocus>,
+) {
+    if !buttons.contains(activate.entity) {
+        return;
+    }
+    for mut node in &mut dialogs {
+        if node.display != Display::None {
+            node.display = Display::None;
+        }
+    }
+    // The focus leaves the dialog again: it goes back to the disclosure
+    // control when the settings page still carries it.
+    match disclosures.single() {
+        Ok(disclosure) => focus.set(disclosure, FocusCause::Navigated),
+        Err(_) => focus.clear(),
     }
 }
 

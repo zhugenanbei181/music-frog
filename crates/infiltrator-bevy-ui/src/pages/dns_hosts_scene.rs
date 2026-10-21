@@ -12,8 +12,8 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::{
-    AlignItems, BorderRadius, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, Overflow,
-    PositionType, UiRect, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node,
+    Overflow, PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
@@ -90,7 +90,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                         @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_hosts_domain"), palette), bsn! { NativeTextField(1) }) } ]
                 ]
                 --
-                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::SpaceBetween }
+                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::FlexStart, flex_wrap: FlexWrap::Wrap }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("dns_hosts_add"), ButtonVariant::Default, palette), bsn! { HostAction::CommitRow }) }
                     --
@@ -108,7 +108,7 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 LocalizedText::plain("dns_hosts_unobserved") DnsHostsStatusLine TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
+                Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::FlexEnd, flex_shrink: 0.0 }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("dns_hosts_clear_draft"), ButtonVariant::Default, palette), bsn! {
                         HostAction::Cancel

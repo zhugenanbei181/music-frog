@@ -3,15 +3,17 @@ use super::geometry::CaptureGeometry;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::pages::connections::ConnHostText;
-use crate::pages::connections::{ConnAggregationPill, ConnectionsScrollArea};
+use crate::pages::connections::ConnectionsScrollArea;
 use crate::pages::connections_groups::{ConnectionGroupCard, ConnectionGroupsRoot};
-use crate::pages::connections_view::{ConnectionRow, ConnectionsViewState};
+use crate::pages::connections_view::{
+    ConnChoice, ConnStripTab, ConnectionRow, ConnectionsViewState,
+};
 use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
@@ -23,7 +25,7 @@ use bevy::picking::events::{Pointer, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::ValueChange;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -57,7 +59,8 @@ pub struct GroupControls<'w, 's> {
     route: Res<'w, ActiveRoute>,
     view: Res<'w, ConnectionsViewState>,
     latest: Res<'w, LatestSurfaceSnapshot>,
-    pills: Query<'w, 's, (Entity, &'static ConnAggregationPill)>,
+    tabs: Query<'w, 's, (Entity, &'static ConnStripTab)>,
+    parents: Query<'w, 's, &'static ChildOf>,
     fields: Query<'w, 's, (Entity, &'static NativeTextField, &'static TextField)>,
     groups: Query<'w, 's, Entity, With<ConnectionGroupsRoot>>,
     rows: Query<'w, 's, (Entity, &'static ConnectionRow)>,
@@ -86,15 +89,26 @@ pub fn activate(
             controls.capture.0 = 1;
         }
         1 => {
-            if let Some((entity, _)) = controls.pills.iter().find(|(_, pill)| {
-                pill.0
-                    == if feature.feature == FeatureId::ConnectionsSearchHighlight {
-                        ConnectionGroupingMode::Flat
-                    } else {
-                        ConnectionGroupingMode::ByProcess
-                    }
-            }) {
-                commands.trigger(Activate { entity });
+            let wanted = if feature.feature == FeatureId::ConnectionsSearchHighlight {
+                ConnectionGroupingMode::Flat
+            } else {
+                ConnectionGroupingMode::ByProcess
+            };
+            if let Some((entity, _)) = controls
+                .tabs
+                .iter()
+                .find(|(_, tab)| tab.0 == ConnChoice::ViewFilter(wanted))
+            {
+                // Drive the OFFICIAL tab list: the capture requests the same
+                // selection a pointer click would.
+                let Ok(parent) = controls.parents.get(entity) else {
+                    return;
+                };
+                commands.trigger(ValueChange::<Option<Entity>> {
+                    source: parent.parent(),
+                    value: Some(entity),
+                    is_final: true,
+                });
                 controls.capture.0 = 2;
             }
         }
@@ -220,7 +234,7 @@ pub fn observe(
     }
     let bounds = (|| {
         geometry.bounds(field, "connections-group-search")?;
-        for (entity, _) in &controls.pills {
+        for (entity, _) in &controls.tabs {
             geometry.bounds(entity, "connections-group-control")?;
         }
         geometry.bounds(controls.groups.single().ok()?, "connections-group-results")

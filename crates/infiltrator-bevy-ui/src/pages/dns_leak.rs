@@ -15,12 +15,13 @@ use crate::pages::dns_leak_rows::rows_scene;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
+    AlignItems, BorderColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::button::ButtonVariant;
@@ -43,6 +44,10 @@ const LEAK_SOURCES_LISTING_MIN_HEIGHT_PX: f32 = 48.0;
 pub struct LeakCard;
 #[derive(Component, Clone, Default)]
 pub struct LeakFeedback;
+/// The cross-source alarm's own container: the conclusion never runs naked
+/// across the card, it always sits inside a bordered alert well.
+#[derive(Component, Clone, Copy, Default)]
+pub struct LeakAlert;
 
 pub fn leak_conclusion_label(report: &DnsLeakReport, code: &str) -> String {
     project_leak(report, &Lang(code)).conclusion
@@ -96,15 +101,26 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                 Box::new(bsn! {
                                 Node {
                                     width: percent(100),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::bottom(rem(space::S8)),
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: rem(space::S6),
+                                    padding: UiRect::all(rem(space::S12)),
+                                    border: UiRect::all(Val::Px(palette.hairline_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
+                                LeakAlert
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    Text(conclusion)
-                                    DnsLine(DnsLineKind::LeakConclusion)
-                                    TextRole(Role::BodyStrong)
-                                    TextColor(conclusion_color)
+                                    Node {
+                                        width: percent(100),
+                                        align_items: AlignItems::Center,
+                                        column_gap: rem(space::S8),
+                                    }
+                                    Children [
+                                        Text(conclusion)
+                                        DnsLine(DnsLineKind::LeakConclusion)
+                                        TextRole(Role::BodyStrong)
+                                        TextColor(conclusion_color)
+                                    ]
                                     --
                                     Text(sources) DnsLine(DnsLineKind::LeakSources) TextRole(Role::Caption)
                                 ]
@@ -136,7 +152,9 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
 pub fn sync_dns_leak_line(
     last: Option<Res<LastDnsProjection>>,
     locale: Option<Res<UiLocale>>,
+    palette: Res<UiPalette>,
     mut lines: Query<(&mut Text, &DnsLine)>,
+    mut alerts: Query<&mut BorderColor, With<LeakAlert>>,
 ) {
     let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) else {
         return;
@@ -152,6 +170,14 @@ pub fn sync_dns_leak_line(
             DnsLineKind::LeakConclusion if text.0 != conclusion => text.0 = conclusion.clone(),
             DnsLineKind::LeakSources if text.0 != sources => text.0 = sources.clone(),
             _ => {}
+        }
+    }
+    // The alert well carries the same verdict as the conclusion it holds, so
+    // the container never contradicts the words inside it.
+    let edge = tone_color(display.tone, &palette);
+    for mut border in &mut alerts {
+        if border.top != edge {
+            border.set_all(edge);
         }
     }
 }

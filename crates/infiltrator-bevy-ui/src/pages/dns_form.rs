@@ -9,12 +9,14 @@ use crate::pages::dns::{
     DnsFilterModePill, DnsLine, DnsLineKind, DnsProjection, DnsSwitchButton, DnsSwitchKnob,
     DnsSwitchTrack, enhanced_mode_pill_label, filter_mode_label,
 };
+use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -33,7 +35,6 @@ use infiltrator_contract::dns::{
 };
 use infiltrator_contract::dns_form::DnsFormField;
 use infiltrator_presentation::dns_settings_projection::field_label_key;
-use infiltrator_shared::locales::{Lang, Localizer};
 
 fn dns_switch_row_scene(
     field: DnsSwitchField,
@@ -42,18 +43,6 @@ fn dns_switch_row_scene(
 ) -> impl Scene + use<> {
     let enabled = switches.value(field);
     let label = LocalizedText::plain(field_label_key(DnsFormField::from_switch(field)));
-    let status_str = Lang(UiLocale::default().code())
-        .tr(if enabled {
-            "dns_switch_enabled"
-        } else {
-            "dns_switch_disabled"
-        })
-        .into_owned();
-    let status_color = if enabled {
-        palette.success
-    } else {
-        palette.ink_dim
-    };
     let switch_bg = if enabled {
         palette.accent
     } else {
@@ -70,19 +59,27 @@ fn dns_switch_row_scene(
         palette.border
     };
 
+    // The switch is the row's only on/off statement: the track's fill and the
+    // knob's rest position carry the state, so the row never repeats it as a
+    // second word beside the control.
+    let mut switch_a11y = accesskit::Node::new(accesskit::Role::Switch);
+    switch_a11y.set_label(label.render(&UiLocale::default()));
+
     bsn! {
             Node {
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::axes(rem(space::S8), rem(space::S6)),
+                column_gap: rem(space::S12),
+                padding: UiRect::all(rem(space::S12)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
                 border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
-                    align_items: AlignItems::Center,
-                    column_gap: rem(space::S8),
+                    flex_grow: 1.0,
+                    min_width: px(0.0),
                 }
                 Children [
                     label TextRole(Role::Body)
@@ -91,18 +88,15 @@ fn dns_switch_row_scene(
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: rem(space::S8),
+                    flex_shrink: 0.0,
                 }
                 Children [
-                    Text({ status_str.to_owned() })
-                    DnsLine(DnsLineKind::SwitchStatus(field))
-                    TextRole(Role::Caption)
-                    TextColor({ status_color })
-                    --
                     @{ switch_track_scene(palette, switch_bg, edge_color) }
                     DnsSwitchButton(field, enabled)
                     DnsSwitchTrack(field)
                     DnsBorder(field)
                     Button
+                    AccessibilityNode(switch_a11y)
                     Children [
                         @{ switch_knob_scene(knob_color, SwitchPosition::from_enabled(enabled)) }
                         DnsSwitchKnob(field)
@@ -244,7 +238,7 @@ pub(crate) fn dns_form_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: rem(space::S6),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 @{ dns_switch_row_scene(DnsSwitchField::Enable, projection.switches, palette) }

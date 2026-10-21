@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::native_input::click_entity;
 use bevy::ecs::query::With;
 use infiltrator_bevy_ui::pages::connections_pulse::ConnectionsPulseState;
 use infiltrator_bevy_ui::pages::connections_virtual::{
@@ -25,11 +26,14 @@ fn test_connections_page_mounting_and_default_state() {
         root,
         "活动连接 · 当前活跃 4 个连接"
     ));
-    assert!(subtree_has_text(app.world(), root, "api.github.com:443"));
+    // The endpoint is split into its host and its port, so the two live on
+    // their own text nodes.
+    assert!(subtree_has_text(app.world(), root, "api.github.com"));
+    assert!(subtree_has_text(app.world(), root, "443"));
     assert!(subtree_has_text(
         app.world(),
         root,
-        "manifest.googlevideo.com:443"
+        "manifest.googlevideo.com"
     ));
     assert!(subtree_has_text(app.world(), root, "关闭全部连接"));
     assert!(subtree_has_text(app.world(), root, "断开"));
@@ -60,28 +64,37 @@ fn test_connections_page_mounting_and_default_state() {
     assert!(subtree_has_text(app.world(), root, "断开筛选结果"));
     assert_eq!(
         app.world_mut()
-            .query::<&ConnAggregationPill>()
+            .query::<&ConnStripTab>()
             .iter(app.world())
+            .filter(|tab| matches!(tab.0, ConnChoice::ViewFilter(_)))
             .count(),
         3
     );
 }
 
+/// Click one tab of a segmented strip, through the OFFICIAL headless tab
+/// list's own click handling.
+fn select_strip_tab(app: &mut App, tab: ConnStripTab) {
+    let entity = app
+        .world_mut()
+        .query::<(Entity, &ConnStripTab)>()
+        .iter(app.world())
+        .find(|(_, marker)| **marker == tab)
+        .expect("the strip tab")
+        .0;
+    click_entity(app, entity);
+}
+
 #[test]
-fn test_connections_aggregation_pill_switches_shared_mode() {
+fn test_connections_aggregation_tab_switches_shared_mode() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
     let (root, _) = navigate_to(&mut app, Route::Connections);
 
-    let mut query = app.world_mut().query::<(Entity, &ConnAggregationPill)>();
-    let (pill_entity, _) = query
-        .iter(app.world())
-        .find(|(_, pill)| pill.0 == ConnectionGroupingMode::ByProcess)
-        .expect("by-process aggregation pill");
-
-    app.world_mut().commands().trigger(Activate {
-        entity: pill_entity,
-    });
+    select_strip_tab(
+        &mut app,
+        ConnStripTab(ConnChoice::ViewFilter(ConnectionGroupingMode::ByProcess)),
+    );
     app.update();
 
     assert!(subtree_has_text(
@@ -264,11 +277,7 @@ fn test_connections_projection_in_place_update() {
         root,
         "活动连接 · 当前活跃 12 个连接"
     ));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "api.cloudflare.com:443"
-    ));
+    assert!(subtree_has_text(app.world(), root, "api.cloudflare.com"));
     assert!(subtree_has_text(app.world(), root, "488.28 KB/s"));
     assert!(subtree_has_text(app.world(), root, "1.14 MB/s"));
 }
@@ -415,22 +424,12 @@ fn test_connections_add_rule_draft_uses_shared_seam() {
 }
 
 #[test]
-fn test_connections_idle_timeout_pill_switches_shared_choice() {
+fn test_connections_idle_timeout_tab_switches_shared_choice() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
     navigate_to(&mut app, Route::Connections);
 
-    let pill_entity = {
-        let mut query = app.world_mut().query::<(Entity, &ConnIdleTimeoutPill)>();
-        query
-            .iter(app.world())
-            .find(|(_, pill)| pill.0 == 1800)
-            .map(|(entity, _)| entity)
-            .expect("30m idle timeout pill")
-    };
-    app.world_mut().commands().trigger(Activate {
-        entity: pill_entity,
-    });
+    select_strip_tab(&mut app, ConnStripTab(ConnChoice::IdleTimeout(1800)));
     app.update();
 
     assert_eq!(
@@ -538,30 +537,36 @@ fn test_connections_high_throughput_pulse_follows_shared_threshold() {
     );
 }
 
-/// The sort pills in the order the page renders them.
+/// The sort tabs in the order the page renders them.
 fn rendered_sort_keys(app: &mut App) -> Vec<ConnectionSortKey> {
-    use infiltrator_bevy_ui::pages::connections_view::ConnSortPill;
-
     let parent = {
-        let mut query = app
-            .world_mut()
-            .query_filtered::<Entity, With<ConnSortPill>>();
-        let first = query.iter(app.world()).next().expect("a sort pill");
+        let mut query = app.world_mut().query::<(Entity, &ConnStripTab)>();
+        let first = query
+            .iter(app.world())
+            .find(|(_, tab)| matches!(tab.0, ConnChoice::Sort(_)))
+            .expect("a sort tab");
         app.world()
-            .get::<ChildOf>(first)
-            .expect("the sort pill's parent")
+            .get::<ChildOf>(first.0)
+            .expect("the sort tab's list")
             .0
     };
     let children: Vec<Entity> = app
         .world()
         .get::<Children>(parent)
-        .expect("the sort pill container")
+        .expect("the sort tab list")
         .iter()
         .copied()
         .collect();
     children
         .into_iter()
-        .filter_map(|child| app.world().get::<ConnSortPill>(child).map(|pill| pill.0))
+        .filter_map(|child| {
+            app.world()
+                .get::<ConnStripTab>(child)
+                .and_then(|tab| match tab.0 {
+                    ConnChoice::Sort(key) => Some(key),
+                    _ => None,
+                })
+        })
         .collect()
 }
 
@@ -582,9 +587,7 @@ fn the_rendered_sort_pills_follow_the_shared_ordered_choices() {
 }
 
 #[test]
-fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
-    use infiltrator_bevy_ui::pages::connections_view::ConnSortPill;
-
+fn test_connections_sort_tabs_reorder_rows_by_instantaneous_rate() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
     let (root, _) = navigate_to(&mut app, Route::Connections);
@@ -604,8 +607,9 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
     }
     assert_eq!(
         app.world_mut()
-            .query::<&ConnSortPill>()
+            .query::<&ConnStripTab>()
             .iter(app.world())
+            .filter(|tab| matches!(tab.0, ConnChoice::Sort(_)))
             .count(),
         6
     );
@@ -626,19 +630,12 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
         "the cumulative default order is unchanged"
     );
 
-    // Clicking the instantaneous-download pill reorders by the derived rate:
+    // Selecting the instantaneous-download tab reorders by the derived rate:
     // c-3 leads, then c-2, then the two idle rows in stable id order.
-    let download_rate_pill = {
-        let mut query = app.world_mut().query::<(Entity, &ConnSortPill)>();
-        query
-            .iter(app.world())
-            .find(|(_, pill)| pill.0 == ConnectionSortKey::DownloadRateDesc)
-            .map(|(entity, _)| entity)
-            .expect("instantaneous download sort pill")
-    };
-    app.world_mut().commands().trigger(Activate {
-        entity: download_rate_pill,
-    });
+    select_strip_tab(
+        &mut app,
+        ConnStripTab(ConnChoice::Sort(ConnectionSortKey::DownloadRateDesc)),
+    );
     app.update();
     assert_eq!(
         app.world()
@@ -649,18 +646,11 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
     );
     assert_eq!(connection_row_order(&mut app), vec![2, 1, 0, 3]);
 
-    // The instantaneous-upload pill ranks c-1 first (24 000 B/s vs 8 500).
-    let upload_rate_pill = {
-        let mut query = app.world_mut().query::<(Entity, &ConnSortPill)>();
-        query
-            .iter(app.world())
-            .find(|(_, pill)| pill.0 == ConnectionSortKey::UploadRateDesc)
-            .map(|(entity, _)| entity)
-            .expect("instantaneous upload sort pill")
-    };
-    app.world_mut().commands().trigger(Activate {
-        entity: upload_rate_pill,
-    });
+    // The instantaneous-upload tab ranks c-1 first (24 000 B/s vs 8 500).
+    select_strip_tab(
+        &mut app,
+        ConnStripTab(ConnChoice::Sort(ConnectionSortKey::UploadRateDesc)),
+    );
     app.update();
     assert_eq!(connection_row_order(&mut app), vec![0, 1, 2, 3]);
 
@@ -675,11 +665,7 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
     assert_eq!(connection_row_order(&mut app), vec![2, 0, 1, 3]);
     // Row markers stay bound to their projection index, so the restamped
     // texts still describe the same connection the row carries.
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "gateway.discord.gg:443",
-    ));
+    assert!(subtree_has_text(app.world(), root, "gateway.discord.gg",));
 }
 
 #[test]

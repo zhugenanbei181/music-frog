@@ -320,7 +320,9 @@ fn changing_language_keeps_live_connection_phase_counts_and_native_entities() {
     use crate::support::headless_plugins;
     use infiltrator_bevy_ui::app::ShellPlugin;
     use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink};
-    use infiltrator_bevy_ui::pages::connections::{ConnectionsLine, ConnectionsLineKind};
+    use infiltrator_bevy_ui::pages::connections::{
+        ConnStreamPhaseLabel, ConnectionsLine, ConnectionsLineKind, strip_phase_marker,
+    };
     use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
     use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
     use std::sync::Arc;
@@ -359,11 +361,19 @@ fn changing_language_keeps_live_connection_phase_counts_and_native_entities() {
         .iter(app.world())
         .map(|(entity, kind, text)| (kind.0, entity, text.0.clone()))
         .collect::<Vec<_>>();
-    let (_, stream, value) = lines
-        .iter()
-        .find(|(kind, _, _)| *kind == ConnectionsLineKind::Stream)
-        .unwrap();
-    assert_eq!(value, Lang("en-US").tr("connections_stream_live").as_ref());
+    // The telemetry phase is its own labelled line: the page draws the live
+    // marker as an aligned dot, so the copy carries no bullet glyph.
+    let phase = app
+        .world_mut()
+        .query::<(Entity, &ConnStreamPhaseLabel, &Text)>()
+        .iter(app.world())
+        .map(|(entity, _, text)| (entity, text.0.clone()))
+        .collect::<Vec<_>>();
+    let (_stream, value) = phase.first().expect("the telemetry phase line");
+    assert_eq!(
+        value,
+        strip_phase_marker(Lang("en-US").tr("connections_stream_live").as_ref())
+    );
     let (_, summary, value) = lines
         .iter()
         .find(|(kind, _, _)| *kind == ConnectionsLineKind::Summary)
@@ -378,9 +388,16 @@ fn changing_language_keeps_live_connection_phase_counts_and_native_entities() {
         .trigger(SurfaceSnapshotUpdated(snapshot));
     app.update();
     app.update();
+    let phase = app
+        .world_mut()
+        .query::<(Entity, &ConnStreamPhaseLabel, &Text)>()
+        .iter(app.world())
+        .map(|(entity, _, text)| (entity, text.0.clone()))
+        .collect::<Vec<_>>();
+    let (_stream, value) = phase.first().expect("the telemetry phase line");
     assert_eq!(
-        app.world().get::<Text>(*stream).unwrap().0,
-        Lang("zh-CN").tr("connections_stream_live")
+        value,
+        strip_phase_marker(Lang("zh-CN").tr("connections_stream_live").as_ref())
     );
     assert!(app.world().get::<Text>(*summary).unwrap().0.contains("37"));
 }

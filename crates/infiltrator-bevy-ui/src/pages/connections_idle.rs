@@ -3,35 +3,30 @@
 //!
 //! The idle reduction itself is the shared
 //! [`infiltrator_domain::connection_activity::ConnectionActivityTracker`]; this
-//! module owns only the Bevy-side resource, the timeout pills and sweep
-//! button, and the honest last-sweep status line.
+//! module owns only the Bevy-side resource, the timeout strip, the sweep
+//! button and the honest last-sweep status line.
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections::LastConnectionsProjection;
-use crate::pages::connections_view::ConnectionsViewState;
+use crate::pages::connections_view::{ConnectionsViewState, idle_timeout_strip_scene};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{QueryFilter, With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
-use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, percent,
-};
+use bevy::ui::prelude::{AlignItems, FlexWrap, Node, percent};
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::feathers_theme::Token;
+use bevy::ui_widgets::Activate;
+use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_with_label_scene};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_domain::connection_activity::{
-    ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS, IDLE_TIMEOUT_CHOICES,
-    idle_timeout_minutes_label,
+    ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -54,10 +49,6 @@ impl Default for ConnectionsIdleState {
     }
 }
 
-/// Marker on an idle-timeout choice pill; payload is the timeout in seconds.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ConnIdleTimeoutPill(pub u64);
-
 /// Marker on the manual idle-sweep button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnIdleSweepButton;
@@ -67,92 +58,51 @@ pub struct ConnIdleSweepButton;
 pub struct ConnIdleStatus;
 
 /// DUAL-13-11: shared idle-timeout choices + manual sweep + honest status.
+///
+/// The timeout choices are the OFFICIAL headless tab strip (the same control
+/// family as the view filter and the row order), and the sweep button is a
+/// quiet inline action, so the idle row reads as one family instead of three.
 pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let pills: Vec<Box<dyn Scene>> = IDLE_TIMEOUT_CHOICES
-        .iter()
-        .map(|secs| {
-            Box::new(conn_idle_timeout_pill(
-                *secs,
-                *secs == DEFAULT_IDLE_TIMEOUT_SECS,
-                palette,
-            )) as Box<dyn Scene>
-        })
-        .collect();
-
     bsn! {
             Node {
                 width: percent(100),
                 align_items: AlignItems::Center,
                 column_gap: rem(space::S8),
+                flex_wrap: FlexWrap::Wrap,
+                row_gap: rem(space::S8),
             }
             Children [
                 LocalizedText::plain("dns_fake_ip_idle_label") TextRole(Role::Caption)
                 --
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: rem(space::S4),
-                }
-                Children [
-                    { pills }
-                ]
+                @{ idle_timeout_strip_scene(DEFAULT_IDLE_TIMEOUT_SECS, palette) }
                 --
-                Node {
-                    min_height: rem(palette.control_height_px),
-                    padding: UiRect::horizontal(rem(space::S12)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                }
-                ThemeBackgroundColor({ Token::SurfaceElevated })
-                Button
-                ConnIdleSweepButton
-                Children [
-                    LocalizedText::plain("conn_idle_sweep_btn") TextRole(Role::Caption)
-                ]
+                @{ sweep_button_scene(palette) }
                 --
                 LocalizedText::plain("conn_idle_last_sweep_none") ConnIdleStatus TextRole(Role::Caption)
             ]
     }
 }
 
-fn conn_idle_timeout_pill(secs: u64, active: bool, palette: &UiPalette) -> impl Scene + use<> {
-    let (bg, text_color) = if active {
-        (palette.accent_container, palette.accent)
-    } else {
-        (palette.surface, palette.ink_dim)
-    };
-    let label = idle_timeout_minutes_label(secs);
-
+/// The manual sweep: a quiet inline action beside the timeout strip.
+fn sweep_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-            Node {
-                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                border_radius: BorderRadius::all(rem(radius::XS)),
-                align_items: AlignItems::Center,
-            }
-            BackgroundColor({ bg })
-            ConnIdleTimeoutPill(secs)
-            Button
-            Children [
-                Text(label) TextRole(Role::Caption) TextColor({ text_color })
-            ]
+            @{ button_with_label_scene(
+                bsn! { LocalizedText::plain("conn_idle_sweep_btn") TextRole(Role::Caption) },
+                ButtonVariant::Ghost,
+                ButtonSize::Sm,
+                palette,
+            ) }
+            ConnIdleSweepButton
     }
 }
 
-/// DUAL-13-11: switch the idle timeout or run a manual sweep. The sweep
-/// restamps the honest last-sweep status and submits one close per idle id.
+/// DUAL-13-11: run a manual sweep. The sweep restamps the honest last-sweep
+/// status and submits one close per idle id.
 #[derive(SystemParam)]
 pub(crate) struct IdleControls<'w, 's> {
-    timeout_pills: Query<'w, 's, &'static ConnIdleTimeoutPill>,
     sweep_buttons: Query<'w, 's, (), With<ConnIdleSweepButton>>,
     last: Option<Res<'w, LastConnectionsProjection>>,
     idle: Option<ResMut<'w, ConnectionsIdleState>>,
-    palette: Res<'w, UiPalette>,
-    pill_fills: Query<
-        'w,
-        's,
-        (&'static mut BackgroundColor, &'static ConnIdleTimeoutPill),
-        Without<ConnIdleStatus>,
-    >,
     status: Query<'w, 's, (&'static mut Text, &'static mut LocalizedText), With<ConnIdleStatus>>,
     handle: Option<Res<'w, CommandSinkHandle>>,
     locale: Res<'w, UiLocale>,
@@ -160,24 +110,14 @@ pub(crate) struct IdleControls<'w, 's> {
 }
 pub(crate) fn on_connections_idle_activated(activate: On<Activate>, controls: IdleControls) {
     let IdleControls {
-        timeout_pills,
         sweep_buttons,
         last,
         mut idle,
-        palette,
-        mut pill_fills,
         mut status,
         handle,
         locale,
         view,
     } = controls;
-    if let Ok(pill) = timeout_pills.get(activate.entity) {
-        if let Some(state) = idle.as_deref_mut() {
-            state.timeout_secs = pill.0;
-        }
-        restamp_idle_pills(&palette, &mut pill_fills, pill.0);
-        return;
-    }
     if !sweep_buttons.contains(activate.entity) || !view.page.source_current() {
         return;
     }
@@ -202,21 +142,6 @@ pub(crate) fn on_connections_idle_activated(activate: On<Activate>, controls: Id
         for id in idle_ids {
             handle.submit(UiCommand::CloseConnection { id });
         }
-    }
-}
-
-/// Restamp every idle-timeout pill fill for the active timeout.
-pub(crate) fn restamp_idle_pills<F: QueryFilter>(
-    palette: &UiPalette,
-    pills: &mut Query<(&mut BackgroundColor, &ConnIdleTimeoutPill), F>,
-    active: u64,
-) {
-    for (mut fill, pill) in pills.iter_mut() {
-        fill.0 = if pill.0 == active {
-            palette.accent_container
-        } else {
-            palette.surface
-        };
     }
 }
 

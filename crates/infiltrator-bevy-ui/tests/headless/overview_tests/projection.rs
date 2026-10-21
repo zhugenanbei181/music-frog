@@ -86,11 +86,6 @@ fn projection_updates_restamp_in_place() {
     assert_eq!(ink.0, palette.ink_dim, "stopped ink restamped");
     let (_, upload, _) = line(world, OverviewLineKind::Upload);
     assert_eq!(upload, "↑ 1.40 MB/s（已失效）");
-    let (_, mode_chip, _) = line(world, OverviewLineKind::RoutingIntentChip);
-    assert_eq!(
-        mode_chip, "全部流量经代理（已失效）",
-        "the banner chip renames the mode"
-    );
     assert!(
         pill_selected(world, RoutingIntent::RouteAllThroughProxy),
         "Global pill selected"

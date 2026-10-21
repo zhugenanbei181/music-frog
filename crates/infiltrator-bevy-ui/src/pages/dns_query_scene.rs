@@ -12,8 +12,8 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn, on};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node,
-    Overflow, PositionType, UiRect, percent, px,
+    AlignItems, AlignSelf, BorderRadius, Display, FlexDirection, FlexWrap, GlobalZIndex,
+    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, ModalDialog, ModalDialogBarrier, RequestClose};
@@ -161,17 +161,49 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 Node {
                     width: percent(100), flex_grow: 1.0, min_height: px(0.0),
                     overflow: Overflow::scroll_y(), flex_direction: FlexDirection::Column,
-                    row_gap: rem(space::S6),
+                    row_gap: rem(space::S8),
                 }
                 ScrollArea
                 Children [
-                    Text(String::new()) QueryLine::Provenance TextRole(Role::Caption)
+                    Node {
+                        align_self: AlignSelf::FlexStart,
+                        padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                        border_radius: BorderRadius::MAX,
+                    }
+                    ThemeBackgroundColor({ Token::AccentContainer })
+                    Children [
+                        Text(String::new()) QueryLine::Provenance TextRole(Role::Caption)
+                    ]
                     --
-                    Text(String::new()) QueryLine::Question TextRole(Role::BodyStrong)
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: rem(space::S4),
+                        padding: UiRect::all(rem(space::S12)),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                    }
+                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                    Children [
+                        Text(String::new()) QueryLine::Question TextRole(Role::Mono)
+                        --
+                        Text(String::new()) QueryLine::Flags TextRole(Role::Mono)
+                    ]
                     --
-                    Text(String::new()) QueryLine::Flags TextRole(Role::Mono)
-                    --
-                    Text(String::new()) QueryLine::Records TextRole(Role::Mono)
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: rem(space::S4),
+                        padding: UiRect::all(rem(space::S12)),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                    }
+                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                    Children [
+                        Text(String::new()) QueryLine::SectionLabel TextRole(Role::Caption)
+                        --
+                        Text(String::new()) QueryLine::Records TextRole(Role::Mono)
+                    ]
                 ]
                 --
                 Node { width: percent(100), column_gap: rem(space::S8), align_items: AlignItems::Center }

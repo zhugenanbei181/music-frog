@@ -34,6 +34,7 @@
 
 use crate::history::{ScrubberAction, TrafficHistory, TrafficReplay, chart_inputs};
 use crate::localized_widgets::localized_button_scene;
+use crate::pages::globe::GlobeSectionSlot;
 use crate::pages::overview_lifecycle::core_control_scene;
 use crate::pages::overview_public_ip::on_overview_public_ip_refresh_activated;
 use crate::pages::overview_quota_copy;
@@ -84,7 +85,6 @@ use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::system_toggle::SystemToggleState;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
-use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -98,14 +98,14 @@ use lurker_ui_presentation::core_status_projection::{
 /// The status banner's text column minimum width in baseline pixels.
 const OVERVIEW_STATUS_TEXT_MIN_WIDTH_PX: f32 = 180.0;
 
-/// The status banner's dot diameter in baseline pixels.
-const OVERVIEW_STATUS_DOT_SIZE_PX: f32 = 10.0;
-
 #[path = "overview_reactive.rs"]
 pub mod overview_reactive;
 
+#[path = "overview_pulse.rs"]
+pub mod overview_pulse;
+
+use self::overview_pulse::status_dot_scene;
 use self::overview_reactive::{OverviewMetricKind, OverviewMetricSource};
-use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::rem;
@@ -172,8 +172,6 @@ pub enum OverviewLineKind {
     TelemetryFailure,
     /// The failure reason (empty unless unavailable).
     Failure,
-    /// The selected routing policy label.
-    RoutingIntentChip,
     /// The banner's data-origin note: 演示数据 for the fixture, the live
     /// core's real version for the pump (BEVY-005).
     BannerNote,
@@ -296,15 +294,6 @@ pub struct OverviewCardState(pub Option<CoreLifecycle>);
 /// Marker on the banner's status dot (success token fill).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StatusDot;
-
-/// Marker on the banner's routing chip (accent fill, `on_accent` label).
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct OverviewRoutingIntentChip;
-
-/// Marker on text drawn over an accent/danger fill: its ink is the
-/// `on_accent` token, restamped by the reskin system.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct OnAccentText;
 
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct OverviewRoutingIntentPill(pub RoutingIntent);
@@ -592,6 +581,8 @@ pub fn overview_page(
             Children [
                 @{ banner_scene(projection, palette) }
                 --
+                @{ globe_slot_scene() }
+                --
                 { cards }
                 --
                 @{ overview_reactive::reactive_summary_scene(palette) }
@@ -602,16 +593,19 @@ pub fn overview_page(
 }
 
 /// The status banner: the accent-container card with the running dot and
-/// state word, the routing chip, the data-origin note (demo fixture vs live
-/// core version) and failure line, then the stop button — the danger pill
-/// under a demo source, or an honest lifecycle caption under a live core
+/// state word, the data-origin note (demo fixture vs live core version) and
+/// failure line, then the stop button — the danger pill under a demo source,
+/// or an honest lifecycle caption under a live core
 /// The separate lifecycle control below submits the shared typed command.
 /// The origin is fixed for a mounted source, so baking the branch at mount
 /// keeps every restamp in place.
+///
+/// The current routing policy is **not** repeated here: the shell's status
+/// capsule and the page's own routing-intent card already name it, and a
+/// third copy of the same words in a pill only reads as a second control.
 fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
     let state = banner_state_text(projection, "en-US");
     let state_node = status_semantic_node(&state);
-    let chip = routing_intent_status_copy(&projection.routing_intent, &Lang("en-US"));
     let failure = failure_copy(&projection.lifecycle, projection.failure(), &Lang("en-US"));
     let note = banner_note(projection, "en-US");
     bsn! {
@@ -621,7 +615,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
                 column_gap: rem(space::S16),
-                row_gap: rem(space::S8),
+                row_gap: rem(space::S12),
                 flex_wrap: FlexWrap::Wrap,
                 border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
@@ -641,14 +635,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                         column_gap: rem(space::S12),
                     }
                     Children [
-                        Node {
-                            width: rem(OVERVIEW_STATUS_DOT_SIZE_PX),
-                            height: rem(OVERVIEW_STATUS_DOT_SIZE_PX),
-                            flex_shrink: 0.0,
-                            border_radius: BorderRadius::MAX,
-                        }
-                        BackgroundColor({ status_dot_color(Some(projection), palette) })
-                        StatusDot
+                        @{ status_dot_scene(palette) }
                         --
                         Text({ state }) OverviewLine(OverviewLineKind::State)
                         TextRole(Role::Display)
@@ -662,16 +649,6 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                         row_gap: rem(space::S4),
                     }
                     Children [
-                        Node {
-                            padding: UiRect::all(rem(space::S4)),
-                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                        }
-                        ThemeBackgroundColor({ Token::Accent })
-                        OverviewRoutingIntentChip
-                        Children [
-                            Text({ chip }) OverviewLine(OverviewLineKind::RoutingIntentChip) TextRole(Role::Caption) OnAccentText
-                        ]
-                        --
                         Text({ note }) OverviewLine(OverviewLineKind::BannerNote) TextRole(Role::Caption)
                         --
                         Text({ failure }) OverviewLine(OverviewLineKind::Failure) TextRole(Role::Caption)
@@ -682,6 +659,21 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                 --
                 @{ speedtest_button_scene(palette) }
             ]
+    }
+}
+
+/// The Overview page's geo slot. The Globe section mounts here, so the page
+/// owns where the section sits: the section never outranks the page's own
+/// hero, and the compact viewport keeps the banner in view.
+fn globe_slot_scene() -> impl Scene + use<> {
+    bsn! {
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                flex_direction: FlexDirection::Column,
+            }
+            GlobeSectionSlot
     }
 }
 
@@ -959,10 +951,12 @@ pub struct OverviewPagePlugin;
 impl Plugin for OverviewPagePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TrafficReplay>();
+        app.init_resource::<overview_pulse::OverviewPulseState>();
         overview_reactive::register(app);
-        // The drilldown writes its own texts, and its queries are disjoint
-        // from the overview's scrubber status, so the two systems do not
-        // fight over the same component.
+        // The hero's status dot breathes around its live dot; the drilldown
+        // writes its own texts, and its queries are disjoint from the
+        // overview's scrubber status, so the two systems do not fight over
+        // the same component.
         app.add_systems(
             Update,
             (
@@ -970,6 +964,7 @@ impl Plugin for OverviewPagePlugin {
                 overview_quota_copy::replay,
                 sync_overview_replay,
                 overview_topology_drilldown::sync_topology_drilldown,
+                overview_pulse::animate_status_dot,
             ),
         );
         app.add_observer(apply_overview_projection);

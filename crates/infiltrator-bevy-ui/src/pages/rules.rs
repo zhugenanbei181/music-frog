@@ -65,8 +65,8 @@ use bevy::ecs::system::{Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, GridPlacement, JustifyContent, Node,
+    Overflow, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -75,6 +75,7 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::list::scrollbar::{ListScrollContainer, list_scroll_frame};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -537,6 +538,36 @@ fn provider_item_scene(
 }
 
 fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl Scene + use<> {
+    // The rule list's viewport is the official `ScrollArea`, and the official
+    // scrollbar beside it drives that viewport's own scroll position. The bar
+    // must sit *beside* the viewport, not inside it, so the two are siblings
+    // in the shared list's grid frame.
+    let list_container = Box::new(bsn! {
+            Node {
+                width: percent(100),
+                // DUAL-11-08: the fixed-height list viewport. Only the
+                // shared render window is mounted inside it; the spacers
+                // keep the scrollable range the full list height.
+                height: rem(RULE_DEFAULT_VIEWPORT_PX),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::scroll_y(),
+                grid_row: GridPlacement::start(1),
+                grid_column: GridPlacement::start(1),
+            }
+            ScrollArea
+            RulesListScrollArea
+            ListScrollContainer
+            Children [
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                }
+                RulesWindowRows
+                Children [
+                    { rule_scenes }
+                ]
+            ]
+    }) as Box<dyn Scene>;
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -602,29 +633,7 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 ]
                             ]
             }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                // DUAL-11-08: the fixed-height list viewport. Only the
-                                // shared render window is mounted inside it; the spacers
-                                // keep the scrollable range the full list height.
-                                height: rem(RULE_DEFAULT_VIEWPORT_PX),
-                                flex_direction: FlexDirection::Column,
-                                overflow: Overflow::scroll_y(),
-                            }
-                            ScrollArea
-                            RulesListScrollArea
-                            Children [
-                                Node {
-                                    width: percent(100),
-                                    flex_direction: FlexDirection::Column,
-                                }
-                                RulesWindowRows
-                                Children [
-                                    { rule_scenes }
-                                ]
-                            ]
-            }),
+            list_scroll_frame(list_container),
         ],
         palette,
     )

@@ -10,11 +10,11 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::scene::{CommandsSceneExt, Scene};
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::ValueChange;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::globe::{
-    GlobeData, GlobeDataUpdated, GlobeEmptyState, GlobeModeButton, GlobePagePlugin, GlobePageRoot,
-    GlobeViewState, LastGlobeData, globe_page, globe_unknown_detail,
+    GlobeData, GlobeDataUpdated, GlobeEmptyState, GlobeModeStrip, GlobePagePlugin, GlobePageRoot,
+    GlobeSectionSlot, GlobeViewState, LastGlobeData, globe_page, globe_unknown_detail,
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route};
 use infiltrator_bevy_widgets::globe::{
@@ -23,7 +23,12 @@ use infiltrator_bevy_widgets::globe::{
     project_globe_nodes,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::tabs::SegmentedTab;
 use infiltrator_bevy_widgets::theme::Theme;
+
+/// The Eco tab's index inside the official strip: the strip lists the modes
+/// in the page's mode order.
+const ECO_MODE_INDEX: usize = 2;
 
 fn city_point(lat: f64, lon: f64) -> GeoPoint {
     GeoPoint::new(lat, lon, GeoSource::GeoIpDatabase, GeoPrecision::City).expect("valid city point")
@@ -168,8 +173,10 @@ fn first_plate_opt(app: &mut App) -> Option<GlobePlate> {
     plates.iter(app.world()).next().cloned()
 }
 
-/// The mode toggle restamps the mounted plate in place and persists in the
-/// page-local view state. Eco is the minimal degradation: no link geometry.
+/// The mode switch goes through the OFFICIAL tab strip: the page observes
+/// the official `ValueChange` selection request, restamps the mounted plate
+/// in place and persists the mode in the page-local view state. Eco is the
+/// minimal degradation: no link geometry.
 #[test]
 fn mode_toggle_restamps_the_plate() {
     let palette = UiPalette::new(&Theme::dark());
@@ -184,15 +191,28 @@ fn mode_toggle_restamps_the_plate() {
     mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
     assert_eq!(first_plate(&mut app).0.mode, GlobeMode::Globe);
 
-    let eco = {
-        let mut buttons = app.world_mut().query::<(Entity, &GlobeModeButton)>();
-        buttons
+    let strip = {
+        let mut strips = app.world_mut().query::<(Entity, &GlobeModeStrip)>();
+        strips
             .iter(app.world())
-            .find(|(_, button)| button.0 == GlobeMode::Eco)
-            .expect("eco mode button mounted")
+            .next()
+            .expect("globe mode strip mounted")
             .0
     };
-    app.world_mut().commands().trigger(Activate { entity: eco });
+    let eco = {
+        let mut tabs = app.world_mut().query::<(Entity, &SegmentedTab)>();
+        tabs.iter(app.world())
+            .find(|(_, tab)| tab.0 == ECO_MODE_INDEX)
+            .expect("eco mode tab mounted")
+            .0
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ValueChange::<Option<Entity>> {
+            source: strip,
+            value: Some(eco),
+            is_final: true,
+        });
     app.update();
 
     let plate = first_plate(&mut app);
@@ -281,8 +301,9 @@ fn page_never_fabricates_a_coordinate() {
 }
 
 /// The product shell has no standalone Globe route, so the page is wired as
-/// the Overview route's geo section: it mounts under the Overview page root
-/// and honestly shows the typed not-observed state by default.
+/// the Overview route's geo section: it mounts into the Overview page's geo
+/// slot (the page owns the section's position) and honestly shows the typed
+/// not-observed state by default.
 #[test]
 fn overview_route_mounts_the_globe_section() {
     let mut app = App::new();
@@ -300,6 +321,14 @@ fn overview_route_mounts_the_globe_section() {
             .expect("globe section mounted")
             .0
     };
+    let slot = {
+        let mut slots = app.world_mut().query::<(Entity, &GlobeSectionSlot)>();
+        slots
+            .iter(app.world())
+            .next()
+            .expect("globe slot mounted")
+            .0
+    };
     let overview_root = {
         let mut roots = app.world_mut().query::<(Entity, &PageRoot)>();
         roots
@@ -313,8 +342,16 @@ fn overview_route_mounts_the_globe_section() {
             .get::<ChildOf>(globe_root)
             .expect("globe section parented")
             .0,
+        slot,
+        "the globe section fills the Overview page's geo slot"
+    );
+    assert_eq!(
+        app.world()
+            .get::<ChildOf>(slot)
+            .expect("globe slot parented")
+            .0,
         overview_root,
-        "the globe section is a child of the Overview page root"
+        "the geo slot is a child of the Overview page root"
     );
     assert!(
         first_plate_opt(&mut app).is_none(),

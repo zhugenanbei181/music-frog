@@ -112,7 +112,7 @@ pub fn subscription_quota_scene_with_snapshot(
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S2)),
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
@@ -227,7 +227,7 @@ pub fn active_exit_node_scene_with_snapshot(
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S2)),
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
@@ -483,7 +483,7 @@ pub fn routing_intent_segmented_controller_scene_with_snapshot(
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S2)),
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(radius::XS)),
                             }
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill

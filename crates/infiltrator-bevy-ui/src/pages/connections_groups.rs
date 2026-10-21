@@ -8,16 +8,12 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexWrap, Node, UiRect, percent, px,
-};
+use bevy::ui::prelude::{AlignItems, BorderColor, FlexWrap, Node, UiRect, Val, percent, px};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::radius;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_presentation::connection_grouping::ConnectionGroupRow;
 
@@ -38,12 +34,21 @@ impl Plugin for ConnectionsGroupsPlugin {
             .add_systems(Update, replay_groups);
     }
 }
+/// One grouped row: a flat band inside the table card, so the group rows
+/// never frame themselves inside the card that already frames them.
 fn row_scene(row: &ConnectionGroupRow, palette: &UiPalette) -> impl Scene + use<> {
     let row = row.clone();
-    let bg = palette.surface;
     bsn! {
-        Node {width:percent(100),flex_wrap:FlexWrap::Wrap,align_items:AlignItems::Center,column_gap:rem(space::S12),row_gap:rem(space::S4),padding:UiRect::all(rem(space::S8)),border_radius:BorderRadius::all(rem(radius::XS))}
-        BackgroundColor(bg) SurfacePanel
+        Node {
+            width: percent(100),
+            flex_wrap: FlexWrap::Wrap,
+            align_items: AlignItems::Center,
+            column_gap: rem(space::S12),
+            row_gap: rem(space::S4),
+            padding: UiRect::all(rem(space::S8)),
+            border: UiRect::bottom(Val::Px(palette.hairline_px)),
+        }
+        BorderColor { top: { palette.border }, right: { palette.border }, bottom: { palette.border }, left: { palette.border } }
         ConnectionGroupCard({row.key.clone()})
         Children [
             Node {flex_grow:1.0,min_width:px(0.0)}

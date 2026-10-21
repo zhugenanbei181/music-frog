@@ -1,11 +1,13 @@
 //! Native query input and search presentation consume the shared cached decisions.
 use crate::pages::connections::{
-    CloseConnectionButton, ConnHostText, ConnProcessText, LastConnectionsProjection,
+    CloseConnectionButton, ConnHostText, ConnPortText, ConnProcessTagText, ConnRuleText,
+    LastConnectionsProjection,
 };
 use crate::pages::connections_rows::ConnectionRowText;
 use crate::pages::connections_view::{
     CloseFilteredConnectionsButton, ConnAggregationSummaryContainer, ConnRowsContainer,
-    ConnSearchField, ConnectionRow, ConnectionsViewState, search_field_text,
+    ConnSearchField, ConnectionRow, ConnectionsViewState, search_field_text, split_runs_at_first,
+    split_runs_at_last,
 };
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
@@ -37,12 +39,30 @@ pub struct ConnectionsSearchSummary;
 #[derive(Component, Clone, Copy, Default)]
 #[require(ConnectionSearchNode)]
 pub struct ConnectionsSearchEmpty;
+
+/// Which text slot of a row the search replay fills.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SearchSlot {
+    /// The row's host.
+    Host,
+    /// The row's destination port.
+    Port,
+    /// The row's process tag.
+    Tag,
+    /// The row's matched rule.
+    Rule,
+    /// The row's matched term.
+    Matched,
+}
+
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct SearchCopy {
     runs: &'static mut TextRuns,
     host: Option<&'static ConnHostText>,
-    process: Option<&'static ConnProcessText>,
+    port: Option<&'static ConnPortText>,
+    tag: Option<&'static ConnProcessTagText>,
+    rule: Option<&'static ConnRuleText>,
     matched: Option<&'static ConnectionMatchTerm>,
 }
 pub struct ConnectionsSearchPlugin;
@@ -152,12 +172,16 @@ fn replay_search(surface: SearchSurface) {
         }
     }
     for mut copy in &mut copies {
-        let (index, part) = if let Some(host) = copy.host {
-            (host.0, 0)
-        } else if let Some(process) = copy.process {
-            (process.0, 1)
+        let (index, slot) = if let Some(host) = copy.host {
+            (host.0, SearchSlot::Host)
+        } else if let Some(port) = copy.port {
+            (port.0, SearchSlot::Port)
+        } else if let Some(tag) = copy.tag {
+            (tag.0, SearchSlot::Tag)
+        } else if let Some(rule) = copy.rule {
+            (rule.0, SearchSlot::Rule)
         } else if let Some(matched) = copy.matched {
-            (matched.0, 2)
+            (matched.0, SearchSlot::Matched)
         } else {
             continue;
         };
@@ -168,13 +192,24 @@ fn replay_search(surface: SearchSurface) {
         else {
             continue;
         };
-        let runs = match part {
-            0 => &row.endpoint,
-            1 => &row.process_rule,
-            _ => &row.matched_term,
+        let runs = match slot {
+            // The endpoint is split into its host and its port, so the port
+            // can carry its own ink; the highlight rides the matching half.
+            SearchSlot::Host => split_runs_at_last(&row.endpoint, ":")
+                .map(|(host, _)| host)
+                .unwrap_or_else(|| row.endpoint.clone()),
+            SearchSlot::Port => split_runs_at_last(&row.endpoint, ":")
+                .map(|(_, port)| port)
+                .unwrap_or_default(),
+            SearchSlot::Tag => row.process_name.clone(),
+            // The rule is the second half of "process · rule".
+            SearchSlot::Rule => split_runs_at_first(&row.process_rule, " · ")
+                .map(|(_, rule)| rule)
+                .unwrap_or_default(),
+            SearchSlot::Matched => row.matched_term.clone(),
         };
-        if copy.runs.0 != *runs {
-            copy.runs.0 = runs.clone();
+        if copy.runs.0 != runs {
+            copy.runs.0 = runs;
         }
     }
     for mut action in &mut actions {

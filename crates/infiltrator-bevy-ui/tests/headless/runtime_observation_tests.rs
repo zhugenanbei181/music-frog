@@ -7,17 +7,20 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::feathers::theme::{SurfaceLevel, UiTheme};
+use bevy::math::Vec2;
+use bevy::text::{InlineBox, InlineBoxKind};
 use bevy::ui::InteractionDisabled;
 use bevy::ui::widget::{InlineImage, Text};
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
 use infiltrator_bevy_ui::app::{
-    GlobalStatusDot, PendingRoutingIntentRequest, RoutingIntentStatusCapsule, ShellPlugin,
-    SidebarTunToggle,
+    ContentTitleLabel, GlobalStatusDot, PendingRoutingIntentRequest, RoutingIntentStatusCapsule,
+    ShellPlugin, SidebarTunToggle,
 };
 use infiltrator_bevy_ui::pages::overview::OverviewRoutingIntentPill;
 use infiltrator_bevy_ui::route::{OverviewSourceHandle, PagesPlugin};
+use infiltrator_bevy_ui::shell_readout::STATUS_DOT_BOX_PX;
 use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource,
 };
@@ -323,6 +326,58 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     assert!(app.world().get::<InteractionDisabled>(global).is_none());
     assert!(!app.world().get::<ButtonDisabled>(global).unwrap().0);
     assert_eq!(caption(&app, capsule), "全部流量经代理");
+}
+
+#[test]
+fn the_status_point_is_an_inline_child_of_the_title_text() {
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::default());
+    app.update();
+
+    let world = app.world_mut();
+    let mut dots = world.query_filtered::<Entity, With<GlobalStatusDot>>();
+    let dot = dots
+        .iter(world)
+        .next()
+        .expect("the status point is mounted");
+    let mut titles = world.query_filtered::<Entity, With<ContentTitleLabel>>();
+    let title = titles
+        .iter(world)
+        .next()
+        .expect("the title text is mounted");
+
+    // The point rides the title's baseline: it is a child of the text
+    // block, where the text layout measures it as one of its inline
+    // boxes. A sibling node would be laid out by the flexbox instead and
+    // would drift off the baseline the moment the title wraps.
+    let children = world
+        .get::<Children>(title)
+        .expect("the title owns the flow its content runs in");
+    assert!(
+        children.contains(&dot),
+        "the status point is inside the title text, not beside it"
+    );
+
+    let inline = world
+        .get::<InlineBox>(dot)
+        .expect("the point is an inline box");
+    assert_eq!(
+        inline.kind,
+        InlineBoxKind::InFlow,
+        "the point takes part in the text layout"
+    );
+    assert_eq!(
+        inline.size,
+        Vec2::splat(STATUS_DOT_BOX_PX),
+        "the point's box is measured in the root font size's pixels"
+    );
+
+    let image = world
+        .get::<InlineImage>(dot)
+        .expect("the point draws its plate");
+    assert_eq!(image.width, Some(STATUS_DOT_BOX_PX));
+    assert_eq!(image.height, Some(STATUS_DOT_BOX_PX));
 }
 
 #[test]

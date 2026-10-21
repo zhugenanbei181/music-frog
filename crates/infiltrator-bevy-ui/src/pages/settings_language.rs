@@ -13,7 +13,8 @@ use bevy::scene::{Scene, SceneList, bsn, bsn_list};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, Node, UiRect, percent,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
+    JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -40,6 +41,10 @@ pub struct LanguageChoices;
 pub struct LanguageChoiceCard;
 #[derive(Component, Clone, Copy, Default)]
 pub struct LanguageChoiceStatus;
+/// The status banner's own container: a failure or a pending save is a
+/// banner, never a naked line of text under the chips.
+#[derive(Component, Clone, Copy, Default)]
+pub struct LanguageChoiceBanner;
 #[derive(Component, Clone, Copy, Default)]
 #[require(Button)]
 pub struct RetryLanguageChoice;
@@ -65,9 +70,19 @@ pub fn language_card(palette: &UiPalette) -> impl Scene + use<> {
 }
 /// The language buttons as one scene list: a repeated group, so it is authored
 /// as a [`SceneList`] instead of an inline `Children [...]` enumeration.
+///
+/// Each choice is a compact chip: the language list is a row of short
+/// labels, not a wall of oversized blocks.
 fn language_choice_scenes(palette: &UiPalette) -> impl SceneList + use<> {
     let choices: Vec<Box<dyn Scene>> = LanguagePreference::ALL.into_iter().map(|preference| Box::new(bsn! {
-        Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)), align_items: AlignItems::Center }
+        Node {
+            height: rem(palette.control_height_px * 0.8),
+            padding: UiRect::horizontal(rem(space::S12)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(Val::Px(palette.hairline_px)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+        }
         Button LanguageChoiceButton(preference) ButtonDisabled(true) ThemeBackgroundColor({ Token::SurfaceElevated })
         LocalizedLabel::plain(preference.label_key())
         Children [ LocalizedText::plain(preference.label_key()) TextRole(Role::Body) ]
@@ -79,16 +94,32 @@ pub fn choices_scene(palette: &UiPalette) -> impl Scene + use<> {
         Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         LanguageChoices
         Children [
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, align_items: AlignItems::Center, column_gap: rem(space::S8), row_gap: rem(space::S8) }
             Children [ { language_choice_scenes(palette) } ]
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, align_items: AlignItems::Center, column_gap: rem(space::S8) }
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: rem(space::S12),
+                display: Display::None,
+                padding: UiRect::all(rem(space::S12)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            LanguageChoiceBanner
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
-                Text(String::new()) LanguageChoiceStatus TextRole(Role::Caption)
-                --
-                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
-                Button RetryLanguageChoice ButtonDisabled(true)
-                Children [ LocalizedText::plain("language_retry") TextRole(Role::Body) ]
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
+                Children [
+                    Text(String::new()) LanguageChoiceStatus TextRole(Role::Body)
+                    --
+                    Node { align_items: AlignItems::Center, flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8) }
+                    Children [
+                        Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
+                        Button RetryLanguageChoice ButtonDisabled(true)
+                        Children [ LocalizedText::plain("language_retry") TextRole(Role::Body) ]
+                    ]
+                ]
             ]
         ]
     }
@@ -197,6 +228,7 @@ pub fn sync_language_controls(
         (With<RetryLanguageChoice>, Without<LanguageChoiceButton>),
     >,
     mut status: Query<&mut Text, With<LanguageChoiceStatus>>,
+    mut banners: Query<(&mut Node, &mut BorderColor), With<LanguageChoiceBanner>>,
 ) {
     let model = &state.model;
     let applied = match &model.read {
@@ -262,6 +294,36 @@ pub fn sync_language_controls(
     for mut text in &mut status {
         if text.0 != message {
             text.0 = message.clone();
+        }
+    }
+    // The banner's tone follows the typed phase: a rejection or a failure is
+    // a danger banner, a pending save is a neutral one.
+    let tone = match &model.phase {
+        LanguageChoicePhase::Rejected(_) | LanguageChoicePhase::Failed { .. } => palette.danger,
+        LanguageChoicePhase::Pending(_) | LanguageChoicePhase::AwaitingObservation { .. } => {
+            palette.accent
+        }
+        LanguageChoicePhase::Ready => {
+            if matches!(&model.read, LanguageReadPhase::Failed { .. }) {
+                palette.danger
+            } else if model.persistence == LanguagePersistence::Unavailable {
+                palette.warning
+            } else {
+                palette.ink_dim
+            }
+        }
+    };
+    for (mut node, mut border) in &mut banners {
+        let display = if message.is_empty() {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if node.display != display {
+            node.display = display;
+        }
+        if border.top != tone {
+            border.set_all(tone);
         }
     }
 }

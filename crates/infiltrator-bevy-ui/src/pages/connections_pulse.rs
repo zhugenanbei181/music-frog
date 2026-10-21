@@ -18,14 +18,17 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::time::{Time, Virtual};
-use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Display, Node, UiRect, Val};
+use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Display, Node, UiRect};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_rate;
+
+/// The wash the breathing chip paints under the accent ink.
+const PULSE_WASH_ALPHA: f32 = 0.22;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ConnectionPulseActivity {
@@ -46,6 +49,9 @@ pub struct ConnectionsPulseState {
 
 /// DUAL-13-10: the pulse chip of one connection row. Mounted hidden until the
 /// row's derived instantaneous rate crosses the shared threshold.
+///
+/// The chip is a soft pill: a rounded wash under the accent ink, so a
+/// high-throughput row is announced without a hard block of colour.
 pub fn connection_pulse_scene(
     row: usize,
     conn: &ConnectionSnapshot,
@@ -53,15 +59,15 @@ pub fn connection_pulse_scene(
 ) -> impl Scene + use<> {
     let intensity = connection_rate::pulse_intensity(conn.upload_bps, conn.download_bps, 0.0);
     let visible = intensity > 0.0;
-    let glow = palette.accent.with_alpha(intensity * 0.35);
+    let glow = palette.accent.with_alpha(intensity * PULSE_WASH_ALPHA);
     let ink = palette.accent;
 
     bsn! {
             Node {
                 display: { if visible { Display::Flex } else { Display::None } },
                 align_items: AlignItems::Center,
-                padding: UiRect::axes(rem(space::S4), Val::Px(0.0)),
-                border_radius: BorderRadius::all(rem(radius::XS)),
+                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                border_radius: BorderRadius::MAX,
             }
             BackgroundColor({ glow })
             ConnHighThroughputPulse(row)
@@ -130,7 +136,7 @@ pub(crate) fn animate_connection_pulses(
         if node.display != display {
             node.display = display;
         }
-        let glow = palette.accent.with_alpha(intensity * 0.35);
+        let glow = palette.accent.with_alpha(intensity * PULSE_WASH_ALPHA);
         if fill.0 != glow {
             fill.0 = glow;
         }

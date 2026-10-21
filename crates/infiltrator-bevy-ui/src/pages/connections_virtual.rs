@@ -42,8 +42,8 @@ use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
 /// Above it the recycler owns row mounting.
 pub const CONNECTIONS_VIRTUAL_THRESHOLD: usize = 100;
 
-/// Estimated height of one flat connection row (card padding + content).
-pub const CONNECTION_ROW_HEIGHT_PX: f32 = 112.0;
+/// Estimated height of one flat connection row (band padding + two lines).
+pub const CONNECTION_ROW_HEIGHT_PX: f32 = 80.0;
 
 /// Extra rows mounted above and below the viewport.
 pub const CONNECTIONS_VIRTUAL_OVERSCAN: usize = 3;

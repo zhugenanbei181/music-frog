@@ -23,12 +23,11 @@ use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
-    CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardMoveDownButton,
-    OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardState, OverviewChip, OverviewChipKind,
-    OverviewLine, OverviewLineKind, OverviewProjectionUpdated, OverviewReloadMask,
-    OverviewReloadMaskText, OverviewRoutingIntentChip, OverviewRoutingIntentPill,
-    OverviewStatusCard, StatusDot, format_memory, format_rate, subscription_quota_scene,
-    topology_chain_scene,
+    CHART_HEIGHT_PX, CHART_WIDTH_PX, OverviewCardMoveDownButton, OverviewCardMoveUpButton,
+    OverviewCardSlot, OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine,
+    OverviewLineKind, OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText,
+    OverviewRoutingIntentPill, OverviewStatusCard, StatusDot, format_memory, format_rate,
+    subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
@@ -258,10 +257,6 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
     {
         let mut chips = world.query::<(Entity, &OverviewChip)>();
         ids.extend(chips.iter(world).map(|(id, _)| id));
-    }
-    {
-        let mut chip_inks = world.query::<(Entity, &OverviewRoutingIntentChip)>();
-        ids.extend(chip_inks.iter(world).map(|(id, _)| id));
     }
     {
         let mut stops = world.query::<(Entity, &CoreControlButton)>();

@@ -15,7 +15,6 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
-use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::core_status_projection::failure_copy;
@@ -75,9 +74,6 @@ pub fn refresh(mut copy: OverviewCopy) {
             OverviewLineKind::Upload => format!("↑ {upload}"),
             OverviewLineKind::Download => format!("↓ {download}"),
             OverviewLineKind::TelemetryFailure => rate_status(&projection.readout, &Lang(language)),
-            OverviewLineKind::RoutingIntentChip => {
-                routing_intent_status_copy(&projection.routing_intent, &Lang(language))
-            }
             OverviewLineKind::BannerNote => banner_note(projection, language),
             OverviewLineKind::Failure => {
                 failure_copy(&projection.lifecycle, projection.failure(), &Lang(language))

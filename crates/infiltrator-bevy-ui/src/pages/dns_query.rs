@@ -20,7 +20,7 @@ use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
 use bevy::window::PrimaryWindow;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant, ButtonVariantStyle};
-use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command::RequestId;
@@ -70,6 +70,9 @@ pub enum QueryLine {
     Records,
     Counter,
     RecordType,
+    /// The inspected section's own name: the record listing says which
+    /// section it shows.
+    SectionLabel,
 }
 pub fn activate(
     event: On<Activate>,
@@ -328,6 +331,7 @@ pub fn render(
     mut lines: Query<(&QueryLine, &mut Text, &mut TextColor)>,
 ) {
     let view = project_query(&state.model, &Lang(locale.code()));
+    let section_label = LocalizedText::plain(state.model.section.key()).render(&locale);
     for mut node in &mut roots {
         let display = if state.model.is_open() {
             Display::Flex
@@ -396,6 +400,7 @@ pub fn render(
             QueryLine::Records => &view.records,
             QueryLine::Counter => &view.counter,
             QueryLine::RecordType => &kind,
+            QueryLine::SectionLabel => &section_label,
         };
         if &text.0 != wanted {
             text.0 = wanted.clone();

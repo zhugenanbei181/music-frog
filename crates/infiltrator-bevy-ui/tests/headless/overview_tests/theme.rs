@@ -102,10 +102,6 @@ fn theme_flip_repaints_every_page_surface_in_place() {
         "dot restamped with neutral accent in demo mode"
     );
 
-    let mut chip_inks = world.query::<(Entity, &OverviewRoutingIntentChip, &BackgroundColor)>();
-    let (_, _, chip_fill) = chip_inks.iter(world).next().expect("routing chip mounted");
-    assert_eq!(chip_fill.0, light.accent, "routing chip restamped");
-
     let mut stops = world.query::<(Entity, &CoreControlButton, &BackgroundColor)>();
     let (_, _, stop_fill) = stops.iter(world).next().expect("stop button mounted");
     assert_eq!(
@@ -168,14 +164,6 @@ fn theme_switch_keeps_the_unavailable_state_inks_and_ids() {
         upload_ink.0, light.success,
         "the uplink ink stays the success token"
     );
-
-    let mut accents = world.query::<(&OnAccentText, &TextColor)>();
-    for (_, accent) in accents.iter(world) {
-        assert_eq!(
-            accent.0, light.on_accent,
-            "on-accent copy stays readable on its accent fill"
-        );
-    }
 
     let (_, fill, stored) = card(world);
     assert_eq!(stored, CoreLifecycle::Failed);

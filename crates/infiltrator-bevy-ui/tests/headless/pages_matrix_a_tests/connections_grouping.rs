@@ -9,10 +9,12 @@ use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::connection_rate_application::project_connection;
 use infiltrator_bevy_ui::command::DemoCommandSink;
 use infiltrator_bevy_ui::pages::connections::{
-    ConnAggregationPill, ConnectionsProjection, ConnectionsProjectionUpdated,
+    ConnectionsProjection, ConnectionsProjectionUpdated,
 };
 use infiltrator_bevy_ui::pages::connections_groups::ConnectionGroupCard;
-use infiltrator_bevy_ui::pages::connections_view::{ConnectionRow, ConnectionsViewState};
+use infiltrator_bevy_ui::pages::connections_view::{
+    ConnChoice, ConnStripTab, ConnectionRow, ConnectionsViewState,
+};
 use infiltrator_bevy_ui::route::Route;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
@@ -37,12 +39,13 @@ fn publish(app: &mut App, snapshot: &ConnectionSnapshot) {
         }));
     app.update();
 }
+/// Choose a grouping mode by clicking the OFFICIAL tab strip.
 fn choose(app: &mut App, mode: ConnectionGroupingMode) {
     let entity = app
         .world_mut()
-        .query::<(Entity, &ConnAggregationPill)>()
+        .query::<(Entity, &ConnStripTab)>()
         .iter(app.world())
-        .find(|(_, pill)| pill.0 == mode)
+        .find(|(_, tab)| tab.0 == ConnChoice::ViewFilter(mode))
         .unwrap()
         .0;
     click_entity(app, entity);

@@ -91,8 +91,6 @@ pub enum DnsLineKind {
     Summary,
     /// Fake-IP range display.
     FakeIpRange,
-    /// One of the six switch status words.
-    SwitchStatus(DnsSwitchField),
     /// The semantic tag chip row of one server.
     ServerTags(usize),
     /// The label ink of one enhanced-mode pill.
@@ -310,7 +308,7 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
             DnsPageRoot
             ScrollArea
             Children [
-                @{ query_button(QueryAction::Open, LocalizedText::plain("dns_query_open"), palette) }
+                @{ query_tool_bar_scene(palette) }
                 --
                 @{ header_card_scene(summary, projection, palette) }
                 --
@@ -332,6 +330,36 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
                 --
                 @{ fake_ip_card_scene(&projection.fake_ip_range, palette) }
             ]
+    }
+}
+
+/// The DNS page's query-tool bar.
+///
+/// The query action reads as one named tool instead of an anonymous
+/// full-width strip: the row carries the section's own name and the button
+/// hugs its label, so nothing on the page can be mistaken for a divider.
+fn query_tool_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+        Node {
+            width: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            column_gap: rem(space::S12),
+        }
+        Children [
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: rem(space::S8),
+                flex_shrink: 1.0,
+            }
+            Children [
+                @{ icon_tile_scene(IconId::Globe, 24.0, palette) }
+                --
+                LocalizedText::plain("dns_query_title") TextRole(Role::BodyStrong)
+            ]
+            --
+            @{ query_button(QueryAction::Open, LocalizedText::plain("dns_query_open"), palette) }
+        ]
     }
 }
 
@@ -620,21 +648,6 @@ pub(crate) fn apply_dns_projection(
             DnsLineKind::SelfHealOverall => {
                 text.0 = health.overall.clone();
                 color.0 = observation_color(health.tone, &palette);
-            }
-            DnsLineKind::SwitchStatus(field) => {
-                let enabled = projection.switches.value(field);
-                text.0 = Lang(locale.code())
-                    .tr(if enabled {
-                        "dns_switch_enabled"
-                    } else {
-                        "dns_switch_disabled"
-                    })
-                    .into_owned();
-                color.0 = if enabled {
-                    palette.success
-                } else {
-                    palette.ink_dim
-                };
             }
             DnsLineKind::ServerTags(idx) => {
                 if let Some(server) = projection.servers.get(idx) {

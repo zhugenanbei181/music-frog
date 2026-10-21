@@ -16,8 +16,8 @@ use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::{LineBreak, TextLayout};
 use bevy::ui::prelude::{
-    AlignItems, AlignSelf, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node, Overflow, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -30,7 +30,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestPhase, SpeedtestRounds, SpeedtestTarget,
 };
@@ -95,130 +95,154 @@ pub struct OverviewSpeedtestDetailButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestDetailBodyText;
 
+/// The Overview speedtest group: the one-click action, the concurrency
+/// bound and the measured facts, laid out as two compact rows.
+///
+/// The group lives inside the hero's coloured banner, so the action reads as
+/// a secondary control: a neutral tile with the accent ink, never another
+/// saturated accent button next to the core control. The measured facts stay
+/// on their own row so the banner keeps one clean band instead of a tall
+/// column of placeholders.
 pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
-                width: percent(100),
                 max_width: percent(100),
                 min_width: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: rem(space::S8),
-                align_items: AlignItems::Stretch,
+                row_gap: rem(space::S6),
+                align_items: AlignItems::FlexEnd,
                 flex_shrink: 1.0,
             }
             Children [
                 Node {
-                    align_self: AlignSelf::End,
-                    min_height: rem(palette.control_height_px),
-                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    column_gap: rem(space::S6),
-                    flex_shrink: 0.0,
-                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                    justify_content: JustifyContent::FlexEnd,
+                    column_gap: rem(space::S8),
+                    row_gap: rem(space::S6),
+                    flex_wrap: FlexWrap::Wrap,
                 }
-                ThemeBackgroundColor({ Token::AccentContainer })
-                OverviewSpeedtestButton { phase: SpeedtestButtonPhase::Ready }
-                Button
                 Children [
-                    @{ icon_scene(IconId::Zap, 14.0, palette.accent) }
+                    @{ speedtest_start_scene(palette) }
                     --
-                    LocalizedText::plain("speedtest_start_action") OverviewSpeedtestText TextRole(Role::BodyStrong) ThemeTextColor({ Token::Accent })
+                    @{ speedtest_concurrency_scene() }
+                    --
+                    @{ speedtest_details_scene(palette) }
                 ]
                 --
                 Node {
-                    width: percent(100),
-                    min_width: px(0.0),
                     align_items: AlignItems::Center,
+                    justify_content: JustifyContent::FlexEnd,
+                    column_gap: rem(space::S12),
+                    row_gap: rem(space::S4),
                     flex_wrap: FlexWrap::Wrap,
-                    column_gap: rem(space::S6),
-                    row_gap: rem(space::S6),
                 }
                 Children [
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: rem(space::S6),
-                        flex_shrink: 0.0,
-                    }
-                    Children [
-                    LocalizedText::plain("speedtest_concurrency_label") TextRole(Role::Caption)
-                    --
-                    Node {
-                        min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
-                        min_height: rem(space::S24),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        flex_shrink: 0.0,
-                    }
-                    ThemeBackgroundColor({ Token::Border })
-                    Button
-                    OverviewSpeedtestConcurrencyStep(-5)
-                    Children [
-                        Text({ "-".to_owned() }) TextRole(Role::Body)
-                    ]
-                    --
-                    Text({ "30".to_owned() })
-                    OverviewSpeedtestConcurrencyText
+                    Text({ "—".to_owned() })
+                    OverviewSpeedtestMetricsText
+                    TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
                     TextRole(Role::Caption)
                     --
-                    Node {
-                        min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
-                        min_height: rem(space::S24),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        flex_shrink: 0.0,
-                    }
-                    ThemeBackgroundColor({ Token::Border })
-                    Button
-                    OverviewSpeedtestConcurrencyStep(5)
-                    Children [
-                        Text({ "+".to_owned() }) TextRole(Role::Body)
-                    ]
-                    ]
+                    Text({ "—".to_owned() })
+                    OverviewSpeedtestDeadText
+                    TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
+                    TextRole(Role::Caption)
+                    --
+                    Text({ "—".to_owned() })
+                    OverviewSpeedtestHistoryText
+                    TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
+                    TextRole(Role::Caption)
+                ]
+            ]
+    }
+}
+
+/// The one-click speedtest action: a secondary tile on the hero's banner.
+fn speedtest_start_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+            Node {
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                column_gap: rem(space::S6),
+                flex_shrink: 0.0,
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            ThemeBackgroundColor({ Token::Surface })
+            OverviewSpeedtestButton { phase: SpeedtestButtonPhase::Ready }
+            Button
+            Children [
+                @{ icon_scene(IconId::Zap, 14.0, palette.accent) }
+                --
+                LocalizedText::plain("speedtest_start_action") OverviewSpeedtestText TextRole(Role::BodyStrong) ThemeTextColor({ Token::Accent })
+            ]
+    }
+}
+
+/// The shared concurrency bound: the typed stepper around the live value.
+fn speedtest_concurrency_scene() -> impl Scene + use<> {
+    bsn! {
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: rem(space::S6),
+                flex_shrink: 0.0,
+            }
+            Children [
+                LocalizedText::plain("speedtest_concurrency_label") TextRole(Role::Caption)
+                --
+                Node {
+                    min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
+                    min_height: rem(space::S24),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    flex_shrink: 0.0,
+                    border_radius: BorderRadius::all(rem(radius::XS)),
+                }
+                ThemeBackgroundColor({ Token::Border })
+                Button
+                OverviewSpeedtestConcurrencyStep(-5)
+                Children [
+                    Text({ "-".to_owned() }) TextRole(Role::Body)
                 ]
                 --
-                Text({ "—".to_owned() })
-                OverviewSpeedtestMetricsText
-                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
-                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
-                TextRole(Role::Caption)
-                --
-                Text({ "—".to_owned() })
-                OverviewSpeedtestDeadText
-                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
-                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
-                TextRole(Role::Caption)
-                --
-                Text({ "—".to_owned() })
-                OverviewSpeedtestHistoryText
-                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
-                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
+                Text({ "30".to_owned() })
+                OverviewSpeedtestConcurrencyText
                 TextRole(Role::Caption)
                 --
                 Node {
-                    width: percent(100),
-                    min_width: px(0.0),
+                    min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
+                    min_height: rem(space::S24),
                     align_items: AlignItems::Center,
-                    flex_wrap: FlexWrap::Wrap,
-                    column_gap: rem(space::S6),
-                    row_gap: rem(space::S6),
+                    justify_content: JustifyContent::Center,
+                    flex_shrink: 0.0,
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                 }
+                ThemeBackgroundColor({ Token::Border })
+                Button
+                OverviewSpeedtestConcurrencyStep(5)
                 Children [
-                    Node {
-                        min_height: rem(space::S24),
-                        padding: UiRect::horizontal(rem(space::S8)),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        flex_shrink: 0.0,
-                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                    }
-                    ThemeBackgroundColor({ Token::Border })
-                    Button
-                    OverviewSpeedtestDetailButton
-                    Children [
-                        LocalizedText::plain("common_details") TextRole(Role::Caption)
-                    ]
+                    Text({ "+".to_owned() }) TextRole(Role::Body)
                 ]
+            ]
+    }
+}
+
+/// The typed per-outbound inspection action.
+fn speedtest_details_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+            Node {
+                min_height: rem(space::S24),
+                padding: UiRect::horizontal(rem(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_shrink: 0.0,
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            ThemeBackgroundColor({ Token::Border })
+            Button
+            OverviewSpeedtestDetailButton
+            Children [
+                LocalizedText::plain("common_details") TextRole(Role::Caption)
             ]
     }
 }

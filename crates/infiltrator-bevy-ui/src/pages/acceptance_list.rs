@@ -1,26 +1,36 @@
-//! BANDROID-026.2: 50-row virtual list and three-button/menu acceptance page.
+//! BANDROID-026.2: 50-row scrollable list and three-button/menu acceptance page.
 //!
 //! Validates:
-//! - 50+ item scrollable list with zero allocation recycling
-//! - Three primary navigation buttons (Top / Center / Bottom) driving typed `VirtualListState`
-//! - Action menu popup with selection commands
-//! - Integration with BANDROID-025 shared acceptance scenario ID (`SCN-10-ACCEPTANCE-LIST`)
-//! - Diagnostic tracking via `TouchLayerDiagnosticEntry` and `TouchLayerDiagnosticCategory`
+//! - a 50-row list inside the official `ScrollArea`, revealed through the
+//!   official `ScrollIntoView` event
+//! - three primary navigation buttons (Top / Reveal / Bottom) that ask the
+//!   official mechanism to reveal their row
+//! - action menu popup with selection commands
+//! - integration with BANDROID-025 shared acceptance scenario ID (`SCN-10-ACCEPTANCE-LIST`)
+//! - diagnostic tracking via `TouchLayerDiagnosticEntry` and `TouchLayerDiagnosticCategory`
+//!
+//! **One offset owner**: the official viewport owns the scroll offset. The
+//! page keeps no offset of its own; the typed [`VirtualListState`] mirrors
+//! the viewport so the model and the rendered list can never disagree.
 
 use crate::gesture::TouchLayerDiagnosticEntry;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Commands, Query, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, UiRect, percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, ScrollPosition,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Button, ScrollArea};
-use infiltrator_bevy_widgets::list::{
-    ScrollOffsetOutcome, ScrollToItemOutcome, SelectionOutcome, VirtualListState,
-};
+use bevy::ui_widgets::{Activate, Button, ScrollArea, ScrollAreaPlugin};
+use infiltrator_bevy_widgets::list::scrollbar::scroll_item_into_view;
+use infiltrator_bevy_widgets::list::{ScrollOffsetOutcome, SelectionOutcome, VirtualListState};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -36,6 +46,17 @@ pub const ACCEPTANCE_ROW_COUNT: usize = 50;
 pub const ACCEPTANCE_ROW_HEIGHT_PX: f32 = 44.0;
 /// Viewport height in pixels.
 pub const ACCEPTANCE_VIEWPORT_HEIGHT_PX: f32 = 440.0;
+
+/// The first row of the acceptance dataset. Revealing it brings the list back
+/// to its top, because the official mechanism puts a row that lies above the
+/// viewport at the viewport's top edge.
+pub const ACCEPTANCE_FIRST_ROW: usize = 0;
+/// The row the reveal affordance asks the official mechanism to reveal.
+pub const ACCEPTANCE_REVEAL_ROW: usize = ACCEPTANCE_ROW_COUNT / 2;
+/// The last row of the acceptance dataset. Revealing it brings the list to its
+/// bottom, because the official mechanism puts a row that lies below the
+/// viewport at the viewport's bottom edge.
+pub const ACCEPTANCE_LAST_ROW: usize = ACCEPTANCE_ROW_COUNT - 1;
 
 /// Item data in the acceptance list dataset.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,6 +76,26 @@ pub enum AcceptanceMenuChoice {
     ClearSelection,
 }
 
+/// The acceptance page's own reveal outcome: what the page asked the official
+/// scroll-into-view mechanism to reveal.
+///
+/// The official mechanism REVEALS a row — it scrolls the viewport the minimum
+/// distance that brings the row into view. It never centres a row, so the
+/// page's affordance says "reveal" and never promises a centred row.
+#[must_use]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcceptanceRevealOutcome {
+    /// The requested row is outside the acceptance dataset.
+    IndexOutOfRange { index: usize, item_count: usize },
+    /// The requested row is not mounted, so there is no row entity the
+    /// official mechanism could reveal.
+    RowNotMounted { index: usize },
+    /// The official scroll-into-view event was sent for the mounted row. The
+    /// official observer measures the row against the viewport and decides how
+    /// far the viewport scrolls.
+    RevealRequested { index: usize },
+}
+
 /// State resource for the 50-row acceptance page.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct AcceptanceListState {
@@ -62,8 +103,10 @@ pub struct AcceptanceListState {
     pub list: VirtualListState,
     pub items: Vec<AcceptanceItem>,
     pub menu_open: bool,
+    /// The last typed fact of the model's mirrored scroll offset.
     pub last_scroll_offset_outcome: Option<ScrollOffsetOutcome>,
-    pub last_scroll_item_outcome: Option<ScrollToItemOutcome>,
+    /// The last typed fact of the official scroll-into-view mechanism.
+    pub last_reveal_outcome: Option<AcceptanceRevealOutcome>,
     pub last_selection_outcome: Option<SelectionOutcome>,
     pub last_diagnostic: Option<TouchLayerDiagnosticEntry>,
     pub diagnostic_log: Vec<TouchLayerDiagnosticEntry>,
@@ -90,7 +133,7 @@ impl Default for AcceptanceListState {
             items,
             menu_open: false,
             last_scroll_offset_outcome: None,
-            last_scroll_item_outcome: None,
+            last_reveal_outcome: None,
             last_selection_outcome: None,
             last_diagnostic: None,
             diagnostic_log: Vec::new(),
@@ -99,24 +142,33 @@ impl Default for AcceptanceListState {
 }
 
 impl AcceptanceListState {
-    /// Scroll to top of list (offset 0).
-    pub fn scroll_to_top(&mut self) -> ScrollOffsetOutcome {
-        let outcome = self.list.scroll_to_top();
-        self.last_scroll_offset_outcome = Some(outcome);
-        outcome
-    }
-
-    /// Scroll to center row 25.
-    pub fn scroll_to_center(&mut self) -> ScrollToItemOutcome {
-        let outcome = self.list.scroll_to_index_centered(ACCEPTANCE_ROW_COUNT / 2);
-        self.last_scroll_item_outcome = Some(outcome);
-        outcome
-    }
-
-    /// Scroll to bottom of list.
-    pub fn scroll_to_bottom(&mut self) -> ScrollOffsetOutcome {
-        let outcome = self.list.scroll_to_bottom();
-        self.last_scroll_offset_outcome = Some(outcome);
+    /// Reveal one row through the official scroll-into-view mechanism.
+    ///
+    /// The official observer measures the row against the viewport and moves
+    /// the viewport the minimum distance that brings the row into view. The
+    /// page keeps no scroll offset of its own: the viewport owns it, and
+    /// [`sync_acceptance_scroll_offset`] mirrors it into the typed model.
+    ///
+    /// `row` is the mounted row entity, or `None` when the requested index has
+    /// no mounted row for the official mechanism to reveal.
+    pub fn reveal_row(
+        &mut self,
+        commands: &mut Commands,
+        index: usize,
+        row: Option<Entity>,
+    ) -> AcceptanceRevealOutcome {
+        let outcome = match row {
+            Some(entity) => {
+                scroll_item_into_view(commands, entity);
+                AcceptanceRevealOutcome::RevealRequested { index }
+            }
+            None if index >= self.items.len() => AcceptanceRevealOutcome::IndexOutOfRange {
+                index,
+                item_count: self.items.len(),
+            },
+            None => AcceptanceRevealOutcome::RowNotMounted { index },
+        };
+        self.last_reveal_outcome = Some(outcome);
         outcome
     }
 
@@ -149,19 +201,20 @@ impl AcceptanceListState {
     }
 
     /// Apply an action menu choice.
+    ///
+    /// The menu chooses a row; it never scrolls. Scrolling is the job of the
+    /// official reveal mechanism, so the menu's choices and the page's scroll
+    /// affordances cannot disagree about where the list is.
     pub fn apply_menu_choice(&mut self, choice: AcceptanceMenuChoice) {
         match choice {
             AcceptanceMenuChoice::SelectFirst => {
-                let _ = self.select_item(0);
-                let _ = self.scroll_to_top();
+                let _ = self.select_item(ACCEPTANCE_FIRST_ROW);
             }
             AcceptanceMenuChoice::SelectMiddle => {
-                let _ = self.select_item(ACCEPTANCE_ROW_COUNT / 2);
-                let _ = self.scroll_to_center();
+                let _ = self.select_item(ACCEPTANCE_REVEAL_ROW);
             }
             AcceptanceMenuChoice::SelectLast => {
-                let _ = self.select_item(ACCEPTANCE_ROW_COUNT.saturating_sub(1));
-                let _ = self.scroll_to_bottom();
+                let _ = self.select_item(ACCEPTANCE_LAST_ROW);
             }
             AcceptanceMenuChoice::ClearSelection => {
                 let _ = self.clear_selection();
@@ -188,7 +241,7 @@ pub struct AcceptanceListPageRoot;
 pub struct AcceptanceScrollToTopButton;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
-pub struct AcceptanceScrollToCenterButton;
+pub struct AcceptanceScrollToRevealButton;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct AcceptanceScrollToBottomButton;
@@ -201,12 +254,6 @@ pub struct AcceptanceRowItem(pub usize);
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct AcceptanceRowsContainer;
-
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct AcceptanceTopSpacer;
-
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct AcceptanceBottomSpacer;
 
 /// Build one row scene.
 pub fn acceptance_row_scene(item: &AcceptanceItem) -> impl Scene + use<> {
@@ -236,9 +283,6 @@ pub fn acceptance_list_scene(
     state: &AcceptanceListState,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let window = state.list.window();
-    let top_spacer = px(window.top_spacer_px);
-    let bottom_spacer = px(window.bottom_spacer_px);
     let viewport_str = ACCEPTANCE_VIEWPORT_HEIGHT_PX.to_string();
     let row_str = ACCEPTANCE_ROW_HEIGHT_PX.to_string();
     let title_text = localize(
@@ -252,10 +296,18 @@ pub fn acceptance_list_scene(
         &[("viewport", viewport_str), ("row", row_str)],
     );
     let btn_top_text = localize("zh-CN", "acceptance_btn_top", &[]);
-    let btn_center_text = localize("zh-CN", "acceptance_btn_center", &[]);
+    let btn_reveal_text = localize("zh-CN", "acceptance_btn_reveal", &[]);
     let btn_bottom_text = localize("zh-CN", "acceptance_btn_bottom", &[]);
     let btn_menu_text = localize("zh-CN", "acceptance_btn_menu", &[]);
     let radius = rem(palette.control_radius_px);
+    // The whole dataset is mounted: the official scroll-into-view mechanism
+    // needs a mounted row entity to reveal, and the official scrollbar needs
+    // the real content height to size its thumb.
+    let row_scenes: Vec<Box<dyn Scene>> = state
+        .items
+        .iter()
+        .map(|item| Box::new(acceptance_row_scene(item)) as Box<dyn Scene>)
+        .collect();
 
     bsn! {
         Node {
@@ -285,7 +337,7 @@ pub fn acceptance_list_scene(
                 align_items: AlignItems::Center,
             }
             Children [
-                // Button 1: Scroll to top
+                // Button 1: reveal the first row (the list's top)
                 Node {
                     padding: UiRect::axes(rem(space::S12), rem(space::S8)),
                     border_radius: BorderRadius::all(radius),
@@ -293,15 +345,15 @@ pub fn acceptance_list_scene(
                 AcceptanceScrollToTopButton Button
                 Children [ Text({ btn_top_text }) TextRole(Role::BodyStrong) ]
                 --
-                // Button 2: Scroll to center
+                // Button 2: reveal the middle row
                 Node {
                     padding: UiRect::axes(rem(space::S12), rem(space::S8)),
                     border_radius: BorderRadius::all(radius),
                 }
-                AcceptanceScrollToCenterButton Button
-                Children [ Text({ btn_center_text }) TextRole(Role::BodyStrong) ]
+                AcceptanceScrollToRevealButton Button
+                Children [ Text({ btn_reveal_text }) TextRole(Role::BodyStrong) ]
                 --
-                // Button 3: Scroll to bottom
+                // Button 3: reveal the last row (the list's bottom)
                 Node {
                     padding: UiRect::axes(rem(space::S12), rem(space::S8)),
                     border_radius: BorderRadius::all(radius),
@@ -318,7 +370,7 @@ pub fn acceptance_list_scene(
                 Children [ Text({ btn_menu_text }) TextRole(Role::BodyStrong) ]
             ]
             --
-            // Scroll area with virtual list window
+            // The official scroll area over the mounted rows
             Node {
                 width: percent(100),
                 height: px(ACCEPTANCE_VIEWPORT_HEIGHT_PX),
@@ -328,19 +380,65 @@ pub fn acceptance_list_scene(
             ScrollArea
             AcceptanceRowsContainer
             Children [
-                Node {
-                    width: percent(100),
-                    height: top_spacer,
-                }
-                AcceptanceTopSpacer
-                --
-                Node {
-                    width: percent(100),
-                    height: bottom_spacer,
-                }
-                AcceptanceBottomSpacer
+                { row_scenes }
             ]
         ]
+    }
+}
+
+/// The acceptance page's scroll affordances: each one asks the official
+/// scroll-into-view mechanism to reveal its row.
+///
+/// The official mechanism decides how far the viewport scrolls — it reveals
+/// the row, it never centres it.
+pub fn on_acceptance_scroll_activated(
+    activate: On<Activate>,
+    top: Query<(), With<AcceptanceScrollToTopButton>>,
+    reveal: Query<(), With<AcceptanceScrollToRevealButton>>,
+    bottom: Query<(), With<AcceptanceScrollToBottomButton>>,
+    rows: Query<(Entity, &AcceptanceRowItem), With<AcceptanceRowItem>>,
+    mut state: ResMut<AcceptanceListState>,
+    mut commands: Commands,
+) {
+    let index = if top.contains(activate.entity) {
+        ACCEPTANCE_FIRST_ROW
+    } else if reveal.contains(activate.entity) {
+        ACCEPTANCE_REVEAL_ROW
+    } else if bottom.contains(activate.entity) {
+        ACCEPTANCE_LAST_ROW
+    } else {
+        return;
+    };
+    let row = rows
+        .iter()
+        .find(|(_, item)| item.0 == index)
+        .map(|(entity, _)| entity);
+    // The typed fact of the request is recorded in the page's state.
+    let _outcome = state.reveal_row(&mut commands, index, row);
+}
+
+/// Mirror the official viewport's scroll offset into the typed
+/// [`VirtualListState`], so the acceptance model and the rendered list can
+/// never disagree about where the list is.
+///
+/// The viewport owns the offset; this is the model's read-back of it, never a
+/// second offset of the page's own.
+pub fn sync_acceptance_scroll_offset(
+    viewports: Query<&ScrollPosition, With<AcceptanceRowsContainer>>,
+    state: Option<ResMut<AcceptanceListState>>,
+) {
+    let Some(mut state) = state else {
+        return;
+    };
+    let Some(position) = viewports.iter().next() else {
+        return;
+    };
+    let outcome = state.list.set_scroll_offset(position.0.y.max(0.0));
+    if matches!(
+        outcome,
+        ScrollOffsetOutcome::Changed { .. } | ScrollOffsetOutcome::Clamped { .. }
+    ) {
+        state.last_scroll_offset_outcome = Some(outcome);
     }
 }
 
@@ -349,5 +447,13 @@ pub struct AcceptanceListPlugin;
 impl Plugin for AcceptanceListPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AcceptanceListState>();
+        // The official scroll-into-view observer is the mechanism the page's
+        // reveal affordance uses, so the page owns it when it is mounted
+        // without the shared widget layer.
+        if !app.is_plugin_added::<ScrollAreaPlugin>() {
+            app.add_plugins(ScrollAreaPlugin);
+        }
+        app.add_observer(on_acceptance_scroll_activated);
+        app.add_systems(Update, sync_acceptance_scroll_offset);
     }
 }

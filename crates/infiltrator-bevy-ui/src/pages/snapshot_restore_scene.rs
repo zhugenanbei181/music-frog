@@ -51,6 +51,16 @@ pub enum RestoreLine {
 }
 #[derive(Component, Clone, Default)]
 pub struct ReviewControl;
+/// The diff comparator's root: the review shows the two documents side by
+/// side instead of one undifferentiated text blob.
+#[derive(Component, Clone, Copy, Default)]
+pub struct RestoreDiffRoot;
+/// One row of the comparator (the left and the right document line).
+#[derive(Component, Clone, Copy, Default)]
+pub struct RestoreDiffRow;
+/// The comparator's change summary (the `+`/`-`/`~` counters).
+#[derive(Component, Clone, Copy, Default)]
+pub struct RestoreDiffSummary;
 fn control(key: &'static str, action: RestoreControl, palette: &UiPalette) -> impl Scene + use<> {
     bsn! { @{localized_button_scene(LocalizedText::plain(key), ButtonVariant::Secondary, palette)} action ReviewControl }
 }
@@ -106,8 +116,28 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
                 Children [ Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
                     Children [ Text(String::new()) status TextRole(Role::Body)
                         -- Text(String::new()) details TextRole(Role::Mono)
-                        -- Text(String::new()) content TextRole(Role::Mono) ] ]
-                -- Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }
+                        --
+                        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), display: Display::None }
+                        RestoreDiffRoot
+                        Children [
+                            Node { width: percent(100), flex_direction: FlexDirection::Row, column_gap: rem(space::S12) }
+                            Children [
+                                Text(String::new()) RestoreDiffSummary TextRole(Role::Caption)
+                            ]
+                            --
+                            Node { width: percent(100), flex_direction: FlexDirection::Row, column_gap: rem(space::S12) }
+                            Children [
+                                Node { flex_grow: 1.0, min_width: px(0.0) }
+                                Children [ LocalizedText::plain("snapshot_restore_before") TextRole(Role::Caption) ]
+                                --
+                                Node { flex_grow: 1.0, min_width: px(0.0) }
+                                Children [ LocalizedText::plain("snapshot_restore_after") TextRole(Role::Caption) ]
+                            ]
+                        ]
+                        --
+                        Text(String::new()) content TextRole(Role::Mono) ] ]
+                --
+                Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), justify_content: JustifyContent::FlexEnd, flex_shrink: 0.0 }
                 Children [ @{dismiss_control("snapshot_restore_cancel", RestoreControl::Cancel, &palette)}
                     -- @{control("snapshot_restore_confirm", RestoreControl::Confirm, &palette)}
                     -- @{control("snapshot_restore_retry", RestoreControl::Retry, &palette)} ]

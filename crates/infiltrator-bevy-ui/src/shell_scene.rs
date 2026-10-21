@@ -11,10 +11,10 @@ use crate::app::shell_bidi::{ShellDirectionRoot, ShellDirectionRow};
 use crate::app::shell_focus::ShellFocusable;
 use crate::app::{
     BOTTOM_NAV_CONTENT_HEIGHT, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn,
-    ContentSlot, ContentTitleLabel, DensityToggle, GlobalStatusDot, HistoryBackButton,
-    HistoryForwardButton, IDENTITY_TILE_PX, NavSpacer, RailNavTooltip, RoutingIntentStatusCapsule,
-    SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot, SidebarActiveProfileCard, SidebarExpandedOnly,
-    SidebarFoot, SidebarFooterRow, SidebarIdentityText, SidebarNavItem, SidebarPanel,
+    ContentSlot, ContentTitleLabel, DensityToggle, HistoryBackButton, HistoryForwardButton,
+    IDENTITY_TILE_PX, NavSpacer, RailNavTooltip, RoutingIntentStatusCapsule, SIDEBAR_WIDTH_PX,
+    ShellHeader, ShellRoot, SidebarActiveProfileCard, SidebarExpandedOnly, SidebarFoot,
+    SidebarFooterRow, SidebarIdentityText, SidebarNavItem, SidebarPanel,
     SidebarRoutingIntentSegment, SidebarShortcutMatrix, SidebarShortcutTile, SidebarSpeedFooter,
     SidebarSystemProxyCard, SidebarSystemProxyToggle, SidebarTunCard, SidebarTunToggle,
     ThemeToggle,
@@ -25,11 +25,13 @@ use crate::pages::connections_confirm::confirmation_scene;
 use crate::pages::overview::OverviewRoutingIntentPill;
 use crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene;
 use crate::route::{Route, page_id_for_route};
-use crate::shell_readout::{ShellQuotaFill, ShellQuotaTrack, ShellReadoutText};
+use crate::shell_readout::{
+    ShellQuotaFill, ShellQuotaTrack, ShellReadoutText, StatusDotSlot, status_point_image,
+    status_point_slot_scene,
+};
 use crate::shell_routing_intent_issue;
 use crate::shell_waveform::ShellWaveform;
 use bevy::color::Color;
-use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
@@ -41,7 +43,6 @@ use bevy::ui::prelude::{
     AlignItems, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node,
     Overflow, PositionType, UiRect, Val, percent, px,
 };
-use bevy::ui::widget::InlineImage;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
@@ -235,16 +236,14 @@ fn bottom_nav_item_scene(
     })
 }
 
-/// Marker on the shell title text carrying the inline status dot's image
-/// handle. [`stamp_status_dot`] turns it into an `InlineImage` child so the
-/// dot flows and wraps with the heading (capability norm ⑤) — the same
-/// observer-stamps-components idiom as `style_text_roles`.
-#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
-pub struct StatusDotInline;
-
-/// Stamp the inline status dot onto the title text block.
+/// Mount the inline status point into its seat inside the title text.
+///
+/// The point is a *child* of the text: an inline image is an inline box, so
+/// the text layout measures it, wraps with it and keeps it on the baseline.
+/// Stamping the component on the text root instead would leave the dot
+/// outside the paragraph, where it neither flows nor renders.
 pub fn stamp_status_dot(
-    trigger: On<Add<StatusDotInline>>,
+    trigger: On<Add<StatusDotSlot>>,
     palette: Res<UiPalette>,
     dot_image: Option<Res<StatusDotImage>>,
     mut commands: Commands,
@@ -253,17 +252,9 @@ pub fn stamp_status_dot(
         return;
     };
     let handle = dot_image.0.clone();
-    commands.entity(trigger.event().entity).insert((
-        InlineImage {
-            color: palette.ink_dim,
-            image: handle,
-            width: Some(9.0),
-            height: Some(9.0),
-            ..Default::default()
-        },
-        GlobalStatusDot,
-        semantic_node(ShellA11yNode::GlobalStatusDot),
-    ));
+    commands
+        .entity(trigger.event().entity)
+        .insert(status_point_image(handle, palette.ink_dim));
 }
 
 /// The title row with page heading, history navigation, and status indicators.
@@ -293,7 +284,9 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                 ShellFocusable
                 --
                 LocalizedText::plain("nav_overview") TextRole(Role::Heading) ContentTitleLabel
-                StatusDotInline
+                Children [
+                    @{ status_point_slot_scene() }
+                ]
                 --
                 Node { flex_grow: 1.0 }
                 --

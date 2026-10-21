@@ -47,6 +47,8 @@ use infiltrator_shared::locales::Localizer;
 
 #[path = "doctor_self_heal.rs"]
 pub mod self_heal;
+#[path = "doctor_spinner.rs"]
+pub mod spinner;
 
 /// Root marker on the Doctor page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -361,7 +363,18 @@ fn header_card_scene(
                             ]
                         ]
             }),
-            Box::new(bsn! { Text::default() DoctorFeedbackText TextRole(Role::Caption) }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    align_items: AlignItems::Center,
+                    column_gap: rem(space::S8),
+                }
+                Children [
+                    @{ spinner::spinner_scene(palette) }
+                    --
+                    Text::default() DoctorFeedbackText TextRole(Role::Caption)
+                ]
+            }),
         ],
         palette,
     )
@@ -415,6 +428,7 @@ impl Plugin for DoctorPagePlugin {
         app.add_observer(refresh_rows);
         app.add_observer(self_heal::on_apply_best_node);
         app.add_systems(Update, self_heal::refresh_self_heal);
+        app.add_systems(Update, spinner::spin);
     }
 }
 

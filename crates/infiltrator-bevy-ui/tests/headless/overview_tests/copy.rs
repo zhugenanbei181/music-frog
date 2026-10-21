@@ -39,10 +39,6 @@ fn locale_replays_nested_labels_values_and_accessibility_without_submitting() {
         "Demo Mode"
     );
     assert_eq!(
-        line(app.world_mut(), OverviewLineKind::RoutingIntentChip).1,
-        "Follow rules"
-    );
-    assert_eq!(
         line(app.world_mut(), OverviewLineKind::BannerNote).1,
         "Demo data · No live core"
     );
@@ -53,10 +49,6 @@ fn locale_replays_nested_labels_values_and_accessibility_without_submitting() {
         (label.0, "内存".into())
     );
     assert_eq!(line(app.world_mut(), OverviewLineKind::State).1, "演示模式");
-    assert_eq!(
-        line(app.world_mut(), OverviewLineKind::RoutingIntentChip).1,
-        "遵循分流规则"
-    );
     assert_eq!(overview_entity_ids(app.world_mut()), ids);
     let memory = app
         .world_mut()

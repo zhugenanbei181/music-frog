@@ -12,12 +12,11 @@ use crate::history::{
     ReplayState, TrafficHistory, TrafficReplay, chart_inputs, replay_chart_inputs, replay_state,
 };
 use crate::pages::overview::{
-    AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OnAccentText,
-    OverviewCardState, OverviewChipKind, OverviewLineKind, OverviewProjectionUpdated,
-    OverviewRoutingIntentChip, OverviewScrubberStatus, OverviewTrafficChart, StatusDot,
-    SurfaceElevatedFill, SurfaceFill, banner_note, banner_state_text, card_fill, chart_dims,
-    chip_label, format_cpu, format_memory, format_scale, format_total_traffic, state_ink,
-    status_dot_color,
+    AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OverviewCardState,
+    OverviewChipKind, OverviewLineKind, OverviewProjectionUpdated, OverviewScrubberStatus,
+    OverviewTrafficChart, StatusDot, SurfaceElevatedFill, SurfaceFill, banner_note,
+    banner_state_text, card_fill, chart_dims, chip_label, format_cpu, format_memory, format_scale,
+    format_total_traffic, state_ink, status_dot_color,
 };
 use crate::pages::overview_cards::quota_status_color;
 use crate::pages::overview_public_ip::{PublicIpTextKind, public_ip_text_value};
@@ -31,7 +30,6 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::system::SystemParam;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::text::TextColor;
 use bevy::ui::prelude::{BackgroundColor, Display, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
@@ -44,7 +42,6 @@ use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
-use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_presentation::subscription_quota_projection::{QuotaPresentation, project_quota};
 use infiltrator_presentation::system_toggle_projection;
@@ -327,9 +324,6 @@ pub(crate) fn apply_overview_projection(
             OverviewLineKind::Failure => {
                 text.0 = failure_copy(&projection.lifecycle, projection.failure(), &Lang(language))
             }
-            OverviewLineKind::RoutingIntentChip => {
-                text.0 = routing_intent_status_copy(&projection.routing_intent, &Lang(language))
-            }
             OverviewLineKind::BannerNote => text.0 = banner_note(projection, language),
             OverviewLineKind::Scale => text.0 = format_scale(&projection.traffic_scale),
         }
@@ -550,15 +544,14 @@ fn scrubber_status_copy(state: ReplayState, locale: &UiLocale) -> String {
 
 /// The page's token reskin: every filled node re-derives its fill from
 /// the live palette and its stored state, compare-and-set, every frame —
-/// a `ThemeSwitch` repaints the banner, dot, mode chip and stop button
-/// with no switch hook and no remount.
+/// a `ThemeSwitch` repaints the banner, dot and stop button with no switch
+/// hook and no remount.
 #[derive(QueryData)]
 #[query_data(mutable)]
 pub struct OverviewFill {
     fill: &'static mut BackgroundColor,
     card: Option<&'static OverviewCardState>,
     dot: Has<StatusDot>,
-    chip: Has<OverviewRoutingIntentChip>,
     elevated: Has<SurfaceElevatedFill>,
     accent_container: Has<AccentContainerFill>,
     surface: Has<SurfaceFill>,
@@ -569,7 +562,6 @@ pub(crate) fn reskin_overview_tokens(
     palette: Res<UiPalette>,
     last: Res<LastOverviewProjection>,
     mut fills: Query<OverviewFill>,
-    mut inks: Query<(&mut TextColor, Has<OnAccentText>)>,
 ) {
     for mut row in &mut fills {
         let want = if let Some(state) = row.card {
@@ -581,7 +573,7 @@ pub(crate) fn reskin_overview_tokens(
                 })
         } else if row.dot {
             status_dot_color(last.0.as_ref(), &palette)
-        } else if row.chip || row.accent {
+        } else if row.accent {
             palette.accent
         } else if row.elevated {
             palette.surface_elevated
@@ -596,11 +588,6 @@ pub(crate) fn reskin_overview_tokens(
         };
         if row.fill.0 != want {
             row.fill.0 = want;
-        }
-    }
-    for (mut ink, on_accent) in &mut inks {
-        if on_accent && ink.0 != palette.on_accent {
-            ink.0 = palette.on_accent;
         }
     }
 }

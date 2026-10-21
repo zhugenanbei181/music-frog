@@ -11,13 +11,13 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, Or, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::scene::{Scene, bsn, on};
 use bevy::ui::GlobalZIndex;
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType,
-    UiRect, percent, px,
+    AlignItems, BorderColor, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow,
+    PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{
@@ -104,14 +104,40 @@ impl ProbeSettingsFieldProjection {
     }
 }
 
+/// The probe-settings launcher: a framed trigger and, beside it, the summary
+/// of the settings the host actually applies.
+///
+/// The trigger and the summary are two elements, so the applied settings never
+/// read as part of the trigger's own label.
 pub fn launcher(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(space::S12), rem(space::S8)), align_items: AlignItems::Center, column_gap: rem(space::S8) }
-        Button OpenProbeSettings LocalizedLabel::plain("proxy_probe_settings_title")
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: rem(space::S8),
+            flex_shrink: 0.0,
+        }
         Children [
-            LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Caption)
+            Node {
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::axes(rem(space::S12), rem(space::S8)),
+                align_items: AlignItems::Center,
+                column_gap: rem(space::S8),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            ThemeBackgroundColor({ Token::SurfaceElevated })
+            BorderColor {
+                top: { palette.border },
+                right: { palette.border },
+                bottom: { palette.border },
+                left: { palette.border },
+            }
+            Button OpenProbeSettings LocalizedLabel::plain("proxy_probe_settings_title")
+            Children [
+                LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Caption)
+            ]
             --
-            Text(String::new()) ProbeAppliedSummary TextRole(Role::Caption)
+            Text(String::new()) ProbeAppliedSummary TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
         ]
     }
 }

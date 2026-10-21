@@ -12,10 +12,14 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, FlexDirection, Node, percent, px};
+use bevy::ui::prelude::{
+    AlignItems, BorderColor, BorderRadius, Display, FlexDirection, Node, UiRect, Val, percent, px,
+};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -77,25 +81,59 @@ impl ProxySearchState {
     }
 }
 
+/// The query field: the search text input and the search's own status line.
 pub fn search_input_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { flex_grow: 1.0, min_width: rem(PROXY_SEARCH_MIN_WIDTH_PX), flex_direction: FlexDirection::Column }
+        Node { flex_grow: 1.0, min_width: rem(PROXY_SEARCH_MIN_WIDTH_PX), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [
             Node { width: percent(100), align_items: AlignItems::Center, column_gap: rem(space::S8) }
             Children [
                 Node { flex_grow: 1.0, min_width: px(0.0) } ProxySearchInput
                 Children [ @{ text_field_with_placeholder_scene(query.into(), String::new(), palette) } ]
-                --
-                Node { min_height: rem(palette.control_height_px), align_items: AlignItems::Center }
-                Button ClearProxySearch
-                Children [ LocalizedText::plain("proxies_search_clear") TextRole(Role::Caption) ]
-                --
-                Node { min_height: rem(palette.control_height_px), align_items: AlignItems::Center }
-                Button RetryProxySearch
-                Children [ LocalizedText::plain("proxies_search_retry") TextRole(Role::Caption) ]
             ]
             --
             Text(String::new()) ProxySearchStatus TextRole(Role::Caption)
+        ]
+    }
+}
+
+/// The query field's own actions.
+///
+/// The group carries its own frame, so the actions read as a group instead of
+/// crowding the field; the retry only appears when a search was refused.
+pub fn search_actions_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: rem(space::S4),
+            padding: UiRect::all(rem(space::S4)),
+            border: UiRect::all(Val::Px(palette.hairline_px)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            flex_shrink: 0.0,
+        }
+        ThemeBackgroundColor({ Token::SurfaceElevated })
+        BorderColor {
+            top: { palette.border },
+            right: { palette.border },
+            bottom: { palette.border },
+            left: { palette.border },
+        }
+        Children [
+            Node {
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S8)),
+                align_items: AlignItems::Center,
+            }
+            Button ClearProxySearch
+            Children [ LocalizedText::plain("proxies_search_clear") TextRole(Role::Caption) ]
+            --
+            Node {
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S8)),
+                align_items: AlignItems::Center,
+            }
+            Button RetryProxySearch
+            Children [ LocalizedText::plain("proxies_search_retry") TextRole(Role::Caption) ]
         ]
     }
 }
@@ -218,6 +256,7 @@ pub fn sync_search_status(
     last: Option<Res<LastProxiesProjection>>,
     locale: Res<UiLocale>,
     mut labels: Query<&mut Text, With<ProxySearchStatus>>,
+    mut retries: Query<&mut Node, With<RetryProxySearch>>,
 ) {
     let empty_result = last
         .as_ref()
@@ -245,6 +284,18 @@ pub fn sync_search_status(
     };
     for mut text in &mut labels {
         text.0 = copy.render(&locale);
+    }
+    // The retry only exists while a search was refused: a search that never
+    // failed has nothing to retry.
+    let display = if matches!(state.phase, ProxySearchPhase::Failed { .. }) {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for mut node in &mut retries {
+        if node.display != display {
+            node.display = display;
+        }
     }
 }
 
