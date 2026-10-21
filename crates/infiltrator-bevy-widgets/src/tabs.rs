@@ -6,8 +6,10 @@
 //! official widgets (capability norm ③); this module adds only the sliding
 //! capsule geometry ([`capsule_metrics`], [`capsule_px_bounds`]) and the
 //! token-styled scene adapters ([`segmented_control_scene`],
-//! [`segmented_control_with_labels_scene`], [`tabs_scene`]). The tabs are
-//! direct children of the list, as the official selection semantics require.
+//! [`segmented_control_with_labels_scene`],
+//! [`segmented_control_with_marked_labels_scene`], [`tabs_scene`]). The tabs
+//! are direct children of the list, as the official selection semantics
+//! require.
 
 use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
@@ -126,6 +128,39 @@ pub fn segmented_control_with_labels_scene(
     selected_index: usize,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let children: Vec<Vec<Box<dyn Scene>>> = tabs.into_iter().map(|label| vec![label]).collect();
+    segmented_control_scene_with_tab_children(children, selected_index, palette)
+}
+
+/// A segmented control whose tabs carry the caller's own marker.
+///
+/// Each tab is a pair of the tab's label and the marker the caller owns.
+/// The marker becomes a child of the tab, so a page can mark a tab with its
+/// own component (the sort order a position means, a badge, a dot) without
+/// the widget layer knowing what that marker means: the widget layer keeps
+/// the selection, the keyboard navigation and the accessibility roles, and
+/// the page keeps the meaning of its own marker.
+pub fn segmented_control_with_marked_labels_scene(
+    tabs: Vec<(Box<dyn Scene>, Box<dyn Scene>)>,
+    selected_index: usize,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let children: Vec<Vec<Box<dyn Scene>>> = tabs
+        .into_iter()
+        .map(|(label, marker)| vec![label, marker])
+        .collect();
+    segmented_control_scene_with_tab_children(children, selected_index, palette)
+}
+
+/// The shared strip: the official headless tab list over the caller's tab
+/// children. One implementation serves the plain, the marked and the
+/// localized entries, so the capsule geometry and the tab chrome never
+/// drift apart.
+fn segmented_control_scene_with_tab_children(
+    tabs: Vec<Vec<Box<dyn Scene>>>,
+    selected_index: usize,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let count = tabs.len();
     let (left_pct, width_pct) = capsule_metrics(selected_index, count);
     let edge = palette.border;
@@ -133,7 +168,7 @@ pub fn segmented_control_with_labels_scene(
     let tab_scenes: Vec<Box<dyn Scene>> = tabs
         .into_iter()
         .enumerate()
-        .map(|(idx, label)| {
+        .map(|(idx, children)| {
             Box::new(bsn! {
                 Node {
                     flex_grow: 1.0,
@@ -146,7 +181,7 @@ pub fn segmented_control_with_labels_scene(
                 Tab
                 SegmentedTab(idx)
                 Children [
-                    @{ label }
+                    { children }
                 ]
             }) as Box<dyn Scene>
         })

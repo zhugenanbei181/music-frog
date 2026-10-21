@@ -1,41 +1,21 @@
-//! Full keyboard focus navigation, focus ring styling and directional spatial navigation.
+//! Focus ring styling and the focus-trap / grid navigation helpers.
+//!
+//! The focus *itself* is not owned here: the official
+//! `bevy_input_focus::InputFocus` is the single focus truth, and the official
+//! directional and tab navigation own the movement. This module owns the
+//! product visuals (the focus ring scene and its style) and the two focus
+//! helpers that have no official counterpart yet (the grid navigator and the
+//! modal focus trap).
 
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::event::Event;
-use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, ResMut};
-use bevy::math::Vec2;
-
-/// Navigation direction for spatial focus movement.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FocusDirection {
-    Next,
-    Previous,
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-/// Marker component for focusable UI entities.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Focusable {
-    pub tab_index: i32,
-    pub is_enabled: bool,
-}
-
-impl Focusable {
-    pub fn new(tab_index: i32) -> Self {
-        Self {
-            tab_index,
-            is_enabled: true,
-        }
-    }
-}
 
 /// Marker component for the currently focused entity.
+///
+/// The shell stamps it on the officially focused control; it is a marker, not
+/// a second focus truth — the official `InputFocus` says which control holds
+/// the focus.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Focused;
 
@@ -46,87 +26,6 @@ pub struct Focused;
 pub struct FocusRingStyle {
     pub width_px: f32,
     pub offset_px: f32,
-}
-
-/// Global focus manager tracking the active focus target and tab order chain.
-#[derive(Resource, Clone, Debug, Default)]
-pub struct FocusManager {
-    pub focused_entity: Option<Entity>,
-    pub focus_trap_root: Option<Entity>,
-}
-
-impl FocusManager {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set_focus(&mut self, entity: Option<Entity>) {
-        self.focused_entity = entity;
-    }
-
-    pub fn clear_focus(&mut self) {
-        self.focused_entity = None;
-    }
-
-    pub fn trap_focus(&mut self, root: Entity) {
-        self.focus_trap_root = Some(root);
-    }
-
-    pub fn release_trap(&mut self) {
-        self.focus_trap_root = None;
-    }
-}
-
-/// Event requesting focus transfer.
-#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FocusMoveEvent(pub FocusDirection);
-
-/// Pure calculation of the nearest neighbor in a given direction for spatial navigation.
-pub fn find_spatial_neighbor(
-    current_pos: Vec2,
-    direction: FocusDirection,
-    candidates: &[(Entity, Vec2)],
-) -> Option<Entity> {
-    let mut best_candidate = None;
-    let mut min_score = f32::MAX;
-
-    for &(entity, pos) in candidates {
-        let delta = pos - current_pos;
-        let is_in_direction = match direction {
-            FocusDirection::Up => delta.y < -1.0,
-            FocusDirection::Down => delta.y > 1.0,
-            FocusDirection::Left => delta.x < -1.0,
-            FocusDirection::Right => delta.x > 1.0,
-            _ => false,
-        };
-
-        if !is_in_direction {
-            continue;
-        }
-
-        // Distance metric weighted towards primary direction axis
-        let (primary, secondary) = match direction {
-            FocusDirection::Up | FocusDirection::Down => (delta.y.abs(), delta.x.abs()),
-            FocusDirection::Left | FocusDirection::Right => (delta.x.abs(), delta.y.abs()),
-            _ => (delta.length(), 0.0),
-        };
-
-        let score = primary + secondary * 2.0;
-        if score < min_score {
-            min_score = score;
-            best_candidate = Some(entity);
-        }
-    }
-
-    best_candidate
-}
-
-/// Sync visual focus rings on focused entities.
-pub fn sync_focus_rings(
-    focused_query: Query<Entity, With<Focused>>,
-    mut manager: ResMut<FocusManager>,
-) {
-    manager.focused_entity = focused_query.iter().next();
 }
 
 use crate::palette::UiPalette;

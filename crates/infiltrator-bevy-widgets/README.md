@@ -11,6 +11,8 @@ RenderPlugin 已注册的 Shader 存储不得重复初始化，避免使在途�
 
 不依赖 Mihomo、application 或具体页面。静态结构使用 `bsn!`，运行态由受限 ECS 系统原位更新；shader、handle 和实体生命周期遵循 [Bevy UI 章程](../infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md)。
 
+控件填色分两层：共享皮肤在 `Update` 阶段绘制控件的悬停/按压水洗，**页面自己拥有的卡片表面必须在 `Last` 阶段落色**，否则共享皮肤会盖掉卡片自己的读面色；由卡片填色派生的覆盖层（渐隐、遮罩）必须与该填色同批落色，否则覆盖层读到的是上一帧的旧色。半透明填色（`surface_elevated`）在覆盖自身之前必须先解析为不透明色（`UiPalette::card_fill` / `UiPalette::over_surface`）：直接用半透明色再叠一次会二次合成，在卡片上显出一条亮带。
+
 图标与字体从共享视觉资源目录嵌入；稳定 ID、SVG/PNG/ICO/字体格式变体和许可证来源由同级 crate [infiltrator-shared](../infiltrator-shared/README.md) 的资源 catalog 统一维护。
 
 通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。

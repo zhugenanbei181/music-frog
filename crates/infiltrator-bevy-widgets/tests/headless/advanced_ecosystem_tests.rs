@@ -1,5 +1,4 @@
 use bevy::color::Color;
-use bevy::ecs::entity::Entity;
 use bevy::math::Vec2;
 use bevy::ui::{BorderColor, Val};
 use infiltrator_bevy_widgets::cadence::FramePacingMode;
@@ -8,7 +7,6 @@ use infiltrator_bevy_widgets::desktop::{
 };
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::editor::{CodeEditorGutter, SyntaxTokenKind, tokenize_yaml_line};
-use infiltrator_bevy_widgets::focus::{FocusDirection, find_spatial_neighbor};
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, GestureRecognizer, PullToRefreshPhase, PullToRefreshState, SafeAreaInsets,
     SwipeToActionItem, TouchPhase,
@@ -85,28 +83,6 @@ fn test_swipe_to_action_item_dynamics() {
     swipe.apply_drag(60.0);
     swipe.settle();
     assert_eq!(swipe.offset_x, 0.0);
-}
-
-#[test]
-fn test_spatial_focus_navigation() {
-    let c1 = (Entity::from_raw_u32(1).unwrap(), Vec2::new(100.0, 50.0));
-    let c2 = (Entity::from_raw_u32(2).unwrap(), Vec2::new(100.0, 150.0));
-    let c3 = (Entity::from_raw_u32(3).unwrap(), Vec2::new(200.0, 100.0));
-    let candidates = [c1, c2, c3];
-
-    let current = Vec2::new(100.0, 100.0);
-    assert_eq!(
-        find_spatial_neighbor(current, FocusDirection::Up, &candidates),
-        Some(c1.0)
-    );
-    assert_eq!(
-        find_spatial_neighbor(current, FocusDirection::Down, &candidates),
-        Some(c2.0)
-    );
-    assert_eq!(
-        find_spatial_neighbor(current, FocusDirection::Right, &candidates),
-        Some(c3.0)
-    );
 }
 
 #[test]

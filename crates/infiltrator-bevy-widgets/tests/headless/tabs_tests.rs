@@ -7,22 +7,29 @@
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
 use bevy::feathers::theme::ThemeTextColor;
-use bevy::scene::{CommandsSceneExt, ScenePlugin};
+use bevy::scene::{CommandsSceneExt, Scene, ScenePlugin, bsn};
 use bevy::ui::Selected;
 use bevy::ui::prelude::{Node, Val};
+use bevy::ui::widget::Text;
 use bevy::ui_widgets::{SelectedTab, Tab, ValueChange};
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::tabs::{
     SegmentedPillIndicator, SegmentedTab, capsule_metrics, capsule_px_bounds,
-    segmented_control_scene,
+    segmented_control_scene, segmented_control_with_marked_labels_scene,
 };
 use infiltrator_bevy_widgets::theme::Theme;
+
+/// The caller's own marker: the page decides what one of its tabs means.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct PageMarker(usize);
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -107,6 +114,70 @@ fn fresh_strip_seeds_selection_and_marks_the_selected_tab() {
     assert!(
         world.get::<Selected>(tabs[0]).is_none(),
         "unseeded tabs stay unmarked"
+    );
+}
+
+#[test]
+fn a_page_can_mark_each_tab_with_its_own_marker() {
+    let mut app = headless_app();
+    app.add_systems(
+        Startup,
+        move |mut commands: Commands, palette: Res<UiPalette>| {
+            let tabs = ["Rule", "Global", "Direct"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, title)| {
+                    // The scene macro takes a plain value, not a call.
+                    let label = title.to_owned();
+                    (
+                        Box::new(bsn! { Text(label) }) as Box<dyn Scene>,
+                        Box::new(bsn! { PageMarker(index) }) as Box<dyn Scene>,
+                    )
+                })
+                .collect();
+            commands.spawn_scene(segmented_control_with_marked_labels_scene(
+                tabs, 1, &palette,
+            ));
+        },
+    );
+    app.update();
+    app.update();
+    app.update();
+
+    // Every tab carries the caller's marker as its own child: the widget
+    // layer keeps the selection, the page keeps the meaning of its marker.
+    let world = app.world_mut();
+    let mut marked: Vec<(usize, usize)> = Vec::new();
+    {
+        let mut tabs = world.query::<(&SegmentedTab, &Children)>();
+        for (tab, children) in tabs.iter(world) {
+            for child in children.iter() {
+                if let Some(marker) = world.get::<PageMarker>(*child) {
+                    marked.push((tab.0, marker.0));
+                }
+            }
+        }
+    }
+    marked.sort();
+    assert_eq!(marked, vec![(0, 0), (1, 1), (2, 2)]);
+
+    // The official selection still owns the strip.
+    let world = app.world_mut();
+    let mut lists = world.query_filtered::<Entity, With<SelectedTab>>();
+    let list = lists.iter(world).next().expect("the strip list exists");
+    let mut tab_entities = world.query::<(Entity, &SegmentedTab)>();
+    let mut seeded = None;
+    for (entity, tab) in tab_entities.iter(world) {
+        if tab.0 == 1 {
+            seeded = Some(entity);
+        }
+    }
+    assert_eq!(
+        world
+            .get::<SelectedTab>(list)
+            .and_then(|selected| selected.0),
+        seeded,
+        "the declarative seed still selects the marked tab"
     );
 }
 

@@ -7,7 +7,7 @@
 use crate::theme::{
     REM_BASE, Theme, TokenColor, metrics, mobile_theme_tokens, radius, space, timing, type_scale,
 };
-use bevy::color::{Alpha, Color};
+use bevy::color::{Alpha, Color, LinearRgba};
 use bevy::ecs::resource::Resource;
 use bevy::ui::{Val, ValNum};
 
@@ -160,6 +160,40 @@ impl UiPalette {
         self.success.with_alpha(0.14)
     }
 
+    /// The opaque card fill: the elevated surface resolved over the base
+    /// surface.
+    ///
+    /// The elevated fill is translucent, so a fade painted in the elevated
+    /// colour would composite a second time over the card it covers and
+    /// leave a light band. The card's own colour is therefore resolved
+    /// once, here, as an opaque value every surface can paint with.
+    pub fn card_fill(&self) -> Color {
+        self.over_surface(self.surface_elevated)
+    }
+
+    /// A translucent fill resolved over the base surface into an opaque
+    /// colour: the colour a reader actually sees where that fill sits on
+    /// the surface.
+    ///
+    /// The composite happens in the linear space the renderer blends in:
+    /// a translucent fill over the surface is *lighter* there than the
+    /// same arithmetic in the tokens' non-linear space would say, so a
+    /// fade painted in the wrong space shows a band against the surface
+    /// it covers.
+    pub fn over_surface(&self, fill: Color) -> Color {
+        let base = self.surface.to_linear();
+        let top = fill.to_linear();
+        let alpha = top.alpha.clamp(0.0, 1.0);
+        let mixed = LinearRgba {
+            red: top.red * alpha + base.red * (1.0 - alpha),
+            green: top.green * alpha + base.green * (1.0 - alpha),
+            blue: top.blue * alpha + base.blue * (1.0 - alpha),
+            alpha: 1.0,
+        };
+        let srgba = Color::from(mixed).to_srgba();
+        Color::srgba(srgba.red, srgba.green, srgba.blue, 1.0)
+    }
+
     /// The caret blink half-period, carried here so systems never reach into
     /// the token modules directly for timing.
     pub const CARET_BLINK_SECS: f32 = timing::CARET_BLINK_SECS;
@@ -262,5 +296,34 @@ mod patch_tests {
         // Unpatched fields remain identical
         assert_eq!(patched.surface, palette.surface);
         assert_eq!(patched.danger, palette.danger);
+    }
+
+    #[test]
+    fn test_card_fill_is_the_opaque_card_colour() {
+        for theme in [Theme::dark(), Theme::light()] {
+            let palette = UiPalette::new(&theme);
+            let card = palette.card_fill().to_srgba();
+
+            // The elevated fill is translucent: a fade painted in it would
+            // composite twice over the card and show a light band, so the
+            // card's own colour is resolved opaque.
+            assert_eq!(card.alpha, 1.0);
+            assert_ne!(card, palette.surface_elevated.to_srgba());
+
+            // The composite is the elevated fill over the base surface, in
+            // the linear space the renderer blends in.
+            let base = palette.surface.to_linear();
+            let top = palette.surface_elevated.to_linear();
+            let mixed = LinearRgba {
+                red: top.red * top.alpha + base.red * (1.0 - top.alpha),
+                green: top.green * top.alpha + base.green * (1.0 - top.alpha),
+                blue: top.blue * top.alpha + base.blue * (1.0 - top.alpha),
+                alpha: 1.0,
+            };
+            let expected = Color::from(mixed).to_srgba();
+            assert!((card.red - expected.red).abs() < 1e-5);
+            assert!((card.green - expected.green).abs() < 1e-5);
+            assert!((card.blue - expected.blue).abs() < 1e-5);
+        }
     }
 }

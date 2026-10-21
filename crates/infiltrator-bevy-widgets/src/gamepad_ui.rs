@@ -1,9 +1,13 @@
-//! 10-Foot TV UI spatial navigation and gamepad analog stick smooth scrolling physics.
+//! 10-Foot TV UI input vocabulary and gamepad analog stick smooth scrolling physics.
+//!
+//! The focus movement itself is not owned here: the official
+//! `bevy_ui::auto_directional_navigation` navigator owns the neighbour search
+//! and moves the official `InputFocus`. This module owns the *input*
+//! vocabulary the shell forwards — the D-pad and face-button actions, the
+//! analog-stick direction with its radial deadzone, and the scroll physics.
 
-use crate::focus::{FocusDirection, find_spatial_neighbor};
-use bevy::ecs::entity::Entity;
 use bevy::ecs::resource::Resource;
-use bevy::math::Vec2;
+use bevy::math::{CompassOctant, Vec2};
 
 /// Standard gamepad navigation action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,12 +55,14 @@ impl GamepadDirection {
         }
     }
 
-    pub fn focus_direction(self) -> FocusDirection {
+    /// The official compass octant this direction asks the official
+    /// directional navigation for.
+    pub fn compass_octant(self) -> CompassOctant {
         match self {
-            Self::Up => FocusDirection::Up,
-            Self::Down => FocusDirection::Down,
-            Self::Left => FocusDirection::Left,
-            Self::Right => FocusDirection::Right,
+            Self::Up => CompassOctant::North,
+            Self::Down => CompassOctant::South,
+            Self::Left => CompassOctant::West,
+            Self::Right => CompassOctant::East,
         }
     }
 
@@ -134,143 +140,9 @@ impl GamepadScrollState {
     }
 }
 
-/// A focusable widget with its layout centre in TV space.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct GamepadFocusTarget {
-    pub entity: Entity,
-    pub center: Vec2,
-}
-
-/// D-pad spatial focus controller over the widget tree. Directional movement
-/// reuses the shared spatial-neighbour owner in [`crate::focus`]; wrapping is
-/// layered on only when the caller opts in.
-#[derive(Resource, Clone, Debug, PartialEq)]
-pub struct GamepadFocusController {
-    pub targets: Vec<GamepadFocusTarget>,
-    pub focused: Option<Entity>,
-    pub wrap: bool,
-    /// Perpendicular distance within which two widgets count as the same row
-    /// or column during wrapping.
-    pub row_tolerance: f32,
-}
-
-impl Default for GamepadFocusController {
-    fn default() -> Self {
-        Self {
-            targets: Vec::new(),
-            focused: None,
-            wrap: true,
-            row_tolerance: 8.0,
-        }
-    }
-}
-
-impl GamepadFocusController {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Register (or update) a focusable widget. The first registered widget
-    /// becomes the initial focus target.
-    pub fn register(&mut self, entity: Entity, center: Vec2) {
-        if let Some(target) = self
-            .targets
-            .iter_mut()
-            .find(|target| target.entity == entity)
-        {
-            target.center = center;
-        } else {
-            self.targets.push(GamepadFocusTarget { entity, center });
-        }
-        if self.focused.is_none() {
-            self.focused = Some(entity);
-        }
-    }
-
-    pub fn focus_first(&mut self) -> Option<Entity> {
-        self.focused = self.targets.first().map(|target| target.entity);
-        self.focused
-    }
-
-    /// Focus a registered entity; returns `false` for an unknown target.
-    pub fn set_focus(&mut self, entity: Entity) -> bool {
-        if self.targets.iter().any(|target| target.entity == entity) {
-            self.focused = Some(entity);
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Handle a gamepad navigation action. Non-directional actions leave focus
-    /// unchanged and return the current target.
-    pub fn handle_action(&mut self, action: GamepadNavAction) -> Option<Entity> {
-        match GamepadDirection::from_action(action) {
-            Some(direction) => self.move_focus(direction),
-            None => self.focused,
-        }
-    }
-
-    /// Move focus one step in `direction`, wrapping when enabled.
-    pub fn move_focus(&mut self, direction: GamepadDirection) -> Option<Entity> {
-        let current = self.current_target()?;
-        let pairs: Vec<(Entity, Vec2)> = self
-            .targets
-            .iter()
-            .map(|target| (target.entity, target.center))
-            .collect();
-        let neighbour = find_spatial_neighbor(current.center, direction.focus_direction(), &pairs)
-            .or_else(|| {
-                self.wrap
-                    .then(|| self.wrap_target(current, direction))
-                    .flatten()
-            });
-        if let Some(entity) = neighbour
-            && entity != current.entity
-        {
-            self.focused = Some(entity);
-        }
-        self.focused
-    }
-
-    fn current_target(&self) -> Option<GamepadFocusTarget> {
-        let focused = self.focused?;
-        self.targets
-            .iter()
-            .copied()
-            .find(|target| target.entity == focused)
-    }
-
-    /// Wrap to the extreme widget in the direction of travel, preferring the
-    /// same perpendicular band (row/column) as the current target.
-    fn wrap_target(
-        &self,
-        current: GamepadFocusTarget,
-        direction: GamepadDirection,
-    ) -> Option<Entity> {
-        let axis = direction.unit_axis();
-        let perpendicular = Vec2::new(-axis.y, axis.x);
-        let in_band = |target: &GamepadFocusTarget| {
-            (target.center - current.center).dot(perpendicular).abs() <= self.row_tolerance
-        };
-        let extreme = |only_band: bool| -> Option<Entity> {
-            self.targets
-                .iter()
-                .filter(|target| target.entity != current.entity && (!only_band || in_band(target)))
-                .min_by(|left, right| left.center.dot(axis).total_cmp(&right.center.dot(axis)))
-                .map(|target| target.entity)
-        };
-        extreme(true).or_else(|| extreme(false))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn entity(raw: u32) -> Entity {
-        Entity::from_raw_u32(raw).expect("valid entity id")
-    }
 
     #[test]
     fn test_radial_deadzone_and_analog_direction() {
@@ -326,67 +198,16 @@ mod tests {
     }
 
     #[test]
-    fn test_gamepad_focus_moves_spatially() {
-        let mut controller = GamepadFocusController::new();
-        let left = entity(1);
-        let middle = entity(2);
-        let right = entity(3);
-        controller.register(left, Vec2::new(0.0, 0.0));
-        controller.register(middle, Vec2::new(100.0, 0.0));
-        controller.register(right, Vec2::new(200.0, 0.0));
-
-        assert_eq!(controller.focused, Some(left));
+    fn test_the_dpad_speaks_the_official_compass_octants() {
+        assert_eq!(GamepadDirection::Up.compass_octant(), CompassOctant::North);
         assert_eq!(
-            controller.handle_action(GamepadNavAction::DpadRight),
-            Some(middle)
+            GamepadDirection::Down.compass_octant(),
+            CompassOctant::South
         );
+        assert_eq!(GamepadDirection::Left.compass_octant(), CompassOctant::West);
         assert_eq!(
-            controller.handle_action(GamepadNavAction::DpadRight),
-            Some(right)
-        );
-        // Non-directional actions leave focus unchanged.
-        assert_eq!(
-            controller.handle_action(GamepadNavAction::ButtonAConfirm),
-            Some(right)
-        );
-        assert_eq!(
-            controller.handle_action(GamepadNavAction::DpadLeft),
-            Some(middle)
-        );
-    }
-
-    #[test]
-    fn test_gamepad_focus_wraps_and_can_be_disabled() {
-        let mut controller = GamepadFocusController::new();
-        let left = entity(1);
-        let right = entity(2);
-        controller.register(left, Vec2::new(0.0, 0.0));
-        controller.register(right, Vec2::new(100.0, 0.0));
-
-        assert!(controller.set_focus(right));
-        assert_eq!(controller.move_focus(GamepadDirection::Right), Some(left));
-
-        controller.wrap = false;
-        assert!(controller.set_focus(right));
-        assert_eq!(controller.move_focus(GamepadDirection::Right), Some(right));
-        assert!(!controller.set_focus(entity(99)));
-    }
-
-    #[test]
-    fn test_gamepad_focus_wrap_prefers_same_row() {
-        let mut controller = GamepadFocusController::new();
-        let top_left = entity(1);
-        let top_right = entity(2);
-        let bottom_left = entity(3);
-        controller.register(top_left, Vec2::new(0.0, 0.0));
-        controller.register(top_right, Vec2::new(100.0, 0.0));
-        controller.register(bottom_left, Vec2::new(0.0, 50.0));
-
-        assert!(controller.set_focus(top_right));
-        // Wrap right -> same-row leftmost, not the bottom row.
-        assert_eq!(
-            controller.move_focus(GamepadDirection::Right),
-            Some(top_left)
+            GamepadDirection::Right.compass_octant(),
+            CompassOctant::East
         );
     }
 }
