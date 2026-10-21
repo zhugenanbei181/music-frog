@@ -17,6 +17,7 @@ use crate::surface::action::workbench::{
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::aggregation_preview_projection;
+use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::dns_cache_projection;
 use infiltrator_presentation::dns_hosts_projection;
 use infiltrator_presentation::dns_leak_projection;
@@ -26,7 +27,6 @@ use infiltrator_presentation::doctor_projection;
 use infiltrator_presentation::routing_projection;
 use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::locales::Lang;
-use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::copy::TextCatalog;
 
 /// The DNS page: the leak alert, the query panel, the cache flush and the
@@ -435,36 +435,35 @@ pub(super) fn app_routing_page(
     String,
 ) {
     let mut items = Vec::new();
-    let page = snapshot.pages.app_routing.data.as_ref();
-    let mode = page.map(|page| page.mode);
+    // The routing mode is the shared page model's fact: the surface asks the
+    // model which mode the owner published and renders the shared copy for
+    // it, so an unobserved mode is never shown as a default one.
+    let mut model = AppRoutingPageModel::default();
+    if let Some(page) = snapshot.pages.app_routing.data.as_ref() {
+        model.observe_page(page.clone());
+    }
     items.push(header(
         "app-routing",
         &catalog.text("app_routing_title"),
-        &catalog.text(if mode.is_some() {
-            "app_routing_observed_summary"
-        } else {
-            "app_routing_empty"
-        }),
+        &catalog.text(model.mode_copy_key()),
         Tone::Neutral,
     ));
-    if let Some(page) = page {
-        items.push(text(
-            "app-routing-summary",
-            &routing::summary(page.mode, page.apps.len(), catalog),
+    items.push(text(
+        "app-routing-summary",
+        &routing::summary(model.mode(), model.apps().len(), catalog),
+    ));
+    for app in model.apps() {
+        items.push(row_action(
+            &format!("app-routing/{}", app.id),
+            &app.id,
+            &app.name,
+            &routing_projection::process_copy(&app.process_name, catalog),
+            &catalog.text(routing::rule_label(app.rule)),
+            APP_ROUTING_RULE,
+            &catalog.text("app_routing_add_action"),
         ));
-        for app in &page.apps {
-            items.push(row_action(
-                &format!("app-routing/{}", app.id),
-                &app.id,
-                &app.name,
-                &routing_projection::process_copy(&app.process_name, catalog),
-                &catalog.text(routing::rule_label(app.rule)),
-                APP_ROUTING_RULE,
-                &catalog.text("app_routing_add_action"),
-            ));
-        }
     }
-    let observed = routing_policy_observed(snapshot);
+    let observed = model.mode_observed();
     items.push(button(
         "app-routing-mode-all",
         &catalog.text("app_routing_mode_global"),
@@ -505,14 +504,6 @@ pub(super) fn app_routing_page(
         Some(routing_rule),
         String::new(),
         "app-routing-rule".to_owned(),
-    )
-}
-
-/// Whether the owner published a routing policy the surface may change.
-fn routing_policy_observed(snapshot: &SurfaceSnapshot) -> bool {
-    matches!(
-        snapshot.pages.app_routing.status,
-        PageStatus::Ready | PageStatus::Empty
     )
 }
 

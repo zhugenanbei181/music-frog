@@ -1,21 +1,22 @@
 //! The connections page projection of the Slint surface.
 //!
-//! The active connection list is rendered from the shared connections page
-//! model: the query fold, the sort key and the row order are the shared
-//! reduction, so the widget's sort vocabulary only names a shared typed key.
+//! The active connection list and the closed connection history are rendered
+//! from the shared connections page model: the query fold, the sort key and
+//! the row order are the shared reduction, so the widget's sort vocabulary
+//! only names a shared typed key.
 //!
-//! The closed connection history is a different observation with no shared
-//! reduction yet, so its order stays a surface-local projection of the same
-//! shared typed key. The seam that would let it join the shared model is
-//! named at the projection that needs it.
+//! The closed record implements the shared connection view, so the history
+//! joins the very same model as the open list. A closed record carries no
+//! process, so the shared reduction groups it under the honest "unknown"
+//! bucket instead of inventing a process name.
 
 use crate::widget_vocabulary;
 use crate::{AppWindow, ObservationRow, slint_model};
 use infiltrator_contract::surface_snapshot::{ConnectionSnapshot, SurfaceSnapshot};
-use infiltrator_domain::connection_view::ConnectionSortKey;
+use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
+use infiltrator_domain::connection_view::ConnectionView;
 use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
 use infiltrator_shared::byte_units::format_bytes;
-use std::cmp::Reverse;
 
 /// Projects the connections page from the shared page model.
 pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot) {
@@ -63,83 +64,51 @@ fn connection_row(connection: ConnectionSnapshot) -> ObservationRow {
     }
 }
 
-/// The closed connection history, ordered by the surface-local projection.
+/// The closed connection history, projected through the shared page model.
 ///
-/// The shared connections page model reduces the *active* connection list.
-/// The closed history is a different observation: `ClosedConnectionSnapshot`
-/// has no `ConnectionView` implementation, so it cannot join the shared
-/// model and no shared reduction can order it. The order below is therefore
-/// the surface's own projection of the *shared* sort key the widget named,
-/// and the shared query fold cannot filter it either.
-///
-/// The seam that closes both gaps is one `ConnectionView` implementation for
-/// `ClosedConnectionSnapshot` in `infiltrator-domain`, which owns the
-/// domain-to-contract seam:
-///
-/// ```text
-/// impl ConnectionView for ClosedConnectionSnapshot {
-///     fn view_id(&self) -> &str { &self.id }
-///     fn view_host(&self) -> &str { &self.destination }
-///     fn view_process_path(&self) -> &str { &self.outbound }
-///     fn view_upload_total(&self) -> u64 { self.upload_bytes }
-///     fn view_download_total(&self) -> u64 { self.download_bytes }
-///     fn view_start(&self) -> &str { &self.closed_at }
-/// }
-/// ```
-///
-/// With that implementation the closed list joins the shared model and this
-/// projection disappears.
+/// The closed record is a connection view, so the history joins the shared
+/// model: the query fold, the sort key and the row order are the shared
+/// reduction and the surface keeps no projection of its own.
 fn closed_connection_rows(window: &AppWindow, snapshot: &SurfaceSnapshot) -> Vec<ObservationRow> {
-    let query = window
-        .get_connection_search()
-        .to_string()
-        .trim()
-        .to_lowercase();
-    let mut connections = snapshot
-        .closed_connections
-        .records
-        .iter()
-        .collect::<Vec<_>>();
-    match widget_vocabulary::connection_sort_key(window.get_connection_sort().as_str()) {
-        ConnectionSortKey::UploadDesc => {
-            connections.sort_by_key(|connection| Reverse(connection.upload_bytes))
-        }
-        ConnectionSortKey::DownloadDesc => {
-            connections.sort_by_key(|connection| Reverse(connection.download_bytes))
-        }
-        ConnectionSortKey::HostAsc => {
-            connections.sort_by(|left, right| left.destination.cmp(&right.destination))
-        }
-        ConnectionSortKey::LatestDesc => {
-            connections.sort_by(|left, right| right.closed_at.cmp(&left.closed_at))
-        }
-        // The rate keys rank on instantaneous rates the closed history does
-        // not carry, so they keep the observation order.
-        ConnectionSortKey::DownloadRateDesc | ConnectionSortKey::UploadRateDesc => {}
-    }
-    connections
+    let mut model = ConnectionsPageModel::<ClosedConnectionSnapshot>::default();
+    model.edit_query(window.get_connection_search().as_str());
+    model.select_sort(widget_vocabulary::connection_sort_key(
+        window.get_connection_sort().as_str(),
+    ));
+    model.observe(&snapshot.closed_connections.records);
+    let mut rows = model
+        .visible_rows()
         .into_iter()
-        .map(|connection| ObservationRow {
-            id: connection.id.clone().into(),
-            title: connection.destination.clone().into(),
-            accessible_title: connection.destination.clone().into(),
-            flag_code: "".into(),
-            flag_index: -1,
-            delay_ms: -1,
-            subtitle: format!("{} · {}", connection.outbound, connection.rule).into(),
-            trailing: format!(
-                "↑ {} · ↓ {}",
-                format_bytes(connection.upload_bytes),
-                format_bytes(connection.download_bytes)
-            )
-            .into(),
-            active: false,
-        })
-        .filter(|row| {
-            query.is_empty()
-                || row.title.to_string().to_lowercase().contains(&query)
-                || row.subtitle.to_string().to_lowercase().contains(&query)
-                || row.id.to_string().to_lowercase().contains(&query)
-        })
-        .collect()
+        .cloned()
+        .collect::<Vec<ClosedConnectionSnapshot>>();
+    model.sort_rows(&mut rows);
+    rows.into_iter().map(closed_connection_row).collect()
+}
+
+/// The closed connection row the surface renders.
+///
+/// The closed record carries no process path, so the row shows the outbound
+/// and the matched rule it really carries and never a process it never had.
+fn closed_connection_row(connection: ClosedConnectionSnapshot) -> ObservationRow {
+    ObservationRow {
+        id: connection.view_id().to_owned().into(),
+        title: connection.view_host().to_owned().into(),
+        accessible_title: connection.view_host().to_owned().into(),
+        flag_code: "".into(),
+        flag_index: -1,
+        delay_ms: -1,
+        subtitle: format!(
+            "{} · {}",
+            connection.view_joined_chain(),
+            connection.view_rule()
+        )
+        .into(),
+        trailing: format!(
+            "↑ {} · ↓ {}",
+            format_bytes(connection.view_upload_total()),
+            format_bytes(connection.view_download_total())
+        )
+        .into(),
+        active: false,
+    }
 }

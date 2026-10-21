@@ -89,6 +89,8 @@ export component PageNetwork inherits VerticalLayout {
     in property <bool> network-mode-status-warning;
     in property <bool> tun-capable;
     in property <string> tun-capability-detail;
+    in property <string> lan-sharing-heading;
+    in property <string> lan-sharing-detail;
     in property <string> core-version;
     in property <bool> proxy-recovery-pending;
 
@@ -143,6 +145,10 @@ export component PageNetwork inherits VerticalLayout {
         }
         if !root.compact-layout: Text { text: @tr("当前选择：") + root.network-mode-label + " · " + root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
         if !root.compact-layout: Text { text: root.tun-capability-detail; color: root.tun-capable ? LumenTheme.text-muted : LumenTheme.status-warning; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
+    }
+    SectionCard {
+        heading: root.lan-sharing-heading;
+        detail: root.lan-sharing-detail;
     }
     SectionCard {
         heading: @tr("Mihomo 核心"); detail: root.android-platform ? (@tr("官方 Android v1.19.32 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前：") + root.core-version) : (@tr("从 PATH 运行 Mihomo；当前版本：") + root.core-version);

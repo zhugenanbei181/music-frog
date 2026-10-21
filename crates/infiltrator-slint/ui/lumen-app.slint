@@ -137,6 +137,8 @@ export component AppWindow inherits MaterialWindow {
     in-out property <bool> network-mode-status-warning: false;
     in-out property <bool> tun-capable: false;
     in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证");
+    in-out property <string> lan-sharing-heading: "";
+    in-out property <string> lan-sharing-detail: "";
     in-out property <bool> network-mode-dialog-open: false;
     in-out property <string> network-mode-draft: "";
     in-out property <string> notice: "";
@@ -407,7 +409,7 @@ export component AppWindow inherits MaterialWindow {
         profile-settings-overrides: root.profile-settings-overrides; route-mode: root.route-mode; selected-group: root.selected-group; proxy-testing-group: root.proxy-testing-group; proxy-testing-node: root.proxy-testing-node; proxy-groups: root.proxy-groups; proxy-nodes: root.proxy-nodes;
         proxy-search <=> root.proxy-search; proxy-active-node-position <=> root.proxy-active-node-position;
         proxy-current-node-available <=> root.proxy-current-node-available; product-version: root.product-version;
-        core-version: root.core-version; network-mode: root.network-mode; network-mode-status: root.network-mode-status; network-mode-status-warning: root.network-mode-status-warning; tun-capable: root.tun-capable; tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section;
+        core-version: root.core-version; network-mode: root.network-mode; network-mode-status: root.network-mode-status; network-mode-status-warning: root.network-mode-status-warning; tun-capable: root.tun-capable; tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section; lan-sharing-heading: root.lan-sharing-heading; lan-sharing-detail: root.lan-sharing-detail;
         auto-start: root.auto-start; refresh-current-profile-on-start: root.refresh-current-profile-on-start; theme-mode: root.theme-mode; invert-theme-foreground: root.invert-theme-foreground; theme-color-code: root.theme-color-code; application-language: root.application-language;
         system-language: root.system-language; page-scale-percent: root.page-scale-percent; hide-background-card: root.hide-background-card; show-traffic-notification: root.show-traffic-notification; release-ui-when-background: root.release-ui-when-background; ignore-battery-optimizations: root.ignore-battery-optimizations;
         user-agent: root.user-agent; overrides: root.overrides; override-importing: root.override-importing;

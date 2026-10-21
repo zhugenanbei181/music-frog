@@ -16,6 +16,8 @@ export component PagesSettings inherits VerticalLayout {
     in property <bool> network-mode-status-warning;
     in property <bool> tun-capable;
     in property <string> tun-capability-detail;
+    in property <string> lan-sharing-heading;
+    in property <string> lan-sharing-detail;
     in property <int> app-settings-preview-section;
     in property <bool> auto-start;
     in property <bool> refresh-current-profile-on-start;
@@ -91,6 +93,8 @@ export component PagesSettings inherits VerticalLayout {
         network-mode-status-warning: root.network-mode-status-warning;
         tun-capable: root.tun-capable;
         tun-capability-detail: root.tun-capability-detail;
+        lan-sharing-heading: root.lan-sharing-heading;
+        lan-sharing-detail: root.lan-sharing-detail;
         set-route-mode(mode) => { root.set-route-mode(mode); }
         set-network-mode(mode) => { root.set-network-mode(mode); }
         check-core => { root.check-core(); }

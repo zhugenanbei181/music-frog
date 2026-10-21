@@ -6,6 +6,7 @@
 //! store.
 
 pub(super) mod collections;
+pub(super) mod lan;
 pub(super) mod workbench;
 
 use super::flag_assets;
@@ -277,6 +278,7 @@ pub(super) fn project_snapshot(
     }
 
     project_settings(window, snapshot, autostart);
+    lan::project_lan_sharing(window, snapshot, &language);
     project_profiles(window, snapshot, &language);
     collections::project_proxies(window, snapshot);
     collections::project_connections(window, snapshot);

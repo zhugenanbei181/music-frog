@@ -10,6 +10,7 @@ use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::connection::ConnectionRateObservation;
+use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
@@ -359,9 +360,9 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         theme: theme_str.into(),
         autostart: true,
         system_proxy: true,
-        mixed_port: Some(7890),
-        allow_lan: Some(false),
-        lan_bind_address: None,
+        // The LAN sharing configuration is one owner readback: the fixture
+        // publishes the whole confirmed configuration or nothing at all.
+        lan_sharing: Some(LanSharingSnapshot::new(1, false, 7890, "*")),
         lan_security: None,
         ipv6_routing: None,
         pac: Default::default(),

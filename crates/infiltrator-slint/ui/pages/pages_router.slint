@@ -82,6 +82,8 @@ export component PagesRouter inherits VerticalLayout {
     in property <bool> network-mode-status-warning;
     in property <bool> tun-capable;
     in property <string> tun-capability-detail;
+    in property <string> lan-sharing-heading;
+    in property <string> lan-sharing-detail;
     in property <int> app-settings-preview-section;
     in property <bool> auto-start;
     in property <bool> refresh-current-profile-on-start;
@@ -298,7 +300,7 @@ export component PagesRouter inherits VerticalLayout {
         route-mode: root.route-mode; runtime-status: root.runtime-status; has-current-profile: root.has-current-profile;
         network-mode: root.network-mode; network-mode-label: root.network-mode-label;
         network-mode-status: root.network-mode-status; network-mode-status-warning: root.network-mode-status-warning;
-        tun-capable: root.tun-capable; tun-capability-detail: root.tun-capability-detail;
+        tun-capable: root.tun-capable; tun-capability-detail: root.tun-capability-detail; lan-sharing-heading: root.lan-sharing-heading; lan-sharing-detail: root.lan-sharing-detail;
         app-settings-preview-section: root.app-settings-preview-section; auto-start: root.auto-start;
         refresh-current-profile-on-start: root.refresh-current-profile-on-start;
         theme-mode: root.theme-mode; invert-theme-foreground: root.invert-theme-foreground;

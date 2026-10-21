@@ -10,6 +10,9 @@ mod proxies;
 use super::{THIRD_PARTY_NOTICES, snapshot_language};
 use crate::{AppWindow, HomeTrafficPoint, LicenseRow, ObservationRow, TrafficBar, slint_model};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_domain::connection_view::ConnectionView;
+use infiltrator_domain::rules::view::RuleView;
+use infiltrator_presentation::rules_page_model::RulesPageModel;
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::page::PageStatus;
@@ -31,39 +34,50 @@ pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot
     connections::project_connections(window, snapshot);
 }
 
+/// Projects the rules page from the shared page model.
+///
+/// The rule-list query and the match rule belong to the shared page model:
+/// the surface asks the model which rules survive the query and renders
+/// exactly those rows, so the surface never keeps a private string filter
+/// of its own.
 pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     let language = snapshot_language(snapshot);
     let lang = Lang(&language);
-    let query = window.get_rule_search().to_string().trim().to_lowercase();
+    let mut model = RulesPageModel::default();
+    model.edit_filter(window.get_rule_search().as_str());
     let (rules, providers) = snapshot
         .pages
         .rules
         .data
         .as_ref()
         .map(|page| {
-            let rules = page
-                .rules
-                .iter()
-                .filter(|rule| {
-                    query.is_empty()
-                        || rule.raw.to_lowercase().contains(&query)
-                        || rule.proxy.to_lowercase().contains(&query)
-                        || rule.rule_type.to_lowercase().contains(&query)
+            let rules = model
+                .filtered_indices(&page.rules)
+                .into_iter()
+                .filter_map(|index| {
+                    let rule = &page.rules[index];
+                    model.matches_rule(rule).then_some(rule)
                 })
-                .map(|rule| ObservationRow {
-                    id: rule.id.to_string().into(),
-                    title: rule.raw.clone().into(),
-                    accessible_title: rule.raw.clone().into(),
-                    flag_code: "".into(),
-                    flag_index: -1,
-                    delay_ms: -1,
-                    subtitle: format!("{} → {}", rule.rule_type, rule.proxy).into(),
-                    trailing: rule
-                        .hit_count
-                        .map(|count| count.to_string())
-                        .unwrap_or_default()
-                        .into(),
-                    active: rule.is_enabled,
+                .map(|rule| {
+                    // The shared rule view owns the expression a rule is
+                    // searched by, so the row shows the very expression the
+                    // shared filter matches.
+                    let expression = rule.view_rule_search();
+                    ObservationRow {
+                        id: rule.id.to_string().into(),
+                        title: expression.clone().into(),
+                        accessible_title: expression.into(),
+                        flag_code: "".into(),
+                        flag_index: -1,
+                        delay_ms: -1,
+                        subtitle: format!("{} → {}", rule.rule_type, rule.proxy).into(),
+                        trailing: rule
+                            .hit_count
+                            .map(|count| count.to_string())
+                            .unwrap_or_default()
+                            .into(),
+                        active: rule.is_enabled,
+                    }
                 })
                 .collect::<Vec<_>>();
             let providers = page
@@ -246,34 +260,37 @@ pub(crate) fn project_connection_detail(
             .iter()
             .find(|c| c.id == connection_id)
         {
-            window.set_connection_detail_host(closed.destination.clone().into());
-            window.set_connection_detail_id(closed.id.clone().into());
+            // The closed record is a connection view too, so the drawer reads
+            // its facts through the shared accessors. The record carries no
+            // process and no endpoint, so those lines stay honestly empty
+            // instead of naming a fact the owner never published.
+            let rule = closed.view_rule();
+            let chains = closed.view_joined_chain();
+            let rule_copy = if rule.is_empty() {
+                "—".to_owned()
+            } else {
+                rule.to_owned()
+            };
+            let chains_copy = if chains.is_empty() {
+                "—".to_owned()
+            } else {
+                chains.to_owned()
+            };
+            window.set_connection_detail_host(closed.view_host().to_owned().into());
+            window.set_connection_detail_id(closed.view_id().to_owned().into());
             window.set_connection_detail_protocol("—".into());
             window.set_connection_detail_process("—".into());
             window.set_connection_detail_source("—".into());
-            window.set_connection_detail_destination(closed.destination.clone().into());
-            window.set_connection_detail_rule(
-                if closed.rule.is_empty() {
-                    "—"
-                } else {
-                    &closed.rule
-                }
-                .into(),
-            );
-            window.set_connection_detail_chains(
-                if closed.outbound.is_empty() {
-                    "—"
-                } else {
-                    &closed.outbound
-                }
-                .into(),
-            );
+            window.set_connection_detail_destination(closed.view_host().to_owned().into());
+            window.set_connection_detail_rule(rule_copy.into());
+            window.set_connection_detail_chains(chains_copy.into());
             window.set_connection_detail_providers("—".into());
             window.set_connection_detail_start("—".into());
             let duration_sec = closed.duration_ms / 1000;
             window.set_connection_detail_duration(format!("{}s", duration_sec).into());
-            window.set_connection_detail_upload(format_bytes(closed.upload_bytes).into());
-            window.set_connection_detail_download(format_bytes(closed.download_bytes).into());
+            window.set_connection_detail_upload(format_bytes(closed.view_upload_total()).into());
+            window
+                .set_connection_detail_download(format_bytes(closed.view_download_total()).into());
             window.set_connection_detail_active(false);
             return;
         }

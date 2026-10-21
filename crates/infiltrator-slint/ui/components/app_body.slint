@@ -93,6 +93,8 @@ export component AppBody inherits Rectangle {
     in property <bool> network-mode-status-warning;
     in property <bool> tun-capable;
     in property <string> tun-capability-detail;
+    in property <string> lan-sharing-heading;
+    in property <string> lan-sharing-detail;
     in property <int> app-settings-preview-section;
     in property <bool> auto-start;
     in property <bool> refresh-current-profile-on-start;
@@ -405,7 +407,7 @@ export component AppBody inherits Rectangle {
                             proxy-current-node-available <=> root.proxy-current-node-available; product-version: root.product-version;
                             core-version: root.core-version; network-mode: root.network-mode; network-mode-status: root.network-mode-status;
                             network-mode-status-warning: root.network-mode-status-warning; tun-capable: root.tun-capable;
-                            tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section;
+                            tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section; lan-sharing-heading: root.lan-sharing-heading; lan-sharing-detail: root.lan-sharing-detail;
                             auto-start: root.auto-start; refresh-current-profile-on-start: root.refresh-current-profile-on-start;
                             theme-mode: root.theme-mode; invert-theme-foreground: root.invert-theme-foreground;
                             theme-color-code: root.theme-color-code; application-language: root.application-language;
