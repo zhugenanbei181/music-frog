@@ -214,9 +214,10 @@ pub(super) fn build_settings_page(
         theme: settings.theme.clone(),
         autostart: false,
         system_proxy: system_proxy.is_enabled(),
-        mixed_port: observed.mixed_port,
-        allow_lan: observed.allow_lan,
-        lan_bind_address: observed.lan_bind_address.clone(),
+        // The LAN sharing configuration is one owner readback: the page
+        // publishes it whole or not at all, so a consumer can tell "sharing
+        // is off" from "the runtime configuration was never observed".
+        lan_sharing: observed.lan_sharing.clone(),
         lan_security: observed.lan_security.clone(),
         ipv6_routing: observed.ipv6_routing,
         pac,

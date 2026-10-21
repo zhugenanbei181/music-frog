@@ -20,6 +20,7 @@ mod jni_bridge;
 #[cfg(target_os = "android")]
 mod jni_clipboard;
 pub mod native_host;
+pub mod owner_command;
 pub mod product;
 pub mod runtime;
 pub mod service_init;

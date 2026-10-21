@@ -131,9 +131,7 @@ fn preference_success_preserves_missing_runtime_fields_and_failed_reads_keep_onl
     );
     assert_eq!(page.status, PageStatus::Ready);
     let unknown = page.data.unwrap();
-    assert_eq!(unknown.mixed_port, None);
-    assert_eq!(unknown.allow_lan, None);
-    assert_eq!(unknown.lan_bind_address, None);
+    assert_eq!(unknown.lan_sharing, None);
     assert_eq!(unknown.lan_security, None);
     assert_eq!(unknown.ipv6_routing, None);
     assert_eq!(unknown.tun_enabled, None);
@@ -147,8 +145,16 @@ fn preference_success_preserves_missing_runtime_fields_and_failed_reads_keep_onl
     )
     .data
     .unwrap();
-    assert_eq!(known.mixed_port, Some(0));
-    assert_eq!(known.allow_lan, Some(false));
+    // The LAN sharing configuration is one owner readback: the page carries
+    // the confirmed configuration whole, so a consumer can tell "sharing is
+    // off" from "the runtime configuration was never observed".
+    let sharing = known
+        .lan_sharing
+        .as_ref()
+        .expect("the owner published a LAN sharing readback");
+    assert!(!sharing.enabled);
+    assert_eq!(sharing.mixed_port, 0);
+    assert_eq!(sharing.bind_address, "*");
     assert_eq!(known.tun_enabled, Some(false));
     assert_eq!(known.tun_stack, None);
     assert_eq!(known.tun_auto_route, None);
@@ -183,6 +189,60 @@ fn preference_success_preserves_missing_runtime_fields_and_failed_reads_keep_onl
     .data
     .unwrap();
     assert_eq!(reset, unknown);
+}
+
+#[test]
+fn the_settings_page_publishes_the_lan_sharing_readback_whole_or_not_at_all() {
+    let prefs = Ok(AppSettings::default());
+    let owner = RuntimeControlApplication::default();
+
+    // The owner never published a runtime configuration: the page carries no
+    // LAN sharing readback at all, so a consumer cannot read the absent
+    // readback as "the sharing is off".
+    let unobserved = build_settings_page(
+        Some(&prefs),
+        &owner.observe(1, 1, None),
+        &Default::default(),
+        Default::default(),
+    )
+    .data
+    .unwrap();
+    assert_eq!(unobserved.lan_sharing, None);
+
+    // The owner published a confirmed configuration: the page carries that
+    // readback whole, so the confirmed facts and the revision the
+    // observation was taken at reach the surface unchanged.
+    let observed = owner.observe(1, 2, Some(&Ok(known_readout())));
+    let confirmed = build_settings_page(
+        Some(&prefs),
+        &observed,
+        &Default::default(),
+        Default::default(),
+    )
+    .data
+    .unwrap();
+    assert_eq!(confirmed.lan_sharing, observed.lan_sharing);
+    let sharing = confirmed
+        .lan_sharing
+        .clone()
+        .expect("the owner published a LAN sharing readback");
+    assert!(!sharing.enabled);
+    assert_eq!(sharing.mixed_port, 0);
+    assert_eq!(sharing.bind_address, "*");
+
+    // A read the owner refused keeps the last confirmed readback of the same
+    // generation: the page never falls back to a guessed configuration.
+    let denied = Failure::new(ErrorCode::Authentication, "read denied", false);
+    let refused = owner.observe(1, 3, Some(&Err(denied)));
+    let retained = build_settings_page(
+        Some(&prefs),
+        &refused,
+        &Default::default(),
+        Default::default(),
+    )
+    .data
+    .unwrap();
+    assert_eq!(retained.lan_sharing, confirmed.lan_sharing);
 }
 
 #[tokio::test]

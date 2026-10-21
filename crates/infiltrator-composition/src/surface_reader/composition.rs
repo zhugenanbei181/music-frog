@@ -23,6 +23,7 @@ impl ProductSurfaceReader {
             endpoint_source: None,
             service_mode: None,
             port_conflicts: None,
+            overview_layout: None,
             resources: None,
             offline_startup: None,
             mtu: None,
@@ -76,6 +77,15 @@ impl ProductSurfaceReader {
 
     pub fn with_runtime_configuration_ports(mut self, ports: RuntimeConfigurationPorts) -> Self {
         self.runtime_configuration_ports = Some(ports);
+        self
+    }
+
+    /// The overview card layout owner.
+    ///
+    /// The snapshot publishes the owner's card order, so a surface never
+    /// re-derives it.
+    pub fn with_overview_layout(mut self, overview_layout: OverviewLayoutApplication) -> Self {
+        self.overview_layout = Some(overview_layout);
         self
     }
 

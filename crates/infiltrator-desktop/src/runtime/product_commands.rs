@@ -5,6 +5,7 @@ use crate::log_export::DesktopLogExportPort;
 use crate::storage::{app_routing_store, settings_store, subscription_source, sync};
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
+use infiltrator_application::overview_layout_application::OverviewLayoutApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
@@ -52,7 +53,8 @@ impl MihomoRuntime {
         .with_settings(SettingsApplication::new(settings_store().await?))
         .with_doctor(self.doctor.clone())
         .with_routing(RoutingApplication::new(Arc::new(app_routing_store()?)))
-        .with_sync(SyncApplication::new(Arc::new(sync()?)));
+        .with_sync(SyncApplication::new(Arc::new(sync()?)))
+        .with_overview_layout(OverviewLayoutApplication::new());
         self.application
             .install_core_capability_application(commands.core_capability_application())
             .map_err(|failure| anyhow::anyhow!(failure.message))?;

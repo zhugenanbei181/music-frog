@@ -25,6 +25,7 @@ use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
+use infiltrator_application::overview_layout_application::OverviewLayoutApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -217,6 +218,7 @@ pub async fn product_surface_reader(
         .with_stun_probe(engines.stun_probe)
         .with_scripts(engines.scripts, engines.script_exports)
         .with_rule_provider_cache(rule_provider_cache)
+        .with_overview_layout(OverviewLayoutApplication::new())
         .with_port_conflicts(port_conflicts);
     if let Some(outbound) = outbound {
         reader = reader.with_outbound(outbound);

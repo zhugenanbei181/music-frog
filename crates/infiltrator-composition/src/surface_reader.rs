@@ -27,6 +27,7 @@ use infiltrator_application::network_roaming_application::NetworkRoamingApplicat
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::outbound_application::preferences::OutboundUiPreferencesApplication;
+use infiltrator_application::overview_layout_application::OverviewLayoutApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
@@ -144,6 +145,7 @@ pub struct ProductSurfaceReader {
     endpoint_source: Option<Arc<dyn EndpointSource>>,
     service_mode: Option<ServiceModeApplication>,
     port_conflicts: Option<PortConflictApplication>,
+    overview_layout: Option<OverviewLayoutApplication>,
     resources: Option<ResourceApplication>,
     offline_startup: Option<OfflineStartupApplication>,
     mtu: Option<MtuApplication>,
@@ -225,6 +227,13 @@ impl SurfaceReader for ProductSurfaceReader {
         let controller_auth = self.read_controller_auth().await;
         let service_mode = self.read_service_mode().await;
         let port_conflicts = self.read_port_conflicts().await;
+        // The owner's card order and pending conflict are read once and
+        // published with the rest of the snapshot.
+        let overview_layout_snapshot = self
+            .overview_layout
+            .as_ref()
+            .map(|owner| owner.snapshot())
+            .unwrap_or_default();
         let resources = self.read_resources().await;
         let offline_startup = self.read_offline_startup().await;
         let system_proxy = self.read_system_proxy().await;
@@ -699,7 +708,7 @@ impl SurfaceReader for ProductSurfaceReader {
             outbound_details,
             outbound_ui_preferences,
             public_ip: PublicIpProbeSnapshot::default(),
-            overview_layout: Default::default(),
+            overview_layout: overview_layout_snapshot,
             reconnect_mask,
             viewport: Default::default(),
             subscription_quota,

@@ -1,10 +1,8 @@
 use crate::host_support::get_runtime;
+use crate::owner_command::execute_owner_commands;
 use crate::uniffi_api::profile_age_credential_owner::execute_owner_request;
-use infiltrator_contract::android_control::{
-    AndroidProductCommand, AndroidProductCommandOutcome, AndroidProductCommandRequest,
-};
-use infiltrator_contract::command::{CommandIntent, CommandResult};
-use infiltrator_contract::core_identity::CoreCommandOutcome;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
 };
@@ -49,59 +47,37 @@ impl SlintProductHost for AndroidSlintHost {
         snapshot: Option<&SurfaceSnapshot>,
         action: SlintAction,
     ) -> Result<(), Failure> {
-        let intents = match action {
-            SlintAction::SetAutostart(_) => {
-                return Err(Failure::unsupported(
-                    "Android autostart is controlled by the Android host, not the shared Slint surface",
-                ));
+        self.execute_typed(snapshot, action).map(|_| ())
+    }
+
+    /// Runs one owner action and reports the owner's typed readback.
+    ///
+    /// The Android owner answers a product command with the typed output it
+    /// produced, so the surface learns the owner's identity for a reviewed
+    /// export, a restoration review or an applied subscription filter instead
+    /// of learning only that a command was dispatched.
+    fn execute_typed(
+        &self,
+        snapshot: Option<&SurfaceSnapshot>,
+        action: SlintAction,
+    ) -> Result<CommandOutput, Failure> {
+        match action {
+            SlintAction::SetAutostart(_) => Err(Failure::unsupported(
+                "Android autostart is controlled by the Android host, not the shared Slint surface",
+            )),
+            SlintAction::Command(intent) => {
+                let scope = android_scope(snapshot)?;
+                self.execute_commands(scope, vec![intent])
             }
-            SlintAction::Command(intent) => vec![intent],
-            SlintAction::Sequence(intents) => intents,
-            action @ (SlintAction::ImportEncryptedSubscription { .. }
-            | SlintAction::SetProfileAgeCredential { .. }
-            | SlintAction::ClearProfileAgeCredential { .. }
-            | SlintAction::SaveProfileSettings { .. }
-            | SlintAction::ImportProfileFile { .. }
-            | SlintAction::ImportOverrideFile { .. }
-            | SlintAction::ExportProfile { .. }
-            | SlintAction::ExportOverride { .. }
-            | SlintAction::ExportLogs { .. }
-            | SlintAction::StartRuntime
-            | SlintAction::ScanQrCode
-            | SlintAction::OpenAutostartSettings
-            | SlintAction::RequestBatteryOptimizationExemption
-            | SlintAction::SetHideBackgroundCard(_)
-            | SlintAction::SetReleaseUiWhenBackground(_)
-            | SlintAction::SetShowTrafficNotification(_)
-            | SlintAction::CacheBackPreview
-            | SlintAction::CommitBackPreview) => {
-                return execute_slint_age_action(self, snapshot, action);
+            SlintAction::Sequence(intents) => {
+                let scope = android_scope(snapshot)?;
+                self.execute_commands(scope, intents)
             }
-        };
-        let mut scope = snapshot
-            .and_then(|snapshot| snapshot.core.scope())
-            .ok_or_else(|| {
-                Failure::new(
-                    ErrorCode::NotReady,
-                    "The Android owner snapshot has no active Core identity",
-                    true,
-                )
-            })?;
-        let command_count = intents.len();
-        for (index, intent) in intents.into_iter().enumerate() {
-            match self.execute_one(scope.clone(), intent)? {
-                Some(next_scope) => scope = next_scope,
-                None if index + 1 < command_count => {
-                    return Err(Failure::new(
-                        ErrorCode::NotReady,
-                        "The Android owner retired the Core scope during a command sequence",
-                        true,
-                    ));
-                }
-                None => {}
+            action => {
+                execute_slint_age_action(self, snapshot, action)?;
+                Ok(CommandOutput::Unit)
             }
         }
-        Ok(())
     }
 
     fn autostart_enabled(&self) -> Option<bool> {
@@ -127,41 +103,33 @@ impl SlintProductHost for AndroidSlintHost {
 }
 
 impl AndroidSlintHost {
-    fn execute_one(
+    /// Runs the shared commands in the Android owner and reports the typed
+    /// readback of the last one.
+    fn execute_commands(
         &self,
         scope: CoreScope,
-        intent: CommandIntent,
-    ) -> Result<Option<CoreScope>, Failure> {
-        let request = AndroidProductCommandRequest {
-            scope,
-            command: AndroidProductCommand::Application(Box::new(intent)),
-        };
-        let command_json = serde_json::to_string(&request).map_err(|error| {
-            Failure::new(
-                ErrorCode::Internal,
-                format!("Android command could not be encoded: {error}"),
-                false,
+        intents: Vec<CommandIntent>,
+    ) -> Result<CommandOutput, Failure> {
+        let transport = |request_json: &str| -> Result<String, Failure> {
+            Ok(
+                get_runtime().block_on(crate::android_execute_product_command_json(
+                    request_json.to_owned(),
+                )),
             )
-        })?;
-        let result =
-            get_runtime().block_on(crate::android_execute_product_command_json(command_json));
-        match serde_json::from_str::<AndroidProductCommandOutcome>(&result).map_err(|error| {
+        };
+        execute_owner_commands(scope, intents, &transport)
+    }
+}
+
+/// The Core scope the Android owner snapshot carries.
+fn android_scope(snapshot: Option<&SurfaceSnapshot>) -> Result<CoreScope, Failure> {
+    snapshot
+        .and_then(|snapshot| snapshot.core.scope())
+        .ok_or_else(|| {
             Failure::new(
-                ErrorCode::Internal,
-                format!("Android owner command result could not be decoded: {error}"),
+                ErrorCode::NotReady,
+                "The Android owner snapshot has no active Core identity",
                 true,
             )
-        })? {
-            AndroidProductCommandOutcome::Unavailable { failure, .. } => Err(failure),
-            AndroidProductCommandOutcome::Terminal(outcome) => {
-                let CoreCommandOutcome { scope, result } = *outcome;
-                match result {
-                    CommandResult::Completed { .. }
-                    | CommandResult::Produced { .. }
-                    | CommandResult::Accepted { .. } => Ok(scope),
-                    CommandResult::Rejected { failure, .. } => Err(failure),
-                }
-            }
-        }
-    }
+        })
 }
