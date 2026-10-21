@@ -76,6 +76,7 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::CancelSpeedtestRun { .. }
         | CommandIntent::SetRuntimeProbeSettings { .. }
         | CommandIntent::ReorderOverviewCards { .. }
+        | CommandIntent::MoveOverviewCard { .. }
         | CommandIntent::ResetOverviewCardOrder
         | CommandIntent::RestoreSubscriptionBackup { .. }
         | CommandIntent::UpdateSubscriptionFetchSettings { .. }
@@ -455,6 +456,7 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         | CommandIntent::CancelSpeedtestRun { .. }
         | CommandIntent::SetRuntimeProbeSettings { .. }
         | CommandIntent::ReorderOverviewCards { .. }
+        | CommandIntent::MoveOverviewCard { .. }
         | CommandIntent::ResetOverviewCardOrder
         | CommandIntent::ResetRuleHitCounters { .. }
         | CommandIntent::PrepareLogExport

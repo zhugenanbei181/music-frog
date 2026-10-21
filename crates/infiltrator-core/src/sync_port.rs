@@ -1,5 +1,7 @@
 //! File/keyring/WebDAV adapter for the runtime-neutral sync port.
 
+use std::time::UNIX_EPOCH;
+use std::time::SystemTime;
 use crate::remote_profile_namespace::{migrate_remote_profile_namespace, remote_profile_path};
 use crate::settings_io::load_webdav_password;
 use dav_client::DavClient;
@@ -13,7 +15,9 @@ use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
+use infiltrator_ports::sync::{
+    SyncConflictSnapshot, SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest,
+};
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceState;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_ports::error::PortError;
@@ -24,9 +28,9 @@ use std::collections::HashSet;
 use std::fs::canonicalize;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use sync_engine::executor::SyncExecutor;
 use sync_engine::{SyncAction, SyncPlanner};
+use tokio::fs::read_dir;
 #[cfg(windows)]
 use tokio::fs::try_exists;
 use tokio::fs::{OpenOptions, create_dir_all, read, read_to_string, remove_file, rename};
@@ -296,6 +300,64 @@ where
             });
         }
         Ok(report)
+    }
+
+    /// The pending conflict the owner holds, if it holds one.
+    ///
+    /// The conflict copies live beside the profile they belong to, named
+    /// `<profile>.remote-conflict-<stamp>.yaml`. The owner reports the most
+    /// recent one it finds; an adapter that cannot see the directory reports
+    /// a typed failure rather than claiming there is no conflict.
+    async fn current_conflict(&self) -> Result<Option<SyncConflictSnapshot>, PortError> {
+        let engine = mihomo_config::engine_id();
+        let config_dir = scoped_conflict_root(&self.home, &engine)?;
+        let mut entries = read_dir(&config_dir)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        let mut newest: Option<(SystemTime, PathBuf)> = None;
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?
+        {
+            let path = entry.path();
+            let name = path.file_name().and_then(|value| value.to_str());
+            let Some(name) = name else { continue };
+            if !name.contains(".remote-conflict-") || !name.ends_with(".yaml") {
+                continue;
+            }
+            let modified = entry
+                .metadata()
+                .await
+                .map_err(|error| PortError::Io(error.to_string()))?
+                .modified()
+                .map_err(|error| PortError::Io(error.to_string()))?;
+            if newest.as_ref().is_none_or(|(stamp, _)| modified > *stamp) {
+                newest = Some((modified, path));
+            }
+        }
+        let Some((modified, path)) = newest else {
+            return Ok(None);
+        };
+        let profile = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .split(".remote-conflict-")
+            .next()
+            .unwrap_or_default()
+            .to_owned();
+        let stamp = modified
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        Ok(Some(SyncConflictSnapshot {
+            conflict: SyncConflict {
+                profile,
+                remote_path: path.to_string_lossy().into_owned(),
+            },
+            revision: u64::try_from(stamp).unwrap_or_default(),
+        }))
     }
 
     async fn read_conflict(

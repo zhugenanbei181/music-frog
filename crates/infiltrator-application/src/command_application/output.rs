@@ -17,6 +17,7 @@ use infiltrator_contract::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, ScopedRuleTraceRequest,
 };
 use infiltrator_contract::script_export::ScriptExportKind;
+use infiltrator_contract::sync::SyncConflictResolution;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
@@ -291,6 +292,30 @@ impl CommandApplication {
                 .load(profile.as_deref())
                 .await
                 .map(CommandOutput::ProfileOptionsLoaded),
+            CommandIntent::ReorderOverviewCards { order } => self
+                .overview_layout()?
+                .reorder(order)
+                .map(|mutation| CommandOutput::OverviewLayoutApplied(mutation.snapshot().clone())),
+            CommandIntent::MoveOverviewCard { kind, direction } => {
+                let mutation = self.overview_layout()?.move_card(kind, direction);
+                Ok(CommandOutput::OverviewLayoutApplied(
+                    mutation.snapshot().clone(),
+                ))
+            }
+            CommandIntent::ResetOverviewCardOrder => {
+                let mutation = self.overview_layout()?.reset();
+                Ok(CommandOutput::OverviewLayoutApplied(
+                    mutation.snapshot().clone(),
+                ))
+            }
+            CommandIntent::ResolveConflictKeepLocal => self
+                .resolve_sync_conflict(SyncConflictResolution::KeepLocal)
+                .await
+                .map(CommandOutput::SyncConflictResolved),
+            CommandIntent::ResolveConflictTakeRemote => self
+                .resolve_sync_conflict(SyncConflictResolution::TakeRemote)
+                .await
+                .map(CommandOutput::SyncConflictResolved),
             intent => self
                 .execute_dispatch(scope, intent)
                 .await

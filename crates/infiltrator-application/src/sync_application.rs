@@ -2,7 +2,9 @@
 
 use infiltrator_contract::sync::{SyncReport, SyncTransferReport};
 use infiltrator_domain::settings::WebDavConfig;
-use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
+use infiltrator_ports::sync::{
+    SyncConflictSnapshot, SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::Arc;
 
@@ -101,6 +103,59 @@ impl SyncApplication {
             .await
             .map_err(Failure::from)
     }
+
+    /// The conflict the owner currently holds, if any.
+    ///
+    /// The sync owner is the only source of this fact: an adapter that cannot
+    /// report its pending conflict answers with a typed failure instead of
+    /// claiming that no conflict exists.
+    pub async fn current_conflict(&self) -> Result<Option<SyncConflictSnapshot>, Failure> {
+        self.port.current_conflict().await.map_err(Failure::from)
+    }
+
+    /// Read the remote copy of the owner's current conflict.
+    pub async fn read_conflict_content(
+        &self,
+        configs_dir: Option<&str>,
+        conflict: &SyncConflictSnapshot,
+    ) -> Result<String, Failure> {
+        let configs_dir = conflict_configs_dir(configs_dir)?;
+        self.port
+            .read_conflict(configs_dir, conflict.conflict.remote_path.clone())
+            .await
+            .map_err(Failure::from)
+    }
+
+    /// Discard the remote copy of the owner's current conflict.
+    pub async fn discard_conflict(
+        &self,
+        configs_dir: Option<&str>,
+        conflict: &SyncConflictSnapshot,
+    ) -> Result<(), Failure> {
+        let configs_dir = conflict_configs_dir(configs_dir)?;
+        self.port
+            .delete_conflict(configs_dir, conflict.conflict.remote_path.clone())
+            .await
+            .map_err(Failure::from)
+    }
+}
+
+/// The configuration root the owner's conflict copies live in.
+///
+/// A host that does not expose one cannot address a conflict copy, so the
+/// resolution is refused with a typed failure instead of guessing a path.
+fn conflict_configs_dir(configs_dir: Option<&str>) -> Result<String, Failure> {
+    let configs_dir = configs_dir
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "the configuration directory is unknown, so no conflict copy can be addressed",
+                false,
+            )
+        })?;
+    Ok(configs_dir.to_owned())
 }
 
 #[cfg(test)]

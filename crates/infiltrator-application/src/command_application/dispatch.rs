@@ -796,16 +796,20 @@ impl CommandApplication {
             | CommandIntent::PrepareLogExport
             | CommandIntent::SaveLogExport { .. }
             | CommandIntent::CancelLogExport { .. }
-            | CommandIntent::ReorderOverviewCards { .. }
-            | CommandIntent::ResetOverviewCardOrder
             | CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
             | CommandIntent::StartSpeedtest { .. }
             | CommandIntent::CancelSpeedtestRun { .. }
-            | CommandIntent::SetSpeedtestConcurrency { .. }
-            | CommandIntent::ResolveConflictKeepLocal
-            | CommandIntent::ResolveConflictTakeRemote => Err(unsupported()),
+            | CommandIntent::SetSpeedtestConcurrency { .. } => Err(unsupported()),
+            CommandIntent::ReorderOverviewCards { .. }
+            | CommandIntent::MoveOverviewCard { .. }
+            | CommandIntent::ResetOverviewCardOrder => {
+                unreachable!("typed Overview layout output is handled before unit dispatch")
+            }
+            CommandIntent::ResolveConflictKeepLocal | CommandIntent::ResolveConflictTakeRemote => {
+                unreachable!("typed sync conflict output is handled before unit dispatch")
+            }
         }
     }
 }

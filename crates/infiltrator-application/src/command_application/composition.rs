@@ -6,9 +6,9 @@ use super::{
     CoreCapabilityApplication, DnsCacheApplication, DnsLatencyApplication, DnsLeakApplication,
     DnsQueryApplication, DoctorApplication, GeoDatabaseApplication, LogApplication,
     LogExportApplication, MtuApplication, NetworkRoamingApplication, OutboundApplication,
-    OutboundUiPreferencesApplication, PacApplication, PortConflictApplication,
-    PrivilegedNetworkApplication, ProfileApplication, RoutingApplication, RoutingIntentPort,
-    RuleListApplication, RuleProviderApplication, RuleProviderCachePort,
+    OutboundUiPreferencesApplication, OverviewLayoutApplication, PacApplication,
+    PortConflictApplication, PrivilegedNetworkApplication, ProfileApplication, RoutingApplication,
+    RoutingIntentPort, RuleListApplication, RuleProviderApplication, RuleProviderCachePort,
     RuleProviderRuntimeApplication, RuleTracerApplication, RuntimeQueryApplication,
     ServiceModeApplication, SettingsApplication, SnapshotApplication, StunProbeApplication,
     SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource, SyncApplication,
@@ -146,6 +146,15 @@ impl CommandApplication {
 
     pub fn with_sync(mut self, application: SyncApplication) -> Self {
         self.sync = Some(application);
+        self
+    }
+
+    /// Install the Overview page's card-order owner.
+    ///
+    /// The owner is the single source of the card order: both surfaces submit
+    /// the same typed intents and read the order back from its snapshot.
+    pub fn with_overview_layout(mut self, application: OverviewLayoutApplication) -> Self {
+        self.overview_layout = Some(application);
         self
     }
 

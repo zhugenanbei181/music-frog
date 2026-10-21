@@ -1,8 +1,9 @@
 //! Runtime-neutral WebDAV synchronization port.
 
 use async_trait::async_trait;
-use infiltrator_contract::sync::{SyncProgress, SyncReport, SyncTransferReport};
+use infiltrator_contract::sync::{SyncConflict, SyncProgress, SyncReport, SyncTransferReport};
 use infiltrator_domain::settings::WebDavConfig;
+use lurker_core_contract::capability::Capability;
 use lurker_core_ports::error::PortError;
 use std::sync::Arc;
 
@@ -10,6 +11,19 @@ use std::sync::Arc;
 pub struct SyncRequest {
     pub config: WebDavConfig,
     pub configs_dir: Option<String>,
+}
+
+/// The sync owner's snapshot of the conflict it currently holds.
+///
+/// The owner is the only source of this fact: the snapshot names the pending
+/// conflict and the owner's revision of it, so a resolution can be fenced
+/// against the exact conflict the caller observed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SyncConflictSnapshot {
+    /// The conflict the owner holds.
+    pub conflict: SyncConflict,
+    /// The owner's revision of this pending conflict.
+    pub revision: u64,
 }
 
 pub trait SyncProgressSink: Send + Sync {
@@ -53,6 +67,18 @@ pub trait SyncPort: Send + Sync {
         let _ = (configs_dir, remote_path);
         Err(PortError::Failed(
             "sync conflict deletion is not supported by this adapter".to_string(),
+        ))
+    }
+
+    /// The conflict the owner currently holds, if any.
+    ///
+    /// The owner is the single source of this fact. An adapter that cannot
+    /// report its pending conflict answers with a typed unsupported instead of
+    /// claiming that no conflict exists.
+    async fn current_conflict(&self) -> Result<Option<SyncConflictSnapshot>, PortError> {
+        Err(PortError::unsupported(
+            Capability::WebDavSync,
+            "this sync adapter does not expose its pending conflict",
         ))
     }
 }

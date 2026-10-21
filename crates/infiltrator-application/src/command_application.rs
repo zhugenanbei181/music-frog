@@ -24,6 +24,7 @@ use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
 use crate::outbound_application::OutboundApplication;
 use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
+use crate::overview_layout_application::OverviewLayoutApplication;
 use crate::pac_application::PacApplication;
 use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
@@ -45,6 +46,7 @@ use crate::snapshot_application::SnapshotApplication;
 use crate::stun_probe_application::{NO_STUN_PORT_REASON, StunProbeApplication};
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use crate::sync_application::SyncApplication;
+use crate::sync_conflict_application::SyncConflictApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::version_application::VersionApplication;
@@ -54,6 +56,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mtu::MtuProbeState;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord};
+use infiltrator_contract::sync::{SyncConflictResolution, SyncConflictResolutionReceipt};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::version::{EngineReleaseChannel, ReleaseChannelId};
 use infiltrator_domain::rules::provider_store::parse_rule_provider_declarations;
@@ -114,6 +117,8 @@ pub struct CommandApplication {
     routing: Option<RoutingApplication>,
     routing_intent_port: Option<Arc<dyn RoutingIntentPort>>,
     sync: Option<SyncApplication>,
+    /// The Overview page's card-order owner.
+    overview_layout: Option<OverviewLayoutApplication>,
     settings: Option<SettingsApplication>,
     snapshots: Option<SnapshotApplication>,
     versions: Option<VersionApplication>,
@@ -554,6 +559,33 @@ impl CommandApplication {
         self.sync.clone().ok_or_else(|| missing("sync application"))
     }
 
+    /// The Overview page's card-order owner.
+    fn overview_layout(&self) -> Result<OverviewLayoutApplication, Failure> {
+        self.overview_layout
+            .clone()
+            .ok_or_else(|| missing("Overview layout application"))
+    }
+
+    /// Resolve the conflict the sync owner currently holds.
+    ///
+    /// The resolution runs against the sync owner's own conflict state and
+    /// writes the local profile through the profile owner, so no surface
+    /// touches a conflict copy or a profile file itself.
+    async fn resolve_sync_conflict(
+        &self,
+        resolution: SyncConflictResolution,
+    ) -> Result<SyncConflictResolutionReceipt, Failure> {
+        let settings = self.settings()?.load_hydrated().await?;
+        SyncConflictApplication::new(
+            self.sync()?,
+            self.profile()?,
+            self.profile_access(),
+            settings.configs_dir,
+        )
+        .resolve(resolution)
+        .await
+    }
+
     fn settings(&self) -> Result<SettingsApplication, Failure> {
         self.settings
             .clone()
@@ -690,3 +722,7 @@ mod rule_edit_tests;
 #[cfg(test)]
 #[path = "command_application_settings_tests.rs"]
 mod settings_write_tests;
+
+#[cfg(test)]
+#[path = "command_application_overview_sync_tests.rs"]
+mod overview_sync_tests;

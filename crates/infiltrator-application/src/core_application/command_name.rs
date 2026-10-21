@@ -40,6 +40,7 @@ pub(super) fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetLanguage { .. } => "set_language",
         CommandIntent::SetRuntimeProbeSettings { .. } => "set_runtime_probe_settings",
         CommandIntent::ReorderOverviewCards { .. } => "reorder_overview_cards",
+        CommandIntent::MoveOverviewCard { .. } => "move_overview_card",
         CommandIntent::ResetOverviewCardOrder => "reset_overview_card_order",
         CommandIntent::UpdateProfile { .. } => "update_profile",
         CommandIntent::UpdateAllSubscriptions => "update_all_subscriptions",

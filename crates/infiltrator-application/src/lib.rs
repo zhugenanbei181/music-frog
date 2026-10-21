@@ -103,6 +103,9 @@ pub mod subscription_quota_application;
 pub mod subscription_refresh_application;
 pub mod surface_application;
 pub mod sync_application;
+pub mod sync_conflict_application;
+#[cfg(test)]
+mod sync_conflict_test_support;
 pub mod system_proxy_application;
 pub mod traffic_scale_application;
 pub mod traffic_topology_application;

@@ -2,9 +2,11 @@
 
 use crate::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
-use infiltrator_contract::lan::LanSecuritySnapshot;
+use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
-use infiltrator_ports::runtime_configuration::{LanAuthenticationState, ObservedValue};
+use infiltrator_ports::runtime_configuration::{
+    ConfigurationObservation, LanAuthenticationState, LanSharingConfiguration, ObservedValue,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::{Arc, Mutex};
 
@@ -90,20 +92,37 @@ pub fn runtime_control(
         Some(Ok(readout)) => RuntimeControlSnapshot {
             status: RuntimeControlStatus::Ready,
             tun_enabled: reported(&readout.tun.value.enabled),
-            mixed_port: reported(&readout.lan_sharing.value.mixed_port),
-            allow_lan: reported(&readout.lan_sharing.value.enabled),
+            lan_sharing: lan_sharing_observation(&readout.lan_sharing),
             log_level: match &readout.core_log_level.value {
                 ObservedValue::Reported(level) => Some(level.as_key().to_owned()),
                 ObservedValue::Unreported => None,
             },
             ipv6_routing: ipv6_observation(readout),
-            lan_bind_address: reported(&readout.lan_sharing.value.bind_address),
             lan_security: lan_security_observation(readout),
             tun_stack: reported(&readout.tun.value.stack),
             tun_auto_route: reported(&readout.tun.value.auto_route),
             tun_strict_route: reported(&readout.tun.value.strict_route),
         },
     }
+}
+
+/// The LAN sharing readback, as one fact.
+///
+/// The three configuration values are one observation: a readback that knows
+/// the port but not the bind address is not a confirmed configuration, so the
+/// whole readback stays unobserved rather than half-published.
+fn lan_sharing_observation(
+    observation: &ConfigurationObservation<LanSharingConfiguration>,
+) -> Option<LanSharingSnapshot> {
+    let enabled = reported(&observation.value.enabled)?;
+    let mixed_port = reported(&observation.value.mixed_port)?;
+    let bind_address = reported(&observation.value.bind_address)?;
+    Some(LanSharingSnapshot::new(
+        observation.revision.value(),
+        enabled,
+        mixed_port,
+        bind_address,
+    ))
 }
 
 fn reported<T: Clone>(value: &ObservedValue<T>) -> Option<T> {
@@ -217,7 +236,10 @@ mod tests {
         let config = readout(false, 0);
         let observed = owner.observe(4, 2, Some(&Ok(config.clone())));
         assert_eq!(observed.tun_enabled, Some(false));
-        assert_eq!(observed.mixed_port, Some(0));
+        // The LAN sharing readback is one fact: the fixture reports the port
+        // and the enabled flag but not the bind address, so the whole
+        // readback stays unobserved instead of being half-published.
+        assert_eq!(observed.lan_sharing, None);
         let denied = Failure::new(ErrorCode::Authentication, "read denied", false);
         let failed = owner.observe(4, 3, Some(&Err(denied.clone())));
         assert_eq!(

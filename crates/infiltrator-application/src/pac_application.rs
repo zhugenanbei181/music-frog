@@ -56,6 +56,8 @@ impl PacApplication {
             state,
             script_bytes: previous.script_bytes,
             bypass_domains: previous.bypass_domains,
+            bypass_lan: previous.bypass_lan,
+            minify: previous.minify,
             revision,
         };
         *self.last_snapshot.lock().expect("PAC snapshot lock") = snapshot.clone();
@@ -163,6 +165,8 @@ impl PacApplication {
             state,
             script_bytes: script.len(),
             bypass_domains,
+            bypass_lan: request.bypass_lan,
+            minify: request.minify,
             revision: self.next_revision.fetch_add(1, Ordering::Relaxed),
         };
         *self.last_snapshot.lock().expect("PAC snapshot lock") = snapshot.clone();
