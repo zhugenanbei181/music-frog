@@ -23,6 +23,7 @@ use infiltrator_presentation::dns_hosts_projection;
 use infiltrator_presentation::dns_leak_projection;
 use infiltrator_presentation::dns_query_projection;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
+use infiltrator_presentation::doctor_actions::DoctorActionState;
 use infiltrator_presentation::doctor_projection;
 use infiltrator_presentation::routing_projection;
 use infiltrator_shared::dns_observation::DnsObservationTone;
@@ -387,6 +388,11 @@ pub(super) fn doctor_page(
         }
     }
     let doctor = lock(&workbenches.doctor);
+    // The diagnostic panel reports the owner's answer for its own action, so
+    // the recovery business shows the typed refusal it has to recover from.
+    if let Some(failure) = doctor_failure(&doctor) {
+        items.push(text("doctor-failure", &failure));
+    }
     items.push(button(
         "doctor-diagnose",
         &catalog.text("doctor_btn_check"),
@@ -505,6 +511,18 @@ pub(super) fn app_routing_page(
         String::new(),
         "app-routing-rule".to_owned(),
     )
+}
+
+/// The typed refusal the diagnostic panel shows for its own action.
+///
+/// The shared reducer owns the phase, so the panel reports the owner's answer
+/// instead of an empty state.
+fn doctor_failure(doctor: &DoctorActionState) -> Option<String> {
+    match &doctor.phase {
+        DoctorActionPhase::Idle => None,
+        DoctorActionPhase::Pending(_) => None,
+        DoctorActionPhase::Failed { failure, .. } => Some(failure.message.clone()),
+    }
 }
 
 /// The tone of the shared DNS leak conclusion.

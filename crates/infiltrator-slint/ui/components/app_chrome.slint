@@ -179,6 +179,33 @@ export component SettingsMessageBanner inherits Rectangle {
     }
 }
 
+// The settings sheet's type dropdown. It is the same toolkit popup menu as
+// the theme, language and proxy-sort menus of the window.
+export component ProfileSettingsTypeMenu inherits PopupMenu {
+    in property <length> window-width;
+    in property <length> window-height;
+    in property <length> safe-left;
+    in property <length> safe-right;
+    in property <length> safe-top;
+    in property <length> safe-bottom;
+    in property <length> anchor-x;
+    in property <length> anchor-y;
+    in property <bool> layout-debug-bounds;
+    in property <int> selected-index;
+
+    callback select(int);
+
+    x: max(root.safe-left + 12px * LumenUiScale.factor, min(root.window-width - root.safe-right - self.width - 12px * LumenUiScale.factor, root.anchor-x - self.width));
+    y: max(root.safe-top, min(root.anchor-y, root.window-height - root.safe-bottom - self.height - 12px * LumenUiScale.factor));
+    available_width: root.window-width; show_layout_bounds: root.layout-debug-bounds;
+    items: [{ text: @tr("订阅信息"), enabled: true }, { text: @tr("覆写配置"), enabled: true }];
+    current_index: root.selected-index;
+    activated(index) => {
+        root.select(index);
+        self.close();
+    }
+}
+
 export component ProxySortMenu inherits PopupMenu {
     in property <length> window-width;
     in property <length> safe-left;

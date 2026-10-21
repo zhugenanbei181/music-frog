@@ -179,8 +179,12 @@ pub struct Workbenches {
     pub difference: Mutex<DifferenceView>,
     /// Whether the synchronisation conflict resolver is open.
     pub conflict: Mutex<ConflictResolver>,
-    /// The owner commands the surface waits for, in dispatch order.
-    in_flight: Mutex<VecDeque<PendingBusiness>>,
+    /// The owner commands the surface dispatched, in dispatch order.
+    ///
+    /// A command without a shared reducer carries no reducer identity, but it
+    /// still waits for the owner's terminal, so the surface keeps it in the
+    /// same queue.
+    in_flight: Mutex<VecDeque<Option<PendingBusiness>>>,
 }
 
 impl Workbenches {
@@ -188,8 +192,9 @@ impl Workbenches {
     ///
     /// The owner executes the commands in dispatch order, so its terminals
     /// arrive in the same order and every terminal reaches the reducer that
-    /// started its command.
-    pub fn record(&self, business: PendingBusiness) {
+    /// started its command. A command no shared reducer owns carries no
+    /// reducer identity, but the surface still waits for its terminal.
+    pub fn record(&self, business: Option<PendingBusiness>) {
         let mut queue = guard(&self.in_flight);
         queue.push_back(business);
     }
@@ -202,6 +207,11 @@ impl Workbenches {
     pub fn settle(&self, result: Result<CommandOutput, Failure>) -> bool {
         let Some(business) = self.next_in_flight() else {
             return false;
+        };
+        let Some(business) = business else {
+            // The command no shared reducer owns: the terminal arrived, so
+            // the surface stops waiting for it.
+            return true;
         };
         match business {
             PendingBusiness::DnsQuery => {
@@ -296,8 +306,17 @@ impl Workbenches {
         };
     }
 
+    /// Whether the surface waits for an owner terminal.
+    ///
+    /// The surface owns the correlation, so it knows whether a command it
+    /// dispatched is still outstanding. A capture waits for the owner's
+    /// answer before it publishes the surface as activated.
+    pub fn has_pending_command(&self) -> bool {
+        !guard(&self.in_flight).is_empty()
+    }
+
     /// The reducer that owns the next owner terminal.
-    fn next_in_flight(&self) -> Option<PendingBusiness> {
+    fn next_in_flight(&self) -> Option<Option<PendingBusiness>> {
         let mut queue = guard(&self.in_flight);
         queue.pop_front()
     }

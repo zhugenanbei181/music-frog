@@ -46,10 +46,10 @@ pub(super) fn register(
             Ok(WorkbenchOutcome::Command(owner_action)) => {
                 // The reducer that owns the command correlates the owner's
                 // terminal, so the surface records which one waits for it.
-                if let SlintAction::Command(intent) = &owner_action
-                    && let Some(business) = workbench::owner_business(intent)
-                {
-                    workbenches_for_action.record(business);
+                // A command no shared reducer owns is recorded as well, so
+                // the surface still waits for its terminal.
+                if let SlintAction::Command(intent) = &owner_action {
+                    workbenches_for_action.record(workbench::owner_business(intent));
                 }
                 queue_action(&tx_for_action, &weak_for_action, Ok(owner_action));
             }

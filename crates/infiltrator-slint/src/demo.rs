@@ -5,6 +5,7 @@
 //! and writes the `CAPTURE_READY` marker for background virtual compositor screenshots.
 
 mod fixtures;
+mod owner;
 
 use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
@@ -51,6 +52,7 @@ use std::io::Write as _;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -135,28 +137,52 @@ impl DemoSettings {
 }
 
 pub struct DemoProductHost {
-    snapshot: SurfaceSnapshot,
+    snapshot: Mutex<SurfaceSnapshot>,
 }
 
 impl DemoProductHost {
     pub fn new(settings: &DemoSettings) -> Self {
         let mut snapshot = build_demo_snapshot(settings);
         snapshot.origin = SurfaceOrigin::Demo;
-        Self { snapshot }
+        Self {
+            snapshot: Mutex::new(snapshot),
+        }
     }
 }
 
 impl SlintProductHost for DemoProductHost {
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
-        Ok(self.snapshot.clone())
+        Ok(self
+            .snapshot
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_else(|_| {
+                SurfaceSnapshot::unavailable(
+                    SurfaceKind::SlintDesktop,
+                    HostKind::Desktop,
+                    Failure::unsupported("the demo snapshot is poisoned"),
+                )
+            }))
     }
 
     fn execute(
         &self,
         _snapshot: Option<&SurfaceSnapshot>,
-        _action: SlintAction,
+        action: SlintAction,
     ) -> Result<(), Failure> {
-        Ok(())
+        self.execute_typed(_snapshot, action).map(|_| ())
+    }
+
+    fn execute_typed(
+        &self,
+        _snapshot: Option<&SurfaceSnapshot>,
+        action: SlintAction,
+    ) -> Result<CommandOutput, Failure> {
+        let mut guard = self
+            .snapshot
+            .lock()
+            .map_err(|_| Failure::unsupported("the demo snapshot is poisoned"))?;
+        owner::respond(&mut guard, action)
     }
 
     fn autostart_enabled(&self) -> Option<bool> {
@@ -690,43 +716,62 @@ pub fn write_capture_marker(
     }
 }
 
+/// Runs the demo fixture host with the real product wiring.
+///
+/// The demo registers the product callbacks and answers the commands the
+/// capture's gestures send, so the capture drives the same code the running
+/// product drives.
 pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
     let host = Arc::new(DemoProductHost::new(&settings));
-    let window = AppWindow::new()?;
+    let snapshot = host
+        .read_snapshot()
+        .map_err(|failure| slint::PlatformError::OtherError(Box::new(failure)))?;
+    crate::run_with_host_prepared(host, move |window, workbenches| {
+        prepare_demo_window(window, workbenches, &settings, &snapshot);
+    })
+}
+
+/// Prepares the demo window before the owner worker starts.
+fn prepare_demo_window(
+    window: &AppWindow,
+    workbenches: &Arc<Workbenches>,
+    settings: &DemoSettings,
+    snapshot: &SurfaceSnapshot,
+) {
     window.set_frameless(true);
     window.window().set_size(slint::LogicalSize::new(
         settings.window_size.0,
         settings.window_size.1,
     ));
-    window.set_android_platform(cfg!(target_os = "android"));
+    lumen_projection::project_snapshot(window, snapshot, Some(true));
+    lumen_projection::project_workbench(window, snapshot, workbenches);
 
-    let initial_language = env::var("INFILTRATOR_LANG")
-        .map(|value| resolve_language_code(&value))
-        .unwrap_or_else(|_| resolve_language_code("zh-CN"));
-    select_translation(&window, &initial_language);
-    lumen_projection::project_initial(&window, &initial_language, host.autostart_enabled());
-
-    let snapshot = host.read_snapshot().unwrap();
-    let workbenches = Rc::new(Workbenches::default());
-    lumen_projection::project_snapshot(&window, &snapshot, host.autostart_enabled());
-    lumen_projection::project_workbench(&window, &snapshot, &workbenches);
-
-    // Explicitly enforce skin and page after projection
+    // Explicitly enforce skin and page after projection.
     window.set_page(settings.page.clone().into());
-    lumen_projection::project_workbench(&window, &snapshot, &workbenches);
+    lumen_projection::project_workbench(window, snapshot, workbenches);
     let is_dark = settings.skin == "dark" || settings.skin == "amoled";
     window.set_theme_mode(settings.skin.clone().into());
     window.set_application_dark_mode(is_dark);
     window.set_notice("".into());
 
-    // The capture marker is published once the window mounted, the scenario
-    // really opened and the activated surface stopped moving.
+    install_capture_timer(window, Arc::clone(workbenches), settings, snapshot.clone());
+}
+
+/// Publishes the capture marker once the business really shows its outcome.
+///
+/// The marker names the business the capture activated, so a scenario whose
+/// business never opened is published as not activated.
+fn install_capture_timer(
+    window: &AppWindow,
+    workbenches: Arc<Workbenches>,
+    settings: &DemoSettings,
+    snapshot: SurfaceSnapshot,
+) {
     let marker_settings = settings.clone();
     let scenario = settings.scenario.clone();
-    let scenario_snapshot = snapshot.clone();
-    let scenario_workbenches = Rc::clone(&workbenches);
     let weak_window = window.as_weak();
     let activated = Cell::new(false);
+    let activation = Rc::new(capture_scenario::Activation::default());
     let previous_bounds = Cell::new(None::<CaptureBounds>);
     let ticks = Cell::new(0u32);
     let timer = Rc::new(slint::Timer::default());
@@ -743,11 +788,14 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
             if let Some(scenario) = &scenario
                 && !activated.get()
             {
+                // The activation drives the business's own gesture and waits
+                // until the business shows its own outcome.
                 activated.set(capture_scenario::activate(
                     &window,
                     scenario,
-                    &scenario_snapshot,
-                    &scenario_workbenches,
+                    &snapshot,
+                    &workbenches,
+                    &activation,
                 ));
             }
             let bounds = capture_scenario::bounds(&window);
@@ -755,16 +803,11 @@ pub fn run_demo(settings: DemoSettings) -> Result<(), slint::PlatformError> {
             previous_bounds.set(bounds);
             // The window needs a few frames before its first paint, and a
             // scenario needs a settled sheet before its bounds are real.
-            if ticks.get() < 5 || (scenario.is_some() && !stable) {
+            if ticks.get() < 5 || (scenario.is_some() && (!stable || !activated.get())) {
                 return;
             }
             write_capture_marker(&marker_settings, &window, activated.get(), bounds);
             timer_for_callback.stop();
         },
     );
-
-    let result = window.run();
-    timer.stop();
-    drop(timer);
-    result
 }

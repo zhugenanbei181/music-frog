@@ -321,7 +321,6 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
     in property <bool> profile-settings-age-configured;
     in property <[ProfileOverrideChoice]> profile-settings-overrides;
     in-out property <int> profile-settings-type-index;
-    in-out property <bool> profile-settings-type-menu-open;
     in-out property <string> profile-settings-name;
     in-out property <string> profile-settings-url;
     in-out property <string> profile-settings-age-key;
@@ -331,6 +330,9 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
     callback clear-age-key();
     callback toggle-override(string, bool);
     callback move-override(string, bool);
+    // The type dropdown is the toolkit's popup menu of the window, so the
+    // sheet only asks the window to open it at the trigger's position.
+    callback open-type-menu(length, length);
 
     sheet_elevation_level: 1;
     show_layout_bounds: root.layout-debug-bounds;
@@ -364,7 +366,10 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                     Text { text: root.profile-settings-type-index == 0 ? @tr("订阅信息") : @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; vertical-alignment: center; }
                     Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
                 }
-                TouchArea { width: parent.width; height: parent.height; clicked => { root.profile-settings-type-menu-open = !root.profile-settings-type-menu-open; } }
+                TouchArea {
+                    width: parent.width; height: parent.height;
+                    clicked => { root.open-type-menu(self.absolute-position.x + self.width, self.absolute-position.y + self.height); }
+                }
             }
             ScrollView {
                 horizontal-stretch: 1;
@@ -406,33 +411,6 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                             Button { text: "↓"; enabled: option.selected && option.can-move-down; clicked => { root.move-override(option.id, false); } }
                         }
                     }
-                }
-            }
-        }
-        if root.profile-settings-type-menu-open: Rectangle {
-            x: 0px * LumenUiScale.factor; y: 64px * LumenUiScale.factor; width: parent.width; height: max(0px * LumenUiScale.factor, parent.height - 64px * LumenUiScale.factor);
-            background: transparent;
-            TouchArea { width: parent.width; height: parent.height; clicked => { root.profile-settings-type-menu-open = false; } }
-        }
-        if root.profile-settings-type-menu-open: Rectangle {
-            x: max(0px * LumenUiScale.factor, parent.width - 236px * LumenUiScale.factor);
-            y: 112px * LumenUiScale.factor;
-            width: 220px * LumenUiScale.factor;
-            height: 112px * LumenUiScale.factor;
-            border-radius: 16px * LumenUiScale.factor;
-            background: LumenTheme.surface;
-            border-width: 1px * LumenUiScale.factor;
-            border-color: LumenTheme.border;
-            VerticalLayout {
-                width: parent.width; height: parent.height; spacing: 0px * LumenUiScale.factor;
-                for title[index] in [@tr("订阅信息"), @tr("覆写配置")]: Rectangle {
-                    width: parent.width; height: 56px * LumenUiScale.factor; background: transparent;
-                    HorizontalLayout {
-                        x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor; height: parent.height; spacing: 8px * LumenUiScale.factor;
-                        Text { text: title; color: root.profile-settings-type-index == index ? LumenTheme.accent : LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; horizontal-stretch: 1; vertical-alignment: center; }
-                        if root.profile-settings-type-index == index: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
-                    }
-                    TouchArea { width: parent.width; height: parent.height; clicked => { root.profile-settings-type-index = index; root.profile-settings-type-menu-open = false; } }
                 }
             }
         }

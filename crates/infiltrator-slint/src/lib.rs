@@ -241,6 +241,19 @@ pub(crate) enum WorkerEvent {
 /// Launch the same Slint component on a native host supplied by the product
 /// composition root.
 pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::PlatformError> {
+    run_with_host_prepared(host, |_, _| {})
+}
+
+/// Launch the Slint component and let the caller prepare the window first.
+///
+/// The preparation runs before the owner worker starts, so a host that owns a
+/// fixture can project it once and let the worker keep it fresh. The
+/// preparation receives the window and the workbench state the surface owns,
+/// so the prepared state is the state the product runs with.
+pub fn run_with_host_prepared(
+    host: Arc<dyn SlintProductHost>,
+    prepare: impl FnOnce(&AppWindow, &Arc<Workbenches>),
+) -> Result<(), slint::PlatformError> {
     let window = AppWindow::new()?;
     window.set_android_platform(cfg!(target_os = "android"));
 
@@ -255,6 +268,7 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
     let poll_pending = Arc::new(AtomicBool::new(false));
     let latest_snapshot = Arc::new(Mutex::new(None));
     let workbenches = Arc::new(Workbenches::default());
+    prepare(&window, &workbenches);
     spawn_host_worker(
         Arc::clone(&host),
         request_rx,
@@ -268,6 +282,9 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
         Arc::clone(&latest_snapshot),
         Arc::clone(&workbenches),
     );
+    // The surface asks for its first snapshot right away, so the owner's
+    // terminal is projected with a snapshot the surface already observes.
+    let _ = request_tx.send(WorkerRequest::Read);
 
     let update_window = window.as_weak();
     let poll_tx = request_tx.clone();

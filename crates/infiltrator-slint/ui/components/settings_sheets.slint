@@ -1,8 +1,8 @@
 import { Button, ScrollView } from "std-widgets.slint";
-import { IconButton, ModalBottomSheet, PopupMenu } from "@material";
+import { IconButton, ModalBottomSheet, PopupMenu, Slider } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
-import { AppColorSlider, LayoutOutline, RoundedInputField } from "./base_widgets.slint";
+import { LayoutOutline, RoundedInputField } from "./base_widgets.slint";
 import { SheetActionButton } from "./cards.slint";
 
 export component ThemeColorSheet inherits ModalBottomSheet {
@@ -50,22 +50,25 @@ export component ThemeColorSheet inherits ModalBottomSheet {
                 Text { text: @tr("颜色预览"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
                 Rectangle { width: parent.width; height: 44px * LumenUiScale.factor; border-radius: 22px * LumenUiScale.factor; background: LumenTheme.accent; }
                 Text { text: @tr("色相"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
-                AppColorSlider {
-                    width: parent.width; height: 44px * LumenUiScale.factor; value: root.theme-hue-draft; minimum: 0; maximum: 359; step: 1;
-                    track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("色相");
-                    value-changed(value) => { root.theme-color-code-edited = false; root.theme-hue-draft = value; root.preview-color(value, root.theme-saturation-draft, root.theme-value-draft); }
+                Slider {
+                    width: parent.width; height: 44px * LumenUiScale.factor; enabled: true;
+                    value: root.theme-hue-draft; minimum: 0; maximum: 359; stop_count: 359;
+                    accessible-label: @tr("色相");
+                    value_changed(value) => { root.theme-color-code-edited = false; root.theme-hue-draft = value; root.preview-color(value, root.theme-saturation-draft, root.theme-value-draft); }
                 }
                 Text { text: @tr("饱和度"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
-                AppColorSlider {
-                    width: parent.width; height: 44px * LumenUiScale.factor; value: root.theme-saturation-draft * 100; minimum: 0; maximum: 100; step: 1;
-                    track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("饱和度");
-                    value-changed(value) => { root.theme-color-code-edited = false; root.theme-saturation-draft = value / 100; root.preview-color(root.theme-hue-draft, value / 100, root.theme-value-draft); }
+                Slider {
+                    width: parent.width; height: 44px * LumenUiScale.factor; enabled: true;
+                    value: root.theme-saturation-draft * 100; minimum: 0; maximum: 100; stop_count: 100;
+                    accessible-label: @tr("饱和度");
+                    value_changed(value) => { root.theme-color-code-edited = false; root.theme-saturation-draft = value / 100; root.preview-color(root.theme-hue-draft, value / 100, root.theme-value-draft); }
                 }
                 Text { text: @tr("明度"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
-                AppColorSlider {
-                    width: parent.width; height: 44px * LumenUiScale.factor; value: root.theme-value-draft * 100; minimum: 0; maximum: 100; step: 1;
-                    track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("明度");
-                    value-changed(value) => { root.theme-color-code-edited = false; root.theme-value-draft = value / 100; root.preview-color(root.theme-hue-draft, root.theme-saturation-draft, value / 100); }
+                Slider {
+                    width: parent.width; height: 44px * LumenUiScale.factor; enabled: true;
+                    value: root.theme-value-draft * 100; minimum: 0; maximum: 100; stop_count: 100;
+                    accessible-label: @tr("明度");
+                    value_changed(value) => { root.theme-color-code-edited = false; root.theme-value-draft = value / 100; root.preview-color(root.theme-hue-draft, root.theme-saturation-draft, value / 100); }
                 }
                 Text { text: @tr("颜色代码"); font-size: 14px * LumenUiScale.factor; color: LumenTheme.text-secondary; }
                 RoundedInputField { width: parent.width; label: "##RRGGBB"; text <=> root.theme-color-code-draft; edited(value) => { root.theme-color-code-edited = true; } }
@@ -109,10 +112,11 @@ export component PageScaleSheet inherits ModalBottomSheet {
                 Rectangle { width: 48px * LumenUiScale.factor; height: 48px * LumenUiScale.factor; }
             }
             Text { text: @tr("当前比例：") + root.page-scale-draft + "%"; font-size: 16px * LumenUiScale.factor; color: LumenTheme.text-primary; horizontal-alignment: center; horizontal-stretch: 1; }
-            AppColorSlider {
-                width: parent.width; height: 54px * LumenUiScale.factor; value: root.page-scale-draft; minimum: 85; maximum: 115; step: 5;
-                track-brush: LumenTheme.preference-off; fill-color: LumenTheme.accent; accessible-name: @tr("页面缩放");
-                value-changed(value) => { root.page-scale-draft = Math.round(value / 5) * 5; }
+            Slider {
+                width: parent.width; height: 54px * LumenUiScale.factor; enabled: true;
+                value: root.page-scale-draft; minimum: 85; maximum: 115; stop_count: 6;
+                accessible-label: @tr("页面缩放");
+                value_changed(value) => { root.page-scale-draft = Math.round(value / 5) * 5; }
             }
             Text { text: @tr("85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"); font-size: 13px * LumenUiScale.factor; color: LumenTheme.text-secondary; wrap: word-wrap; horizontal-alignment: center; horizontal-stretch: 1; }
             HorizontalLayout {

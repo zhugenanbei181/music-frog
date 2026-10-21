@@ -33,6 +33,10 @@
 
 2. **平价场景取证（Parity Scenario Capture）**：
    - `INFILTRATOR_SCENARIO=<feature>` 不再只是把场景名写进标记：`infiltrator_slint::capture_scenario::activate` 会让 surface 打开该业务真实对应的界面状态（与用户手势走同一条路径），`infiltrator_slint::capture_scenario::bounds` 再读取该界面在窗口中的真实几何；
+   - **激活是业务自己的手势，不是换路由**：`infiltrator_slint::capture_scenario::BusinessStep`（`Type(字段)` / `Press(控件)`）为每个承载业务声明唯一手势序列——业务自己的输入框（`DraftField`：DNS 查询名、Hosts 行、脚本源码、过滤 include、聚合目标名、路由规则）与业务自己的控件（`dns-leak-probe`、`dns-query-run`、`dns-cache-confirm`、`dns-hosts-add`+`dns-hosts-save`、`script-run`、`script-export-prepare`、`diff-load`、`restore-prepare`、`filter-save`、`aggregate-create`、`aggregate-preview`、`doctor-diagnose`、`doctor-bootstrap`、`sync-take-remote`、`sync-restore`、`app-routing-rule`）。手势通过 `AppWindow::invoke_workbench_draft_edited` / `invoke_workbench_action` 触发，与用户点击走同一条回调路径；
+   - **激活的判定是渲染真的变了**：`capture_scenario::Activation` 记录手势前的页面签名（workbench 面板的 id/kind/status/detail/trailing/label/enabled + 两个草稿 + owner 可见 notice），只有签名在 owner 终态回灌后真的变化，`activate` 才返回 `true`；owner 命令在途时（`Workbenches::has_pending_command()`）不算激活，因此回执证明的是「业务跑完了并显示了 owner 的答案」，不是「路由换了页」；
+   - **演示宿主是真的 owner**：`infiltrator_slint::demo::DemoProductHost` 通过 `run_with_host_prepared` 复用产品接线（注册生产回调、起 owner worker、按 owner 节奏发布快照），并对每条业务命令回一个 typed 拒绝（`infiltrator_slint::demo::owner::respond`），因此取证里出现的是业务自己的失败路径与 owner 可见 notice，而不是一张空面板；
+   - **弹层取证走用户的开法**：添加配置弹层由 `open-profile-add()` 打开（与「添加配置」磁贴同一条路径），因此弹层记住的 profile 数量与 owner 发布的一致，不会被随后的快照发布误关；
    - surface 能承载的业务集合是**封闭且带类型**的：`infiltrator_slint::capture_scenario::CarriedScenario` 是唯一真源，`activate` 只认识这些变体；集合之外的业务名一律返回 `false`，标记因此永远不会为 surface 没有的业务背书；
    - 标记格式为 `CAPTURE_READY page=<p> skin=<s> scenario=<feature> activated=true bounds=<x>,<y>,<w>,<h>\n`。`bounds` 是被激活界面在窗口中的真实像素矩形，surface 未打开该界面时写 `activated=false` 且不带 `bounds`，因此截图链路无法为 surface 未实现的业务背书；
    - 视口沿用平价约定：`<feature>-standard` 为 1180×780，`<feature>-compact` 为 720×480；场景矩阵见 `docs/capture/parity_scenarios.tsv`，已发布的像素回执见 `docs/screenshots/parity/`；
@@ -98,4 +102,11 @@
      - `ui/lumen-app.slint`：轻量级主页面根骨架（从 3587 行解耦并缩减至 599 行）；
    - 所有触控交互控件均遵循移动端 $\ge 48\text{px} \times \text{LumenUiScale.factor}$ 最小触控热区规范；
    - 由 `scripts/quality/slint-syntax-guard.py` 门禁执行单文件 $\le 600$ 行预算与严禁硬编码状态色约束（100% 通过）。
+
+4. **官方控件收口（UI-FRAMEWORK-001 的 Slint 半边）**：
+   - **Profile-Settings 类型下拉改官方 `PopupMenu`**：`ui/components/profile_sheets.slint` 的 `ProfileSettingsSheet` 不再自绘覆盖层与自持 `profile-settings-type-menu-open` 开关；下拉改为窗口级 `PopupMenu`（`ui/lumen-app.slint` 的 `profile-settings-type-menu`），与主题、语言、代理排序菜单同一形状（`items` / `current_index` / `activated(index)` / `close_policy: close_on_click_outside`），开关状态只由 popup 的 `is-open` 决定；
+   - **Android 复核（同一 pin）**：Slint 1.18.1 的 Android 后端 `i-slint-backend-android-activity` 的 `create_window_adapter` 对每个窗口返回**同一个** adapter（`lib.rs`），即 Android 上 popup 从不成为独立原生窗口，而是画在同一张 surface 里；winit 后端同样注明「We don't render popups as separate windows yet」。因此「popup 不能嵌套所以必须内联」这一 Android 理由在当前 pin 上**不成立**：嵌套 popup 与顶层 popup 的渲染路径一致。由此**添加配置弹层（`ProfileAddSheet`）的类型下拉仍保持内联**是**尚未迁移**而不是被平台禁止，迁移它只需要把触发点的绝对位置传给窗口级 `PopupMenu`（与 `ProfileSettingsSheet` 同一形状）；
+   - **返回手势补齐两个确认弹窗**：`ui/lumen-app.slint` 的 `go-back()` 现在先关 `clear-traffic-dialog` 与 `settings-overlays` 的网络模式确认弹窗（两者都是官方 `PopupWindow`，状态由 popup 自己持有），再依次关主题/语言菜单、代理排序菜单与各类弹层，语义与菜单一致；
+   - **滑块改官方 `Slider`**：`ui/components/base_widgets.slint` 的手搓 `AppColorSlider`（自绘 focus scope、指针换算、步进钳制）已删除，`ui/components/settings_sheets.slint` 改用 Lumen 官方 `Slider`（`stop_count` / `value_changed` / `released`）。**皮肤契约**：滑块的外观（轨道、滑块手柄、按下/悬停态）由工具链唯一拥有，产品不再自绘 22px 手柄与可换肤轨道；产品保留的是语义契约——取值区间、步进（以 `stop_count` 表达）、可访问名称、拖动即预览。Lumen 调色板绑定产品的 `MaterialSchemes`，因此强调色仍随产品主题变化；
+   - **列表虚拟化（未迁移，原因如下）**：Slint 表面每页只有**一个**滚动面（`ui/components/app_body.slint` 的 `page-scroll`），所有列表都是 `VerticalLayout` 里的 `for` 重复，**不存在 `ScrollView { for … }` 这一模式**；标准 `ListView` 只接受**唯一一个** `for` 子元素（编译器报错「A ListView can just have a single 'for' as children」）且必须自己拥有视口，所以迁移的前提是把页面拆成「纯列表页」。候选是代理节点列表（行高 76px，一组可有数百节点）与连接列表。**行高契约不在共享域**：`infiltrator-contract` / `infiltrator-presentation` / `infiltrator-shared` 都没有行高常量，76px / 46px / 58px 都是本表面的皮肤常量；虚拟化需要共享域给出行高契约（共享 owner 改动），否则只能冻结表面自己的行高。这条属于共享改动前置，未在本切片落地。
 

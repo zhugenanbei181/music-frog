@@ -1,9 +1,8 @@
 //! Parity capture scenarios for the Slint surface.
 //!
 //! A capture scenario names one business of the shared parity catalogue. The
-//! activation opens the same surface state a user gesture opens, and the
-//! bounds are the real on-screen geometry of the surface that was opened. A
-//! receipt therefore proves an interaction and never a route change.
+//! activation performs the business's own gesture on the real surface, so the
+//! pixels of the receipt show the business and never a route change.
 //!
 //! The set of businesses the surface carries is closed and typed: a
 //! business the surface does not carry has no variant in
@@ -12,9 +11,17 @@
 
 use crate::AppWindow;
 use crate::lumen_projection::project_workbench;
+use crate::surface::action::workbench::{
+    AGGREGATE_CREATE, AGGREGATE_PREVIEW, APP_ROUTING_RULE, DIFF_LOAD, DNS_CACHE_CONFIRM,
+    DNS_HOSTS_ADD, DNS_HOSTS_SAVE, DNS_LEAK_PROBE, DNS_QUERY_RUN, DOCTOR_BOOTSTRAP,
+    DOCTOR_DIAGNOSE, FILTER_SAVE, RESTORE_PREPARE, SCRIPT_EXPORT_PREPARE, SCRIPT_RUN, SYNC_RESTORE,
+    SYNC_TAKE_REMOTE,
+};
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use slint::ComponentHandle;
+use slint::Model;
+use std::cell::{Cell, RefCell};
 
 /// The geometry of the surface a capture activated, in physical pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -35,6 +42,75 @@ pub enum ScenarioCarrier {
     /// The business is carried by the delete-profile sheet.
     ProfileDeleteSheet,
 }
+
+/// The input one business edits.
+///
+/// Every field is the draft identity the shared reducer owns, so the capture
+/// types into the same field the user types into.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DraftField {
+    /// The DNS query name of the DNS page.
+    DnsQueryName,
+    /// The Hosts row of the DNS page.
+    DnsHostsRow,
+    /// The script source of the editor page.
+    ScriptCode,
+    /// The include pattern of the subscription filter editor.
+    FilterInclude,
+    /// The target name of the aggregation wizard.
+    AggregatorTarget,
+    /// The routing rule of the application routing editor.
+    AppRoutingRule,
+}
+
+impl DraftField {
+    /// The draft identity the shared reducer owns.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::DnsQueryName => "dns-query-name",
+            Self::DnsHostsRow => "dns-hosts-row",
+            Self::ScriptCode => "script-code",
+            Self::FilterInclude => "filter-include",
+            Self::AggregatorTarget => "aggregator-target",
+            Self::AppRoutingRule => "app-routing-rule",
+        }
+    }
+
+    /// The value the capture types into the field.
+    pub fn value(self) -> &'static str {
+        match self {
+            Self::DnsQueryName => "example.org",
+            Self::DnsHostsRow => "10.0.0.9 blocked.example.com",
+            Self::ScriptCode => "function main(config) { return config; }\n",
+            Self::FilterInclude => "Hong Kong|Japan|Singapore",
+            Self::AggregatorTarget => "Merged Global",
+            Self::AppRoutingRule => "proxy",
+        }
+    }
+}
+
+/// One step of the gesture that opens a parity business.
+///
+/// The step is the one a user performs: the business's own input or the
+/// business's own control. The capture never fabricates a surface state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BusinessStep {
+    /// Type the field's value into the business's own input.
+    Type(DraftField),
+    /// Press the business's own control.
+    Press {
+        /// The panel action identity.
+        action: &'static str,
+        /// The row the action addresses.
+        row: &'static str,
+    },
+}
+
+/// The real gesture that opens one parity business.
+///
+/// The gesture is the one a user performs: the business's own input and the
+/// business's own control. The capture never fabricates a surface state.
+pub type BusinessGesture = &'static [BusinessStep];
 
 /// The parity businesses the Slint surface carries.
 ///
@@ -164,6 +240,130 @@ impl CarriedScenario {
             Self::ProfilesDeleteConfirm => ScenarioCarrier::ProfileDeleteSheet,
         }
     }
+
+    /// The gesture a user performs to open this business.
+    ///
+    /// Every business has a control of its own, so the capture presses the
+    /// control the user presses instead of navigating to a route. The sheet
+    /// businesses open their sheet instead of a gesture, so they carry none.
+    pub fn gesture(self) -> Option<BusinessGesture> {
+        let gesture: BusinessGesture = match self {
+            Self::DnsLeakAlert => &[BusinessStep::Press {
+                action: DNS_LEAK_PROBE,
+                row: "",
+            }],
+            Self::DnsQueryDetails => &[
+                BusinessStep::Type(DraftField::DnsQueryName),
+                BusinessStep::Press {
+                    action: DNS_QUERY_RUN,
+                    row: "",
+                },
+            ],
+            Self::DnsFakeIpFlushConfirm => &[BusinessStep::Press {
+                action: DNS_CACHE_CONFIRM,
+                row: "",
+            }],
+            Self::DnsHostsEditor => &[
+                BusinessStep::Type(DraftField::DnsHostsRow),
+                BusinessStep::Press {
+                    action: DNS_HOSTS_ADD,
+                    row: "",
+                },
+                BusinessStep::Press {
+                    action: DNS_HOSTS_SAVE,
+                    row: "",
+                },
+            ],
+            Self::ProfilesScriptSandbox => &[
+                BusinessStep::Type(DraftField::ScriptCode),
+                BusinessStep::Press {
+                    action: SCRIPT_RUN,
+                    row: "",
+                },
+            ],
+            Self::ProfilesScriptExportReview => &[BusinessStep::Press {
+                action: SCRIPT_EXPORT_PREPARE,
+                row: "",
+            }],
+            Self::ProfilesDiffViewer => &[BusinessStep::Press {
+                action: DIFF_LOAD,
+                row: "",
+            }],
+            Self::ProfilesSnapshotRestoreConfirm => &[BusinessStep::Press {
+                action: RESTORE_PREPARE,
+                row: "",
+            }],
+            Self::ProfilesFilterEditor => &[
+                BusinessStep::Type(DraftField::FilterInclude),
+                BusinessStep::Press {
+                    action: FILTER_SAVE,
+                    row: "",
+                },
+            ],
+            Self::ProfilesAggregatorWizard => &[
+                BusinessStep::Type(DraftField::AggregatorTarget),
+                BusinessStep::Press {
+                    action: AGGREGATE_CREATE,
+                    row: "",
+                },
+            ],
+            Self::ProfilesAggregatorPreview => &[
+                BusinessStep::Type(DraftField::AggregatorTarget),
+                BusinessStep::Press {
+                    action: AGGREGATE_PREVIEW,
+                    row: "",
+                },
+            ],
+            Self::DoctorFailureRecovery => &[BusinessStep::Press {
+                action: DOCTOR_DIAGNOSE,
+                row: "",
+            }],
+            Self::LifecycleRecoveryPanel => &[BusinessStep::Press {
+                action: DOCTOR_BOOTSTRAP,
+                row: "",
+            }],
+            Self::SyncConflictResolver => &[BusinessStep::Press {
+                action: SYNC_TAKE_REMOTE,
+                row: "",
+            }],
+            Self::SyncRestoreConfirm => &[BusinessStep::Press {
+                action: SYNC_RESTORE,
+                row: "snap-20261020",
+            }],
+            Self::AppRoutingPolicyEditor => &[
+                BusinessStep::Type(DraftField::AppRoutingRule),
+                BusinessStep::Press {
+                    action: APP_ROUTING_RULE,
+                    row: "com.example.browser",
+                },
+            ],
+            Self::ProfilesImportModal | Self::ProfilesDeleteConfirm => {
+                // The sheet businesses open their sheet, not a gesture.
+                return None;
+            }
+        };
+        Some(gesture)
+    }
+}
+
+/// What the capture already did for one scenario.
+///
+/// The capture drives the surface until the business shows its own outcome,
+/// so the state it compares against is the route-only render of the same
+/// page.
+#[derive(Debug, Default)]
+pub struct Activation {
+    /// Whether the business's own gesture already ran.
+    performed: Cell<bool>,
+    /// The projected page state before the gesture ran.
+    baseline: RefCell<Option<String>>,
+}
+
+impl Activation {
+    /// Whether the business's own gesture already ran.
+    pub fn performed(&self) -> bool {
+        self.performed.get()
+    }
 }
 
 /// Opens the surface state a parity scenario names.
@@ -176,22 +376,38 @@ pub fn activate(
     scenario: &str,
     snapshot: &SurfaceSnapshot,
     workbenches: &Workbenches,
+    activation: &Activation,
 ) -> bool {
     let Some(carried) = CarriedScenario::from_name(scenario) else {
         return false;
     };
     match carried.carrier() {
         ScenarioCarrier::WorkbenchPage(page) => {
-            window.set_page(page.into());
-            window.set_page_origin("Settings".into());
-            // The page must really carry the business, so the workbench
-            // projection runs again for the page the capture opened.
-            project_workbench(window, snapshot, workbenches);
-            true
+            if !activation.performed.get() {
+                // The page must really carry the business, so the workbench
+                // projection runs again for the page the capture opened.
+                window.set_page(page.into());
+                window.set_page_origin("Settings".into());
+                project_workbench(window, snapshot, workbenches);
+                // The route-only render is the state the business's own
+                // gesture is measured against.
+                activation.baseline.replace(Some(page_signature(window)));
+                if let Some(gesture) = carried.gesture() {
+                    perform(window, gesture);
+                }
+                // The gesture moved the surface, so the page shows it again.
+                project_workbench(window, snapshot, workbenches);
+                activation.performed.set(true);
+            }
+            let baseline = activation.baseline.borrow().clone().unwrap_or_default();
+            // The business shows its own outcome only after the owner
+            // answered, so the capture waits for the terminal.
+            page_signature(window) != baseline && !workbenches.has_pending_command()
         }
         ScenarioCarrier::ProfileImportSheet => {
-            window.set_profile_add_kind_index(0);
-            window.set_profile_add_open(true);
+            // The sheet is opened the way the "add profile" tile opens it, so
+            // the profile count the sheet remembers stays the published one.
+            window.invoke_open_profile_add();
             true
         }
         ScenarioCarrier::ProfileDeleteSheet => {
@@ -216,6 +432,58 @@ pub fn activate(
             true
         }
     }
+}
+
+/// Performs the business's own gesture on the real surface.
+///
+/// The gesture runs the callbacks the widget tree binds, so the capture
+/// drives the same code the running product drives.
+fn perform(window: &AppWindow, gesture: BusinessGesture) {
+    for step in gesture {
+        match *step {
+            BusinessStep::Type(field) => {
+                window.invoke_workbench_draft_edited(field.id().into(), field.value().into());
+            }
+            BusinessStep::Press { action, row } => {
+                window.invoke_workbench_action(action.into(), row.into());
+            }
+        }
+    }
+}
+
+/// The rendered state of the open workbench page.
+///
+/// The signature names every fact the page shows, so a capture can tell that
+/// the business really changed the surface from a capture that only changed
+/// the route.
+fn page_signature(window: &AppWindow) -> String {
+    let mut signature = String::new();
+    let items = window.get_workbench_items();
+    for row in 0..items.row_count() {
+        let Some(item) = items.row_data(row) else {
+            continue;
+        };
+        signature.push_str(item.id.as_str());
+        signature.push('|');
+        signature.push_str(item.kind.as_str());
+        signature.push('|');
+        signature.push_str(item.status.as_str());
+        signature.push('|');
+        signature.push_str(item.detail.as_str());
+        signature.push('|');
+        signature.push_str(item.trailing.as_str());
+        signature.push('|');
+        signature.push_str(item.label.as_str());
+        signature.push('|');
+        signature.push_str(if item.enabled { "1" } else { "0" });
+        signature.push(';');
+    }
+    signature.push_str(window.get_workbench_draft().as_str());
+    signature.push('|');
+    signature.push_str(window.get_workbench_draft_2().as_str());
+    signature.push('|');
+    signature.push_str(window.get_notice().as_str());
+    signature
 }
 
 /// Reads the real geometry of the sheet the surface opened.

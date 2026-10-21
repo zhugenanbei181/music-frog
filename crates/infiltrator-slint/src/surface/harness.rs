@@ -287,6 +287,15 @@ impl SurfaceHarness {
         self.window.get_network_mode_dialog_open()
     }
 
+    /// Drives the back gesture, exactly as the platform's back event does.
+    ///
+    /// The window turns the request into its own back navigation, so the
+    /// gesture closes the popups the way a user gesture closes them.
+    pub fn go_back(&self) {
+        let window = &self.window;
+        self.drive(|| window.invoke_go_back());
+    }
+
     /// Dismisses the add-profile sheet, exactly as its close button does.
     pub fn cancel_profile_add(&self) -> SurfaceOutcome {
         let window = &self.window;

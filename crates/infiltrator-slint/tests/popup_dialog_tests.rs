@@ -78,3 +78,25 @@ fn the_network_mode_confirmation_is_the_toolkit_popup() {
         "the toolkit's popup owns the open state of the confirmation"
     );
 }
+
+/// The back gesture closes both confirmations, the way it closes the menus.
+#[test]
+fn the_back_gesture_closes_both_confirmations() {
+    let surface = harness::SurfaceHarness::new(Some(empty_snapshot())).unwrap();
+
+    surface.open_clear_traffic_dialog();
+    assert!(surface.clear_traffic_dialog_open());
+    surface.go_back();
+    assert!(
+        !surface.clear_traffic_dialog_open(),
+        "the back gesture closes the clear-traffic confirmation"
+    );
+
+    surface.open_network_mode_dialog("TUN");
+    assert!(surface.network_mode_dialog_open());
+    surface.go_back();
+    assert!(
+        !surface.network_mode_dialog_open(),
+        "the back gesture closes the network-mode confirmation"
+    );
+}

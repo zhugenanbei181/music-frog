@@ -13,7 +13,7 @@ import { LumenUiScale } from "lumen-ui-scale.slint";
 import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
-import { AppBottomBar, ClearTrafficDialog, NoticeBanner, SettingsMessageBanner, ProxySortMenu } from "components/app_chrome.slint";
+import { AppBottomBar, ClearTrafficDialog, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 
@@ -245,7 +245,7 @@ export component AppWindow inherits MaterialWindow {
     in-out property <bool> profile-settings-age-configured: false;
     in-out property <bool> profile-settings-saving: false;
     in-out property <int> profile-settings-type-index: 0;
-    in-out property <bool> profile-settings-type-menu-open: false;
+    in-out property <length> profile-settings-type-anchor-x: 0px * LumenUiScale.factor; in-out property <length> profile-settings-type-anchor-y: 0px * LumenUiScale.factor;
     in-out property <[ProfileOverrideChoice]> profile-settings-overrides: [];
     in-out property <string> user-agent: "";
     in-out property <string> user-agent-draft: "";
@@ -345,7 +345,7 @@ export component AppWindow inherits MaterialWindow {
     changed profile-action-open => { if root.profile-action-open { profile-overlays.show-action(); } else { profile-overlays.close-action(); } }
     changed pending-delete-id => { if root.pending-delete-id != "" { profile-overlays.show-delete(); } else { profile-overlays.close-delete(); } }
     changed pending-profile-export-id => { if root.pending-profile-export-id != "" { profile-overlays.show-share(); } else { profile-overlays.close-share(); } }
-    changed profile-settings-id => { if root.profile-settings-id != "" { root.profile-settings-type-index = 0; root.profile-settings-type-menu-open = false; profile-overlays.show-settings(); } else { root.profile-settings-type-menu-open = false; profile-overlays.close-settings(); } }
+    changed profile-settings-id => { if root.profile-settings-id != "" { root.profile-settings-type-index = 0; profile-settings-type-menu.close(); profile-overlays.show-settings(); } else { profile-settings-type-menu.close(); profile-overlays.close-settings(); } }
     changed back-request-revision => { root.go-back(); }
     changed application-dark-mode => { root.update-color-scheme(); }
     changed platform-dark-mode => { if root.theme-mode == "system" { root.application-dark-mode = root.platform-dark-mode; } }
@@ -373,18 +373,22 @@ export component AppWindow inherits MaterialWindow {
     // The popups own their open state, so these functions are the only way in.
     public function open-clear-traffic-dialog() { clear-traffic-dialog.show(); }
     public function open-network-mode-dialog(draft: string) { root.network-mode-draft = draft; settings-overlays.show-network-mode(); }
+    public function open-profile-type-menu(x: length, y: length) { root.profile-settings-type-anchor-x = x; root.profile-settings-type-anchor-y = y; profile-settings-type-menu.show(); }
     function locate-current-node() { app-body.locate-current-node(root.proxy-active-node-position, root.proxy-current-node-available); }
-    function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; root.profile-type-menu-open = false; root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
+    public function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; root.profile-type-menu-open = false; root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
     function close-profile-add() { root.profile-add-open = false; root.profile-type-menu-open = false; root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; }
 
-    function go-back() {
+    public function go-back() {
         if app-theme-menu.is-open { app-theme-menu.close(); return; }
         if app-language-menu.is-open { app-language-menu.close(); return; }
         proxy-sort-menu.close();
+        // The confirmations are the toolkit's popup windows, so the back
+        // gesture closes them the way it closes the menus.
+        if clear-traffic-dialog.is-open { clear-traffic-dialog.close(); return; } else if settings-overlays.network-mode-dialog-open { settings-overlays.close-network-mode(); return; }
         if root.theme-color-dialog-open { root.theme-color-dialog-open = false; root.cancel-theme-color-preview(); }
         else if root.page-scale-dialog-open { root.page-scale-dialog-open = false; }
         else if root.user-agent-dialog-open { root.user-agent-dialog-open = false; }
-        else if root.profile-settings-type-menu-open { root.profile-settings-type-menu-open = false; }
+        else if profile-settings-type-menu.is-open { profile-settings-type-menu.close(); }
         else if root.profile-type-menu-open { root.profile-type-menu-open = false; }
         else if root.profile-settings-id != "" { root.cancel-profile-settings(); }
         else if root.profile-action-open { root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; }
@@ -511,7 +515,7 @@ export component AppWindow inherits MaterialWindow {
         application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds; profile-add-kind-index: root.profile-add-kind-index; profile-type-menu-open: root.profile-type-menu-open; notice: root.notice; pending-delete-name: root.pending-delete-name; profile-settings-id: root.profile-settings-id;
         profile-settings-kind: root.profile-settings-kind; profile-settings-age-configured: root.profile-settings-age-configured; profile-settings-overrides: root.profile-settings-overrides;
         profile-name <=> root.profile-name; profile-url <=> root.profile-url; profile-age-key <=> root.profile-age-key;
-        profile-settings-type-index <=> root.profile-settings-type-index; profile-settings-type-menu-open <=> root.profile-settings-type-menu-open;
+        profile-settings-type-index <=> root.profile-settings-type-index;
         profile-settings-name <=> root.profile-settings-name; profile-settings-url <=> root.profile-settings-url; profile-settings-age-key <=> root.profile-settings-age-key;
         close-profile-add => { root.close-profile-add(); }
         confirm-add => {
@@ -532,10 +536,11 @@ export component AppWindow inherits MaterialWindow {
         export-profile => { let id = root.pending-profile-export-id; root.pending-profile-export-id = ""; root.pending-profile-export-name = ""; root.export-profile(id); }
         close-profile-delete => { root.pending-delete-id = ""; root.pending-delete-name = ""; }
         confirm-delete => { let id = root.pending-delete-id; root.pending-delete-id = ""; root.pending-delete-name = ""; root.confirm-delete-profile(id); }
-        cancel-profile-settings => { root.profile-settings-type-menu-open = false; root.cancel-profile-settings(); }
+        cancel-profile-settings => { profile-settings-type-menu.close(); root.cancel-profile-settings(); }
         save-profile-settings => { root.save-profile-settings(root.profile-settings-id, root.profile-settings-name, root.profile-settings-url, root.profile-settings-age-key); }
         clear-profile-age-key => { root.clear-profile-age-key(root.profile-settings-id); }
         toggle-override(id, en) => { root.toggle-profile-override(id, en); } move-override(id, up) => { root.move-profile-override(id, up); }
+        open-type-menu(x, y) => { root.open-profile-type-menu(x, y); }
     }
 
     if root.compact-layout && root.primary-page && root.bottom-bar-visible: AppBottomBar {
@@ -573,6 +578,14 @@ export component AppWindow inherits MaterialWindow {
         items: [{ text: @tr("跟随系统"), enabled: true }, { text: @tr("简体中文"), enabled: true }, { text: "English", enabled: true }];
         current_index: root.application-language == "en" || (root.application-language == "system" && root.system-language == "en") ? 2 : root.application-language == "zh-CN" ? 1 : 0;
         activated(index) => { root.set-application-language(index == 0 ? "system" : index == 1 ? "zh-CN" : "en"); self.close(); }
+    }
+
+    // The settings sheet's type dropdown is the same toolkit popup menu as
+    // the theme, language and proxy-sort menus of the window.
+    profile-settings-type-menu := ProfileSettingsTypeMenu {
+        window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
+        anchor-x: root.profile-settings-type-anchor-x; anchor-y: root.profile-settings-type-anchor-y; selected-index: root.profile-settings-type-index; layout-debug-bounds: root.layout-debug-bounds;
+        select(index) => { root.profile-settings-type-index = index; }
     }
 
     settings-overlays := SettingsOverlays {

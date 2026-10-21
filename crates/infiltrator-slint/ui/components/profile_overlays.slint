@@ -23,7 +23,6 @@ export component ProfileOverlays inherits Rectangle {
     in-out property <string> profile-url;
     in-out property <string> profile-age-key;
     in-out property <int> profile-settings-type-index;
-    in-out property <bool> profile-settings-type-menu-open;
     in-out property <string> profile-settings-name;
     in-out property <string> profile-settings-url;
     in-out property <string> profile-settings-age-key;
@@ -47,6 +46,8 @@ export component ProfileOverlays inherits Rectangle {
     callback clear-profile-age-key();
     callback toggle-override(string, bool);
     callback move-override(string, bool);
+    // The type dropdown is the toolkit's popup menu of the window.
+    callback open-type-menu(length, length);
 
     background: transparent;
 
@@ -152,7 +153,6 @@ export component ProfileOverlays inherits Rectangle {
         profile-settings-age-configured: root.profile-settings-age-configured;
         profile-settings-overrides: root.profile-settings-overrides;
         profile-settings-type-index <=> root.profile-settings-type-index;
-        profile-settings-type-menu-open <=> root.profile-settings-type-menu-open;
         profile-settings-name <=> root.profile-settings-name;
         profile-settings-url <=> root.profile-settings-url;
         profile-settings-age-key <=> root.profile-settings-age-key;
@@ -161,5 +161,6 @@ export component ProfileOverlays inherits Rectangle {
         clear-age-key => { root.clear-profile-age-key(); }
         toggle-override(id, en) => { root.toggle-override(id, en); }
         move-override(id, up) => { root.move-override(id, up); }
+        open-type-menu(x, y) => { root.open-type-menu(x, y); }
     }
 }

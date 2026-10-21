@@ -10,7 +10,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ProfileSnapshot, ProfilesPageSnapshot, SurfaceSnapshot,
 };
-use infiltrator_slint::capture_scenario::{CarriedScenario, ScenarioCarrier, activate};
+use infiltrator_slint::capture_scenario::{Activation, CarriedScenario, ScenarioCarrier, activate};
 use infiltrator_slint::surface::harness;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::page::PageData;
@@ -73,13 +73,41 @@ fn matrix_rows() -> Vec<(String, String, String, String)> {
 #[test]
 fn every_carried_scenario_really_opens_its_carrier() {
     let snapshot = capture_snapshot();
-    let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
-    let window = surface.window();
+    // The owner's typed answer of every business the capture drives.
+    let answer = Failure::new(ErrorCode::Internal, "the owner refused the command", true);
 
     for scenario in CarriedScenario::ALL {
+        // Every business is captured in its own process, so every scenario
+        // starts from the route-only render of its page.
+        let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
+        let window = surface.window();
+        let activation = Activation::default();
+        // The first call drives the business's own gesture.
+        activate(
+            window,
+            scenario.name(),
+            &snapshot,
+            surface.workbenches(),
+            &activation,
+        );
+        if matches!(scenario.carrier(), ScenarioCarrier::WorkbenchPage(_)) {
+            assert!(
+                activation.performed(),
+                "{} must drive its own gesture",
+                scenario.name()
+            );
+        }
+        // The owner answers, so the business shows its own outcome.
+        surface.publish_owner_failure(&answer);
         assert!(
-            activate(window, scenario.name(), &snapshot, surface.workbenches(),),
-            "the surface carries {} and must open it",
+            activate(
+                window,
+                scenario.name(),
+                &snapshot,
+                surface.workbenches(),
+                &activation,
+            ),
+            "the surface carries {} and must show its outcome",
             scenario.name()
         );
         match scenario.carrier() {
@@ -117,10 +145,55 @@ fn every_carried_scenario_really_opens_its_carrier() {
 }
 
 #[test]
+fn the_capture_gesture_changes_the_rendered_page() {
+    let snapshot = capture_snapshot();
+    let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
+    let window = surface.window();
+    let activation = Activation::default();
+    let answer = Failure::new(ErrorCode::Internal, "the owner refused the command", true);
+
+    // The DNS hosts editor is typed into and the row is added, so the
+    // business's own list grows.
+    let before = surface.workbench_items().len();
+    activate(
+        window,
+        "dns-hosts-editor",
+        &snapshot,
+        surface.workbenches(),
+        &activation,
+    );
+    let after = surface.workbench_items();
+    assert!(
+        after.len() > before,
+        "the hosts editor adds the row the capture typed"
+    );
+    assert!(
+        after
+            .iter()
+            .any(|item| item.detail.contains("blocked.example.com")),
+        "the hosts editor shows the row the capture typed"
+    );
+
+    // The owner answers, so the business shows its own outcome.
+    surface.publish_owner_failure(&answer);
+    assert!(
+        activate(
+            window,
+            "dns-hosts-editor",
+            &snapshot,
+            surface.workbenches(),
+            &activation,
+        ),
+        "the business shows the owner's answer"
+    );
+}
+
+#[test]
 fn a_business_the_surface_does_not_carry_is_never_activated() {
     let snapshot = capture_snapshot();
     let surface = harness::SurfaceHarness::new(Some(snapshot.clone())).unwrap();
     let window = surface.window();
+    let activation = Activation::default();
 
     // The businesses the Slint surface still has no carrier for.
     for absent in [
@@ -138,7 +211,13 @@ fn a_business_the_surface_does_not_carry_is_never_activated() {
         "a-business-that-does-not-exist",
     ] {
         assert!(
-            !activate(window, absent, &snapshot, surface.workbenches()),
+            !activate(
+                window,
+                absent,
+                &snapshot,
+                surface.workbenches(),
+                &activation,
+            ),
             "{absent} has no carrier on the Slint surface and must never be activated"
         );
     }
