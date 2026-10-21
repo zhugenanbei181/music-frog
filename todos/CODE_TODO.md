@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261021-v260`：现在佛 10 pt（3 条）/ 过去佛 94 pt（38 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 176 pt；已归档交付 715 pt（278 条）；累计 891 pt，严格归档完成率 80.2%。
-- 本板 3 条 = 桌面两端剩余业务的真实捕获（`PARITY-001.5`，5 pt）、Slint 概览卡片排序（`SLINT-001.10`，2 pt）与 Bevy 0.20 未采用能力收口（`BEVY-020.1`，3 pt）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261021-v261`：现在佛 31 pt（10 条）/ 过去佛 94 pt（38 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 197 pt；已归档交付 715 pt（278 条）；累计 912 pt，严格归档完成率 78.4%。
+- 本板 10 条 = 桌面两端剩余业务的真实捕获（`PARITY-001.5`，5 pt）、Slint 概览卡片排序（`SLINT-001.10`，2 pt）、Bevy 0.20 未采用能力收口（`BEVY-020.1`，3 pt），以及 Bevy UI 105 点表现层视觉质感攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt，逐项覆盖外壳侧边栏 #1~#18、总览页 #19~#32、代理节点 #33~#52、规则标签 #53~#68、活动连接 #69~#82、实时日志 #83~#94、DNS/诊断/设置 #95~#105 共 105 项具体缺陷）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
@@ -34,7 +34,7 @@
 | A 发布流水线主线 | 0.60 / 0.69 / 1.0.0 | `PUB-006.1`、`PUB-006.6`～`PUB-006.11` | 七个中性 crate 可按顺序 dry-run 发布，docs.rs 构建通过，版本拓扑无环 |
 | B 表现与截图认证主线 | 0.44～0.49 / 0.92 | `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2`、`SLINT-001.1`～`001.9`、`GAP-4.1` | 59 条业务 × 桌面三 UI 锚点齐全、standard/compact 双视口像素回执全绿；Android 三 flavor 交互截图全绿 |
 | C 质量红线与安装包主线 | 0.70～0.73 | `BANDROID-044.1`、`044.2`、`044.4`、`044.5`、`APPID-001.3`、`BEVYCAP-001.1`、`001.2`、`002.1`、`003.1` | Lint/ktlint/Detekt/架构守卫强制生效且零违规；Linux deb/AppImage 安装冒烟通过；Bevy UI 的 rem 尺寸通道与场景律法成为唯一机器红线 |
-| D 视觉与模型统一主线 | 0.48 / 0.90 / 0.91 | `GAP-7.1`、`BANDROID-016.2`、`BANDROID-016.3` | 三大 UI 共用一份页面模型；地球增强与帧/内存报告交付 |
+| D 视觉与模型统一主线 | 0.48 / 0.90 / 0.91 | `GAP-7.1`、`BANDROID-016.2`、`BANDROID-016.3`、`BEVYUI-001`～`BEVYUI-007` | 三大 UI 共用一份页面模型；地球增强与帧/内存报告交付；Bevy UI 105 点视觉表现整改闭环 |
 
 **推进顺序：B → A → C/D。**B 是「每个业务都真跑过」的判定器，先把它做成可复跑的流水线；A 解锁 0.69/1.0.0 的发布顺序门；C/D 与 B 并行但不得挤占 B 的取证窗口。
 
@@ -106,11 +106,61 @@
 
 
 
-- [ ] BEVY-020.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: Planned] Bevy 0.20 未采用能力收口（滚动条 / 滚动入视 / 官方菜单）
+- [ ] BEVY-020.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: InProgress] Bevy 0.20 未采用能力收口（滚动条 / 滚动入视 / 官方菜单）
   - 产物：① 列表与规则页挂官方 `bevy_ui_widgets::Scrollbar` + `ScrollbarThumb`（滑块与 `ScrollArea` 的滚动位置绑定），替掉"只有一行文字页码"的现状；② 用官方 `ScrollIntoView` 事件替掉 `infiltrator-bevy-widgets/src/list.rs` 里自算偏移的 `scroll_to_item`；③ 菜单层迁回官方 `MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout`，删除本地 `MenuState`/`MenuNavEvent`/`MenuOutcome` 状态机与旧回归路径。
   - 依赖：0.20 官方 `bevy_ui_widgets` 的 `ScrollbarPlugin`、`ScrollIntoView` 观察者、`MenuLayout` 键盘导航已就位（已核对上游 0.20.0 源码）；本地 rem 通道与 token 体系不变（滑块颜色走 `ThemeBackgroundColor`/`ThemeBorderColor`）。
   - 验收：全仓 nextest 全绿；官方滑块可拖动且与滚动位置一致；键盘导航能滚动到聚焦项；菜单的方向键导航与焦点圈闭由官方提供；「Bevy 0.20 UI 能力规范」的「0.20 未采用能力台账」里 SCROLL-01/SCROLL-02/MENU-01 三行清零。
+  - 推进方式：按文件所有权拆成互不相干的三条流并行推进——官方菜单（`menu.rs`/`context_menu.rs`）、滚动条与滚动入视（`list.rs`）、行内文字与方向导航（`text.rs`/`shell_readout.rs`）；Iced/Slint/Android 三个表面的同类「框架能力自研重造」由第四条流审计并给出整改清单。
   - 事实依据：2026-10-21 在两个生产树上按官方符号名实测——`Scrollbar`/`ScrollbarThumb`/`ScrollbarPlugin` 0 处、`ScrollIntoView` 0 处（官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，本仓从不触发）、`MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` 0 处（仅头注释提及）。0.20 官方菜单已带键盘导航与焦点圈闭，本地实现"官方仅指针驱动"的旧理由已失效。
+
+## 八、Bevy UI 表现层与视觉质感 105 点攻坚（GPUI 标杆收口，7条 / 21pt）
+
+- **推进方式（2026-10-21 决定）**：七条按**页面簇**切分并行推进，文件所有权互不相交——001 侧边栏/标题栏、002 总览+地球、003 代理、004 规则、005 连接、006 日志、007 DNS+诊断+设置。共享文件（theme/palette/page_models/text/list/menu/shell_readout）对各流**只读**，需要共享改动的一律报给收口流成批落地，避免并行流互相覆盖。
+- **cargo 纪律（减少 cargo 次数）**：并行期**禁止各流跑 nextest/clippy/build**，每条流的编译验证与像素取证统一走捕获脚本 `bash scripts/capture-bevy-matrix.sh <场景>`（脚本自建 Bevy 二进制，兼作编译检查），全仓 nextest 与结构门由收口流在末批**只跑一次**；捕获是共享资源，同一时刻只允许一条流在跑。
+- **依赖与次序**：001（`shell_readout.rs`）、004（规则列表接官方 Scrollbar）、006（日志行内排版接 InlineBox）与 BEVY-020.1 的三条流**抢同一批文件**，按"0.20 流先落、视觉整改后落"的次序排队；002/003/005/007 与 0.20 流文件不重叠，立即并行开工。
+
+
+- [ ] BEVYUI-001 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 侧边栏与标题栏外壳表现整改（#1~#18）
+  - 产物：解决 #1 路由药丸三行重叠、#2 紧凑模式底部图标裁切、#3 侧边栏电光蓝对比过载、#4 未激活项缺少 Hover 缓动、#5 窗口三金刚键一体化、#6 顶栏 1px 分割线、#7 导航箭头比例、#8 Follow rules 胶囊禁用态二义、#9 系统代理/TUN 卡片拥挤、#10 On 徽标文字垂直对齐、#11 订阅卡片折行基线、#12 数量徽标溢出、#13 流量速率排版、#14 rem 物理对齐抖动、#15 图标文字间距统一、#16 Iced/Bevy 导航架构对齐、#17 侧边栏微阶底色、#18 纯图标模式 Tooltip。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：双视口像素回执（720x480/1180x780）消除重叠与截断，通过 visual_receipts 校验。
+  - 计划：重构 shell_scene.rs 与 shell_readout.rs 布局约束，添加 Tooltip 与 Hover 状态。
+
+- [ ] BEVYUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 总览页与地球组件质感提升（#19~#32）
+  - 产物：解决 #19 空状态卡片暗哑死板、#20 地球模式切换未走 TabList、#21 副标题字重过轻、#22 贯穿横向分割线生硬、#23 底部 Demo Mode 蓝块失衡、#24 状态圆点缺乏呼吸动画、#25 Follow rules 徽标与按钮重名混淆、#26 提示小框圆角过大、#27 Start probes 次级操作层级过弱、#28 拓扑空状态插画缺失、#29 紧凑模式下横幅被挤出视口、#30 地球未保留骨架屏、#31 卡片内外留白比例失调、#32 卡片圆角规格不统一。
+  - 依赖：BEVY-020.1。
+  - 验收：总览页双视口像素回执消除蓝块失衡与内容溢出，TabList 接入官方控件。
+  - 计划：接入 TabList 替换普通按钮组，重构 Demo Mode 横幅与 Geo Globe 空态卡片。
+
+- [ ] BEVYUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 代理选择与节点卡片重构（#33~#52）
+  - 产物：解决 #33 顶部操作按钮杂乱、#34 Test All 浅蓝块撕裂、#35 搜索框与 Clear/Retry 挤压、#36 Alive Only 与排序垂直错位、#37 排序标签未走 TabList、#38 Probe settings 文本粘连、#39 Custom Node Editor 栏目条缺乏交互暗示、#40 分组标题技术术语生硬外露、#41 分组折叠上移下移按钮微小、#42 激活节点整卡亮蓝底色遮蔽内容、#43 卡片内图标过密、#44 未激活卡片死灰单调、#45 协议特性标签重复啰嗦、#46 延迟方块锐角嵌套、#47 延迟折线图微小抽象、#48 卡片悬停无位移阴影、#49 卡片网格换行留白断裂、#50 两端横条/卡片形态分裂、#51 Ready to test 状态缺乏指引、#52 长节点名称缺失渐隐截断。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets::tabs。
+  - 验收：代理页双视口像素回执消除高亮遮蔽与拥挤，排序走 TabList。
+  - 计划：重构 proxies/scene.rs 与 node 卡片渲染，优化调色板高亮与内联间距。
+
+- [ ] BEVYUI-004 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 规则系统与分段标签收口（#53~#68）
+  - 产物：解决 #53 头部堆砌技术日志长文本、#54 辅助操作按钮体积过大、#55 Rules 分段标签切换生硬、#56 Retained draft for 悬挂句号、#57 草稿保存丢弃禁用态对比度过低、#58 分页工具栏插在搜索栏右侧压缩空间、#59 长规则列表缺失滚动条退化分页、#60 规则行圆角梯级白线框杂乱、#61 规则序号未等宽对齐、#62 匹配类型徽标色彩单调、#63 目标动作 DIRECT/REJECT 缺乏语义色彩、#64 Toggle rule 样式割裂、#65 重排序箭头蓝底黑图对比度反转、#66 命中统计与状态纯文本混杂、#67 编辑抽屉无渐入动效、#68 JSON Editor 缺乏代码高亮与行号槽。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：消除长文本堆砌，规则列表接入官方 Scrollbar，双视口像素回执通过。
+  - 计划：重构 rules_tabs.rs 与 rules_view.rs，将分页工具栏移出并接入滚动条。
+
+- [ ] BEVYUI-005 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 活动连接与详情抽屉打磨（#69~#82）
+  - 产物：解决 #69 Close all 鲜红按钮过大诱发误触、#70 总上下行流量字阶过小、#71 live 绿点与基线错位、#72 视图筛选未走 TabList、#73 空闲超时胶囊与 Sweep 按钮风格打架、#74 Active connections 标题与 6 个排序过滤挤压、#75 外层与条目双层白框嵌套、#76 域名端口未分色、#77 进程路由纯文本堆砌缺少 Tag、#78 传输速率数字变宽左右拉扯、#79 High-Throughput Pulse 标签生硬、#80 Details/Disconnect 逐行重复制造噪点、#81 滚动无边缘渐隐羽化、#82 详情抽屉弹出未锁定底层滚动。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：连接页双视口像素回执消除双层嵌套与错位，危险操作增加保护。
+  - 计划：重构 connections_view.rs，按钮改为悬停露出，数据指标采用等宽字体。
+
+- [ ] BEVYUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 实时日志与控制台流式重构（#83~#94）
+  - 产物：解决 #83 日志条目整行大圆角胶囊堆叠臃肿、#84 时间戳未等宽且颜色过亮、#85 日志级别标签缺乏底衬被底灰冲淡、#86 模块标签方括号间距松散、#87 级别过滤栏未走 TabList、#88 控制台顶部按钮主次不分、#89 正则输入框 Placeholder 对比度过低、#90 长日志无软折行开关撑破卡片、#91 代码字体行高偏小易串行、#92 刷新追加缺乏渐隐指示、#93 缺少行号与单行快速复制、#94 紧凑模式下日志卡片右侧冲出屏幕。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：日志页双视口像素回执呈现流式控制台质感，消除胶囊卡片堆叠。
+  - 计划：重构 logs_rows.rs 与 logs_virtual.rs，采用单行平铺流与 InlineBox 排版。
+
+- [ ] BEVYUI-007 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] DNS、自愈诊断与设置页交互收口（#95~#105）
+  - 产物：解决 #95 DNS 页面顶部 Query DNS 灰色长条二义、#96 跨源探测报警红字粗暴裸奔缺乏容器、#97 DNS 解析调试格式简陋、#98 DNS 配置行 Enabled 文本与开关双重冗余、#99 配置项无缝隙斑马条表格感、#100 设置页字体版权数百行全大写法律英文平铺倾倒、#101 语言设置报错单薄缺乏 Banner、#102 语言选择巨大深灰方块死板、#103 Doctor 修复步骤缺少旋转 Spinner、#104 审阅快照恢复弹窗缺乏 Diff 比较器、#105 弹窗取消与恢复按钮分居左右两极视距过远。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：DNS 与设置页双视口像素回执消除法律文本倾倒与红字裸奔，弹窗操作收拢。
+  - 计划：将字体许可改为折叠或弹窗展示，重构 DNS 状态指示与弹窗操作按钮组。
 
 ## 九、办结与登记
 
