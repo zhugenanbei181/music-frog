@@ -105,7 +105,7 @@
   - 解锁条件：真机实际运行证据；取得后同次迁回过去佛。
   - 本板停留期间：行为覆盖已闭环，无剩余本机可执行动作。
 
-## 二、受控 tag CI 回执（用户选择不打 tag，5 条 / 7 pt）
+## 二、受控 tag CI 回执（`v0.51.0` tag 已打，5 条 / 7 pt）
 
 > 本节的共同前置已满足：**`v0.51.0` tag 已于 2026-10-21 推到远端，指向 `60ad2ed`**（页面模型收编批次的收口提交），`main` 同步在该提交。三条流水线同时起跑：`release` run `39477624601`（tag-only）、`release-neutral-crates` run `39477624572`、`main-gate` run `39477589439`。**tag 回执现状**：`release` 的 validate 与 **test-gate 全绿**（全仓 nextest 在网络隔离命名空间里跑完），**四条桌面构建腿全绿**（x86_64/aarch64 Linux 与 x86_64/aarch64 Windows），**Android 腿按设计 fail closed**（`Resolve the release signing material` 缺四个用户 keystore secret），因此 `Generate Manifest & Publish Release` 被跳过——**没有产出未签名的发布件**。`release-neutral-crates` 也按设计 fail closed（缺 `CARGO_REGISTRY_TOKEN`，未发布任何 crate）。两次前置失败已修并复跑：parity 证据解析的锚点名（`logs-search-highlight/iced/scenario` 指向了被迁移改回的测试名）与 runner 磁盘（测试门禁的构建写爆根分区，改为只保留行号表并回收镜像里用不到的工具链）。**Android 腿按设计 fail closed**：`release.yml` 的签名前置要求四个用户 keystore secret（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），缺失时在 Gradle 配置期即以缺失清单失败，debug key 不再为任何 release 产物背书。因此本节条目的剩余阻塞方是**用户 secrets 与受控 runner 的真实产物**，而不是「尚未打 tag」。既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，其 run 回执绑定的是旧代码，不覆盖当前代码。
 
