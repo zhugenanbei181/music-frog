@@ -7,7 +7,7 @@ use crate::pages::proxies_form::CustomNodeForm;
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::prelude::*;
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::scene::{Scene, bsn, on};
@@ -72,10 +72,27 @@ pub fn launcher_scene(kind: PanelKind, palette: &UiPalette) -> impl Scene + use<
             padding: UiRect::axes(rem(space::S16), rem(space::S12)),
             min_height: rem(palette.control_height_px), align_items: AlignItems::Center,
             border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            // The launcher is a control, so it carries the hairline edge the
+            // product's controls share: without it the row reads as plain
+            // text instead of something the reader can open.
+            border: UiRect::all(Val::Px(palette.hairline_px)),
+            column_gap: rem(space::S8),
         }
         ThemeBackgroundColor({ Token::SurfaceElevated })
+        BorderColor {
+            top: { palette.border },
+            right: { palette.border },
+            bottom: { palette.border },
+            left: { palette.border },
+        }
         Button OpenBusinessPanel(kind)
-        Children [ title TextRole(Role::BodyStrong) ]
+        Children [
+            title TextRole(Role::BodyStrong)
+            --
+            Text({ "›".to_owned() })
+            TextRole(Role::BodyStrong)
+            ThemeTextColor({ Token::InkDim })
+        ]
     }
 }
 

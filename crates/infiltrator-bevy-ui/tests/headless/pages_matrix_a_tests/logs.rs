@@ -3,11 +3,39 @@
 
 use super::*;
 use bevy::ecs::query::With;
-use infiltrator_bevy_ui::pages::logs_rows::LogRowIdentity;
+use infiltrator_bevy_ui::pages::logs_rows::{LogRowIdentity, LogRowMeta};
 use infiltrator_bevy_ui::pages::logs_virtual::{LogsVirtualNodes, LogsVirtualSlot};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_contract::logs::LogLevel;
 use lurker_core_contract::page::PageStatus;
+
+/// The row's meta fields are RUNS of one paragraph, so the assertion reads
+/// the paragraph's runs and not only the paragraph's own string.
+fn subtree_has_run_text(world: &World, root: Entity, needle: &str) -> bool {
+    if let Some(runs) = world.get::<TextRuns>(root)
+        && runs.0.iter().any(|run| run.text.contains(needle))
+    {
+        return true;
+    }
+    if let Some(children) = world.get::<Children>(root) {
+        for child in children.iter() {
+            if subtree_has_run_text(world, *child, needle) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// The runs of every mounted row's meta rail, one list per row.
+fn meta_rails(app: &mut App) -> Vec<Vec<String>> {
+    app.world_mut()
+        .query::<(&LogRowMeta, &TextRuns)>()
+        .iter(app.world())
+        .map(|(_, runs)| runs.0.iter().map(|run| run.text.clone()).collect())
+        .collect()
+}
 
 #[test]
 fn test_logs_page_mounting_and_default_state() {
@@ -27,9 +55,12 @@ fn test_logs_page_mounting_and_default_state() {
     assert!(subtree_has_text(app.world(), root, "INFO"));
     assert!(subtree_has_text(app.world(), root, "WARN"));
     assert!(subtree_has_text(app.world(), root, "ERROR"));
-    assert!(subtree_has_text(app.world(), root, "[INFO]"));
-    assert!(subtree_has_text(app.world(), root, "[WARN]"));
-    assert!(subtree_has_text(app.world(), root, "[ERROR]"));
+    // The level badge and the line number are runs of the row's meta
+    // paragraph: the badge rides a chip, the line number counts the stream.
+    assert!(subtree_has_run_text(app.world(), root, "[INFO]"));
+    assert!(subtree_has_run_text(app.world(), root, "[WARN]"));
+    assert!(subtree_has_run_text(app.world(), root, "[ERROR]"));
+    assert!(subtree_has_run_text(app.world(), root, "   1"));
     assert!(
         app.world_mut()
             .query::<&PauseLogsButton>()
@@ -93,7 +124,18 @@ fn test_logs_projection_in_place_update() {
         root,
         "[TCP] connection reset by peer in test"
     ));
-    assert!(subtree_has_text(app.world(), root, "11:22:33.444"));
+    // The row is a flat band: the timestamp and the level badge ride the
+    // row's meta rail as runs of ONE paragraph, and the message rides its own
+    // paragraph.
+    assert!(subtree_has_run_text(app.world(), root, "11:22:33.444"));
+    let rails = meta_rails(&mut app);
+    assert!(
+        rails
+            .iter()
+            .any(|rail| rail.contains(&"11:22:33.444".to_owned())
+                && rail.contains(&"[ERROR]".to_owned())),
+        "the rail owns the timestamp and the level badge: {rails:?}"
+    );
 }
 
 #[test]

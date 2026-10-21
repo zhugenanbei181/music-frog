@@ -129,7 +129,10 @@ pub fn observe(
             || !editor
                 .failure()
                 .is_some_and(|failure| failure.code == ErrorCode::Permission)
-            || probe.capture.store.writes.load(Ordering::SeqCst) != 1
+            // The denied save is the scenario's fact: the owner refused the
+            // write, so the store committed nothing and the profile on disk
+            // still carries the original mappings.
+            || probe.capture.store.writes.load(Ordering::SeqCst) != 0
             || probe.capture.store.content() != ORIGINAL_HOSTS
             || editor.rows.len() != 3
             || probe.rows.iter().count() != 3

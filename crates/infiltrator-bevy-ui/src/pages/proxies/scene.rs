@@ -56,6 +56,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
         )));
         root_children.push(Box::new(toolbar::search_bar_card_scene(
             &projection.search_query,
+            projection.sort_order,
             palette,
         )));
         root_children.push(Box::new(launcher_scene(PanelKind::CustomNode, palette)));
@@ -101,7 +102,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                 --
                 @{ header_card_scene(summary, active_exit, test_status, palette) }
                 --
-                @{ toolbar::search_bar_card_scene(&projection.search_query, palette) }
+                @{ toolbar::search_bar_card_scene(&projection.search_query, projection.sort_order, palette) }
                 --
                 @{ launcher_scene(PanelKind::CustomNode, palette) }
                 --

@@ -497,6 +497,7 @@ fn unrelated_projection_refresh_cannot_erase_the_open_native_draft() {
             groups: Vec::new(),
             testing: false,
             filter_alive: false,
+            sort_order: Default::default(),
             compact_view: false,
             active_exit: "—".into(),
             custom_node: Default::default(),

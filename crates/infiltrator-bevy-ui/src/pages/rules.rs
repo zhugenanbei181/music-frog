@@ -21,7 +21,8 @@ use crate::pages::rules_edit::{
 };
 use crate::pages::rules_fact_copy;
 use crate::pages::rules_json::{
-    RulesJsonState, on_rules_json_action_activated, rules_json_scene, sync_rules_json,
+    RulesJsonState, animate_rules_json_panel, on_rules_json_action_activated, rules_json_scene,
+    sync_rules_json,
 };
 use crate::pages::rules_mrs::{
     RulesMrsState, apply_mrs_projection, apply_provider_cache_projection,
@@ -32,17 +33,20 @@ use crate::pages::rules_outcome::{
     sync_rule_provider_outcomes,
 };
 use crate::pages::rules_projection::{
-    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleHitText, RuleIndexText,
-    RulePayloadText, RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind,
-    apply_rules_projection, refresh_hit_copy, rule_type_chip_fill,
+    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleEnabledKnob, RuleHitText,
+    RuleIndexText, RulePayloadText, RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine,
+    RulesLineKind, apply_rules_projection, refresh_hit_copy, rule_hits_token, rule_target_token,
+    rule_type_chip_token,
 };
+use crate::pages::rules_providers::{provider_scenes, providers_partition};
 use crate::pages::rules_statistics::{RulesStatisticsPlugin, statistics_scene};
 use crate::pages::rules_subrule_copy;
 use crate::pages::rules_subrules::{
     RulesSubRuleState, on_rules_subrules_activated, rules_subrules_scene,
 };
 use crate::pages::rules_tabs::{
-    RulesTabState, on_rules_tab_activated, rules_tabs_scene, tab_body_scene,
+    RulesTabState, on_rules_tab_activated, on_rules_tab_chip_activated, rules_tabs_scene,
+    tab_body_scene,
 };
 use crate::pages::rules_tracer::{
     RulesTraceState, apply_tracer_projection, on_tracer_action_activated,
@@ -51,10 +55,12 @@ use crate::pages::rules_tracer::{
 use crate::pages::rules_view::{
     RuleRow, RuleSearchField, RulesListScrollArea, RulesPageIndicator, RulesPageNextButton,
     RulesPagePrevButton, RulesViewState, RulesWindowRows, on_rules_paging_activated,
+    paint_rules_scrollbar,
 };
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, PostUpdate, Update};
+use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
@@ -62,24 +68,27 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res};
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, GridPlacement, JustifyContent, Node,
-    Overflow, UiRect, percent, px,
+    AlignItems, BorderColor, BorderRadius, FlexDirection, GridPlacement, JustifyContent, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::button::{
+    ButtonDisabled, ButtonLabel, ButtonSize, ButtonVariant, button_with_label_scene,
+};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
-use infiltrator_bevy_widgets::icon::IconId;
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::list::scrollbar::{ListScrollContainer, list_scroll_frame};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
+use infiltrator_bevy_widgets::surface::surface_scene;
+use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
@@ -98,13 +107,25 @@ use infiltrator_presentation::rule_provider_projection::{
     provider_lifecycle_line, published_truncation, rules_summary,
 };
 use infiltrator_presentation::rule_row_projection::row_hits_key;
-use infiltrator_presentation::rule_statistics_projection::project_statistics;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
 
 /// One-off layout value (not a ladder rung): the minimum height of the rule
 /// type chip that carries the row's rule-type label.
 const RULE_TYPE_CHIP_MIN_HEIGHT_PX: f32 = 18.0;
+
+/// One-off layout value (not a ladder rung): the width of the rule row's
+/// ordinal column, so the row numbers line up as a column.
+const RULE_INDEX_COLUMN_WIDTH_PX: f32 = 40.0;
+
+/// One-off layout value (not a ladder rung): the height of the rule list's
+/// viewport. The official scrollbar beside the viewport walks a longer list,
+/// so the viewport itself stays a band inside the card that owns it.
+const RULE_LIST_VIEWPORT_HEIGHT_PX: f32 = 320.0;
+
+/// One-off layout value (not a ladder rung): the plate size of a row's
+/// reorder arrow.
+const REORDER_ICON_SIZE_PX: f32 = 14.0;
 
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -216,20 +237,13 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         &Lang("en-US"),
     );
     let default_action = default_action(&projection.default_action, &Lang("en-US"));
-    let audit_copy = project_statistics(projection.hit_audit.as_ref(), &Lang("en-US"));
-    let hit_audit_line = LocalizedText::new(audit_copy.key, audit_copy.params);
     let truncation_line = published_truncation(
         projection.truncated_rule_count,
         projection.rule_publish_limit,
         &Lang("en-US"),
     );
 
-    let provider_scenes: Vec<Box<dyn Scene>> = projection
-        .providers
-        .iter()
-        .enumerate()
-        .map(|(idx, p)| Box::new(provider_item_scene(idx, p, palette)) as Box<dyn Scene>)
-        .collect();
+    let provider_scenes = provider_scenes(&projection.providers, palette);
 
     // DUAL-11-08: the first paint mounts the shared render window at offset 0
     // instead of one row per published rule. Every later scroll/search mounts
@@ -252,7 +266,6 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Rules)
@@ -261,34 +274,45 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
             // itself; the list partition owns a nested scroll area of its own.
             ScrollArea
             Children [
-                @{ pull_to_refresh_scene(&PullToRefreshState::default(), palette) }
-                --
-                @{ header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) }
-                --
-                @{ rules_tabs_scene(palette) }
-                --
-                @{ tab_body_scene(
-                        RulesTab::List,
-                        Box::new(rules_list_partition(rule_scenes, palette)),
-                ) }
-                --
-                @{ tab_body_scene(
-                        RulesTab::Providers,
-                        Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache, &projection.etag_support)),
-                ) }
-                --
-                @{ tab_body_scene(
-                        RulesTab::JsonEditors,
-                        Box::new(rules_json_scene(
-                                palette,
-                                &RulesJsonState::default(),
-                        )),
-                ) }
-                --
-                @{ tab_body_scene(
-                        RulesTab::Tracer,
-                        Box::new(rules_tracer_scene(palette, &projection.tracer)),
-                ) }
+                // The page's own column: it never shrinks, so the page root
+                // scrolls the whole workspace instead of squeezing a panel
+                // until its content overflows the card that owns it.
+                Node {
+                    width: percent(100),
+                    flex_shrink: 0.0,
+                    flex_direction: FlexDirection::Column,
+                    row_gap: rem(space::S16),
+                }
+                Children [
+                    @{ pull_to_refresh_scene(&PullToRefreshState::default(), palette) }
+                    --
+                    @{ header_card_scene(summary, default_action, palette) }
+                    --
+                    @{ rules_tabs_scene(palette) }
+                    --
+                    @{ tab_body_scene(
+                            RulesTab::List,
+                            Box::new(rules_list_partition(rule_scenes, truncation_line, palette)),
+                    ) }
+                    --
+                    @{ tab_body_scene(
+                            RulesTab::Providers,
+                            Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache, &projection.etag_support)),
+                    ) }
+                    --
+                    @{ tab_body_scene(
+                            RulesTab::JsonEditors,
+                            Box::new(rules_json_scene(
+                                    palette,
+                                    &RulesJsonState::default(),
+                            )),
+                    ) }
+                    --
+                    @{ tab_body_scene(
+                            RulesTab::Tracer,
+                            Box::new(rules_tracer_scene(palette, &projection.tracer)),
+                    ) }
+                ]
             ]
     }
 }
@@ -298,18 +322,20 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
 /// shows on its list tab.
 fn rules_list_partition(
     rule_scenes: Vec<Box<dyn Scene>>,
+    truncation_line: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
             Node {
                 width: percent(100),
+                flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S16),
             }
             Children [
                 @{ rules_draft::scene(palette) }
                 --
-                @{ rules_table_scene(rule_scenes, palette) }
+                @{ rules_table_scene(rule_scenes, truncation_line, palette) }
                 --
                 @{ statistics_scene(palette) }
                 --
@@ -323,34 +349,9 @@ fn rules_list_partition(
     }
 }
 
-/// DUAL-11-14: the providers partition — the MRS acceleration card (which also
-/// hosts the Geo database update entry) and the provider lifecycle table.
-fn providers_partition(
-    provider_scenes: Vec<Box<dyn Scene>>,
-    palette: &UiPalette,
-    mrs: &MrsAccelerationSnapshot,
-    provider_cache: &RuleProviderCacheSnapshot,
-    etag_support: &KernelEtagSupportSnapshot,
-) -> impl Scene + use<> {
-    bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: rem(space::S16),
-            }
-            Children [
-                @{ rules_mrs_scene(palette, mrs, provider_cache) }
-                --
-                @{ providers_card_scene(provider_scenes, etag_support, palette) }
-            ]
-    }
-}
-
 fn header_card_scene(
     summary: String,
     default_action: String,
-    hit_audit_line: LocalizedText,
-    truncation_line: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
@@ -381,45 +382,52 @@ fn header_card_scene(
                                 Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading)
                                 --
                                 Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption)
-                                --
-                                LocalizedText { .. { hit_audit_line } } RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption)
-                                --
-                                Text(truncation_line) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption)
                             ]
                         ]
                         --
                         Node {
                             align_items: AlignItems::Center,
                             column_gap: rem(space::S8),
+                            flex_shrink: 0.0,
                         }
                         Children [
-                            Node {
-                                min_height: rem(palette.control_height_px),
-                                padding: UiRect::horizontal(rem(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                            @{
+                                (
+                                    button_with_label_scene(
+                                        bsn! {
+                                            LocalizedText::plain("rules_refresh_providers_action")
+                                            TextRole(Role::Caption)
+                                            ButtonLabel
+                                        },
+                                        ButtonVariant::Default,
+                                        ButtonSize::Sm,
+                                        palette,
+                                    ),
+                                    bsn! {
+                                        RefreshRuleProvidersButton
+                                        LocalizedLabel::plain("rules_refresh_providers_action")
+                                    },
+                                )
                             }
-                            ThemeBackgroundColor({ Token::SurfaceElevated })
-                            Button
-                            RefreshRuleProvidersButton
-                            Children [
-                                LocalizedText::plain("rules_refresh_providers_action") TextRole(Role::Body)
-                            ]
                             --
-                            Node {
-                                min_height: rem(palette.control_height_px),
-                                padding: UiRect::horizontal(rem(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                            @{
+                                (
+                                    button_with_label_scene(
+                                        bsn! {
+                                            LocalizedText::plain("rule_hit_btn_clear")
+                                            TextRole(Role::Caption)
+                                            ButtonLabel
+                                        },
+                                        ButtonVariant::Default,
+                                        ButtonSize::Sm,
+                                        palette,
+                                    ),
+                                    bsn! {
+                                        ClearRuleHitCountersButton
+                                        LocalizedLabel::plain("rule_hit_btn_clear")
+                                    },
+                                )
                             }
-                            ThemeBackgroundColor({ Token::SurfaceElevated })
-                            Button
-                            ClearRuleHitCountersButton ButtonDisabled(true)
-                            Children [
-                                LocalizedText::plain("rule_hit_btn_clear") TextRole(Role::Body)
-                            ]
                         ]
                     ]
         })],
@@ -427,117 +435,11 @@ fn header_card_scene(
     )
 }
 
-fn providers_card_scene(
-    provider_scenes: Vec<Box<dyn Scene>>,
-    etag_support: &KernelEtagSupportSnapshot,
+fn rules_table_scene(
+    rule_scenes: Vec<Box<dyn Scene>>,
+    truncation_line: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let etag_line = etag_support_line(etag_support, &Lang("en-US"));
-    surface_scene(
-        vec![
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(rem(space::S8)),
-                            }
-                            Children [
-                                LocalizedText::plain("rules_providers_title") TextRole(Role::BodyStrong)
-                                --
-                                LocalizedText::plain("rules_providers_hint") TextRole(Role::Caption)
-                            ]
-            }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                padding: UiRect::bottom(rem(space::S8)),
-                            }
-                            Children [
-                                Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(Role::Caption)
-                            ]
-            }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: rem(space::S8),
-                            }
-                            Children [
-                                { provider_scenes }
-                            ]
-            }),
-        ],
-        palette,
-    )
-}
-
-fn provider_item_scene(
-    idx: usize,
-    provider: &RuleProviderItem,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let name = provider.name.clone();
-    let count_info = provider_count(provider.rule_count, &provider.behavior, &Lang("en-US"));
-    let updated = provider_lifecycle_line(
-        &provider.updated_at,
-        provider.source_url.as_deref(),
-        provider.refresh_interval_secs,
-        &Lang("en-US"),
-    );
-    let updated = provider
-        .cache_fingerprint
-        .as_ref()
-        .map(|observation| {
-            format!(
-                "{updated} · {}",
-                provider_fingerprint_line(observation, &Lang("en-US"))
-            )
-        })
-        .unwrap_or(updated);
-    let failure = provider
-        .failure
-        .as_ref()
-        .map(|failure| failure.message.clone())
-        .unwrap_or_default();
-
-    bsn! {
-            Node {
-                width: percent(100),
-                padding: UiRect::all(rem(space::S8)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-            }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
-            Children [
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: rem(space::S8),
-                }
-                Children [
-                    Text(name) ProviderNameText(idx) TextRole(Role::Body)
-                    --
-                    Text(count_info) ProviderCountText(idx) TextRole(Role::Caption)
-                ]
-                --
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::FlexEnd,
-                    row_gap: rem(space::S4),
-                }
-                Children [
-                    Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption)
-                    --
-                    Text({ failure }) RuleProviderFailureText(idx) TextRole(Role::Mono)
-                    --
-                    @{ rule_provider_refresh_scene(idx, provider.controller.is_some(), palette) }
-                ]
-            ]
-    }
-}
-
-fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl Scene + use<> {
     // The rule list's viewport is the official `ScrollArea`, and the official
     // scrollbar beside it drives that viewport's own scroll position. The bar
     // must sit *beside* the viewport, not inside it, so the two are siblings
@@ -545,10 +447,13 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
     let list_container = Box::new(bsn! {
             Node {
                 width: percent(100),
-                // DUAL-11-08: the fixed-height list viewport. Only the
-                // shared render window is mounted inside it; the spacers
-                // keep the scrollable range the full list height.
-                height: rem(RULE_DEFAULT_VIEWPORT_PX),
+                // DUAL-11-08: the list viewport. Only the shared render window
+                // is mounted inside it; the spacers keep the scrollable range
+                // the full list height. The viewport is bounded so the list
+                // never grows past the card that owns it — the official
+                // scrollbar beside it is what walks a long list.
+                height: rem(RULE_LIST_VIEWPORT_HEIGHT_PX),
+                flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
                 overflow: Overflow::scroll_y(),
                 grid_row: GridPlacement::start(1),
@@ -583,16 +488,27 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 LocalizedText::plain("rules_flow_hint") TextRole(Role::Caption)
                             ]
             }),
+            // The publish-window note belongs to the list it describes, not to
+            // the page header: the header carries the title and the actions.
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                align_items: AlignItems::Center,
-                                column_gap: rem(space::S8),
+                                padding: UiRect::bottom(rem(space::S8)),
+                            }
+                            Children [
+                                Text({ truncation_line }) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption)
+                            ]
+            }),
+            // The keyword field owns its own row: the list's paging controls
+            // never squeeze the search field into a stub.
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 Node {
-                                    flex_grow: 1.0,
+                                    width: percent(100),
                                     min_width: px(0.0),
                                 }
                                 RuleSearchField
@@ -601,7 +517,19 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                             palette,
                                     ) }
                                 ]
-                                --
+                            ]
+            }),
+            // The list's own paging row. The page buttons move the viewport's
+            // own scroll position; they never own a second offset.
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::FlexEnd,
+                                column_gap: rem(space::S8),
+                                padding: UiRect::bottom(rem(space::S8)),
+                            }
+                            Children [
                                 Node {
                                     min_height: rem(palette.control_height_px),
                                     padding: UiRect::horizontal(rem(space::S8)),
@@ -645,7 +573,7 @@ pub(crate) fn rule_row_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
-    let type_chip = rule_type_chip_scene(idx, &rule.rule_type, palette);
+    let type_chip = rule_type_chip_scene(idx, &rule.rule_type);
     let payload = rule.payload.clone();
     let proxy = rule.proxy.clone();
     let hits = LocalizedText::new(
@@ -657,6 +585,11 @@ pub(crate) fn rule_row_scene(
                 .unwrap_or_default(),
         )],
     );
+    // The target action and the hit statistics carry their own semantic ink
+    // from the first frame: the row is mounted from the projection, so the
+    // scene is where the row's own facts become their colors.
+    let target_ink = rule_target_token(&rule.proxy);
+    let hits_ink = rule_hits_token(rule.is_enabled, rule.is_shadowed);
 
     bsn! {
             Node {
@@ -665,11 +598,17 @@ pub(crate) fn rule_row_scene(
                 max_width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(rem(space::S16)),
-                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
+                padding: UiRect::vertical(rem(space::S8)),
+                // A rule row is a table row, not a card: no radius ladder and
+                // no card frame, only the hairline that separates two rows.
+                border: UiRect::bottom(Val::Px(palette.hairline_px)),
             }
-            ThemeBackgroundColor({ Token::Surface })
-            SurfacePanel
+            BorderColor {
+                top: Color::NONE,
+                right: Color::NONE,
+                bottom: { palette.border },
+                left: Color::NONE,
+            }
             RuleRow(idx)
             Children [
                 Node {
@@ -680,9 +619,13 @@ pub(crate) fn rule_row_scene(
                     column_gap: rem(space::S12),
                 }
                 Children [
-                    Node { flex_shrink: 0.0 }
+                    Node {
+                        flex_shrink: 0.0,
+                        min_width: rem(RULE_INDEX_COLUMN_WIDTH_PX),
+                        justify_content: JustifyContent::FlexEnd,
+                    }
                     Children [
-                        Text(idx_str) RuleIndexText(idx) TextRole(Role::Caption)
+                        Text(idx_str) RuleIndexText(idx) TextRole(Role::Mono)
                     ]
                     --
                     @type_chip
@@ -703,21 +646,31 @@ pub(crate) fn rule_row_scene(
                     column_gap: rem(space::S12),
                 }
                 Children [
-                    Text(proxy) RuleProxyText(idx) TextRole(Role::Body)
+                    Text(proxy) RuleProxyText(idx) TextRole(Role::BodyStrong) ThemeTextColor({ target_ink })
                     --
-                    LocalizedText { .. { hits } } RuleHitText(idx) TextRole(Role::Caption)
+                    Node {
+                        flex_shrink: 0.0,
+                        padding: UiRect::horizontal(rem(space::S8)),
+                        align_items: AlignItems::Center,
+                        border_radius: BorderRadius::all(rem(radius::XS)),
+                    }
+                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                    Children [
+                        LocalizedText { .. { hits } } RuleHitText(idx) TextRole(Role::Caption) ThemeTextColor({ hits_ink })
+                    ]
                     --
-                    @{ rule_row_controls_scene(rule.edit_id, palette) }
+                    @{ rule_row_controls_scene(rule.edit_id, rule.is_enabled, idx, palette) }
                 ]
             ]
     }
 }
 
-/// DUAL-11-01: one rule row's type chip, filled from the shared type family.
-/// The label and the fill both restamp in place from the shared catalogue.
-fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> impl Scene + use<> {
+/// DUAL-11-01: one rule row's type chip. The chip's *label* carries the
+/// semantic hue of the shared type family, so the badge reads as a tag instead
+/// of a flat blue pill, and the label keeps the readable ink of the family.
+fn rule_type_chip_scene(idx: usize, rule_type: &str) -> impl Scene + use<> {
     let label = matrix_label(rule_type);
-    let fill = rule_type_chip_fill(rule_type, palette);
+    let token = rule_type_chip_token(rule_type);
     bsn! {
             Node {
                 flex_shrink: 0.0,
@@ -728,10 +681,10 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(rem(radius::XS)),
             }
-            BackgroundColor({ fill })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             RuleTypeBadge(idx)
             Children [
-                Text(label) RuleTypeText(idx) TextRole(Role::Caption)
+                Text(label) RuleTypeText(idx) TextRole(Role::Caption) ThemeTextColor({ token })
             ]
     }
 }
@@ -739,59 +692,67 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
 /// DUAL-11-09/10: one row's enable/disable switch plus reorder handles. Every
 /// control forwards the same typed intent for the row index to the shared
 /// application, which applies `infiltrator_domain::rules::edit`.
-fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl Scene + use<> {
+///
+/// The enable/disable control is the shared switch: the knob's rest position
+/// is the row's enabled state, so the control and the row never disagree.
+fn rule_row_controls_scene(
+    id: Option<RuleRowId>,
+    enabled: bool,
+    idx: usize,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let toggle_node = button_semantic_node("");
     let up_node = button_semantic_node("");
     let down_node = button_semantic_node("");
+    let track_fill = palette.surface_elevated;
+    let track_edge = palette.border;
+    let knob_fill = palette.ink;
     bsn! {
             Node {
                 align_items: AlignItems::Center,
                 column_gap: rem(space::S4),
+                flex_shrink: 0.0,
             }
             Children [
+                @{ switch_track_scene(palette, track_fill, track_edge) }
+                RuleToggleButton(id) RuleDraftMutationButton ButtonDisabled(true)
+                toggle_node LocalizedLabel::plain("rules_toggle_row")
+                Button
+                Children [
+                    @{ switch_knob_scene(knob_fill, SwitchPosition::from_enabled(enabled)) }
+                    RuleEnabledKnob(idx)
+                ]
+                --
                 Node {
                     min_height: rem(space::S24),
-                    padding: UiRect::horizontal(rem(space::S8)),
+                    min_width: rem(space::S24),
+                    padding: UiRect::all(rem(space::S4)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(rem(radius::XS)),
                 }
                 ThemeBackgroundColor({ Token::SurfaceElevated })
                 Button
-                RuleToggleButton(id) RuleDraftMutationButton ButtonDisabled(true)
-                toggle_node LocalizedLabel::plain("rules_toggle_row")
-                Children [
-                    LocalizedText::plain("rules_toggle_row") TextRole(Role::Caption)
-                ]
-                --
-                Node {
-                    min_height: rem(space::S24),
-                    padding: UiRect::horizontal(rem(space::S6)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(rem(radius::XS)),
-                }
-                ThemeBackgroundColor({ Token::Border })
-                Button
                 RuleMoveUpButton(id) RuleDraftMutationButton ButtonDisabled(true)
                 up_node LocalizedLabel::plain("rules_move_up")
                 Children [
-                    @{ icon_tile_scene(IconId::ArrowUp, 14.0, palette) }
+                    @{ icon_scene(IconId::ArrowUp, REORDER_ICON_SIZE_PX, palette.ink_dim) }
                 ]
                 --
                 Node {
                     min_height: rem(space::S24),
-                    padding: UiRect::horizontal(rem(space::S6)),
+                    min_width: rem(space::S24),
+                    padding: UiRect::all(rem(space::S4)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(rem(radius::XS)),
                 }
-                ThemeBackgroundColor({ Token::Border })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Button
                 RuleMoveDownButton(id) RuleDraftMutationButton ButtonDisabled(true)
                 down_node LocalizedLabel::plain("rules_move_down")
                 Children [
-                    @{ icon_tile_scene(IconId::ArrowDown, 14.0, palette) }
+                    @{ icon_scene(IconId::ArrowDown, REORDER_ICON_SIZE_PX, palette.ink_dim) }
                 ]
             ]
     }
@@ -813,6 +774,8 @@ impl Plugin for RulesPagePlugin {
                 refresh_hit_copy,
                 rules_fact_copy::sync,
                 rules_subrule_copy::sync,
+                animate_rules_json_panel,
+                paint_rules_scrollbar,
             ),
         );
         app.init_resource::<RulesTraceState>();
@@ -842,6 +805,7 @@ impl Plugin for RulesPagePlugin {
         // DUAL-11-14: the partition bar, the JSON editor partition and its
         // projection adoption.
         app.add_observer(on_rules_tab_activated);
+        app.add_observer(on_rules_tab_chip_activated);
         app.add_observer(on_rules_json_action_activated);
         app.add_observer(sync_rules_json);
         app.add_observer(on_rules_action_activated);

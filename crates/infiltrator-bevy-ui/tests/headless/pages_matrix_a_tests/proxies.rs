@@ -6,6 +6,7 @@ use crate::support::allow_outbound_probe;
 use bevy::ecs::query::With;
 use bevy::ui::prelude;
 use bevy::ui::prelude::Val;
+use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_ui::pages::proxies::{
     LatencySkeletonPulse, NodeDetailButton, ProxyGroupMoveUpButton, ProxyNode,
     ResetProxyGroupOrderButton, ToggleViewModeButton,
@@ -572,6 +573,7 @@ fn test_proxies_empty_and_edge_case_projection() {
         groups: vec![],
         testing: false,
         filter_alive: false,
+        sort_order: Default::default(),
         compact_view: false,
         active_exit: "无可用出口".to_owned(),
         custom_node: Default::default(),
@@ -617,7 +619,22 @@ fn test_proxies_inventory_projection_does_not_fabricate_missing_node_facts() {
     // Neutral inventory carries identity and selection, not protocol, feature,
     // favorite, or probe facts.
     assert!(subtree_has_text(app.world(), root, "📌"));
-    assert!(subtree_has_text(app.world(), root, "📈"));
+    // The latency trend is a DRAWN sparkline, not a glyph: the card owns the
+    // trend slot, and a node the owner never measured carries no drawn line.
+    let trend_slots: Vec<bool> = app
+        .world_mut()
+        .query_filtered::<(Entity, Option<&ImageNode>), With<LatencyTrendIcon>>()
+        .iter(app.world())
+        .map(|(_, image)| image.is_some())
+        .collect();
+    assert!(
+        !trend_slots.is_empty(),
+        "the node card owns a latency trend slot"
+    );
+    assert!(
+        trend_slots.iter().all(|painted| !painted),
+        "a node the owner never measured carries no drawn line: {trend_slots:?}"
+    );
     assert!(subtree_has_text(app.world(), root, "尚未测速"));
     assert!(
         app.world_mut()
@@ -645,13 +662,6 @@ fn test_proxies_inventory_projection_does_not_fabricate_missing_node_facts() {
     assert!(
         app.world_mut()
             .query::<&NodePinButton>()
-            .iter(app.world())
-            .next()
-            .is_some()
-    );
-    assert!(
-        app.world_mut()
-            .query::<&LatencyTrendIcon>()
             .iter(app.world())
             .next()
             .is_some()

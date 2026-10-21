@@ -8,6 +8,7 @@ fn test_proxies_pinyin_fuzzy_and_protocol_filtering() {
         name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
         node_type: "VLESS".to_owned(),
         delay_ms: Some(45),
+        latency_samples: Default::default(),
         health: OutboundHealthObservation::Unknown,
         selected: true,
         favorite: true,

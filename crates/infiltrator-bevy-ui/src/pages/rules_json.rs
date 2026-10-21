@@ -17,7 +17,9 @@ use crate::a11y::button_semantic_node;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::page_models::RulesPageModelState;
 use crate::pages::rules::RulesProjectionUpdated;
+use crate::pages::rules_json_editor::{RulesJsonEditorPanel, json_editor_body_scene};
 use crate::shortcuts::modifiers_from_keyboard;
+use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -32,13 +34,13 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::{CommandsSceneExt, Ready, Scene, SceneList, bsn, bsn_list, on};
 use bevy::text::TextColor;
+use bevy::time::Time;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
     UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_bevy_widgets::editor::code_editor_scene;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -75,6 +77,11 @@ pub struct RulesJsonState {
     pub buffers: Vec<CodeEditorState>,
     /// Keyboard ownership: only a focused buffer consumes keys.
     pub focused: bool,
+    /// The editor panel's transition stage: the only state of the panel's
+    /// own reveal.
+    pub panel: RulesJsonPanelStage,
+    /// The panel's reveal progress: 0 is folded away, 1 is fully revealed.
+    pub reveal: f32,
     /// Bumped on every buffer replacement so the body scene is rebuilt.
     pub generation: u64,
     /// `generation` the mounted body was built from.
@@ -89,6 +96,50 @@ pub struct RulesJsonState {
     pub status: Option<RuleJsonFeedback>,
 }
 
+/// The JSON editor panel's transition stage.
+///
+/// The panel is the rules workspace's editing surface: it reveals itself when
+/// its partition becomes visible and folds back when it does not. The stage is
+/// the panel's only state, and the typed transition is the only way it moves.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RulesJsonPanelStage {
+    /// The panel is folded away.
+    #[default]
+    Closed,
+    /// The panel is revealing itself.
+    Opening,
+    /// The panel is fully revealed.
+    Open,
+    /// The panel is folding back.
+    Closing,
+}
+
+/// The request that moves the editor panel's stage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RulesJsonPanelRequest {
+    /// The partition became visible: the panel reveals itself.
+    Reveal,
+    /// The partition went away: the panel folds back.
+    Hide,
+}
+
+impl RulesJsonPanelStage {
+    /// The typed transition: the only way the stage changes.
+    pub fn transition(self, request: RulesJsonPanelRequest) -> Self {
+        match (self, request) {
+            (Self::Closed | Self::Closing, RulesJsonPanelRequest::Reveal) => Self::Opening,
+            (Self::Open | Self::Opening, RulesJsonPanelRequest::Hide) => Self::Closing,
+            (Self::Closed | Self::Closing, RulesJsonPanelRequest::Hide) => Self::Closed,
+            (Self::Open | Self::Opening, RulesJsonPanelRequest::Reveal) => Self::Open,
+        }
+    }
+
+    /// Whether the panel is (or is becoming) visible.
+    pub fn is_visible(self) -> bool {
+        matches!(self, Self::Opening | Self::Open)
+    }
+}
+
 impl Default for RulesJsonState {
     fn default() -> Self {
         Self {
@@ -98,6 +149,8 @@ impl Default for RulesJsonState {
                 .map(|_| CodeEditorState::new(""))
                 .collect(),
             focused: false,
+            panel: RulesJsonPanelStage::default(),
+            reveal: 0.0,
             generation: 0,
             last_rendered: 0,
             published: Vec::new(),
@@ -321,6 +374,13 @@ pub struct RulesJsonSaveLabel;
 /// Fixed height of the JSON editor panel (px); the partition scrolls inside it.
 const JSON_EDITOR_BODY_HEIGHT_PX: f32 = 320.0;
 
+/// The folded height of the JSON editor panel (px): the panel starts away, so
+/// its reveal is a transition and not a static frame.
+const JSON_EDITOR_BODY_FOLDED_HEIGHT_PX: f32 = 0.0;
+
+/// The duration of the editor panel's reveal (seconds).
+const JSON_PANEL_REVEAL_SECS: f32 = 0.2;
+
 fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn Scene> {
     let index = section.index();
     let selected = index == 0;
@@ -397,7 +457,7 @@ fn section_chip_scenes(palette: &UiPalette) -> impl SceneList + use<> {
 /// Scene constructor for the JSON partition of the rules workspace.
 pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Scene + use<> {
     let status = state.status_label("en-US", false);
-    let body: Box<dyn Scene> = code_editor_scene(state.buffer(), palette);
+    let body: Box<dyn Scene> = json_editor_body_scene(state.buffer());
     let edit_button = edit_button_scene(palette);
     let save_button = save_button_scene(state.section, palette);
 
@@ -440,25 +500,68 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                 --
                 Node {
                     width: percent(100),
-                    height: rem(JSON_EDITOR_BODY_HEIGHT_PX),
-                    padding: UiRect::all(rem(space::S8)),
+                    height: rem(JSON_EDITOR_BODY_FOLDED_HEIGHT_PX),
+                    overflow: Overflow::clip(),
                     border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                    overflow: Overflow::scroll_y(),
                 }
-                ScrollArea
-                ThemeBackgroundColor({ Token::WindowClear })
+                BackgroundColor({ palette.window_clear.with_alpha(0.0) })
+                RulesJsonEditorPanel
                 Children [
                     Node {
                         width: percent(100),
-                        flex_direction: FlexDirection::Column,
+                        height: rem(JSON_EDITOR_BODY_HEIGHT_PX),
+                        padding: UiRect::all(rem(space::S8)),
+                        overflow: Overflow::scroll_y(),
                     }
-                    RulesJsonEditorBody
-                    on(render_editor_body)
+                    ScrollArea
                     Children [
-                        { vec![body] }
+                        Node {
+                            width: percent(100),
+                            flex_direction: FlexDirection::Column,
+                        }
+                        RulesJsonEditorBody
+                        on(render_editor_body)
+                        Children [
+                            { vec![body] }
+                        ]
                     ]
                 ]
             ]
+    }
+}
+
+/// Advance the editor panel's reveal and paint its height and fill.
+///
+/// The panel's stage is the only state of the reveal; the progress is the
+/// transition's own measurement, and the panel follows it, so the panel always
+/// shows exactly as much of itself as the stage says it does.
+pub fn animate_rules_json_panel(
+    time: Res<Time>,
+    palette: Res<UiPalette>,
+    mut state: Option<ResMut<RulesJsonState>>,
+    mut panels: Query<(&mut Node, &mut BackgroundColor), With<RulesJsonEditorPanel>>,
+) {
+    let Some(state) = state.as_deref_mut() else {
+        return;
+    };
+    let target = if state.panel.is_visible() { 1.0 } else { 0.0 };
+    let step = time.delta_secs() / JSON_PANEL_REVEAL_SECS;
+    state.reveal = if state.reveal < target {
+        (state.reveal + step).min(target)
+    } else {
+        (state.reveal - step).max(target)
+    };
+    state.panel = match state.panel {
+        RulesJsonPanelStage::Opening if state.reveal >= 1.0 => RulesJsonPanelStage::Open,
+        RulesJsonPanelStage::Closing if state.reveal <= 0.0 => RulesJsonPanelStage::Closed,
+        stage => stage,
+    };
+    for (mut node, mut fill) in &mut panels {
+        node.height = rem(JSON_EDITOR_BODY_HEIGHT_PX * state.reveal);
+        let want = palette.window_clear.with_alpha(state.reveal);
+        if fill.0 != want {
+            fill.0 = want;
+        }
     }
 }
 
@@ -471,7 +574,6 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
 fn render_editor_body(
     ready: On<Ready>,
     mut state: Option<ResMut<RulesJsonState>>,
-    palette: Res<UiPalette>,
     mut commands: Commands,
 ) {
     let Some(state) = state.as_deref_mut() else {
@@ -479,7 +581,7 @@ fn render_editor_body(
     };
     commands.entity(ready.entity).despawn_children();
     commands
-        .spawn_scene(code_editor_scene(state.buffer(), &palette))
+        .spawn_scene(json_editor_body_scene(state.buffer()))
         .insert(ChildOf(ready.entity));
     state.last_rendered = state.generation;
 }
@@ -585,7 +687,6 @@ pub fn sync_rules_json(
 /// Rebuild the editor body whenever the active buffer was replaced.
 pub fn refresh_rules_json_body(
     mut state: Option<ResMut<RulesJsonState>>,
-    palette: Res<UiPalette>,
     mut commands: Commands,
     bodies: Query<Entity, With<RulesJsonEditorBody>>,
 ) {
@@ -599,7 +700,7 @@ pub fn refresh_rules_json_body(
     for body in &bodies {
         commands.entity(body).despawn_children();
         commands
-            .spawn_scene(code_editor_scene(state.buffer(), &palette))
+            .spawn_scene(json_editor_body_scene(state.buffer()))
             .insert(ChildOf(body));
     }
 }

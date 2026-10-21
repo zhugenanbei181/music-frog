@@ -89,7 +89,8 @@ impl CapabilityProvider for CaptureHostCapabilityProvider {
 /// The engine-scoped operations an isolated capture core really implements.
 pub fn capture_core_operations() -> Vec<CoreOperation> {
     use infiltrator_contract::core_capabilities::{
-        CoreLifecycleOperation, DnsOperation, FakeIpCacheOperation, RulesOperation,
+        CoreLifecycleOperation, DnsOperation, FakeIpCacheOperation, ProfileOperation,
+        RulesOperation,
     };
     vec![
         CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
@@ -100,6 +101,10 @@ pub fn capture_core_operations() -> Vec<CoreOperation> {
         CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
         CoreOperation::Rules(RulesOperation::Trace),
         CoreOperation::Rules(RulesOperation::Apply),
+        // The profile options the capture really writes: the filter draft
+        // travels the product's own profile-apply path.
+        CoreOperation::Profile(ProfileOperation::Apply),
+        CoreOperation::Profile(ProfileOperation::ApplyFeature),
     ]
 }
 

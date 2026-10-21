@@ -9,7 +9,7 @@ use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::connection_rate_application::project_connection;
 use infiltrator_bevy_ui::command::DemoCommandSink;
 use infiltrator_bevy_ui::pages::connections::{
-    ConnectionsProjection, ConnectionsProjectionUpdated,
+    ConnHostText, ConnPortText, ConnectionsProjection, ConnectionsProjectionUpdated,
 };
 use infiltrator_bevy_ui::pages::connections_groups::ConnectionGroupCard;
 use infiltrator_bevy_ui::pages::connections_view::{
@@ -18,6 +18,7 @@ use infiltrator_bevy_ui::pages::connections_view::{
 use infiltrator_bevy_ui::route::Route;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::runtime::ConnectionSnapshot;
@@ -57,6 +58,37 @@ fn cards(app: &mut App) -> Vec<(Entity, String)> {
         .iter(app.world())
         .map(|(entity, row)| (entity, row.0.clone()))
         .collect()
+}
+
+/// The endpoint of one flat row, read as the row's own two runs: the host
+/// and the port. The row is a flat band, so the endpoint is never one joined
+/// string and the port never repeats the separator.
+fn endpoint_runs(app: &mut App, index: usize) -> (String, String) {
+    let host = app
+        .world_mut()
+        .query::<(&ConnHostText, &TextRuns)>()
+        .iter(app.world())
+        .find(|(marker, _)| marker.0 == index)
+        .map(|(_, runs)| {
+            runs.0
+                .iter()
+                .map(|run| run.text.as_str())
+                .collect::<String>()
+        })
+        .expect("the flat row owns a host run");
+    let port = app
+        .world_mut()
+        .query::<(&ConnPortText, &TextRuns)>()
+        .iter(app.world())
+        .find(|(marker, _)| marker.0 == index)
+        .map(|(_, runs)| {
+            runs.0
+                .iter()
+                .map(|run| run.text.as_str())
+                .collect::<String>()
+        })
+        .expect("the flat row owns a port run");
+    (host, port)
 }
 
 #[test]
@@ -161,7 +193,12 @@ fn connection_rows_reconcile_growth_and_shrink_and_restamp_stable_entities() {
         .collect();
     assert_eq!(after, before);
     let updated = before.iter().find(|(_, index)| *index == 0).unwrap().0;
-    assert!(subtree_has_text(
+    // The row is a flat band: the endpoint rides two runs, the host and the
+    // port, and the port carries no separator of its own.
+    let (host, port) = endpoint_runs(&mut app, 0);
+    assert_eq!(host, "changed.example.org");
+    assert_eq!(port, "443");
+    assert!(!subtree_has_text(
         app.world(),
         updated,
         "changed.example.org:443"

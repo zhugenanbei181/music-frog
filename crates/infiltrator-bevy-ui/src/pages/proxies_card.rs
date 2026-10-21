@@ -9,6 +9,8 @@
 //! * `toolbar` — page chrome: the search/toolbar card and the header summary card.
 //! * `node_card` — the single proxy node card vocabulary (chips, favorite pin, latency trend).
 //! * `group_card` — the strategy group card and its header-only variant.
+//! * `overlays` — the card's two overlays: the name's pixel fade and the
+//!   latency sparkline, both painted from the owner's facts.
 //!
 //! Each seam is a public module, so callers import from the defining module's
 //! canonical path (the repository bans re-export facades):
@@ -16,4 +18,5 @@
 
 pub mod group_card;
 pub mod node_card;
+pub mod overlays;
 pub mod toolbar;

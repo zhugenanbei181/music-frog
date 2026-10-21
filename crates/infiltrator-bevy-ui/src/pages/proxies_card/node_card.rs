@@ -12,10 +12,10 @@
 //! highlight never hides what the card says.
 
 use crate::pages::proxies::{
-    LatencySkeletonPulse, LatencyText, LatencyTrendIcon, NodeDetailButton, NodeFlagText,
-    NodeNameText, NodePinButton, NodeProtoText, NodeUdpTag, ProxyNode, ProxyNodeButton,
-    TestProxyGroupButton, latency_color,
+    LatencySkeletonPulse, LatencyText, NodeDetailButton, NodeFlagText, NodeNameText, NodePinButton,
+    NodeProtoText, NodeUdpTag, ProxyNode, ProxyNodeButton, TestProxyGroupButton, latency_color,
 };
+use crate::pages::proxies_card::overlays::{latency_sparkline_scene, name_fade_scene};
 use crate::pages::proxies_preferences::ProxyFavoriteStar;
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
@@ -492,6 +492,7 @@ pub fn proxy_node_scene_sized(
                     }
                     Children [
                         Node {
+                            position_type: PositionType::Relative,
                             align_items: AlignItems::Center,
                             column_gap: rem(space::S8),
                             flex_grow: 1.0,
@@ -514,6 +515,8 @@ pub fn proxy_node_scene_sized(
                             Text({ name.clone() })
                             NodeNameText { group_idx: g_idx, node_idx: n_idx }
                             TextRole(Role::BodyStrong)
+                            --
+                            @{ name_fade_scene(palette.over_surface(paint.fill)) }
                         ]
                         --
                         Node {
@@ -527,10 +530,7 @@ pub fn proxy_node_scene_sized(
                         ThemeBackgroundColor({ Token::Surface })
                         LatencySkeletonPulse { group_idx: g_idx, node_idx: n_idx }
                         Children [
-                            Text({ "📈".to_owned() })
-                            LatencyTrendIcon { group_idx: g_idx, node_idx: n_idx }
-                            TextRole(Role::Caption)
-                            ThemeTextColor({ Token::InkDim })
+                            @{ latency_sparkline_scene(g_idx, n_idx) }
                             --
                             LocalizedText::new(delay_copy.key,delay_copy.params)
                             LatencyText { group_idx: g_idx, node_idx: n_idx }

@@ -46,6 +46,14 @@ pub fn switch_node(node: ShellA11yNode, enabled: bool) -> AccessibilityNode {
     AccessibilityNode(a11y)
 }
 
+/// Restamp a switch row's live on/off state.
+///
+/// The node's role and label are the shared grammar's; only the toggle state
+/// moves, so a switch that flips keeps publishing the same row.
+pub fn sync_switch_state(node: &mut AccessibilityNode, enabled: bool) {
+    node.0.set_toggled(accesskit::Toggled::from(enabled));
+}
+
 /// A read-only status/text row: the label plus the live value the shell shows.
 pub fn value_node(node: ShellA11yNode, value: &str) -> AccessibilityNode {
     let mut a11y = accesskit::Node::new(accesskit_role(node.role()));

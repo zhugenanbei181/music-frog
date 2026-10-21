@@ -387,13 +387,21 @@ fn demo_outbound_inventory() -> OutboundInventorySnapshot {
         )
         .expect("demo outbound ID is valid")
     };
-    let entries = ["HK-01", "JP-02", "SG-03", "US-04"]
-        .into_iter()
-        .map(|name| OutboundSnapshot {
-            id: id(name),
-            display_name: Some(name.to_owned()),
-        })
-        .collect();
+    // The demo names one node the way a real subscription names it: a long
+    // display name is what a card has to fit, and what the card's pixel
+    // fade has to soften.
+    let entries = [
+        ("HK-01", "HK-01"),
+        ("JP-02", "JP-02"),
+        ("SG-03", "SG-03"),
+        ("US-04", "US-Silicon-Valley 04 · IEPL Private Line · 4K Boost"),
+    ]
+    .into_iter()
+    .map(|(value, display_name)| OutboundSnapshot {
+        id: id(value),
+        display_name: Some(display_name.to_owned()),
+    })
+    .collect();
     let collection = |name: &str,
                       members: &[&str],
                       availability: SelectionAvailability,
@@ -483,10 +491,7 @@ fn demo_outbound_details() -> OutboundDetailsSnapshot {
             udp: OutboundUdpSupport::Supported,
             health: OutboundHealthObservation::Healthy,
             current_latency_ms: OutboundObservation::Observed(delay_ms),
-            latency_history: OutboundObservation::Observed(vec![OutboundLatencySample {
-                observed_at: "demo".to_owned(),
-                delay_ms,
-            }]),
+            latency_history: OutboundObservation::Observed(demo_latency_history(delay_ms)),
             rtt: OutboundObservation::Unknown,
             historical_egress: OutboundObservation::Unknown,
             probe_availability: OutboundProbeAvailability::Supported,
@@ -521,6 +526,22 @@ fn demo_outbound_details() -> OutboundDetailsSnapshot {
         OutboundDetailsState::Ready { details },
     )
     .expect("demo outbound details are valid")
+}
+
+/// The demo node's recorded latency history: a short, believable window
+/// the latency sparkline can draw.
+fn demo_latency_history(delay_ms: u32) -> Vec<OutboundLatencySample> {
+    [
+        (delay_ms * 2 + 18, "08:00"),
+        (delay_ms + 9, "08:01"),
+        (delay_ms, "08:02"),
+    ]
+    .into_iter()
+    .map(|(delay, minute)| OutboundLatencySample {
+        observed_at: format!("2026-10-21T{minute}:00Z"),
+        delay_ms: delay,
+    })
+    .collect()
 }
 
 fn demo_outbound_preferences() -> OutboundUiPreferencesSnapshot {

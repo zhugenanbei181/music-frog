@@ -15,7 +15,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::{Activate, ScrollIntoView};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
@@ -122,6 +122,12 @@ pub fn activate(mut probe: QueryActivation, mut geometry: CaptureGeometry, mut c
     else {
         return;
     };
+    // The modal's own layout lands one frame after the page shows the
+    // control, so the capture waits for a measured size before it asks the
+    // geometry whether the control is on screen.
+    if geometry.rect(entity).is_none() {
+        return;
+    }
     let Some([x, y, width, height]) = geometry.bounds(entity, "DNS query activation control")
     else {
         return;
@@ -158,7 +164,21 @@ pub fn observe(
     mut geometry: CaptureGeometry,
     mut feature: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,
+    mut commands: Commands,
 ) {
+    // The answer copy lives in the modal's own scroll area: the compact
+    // viewport starts it below the fold, so the capture asks the official
+    // `ScrollIntoView` to reveal it in that scroll area and measures the
+    // result on the next frame.
+    if let Some((entity, _, _)) = probe
+        .lines
+        .iter()
+        .find(|(_, line, _)| matches!(line, QueryLine::Records))
+        && geometry.rect(entity).is_some()
+        && !geometry.unclipped(entity)
+    {
+        commands.trigger(ScrollIntoView { entity });
+    }
     let bounds = (|| {
         let model = &probe.panel.model;
         if probe.capture.stage != 5
@@ -185,12 +205,16 @@ pub fn observe(
                 .find(|(_, action, disabled, _)| **action == wanted && !disabled.0)?;
             geometry.bounds(entity, "DNS query result action")?;
         }
-        for (entity, line, text) in &probe.lines {
-            if matches!(line, QueryLine::Records) && !text.0.contains("observed-0 {ttl}") {
-                return None;
-            }
-            geometry.bounds(entity, "DNS query observed response copy")?;
+        // The answer copy is the scenario's fact: the modal's scroll area
+        // carries it, and the capture reveals it there before it measures.
+        let (records, _, text) = probe
+            .lines
+            .iter()
+            .find(|(_, line, _)| matches!(line, QueryLine::Records))?;
+        if !text.0.contains("observed-0 {ttl}") {
+            return None;
         }
+        geometry.bounds(records, "DNS query observed response copy")?;
         geometry.bounds(probe.fields.iter().next()?, "DNS query observed name field")?;
         geometry.bounds(probe.cards.iter().next()?, "DNS query details modal")
     })();

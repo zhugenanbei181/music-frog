@@ -10,7 +10,7 @@ use crate::pages::page_models::{
 };
 use lurker_core_contract::outbound::details::OutboundDetail;
 use lurker_core_contract::outbound::identity::OutboundId;
-use lurker_core_contract::outbound::preferences::OutboundLayout;
+use lurker_core_contract::outbound::preferences::{OutboundLayout, OutboundSortOrder};
 #[cfg(any(feature = "capture-tools", test))]
 use lurker_core_contract::page::SurfaceOrigin;
 
@@ -36,7 +36,7 @@ use infiltrator_presentation::sync_page_model::SyncPageModel;
 use lurker_core_contract::outbound::{
     details::{
         OutboundCollectionKind, OutboundDetailsState, OutboundFeature, OutboundHealthObservation,
-        OutboundObservation, OutboundProtocolObservation, OutboundSnapshot,
+        OutboundLatencySample, OutboundObservation, OutboundProtocolObservation, OutboundSnapshot,
     },
     inventory::{OutboundInventoryState, OutboundSelectionState, SelectionAvailability},
 };
@@ -182,6 +182,7 @@ pub(super) fn proxies_projection(
                         detail_rows.and_then(|rows| rows.iter().find(|detail| detail.id == *id));
                     let node_type = detail.map_or_else(String::new, protocol_name);
                     let delay_ms = detail.and_then(latency_ms);
+                    let latency_samples = detail.map_or_else(Vec::new, latency_history);
                     let health =
                         detail.map_or(OutboundHealthObservation::Unknown, |detail| detail.health);
                     let favorite = model.is_favorite(id);
@@ -194,6 +195,7 @@ pub(super) fn proxies_projection(
                             .unwrap_or_else(|| id.value().to_owned()),
                         node_type,
                         delay_ms,
+                        latency_samples,
                         health,
                         selected: selected.is_some_and(|selected| selected == id),
                         favorite,
@@ -268,6 +270,11 @@ pub(super) fn proxies_projection(
         // the owner never published.
         compact_view: preferences
             .is_some_and(|preferences| preferences.layout == OutboundLayout::CompactList),
+        // The sort order is an owner-published preference, not a derivation:
+        // the strip seeds its selection from the order the owner publishes.
+        sort_order: preferences.map_or_else(OutboundSortOrder::default, |preferences| {
+            preferences.sort_order
+        }),
         active_exit: snapshot.active_exit.name.clone().unwrap_or_default(),
         custom_node: matches!(
             snapshot.protocol_studio.status,
@@ -368,6 +375,18 @@ fn latency_ms(detail: &OutboundDetail) -> Option<u32> {
     match detail.current_latency_ms {
         OutboundObservation::Observed(delay) => Some(delay),
         OutboundObservation::Unknown | OutboundObservation::Unsupported => None,
+    }
+}
+
+/// The owner's recorded latency history for one outbound, oldest first.
+///
+/// The page draws the node's latency sparkline from these samples, so the
+/// history travels with the node: an outbound the owner never measured
+/// carries no sample at all.
+fn latency_history(detail: &OutboundDetail) -> Vec<OutboundLatencySample> {
+    match &detail.latency_history {
+        OutboundObservation::Observed(samples) => samples.clone(),
+        OutboundObservation::Unknown | OutboundObservation::Unsupported => Vec::new(),
     }
 }
 
@@ -756,104 +775,5 @@ pub(super) fn settings_projection(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use lurker_core_contract::outbound::preferences::OutboundSortOrder;
-
-    use super::super::surface_demo::demo_snapshot;
-
-    /// The engine identity of one demo outbound node.
-    fn demo_outbound_id(snapshot: &surface_snapshot::SurfaceSnapshot, value: &str) -> OutboundId {
-        let inventory = snapshot
-            .outbound_inventory
-            .data
-            .as_ref()
-            .expect("the demo snapshot publishes the outbound inventory");
-        let OutboundInventoryState::Ready { entries, .. } = inventory.inventory() else {
-            panic!("the demo outbound inventory is ready");
-        };
-        entries
-            .iter()
-            .find(|entry| entry.id.value() == value)
-            .unwrap_or_else(|| panic!("the demo snapshot publishes {value}"))
-            .id
-            .clone()
-    }
-
-    #[test]
-    fn the_proxies_projection_keeps_the_favourite_first_on_every_order() {
-        let mut snapshot = demo_snapshot();
-        let slowest = demo_outbound_id(&snapshot, "US-04");
-        let preferences = snapshot
-            .outbound_ui_preferences
-            .data
-            .as_mut()
-            .expect("the demo snapshot publishes the outbound preferences");
-        preferences.favorite_outbound_ids = vec![slowest];
-        preferences.sort_order = OutboundSortOrder::NameAscending;
-
-        let projection = proxies_projection(&snapshot);
-        let group = projection
-            .groups
-            .iter()
-            .find(|group| group.name == "PROXIES")
-            .expect("the demo snapshot publishes the PROXIES group");
-        let names: Vec<&str> = group
-            .proxies
-            .iter()
-            .map(|node| node.name.as_str())
-            .collect();
-
-        // The shared member order puts a favourite first on every order —
-        // the name order included, which the former local rule did not.
-        assert_eq!(names, vec!["US-04", "HK-01", "JP-02", "SG-03"]);
-    }
-
-    #[test]
-    fn the_proxies_projection_filters_the_members_with_the_shared_rule() {
-        let mut snapshot = demo_snapshot();
-        let preferences = snapshot
-            .outbound_ui_preferences
-            .data
-            .as_mut()
-            .expect("the demo snapshot publishes the outbound preferences");
-        preferences.search_query = "trojan".to_owned();
-
-        let projection = proxies_projection(&snapshot);
-        let group = projection
-            .groups
-            .iter()
-            .find(|group| group.name == "PROXIES")
-            .expect("the demo snapshot publishes the PROXIES group");
-        let names: Vec<&str> = group
-            .proxies
-            .iter()
-            .map(|node| node.name.as_str())
-            .collect();
-
-        // The shared rule matches the protocol, so the group that does not
-        // match the query keeps only the member the query matches.
-        assert_eq!(names, vec!["SG-03"]);
-    }
-
-    #[test]
-    fn the_proxies_projection_highlights_with_the_shared_name_runs() {
-        let mut snapshot = demo_snapshot();
-        let preferences = snapshot
-            .outbound_ui_preferences
-            .data
-            .as_mut()
-            .expect("the demo snapshot publishes the outbound preferences");
-        preferences.search_query = "jp".to_owned();
-
-        let projection = proxies_projection(&snapshot);
-        let runs = projection
-            .name_runs
-            .get("JP-02")
-            .expect("the matching node carries its highlight runs");
-        assert!(
-            runs.iter().any(|run| run.highlighted),
-            "the shared name runs highlight the matched node"
-        );
-    }
-}
+#[path = "surface_projection_tests.rs"]
+mod tests;

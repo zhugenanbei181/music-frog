@@ -33,9 +33,12 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{Node, ScrollPosition, percent, px};
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::{Activate, ScrollbarThumb};
+use infiltrator_bevy_widgets::feathers_theme::Token;
+use infiltrator_bevy_widgets::list::scrollbar::ListScrollbar;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -52,6 +55,39 @@ pub struct RuleRow(pub usize);
 /// Marker on the wrapper of the keyword search text field.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleSearchField;
+/// Paint the rule list's scrollbar thumb so the list's scroll range is visible.
+///
+/// The official scrollbar owns the thumb's geometry and the drag; the thumb's
+/// *ink* is this page's reading of it: the shared thumb wash is too faint on
+/// the dark card to be seen, and a reader who cannot see the scroll range is
+/// pushed back to the paging buttons.
+pub fn paint_rules_scrollbar(
+    mut commands: Commands,
+    viewports: Query<&ChildOf, With<RulesListScrollArea>>,
+    frames: Query<&Children>,
+    bars: Query<&Children, With<ListScrollbar>>,
+    thumbs: Query<(Entity, Option<&ThemeBackgroundColor>), With<ScrollbarThumb>>,
+) {
+    for frame in &viewports {
+        let Ok(children) = frames.get(frame.0) else {
+            continue;
+        };
+        for child in children.iter() {
+            let Ok(bar_children) = bars.get(*child) else {
+                continue;
+            };
+            for thumb in bar_children.iter() {
+                let Ok((entity, current)) = thumbs.get(*thumb) else {
+                    continue;
+                };
+                let want = Token::DisabledInk.theme_token();
+                if current.is_none_or(|current| current.0 != want) {
+                    commands.entity(entity).insert(ThemeBackgroundColor(want));
+                }
+            }
+        }
+    }
+}
 
 /// Marker on the previous-page button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -301,17 +337,22 @@ pub(crate) fn sync_rules_window(
     if view.scroll_offset_px > content_height {
         view.scroll_offset_px = content_height;
     }
+    // The page cursor is the viewport's own offset, read back: the page never
+    // keeps a second position of its own, so the scrollbar, the keyboard and
+    // the paging buttons can never disagree about where the list is.
+    let total = view.filtered_indices.len();
+    view.page = if total == 0 {
+        0
+    } else {
+        view::page_for_rule_index(
+            view::rule_index_at_scroll_offset(view.scroll_offset_px).min(total - 1),
+            view.page_size,
+        )
+    };
 
     let window = rules_window(&view);
     let stale = view.rendered_generation != view.filter_generation
         || view.rendered_window != Some((window.start, window.end));
-    eprintln!(
-        "DBG sync_rules_window stale={stale} rendered_gen={} filter_gen={} window={:?} filtered={:?}",
-        view.rendered_generation,
-        view.filter_generation,
-        view.rendered_window,
-        view.filtered_indices,
-    );
     if stale {
         view.rendered_generation = view.filter_generation;
         view.rendered_window = Some((window.start, window.end));
@@ -341,14 +382,7 @@ pub(crate) fn sync_rules_window(
     // The page caption follows the scroll offset, so the paging controls and
     // the mounted rows can never disagree about where the viewport is.
     let total = view.filtered_indices.len();
-    let page = if total == 0 {
-        0
-    } else {
-        view::page_for_rule_index(
-            view::rule_index_at_scroll_offset(view.scroll_offset_px).min(total - 1),
-            view.page_size,
-        )
-    };
+    let page = view.page;
     let value = if total == 0 {
         LocalizedText::plain("rules_empty_pagination")
     } else {

@@ -15,7 +15,6 @@ use infiltrator_presentation::rule_provider_projection::{
     default_action, etag_support_line, provider_cache_line, provider_count,
     provider_fingerprint_line, provider_lifecycle_line, published_truncation, rules_summary,
 };
-use infiltrator_presentation::rule_statistics_projection::project_statistics;
 use infiltrator_shared::locales::Lang;
 
 #[derive(QueryData)]
@@ -64,10 +63,6 @@ pub fn sync(
                 ),
                 RulesLineKind::DefaultAction => {
                     default_action(&projection.default_action, &Lang(locale.code()))
-                }
-                RulesLineKind::HitAudit => {
-                    project_statistics(projection.hit_audit.as_ref(), &Lang(locale.code()))
-                        .summary(&Lang(locale.code()))
                 }
                 RulesLineKind::Truncation => published_truncation(
                     projection.truncated_rule_count,

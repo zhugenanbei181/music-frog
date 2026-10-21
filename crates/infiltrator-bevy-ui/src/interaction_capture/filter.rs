@@ -1,4 +1,5 @@
 //! Native filter activation uses actual typed commands and narrowly scoped ECS parameters.
+use super::capability::{capture_command_application, install_core_capabilities};
 use super::geometry::CaptureGeometry;
 use super::scroll::{owning_scroll_area, request_scroll};
 use super::{InteractionCapture, ObservedInteraction, selected};
@@ -22,6 +23,7 @@ use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::input::ButtonInput;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::math::Vec2;
@@ -31,7 +33,6 @@ use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ScrollArea};
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -69,8 +70,12 @@ pub fn install(app: &mut App) {
         tokio_application_runtime().expect("isolated filter runtime"),
     ));
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(profiles_for_mihomo(store.clone())),
+        capture_command_application().with_profile(profiles_for_mihomo(store.clone())),
     ));
+    // The isolated owner publishes the capability matrix its own fixture
+    // really provides, so the shared command gate admits the profile write
+    // the capture exercises instead of denying it for a missing provider.
+    install_core_capabilities(&core);
     let reader = Arc::new(
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(profiles_for_mihomo(store.clone())),
@@ -105,6 +110,7 @@ pub struct FilterActivation<'w, 's> {
     parents: Query<'w, 's, &'static ChildOf>,
     areas: Query<'w, 's, Entity, With<ScrollArea>>,
     windows: Query<'w, 's, (Entity, &'static Window), With<PrimaryWindow>>,
+    keys: Option<ResMut<'w, ButtonInput<KeyCode>>>,
 }
 fn key(
     commands: &mut Commands,
@@ -142,15 +148,22 @@ pub fn activate(
         probe.options.filter.can_edit(),
     );
     if probe.capture.reported != Some(progress) {
+        let filter = &probe.options.filter;
         eprintln!(
-            "filter capture progress: stage={} pane={:?} editable={} tabs={} fields={} pages={} source={:?}",
+            "filter capture progress: stage={} pane={:?} editable={} tabs={} fields={} pages={} source={:?} include={:?} advanced={:?} failure={:?} writes={}",
             progress.0,
             progress.1,
             progress.2,
             probe.tabs.iter().count(),
             probe.fields.iter().count(),
             probe.pages.iter().count(),
-            probe.options.filter.source_profile()
+            filter.source_profile(),
+            filter.draft.include,
+            filter.draft.advanced_policy,
+            filter
+                .failure()
+                .map(|failure| (failure.code.clone(), failure.message.clone())),
+            probe.capture.store.writes.load(Ordering::SeqCst),
         );
         probe.capture.reported = Some(progress);
     }
@@ -286,6 +299,12 @@ pub fn activate(
             );
         }
         if probe.capture.stage == 3 {
+            // The field reads the shortcut from the platform's own key
+            // state, so the capture holds the real control key down while
+            // it types the select-all chord.
+            if let Some(keys) = probe.keys.as_mut() {
+                keys.press(KeyCode::ControlLeft);
+            }
             key(
                 &mut commands,
                 window,
@@ -310,6 +329,11 @@ pub fn activate(
         let Ok((window, _)) = probe.windows.single() else {
             return;
         };
+        // The control key is released before the policy is typed, so the
+        // policy replaces the selected text instead of joining it.
+        if let Some(keys) = probe.keys.as_mut() {
+            keys.release(KeyCode::ControlLeft);
+        }
         key(
             &mut commands,
             window,

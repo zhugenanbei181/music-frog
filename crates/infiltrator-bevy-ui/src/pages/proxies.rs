@@ -21,6 +21,7 @@ use self::sort::{on_proxy_sort_selected, submit_proxy_sort_order, sync_proxy_sor
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::pages::proxies_card::node_card::{sync_proxy_card_visuals, sync_proxy_selection_rails};
+use crate::pages::proxies_card::overlays::{sync_proxy_latency_sparklines, sync_proxy_name_fades};
 use crate::pages::proxies_custom::{on_custom_node_action_activated, sync_custom_node_studio};
 use crate::pages::proxies_refresh::apply_proxies_projection;
 use crate::pages::proxies_virtual::ProxiesVirtualState;
@@ -49,7 +50,7 @@ use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_presentation::proxies_page_model::ProxyFilterTarget;
 use lurker_core_contract::outbound::{
-    details::OutboundHealthObservation,
+    details::{OutboundHealthObservation, OutboundLatencySample},
     identity::OutboundId,
     inventory::{OutboundInventoryState, SelectionAvailability},
     preferences::{
@@ -276,6 +277,10 @@ pub struct ProxyNode {
     pub name: String,
     pub node_type: String,
     pub delay_ms: Option<u32>,
+    /// The owner's recorded latency history, oldest first. The page draws
+    /// the node's latency sparkline from these samples and never invents
+    /// one of its own.
+    pub latency_samples: Vec<OutboundLatencySample>,
     pub health: OutboundHealthObservation,
     pub selected: bool,
     pub favorite: bool,
@@ -338,6 +343,10 @@ pub struct ProxiesProjection {
     pub filter_alive: bool,
     pub compact_view: bool,
     pub active_exit: String,
+    /// The order the owner publishes for the member list. The sort strip
+    /// seeds its selection from this answer instead of guessing an order
+    /// of its own.
+    pub sort_order: OutboundSortOrder,
     /// DUAL-05: the shared custom-node protocol studio. Both surfaces render
     /// this single projection; Bevy keeps no second protocol fact source.
     pub custom_node: ProtocolStudioSnapshot,
@@ -354,6 +363,7 @@ impl ProxiesProjection {
             testing: false,
             filter_alive: false,
             compact_view: false,
+            sort_order: OutboundSortOrder::default(),
             custom_node: Default::default(),
             groups: vec![
                 ProxyGroup {
@@ -370,6 +380,7 @@ impl ProxiesProjection {
                             name: HK_PRIMARY.to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: true,
@@ -380,6 +391,7 @@ impl ProxiesProjection {
                             name: JP.to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -390,6 +402,7 @@ impl ProxiesProjection {
                             name: SG.to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -400,6 +413,7 @@ impl ProxiesProjection {
                             name: US.to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -421,6 +435,7 @@ impl ProxiesProjection {
                             name: HK_PRIMARY.to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: true,
@@ -431,6 +446,7 @@ impl ProxiesProjection {
                             name: JP.to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -452,6 +468,7 @@ impl ProxiesProjection {
                             name: SG.to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: false,
@@ -462,6 +479,7 @@ impl ProxiesProjection {
                             name: US.to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
+                            latency_samples: Vec::new(),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -524,6 +542,12 @@ impl Plugin for ProxiesPagePlugin {
         // (the skin runs in `Update`), so the selected card keeps its reading
         // surface and marks itself with an accent edge and rail instead.
         app.add_systems(Last, sync_proxy_card_visuals);
+        // The name's pixel fade is painted from the card's own fill, so it
+        // runs in the same pass as the fill it follows: a card's fill is
+        // never painted in `Update`, where the shared skin would win.
+        app.add_systems(Last, sync_proxy_name_fades.after(sync_proxy_card_visuals));
+        // The latency sparkline is the node's own recorded history.
+        app.add_systems(Last, sync_proxy_latency_sparklines);
         // The sort strip is the official tab list: its selection change is
         // the page's cue to submit the owner's sort preference.
         app.add_observer(on_proxy_sort_selected);
@@ -865,6 +889,7 @@ mod tests {
             name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
             node_type: "Shadowsocks".to_owned(),
             delay_ms: Some(38),
+            latency_samples: Vec::new(),
             health: OutboundHealthObservation::Unknown,
             selected: true,
             favorite: true,

@@ -13,20 +13,20 @@ use self::query_access::RuleProjectionTargets;
 use super::rules::{LastRulesProjection, RulesProjectionUpdated};
 use crate::pages::command_outcome::CommandOutcomes;
 use crate::pages::rules_outcome::fold_provider_failures;
-use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::ui::widget::Text;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
-use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::switch::SwitchPosition;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
 use infiltrator_presentation::rule_provider_projection::{
     default_action, etag_support_line, provider_count, provider_fingerprint_line,
     provider_lifecycle_line, published_truncation, rules_summary,
 };
 use infiltrator_presentation::rule_row_projection::{row_hits_copy, row_hits_key};
-use infiltrator_presentation::rule_statistics_projection::project_statistics;
 use infiltrator_shared::locales::Lang;
 
 /// Marker for text lines updated by the projection observer.
@@ -41,8 +41,6 @@ pub enum RulesLineKind {
     Summary,
     /// Default fallback rule target.
     DefaultAction,
-    /// Shared live hit audit: total hits, dead/shadowed rules, CIDR overlaps.
-    HitAudit,
     /// DUAL-11-08: honest publish-cap note for the rendered rule list.
     Truncation,
     /// DUAL-11-05: the kernel's declared top-level `etag-support` capability.
@@ -69,10 +67,15 @@ pub struct RuleIndexText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleTypeText(pub usize);
 
-/// DUAL-11-01: chip node behind a rule item's type label; its fill is restamped
+/// DUAL-11-01: chip node behind a rule item's type label; its ink restamps
 /// from the shared type family.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleTypeBadge(pub usize);
+
+/// Marker on a rule row's enable/disable switch knob; the payload is the row
+/// index. The knob's rest position is the shared switch's on/off fact.
+#[derive(Component, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RuleEnabledKnob(pub usize);
 
 /// Marker for a rule provider name text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -86,32 +89,65 @@ pub struct ProviderCountText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProviderUpdatedText(pub usize);
 
-/// DUAL-11-01: chip fill for a rule-type family, from palette tokens only.
-pub(crate) fn rule_type_chip_fill(rule_type: &str, palette: &UiPalette) -> Color {
+/// DUAL-11-01: the semantic hue of a rule-type family.
+///
+/// The family is the shared catalogue's fact; the hue is the surface's
+/// presentation of it, so the badge reads as a tag instead of one flat pill.
+pub(crate) fn rule_type_chip_token(rule_type: &str) -> Token {
     match matrix_family(rule_type) {
-        RuleTypeFamily::Host => palette.accent_container,
-        RuleTypeFamily::Geo => palette.icon_tile,
-        RuleTypeFamily::Address => palette.pressed_bg,
-        RuleTypeFamily::Process => palette.border,
-        _ => palette.surface_elevated,
+        RuleTypeFamily::Host => Token::Accent,
+        RuleTypeFamily::Geo => Token::Success,
+        RuleTypeFamily::Address => Token::Warning,
+        RuleTypeFamily::Process => Token::Danger,
+        RuleTypeFamily::Port => Token::Accent,
+        _ => Token::InkDim,
+    }
+}
+
+/// The semantic hue of a rule's target action.
+///
+/// A blocked target reads as a failure, a direct target reads as the allowed
+/// path, and a proxy group stays the neutral ink of an ordinary name.
+pub(crate) fn rule_target_token(target: &str) -> Token {
+    let normalized = target.trim().to_ascii_uppercase();
+    if normalized == "DIRECT" {
+        Token::Success
+    } else if normalized.starts_with("REJECT") {
+        Token::Danger
+    } else {
+        Token::Ink
+    }
+}
+
+/// The ink of a rule row's hit statistics, by the row's own state.
+pub(crate) fn rule_hits_token(enabled: bool, shadowed: bool) -> Token {
+    if shadowed {
+        Token::Warning
+    } else if enabled {
+        Token::InkDim
+    } else {
+        Token::DisabledInk
     }
 }
 
 pub(crate) fn apply_rules_projection(
     update: On<RulesProjectionUpdated>,
     mut last: Option<ResMut<LastRulesProjection>>,
-    palette: Res<UiPalette>,
     locale: Res<UiLocale>,
+    mut commands: Commands,
     targets: RuleProjectionTargets,
     outcomes: Option<Res<CommandOutcomes>>,
 ) {
     let RuleProjectionTargets {
-        mut type_fills,
+        type_inks,
         mut lines,
         mut hits,
+        hit_inks,
         mut proxies,
+        proxy_inks,
         mut payloads,
         mut types,
+        mut knobs,
         mut provider_names,
         mut provider_counts,
         mut provider_updates,
@@ -122,16 +158,21 @@ pub(crate) fn apply_rules_projection(
         fold_provider_failures(&mut projection, outcomes);
     }
     let projection = &projection;
-    for (mut fill, marker) in &mut type_fills {
-        if let Some(rule) = projection.rules.get(marker.0) {
-            let want = rule_type_chip_fill(&rule.rule_type, &palette);
-            if fill.0 != want {
-                fill.0 = want;
-            }
+    // The badge's ink follows the shared type family: the chip reads as a tag
+    // of that family instead of one flat blue pill.
+    for (entity, current, marker) in &type_inks {
+        let Some(rule) = projection.rules.get(marker.0) else {
+            continue;
+        };
+        let want = rule_type_chip_token(&rule.rule_type);
+        if current.is_none_or(|current| current.0 != want.theme_token()) {
+            commands
+                .entity(entity)
+                .insert(ThemeTextColor(want.theme_token()));
         }
     }
 
-    for (mut text, line, copy) in &mut lines {
+    for (mut text, line) in &mut lines {
         let want = match line.0 {
             RulesLineKind::Summary => rules_summary(
                 projection.total_rules,
@@ -140,15 +181,6 @@ pub(crate) fn apply_rules_projection(
             ),
             RulesLineKind::DefaultAction => {
                 default_action(&projection.default_action, &Lang(locale.code()))
-            }
-            RulesLineKind::HitAudit => {
-                let projected =
-                    project_statistics(projection.hit_audit.as_ref(), &Lang(locale.code()));
-                let value = projected.summary(&Lang(locale.code()));
-                if let Some(mut copy) = copy {
-                    *copy = LocalizedText::new(projected.key, projected.params);
-                }
-                value
             }
             RulesLineKind::Truncation => published_truncation(
                 projection.truncated_rule_count,
@@ -190,11 +222,51 @@ pub(crate) fn apply_rules_projection(
         }
     }
 
+    // The hit statistics are a chip of their own: their ink follows the row's
+    // state, so a disabled or shadowed row says so without another word.
+    for (entity, current, marker) in &hit_inks {
+        let Some(rule) = projection.rules.get(marker.0) else {
+            continue;
+        };
+        let want = rule_hits_token(rule.is_enabled, rule.is_shadowed);
+        if current.is_none_or(|current| current.0 != want.theme_token()) {
+            commands
+                .entity(entity)
+                .insert(ThemeTextColor(want.theme_token()));
+        }
+    }
+
     for (mut text, marker) in &mut proxies {
         if let Some(rule) = projection.rules.get(marker.0)
             && text.0 != rule.proxy
         {
             text.0 = rule.proxy.clone();
+        }
+    }
+
+    // The target action carries its own semantic hue: a blocked target reads
+    // as a failure, a direct target as the allowed path.
+    for (entity, current, marker) in &proxy_inks {
+        let Some(rule) = projection.rules.get(marker.0) else {
+            continue;
+        };
+        let want = rule_target_token(&rule.proxy);
+        if current.is_none_or(|current| current.0 != want.theme_token()) {
+            commands
+                .entity(entity)
+                .insert(ThemeTextColor(want.theme_token()));
+        }
+    }
+
+    // The row's enable/disable switch: the knob's rest position is the shared
+    // control's on/off fact, so it follows the row's published state.
+    for (mut knob, marker) in &mut knobs {
+        let Some(rule) = projection.rules.get(marker.0) else {
+            continue;
+        };
+        let want = SwitchPosition::from_enabled(rule.is_enabled);
+        if knob.0 != want {
+            knob.0 = want;
         }
     }
 

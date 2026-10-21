@@ -3,7 +3,7 @@
 
 use super::*;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
-use infiltrator_bevy_ui::pages::rules_statistics::RulesStatisticsState;
+use infiltrator_bevy_ui::pages::rules_statistics::{RulesStatisticsState, StatisticsLine};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::capture_fixtures::list_document;
@@ -12,6 +12,17 @@ use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase;
 use lurker_core_contract::error::ErrorCode;
+
+/// The statistics card publishes the audit's facts as their own metric lines,
+/// so the assertion reads the card's line and not one joined string.
+fn statistics_line(app: &mut App, wanted: fn(&StatisticsLine) -> bool) -> String {
+    app.world_mut()
+        .query::<(&StatisticsLine, &Text)>()
+        .iter(app.world())
+        .find(|(line, _)| wanted(line))
+        .map(|(_, text)| text.0.clone())
+        .expect("the statistics card owns the line")
+}
 
 #[test]
 fn test_rules_hit_audit_projection_and_clear_command() {
@@ -94,11 +105,25 @@ fn test_rules_hit_audit_projection_and_clear_command() {
         .trigger(RulesProjectionUpdated(projection));
     app.update();
 
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "Local trace hits 1287 · Zero-hit / shadowed 2 · CIDR overlaps 1 · Match 18.5µs"
-    ));
+    // The audit's facts ride their own metric lines: the hits, the
+    // zero-hit/shadowed count, the CIDR overlaps and the match latency are
+    // four published numbers, not one joined sentence.
+    assert_eq!(
+        statistics_line(&mut app, |line| matches!(line, StatisticsLine::Total)),
+        "1287"
+    );
+    assert_eq!(
+        statistics_line(&mut app, |line| matches!(line, StatisticsLine::Dead)),
+        "2"
+    );
+    assert_eq!(
+        statistics_line(&mut app, |line| matches!(line, StatisticsLine::Cidr)),
+        "1"
+    );
+    assert_eq!(
+        statistics_line(&mut app, |line| matches!(line, StatisticsLine::Latency)),
+        "18.5µs"
+    );
     assert!(subtree_has_text(
         app.world(),
         root,

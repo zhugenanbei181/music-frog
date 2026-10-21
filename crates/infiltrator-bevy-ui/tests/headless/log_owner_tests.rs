@@ -8,15 +8,15 @@ use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
-use bevy::ui_widgets::ButtonPlugin;
+use bevy::ui_widgets::{ButtonPlugin, ValueChange};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::command_application::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
 };
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::pages::logs::{ClearLogsButton, LogLevelFilterButton};
-use infiltrator_bevy_ui::pages::logs_search::LogsViewState;
+use infiltrator_bevy_ui::pages::logs::ClearLogsButton;
+use infiltrator_bevy_ui::pages::logs_search::{LogLevelStrip, LogLevelTab, LogsViewState};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
 use infiltrator_composition::capture_fixtures::populate_logs;
@@ -117,14 +117,29 @@ fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_comple
     };
     publish(&mut app);
     assert_eq!(app.world().resource::<LogsViewState>().0.source_count(), 3);
-    let warn = app
-        .world_mut()
-        .query::<(Entity, &LogLevelFilterButton)>()
-        .iter(app.world())
-        .find(|(_, marker)| marker.level == Some(LogLevel::Warn))
-        .unwrap()
-        .0;
-    click_entity(&mut app, warn);
+    // The level filter is the OFFICIAL headless tab list (norm ③): the
+    // selection request is the official ValueChange event, exactly as the
+    // rules workspace strip does it.
+    let (strip, warn) = {
+        let world = app.world_mut();
+        let mut strips = world.query_filtered::<Entity, With<LogLevelStrip>>();
+        let strip = strips.single(world).expect("Logs TabList is mounted");
+        let mut tabs = world.query::<(Entity, &LogLevelTab)>();
+        let warn = tabs
+            .iter(world)
+            .find(|(_, marker)| marker.level == Some(LogLevel::Warn))
+            .expect("the WARN level tab")
+            .0;
+        (strip, warn)
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ValueChange::<Option<Entity>> {
+            source: strip,
+            value: Some(warn),
+            is_final: true,
+        });
+    app.update();
     let (intent, result) = observed
         .recv_timeout(Duration::from_secs(5))
         .expect("actual filter completion");

@@ -18,7 +18,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::widget::Text;
-use bevy::ui::{FlexDirection, FlexWrap, Node, percent};
+use bevy::ui::{AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, percent, px};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -69,18 +69,41 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
         Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         RuleListEditorCard
         Children [
-            Text(String::new()) RuleListStatus TextRole(Role::Caption)
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: rem(space::S12),
+                row_gap: rem(space::S8),
+            }
+            Children [
+                Node {
+                    flex_grow: 1.0,
+                    min_width: px(0.0),
+                }
+                Children [
+                    Text(String::new()) RuleListStatus TextRole(Role::Caption)
+                ]
+                --
+                Node {
+                    align_items: AlignItems::Center,
+                    flex_wrap: FlexWrap::Wrap,
+                    column_gap: rem(space::S8),
+                    row_gap: rem(space::S8),
+                    flex_shrink: 0.0,
+                }
+                Children [
+                    @{ (localized_button_scene(LocalizedText::plain("rules_save_btn"), ButtonVariant::Primary, palette), bsn! { RuleListControl::Save ButtonDisabled(true) }) }
+                    --
+                    @{ (localized_button_scene(LocalizedText::plain("rules_draft_discard"), ButtonVariant::Default, palette), bsn! { RuleListControl::Discard ButtonDisabled(true) }) }
+                    --
+                    @{ (localized_button_scene(LocalizedText::plain("dns_query_settings"), ButtonVariant::Ghost, palette), bsn! { RuleListControl::Settings ButtonDisabled(true) }) }
+                ]
+            ]
             --
             Text(String::new()) RuleListPreview TextRole(Role::Body)
-            --
-            Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
-            Children [
-                @{ (localized_button_scene(LocalizedText::plain("rules_save_btn"), ButtonVariant::Primary, palette), bsn! { RuleListControl::Save ButtonDisabled(true) }) }
-                --
-                @{ (localized_button_scene(LocalizedText::plain("rules_draft_discard"), ButtonVariant::Default, palette), bsn! { RuleListControl::Discard ButtonDisabled(true) }) }
-                --
-                @{ (localized_button_scene(LocalizedText::plain("dns_query_settings"), ButtonVariant::Default, palette), bsn! { RuleListControl::Settings ButtonDisabled(true) }) }
-            ]
         ]
     }
 }

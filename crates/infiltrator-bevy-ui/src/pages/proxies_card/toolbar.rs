@@ -42,6 +42,7 @@ use infiltrator_bevy_widgets::tabs::{
 };
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_presentation::proxies_page_model::sort_option_index;
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 
 /// The "只看可用" indicator chip's fixed width in baseline pixels.
@@ -75,7 +76,14 @@ const SORT_MODES: [ProxySortMode; 4] = [
 
 /// Renders the toolbar card containing the search box, the "只看可用" filter
 /// toggle, the sort strip and the "测试地址" launcher.
-pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {
+///
+/// The strip's seed is the order the owner publishes, so the strip shows
+/// the owner's order from the first frame instead of guessing one.
+pub fn search_bar_card_scene(
+    query: &str,
+    sort_order: OutboundSortOrder,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let search_a11y = accesskit::Node::new(accesskit::Role::Search);
 
     surface_scene(
@@ -109,7 +117,7 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             row_gap: rem(space::S8),
                         }
                         Children [
-                            @{ sort_strip_scene(palette) }
+                            @{ sort_strip_scene(sort_order, palette) }
                             --
                             @{ alive_only_filter(palette) }
                             --
@@ -169,7 +177,10 @@ fn alive_only_filter(palette: &UiPalette) -> impl Scene + use<> {
 /// The sort strip: the official headless tab list over the four shared sort
 /// orders, so the selection, the keyboard navigation and the accessibility
 /// roles are the widget layer's.
-fn sort_strip_scene(palette: &UiPalette) -> impl Scene + use<> {
+///
+/// The strip seeds its selection from the order the owner publishes: the
+/// seed is the owner's answer, not a guess the strip makes on its own.
+fn sort_strip_scene(sort_order: OutboundSortOrder, palette: &UiPalette) -> impl Scene + use<> {
     let tabs: Vec<Box<dyn Scene>> = SORT_KEYS
         .iter()
         .zip(SORT_MODES.iter())
@@ -198,7 +209,8 @@ fn sort_strip_scene(palette: &UiPalette) -> impl Scene + use<> {
             }) as Box<dyn Scene>
         })
         .collect();
-    let (left_pct, width_pct) = capsule_metrics(0, tabs.len());
+    let selected = sort_option_index(sort_order);
+    let (left_pct, width_pct) = capsule_metrics(selected, tabs.len());
 
     bsn! {
         Node {
@@ -221,9 +233,9 @@ fn sort_strip_scene(palette: &UiPalette) -> impl Scene + use<> {
             activation: TabActivation::Automatic,
         }
         SegmentedControl
-        SegmentedSelectionSeed(0)
+        SegmentedSelectionSeed(selected)
         ProxySortTabs
-        ProxySortAdopted(OutboundSortOrder::LatencyAscending)
+        ProxySortAdopted(sort_order)
         Children [
             Node {
                 position_type: PositionType::Absolute,

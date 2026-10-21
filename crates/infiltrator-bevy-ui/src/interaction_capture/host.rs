@@ -34,6 +34,20 @@ pub(super) enum CaptureCapability {
     Script,
 }
 
+/// Whether the capture hands the owner's terminal answer to the surface.
+///
+/// A transient surface state (the doctor's progress indicator) exists only
+/// while the owner still owes an answer, so the capture that photographs it
+/// keeps the answer instead of delivering it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum AnswerDelivery {
+    /// The owner's answer reaches the surface, the way the product does.
+    #[default]
+    Deliver,
+    /// The capture keeps the owner's answer, so the transient phase holds.
+    Hold,
+}
+
 /// The route one capture command travels.
 enum CaptureRoute {
     /// The unscoped shared command bus: a local-only or host-only command.
@@ -45,6 +59,7 @@ enum CaptureRoute {
 pub(super) struct CaptureCommandSink {
     route: CaptureRoute,
     capability: CaptureCapability,
+    delivery: AnswerDelivery,
     next_request: AtomicU64,
     completed: Arc<Mutex<Vec<CommandExecutedEvent>>>,
     outbound_preferences: Option<OutboundPreferenceCaptureOwner>,
@@ -54,10 +69,17 @@ impl CaptureCommandSink {
         Self {
             route: CaptureRoute::Unscoped(application),
             capability,
+            delivery: AnswerDelivery::Deliver,
             next_request: AtomicU64::new(0),
             completed: Arc::new(Mutex::new(Vec::new())),
             outbound_preferences: None,
         }
+    }
+
+    /// Choose how the owner's terminal answer reaches the surface.
+    pub fn with_delivery(mut self, delivery: AnswerDelivery) -> Self {
+        self.delivery = delivery;
+        self
     }
 
     /// The scoped capture route: the surface's shared typed commands travel the
@@ -72,6 +94,7 @@ impl CaptureCommandSink {
         Self {
             route: CaptureRoute::Scoped(capture_scoped_sink(core, handler)),
             capability,
+            delivery: AnswerDelivery::Deliver,
             next_request: AtomicU64::new(0),
             completed: Arc::new(Mutex::new(Vec::new())),
             outbound_preferences: None,
@@ -86,6 +109,7 @@ impl CaptureCommandSink {
         Self {
             route: CaptureRoute::Unscoped(application),
             capability,
+            delivery: AnswerDelivery::Deliver,
             next_request: AtomicU64::new(0),
             completed: Arc::new(Mutex::new(Vec::new())),
             outbound_preferences: Some(outbound_preferences),
@@ -196,6 +220,12 @@ impl UiCommandSink for CaptureCommandSink {
         }
     }
     fn drain_results(&self) -> Vec<CommandExecutedEvent> {
+        if self.delivery == AnswerDelivery::Hold {
+            // The capture keeps the owner's answer: the surface keeps the
+            // transient phase, so the capture can photograph the indicator
+            // that only exists while the owner still owes an answer.
+            return Vec::new();
+        }
         let mut results = take(&mut *self.completed.lock().expect("capture feedback"));
         if let CaptureRoute::Scoped(sink) = &self.route {
             results.extend(sink.drain_results());

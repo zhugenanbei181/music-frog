@@ -17,6 +17,8 @@
 #[cfg(not(target_os = "android"))]
 use crate::a11y::semantic_node;
 use bevy::app::{App, AppExit, Plugin, Startup};
+#[cfg(not(target_os = "android"))]
+use bevy::color::Color;
 use bevy::ecs::component::Component;
 #[cfg(not(target_os = "android"))]
 use bevy::ecs::hierarchy::Children;
@@ -35,18 +37,27 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::Display;
 use bevy::ui::prelude::Node;
 #[cfg(not(target_os = "android"))]
-use bevy::ui::prelude::{AlignItems, FlexDirection, UiRect, percent, px};
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, UiRect,
+    Val, percent, px,
+};
 #[cfg(not(target_os = "android"))]
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
+#[cfg(not(target_os = "android"))]
+use bevy::ui_widgets::Button;
 use bevy::window::{PrimaryWindow, Window};
 #[cfg(not(target_os = "android"))]
-use infiltrator_bevy_widgets::button::pill_caption_scene;
+use infiltrator_bevy_widgets::button::{
+    ButtonVariant, ButtonVariantStyle, ControlVisual, PillLabel,
+};
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::palette::rem;
+#[cfg(not(target_os = "android"))]
+use infiltrator_bevy_widgets::responsive::TouchHitbox;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 #[cfg(not(target_os = "android"))]
@@ -56,6 +67,10 @@ use infiltrator_contract::a11y::ShellA11yNode;
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use infiltrator_contract::window_chrome::{NativeShadow, WindowChrome, WindowChromeSupport};
+
+/// The window control's edge in baseline pixels.
+#[cfg(not(target_os = "android"))]
+const CHROME_CONTROL_PX: f32 = 28.0;
 
 /// Marker on the draggable chrome bar.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -227,9 +242,7 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
     }
     #[cfg(not(target_os = "android"))]
     {
-        let minimize_node = semantic_node(ShellA11yNode::ChromeMinimize);
-        let maximize_node = semantic_node(ShellA11yNode::ChromeMaximize);
-        let close_node = semantic_node(ShellA11yNode::ChromeClose);
+        let edge = palette.border;
         bsn! {
             Node {
                 width: percent(100),
@@ -239,8 +252,15 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
                 align_items: AlignItems::Center,
                 padding: UiRect::horizontal(rem(space::S12)),
                 column_gap: rem(space::S8),
+                border: UiRect::bottom(Val::Px(palette.hairline_px)),
             }
             ThemeBackgroundColor({ Token::Sidebar })
+            BorderColor {
+                top: Color::NONE,
+                right: Color::NONE,
+                bottom: edge,
+                left: Color::NONE,
+            }
             ChromeDragBar
             Children [
                 Text({ "MusicFrog Infiltrator".to_owned() })
@@ -249,18 +269,69 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node { flex_grow: 1.0 }
                 --
-                @{ pill_caption_scene("–".to_owned(), false, palette) }
+                @{ chrome_controls_scene(palette) }
+            ]
+        }
+    }
+}
+
+/// The three window controls as one group.
+///
+/// The group is a single surface with a hairline edge, and the controls
+/// inside it are ghost buttons: one object, three targets. The glyphs are
+/// the faces the embedded font actually carries — a dash, a square and a
+/// multiplication sign, never a codepoint the face does not have.
+#[cfg(not(target_os = "android"))]
+fn chrome_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let minimize_node = semantic_node(ShellA11yNode::ChromeMinimize);
+    let maximize_node = semantic_node(ShellA11yNode::ChromeMaximize);
+    let close_node = semantic_node(ShellA11yNode::ChromeClose);
+    let edge = palette.border;
+    bsn! {
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: rem(space::S2),
+                padding: UiRect::all(rem(space::S2)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            Children [
+                @{ chrome_control_button_scene("–", palette) }
                 ChromeMinimizeButton
                 minimize_node
                 --
-                @{ pill_caption_scene("▢".to_owned(), false, palette) }
+                @{ chrome_control_button_scene("▢", palette) }
                 ChromeMaximizeButton
                 maximize_node
                 --
-                @{ pill_caption_scene("✕".to_owned(), false, palette) }
+                @{ chrome_control_button_scene("×", palette) }
                 ChromeCloseButton
                 close_node
             ]
-        }
+    }
+}
+
+/// One window control: a ghost button that only paints on hover.
+#[cfg(not(target_os = "android"))]
+fn chrome_control_button_scene(glyph: &str, palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+            Node {
+                width: rem(CHROME_CONTROL_PX),
+                height: rem(CHROME_CONTROL_PX),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            BackgroundColor({ Color::NONE })
+            Button
+            ButtonVariantStyle(ButtonVariant::Ghost)
+            ControlVisual(false)
+            TouchHitbox::default()
+            Children [
+                Text({ glyph.to_owned() }) TextRole(Role::Body) PillLabel
+            ]
     }
 }

@@ -13,7 +13,8 @@
 //! search/highlight restamps and the shared scroll-lock/follow policy all keep
 //! working because only the row topology is bounded, never the projection.
 
-use crate::pages::logs::{LastLogsProjection, LogEntry, LogsPageRoot, log_row_scene};
+use crate::pages::logs::{LastLogsProjection, LogEntry, LogsPageRoot};
+use crate::pages::logs_rows::log_row_scene;
 use crate::pages::virtual_scroll::virtual_window_offset_px;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -33,7 +34,11 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 pub const LOGS_VIRTUAL_THRESHOLD: usize = 200;
 
 /// Estimated height of one log row before layout reports a measured one.
-pub const LOG_ROW_HEIGHT_PX: f32 = 48.0;
+///
+/// The console row is a single mono line with a hairline separator, so the
+/// estimate is one text line tall; the variable-extent index replaces it with
+/// the measured height as soon as layout reports one.
+pub const LOG_ROW_HEIGHT_PX: f32 = 30.0;
 
 /// Extra rows mounted above and below the viewport.
 pub const LOGS_VIRTUAL_OVERSCAN: usize = 4;

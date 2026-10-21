@@ -1,14 +1,16 @@
 //! Scoped native component access for rules projection systems.
 
 use super::{
-    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleHitText, RulePayloadText,
-    RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine,
+    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleEnabledKnob, RuleHitText,
+    RulePayloadText, RuleProxyText, RuleTypeText, RulesLine,
 };
+use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, SystemParam};
-use bevy::ui::prelude::BackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::LocalizedText;
+use infiltrator_bevy_widgets::switch::SwitchKnob;
 
 #[derive(QueryFilter)]
 pub struct ApplyRulesProjectionLinesFilter {
@@ -108,17 +110,18 @@ pub struct ApplyRulesProjectionProviderUpdatesFilter {
 
 #[derive(SystemParam)]
 pub struct RuleProjectionTargets<'w, 's> {
-    pub(super) type_fills: Query<'w, 's, (&'static mut BackgroundColor, &'static RuleTypeBadge)>,
-    pub(super) lines: Query<
+    pub(super) type_inks: Query<
         'w,
         's,
         (
-            &'static mut Text,
-            &'static RulesLine,
-            Option<&'static mut LocalizedText>,
+            Entity,
+            Option<&'static ThemeTextColor>,
+            &'static RuleTypeText,
         ),
-        ApplyRulesProjectionLinesFilter,
+        ApplyRulesProjectionTypesFilter,
     >,
+    pub(super) lines:
+        Query<'w, 's, (&'static mut Text, &'static RulesLine), ApplyRulesProjectionLinesFilter>,
     pub(super) hits: Query<
         'w,
         's,
@@ -129,10 +132,30 @@ pub struct RuleProjectionTargets<'w, 's> {
         ),
         ApplyRulesProjectionHitsFilter,
     >,
+    pub(super) hit_inks: Query<
+        'w,
+        's,
+        (
+            Entity,
+            Option<&'static ThemeTextColor>,
+            &'static RuleHitText,
+        ),
+        ApplyRulesProjectionHitsFilter,
+    >,
     pub(super) proxies: Query<
         'w,
         's,
         (&'static mut Text, &'static RuleProxyText),
+        ApplyRulesProjectionProxiesFilter,
+    >,
+    pub(super) proxy_inks: Query<
+        'w,
+        's,
+        (
+            Entity,
+            Option<&'static ThemeTextColor>,
+            &'static RuleProxyText,
+        ),
         ApplyRulesProjectionProxiesFilter,
     >,
     pub(super) payloads: Query<
@@ -143,6 +166,7 @@ pub struct RuleProjectionTargets<'w, 's> {
     >,
     pub(super) types:
         Query<'w, 's, (&'static mut Text, &'static RuleTypeText), ApplyRulesProjectionTypesFilter>,
+    pub(super) knobs: Query<'w, 's, (&'static mut SwitchKnob, &'static RuleEnabledKnob)>,
     pub(super) provider_names: Query<
         'w,
         's,

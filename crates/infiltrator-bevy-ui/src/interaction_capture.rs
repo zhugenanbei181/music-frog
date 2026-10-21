@@ -228,6 +228,13 @@ impl InteractionCapture {
             app.add_systems(Update, doctor::activate);
             app.add_systems(PostUpdate, doctor::observe.in_set(CaptureObservationSet));
         }
+        if feature.spec().id == doctor::REPAIR_PROGRESS_FEATURE_ID {
+            doctor::install_repair_progress(app);
+            app.add_systems(
+                PostUpdate,
+                doctor::observe_repair_progress.in_set(CaptureObservationSet),
+            );
+        }
         if feature == FeatureId::SettingsLanguageChoice {
             language::install(app);
             app.add_systems(Update, language::activate);
@@ -356,47 +363,48 @@ pub struct DefaultPageObservation<'w, 's> {
 }
 
 fn has_specialized_activator(feature: FeatureId) -> bool {
-    matches!(
-        feature,
-        FeatureId::ConnectionsCloseAllConfirm
-            | FeatureId::RuntimeTelemetryObservation
-            | FeatureId::ConnectionsGrouping
-            | FeatureId::ConnectionsSearchHighlight
-            | FeatureId::LogsSearchHighlight
-            | FeatureId::LogsScrollLock
-            | FeatureId::LogsRedactedExport
-            | FeatureId::ConnectionsDetailsDrawer
-            | FeatureId::SpeedtestDetailsModal
-            | FeatureId::ShellCommandPalette
-            | FeatureId::ShellRoutingIntentControl
-            | FeatureId::ShellRoutingIntentAuthentication
-            | FeatureId::ProxiesCustomNodeModal
-            | FeatureId::ProxiesUriImportPreview
-            | FeatureId::ProxiesGroupExpanded
-            | FeatureId::ProxiesNodeDetailDrawer
-            | FeatureId::ProxiesSearchHighlight
-            | FeatureId::ProxiesProbeSettings
-            | FeatureId::ProxiesGroupReorder
-            | FeatureId::SettingsLanguageChoice
-            | FeatureId::DoctorFailureRecovery
-            | FeatureId::DnsLeakAlert
-            | FeatureId::DnsHostsEditor
-            | FeatureId::DnsQueryDetails
-            | FeatureId::DnsFakeIpFlushConfirm
-            | FeatureId::RulesTracerDrawer
-            | FeatureId::RulesOverrideEditor
-            | FeatureId::RulesStatisticsInspector
-            | FeatureId::RulesListEditor
-            | FeatureId::ProfilesFilterEditor
-            | FeatureId::ProfilesSnapshotRestoreConfirm
-            | FeatureId::ProfilesAggregatorWizard
-            | FeatureId::ProfilesDiffViewer
-            | FeatureId::RulesSearchHighlight
-            | FeatureId::AppRoutingPolicyEditor
-            | FeatureId::LifecycleRecoveryPanel
-            | FeatureId::ProfilesScriptSandbox
-            | FeatureId::ProfilesScriptExportReview
-    )
+    feature.spec().id == doctor::REPAIR_PROGRESS_FEATURE_ID
+        || matches!(
+            feature,
+            FeatureId::ConnectionsCloseAllConfirm
+                | FeatureId::RuntimeTelemetryObservation
+                | FeatureId::ConnectionsGrouping
+                | FeatureId::ConnectionsSearchHighlight
+                | FeatureId::LogsSearchHighlight
+                | FeatureId::LogsScrollLock
+                | FeatureId::LogsRedactedExport
+                | FeatureId::ConnectionsDetailsDrawer
+                | FeatureId::SpeedtestDetailsModal
+                | FeatureId::ShellCommandPalette
+                | FeatureId::ShellRoutingIntentControl
+                | FeatureId::ShellRoutingIntentAuthentication
+                | FeatureId::ProxiesCustomNodeModal
+                | FeatureId::ProxiesUriImportPreview
+                | FeatureId::ProxiesGroupExpanded
+                | FeatureId::ProxiesNodeDetailDrawer
+                | FeatureId::ProxiesSearchHighlight
+                | FeatureId::ProxiesProbeSettings
+                | FeatureId::ProxiesGroupReorder
+                | FeatureId::SettingsLanguageChoice
+                | FeatureId::DoctorFailureRecovery
+                | FeatureId::DnsLeakAlert
+                | FeatureId::DnsHostsEditor
+                | FeatureId::DnsQueryDetails
+                | FeatureId::DnsFakeIpFlushConfirm
+                | FeatureId::RulesTracerDrawer
+                | FeatureId::RulesOverrideEditor
+                | FeatureId::RulesStatisticsInspector
+                | FeatureId::RulesListEditor
+                | FeatureId::ProfilesFilterEditor
+                | FeatureId::ProfilesSnapshotRestoreConfirm
+                | FeatureId::ProfilesAggregatorWizard
+                | FeatureId::ProfilesDiffViewer
+                | FeatureId::RulesSearchHighlight
+                | FeatureId::AppRoutingPolicyEditor
+                | FeatureId::LifecycleRecoveryPanel
+                | FeatureId::ProfilesScriptSandbox
+                | FeatureId::ProfilesScriptExportReview
+        )
 }
 
 fn default_page_observation(

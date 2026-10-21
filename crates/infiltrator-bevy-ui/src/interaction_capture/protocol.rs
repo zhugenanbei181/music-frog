@@ -109,9 +109,16 @@ pub fn activate(
 ///
 /// The custom-node editor only accepts an imported draft when the owner
 /// snapshot carries it: the editor's readback fence compares the owner's
-/// studio against the draft it decoded. The capture therefore republishes the
-/// shared codec's own published studio once the real import landed, so the
-/// surface reads the very same draft the shared codec produced.
+/// studio against the draft it decoded, and it only accepts a snapshot that
+/// is NEWER than the one the import started from.
+///
+/// The owner's terminal acknowledgment and the owner's snapshot are two
+/// separate facts, and their order is not the capture's to decide: the
+/// acknowledgment can land after the first publication, and then that
+/// publication can never be accepted. The capture therefore keeps
+/// republishing the decoded studio — each time with a newer revision — until
+/// the editor really holds the decoded draft, and it stops the moment the
+/// readback lands.
 fn publish_imported_studio(controls: &mut ProtocolControls, commands: &mut Commands) {
     let Some(studio) = protocol_codec_application::studio_snapshot() else {
         return;
@@ -123,13 +130,24 @@ fn publish_imported_studio(controls: &mut ProtocolControls, commands: &mut Comma
     {
         return;
     }
-    if controls.latest.0.protocol_studio.data.as_ref() == Some(&studio) {
+    if controls
+        .form
+        .studio
+        .draft
+        .as_ref()
+        .is_some_and(|draft| draft.name == IMPORTED_NODE_NAME)
+    {
+        // The editor's readback landed: the surface owns the decoded draft.
+        return;
+    }
+    if controls.form.studio.last_error.is_some() {
+        // The import failed, so no publication can ever be accepted.
         return;
     }
     let mut snapshot = controls.latest.0.clone();
     snapshot.protocol_studio = PageData::ready(studio);
     snapshot.origin = SurfaceOrigin::Demo;
     snapshot.revision += 1;
-    controls.latest.0 = snapshot;
-    replay_surface_snapshot(controls.latest.0.clone(), commands);
+    controls.latest.0 = snapshot.clone();
+    replay_surface_snapshot(snapshot, commands);
 }

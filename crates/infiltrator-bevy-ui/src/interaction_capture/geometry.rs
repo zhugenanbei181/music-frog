@@ -34,17 +34,23 @@ impl CaptureGeometry<'_, '_> {
         (size.is_finite() && size.x > 0.0 && size.y > 0.0)
             .then_some([origin.x, origin.y, size.x, size.y])
     }
-    pub fn bounds(&mut self, entity: Entity, label: &str) -> Option<[f32; 4]> {
-        if !self.visible(entity) {
-            return None;
-        }
+    /// Whether the entity's own box is wholly inside its clipping ancestors.
+    ///
+    /// The capture asks this question before it measures: a control that is
+    /// not laid out yet only needs one more frame, while a control that is
+    /// clipped away is answered by the official scroll-into-view. Neither
+    /// answer is a rejection, so this question never logs.
+    pub fn unclipped(&self, entity: Entity) -> bool {
+        self.visible(entity) && self.clipped(entity) == Some(false)
+    }
+    /// Whether one of the entity's corners falls outside its clip.
+    ///
+    /// `None` when the entity has no measured size yet: the surface has not
+    /// laid it out, which is a different fact from "the surface clipped it".
+    fn clipped(&self, entity: Entity) -> Option<bool> {
         let layout = self.layouts.get(entity).ok()?;
         let size = layout.computed.size();
         if !size.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
-            let key = format!("{label}/empty");
-            if self.rejected.0.insert(key.clone()) {
-                eprintln!("capture geometry rejected {key}: size={size:?}");
-            }
             return None;
         }
         let half = size / 2.0;
@@ -54,11 +60,28 @@ impl CaptureGeometry<'_, '_> {
             Vec2::new(-half.x, half.y),
             Vec2::new(half.x, half.y),
         ];
-        if layout.clip.is_some_and(|clip| {
+        Some(layout.clip.is_some_and(|clip| {
             corners.into_iter().any(|point| {
                 !clip.contains_point(layout.transform.affine().transform_point2(point))
             })
-        }) {
+        }))
+    }
+    pub fn bounds(&mut self, entity: Entity, label: &str) -> Option<[f32; 4]> {
+        if !self.visible(entity) {
+            return None;
+        }
+        let Ok(layout) = self.layouts.get(entity) else {
+            return None;
+        };
+        let size = layout.computed.size();
+        if !size.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+            let key = format!("{label}/empty");
+            if self.rejected.0.insert(key.clone()) {
+                eprintln!("capture geometry rejected {key}: size={size:?}");
+            }
+            return None;
+        }
+        if self.clipped(entity) == Some(true) {
             let key = format!("{label}/clipped");
             if self.rejected.0.insert(key.clone()) {
                 eprintln!(

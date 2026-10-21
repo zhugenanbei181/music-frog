@@ -9,7 +9,6 @@ use self::query_access::{
     SyncSafeAreaInsetsBottomNavsFilter, SyncSafeAreaInsetsChromeBarsFilter,
     SyncSafeAreaInsetsShellRootsFilter,
 };
-use infiltrator_shared::locales::Lang;
 
 #[path = "shell_bidi.rs"]
 pub mod shell_bidi;
@@ -33,10 +32,11 @@ use crate::pages::profiles_editor::ProfilesEditorPlugin;
 use crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin;
 use crate::route::{ActiveRoute, NavigateBack, NavigateForward, Route, RouteChanged};
 use crate::shell_rail::{
-    sync_bottom_nav_visuals, sync_rail_nav_tooltips, sync_sidebar_nav_visuals,
+    sync_bottom_nav_visuals, sync_nav_hover_fill, sync_rail_nav_tooltips, sync_sidebar_nav_visuals,
     sync_sidebar_rail_morphology,
 };
 use crate::shell_readout::{sync_core_status, sync_quota, sync_text};
+use crate::shell_scene::sidebar::sync_sidebar_toggle_visuals;
 use crate::shell_scene::{shell_scene_with_toggles, stamp_status_dot};
 use crate::shell_waveform;
 use crate::shortcuts::ShortcutsPlugin;
@@ -63,7 +63,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_widgets::WidgetsPlugin;
-use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
+use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::feathers_theme::sync_ui_theme;
 use infiltrator_bevy_widgets::icon::status_dot_image;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -79,7 +79,6 @@ use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use infiltrator_presentation::system_toggle_projection;
-use infiltrator_presentation::system_toggle_projection::compact_label;
 use lurker_ui_presentation::routing_intent_actions::{
     PendingRoutingIntentChange, RoutingIntentActions,
 };
@@ -585,6 +584,7 @@ impl Plugin for ShellPlugin {
                 sync_responsive_shell,
                 sync_sidebar_rail_morphology,
                 sync_rail_nav_tooltips,
+                sync_nav_hover_fill,
                 sync_safe_area_insets.after(sync_responsive_shell),
                 sync_window_clear,
                 sync_system_appearance,
@@ -623,49 +623,6 @@ fn sync_sidebar_panel(
     for mut fill in &mut panels {
         if fill.0 != palette.sidebar {
             fill.0 = palette.sidebar;
-        }
-    }
-}
-
-/// Restamp the two compact sidebar controls from the shared projection. A
-/// pending/unknown/unsupported control is visibly non-actionable and cannot
-/// be toggled by the observers above.
-type SidebarToggleQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static mut ControlVisual,
-        &'static Children,
-        Option<&'static SidebarSystemProxyToggle>,
-        Option<&'static SidebarTunToggle>,
-    ),
->;
-
-fn sync_sidebar_toggle_visuals(
-    projection: Res<SidebarToggleProjection>,
-    locale: Res<UiLocale>,
-    mut toggles: SidebarToggleQuery,
-    mut labels: Query<&mut Text, With<PillLabel>>,
-    mut commands: Commands,
-) {
-    for (entity, mut visual, children, proxy_marker, tun_marker) in &mut toggles {
-        let Some(state) = proxy_marker
-            .map(|_| &projection.0.system_proxy)
-            .or_else(|| tun_marker.map(|_| &projection.0.tun))
-        else {
-            continue;
-        };
-        visual.0 = state.is_enabled();
-        for child in children.iter() {
-            if let Ok(mut label) = labels.get_mut(*child) {
-                label.0 = compact_label(state, &Lang(locale.code()));
-            }
-        }
-        if state.can_toggle() {
-            commands.entity(entity).remove::<ButtonDisabled>();
-        } else {
-            commands.entity(entity).insert(ButtonDisabled(true));
         }
     }
 }

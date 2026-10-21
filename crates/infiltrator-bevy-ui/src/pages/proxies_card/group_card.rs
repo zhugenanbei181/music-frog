@@ -34,10 +34,9 @@ const GROUP_HEADER_ICON_SIZE_PX: f32 = 14.0;
 
 /// The group's product label.
 ///
-/// The shared copy table words the two kinds the product offers most; the
-/// remaining kinds keep the contract's own product label until the shared
-/// table grows the matching keys (the localizer falls back to the key, and
-/// the contract's label IS the key here).
+/// Every kind is worded by the shared copy table, so the label is the
+/// reader's language: the contract's own product label is a Chinese
+/// literal and would leak into the English surface.
 fn group_kind_label(classification: ProxyGroupClassification) -> LocalizedText {
     match classification {
         ProxyGroupClassification::Selector => {
@@ -46,9 +45,11 @@ fn group_kind_label(classification: ProxyGroupClassification) -> LocalizedText {
         ProxyGroupClassification::UrlTest => {
             LocalizedText::plain("outbound_availability_automatic")
         }
-        ProxyGroupClassification::Fallback
-        | ProxyGroupClassification::LoadBalance
-        | ProxyGroupClassification::Relay => LocalizedText::plain(classification.label_zh()),
+        ProxyGroupClassification::Fallback => LocalizedText::plain("proxies_group_kind_fallback"),
+        ProxyGroupClassification::LoadBalance => {
+            LocalizedText::plain("proxies_group_kind_load_balance")
+        }
+        ProxyGroupClassification::Relay => LocalizedText::plain("proxies_group_kind_relay"),
     }
 }
 

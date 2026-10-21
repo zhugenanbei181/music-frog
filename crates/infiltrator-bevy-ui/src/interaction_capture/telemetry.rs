@@ -16,14 +16,18 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::telemetry_observation_fixtures::{
     TelemetryObservationReader, stale_zero_snapshot,
 };
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_presentation::shell_readout::rate_copy;
+use infiltrator_shared::locales::Lang;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use std::sync::{Arc, Mutex};
 
@@ -68,6 +72,7 @@ pub struct TelemetryControls<'w, 's> {
     capture: ResMut<'w, TelemetryCapture>,
     route: Res<'w, ActiveRoute>,
     latest: ResMut<'w, LatestSurfaceSnapshot>,
+    locale: Res<'w, UiLocale>,
     lines: Query<'w, 's, (Entity, &'static OverviewLine, &'static Text)>,
     cards: Query<'w, 's, Entity, With<OverviewTrafficCard>>,
     scroll: Query<'w, 's, Entity, With<OverviewPageRoot>>,
@@ -133,9 +138,28 @@ pub fn observe(
         return;
     }
     let bounds = (|| {
+        // The owner really reports a stale zero: the denied read left the
+        // last measurement in place instead of inventing a fresh one.
+        let readout = &controls.latest.0.shell_readout;
+        if !matches!(&readout.upload_bps, ShellObservation::Stale(value) if *value == 0.0)
+            || !matches!(&readout.download_bps, ShellObservation::Stale(value) if *value == 0.0)
+        {
+            return None;
+        }
+        // The page replays the owner's own copy in the surface's language,
+        // so the capture asks the shared copy for the exact text the page
+        // must show instead of pinning one language of its own.
+        let language = controls.locale.code().to_string();
+        let stale = ShellObservation::Stale(0.0);
         for (kind, expected) in [
-            (OverviewLineKind::Upload, "↑ 0 B/s (stale)"),
-            (OverviewLineKind::Download, "↓ 0 B/s (stale)"),
+            (
+                OverviewLineKind::Upload,
+                format!("↑ {}", rate_copy(&stale, &Lang(&language))),
+            ),
+            (
+                OverviewLineKind::Download,
+                format!("↓ {}", rate_copy(&stale, &Lang(&language))),
+            ),
         ] {
             let (entity, _, text) = controls.lines.iter().find(|(_, line, _)| line.0 == kind)?;
             if text.0 != expected {

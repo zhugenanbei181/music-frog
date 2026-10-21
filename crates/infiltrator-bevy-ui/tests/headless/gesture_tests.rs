@@ -506,6 +506,7 @@ fn test_proxy_card_swipe_to_action_spring_slides_content_and_reveals_drawer() {
         name: "HK-01".to_owned(),
         node_type: "Shadowsocks".to_owned(),
         delay_ms: Some(45),
+        latency_samples: Default::default(),
         health: OutboundHealthObservation::Unknown,
         selected: true,
         favorite: false,

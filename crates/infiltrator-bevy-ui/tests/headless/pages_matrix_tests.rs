@@ -165,6 +165,7 @@ fn proxies_page_in_place_update() {
         active_exit: "🇯🇵 日本东京 01 · 专线".to_owned(),
         testing: true,
         filter_alive: false,
+        sort_order: Default::default(),
         compact_view: false,
         custom_node: Default::default(),
         groups: vec![ProxyGroup {
@@ -180,6 +181,7 @@ fn proxies_page_in_place_update() {
                 name: "🇯🇵 日本东京 01 · 专线".to_owned(),
                 node_type: "Shadowsocks".to_owned(),
                 delay_ms: Some(42),
+                latency_samples: Default::default(),
                 health: OutboundHealthObservation::Unknown,
                 selected: true,
                 favorite: true,

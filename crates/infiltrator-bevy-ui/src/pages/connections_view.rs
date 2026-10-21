@@ -623,6 +623,9 @@ pub fn split_runs_at_last(
 }
 
 /// Split a highlighted run block at the first occurrence of `separator`.
+///
+/// The separator itself is dropped from the right part, exactly like the last
+/// occurrence split: the right half never repeats what the left half dropped.
 pub fn split_runs_at_first(
     runs: &[SearchTextRun],
     separator: &str,
@@ -633,8 +636,10 @@ pub fn split_runs_at_first(
 }
 
 /// The shared splitter: the left part owns `[0, left_end)` and the right part
-/// owns `[right_start, end)`. A run that straddles the cut is split in two and
-/// keeps its highlight flag; a run that covers only the separator is dropped.
+/// owns `[right_start, end)`. The separator between them belongs to neither
+/// half, so the right half never repeats the separator the left half already
+/// dropped. A run that straddles the cut is split in two and keeps its
+/// highlight flag; a run that covers only the separator is dropped.
 fn split_runs_at(
     runs: &[SearchTextRun],
     left_end: usize,
@@ -649,17 +654,26 @@ fn split_runs_at(
         offset = end;
         if end <= left_end {
             left.push(run.clone());
-        } else if start >= right_start {
+            continue;
+        }
+        if start >= right_start {
             right.push(run.clone());
-        } else if start < left_end {
+            continue;
+        }
+        // The run overlaps the cut: its head belongs to the left half and its
+        // tail belongs to the right half, and the separator between the two
+        // cut points belongs to neither.
+        if start < left_end {
             let head = left_end - start;
-            let tail = end - left_end;
             left.push(SearchTextRun {
                 text: run.text[..head].to_owned(),
                 highlighted: run.highlighted,
             });
+        }
+        if end > right_start {
+            let tail = right_start - start;
             right.push(SearchTextRun {
-                text: run.text[head..head + tail].to_owned(),
+                text: run.text[tail..].to_owned(),
                 highlighted: run.highlighted,
             });
         }
@@ -770,6 +784,18 @@ mod tests {
         }];
         let (process, rule) = split_runs_at_first(&runs, " · ").expect("a rule separator");
         assert_eq!(process[0].text, "chrome");
+        assert_eq!(rule[0].text, "GEOSITE youtube");
+    }
+
+    #[test]
+    fn a_split_never_repeats_the_separator_in_the_right_half() {
+        let runs = vec![SearchTextRun {
+            text: "chrome · GEOSITE youtube".to_owned(),
+            highlighted: false,
+        }];
+        let (process, rule) = split_runs_at_first(&runs, " · ").expect("a rule separator");
+        assert!(!process[0].text.contains("·"));
+        assert!(!rule[0].text.contains("·"));
         assert_eq!(rule[0].text, "GEOSITE youtube");
     }
 

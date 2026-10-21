@@ -49,7 +49,6 @@ use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSnapshotUpdated, SurfaceSource};
-use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::android_control::{

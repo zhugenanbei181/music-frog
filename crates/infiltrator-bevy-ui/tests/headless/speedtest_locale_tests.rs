@@ -21,6 +21,7 @@ use infiltrator_bevy_ui::route::PagesPlugin;
 use infiltrator_bevy_widgets::adaptive_modal::ModalState;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalStage;
+use infiltrator_bevy_widgets::switch::{SwitchKnob, SwitchPosition};
 use infiltrator_contract::speedtest::SpeedtestSampleOutcome;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use std::sync::Arc;
@@ -33,6 +34,20 @@ fn entity<T: Component>(app: &mut App) -> Entity {
 }
 fn text(app: &App, entity: Entity) -> &str {
     &app.world().get::<Text>(entity).unwrap().0
+}
+
+/// The switch's typed rest position.
+///
+/// The sidebar toggles state their truth with the shared switch, so the
+/// locale replay must keep the switch's position instead of a word.
+fn switch_position(app: &App, toggle: Entity) -> SwitchPosition {
+    app.world()
+        .get::<Children>(toggle)
+        .expect("the switch track owns its knob")
+        .iter()
+        .find_map(|child| app.world().get::<SwitchKnob>(*child).copied())
+        .expect("the switch track owns a knob")
+        .0
 }
 
 #[test]
@@ -64,10 +79,10 @@ fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);
     let proxy = entity::<SidebarSystemProxyToggle>(&mut app);
     let tun = entity::<SidebarTunToggle>(&mut app);
-    let proxy_label = *app.world().get::<Children>(proxy).unwrap().first().unwrap();
-    let tun_label = *app.world().get::<Children>(tun).unwrap().first().unwrap();
-    assert_eq!(text(&app, proxy_label), "开");
-    assert_eq!(text(&app, tun_label), "开");
+    // The toggles state their truth with the shared switch, so the replay
+    // keeps the switch's published position.
+    assert_eq!(switch_position(&app, proxy), SwitchPosition::On);
+    assert_eq!(switch_position(&app, tun), SwitchPosition::On);
     assert!(text(&app, metrics).contains("抖动 — · 丢包 0.0%"));
     app.world_mut()
         .resource_mut::<UiLocale>()
@@ -75,8 +90,8 @@ fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     app.update();
     assert_eq!(entity::<SidebarSystemProxyToggle>(&mut app), proxy);
     assert_eq!(entity::<SidebarTunToggle>(&mut app), tun);
-    assert_eq!(text(&app, proxy_label), "On");
-    assert_eq!(text(&app, tun_label), "On");
+    assert_eq!(switch_position(&app, proxy), SwitchPosition::On);
+    assert_eq!(switch_position(&app, tun), SwitchPosition::On);
     assert_eq!(entity::<OverviewSpeedtestMetricsText>(&mut app), metrics);
     assert_eq!(entity::<OverviewSpeedtestDetailBodyText>(&mut app), detail);
     assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);
