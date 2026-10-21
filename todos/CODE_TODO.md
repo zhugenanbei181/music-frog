@@ -90,12 +90,15 @@
 
 
 
-- [ ] PARITY-001.5 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: Planned] 桌面两端剩余业务的真实捕获与像素回执
+- [ ] PARITY-001.5 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 桌面两端剩余业务的真实捕获与像素回执
   - 产物：Iced 与 Bevy 两端尚未认证的业务各有一条真实交互与双视口像素回执；缺载体或缺可滚动身份的业务逐条立项。
   - 依赖：本批交付的 owner 能力（13 个端口 fixture、同步冲突与概览卡片排序的应用实现、契约层的 LAN/PAC/路由读回）。
   - 验收：每条业务在两端都有「demo/捕获真的执行了业务」的证据与黑盒像素差回执。
   - 计划：① 用 `crates/infiltrator-test-support` 新增的端口 fixture 补 Bevy 捕获（规则提供者刷新、订阅源失败、配置导入、端口冲突修复、LAN 安全、TUN 权限、版本回滚、快照存储、测速历史、文档 codec、核心进程）；② 用同一批 fixture 补 Iced demo 的 owner 绑定（脚本沙箱与导出评审、差异视图、同步冲突与恢复、编辑器文档会话、聚合预览、应用路由枚举）；③ 逐条重跑 `scripts/parity/accept_surface_interactions.py --all --surfaces iced,bevy` 并把 certified 格登记为 `ready`。
   - 已知阻塞（不是本条的缺口）：部分业务的成功态与「仅路由到页面」的基线像素相同（如端口冲突修复后的「无冲突」空态），需要契约层补一个「已修复」标记，否则像素判据无法区分。
+  - 进展（2026-10-21）：已建**已验证回执账本** `.evidence/visual_receipts.json`（159 份进程绑定像素回执，逐份绑定场景图与哈希、激活标记与原生边界、像素签名、进程与窗口身份、归档的产品构建与捕获源码指纹），解析器对齐格 **0 → 76**，验收把 **74 格提升为 `ready`**（注册表：76 ready / 44 implemented / 57 pending）。Iced 全量矩阵 93/93、Slint 60/60。
+  - 剩余缺口（诚实列出）：① Bevy 全量矩阵 10 场失败——`dns-hosts-editor`（双视口）、`runtime-telemetry-observation`（双视口）、`proxies-uri-import-preview`（双视口）、`profiles-filter-editor`（双视口）、`dns-query-details-compact`、`doctor-failure-recovery-compact`，app 日志显示表面自己的捕获几何拒绝该控件（`capture geometry rejected …`、`filter capture progress: stage=2 pane=Filter editable=false`）；② 13 个 Iced 业务按契约没有 demo activator；③ 16 个 Slint 业务虽然 `activated=true`，但激活前后像素完全一致（0 像素变化）。
+  - 下一步：修 Bevy 那 10 场的捕获几何拒绝；为 13 个 Iced 业务补 activator 或按契约记为不承载；给 16 个 Slint 业务补真实交互差异；然后重跑三表面矩阵并重签账本。
 
 - [ ] SLINT-001.10 [kind: mechanism] [priority: P2] [points: 2] [owner: infiltrator-slint] [status: Planned] 概览卡片排序手势与控件
   - 产物：Slint 概览页的卡片可按共享 `CommandIntent::MoveOverviewCard` 排序（Iced 与 Bevy 两端已有，Slint 端缺手势与控件）。
