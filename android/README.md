@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-`:app` 提供 Compose 与 Bevy 两种 flavor；共享 Kotlin host 和 VPN/control service 位于 `app/src/main`。Bevy launcher 位于 `app/src/bevy`，NativeActivity Gradle module 位于 `bevy-host`。
+`:app` 提供 Compose、Bevy 与 Slint 三种 flavor；共享 Kotlin host 和 VPN/control service 位于 `app/src/main`。Bevy launcher 位于 `app/src/bevy`，NativeActivity Gradle module 位于 `bevy-host`；Slint launcher 位于 `app/src/slint`。
 
 Rust Android owner 与 UniFFI 接口见 [infiltrator-android](../crates/infiltrator-android/README.md)；Bevy driver 见 [driver README](bevy-host/driver/README.md)。本地产品章程见 [docs/README.md](docs/README.md)。
 
@@ -21,7 +21,7 @@ Android 构建共享版本登记于 [toolchain.properties](toolchain.properties)
 
 ## :app flavors
 
-`:app` packages the Compose and Bevy product flavors. `src/main` owns shared Android services, permissions and manifest declarations; `src/compose` and `src/bevy` own flavor-specific launchers and resources. The Bevy NativeActivity driver comes from `:bevy-host`. Product identity comes from the root workspace version and `product-identity.properties`. Keep Kotlin as the Android lifecycle/IPC/UI adapter; Rust ownership and cross-process rules are in [BEVY_ANDROID_PRODUCT.md](docs/BEVY_ANDROID_PRODUCT.md).
+`:app` packages the Compose, Bevy, and Slint product flavors. `src/main` owns shared Android services, permissions and manifest declarations; `src/compose`, `src/bevy` and `src/slint` own flavor-specific launchers and resources. The Bevy NativeActivity driver comes from `:bevy-host`. Product identity comes from the root workspace version and `product-identity.properties`. Keep Kotlin as the Android lifecycle/IPC/UI adapter; Rust ownership and cross-process rules are in [BEVY_ANDROID_PRODUCT.md](docs/BEVY_ANDROID_PRODUCT.md).
 
 ## bevy-host module
 

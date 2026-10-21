@@ -6912,6 +6912,7 @@ name = "infiltrator-test-support"
 version = "0.51.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
@@ -6921,6 +6922,7 @@ dependencies = [
  "mihomo-driver",
  "serde_json",
  "serde_yaml_ng",
+ "tokio",
 ]
 
 [[package]]

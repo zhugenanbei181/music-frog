@@ -41,8 +41,8 @@ workspace nextest 使用 mock、fixture 与 loopback；普通测试不得访问�
 | 阶段门 | 自动化证据 | 平台/产物证据 | 关闭条件 |
 | --- | --- | --- | --- |
 | Core 契约切片 | focused nextest；迁移生产消费者后的 workspace nextest；格式、边界守卫；typed `Unsupported` 零副作用/读回回归 | Mihomo 锁定版本真实进程和 digest；后端切换需真实进程 conformance | 新契约覆盖全部生产消费者，同切片删除旧 API/DTO/wire/fallback/旧文案；引擎能力按真实版本登记。sing-box 未验收前明确 unsupported |
-| Android owner / IPC | Rust owner request/reply/session/generation/readback 回归；三 flavor JVM suites；两 ABI 编译；链接边界/产品身份 guard | 最终 APK 的 `.so` / ELF 与进程归属；owner death/rebind、旧 reply、重启/adoption | 证明只有 `:vpn` 创建 Rust Core/config/VPN/Mihomo owner；Compose/Bevy/Slint 命令由同一 owner 受理并回读同一 snapshot；没有设备证据的行为保持 OPEN |
-| Android VPN 生命周期 | typed state/transaction 回归；失败注入涵盖 builder、TUN、worker、FD、IPC deadline、取消、lease、撤权、队列饱和；无裸 `bool` 生命周期 API | 两 flavor 最新 APK；merged manifest instrumentation；系统授权拒绝/取消/成功；实际 VPN 流量及 stop/revoke | 配置冻结并绑定 generation/session；只有真实 TUN data-plane ready receipt 和 owner readback 后发布 Running；停止/撤权清理失败不伪报终态且可重试；进程与代理是独立状态轴 |
+| Android owner / IPC | Rust owner request/reply/session/generation/readback 回归；三 flavor JVM suites；两 ABI 编译；链接边界/产品身份 guard | 最终 APK 的 `.so` / ELF 与进程归属；owner death/rebind、旧 reply、重启/adoption | 证明只有 `:vpn` 创建 Rust Core/config/VPN/引擎（Mihomo/sing-box） owner；Compose/Bevy/Slint 命令由同一 owner 受理并回读同一 snapshot；没有设备证据的行为保持 OPEN |
+| Android VPN 生命周期 | typed state/transaction 回归；失败注入涵盖 builder、TUN、worker、FD、IPC deadline、取消、lease、撤权、队列饱和；无裸 `bool` 生命周期 API | 三 flavor 最新 APK；merged manifest instrumentation；系统授权拒绝/取消/成功；实际 VPN 流量及 stop/revoke | 配置冻结并绑定 generation/session；只有真实 TUN data-plane ready receipt 和 owner readback 后发布 Running；停止/撤权清理失败不伪报终态且可重试；进程与代理是独立状态轴 |
 | Android 输入与 UI | Compose ViewModel/导航/滚动回归；Bevy TouchInput/Picking/gesture/ScrollPosition 回归；layout/token/resource guard | Compose、Bevy、Slint 各自最终 APK；同一设备上的点击、长列表、菜单、返回、Insets/IME；ARM64 真机视频和日志 | 单指点击/拖动/滚动不互相误触；50 项列表首尾可达；导航和弹窗有效；两种宽度/密度不溢出。缺设备时不标交互完成 |
 | 产品候选 | 全量质量结构门、workspace nextest、三 flavor JVM/AndroidTest、APK identity/manifest | 安装/升级候选包，记录版本号、包名、显示名、图标、ABI、签名、APK SHA-256 和设备结果 | 版本只由登记的唯一源派生；所有 app 产品名/图标/launcher/artifact/签名规则一致；候选 APK 的证据绑定同一源码与产物 |
 
