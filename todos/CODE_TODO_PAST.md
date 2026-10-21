@@ -417,3 +417,13 @@
   - 交付实况（2026-10-21）：官方菜单（`MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState`，本地菜单状态机与手写视口翻转全删，13 条新测试）、官方滚动（`Scrollbar`+`ScrollbarThumb`+`ScrollbarPlugin`，本地偏移算术全删改官方 `ScrollIntoView`，4 条新测试；跨 crate 断口 `acceptance_list.rs` 已迁到官方事件并把"居中"诚实改成"露出"、locale 键同步改名）、官方行内文字（`InlineBox`+`InFlow`/`OutOfFlow`+rem 通道，富文本改单文本块+官方 per-run 背景芯片）、官方方向导航（`DirectionalNavigationPlugin`+仓库配置，7 条测试）。
   - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ Bevy 双视口像素回执复核 + 菜单/滚动/行内三处官方化的视觉回执重取。
   - 未证明层：NAV-01 只完成一半——官方导航动的是 `InputFocus`，而本仓可见焦点真源仍是本地的（`shell_focus.rs`），控件也没有官方 `TabIndex`，可见焦点环不跟随官方焦点；该缺口转 `BEVY-020.2`。
+
+- [ ] BEVYUI-001 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 侧边栏与标题栏外壳表现整改（#1~#18）
+  - 产物：解决 #1 路由药丸三行重叠、#2 紧凑模式底部图标裁切、#3 侧边栏电光蓝对比过载、#4 未激活项缺少 Hover 缓动、#5 窗口三金刚键一体化、#6 顶栏 1px 分割线、#7 导航箭头比例、#8 Follow rules 胶囊禁用态二义、#9 系统代理/TUN 卡片拥挤、#10 On 徽标文字垂直对齐、#11 订阅卡片折行基线、#12 数量徽标溢出、#13 流量速率排版、#14 rem 物理对齐抖动、#15 图标文字间距统一、#16 Iced/Bevy 导航架构对齐、#17 侧边栏微阶底色、#18 纯图标模式 Tooltip。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：双视口像素回执（720x480/1180x780）消除重叠与截断，通过 visual_receipts 校验。
+  - 计划：重构 shell_scene.rs 与 shell_readout.rs 布局约束，添加 Tooltip 与 Hover 状态。
+  - 交付实况：#1~#18 共 18 条中 **16 条已修**——路由段由「一行三丸互压」改为一列三枚自适应 chip（三行 y80–185 互不重叠）；紧凑模式轨道改官方 `ScrollArea` + 32px 行高（720×480 末位图标由切半变完整）；侧栏电光蓝过载收敛（数量徽标改中性 elevated+dim、蓝色「On」药丸换共享开关、卡片面 `(80,81,82)`→`(37,41,44)`）；三金刚键收进同一容器，关闭字形由无字形的「✕」改为有字形的「×」；顶栏补 1px 分割线；历史箭头改 28×28 方钮+人字（墨迹 6px→9px）；Follow rules 胶囊改只读 chip（不再有「可点却点不动」的二义）；订阅卡改 Iced 同构的图标+双行；数量徽标改自适应胶囊；速率改 mono 遥测字形；图标↔文字间距统一 `space::S8`；侧栏形成三级微阶底色；导航顺序与 Iced `view/sidebar.rs` 对齐（身份→路由控制→双开关卡→订阅卡→2×2 磁贴→速率页脚→分隔线→路由行）。
+  - 未证明层（诚实列出）：#4 路由行 hover 缓动与 #18 纯图标模式 Tooltip **只有代码路径**——捕获台不注入指针，hover/焦点态无法成像（已按共享动效 owner `Spring` + `HostPreferences::effective_motion()` 实现，`Reduced` 时直接落位）；#14 rem 物理对齐抖动**部分**修复（壳层自身尺寸全部走 rem 通道，残余抖动源是共享图标底板仍是物理 px）；#16 导航架构**结构已对齐但图标仍重复**（共享底板只有 10 个 id）。
+  - 像素证据：改后捕获 3/3 ok（`.evidence/captures/bevy/20261021T173243Z_7261c8326541_dirty_3006708/`）；改前对照取自 `20261021T133305Z_8a3c2e16724e_dirty_2187724/`；量测：路由文字带 80–139（三丸互压）→80–185（三行分离）、计数徽标 `#0D3971`+accent 字→`#535556`+dim 字、侧栏卡片面 `(80,81,82)`→`(37,41,44)`。
+  - 共享改动需求（转 `BEVYUI-001R`）：S1 `crates/infiltrator-bevy-widgets/src/icon.rs` 增 `icon_scene_val(icon, size: Val, tint)` 让图标盒走 rem 通道；S2 `crates/infiltrator-shared/src/assets.rs` 的 `bevy_icon_png` 增补 `minus/square/x/chevron-left/chevron-right` 与 11 条路由的专属图标（由既有 Lucide 源栅格化），`widgets/src/icon.rs` 的 `IconId` 同步；S3 捕获台增加「指针悬停轨道行」的 capture feature，使 hover 填充与 tooltip 获得真实像素回执。
