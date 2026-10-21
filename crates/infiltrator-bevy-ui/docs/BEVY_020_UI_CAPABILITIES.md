@@ -39,7 +39,7 @@
 | SCROLL-02 | `bevy_ui_widgets::ScrollIntoView`（事件） | 0 处 | 官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，但本仓**从不触发该事件**，而是在 `infiltrator-bevy-widgets/src/list.rs` 自算偏移（`scroll_to_item`）。处置：改为触发官方 `ScrollIntoView`，删除自算偏移路径。 |
 | MENU-01 | `bevy_ui_widgets::MenuPopup` / `MenuItem` / `MenuFocusState` / `MenuLayout` | **已采用**（2026-10-21 迁完） | 官方 `MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState` 接管打开/关闭/方向键导航/焦点圈闭；本地菜单状态机与手写视口翻转（`ContextMenuPlacement`）已删除。宿主需具备 `InputDispatchPlugin`（键盘→焦点实体）、`PointerFocusPlugin`（点外关闭）与可见性传播（`VisibilityPlugin` + mesh asset store），否则官方焦点账本够不到条目。 |
 | TEXT-01 | `bevy_text::InlineBox`（`InFlow`/`OutOfFlow`） | 0 处 | 只用了 `InlineImage`（图片侧）。行内文字/徽标随文流动这条语义未落地，见台账 ⑤。 |
-| NAV-01 | `bevy_ui::auto_directional_navigation` | 0 处 | 0.20 的空间/方向导航（a11y 方向键）未接入。处置：待无障碍验收提出方向导航要求时接入。 |
+| NAV-01 | `bevy_ui::auto_directional_navigation` | **已采用**（2026-10-21） | 官方 `DirectionalNavigationPlugin` + 仓库配置 + 箭头手势已接（`crates/infiltrator-bevy-widgets/src/directional_nav.rs`），且官方 `InputFocus` 已成为唯一焦点真源（本地空间搜索与影子焦点账本已删除，控件补官方 `TabIndex`）。未证明层：官方**自动**空间搜索无法 headless 演练（相机字段 crate 私有），headless 证据走官方手动导航图；焦点环跟随焦点无像素证据（捕获台不发指针/键盘）。 |
 | RENDER-01 | `bevy_ui::gradients`（`LinearGradient`/`RadialGradient`） | 0 处 | 0.20 的 UI 渐变未接入。处置：纯视觉增强，按需立项（当前 token 体系无渐变语义 token）。 |
 | RENDER-02 | `bevy_ui::stack`（CSS 式层叠） | 0 处 | 0.20 的层叠原语未接入；本仓的浮层层级靠显式 `SurfaceLevel` 枚举与 `FixedNode` 表达。处置：按需立项。 |
 | EXP-01 | `bevy_ui::experimental::ghost_hierarchy` | 0 处 | 0.20 的实验性幽灵层级未接入（上游标 experimental）。处置：上游转正后评估。 |
