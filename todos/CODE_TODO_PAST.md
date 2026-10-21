@@ -383,3 +383,13 @@
   - 证据身份：捕获跑批 `.evidence/captures/bevy/20261021T121856Z_c11e55a3be03_dirty_1836213/`（connections 10 个场景全部 `ok`）；改前/改后像素副本 `.evidence/wip/bevyui-005/`；帧级差异 33.48% 的通道变化，危险红像素 3339→0、表格色阶断点 23→9、滚动边缘羽化实测 `(37,41,44)→(21,24,26)`。
   - 已证明层：#69~#82 共 14 条逐条处置（全部已修并给出像素事实）；官方 `TabList`/`Tab`/`SelectedTab` 接管三组筛选/排序条，本地 `ConnAggregationPill`/`ConnSortPill` 已退役；抽屉打开时页面滚动轴锁为 `Clip`。
   - 未证明层：仓库本批尚无统一验证批次回执；Iced/Slint/Android 三表面的同构整改未做。
+
+- [ ] BEVYUI-007 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] DNS、自愈诊断与设置页交互收口（#95~#105）
+  - 产物：解决 #95 DNS 页面顶部 Query DNS 灰色长条二义、#96 跨源探测报警红字粗暴裸奔缺乏容器、#97 DNS 解析调试格式简陋、#98 DNS 配置行 Enabled 文本与开关双重冗余、#99 配置项无缝隙斑马条表格感、#100 设置页字体版权数百行全大写法律英文平铺倾倒、#101 语言设置报错单薄缺乏 Banner、#102 语言选择巨大深灰方块死板、#103 Doctor 修复步骤缺少旋转 Spinner、#104 审阅快照恢复弹窗缺乏 Diff 比较器、#105 弹窗取消与恢复按钮分居左右两极视距过远。
+  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
+  - 验收：DNS 与设置页双视口像素回执消除法律文本倾倒与红字裸奔，弹窗操作收拢。
+  - 计划：将字体许可改为折叠或弹窗展示，重构 DNS 状态指示与弹窗操作按钮组。
+  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ DNS/诊断/设置三页双视口像素回执复核（1180x780 / 720x480）+ #103 转圈指示器的像素回执（缺一个能停在 `DoctorActionPhase::Pending` 的捕获场景，需新增 parity 特性 `DoctorRepairProgress`、fixture 的 pending 开关、捕获 activator 与两个场景行）+ 官方捕获矩阵是否登记 dns/doctor/settings 的紧凑整页场景待定。
+  - 证据身份：改后整页捕获 6/6 ok（`.evidence/captures/bevy/20261021T123324Z_..._1880922`）、改前整页 6/6 ok（`20261021T122645Z_..._1854539`）、交互场景 12 中 9 ok（`20261021T121710Z_..._1831009`）；改前/改后像素副本在 `/tmp/opencode/bevyui007/`。
+  - 已证明层：#95~#105 共 11 条逐条处置（法律英文整段移出设置页进官方模态、告警进带框告警井、开关行去重复文字、配置行分离成圆角行卡、审阅恢复接 owner 自己的 Myers diff 双栏对照、弹窗操作收拢、语言错误进 typed 相位告警条、诊断转圈按共享 typed 相位显形）。
+  - 未证明层：#103 仅有代码无像素回执（pending 相位是瞬态，缺可停在该相位的捕获场景）；`dns-hosts-editor-standard/compact` 与 `doctor-failure-recovery-compact` 三个 failed-marker 为 2026-10-20 基线既有失败，非本条引入；披露按钮文案复用 `common_details`，更贴切的许可协议文案需共享 locale 表新增键（未擅改共享表）。
