@@ -136,6 +136,12 @@ pub fn iced_icon_svg(name: &str) -> Option<&'static [u8]> {
 }
 
 /// Embedded white-ink PNG plate used by the Bevy renderer.
+///
+/// Every plate is rasterized from the canonical Lucide SVG of the same name
+/// (`assets/ui/iced/svg/<name>.svg`) through the shared currentColor→white
+/// flow: substitute `currentColor` with `#ffffff`, then rasterize the
+/// 24×24 stroke drawing into a 64×64 RGBA plate. A plate is white ink with
+/// alpha, so any theme color tints it exactly.
 pub fn bevy_icon_png(name: &str) -> Option<&'static [u8]> {
     Some(match name {
         "settings" => include_bytes!("../assets/ui/bevy/png/settings.png"),
@@ -148,6 +154,20 @@ pub fn bevy_icon_png(name: &str) -> Option<&'static [u8]> {
         "trash-2" => include_bytes!("../assets/ui/bevy/png/trash-2.png"),
         "arrow-up" => include_bytes!("../assets/ui/bevy/png/arrow-up.png"),
         "arrow-down" => include_bytes!("../assets/ui/bevy/png/arrow-down.png"),
+        // The window's own three keys and the history arrows: plates, never
+        // text glyphs.
+        "minus" => include_bytes!("../assets/ui/bevy/png/minus.png"),
+        "square" => include_bytes!("../assets/ui/bevy/png/square.png"),
+        "x" => include_bytes!("../assets/ui/bevy/png/x.png"),
+        "chevron-left" => include_bytes!("../assets/ui/bevy/png/chevron-left.png"),
+        "chevron-right" => include_bytes!("../assets/ui/bevy/png/chevron-right.png"),
+        // The routes' own plates: one per route, so the rail never repeats.
+        "layout-grid" => include_bytes!("../assets/ui/bevy/png/layout-grid.png"),
+        "list-checks" => include_bytes!("../assets/ui/bevy/png/list-checks.png"),
+        "server" => include_bytes!("../assets/ui/bevy/png/server.png"),
+        "shield" => include_bytes!("../assets/ui/bevy/png/shield.png"),
+        "code-2" => include_bytes!("../assets/ui/bevy/png/code-2.png"),
+        "target" => include_bytes!("../assets/ui/bevy/png/target.png"),
         _ => return None,
     })
 }

@@ -60,8 +60,15 @@ fn test_rules_page_mounting_and_default_state() {
     ));
     assert!(subtree_has_text(app.world(), root, "一键注入游戏分流预设"));
     assert!(subtree_has_text(app.world(), root, "+ 确认添加规则"));
-    // DUAL-11-09: the shared disabled flag reaches the row label.
-    assert!(subtree_has_text(app.world(), root, "已停用"));
+    // DUAL-11-09: the shared disabled flag reaches the row's own status chip.
+    let disabled_chip = app
+        .world_mut()
+        .query::<(Entity, &RuleRowStatusText, &Text)>()
+        .iter(app.world())
+        .map(|(_, _, text)| text.0.clone())
+        .find(|value| value == "禁用")
+        .expect("the disabled row carries its own status chip");
+    assert_eq!(disabled_chip, "禁用");
     assert!(
         app.world_mut()
             .query_filtered::<Entity, With<RuleToggleButton>>()

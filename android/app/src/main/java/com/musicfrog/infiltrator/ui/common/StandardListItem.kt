@@ -19,13 +19,28 @@ fun StandardListItem(
     onClick: (() -> Unit)? = null,
     containerColor: Color = Color.Transparent,
 ) {
+    // EFFECTS-047 (#191): the row action goes through the typed gesture
+    // arbitration, so scrolling a list never triggers the row action.
+    val gestureArbiter = rememberRowGestureArbiter()
     ListItem(
         headlineContent = { Text(headline) },
         supportingContent = supporting?.let { { Text(it) } },
         leadingContent = leadingContent,
         trailingContent = trailingContent,
         modifier = Modifier.then(
-            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+            if (onClick != null) {
+                Modifier
+                    .arbitratedRowGesture(gestureArbiter)
+                    .clickable(
+                        onClick = {
+                            if (!gestureArbiter.blocksRowAction) {
+                                onClick()
+                            }
+                        },
+                    )
+            } else {
+                Modifier
+            },
         ),
         colors = ListItemDefaults.colors(
             containerColor = containerColor,

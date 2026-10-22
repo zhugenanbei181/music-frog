@@ -34,9 +34,9 @@ use crate::pages::rules_outcome::{
 };
 use crate::pages::rules_projection::{
     ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleEnabledKnob, RuleHitText,
-    RuleIndexText, RulePayloadText, RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine,
-    RulesLineKind, apply_rules_projection, refresh_hit_copy, rule_hits_token, rule_target_token,
-    rule_type_chip_token,
+    RuleIndexText, RulePayloadText, RuleProxyText, RuleRowStatusChip, RuleRowStatusText,
+    RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind, apply_rules_projection,
+    refresh_hit_copy, rule_hits_token, rule_status_token, rule_target_token, rule_type_chip_token,
 };
 use crate::pages::rules_providers::{provider_scenes, providers_partition};
 use crate::pages::rules_statistics::{RulesStatisticsPlugin, statistics_scene};
@@ -71,8 +71,8 @@ use bevy::ecs::system::{Query, Res};
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BorderColor, BorderRadius, FlexDirection, GridPlacement, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    AlignItems, BorderColor, BorderRadius, Display, FlexDirection, GridPlacement, JustifyContent,
+    Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -83,7 +83,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
-use infiltrator_bevy_widgets::list::scrollbar::{ListScrollContainer, list_scroll_frame};
+use infiltrator_bevy_widgets::list::scrollbar::{
+    ListScrollContainer, list_scroll_frame_with, list_scrollbar_scene,
+};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -106,7 +108,7 @@ use infiltrator_presentation::rule_provider_projection::{
     default_action, etag_support_line, provider_count, provider_fingerprint_line,
     provider_lifecycle_line, published_truncation, rules_summary,
 };
-use infiltrator_presentation::rule_row_projection::row_hits_key;
+use infiltrator_presentation::rule_row_projection::RuleRowChips;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
 
@@ -561,7 +563,11 @@ fn rules_table_scene(
                                 ]
                             ]
             }),
-            list_scroll_frame(list_container),
+            // The rules table owns its own viewport, so it names its own
+            // scrollbar: the shared frame only owns the geometry beside the
+            // viewport, and the official bar drives that viewport's own
+            // scroll position.
+            list_scroll_frame_with(list_container, list_scrollbar_scene()),
         ],
         palette,
     )
@@ -576,20 +582,35 @@ pub(crate) fn rule_row_scene(
     let type_chip = rule_type_chip_scene(idx, &rule.rule_type);
     let payload = rule.payload.clone();
     let proxy = rule.proxy.clone();
-    let hits = LocalizedText::new(
-        row_hits_key(rule.hit_count, rule.is_enabled, rule.is_shadowed),
-        vec![(
-            "count",
-            rule.hit_count
-                .map(|value| value.to_string())
-                .unwrap_or_default(),
-        )],
-    );
+    // The row carries two facts of its own: the local trace's count and the
+    // row's own status. They are two typed facts, so the row draws them as
+    // two chips instead of reading both out of one mixed sentence.
+    let chips = RuleRowChips::of(rule.hit_count, rule.is_enabled, rule.is_shadowed);
+    let count = rule
+        .hit_count
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let hits = LocalizedText::new(chips.hits.key(), vec![("count", count.clone())]);
+    // A plain row carries no status fact of its own, so it has no status
+    // chip: the chip's box starts hidden and the projection shows it when
+    // the row really has a status. Its copy is a complete template either
+    // way, so the hidden chip never shows a half-rendered sentence.
+    let status_key = chips.status.key();
+    let status = match status_key {
+        Some(key) => LocalizedText::plain(key),
+        None => LocalizedText::new(chips.hits.key(), vec![("count", count)]),
+    };
+    let status_display = if status_key.is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
     // The target action and the hit statistics carry their own semantic ink
     // from the first frame: the row is mounted from the projection, so the
     // scene is where the row's own facts become their colors.
     let target_ink = rule_target_token(&rule.proxy);
-    let hits_ink = rule_hits_token(rule.is_enabled, rule.is_shadowed);
+    let hits_ink = rule_hits_token();
+    let status_ink = rule_status_token(chips.status);
 
     bsn! {
             Node {
@@ -657,6 +678,19 @@ pub(crate) fn rule_row_scene(
                     ThemeBackgroundColor({ Token::SurfaceElevated })
                     Children [
                         LocalizedText { .. { hits } } RuleHitText(idx) TextRole(Role::Caption) ThemeTextColor({ hits_ink })
+                    ]
+                    --
+                    Node {
+                        flex_shrink: 0.0,
+                        display: { status_display },
+                        padding: UiRect::horizontal(rem(space::S8)),
+                        align_items: AlignItems::Center,
+                        border_radius: BorderRadius::all(rem(radius::XS)),
+                    }
+                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                    RuleRowStatusChip(idx)
+                    Children [
+                        LocalizedText { .. { status } } RuleRowStatusText(idx) TextRole(Role::Caption) ThemeTextColor({ status_ink })
                     ]
                     --
                     @{ rule_row_controls_scene(rule.edit_id, rule.is_enabled, idx, palette) }

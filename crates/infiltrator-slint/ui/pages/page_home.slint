@@ -3,6 +3,7 @@ import { FilledButton, TonalButton } from "@material";
 import { FlagIcon } from "../lumen-flags.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
+import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import {
     HomeTrafficPoint, ProfileCard, ProxyGroup, TrafficBar
 } from "../components/models.slint";
@@ -18,8 +19,8 @@ export component PageHome inherits VerticalLayout {
     in property <bool> application-dark-mode;
     in property <[ProfileCard]> profiles;
     in property <string> active-profile;
-    in property <string> route-mode;
-    in property <string> runtime-status;
+    in property <RouteMode> route-mode;
+    in property <RuntimeStatus> runtime-status;
     in property <string> network-mode-label;
     in property <bool> has-current-profile;
     in property <string> stat-down;
@@ -57,6 +58,9 @@ export component PageHome inherits VerticalLayout {
     callback navigate(string);
     callback cache-back-preview();
     callback refresh-home-egress();
+    // Opens the Overview card order sheet. The sheet lists the cards in the
+    // order the shared owner published, so the page itself keeps no order.
+    callback open-overview-order();
 
     width: 100%;
     spacing: LumenTheme.space-4;
@@ -64,44 +68,44 @@ export component PageHome inherits VerticalLayout {
 
     if root.compact-layout: VerticalLayout {
         width: parent.width;
-        spacing: 0px * LumenUiScale.factor;
+        spacing: 0 * LumenUiScale.unit;
         alignment: start;
-        Text { text: "MusicFrog"; color: LumenTheme.text-primary; font-size: 32px * LumenUiScale.factor; font-weight: 400; height: 48px * LumenUiScale.factor; vertical-alignment: center; }
-        Rectangle { height: 16px * LumenUiScale.factor; background: transparent; }
+        Text { text: "MusicFrog"; color: LumenTheme.text-primary; font-size: 32 * LumenUiScale.unit; font-weight: 400; height: 48 * LumenUiScale.unit; vertical-alignment: center; }
+        Rectangle { height: 16 * LumenUiScale.unit; background: transparent; }
         HorizontalLayout {
-            width: parent.width; height: 32px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
-            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; font-weight: 400; vertical-alignment: center; }
+            width: parent.width; height: 32 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
+            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; font-weight: 400; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
             if root.profiles.length > 0: HomeProfileBadge {
-                badge-width: min(190px * LumenUiScale.factor, max(0px * LumenUiScale.factor, parent.width - 104px * LumenUiScale.factor));
+                badge-width: min(190 * LumenUiScale.unit, max(0 * LumenUiScale.unit, parent.width - 104 * LumenUiScale.unit));
                 profile-name: root.active-profile;
                 route-mode: root.route-mode;
             }
         }
-        Rectangle { height: 0px * LumenUiScale.factor; background: transparent; }
+        Rectangle { height: 0 * LumenUiScale.unit; background: transparent; }
         HorizontalLayout {
             width: parent.width;
-            height: 130px * LumenUiScale.factor;
-            spacing: 4px * LumenUiScale.factor;
+            height: 130 * LumenUiScale.unit;
+            spacing: 4 * LumenUiScale.unit;
             Text {
-                text: root.runtime-status == "Running" ? root.stat-down-value : "0";
+                text: root.runtime-status == RuntimeStatus.running ? root.stat-down-value : "0";
                 color: LumenTheme.accent;
-                font-size: root.runtime-status == "Running" ? (parent.width < 300px * LumenUiScale.factor ? 72px * LumenUiScale.factor : 84px * LumenUiScale.factor) : 100px * LumenUiScale.factor;
+                font-size: root.runtime-status == RuntimeStatus.running ? (parent.width < 300 * LumenUiScale.unit ? 72 * LumenUiScale.unit : 84 * LumenUiScale.unit) : 100 * LumenUiScale.unit;
                 font-weight: 400;
                 height: parent.height;
                 vertical-alignment: center;
                 overflow: elide;
-                accessible-label: root.runtime-status == "Running" ? root.stat-down : "0 B/s";
+                accessible-label: root.runtime-status == RuntimeStatus.running ? root.stat-down : "0 B/s";
             }
             Rectangle {
-                width: root.runtime-status == "Running" && root.stat-down-unit != "B" ? 42px * LumenUiScale.factor : 18px * LumenUiScale.factor;
+                width: root.runtime-status == RuntimeStatus.running && root.stat-down-unit != "B" ? 42 * LumenUiScale.unit : 18 * LumenUiScale.unit;
                 height: parent.height;
                 background: transparent;
                 Text {
-                    x: 0px * LumenUiScale.factor; y: 93px * LumenUiScale.factor; width: parent.width; height: 34px * LumenUiScale.factor;
-                    text: root.runtime-status == "Running" ? root.stat-down-unit : "B";
+                    x: 0 * LumenUiScale.unit; y: 93 * LumenUiScale.unit; width: parent.width; height: 34 * LumenUiScale.unit;
+                    text: root.runtime-status == RuntimeStatus.running ? root.stat-down-unit : "B";
                     color: LumenTheme.accent.with_alpha(60%);
-                    font-size: 24px * LumenUiScale.factor;
+                    font-size: 24 * LumenUiScale.unit;
                     vertical-alignment: bottom;
                     overflow: elide;
                 }
@@ -110,21 +114,21 @@ export component PageHome inherits VerticalLayout {
         }
         Rectangle { height: root.home-data-upload-gap; background: transparent; }
         HorizontalLayout {
-            width: parent.width; height: 38px * LumenUiScale.factor; spacing: 16px * LumenUiScale.factor; alignment: start;
-            Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; horizontal-stretch: 0; vertical-alignment: center; }
-            Text { text: root.runtime-status == "Running" ? root.stat-up-compact : "0 B"; color: LumenTheme.accent; font-size: 24px * LumenUiScale.factor; horizontal-stretch: 0; vertical-alignment: center; }
+            width: parent.width; height: 38 * LumenUiScale.unit; spacing: 16 * LumenUiScale.unit; alignment: start;
+            Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; horizontal-stretch: 0; vertical-alignment: center; }
+            Text { text: root.runtime-status == RuntimeStatus.running ? root.stat-up-compact : "0 B"; color: LumenTheme.accent; font-size: 24 * LumenUiScale.unit; horizontal-stretch: 0; vertical-alignment: center; }
         }
-        Rectangle { height: 0px * LumenUiScale.factor; background: transparent; }
-        if root.runtime-status == "Running": HorizontalLayout {
-            width: parent.width; height: 48px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
+        Rectangle { height: 0 * LumenUiScale.unit; background: transparent; }
+        if root.runtime-status == RuntimeStatus.running: HorizontalLayout {
+            width: parent.width; height: 48 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
             HomeStatusChip {
-                min-chip-width: 90px * LumenUiScale.factor;
+                min-chip-width: 90 * LumenUiScale.unit;
                 label: @tr("运行中");
                 icon: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/activity-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/activity.svg");
                 active: true;
             }
             HomeStatusChip {
-                min-chip-width: 80px * LumenUiScale.factor;
+                min-chip-width: 80 * LumenUiScale.unit;
                 label: root.network-mode-label;
                 icon: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/vpn-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/vpn.svg");
                 active: true;
@@ -136,81 +140,81 @@ export component PageHome inherits VerticalLayout {
                 clicked => { root.stop-runtime(); }
             }
         }
-        if root.runtime-status != "Running": HomeActionButton {
-            label: root.runtime-status == "Starting" ? @tr("启动中…") : root.runtime-status == "Stopping" ? @tr("停止中…") : root.has-current-profile ? @tr("轻触启动") : root.profiles.length == 0 ? @tr("添加配置") : @tr("选择配置");
+        if root.runtime-status != RuntimeStatus.running: HomeActionButton {
+            label: root.runtime-status == RuntimeStatus.starting ? @tr("启动中…") : root.runtime-status == RuntimeStatus.stopping ? @tr("停止中…") : root.has-current-profile ? @tr("轻触启动") : root.profiles.length == 0 ? @tr("添加配置") : @tr("选择配置");
             running: false;
-            busy: root.runtime-status == "Starting" || root.runtime-status == "Stopping";
+            busy: root.runtime-status == RuntimeStatus.starting || root.runtime-status == RuntimeStatus.stopping;
             clicked => {
-                if root.runtime-status == "Starting" || root.runtime-status == "Stopping" { }
+                if root.runtime-status == RuntimeStatus.starting || root.runtime-status == RuntimeStatus.stopping { }
                 else if root.has-current-profile { root.start-runtime(); }
                 else { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); }
             }
         }
         Rectangle { height: root.home-before-node-gap; background: transparent; }
         HorizontalLayout {
-            width: parent.width; height: 28px * LumenUiScale.factor;
-            Text { text: @tr("节点"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; vertical-alignment: center; }
+            width: parent.width; height: 28 * LumenUiScale.unit;
+            Text { text: @tr("节点"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
-            Text { text: @tr("延迟"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; horizontal-alignment: right; vertical-alignment: center; }
+            Text { text: @tr("延迟"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; horizontal-alignment: right; vertical-alignment: center; }
         }
         HorizontalLayout {
-            width: parent.width; height: 34px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
+            width: parent.width; height: 34 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
             if root.home-current-flag-code != "": FlagIcon {
                 country-code: root.home-current-flag-code;
                 index: root.home-current-flag-index;
             }
             Text {
-                text: root.runtime-status == "Running" ? root.home-current-node : @tr("未知");
+                text: root.runtime-status == RuntimeStatus.running ? root.home-current-node : @tr("未知");
                 accessible-label: root.home-current-accessible;
-                color: LumenTheme.text-primary; font-size: 16px * LumenUiScale.factor; horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
+                color: LumenTheme.text-primary; font-size: 16 * LumenUiScale.unit; horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
             }
-            Text { text: root.runtime-status == "Running" ? root.home-current-delay : "—"; color: LumenTheme.text-secondary; font-size: 16px * LumenUiScale.factor; vertical-alignment: center; }
+            Text { text: root.runtime-status == RuntimeStatus.running ? root.home-current-delay : "—"; color: LumenTheme.text-secondary; font-size: 16 * LumenUiScale.unit; vertical-alignment: center; }
         }
         Rectangle { height: root.home-node-egress-gap; background: transparent; }
         HorizontalLayout {
-            width: parent.width; height: 24px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
-            Text { text: @tr("出口 IP"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; vertical-alignment: center; }
+            width: parent.width; height: 24 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
+            Text { text: @tr("出口 IP"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
             if root.home-exit-country-code != "" && root.home-exit-flag-index >= 0: FlagIcon {
                 country-code: root.home-exit-country-code;
                 index: root.home-exit-flag-index;
-                diameter: 22px * LumenUiScale.factor;
+                diameter: 22 * LumenUiScale.unit;
             }
-            if root.home-exit-country-code != "": Text { text: root.home-exit-country-code; color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; vertical-alignment: center; }
+            if root.home-exit-country-code != "": Text { text: root.home-exit-country-code; color: LumenTheme.accent; font-size: 16 * LumenUiScale.unit; vertical-alignment: center; }
         }
         HorizontalLayout {
-            width: parent.width; height: 40px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
-            Text { text: root.home-exit-ip; color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; }
+            width: parent.width; height: 40 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
+            Text { text: root.home-exit-ip; color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
-            if root.home-exit-status != "" && root.home-exit-status != "已更新": Text { text: root.home-exit-status; color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; vertical-alignment: center; }
+            if root.home-exit-status != "" && root.home-exit-status != "已更新": Text { text: root.home-exit-status; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; vertical-alignment: center; }
             Button { text: @tr("刷新"); clicked => { root.refresh-home-egress(); } }
         }
         Rectangle {
             width: parent.width;
-            height: root.home-traffic-has-data ? 120px * LumenUiScale.factor : 32px * LumenUiScale.factor;
+            height: root.home-traffic-has-data ? 120 * LumenUiScale.unit : 32 * LumenUiScale.unit;
             background: transparent;
-            if root.home-traffic-has-data: Rectangle { x: 0px * LumenUiScale.factor; y: parent.height - 8px * LumenUiScale.factor; width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border.with_alpha(35%); }
+            if root.home-traffic-has-data: Rectangle { x: 0 * LumenUiScale.unit; y: parent.height - 8 * LumenUiScale.unit; width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border.with_alpha(35%); }
             HorizontalLayout {
-                width: parent.width; height: parent.height; spacing: 1px * LumenUiScale.factor;
+                width: parent.width; height: parent.height; spacing: 1 * LumenUiScale.unit;
                 for point[index] in root.home-traffic-points: Rectangle {
                     horizontal-stretch: 1;
                     height: parent.height;
                     background: transparent;
                     if point.download-fraction > 0.01: Rectangle {
-                        x: max(0px * LumenUiScale.factor, (parent.width - 4px * LumenUiScale.factor) / 2 - 2px * LumenUiScale.factor);
-                        y: parent.height - 8px * LumenUiScale.factor - min(86px * LumenUiScale.factor, parent.height - 12px * LumenUiScale.factor) * point.download-fraction;
-                        width: 2px * LumenUiScale.factor;
-                        height: min(86px * LumenUiScale.factor, parent.height - 12px * LumenUiScale.factor) * point.download-fraction;
-                        border-radius: 1px * LumenUiScale.factor;
+                        x: max(0 * LumenUiScale.unit, (parent.width - 4 * LumenUiScale.unit) / 2 - 2 * LumenUiScale.unit);
+                        y: parent.height - 8 * LumenUiScale.unit - min(86 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.download-fraction;
+                        width: 2 * LumenUiScale.unit;
+                        height: min(86 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.download-fraction;
+                        border-radius: 1 * LumenUiScale.unit;
                         background: LumenTheme.accent;
                         animate y, height { duration: 260ms; easing: ease-out; }
                     }
                     if point.upload-fraction > 0.01: Rectangle {
-                        x: max(0px * LumenUiScale.factor, (parent.width - 4px * LumenUiScale.factor) / 2 + 1px * LumenUiScale.factor);
-                        y: parent.height - 8px * LumenUiScale.factor - min(52px * LumenUiScale.factor, parent.height - 12px * LumenUiScale.factor) * point.upload-fraction;
-                        width: 2px * LumenUiScale.factor;
-                        height: min(52px * LumenUiScale.factor, parent.height - 12px * LumenUiScale.factor) * point.upload-fraction;
-                        border-radius: 1px * LumenUiScale.factor;
+                        x: max(0 * LumenUiScale.unit, (parent.width - 4 * LumenUiScale.unit) / 2 + 1 * LumenUiScale.unit);
+                        y: parent.height - 8 * LumenUiScale.unit - min(52 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.upload-fraction;
+                        width: 2 * LumenUiScale.unit;
+                        height: min(52 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.upload-fraction;
+                        border-radius: 1 * LumenUiScale.unit;
                         background: LumenTheme.accent-soft;
                         animate y, height { duration: 260ms; easing: ease-out; }
                     }
@@ -218,21 +222,27 @@ export component PageHome inherits VerticalLayout {
             }
         }
         if root.profiles.length > 0: SummaryRow { label: @tr("当前配置"); value: root.active-profile; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); } }
-        if root.profiles.length > 0: SummaryRow { label: @tr("代理模式"); value: root.route-mode == "Rule" ? @tr("规则") : root.route-mode == "Global" ? @tr("全局") : @tr("直连"); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
+        if root.profiles.length > 0: SummaryRow { label: @tr("代理模式"); value: root.route-mode == RouteMode.rule ? @tr("规则") : root.route-mode == RouteMode.global ? @tr("全局") : @tr("直连"); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
         if root.profiles.length > 0: SummaryRow { label: @tr("活动连接"); value: root.stat-connections; emphasized: true; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
         if root.traffic-today-has-data: HorizontalLayout {
-            width: parent.width; height: 42px * LumenUiScale.factor;
-            Text { text: @tr("今日流量"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; vertical-alignment: center; }
+            width: parent.width; height: 42 * LumenUiScale.unit;
+            Text { text: @tr("今日流量"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
-            Text { text: "↓ " + root.traffic-today-down + "   ↑ " + root.traffic-today-up; color: LumenTheme.text-primary; font-size: 14px * LumenUiScale.factor; vertical-alignment: center; }
+            Text { text: "↓ " + root.traffic-today-down + "   ↑ " + root.traffic-today-up; color: LumenTheme.text-primary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
+        }
+        TonalButton {
+            text: @tr("调整卡片顺序");
+            height: 48 * LumenUiScale.unit;
+            horizontal-stretch: 1;
+            clicked => { root.open-overview-order(); }
         }
     }
     if root.profiles.length == 0 && !root.compact-layout: SurfaceCard {
-        Text { text: @tr("尚未添加配置"); color: LumenTheme.text-primary; font-size: 20px * LumenUiScale.factor; font-weight: 600; }
+        Text { text: @tr("尚未添加配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 600; }
         Text { text: @tr("添加订阅或导入 YAML 文件后即可启动 Mihomo。"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
         FilledButton {
             text: @tr("添加配置");
-            height: 52px * LumenUiScale.factor;
+            height: 52 * LumenUiScale.unit;
             horizontal-stretch: 1;
             clicked => { root.open-profile-add(); }
         }
@@ -241,45 +251,45 @@ export component PageHome inherits VerticalLayout {
         HorizontalLayout { spacing: LumenTheme.space-2;
             Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; font-weight: 600; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
-            StatusBadge { label: root.runtime-status == "Running" ? @tr("运行中") : @tr("已停止"); active: root.runtime-status == "Running"; badge-width: 82px * LumenUiScale.factor; }
+            StatusBadge { label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : @tr("已停止"); active: root.runtime-status == RuntimeStatus.running; badge-width: 82 * LumenUiScale.unit; }
         }
         Text {
-            text: root.runtime-status == "Running" ? root.stat-down : "0 B/s";
+            text: root.runtime-status == RuntimeStatus.running ? root.stat-down : "0 B/s";
             color: LumenTheme.accent;
-            font-size: parent.width < 280px * LumenUiScale.factor ? 38px * LumenUiScale.factor : 48px * LumenUiScale.factor;
+            font-size: parent.width < 280 * LumenUiScale.unit ? 38 * LumenUiScale.unit : 48 * LumenUiScale.unit;
             font-weight: 600;
-            height: 60px * LumenUiScale.factor;
+            height: 60 * LumenUiScale.unit;
             vertical-stretch: 0;
             vertical-alignment: center;
             overflow: elide;
-            accessible-label: root.runtime-status == "Running" ? root.stat-down : "0 B/s";
+            accessible-label: root.runtime-status == RuntimeStatus.running ? root.stat-down : "0 B/s";
         }
         Text { text: @tr("实时下载速度"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; }
-        Rectangle { height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
-        SummaryRow { label: @tr("上传"); value: root.runtime-status == "Running" ? root.stat-up : "0 B/s"; emphasized: true; }
+        Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
+        SummaryRow { label: @tr("上传"); value: root.runtime-status == RuntimeStatus.running ? root.stat-up : "0 B/s"; emphasized: true; }
         Text {
             text: @tr("本次运行  ↓ ") + root.stat-total-down + "   ↑ " + root.stat-total-up;
             color: LumenTheme.text-secondary;
-            font-size: 13px * LumenUiScale.factor;
+            font-size: 13 * LumenUiScale.unit;
             wrap: word-wrap;
             accessible-label: @tr("本次运行累计下载 ") + root.stat-total-down + @tr("，上传 ") + root.stat-total-up;
         }
         FilledButton {
-            text: root.runtime-status == "Running" ? @tr("停止代理") : root.has-current-profile ? @tr("启动代理") : @tr("选择配置");
-            height: 52px * LumenUiScale.factor;
+            text: root.runtime-status == RuntimeStatus.running ? @tr("停止代理") : root.has-current-profile ? @tr("启动代理") : @tr("选择配置");
+            height: 52 * LumenUiScale.unit;
             horizontal-stretch: 1;
             enabled: true;
             clicked => {
-                if root.runtime-status == "Running" { root.stop-runtime(); }
+                if root.runtime-status == RuntimeStatus.running { root.stop-runtime(); }
                 else if root.has-current-profile { root.start-runtime(); }
                 else { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); }
             }
         }
     }
     if root.profiles.length > 0 && !root.compact-layout: SurfaceCard {
-        Text { text: @tr("运行概况"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 600; }
+        Text { text: @tr("运行概况"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
         SummaryRow { label: @tr("当前配置"); value: root.active-profile; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); } }
-        Rectangle { height: 48px * LumenUiScale.factor;
+        Rectangle { height: 48 * LumenUiScale.unit;
             HorizontalLayout { spacing: LumenTheme.space-3;
                 Text { text: @tr("当前节点"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; vertical-alignment: center; }
                 Rectangle { horizontal-stretch: 1; background: transparent; }
@@ -300,48 +310,54 @@ export component PageHome inherits VerticalLayout {
             TouchArea { width: parent.width; height: parent.height; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Proxy"); } }
         }
         SummaryRow { label: @tr("网络接管"); value: root.network-mode-label; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
-        SummaryRow { label: @tr("代理模式"); value: root.route-mode == "Rule" ? @tr("规则") : root.route-mode == "Global" ? @tr("全局") : @tr("直连"); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Proxy"); } }
+        SummaryRow { label: @tr("代理模式"); value: root.route-mode == RouteMode.rule ? @tr("规则") : root.route-mode == RouteMode.global ? @tr("全局") : @tr("直连"); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Proxy"); } }
         SummaryRow { label: @tr("活动连接"); value: root.stat-connections; emphasized: true; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
         SummaryRow { label: @tr("出口 IP"); value: root.home-exit-ip; }
         Button { text: @tr("刷新"); clicked => { root.refresh-home-egress(); } }
+        TonalButton {
+            text: @tr("调整卡片顺序");
+            height: 48 * LumenUiScale.unit;
+            horizontal-stretch: 1;
+            clicked => { root.open-overview-order(); }
+        }
     }
     if root.traffic-today-has-data && !root.compact-layout: SurfaceCard {
         HorizontalLayout { spacing: LumenTheme.space-2;
-            Text { text: @tr("今日流量"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 600; }
+            Text { text: @tr("今日流量"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
             Rectangle { horizontal-stretch: 1; background: transparent; }
-            Text { text: @tr("过去 24 小时"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; vertical-alignment: center; }
+            Text { text: @tr("过去 24 小时"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; vertical-alignment: center; }
         }
-        HorizontalLayout { height: 76px * LumenUiScale.factor; spacing: 1px * LumenUiScale.factor;
+        HorizontalLayout { height: 76 * LumenUiScale.unit; spacing: 1 * LumenUiScale.unit;
             for bar in root.traffic-today-bars: Rectangle {
-                width: 8px * LumenUiScale.factor;
-                height: 76px * LumenUiScale.factor;
+                width: 8 * LumenUiScale.unit;
+                height: 76 * LumenUiScale.unit;
                 background: transparent;
                 Rectangle {
-                    x: 0px * LumenUiScale.factor;
-                    y: parent.height - max(2px * LumenUiScale.factor, 70px * LumenUiScale.factor * bar.download-fraction);
-                    width: 3px * LumenUiScale.factor;
-                    height: max(2px * LumenUiScale.factor, 70px * LumenUiScale.factor * bar.download-fraction);
-                    border-radius: 2px * LumenUiScale.factor;
+                    x: 0 * LumenUiScale.unit;
+                    y: parent.height - max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.download-fraction);
+                    width: 3 * LumenUiScale.unit;
+                    height: max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.download-fraction);
+                    border-radius: 2 * LumenUiScale.unit;
                     background: LumenTheme.accent;
                 }
                 Rectangle {
-                    x: 4px * LumenUiScale.factor;
-                    y: parent.height - max(2px * LumenUiScale.factor, 70px * LumenUiScale.factor * bar.upload-fraction);
-                    width: 3px * LumenUiScale.factor;
-                    height: max(2px * LumenUiScale.factor, 70px * LumenUiScale.factor * bar.upload-fraction);
-                    border-radius: 2px * LumenUiScale.factor;
+                    x: 4 * LumenUiScale.unit;
+                    y: parent.height - max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.upload-fraction);
+                    width: 3 * LumenUiScale.unit;
+                    height: max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.upload-fraction);
+                    border-radius: 2 * LumenUiScale.unit;
                     background: LumenTheme.accent-soft;
                 }
             }
         }
         HorizontalLayout { spacing: LumenTheme.space-3;
             HorizontalLayout { spacing: LumenTheme.space-2; horizontal-stretch: 1;
-                Rectangle { width: 8px * LumenUiScale.factor; height: 8px * LumenUiScale.factor; border-radius: 4px * LumenUiScale.factor; background: LumenTheme.accent; }
-                Text { text: @tr("下载 ") + root.traffic-today-down; color: LumenTheme.text-primary; font-size: 12px * LumenUiScale.factor; horizontal-stretch: 1; overflow: elide; }
+                Rectangle { width: 8 * LumenUiScale.unit; height: 8 * LumenUiScale.unit; border-radius: 4 * LumenUiScale.unit; background: LumenTheme.accent; }
+                Text { text: @tr("下载 ") + root.traffic-today-down; color: LumenTheme.text-primary; font-size: 12 * LumenUiScale.unit; horizontal-stretch: 1; overflow: elide; }
             }
             HorizontalLayout { spacing: LumenTheme.space-2; horizontal-stretch: 1;
-                Rectangle { width: 8px * LumenUiScale.factor; height: 8px * LumenUiScale.factor; border-radius: 4px * LumenUiScale.factor; background: LumenTheme.accent-soft; }
-                Text { text: @tr("上传 ") + root.traffic-today-up; color: LumenTheme.text-primary; font-size: 12px * LumenUiScale.factor; horizontal-stretch: 1; horizontal-alignment: right; overflow: elide; }
+                Rectangle { width: 8 * LumenUiScale.unit; height: 8 * LumenUiScale.unit; border-radius: 4 * LumenUiScale.unit; background: LumenTheme.accent-soft; }
+                Text { text: @tr("上传 ") + root.traffic-today-up; color: LumenTheme.text-primary; font-size: 12 * LumenUiScale.unit; horizontal-stretch: 1; horizontal-alignment: right; overflow: elide; }
             }
         }
         TonalButton {

@@ -2,15 +2,16 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { OverrideCard } from "../components/models.slint";
 import { PageMeta, PageNetwork, PageAppSettings, PageOverrides } from "page_settings.slint";
+import { NetworkMode, RouteMode, RuntimeStatus, ThemeMode } from "../components/domain_enums.slint";
 
 export component PagesSettings inherits VerticalLayout {
     in property <string> page;
     in property <bool> android-platform;
     in property <bool> compact-layout;
-    in property <string> route-mode;
-    in property <string> runtime-status;
+    in property <RouteMode> route-mode;
+    in property <RuntimeStatus> runtime-status;
     in property <bool> has-current-profile;
-    in property <string> network-mode;
+    in property <NetworkMode> network-mode;
     in property <string> network-mode-label;
     in property <string> network-mode-status;
     in property <bool> network-mode-status-warning;
@@ -21,7 +22,7 @@ export component PagesSettings inherits VerticalLayout {
     in property <int> app-settings-preview-section;
     in property <bool> auto-start;
     in property <bool> refresh-current-profile-on-start;
-    in property <string> theme-mode;
+    in property <ThemeMode> theme-mode;
     in property <bool> invert-theme-foreground;
     in property <string> theme-color-code;
     in property <string> application-language;
@@ -45,8 +46,8 @@ export component PagesSettings inherits VerticalLayout {
 
     callback navigate(string);
     callback cache-back-preview();
-    callback set-route-mode(string);
-    callback set-network-mode(string);
+    callback set-route-mode(RouteMode);
+    callback set-network-mode(NetworkMode);
     callback check-core();
     callback set-auto-start(bool);
     callback set-refresh-profile-on-start(bool);

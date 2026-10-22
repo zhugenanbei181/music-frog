@@ -21,13 +21,13 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261022-v266`：现在佛 130 pt（44 条）/ 过去佛 127 pt（49 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 334 pt；已归档交付 727 pt（290 条）；累计 1061 pt，严格归档完成率 68.5%。
-- 本板 44 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261022-v267`：现在佛 141 pt（49 条）/ 过去佛 159 pt（61 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 377 pt；已归档交付 727 pt（290 条）；累计 1104 pt，严格归档完成率 65.9%。
+- 本板 44 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、CLI 终端输出与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
 
-- **执行次序（2026-10-22 重新整理）**：本板条目按 **Core-first** 排成一条可推的链——① 契约层事实（`EFFECTS-001`~`003`、`006`）→ ② 共享数学与资产（`EFFECTS-004`、`005`）→ ③ 表现层（`EFFECTS-007`~`013`）→ ④ 共享控件（`EFFECTS-014`~`020`）→ ⑤ Bevy 表面（`EFFECTS-021`~`028`）→ ⑥ Iced 表面（`EFFECTS-029`~`035`）→ ⑦ Slint 表面（`EFFECTS-036`~`041`）→ ⑧ TUI（`EFFECTS-042`~`045`）→ ⑨ 平台/移动/质量（`EFFECTS-046`~`048`）→ ⑩ a11y（`EFFECTS-049`）→ ⑪ 证据（`EFFECTS-050`）→ ⑫ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑬ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
+- **执行次序（2026-10-22 重新整理）**：本板条目按 **Core-first** 排成一条可推的链——① 契约层事实（`EFFECTS-001`~`003`、`006`）→ ② 共享数学与资产（`EFFECTS-004`、`005`）→ ③ 表现层（`EFFECTS-007`~`013`）→ ④ 共享控件（`EFFECTS-014`~`020`）→ ⑤ Bevy 表面（`EFFECTS-021`~`028`）→ ⑥ Iced 表面（`EFFECTS-029`~`035`）→ ⑦ Slint 表面（`EFFECTS-036`~`041`）→ ⑧ CLI 终端输出（`EFFECTS-042`~`045`）→ ⑨ 平台/移动/质量（`EFFECTS-046`~`048`）→ ⑩ a11y（`EFFECTS-049`）→ ⑪ 证据（`EFFECTS-050`）→ ⑫ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑬ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
 - **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
 
 - [ ] BEVYCAP-002 [kind: evidence] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] Bevy 九个业务仍缺捕获模块（17 格）
@@ -97,7 +97,6 @@
   - 验收：静态守卫拦截越出白名单的硬编码尺寸与重叠圆角角色。
   - 计划：更新 space.rs 与 radius.rs，补齐 ShadowSpec 定义。
 
-- [ ] EFFECion_spec 模块。
 
 - [ ] EFFECTS-004 [kind: math] [priority: P1] [points: 3] [owner: infiltrator-shared] [status: Planned] Oklab 感知插值与几何 SDF 数学库（#14~#17）
   - 产物：在 infiltrator-shared 实现 #14 Oklab 色彩空间感知插值算法、#15 三次贝塞尔曲线求值器、#16 RK4 弹簧状态积分器、#17 圆角矩形与药丸形解析 SDF 距离场公式库。
@@ -127,25 +126,23 @@
   - 验收：单测覆盖多种协议标签去重、日志分段解析与折行高度推导。
   - 计划：扩充 proxies_page_model 与 logs_page_model。
 
-- [ ] EFFECTS-013 [kind: presentation] [priority: P1] [points: 2] [owner: infiltrator-presentation] [st 3] [owner: infiltrator-bevy-widgets] [status: Planned] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
+- [ ] EFFECTS-013 [kind: widget] [priority: P1] [points: 2] [owner: infiltrator-bevy-widgets] [status: Planned] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
   - 产物：实现 #51 带 1px 内描边与 Level 1 柔和阴影的 ModernCard、#52 鼠标悬停 Y 轴 -1px 微位移与高光提亮反馈。
   - 依赖：EFFECTS-002。
   - 验收：多页面复用 ModernCard，悬停反馈流畅跟手无闪烁。
   - 计划：重构 infiltrator-bevy-widgets::card。
 
-- [ ] EFFECTS-015 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Plst 驱动平滑弹簧分段切换器（#55~#57）
+- [ ] EFFECTS-015 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 官方 TabList 驱动平滑弹簧分段切换器（#55~#57）
   - 产物：实现 #55 官方 TabList 驱动的平滑弹簧 SegmentedControl、#56 BorderRadius::MAX 胶囊圆角、#57 统一 Switch 控件真源（收敛轨道与旋钮）。
   - 依赖：EFFECTS-003。
   - 验收：切换 Tab 时滑动胶囊带阻尼惯性移动，Switch 几何全仓唯一。
   - 计划：更新 infiltrator-bevy-widgets::tabs 与 switch。
 
-- [ ] EFFECTS-017 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [infiltrator-bevy-widgets] [status: Planned] 列表边缘羽化遮罩、徽标与趋势图（#62~#64）
+- [ ] EFFECTS-017 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 列表边缘羽化遮罩、徽标与趋势图（#62~#64）
   - 产物：实现 #62 列表两端 16px 透明渐变羽化遮罩、#63 大写字高绝对居中 StatusBadge、#64 迷你延迟趋势图 MiniSparkline。
   - 依赖：EFFECTS-005。
   - 验收：列表滚动边缘平滑淡出不生硬切断，迷你图曲线清晰抗锯齿。
-  - 计划：实现 infiltrator-bevy-widgets::mask 与 sparkline。
-
-- [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrato: 2] [owner: infiltrator-bevy-widgets] [status: Planned] 居中模态卡片、就近操作组与抽屉（#68~#75）
+- [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 居中模态卡片、就近操作组与抽屉（#68~#75）
   - 产物：实现 #68 MODAL(24) 居中模态 ModalCard、#69 就近操作按钮组、#70 自适应 DrawerContainer、#71 智能 Tooltip、#72 骨架屏 SkeletonLoader、#73 AlertBox、#74 CodeBlock、#75 AccordionItem。
   - 依赖：EFFECTS-002。
   - 验收：抽屉滑入滑出平滑，骨架屏微光扫描动效正常，弹窗操作收敛右侧。
@@ -153,18 +150,17 @@
   - 依赖：EFFECTS-001。
   - 验收：日志与连接列表彻底移除 Row 拼凑节点，容器窄化时徽标随文自然折行。
   - 计划：重构 logs_rows.rs、connections_rows.rs 与 shell_readout.rs。
-
-- [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 官方菜单与滑块双向绑定（#79~#81）
+- [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 官方菜单与滑块双向绑定（#79~#85）
   - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENSL 着色器迁移、#83 GlassMaterial 磨砂反射材质、#84 PulseGlowMaterial 呼吸发光材质、#85 BorderStreamMaterial 边缘流光材质。
   - 依赖：EFFECTS-004。
   - 验收：WESL 着色器在桌面与移动端安全编译加载，活动节点呈现流光描边。
   - 计划：在 infiltrator-bevy-widgets::shader_fx 建立材质管线。
 
-- [ ] EFFECTS-024 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ViewTarget 离屏多 pass 降采样高斯模糊（#ent/BorderGradient、#92 动效位移走 UiTransform 避免触发 Relayout。
+- [ ] EFFECTS-024 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ViewTarget 离屏多 pass 降采样高斯模糊（#86~#89）
+  - 产物：实现 ViewTarget 离屏渲染多 pass 降采样与高斯模糊；规格区间 #86~#89 由相邻条目区间（#79~#85 与 #90~#92）推得，子项编号与逐条产物未在板面留存，不臆造。
   - 依赖：EFFECTS-002。
-  - 验收：悬停位移不触发布局树重新计算，阴影平滑多阶。
-  - 计划：更新各页面的卡片定义。
-
+  - 验收：离屏模糊在 UI 纹理上呈现柔和过渡，无锯齿与色带。
+  - 计划：在 infiltrator-bevy-ui 的 ViewTarget 管线补齐多 pass 降采样与高斯模糊。
 - [ ] EFFECTS-026 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ECS 调度 UiMotionPlugin 弹簧组件系统（#93~#97）
   - 产物：实现 #93 UiMotionPlugin 动画系统调度、#94 SpringPosition 弹簧物理积分、#95 挂载全量订阅 bevy_scene::Ready、#96 commands.despawn_all 批量退役、#97 bsn_list! 列表宏。
   - 依赖：EFFECTS-003。
@@ -265,31 +261,31 @@
   - 验收：桌面窗口呈现现代操作系统原生材质，移动端输入框自动顶起避让键盘。
   - 计划：更新 desktop.rs 与 app_chrome.slint。
 
-### 10.7 Layer 6: TUI / Ratatui 0.30 终端高阶表现与图片协议（4条 / 11pt，涵盖 #171~#185）
+### 10.7 Layer 6: CLI 终端输出表现力与能力协商（4条 / 11pt，涵盖 #172~#185）
 
-- [ ] EFFECTS-042 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Planned] Ratatui 0.30.2 升级与启动期终端协议协商（#171~#173）
-  - 产物：实现 #171 升级至 Ratatui 0.30.2 + Crossterm 0.29、#172 启动期终端能力协商探测（Truecolor/Kitty/Sixel）、#173 三级色彩（Truecolor/256/16）自动量化。
+- [ ] EFFECTS-042 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Planned] 启动期终端能力协商与三级色彩量化（#172~#173）
+  - 产物：实现 #172 启动期终端能力协商探测（Truecolor/256/16 色彩深度、Kitty/Sixel 图形协议）、#173 三级色彩（Truecolor/256/16）自动量化，并以 `infiltrator terminal capabilities|quantize` 子命令暴露协商结果。
   - 依赖：无。
   - 验收：全平台终端启动自动协商色彩与协议，无输入抢占死锁。
-  - 计划：更新 infiltrator-cli/Cargo.toml 与终端初始化逻辑。
+  - 计划：在 infiltrator-cli 内实现 terminal_capability 与 color_quantize 模块，并在进入任何交互前完成协商。
 
-- [ ] EFFECTS-043 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Planned] Unicode/Halfblock 现代边框与 ASCII 回退（#174~#175）
-  - 产物：实现 #174 Unicode 与 Halfblock 现代圆角字符边框（╭ ╮ ╯ ╰ 与双线框）、#175 unicode = simple 纯 ASCII 简易字符安全回退模式。
+- [ ] EFFECTS-043 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Planned] CLI 输出的 Unicode 字符集与纯 ASCII 降级（#174~#175）
+  - 产物：实现 #174 CLI 表格与分区输出的 Unicode 圆角/双线字符边框（╭ ╮ ╯ ╰）、#175 unicode = simple 纯 ASCII 简易字符安全回退模式，回退与否由终端能力协商结果决定。
   - 依赖：EFFECTS-042。
-  - 验收：现代终端呈现精致圆角线框，老旧或受限终端自动回退纯 ASCII 结构。
-  - 计划：实现 cli/ui/borders.rs。
+  - 验收：现代终端呈现圆角线框，老旧或受限终端自动回退纯 ASCII 结构。
+  - 计划：在 infiltrator-cli 内实现字符集选择与输出渲染。
 
-- [ ] EFFECTS-044 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Planned] tachyonfx 局部单元格动效与 ratatui-image 协议（#176~#180）
-  - 产物：实现 #176 tachyonfx 0.25.2 局部轻量状态转场动效、#177 动效范围严格局限与即停机制、#178 ratatui-image 11.1.0 协议图片渲染、#179 Halfblock 字符艺术回退、#180 Braille 盲文高密度流量波形图。
+- [ ] EFFECTS-044 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Planned] 终端字符动效与字符图表（#176~#180）
+  - 产物：实现 #176 CLI 输出的轻量状态转场动效（就地刷新、结束后立即停止）、#177 动效范围严格局限与即停机制、#178 终端图片的字符艺术回退、#179 Halfblock 字符艺术回退、#180 Braille 盲文高密度流量波形图。
   - 依赖：EFFECTS-042。
   - 验收：状态变更带轻量字符扫光动效，动效完成立即停止 tick，图表波形精细。
-  - 计划：实现 cli/ui/fx.rs 与 cli/ui/chart.rs。
+  - 计划：在 infiltrator-cli 内实现终端动效与字符图表，不引入外部动效或图片库。
 
-- [ ] EFFECTS-045 [kind: tui] [priority: P1] [points: 2] [owner: infiltrator-cli] [status: Planned] 全键盘效率操作、居中浮动弹窗与恢复守卫（#181~#185）
-  - 产物：实现 #181 Vim 风格全键盘快捷键常驻提示、#182 居中浮动弹窗与半透明暗色遮罩、#183 CJK 宽字符与 Emoji 对齐校准、#184 Panic Raw Mode 自动恢复守卫、#185 infiltrator-tui.toml 配置覆盖。
+- [ ] EFFECTS-045 [kind: tui] [priority: P1] [points: 2] [owner: infiltrator-cli] [status: Planned] 终端输出守卫、字符对齐校准与配置覆盖（#181~#185）
+  - 产物：实现 #181 终端输出状态守卫（颜色/光标/回显在正常结束、提前返回与 panic 时必定恢复）、#182 输出分区与居中的降级策略、#183 CJK 宽字符与 Emoji 对齐校准、#184 panic 钩子里的终端恢复、#185 终端输出配置覆盖（infiltrator-terminal.toml）。
   - 依赖：EFFECTS-042。
   - 验收：中英文字符对齐无跳行，程序即使崩溃也能 100% 恢复光标与终端回显。
-  - 计划：实现 cli/ui/key_hints.rs 与 terminal_guard.rs。
+  - 计划：在 infiltrator-cli 内实现 terminal_guard 与字符宽度校准。
 
 ### 10.8 Layer 7: 跨平台集成、动态降级策略与实机取证（5条 / 15pt，涵盖 #186~#200）
 
@@ -365,7 +361,7 @@
   - 验收：双视口下动态数据刷新无字符拉扯跳动，长字符安全截断，基线对齐。
   - 计划：引入 tnum 字体配置与 elide 属性，校准 cards.slint 的 HorizontalLayout 对齐。
 
-## 十、跨平台 GUI/TUI 表现深化 200 点自底向上攻坚（报告实施，50条 / 145pt）
+## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施，50条 / 145pt）
 
 ### 10.1 Layer 0: 底层数学、动效参数与跨端 Token 契约层（6条 / 17pt，涵盖 #1~#25）
 
@@ -387,3 +383,40 @@
   - **5 项未交付（确切原因）**：① `editor-large-document-window`/`editor-snippet-insertion`——编辑页窄档**不滚动**，文档面板被工具条与横幅挤出 480px 折叠线，业务像素不可观测（修法：窄档让编辑页像 App Routing 一样滚动并给文档/行号槽加 region；demo 手势已就绪，`ProfileStoreCapture::CAPTURE_LARGE_PROFILE` 4 000 条规则）；② `rules-provider-refresh-error`——demo 的规则提供者 fixture 带 `controller: None`，页面**没有可按的刷新控件**，须发布带 `RuleProviderControllerReference` 的提供者并经命令门面拒绝刷新（共用订阅错误那条 region）；③ `sync-restore-confirm`——Iced 同步页**根本没有快照恢复业务**（不渲染快照列表、不投恢复动作，共享 `SyncPageSnapshot.snapshots` 未投影），不伪造手势：要么表面补该业务，要么目录诚实写"该表面不承载"；④ `overview-topology-drilldown`——手势与就绪判据**已工作**（下钻落到共享导航目标），但捕获标记发布的是**已挂载的路由**（`rules`）而目录写的捕获页是 `overview`，属共享目录缺陷。
   - 共享改动需求（契约级，须一次落地）：① `crates/infiltrator-contract/src/parity.rs` 的 `OverviewTopologyDrilldown` 行把捕获页由 `overview` 改为 `rules`（Iced 下钻落到规则页；Bevy 是概览页原位面板，保持 `overview`）；② `SyncRestoreConfirm` 行按"该表面不承载"改为空页（或表面补业务后保持 `sync`）；③ `scripts/capture_iced_scenarios.tsv` 补 16 行新业务场景（app-routing-policy-editor / profiles-subscription-error / profiles-aggregator-preview / profiles-script-sandbox / profiles-script-export-review / profiles-diff-viewer / editor-yaml-error-navigation / sync-conflict-resolver，各 standard+compact）。
   - `UI-FRAMEWORK-001` ⑥（Iced 规则虚拟窗口改官方 `iced::widget::lazy`）**未交付并附证据**：开了 `lazy` feature 后规则页**整片渲染为空**（分页器仍报"15 rules"）；逐段二分（每次都是真实捕获）：纯 `text` 的段渲染、`column![text]` 的段渲染、**含 `Length::Fill` 子项的行渲染为空**、同一段放在 lazy 外渲染正确（`rules-dark.png` 与 HEAD 逐字节相同）；给段 `Length::Fill` 无效。结论：iced 0.14.2 的 `lazy` 会压掉规则行的 fill 宽度，故保留表面正确、**不开这个死依赖**；要落地必须让该带不含 `Length::Fill`（用共享内容宽度的固定宽）或修上游——属产品决定。
+## 十一、工程约束门禁补齐（2026-10-22，lint 继承与版本继承）
+
+- [ ] ENG-001.8 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Planned] 工作区统一 lint 继承：根 `[workspace.lints]` + 全成员 `[lints] workspace = true`
+  - 产物：根 manifest 落 `[workspace.lints]`（rustc 与 clippy 禁止项各一组），48 个成员 manifest 统一改为 `[lints] workspace = true`，成员内重复的 lint 配置删除。
+  - 依赖：需要 48 个成员 manifest 与根 manifest 的独占写窗口——当前工作树有 21 个成员 manifest 与根 manifest 被另一会话持有（版本 pin 与工作区版本改动），按同仓多会话所有权纪律不得插入。
+  - 验收：`cargo clippy --workspace --all-targets -- -D warnings` 全绿；新增 lint 继承守卫证明每个成员都从工作区继承。
+  - 事实依据：2026-10-22 实测——全仓 `[workspace.lints]` 为 0 处、成员各自硬写配置；`unsafe_code = "forbid"` 不适用本仓（61 处 unsafe 是真 FFI：libc flock、Windows API、JNI、zeroize、edition 2024 的 `env::set_var`），故只继承与收紧 lint，不 forbid unsafe。
+  - 计划：取得独占窗口后一次性落地 48 个 manifest，同批改完不拆半改。
+
+- [ ] ENG-001.9 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Planned] 成员 manifest 的 `edition` 与 `rust-version` 继承到 `[workspace.package]`
+  - 产物：根 manifest 落 `[workspace.package] edition = "2024"` 与 `rust-version = "1.99.0"`，48 个成员 manifest 删除各自硬写的 `edition` 行并继承 `rust-version`。
+  - 依赖：同 `ENG-001.8` 的独占写窗口。
+  - 验收：`scripts/quality/toolchain-consistency-guard.py` 证明各 manifest 的 `rust-version` 与 `rust-toolchain.toml` 同版本；`cargo metadata --locked` 与工作区编译全绿。
+  - 事实依据：2026-10-22 实测——`rust-version` 全仓 0 处出现，`edition = "2024"` 在 35 个 crate 硬写重复；工具链版本已由 `rust-toolchain.toml` 统一，成员 manifest 尚未继承。
+  - 计划：与 `ENG-001.8` 同批落地，避免两次改同一批 manifest。
+### 11.1 错误类型纪律与可选审计工具（2026-10-22 实测登记）
+
+- [ ] ENG-002.1 [kind: cleanup] [priority: P1] [points: 1] [owner: infiltrator-contract] [status: Planned] 删除 `infiltrator-contract` 的未使用 `anyhow` 依赖
+  - 产物：`crates/infiltrator-contract/Cargo.toml` 去掉 `anyhow = { workspace = true }`；契约层保持零 `anyhow` 引用（它现在是契约层的错误类型纪律边界）。
+  - 依赖：无（单文件 manifest 改动，但需独占该 manifest 的写窗口）。
+  - 验收：`cargo check -p infiltrator-contract --all-targets` 全绿；`grep -rn anyhow crates/infiltrator-contract` 零命中。
+  - 事实依据：2026-10-22 实测——该 crate 声明了 anyhow 依赖但 src/tests/build.rs 内 0 处引用；同一纪律下 `infiltrator-ports`、`infiltrator-application`、`infiltrator-presentation` 本来就不声明该依赖。
+  - 计划：与 `ENG-001.8`／`ENG-001.9` 的 manifest 批次同次改完，避免二次动同一批 manifest。
+
+- [ ] ENG-002.2 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-domain + infiltrator-core] [status: Planned] domain / core 层的 `anyhow` 收敛到 typed 错误
+  - 产物：`infiltrator-domain`（31 文件 / 208 处引用）与 `infiltrator-core`（22 文件 / 167 处引用）的错误类型从 `anyhow::Result` 收敛为每层一个 typed 错误枚举（可复用的失败类别 + 上下文），边界处保留一处 `From<anyhow::Error>` 收敛（`lurker-core-contract` 已有该范式）。
+  - 依赖：`infiltrator-domain` 与 `infiltrator-core` 的独占写窗口；需按 owner 分层逐个 crate 推进，不跨层并行改同一批文件。
+  - 验收：两个 crate 内 `anyhow` 引用归零或只剩边界收敛处；工作区 `cargo nextest` 全绿；契约层错误类型零变化（对外错误面不得因本条漂移）。
+  - 事实依据：2026-10-22 实测——`infiltrator-contract`/`infiltrator-ports`/`infiltrator-application`/`infiltrator-presentation` 的 anyhow 引用均为 0，只有 domain 与 core 两层大面积使用，错误类型纪律目前只在两层失守。
+  - 计划：先 domain 后 core，每层一个纵切批次；每批补齐失败类别的行为测试再迁调用点。
+
+- [ ] ENG-002.3 [kind: evidence] [priority: P2] [points: 2] [owner: workspace] [status: Planned] 覆盖率与变异测试作为可选审计证据接入
+  - 产物：本地可跑的覆盖率报告（`cargo llvm-cov`）与关键 crate 的变异测试（`cargo mutants`）入口写入根目录的测试与证据文档，先出基线报告再谈门槛；不把覆盖率数字写进结构门，避免用数字替代行为证据。
+  - 依赖：cargo 专责流统一执行（覆盖率与变异测试是重 cargo 任务，按并行纪律统一跑一次）。
+  - 验收：文档入口可复跑；基线报告归档到本地证据目录；如发现真实行为缺口，按缺陷回流现在佛登记。
+  - 事实依据：2026-10-22 实测——本机已装 `cargo-llvm-cov` 与 `cargo-mutants`，但仓库无任何覆盖率或变异测试入口，测试证据只有「跑通/没跑通」两层。
+  - 计划：先出一次覆盖率基线报告，再决定是否对核心 crate 开变异测试门槛。

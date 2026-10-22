@@ -7,6 +7,7 @@ import {
     AppPreferenceGroup, AppPreferenceRow, SettingRow
 } from "../components/base_widgets.slint";
 import { SectionCard } from "../components/cards.slint";
+import { NetworkMode, RouteMode, RuntimeStatus, ThemeMode } from "../components/domain_enums.slint";
 
 export component PageSettings inherits VerticalLayout {
     in property <bool> android-platform;
@@ -21,17 +22,17 @@ export component PageSettings inherits VerticalLayout {
     spacing: LumenTheme.space-2;
     alignment: start;
 
-    Text { text: @tr("界面设置"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    Text { text: @tr("界面设置"); color: LumenTheme.accent; font-size: 16 * LumenUiScale.unit; font-weight: 600; }
     SectionCard {
-        heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
-        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("应用"); detail: @tr("主题、语言与启动行为"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-app.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppSettings"); } }
-        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("网络"); detail: @tr("代理模式、核心与平台接管"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
-        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("覆写"); detail: @tr("YAML 与规则覆写"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/list-checks-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Overrides"); } }
-        SettingRow { min-height: 76px * LumenUiScale.factor; preferred-height: 76px * LumenUiScale.factor; label: @tr("Meta 功能"); detail: @tr("连接、日志、规则和流量统计"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-meta.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Meta"); } }
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: 8 * LumenUiScale.unit; border-width: 0 * LumenUiScale.unit;
+        SettingRow { min-height: 76 * LumenUiScale.unit; preferred-height: 76 * LumenUiScale.unit; label: @tr("应用"); detail: @tr("主题、语言与启动行为"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-app.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppSettings"); } }
+        SettingRow { min-height: 76 * LumenUiScale.unit; preferred-height: 76 * LumenUiScale.unit; label: @tr("网络"); detail: @tr("代理模式、核心与平台接管"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
+        SettingRow { min-height: 76 * LumenUiScale.unit; preferred-height: 76 * LumenUiScale.unit; label: @tr("覆写"); detail: @tr("YAML 与规则覆写"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/list-checks-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Overrides"); } }
+        SettingRow { min-height: 76 * LumenUiScale.unit; preferred-height: 76 * LumenUiScale.unit; label: @tr("Meta 功能"); detail: @tr("连接、日志、规则和流量统计"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-meta.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Meta"); } }
     }
-    Text { text: @tr("更多"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    Text { text: @tr("更多"); color: LumenTheme.accent; font-size: 16 * LumenUiScale.unit; font-weight: 600; }
     SectionCard {
-        heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: 8 * LumenUiScale.unit; border-width: 0 * LumenUiScale.unit;
         SettingRow { label: @tr("DNS"); detail: @tr("泄漏检测、查询、缓存与 Hosts"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Dns"); } }
         SettingRow { label: @tr("编辑器"); detail: @tr("脚本沙箱、导出评审、差异与快照恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/edit.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Editor"); } }
         SettingRow { label: @tr("过滤与聚合"); detail: @tr("订阅过滤与配置聚合向导"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/search.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Filters"); } }
@@ -40,14 +41,14 @@ export component PageSettings inherits VerticalLayout {
         SettingRow { label: @tr("应用路由"); detail: @tr("按应用分流的策略编辑"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-app.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppRouting"); } }
     }
     SectionCard {
-        heading: ""; detail: ""; content-spacing: 0px * LumenUiScale.factor; vertical-padding: 8px * LumenUiScale.factor; border-width: 0px * LumenUiScale.factor;
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: 8 * LumenUiScale.unit; border-width: 0 * LumenUiScale.unit;
         SettingRow { label: @tr("关于"); detail: @tr("版本与许可证"); badge: "v0.1.0"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/setting-about.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("About"); } }
         if root.layout-debug-tools-enabled: CheckBox {
             text: @tr("显示布局边界（调试）");
             checked: root.layout-debug-bounds;
             toggled => { root.layout-debug-bounds = self.checked; }
         }
-        if root.layout-debug-bounds: Text { text: @tr("洋红：外框 · 青色：内容区/输入框 · 蓝色：图标框"); color: LumenTheme.text-secondary; font-size: 11px * LumenUiScale.factor; wrap: word-wrap; }
+        if root.layout-debug-bounds: Text { text: @tr("洋红：外框 · 青色：内容区/输入框 · 蓝色：图标框"); color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; wrap: word-wrap; }
     }
 }
 
@@ -62,17 +63,17 @@ export component PageMeta inherits VerticalLayout {
     spacing: LumenTheme.space-3;
     alignment: start;
 
-    Text { text: @tr("运行观测"); color: LumenTheme.accent; font-size: 16px * LumenUiScale.factor; font-weight: 600; }
+    Text { text: @tr("运行观测"); color: LumenTheme.accent; font-size: 16 * LumenUiScale.unit; font-weight: 600; }
     SectionCard {
         heading: ""; detail: "";
         SettingRow { label: @tr("连接"); detail: @tr("查看并管理活动连接"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/network-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
-        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
         SettingRow { label: @tr("日志"); detail: @tr("筛选和导出 Mihomo 日志"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/logs-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Logs"); } }
-        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
         SettingRow { label: @tr("运行规则"); detail: @tr("查看和临时启停规则"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/list-checks-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Rules"); } }
-        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
         SettingRow { label: @tr("流量统计"); detail: @tr("查看今日和本周流量"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/traffic-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Traffic"); } }
-        Rectangle { width: parent.width; height: 1px * LumenUiScale.factor; background: LumenTheme.border; }
+        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
         SettingRow { label: @tr("Providers"); detail: @tr("更新代理与规则提供者"); icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/providers-white.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Providers"); } }
     }
 }
@@ -80,10 +81,10 @@ export component PageMeta inherits VerticalLayout {
 export component PageNetwork inherits VerticalLayout {
     in property <bool> compact-layout;
     in property <bool> android-platform;
-    in property <string> route-mode;
-    in property <string> runtime-status;
+    in property <RouteMode> route-mode;
+    in property <RuntimeStatus> runtime-status;
     in property <bool> has-current-profile;
-    in property <string> network-mode;
+    in property <NetworkMode> network-mode;
     in property <string> network-mode-label;
     in property <string> network-mode-status;
     in property <bool> network-mode-status-warning;
@@ -94,57 +95,57 @@ export component PageNetwork inherits VerticalLayout {
     in property <string> core-version;
     in property <bool> proxy-recovery-pending;
 
-    callback set-route-mode(string);
+    callback set-route-mode(RouteMode);
     callback start-runtime();
     callback stop-runtime();
-    callback set-network-mode(string);
-    callback open-network-dialog(string);
+    callback set-network-mode(NetworkMode);
+    callback open-network-dialog(NetworkMode);
     callback check-core();
     callback retry-proxy-restore();
 
     width: 100%;
-    spacing: 16px * LumenUiScale.factor;
+    spacing: 16 * LumenUiScale.unit;
 
     SectionCard {
         heading: @tr("代理模式"); detail: @tr("应用后由 Mihomo 核心回读实际模式。");
         SegmentedButton {
-            width: max(0px * LumenUiScale.factor, parent.width - 2 * LumenTheme.space-4);
-            height: 48px * LumenUiScale.factor;
+            width: max(0 * LumenUiScale.unit, parent.width - 2 * LumenTheme.space-4);
+            height: 48 * LumenUiScale.unit;
             items: [{ text: @tr("规则") }, { text: @tr("全局") }, { text: @tr("直连") }];
-            current-index: root.route-mode == "Rule" ? 0 : root.route-mode == "Global" ? 1 : 2;
-            index-changed(index) => { root.set-route-mode(index == 0 ? "Rule" : index == 1 ? "Global" : "Direct"); }
+            current-index: root.route-mode == RouteMode.rule ? 0 : root.route-mode == RouteMode.global ? 1 : 2;
+            index-changed(index) => { root.set-route-mode(index == 0 ? RouteMode.rule : index == 1 ? RouteMode.global : RouteMode.direct); }
         }
     }
     SectionCard {
         heading: @tr("运行模式"); detail: root.compact-layout ? @tr("Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。") : @tr("桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。");
         if root.compact-layout: HorizontalLayout {
             Button {
-                text: root.runtime-status == "Running" ? @tr("停止 VPN") : @tr("启动 VPN");
-                enabled: root.runtime-status == "Running" || root.has-current-profile;
-                clicked => { if root.runtime-status == "Running" { root.stop-runtime(); } else { root.start-runtime(); } }
+                text: root.runtime-status == RuntimeStatus.running ? @tr("停止 VPN") : @tr("启动 VPN");
+                enabled: root.runtime-status == RuntimeStatus.running || root.has-current-profile;
+                clicked => { if root.runtime-status == RuntimeStatus.running { root.stop-runtime(); } else { root.start-runtime(); } }
             }
-            Text { text: root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13px * LumenUiScale.factor; vertical-alignment: center; wrap: word-wrap; horizontal-stretch: 1; }
+            Text { text: root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13 * LumenUiScale.unit; vertical-alignment: center; wrap: word-wrap; horizontal-stretch: 1; }
         }
         if !root.compact-layout: HorizontalLayout {
             Button {
-                text: root.network-mode == "System Proxy" ? @tr("系统代理 ✓") : @tr("系统代理");
-                enabled: root.network-mode != "System Proxy";
+                text: root.network-mode == NetworkMode.system-proxy ? @tr("系统代理 ✓") : @tr("系统代理");
+                enabled: root.network-mode != NetworkMode.system-proxy;
                 clicked => {
-                    if root.runtime-status == "Running" { root.open-network-dialog("System Proxy"); }
-                    else { root.set-network-mode("System Proxy"); }
+                    if root.runtime-status == RuntimeStatus.running { root.open-network-dialog(NetworkMode.system-proxy); }
+                    else { root.set-network-mode(NetworkMode.system-proxy); }
                 }
             }
             Button {
-                text: root.network-mode == "TUN" ? "TUN ✓" : "TUN";
-                enabled: root.tun-capable && root.network-mode != "TUN";
+                text: root.network-mode == NetworkMode.tun ? "TUN ✓" : "TUN";
+                enabled: root.tun-capable && root.network-mode != NetworkMode.tun;
                 clicked => {
-                    if root.runtime-status == "Running" { root.open-network-dialog("TUN"); }
-                    else { root.set-network-mode("TUN"); }
+                    if root.runtime-status == RuntimeStatus.running { root.open-network-dialog(NetworkMode.tun); }
+                    else { root.set-network-mode(NetworkMode.tun); }
                 }
             }
         }
-        if !root.compact-layout: Text { text: @tr("当前选择：") + root.network-mode-label + " · " + root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
-        if !root.compact-layout: Text { text: root.tun-capability-detail; color: root.tun-capable ? LumenTheme.text-muted : LumenTheme.status-warning; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
+        if !root.compact-layout: Text { text: @tr("当前选择：") + root.network-mode-label + " · " + root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+        if !root.compact-layout: Text { text: root.tun-capability-detail; color: root.tun-capable ? LumenTheme.text-muted : LumenTheme.status-warning; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
     }
     SectionCard {
         heading: root.lan-sharing-heading;
@@ -165,7 +166,7 @@ export component PageAppSettings inherits VerticalLayout {
     in property <int> app-settings-preview-section;
     in property <bool> auto-start;
     in property <bool> refresh-current-profile-on-start;
-    in property <string> theme-mode;
+    in property <ThemeMode> theme-mode;
     in property <bool> invert-theme-foreground;
     in property <string> theme-color-code;
     in property <string> application-language;
@@ -197,12 +198,12 @@ export component PageAppSettings inherits VerticalLayout {
     callback show-message(string);
 
     width: 100%;
-    spacing: 0px * LumenUiScale.factor;
+    spacing: 0 * LumenUiScale.unit;
     alignment: start;
 
     if root.app-settings-preview-section < 0: Text {
-        x: 18px * LumenUiScale.factor; text: @tr("应用设置"); font-size: 34px * LumenUiScale.factor; color: LumenTheme.text-primary;
-        min-height: 64px * LumenUiScale.factor; preferred-height: 64px * LumenUiScale.factor; vertical-alignment: center;
+        x: 18 * LumenUiScale.unit; text: @tr("应用设置"); font-size: 34 * LumenUiScale.unit; color: LumenTheme.text-primary;
+        min-height: 64 * LumenUiScale.unit; preferred-height: 64 * LumenUiScale.unit; vertical-alignment: center;
     }
     if root.app-settings-preview-section < 0 || root.app-settings-preview-section == 0: AppPreferenceGroup {
         heading: @tr("行为");
@@ -211,7 +212,7 @@ export component PageAppSettings inherits VerticalLayout {
     }
     if root.app-settings-preview-section < 0 || root.app-settings-preview-section == 1: AppPreferenceGroup {
         heading: @tr("主题配色");
-        AppPreferenceRow { label: @tr("主题模式"); value: root.theme-mode == "light" ? @tr("浅色") : root.theme-mode == "dark" ? @tr("深色") : root.theme-mode == "forest" ? @tr("护眼森林") : root.theme-mode == "amoled" ? "AMOLED" : @tr("跟随系统"); expand: true; clicked => { root.open-theme-menu(self.absolute-position.x + self.width, self.absolute-position.y + self.height); } }
+        AppPreferenceRow { label: @tr("主题模式"); value: root.theme-mode == ThemeMode.light ? @tr("浅色") : root.theme-mode == ThemeMode.dark ? @tr("深色") : root.theme-mode == ThemeMode.forest ? @tr("护眼森林") : root.theme-mode == ThemeMode.amoled ? "AMOLED" : @tr("跟随系统"); expand: true; clicked => { root.open-theme-menu(self.absolute-position.x + self.width, self.absolute-position.y + self.height); } }
         AppPreferenceRow { label: @tr("反转主题前景色"); toggle: true; checked: root.invert-theme-foreground; toggled(value) => { root.set-invert-theme-foreground(value); } }
         AppPreferenceRow { label: @tr("主题配色"); detail: @tr("当前主题色：") + root.theme-color-code; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/palette.svg"); clicked => { root.open-theme-color-dialog(); } }
         AppPreferenceRow { label: @tr("应用语言"); value: root.application-language == "en" ? "English" : root.application-language == "zh-CN" ? @tr("简体中文") : (root.system-language == "en" ? "English" : @tr("简体中文")); expand: true; clicked => { root.open-language-menu(self.absolute-position.x + self.width, self.absolute-position.y + self.height); } }
@@ -258,7 +259,7 @@ export component PageOverrides inherits VerticalLayout {
     callback delete-override(string);
 
     width: 100%;
-    spacing: 16px * LumenUiScale.factor;
+    spacing: 16 * LumenUiScale.unit;
 
     SectionCard {
         heading: @tr("新建 YAML Override"); detail: @tr("仅用户 Override 可编辑；JavaScript 尚未通过安全沙箱验证，因此不执行。");
@@ -267,9 +268,9 @@ export component PageOverrides inherits VerticalLayout {
             LineEdit { placeholder-text: @tr("HTTP/HTTPS YAML 链接"); text <=> root.override-url; input-type: password; enabled: !root.override-importing; horizontal-stretch: 1; }
             Button { text: root.override-importing ? @tr("正在导入…") : @tr("从链接导入"); enabled: !root.override-importing && root.override-url != ""; clicked => { root.import-override-url(root.override-url); } }
         }
-        if root.override-import-error != "": Text { text: root.override-import-error; color: #B3261E; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
-        if root.override-importing: Text { text: @tr("正在导入并校验 YAML Override…"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; }
-        TextEdit { text <=> root.override-body; placeholder-text: @tr("填写 YAML 覆写内容"); height: 150px * LumenUiScale.factor; }
+        if root.override-import-error != "": Text { text: root.override-import-error; color: #B3261E; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.override-importing: Text { text: @tr("正在导入并校验 YAML Override…"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; }
+        TextEdit { text <=> root.override-body; placeholder-text: @tr("填写 YAML 覆写内容"); height: 150 * LumenUiScale.unit; }
         HorizontalLayout {
             Button { text: root.override-edit-id == "" ? @tr("创建覆写") : @tr("保存覆写"); clicked => {
                 if root.override-edit-id == "" { root.add-override(root.override-name, root.override-body); }

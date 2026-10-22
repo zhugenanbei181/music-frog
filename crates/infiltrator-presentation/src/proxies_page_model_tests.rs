@@ -1,8 +1,8 @@
 //! test-intent: behavior
 use crate::filter_query::{FilterQuery, LatencyBound};
 use crate::proxies_page_model::{
-    PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterTarget, proxy_name_runs, proxy_protocol_chip,
-    sort_option_at, sort_option_index,
+    PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterTarget, proxy_feature_tags, proxy_name_runs,
+    proxy_protocol_chip, sort_option_at, sort_option_index,
 };
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
 use lurker_core_contract::outbound::preferences::{OutboundHealthFilter, OutboundSortOrder};
@@ -280,4 +280,18 @@ fn the_name_highlight_follows_the_shared_match_rule() {
     // The empty query highlights nothing.
     let runs = proxy_name_runs("Hong Kong 01", &FilterQuery::MatchAll);
     assert!(!runs.iter().any(|run| run.highlighted));
+}
+
+#[test]
+fn the_feature_tags_are_reduced_to_one_chip_each() {
+    let tags = vec![
+        "UDP".to_owned(),
+        "udp".to_owned(),
+        "  ".to_owned(),
+        "IPv6".to_owned(),
+        "udp".to_owned(),
+    ];
+    let reduced = proxy_feature_tags(&tags);
+    assert_eq!(reduced, vec!["UDP".to_owned(), "IPv6".to_owned()]);
+    assert!(proxy_feature_tags(&[]).is_empty());
 }

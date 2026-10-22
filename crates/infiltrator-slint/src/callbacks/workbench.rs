@@ -49,9 +49,16 @@ pub(super) fn register(
                 // A command no shared reducer owns is recorded as well, so
                 // the surface still waits for its terminal.
                 if let SlintAction::Command(intent) = &owner_action {
-                    workbenches_for_action.record(workbench::owner_business(intent));
+                    workbenches_for_action.record(workbench::owner_business_for(&action, intent));
                 }
                 queue_action(&tx_for_action, &weak_for_action, Ok(owner_action));
+                // The command is on its way to the owner, so the panel that
+                // owns the business shows its pending phase right away. The
+                // owner still owes its terminal, so the panel waits for it
+                // instead of showing a state the owner never published.
+                if let Some(snapshot) = snapshot.as_ref() {
+                    lumen_projection::project_workbench(&window, snapshot, &workbenches_for_action);
+                }
             }
             Ok(WorkbenchOutcome::Refresh) => {
                 // The owner publishes its read models on its own cadence; a
@@ -117,6 +124,11 @@ fn edit_draft(workbenches: &Workbenches, id: &str, value: String) {
         "app-routing-rule" => {
             if let Ok(mut drafts) = workbenches.drafts.lock() {
                 drafts.set_routing_rule(value);
+            }
+        }
+        "command-query" => {
+            if let Ok(mut drafts) = workbenches.drafts.lock() {
+                drafts.set_command_query(value);
             }
         }
         _ => {}

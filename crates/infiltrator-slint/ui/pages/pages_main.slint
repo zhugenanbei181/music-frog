@@ -5,6 +5,7 @@ import { PageHome } from "page_home.slint";
 import { PageConfig, PageProfileSettings } from "page_profiles.slint";
 import { PageProxies } from "page_proxies.slint";
 import { PageSettings } from "page_settings.slint";
+import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 
 export component PagesMain inherits VerticalLayout {
     in property <string> page;
@@ -20,7 +21,7 @@ export component PagesMain inherits VerticalLayout {
     in property <length> home-data-upload-gap;
     in property <length> home-before-node-gap;
     in property <length> home-node-egress-gap;
-    in property <string> runtime-status;
+    in property <RuntimeStatus> runtime-status;
     in property <string> active-profile;
     in property <bool> has-current-profile;
     in property <string> network-mode-label;
@@ -60,7 +61,7 @@ export component PagesMain inherits VerticalLayout {
     in property <[ProfileOverrideChoice]> profile-settings-overrides;
 
     // Proxies properties
-    in property <string> route-mode;
+    in property <RouteMode> route-mode;
     in property <string> selected-group;
     in property <string> proxy-testing-group;
     in property <string> proxy-testing-node;
@@ -90,8 +91,9 @@ export component PagesMain inherits VerticalLayout {
     callback search-proxy-nodes(string);
     callback test-proxy(string, string);
     callback open-sort-menu();
-    callback set-route-mode(string);
+    callback set-route-mode(RouteMode);
     callback refresh-home-egress();
+    callback open-overview-order();
 
     width: 100%;
     alignment: start;
@@ -141,6 +143,7 @@ export component PagesMain inherits VerticalLayout {
         navigate(t) => { root.navigate(t); }
         cache-back-preview => { root.cache-back-preview(); }
         refresh-home-egress => { root.refresh-home-egress(); }
+        open-overview-order => { root.open-overview-order(); }
     }
 
     if root.page == "Config": PageConfig {

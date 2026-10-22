@@ -117,6 +117,15 @@ pub(crate) enum InteractionRegion {
     YamlSyntaxAlert,
     /// The sync conflict merge panel of the sync page.
     SyncConflictMerge,
+    /// The document slot of the editor page: the bounded window the document
+    /// widget renders, together with its line-number gutter.
+    EditorDocument,
+    /// The line-number gutter of the editor's document slot.
+    EditorGutter,
+    /// The save-status line of the editor page.
+    EditorStatus,
+    /// The pending phase the doctor page renders while a diagnostic runs.
+    DoctorProgress,
 }
 impl InteractionRegion {
     pub fn id(self) -> Id {
@@ -228,6 +237,10 @@ impl InteractionRegion {
             Self::SnapshotDiff => "snapshot-diff",
             Self::YamlSyntaxAlert => "yaml-syntax-alert",
             Self::SyncConflictMerge => "sync-conflict-merge",
+            Self::EditorDocument => "editor-document",
+            Self::EditorGutter => "editor-gutter",
+            Self::EditorStatus => "editor-status",
+            Self::DoctorProgress => "doctor-progress",
         })
     }
 }

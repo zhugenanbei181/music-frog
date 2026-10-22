@@ -1,4 +1,5 @@
 import { ThemeColorSheet, PageScaleSheet, UserAgentSheet, NetworkModeConfirmDialog } from "./settings_sheets.slint";
+import { NetworkMode } from "./domain_enums.slint";
 
 export component SettingsOverlays inherits Rectangle {
     in property <length> profile-dialog-content-width;
@@ -11,9 +12,11 @@ export component SettingsOverlays inherits Rectangle {
     in property <string> product-version;
     in property <string> theme-color-error;
     in property <bool> theme-color-saving;
+    // The draft lives here, not in the dialog: a popup window only
+    // exposes its built-in members to the enclosing component.
+    in-out property <NetworkMode> network-mode-draft: NetworkMode.system-proxy;
     in property <string> user-agent-error;
     in property <bool> user-agent-saving;
-    in property <string> network-mode-draft-label;
 
     in-out property <float> theme-hue-draft;
     in-out property <float> theme-saturation-draft;
@@ -31,7 +34,7 @@ export component SettingsOverlays inherits Rectangle {
     callback close-user-agent();
     callback save-user-agent(string);
     callback cancel-network-mode();
-    callback confirm-network-mode();
+    callback confirm-network-mode(NetworkMode);
 
     background: transparent;
 
@@ -93,15 +96,15 @@ export component SettingsOverlays inherits Rectangle {
     // popup owns the open/close lifecycle and this property only reads it.
     out property <bool> network-mode-dialog-open: network-mode-dialog.is-open;
 
-    public function show-network-mode() { network-mode-dialog.show(); }
+    public function show-network-mode(draft: NetworkMode) { root.network-mode-draft = draft; network-mode-dialog.show(); }
     public function close-network-mode() { network-mode-dialog.close(); }
 
     network-mode-dialog := NetworkModeConfirmDialog {
         width: root.width;
         height: root.height;
         compact-layout: root.compact-layout;
-        network-mode-draft-label: root.network-mode-draft-label;
+        draft: root.network-mode-draft;
         cancel => { root.cancel-network-mode(); }
-        confirm => { root.confirm-network-mode(); }
+        confirm(mode) => { root.confirm-network-mode(mode); }
     }
 }

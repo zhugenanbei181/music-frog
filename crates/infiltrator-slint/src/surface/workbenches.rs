@@ -5,6 +5,7 @@
 //! Slint surface never re-implements one of those state machines: it projects
 //! the reducer and turns a gesture into the shared typed command.
 
+use crate::surface::business::{BusinessId, SharedBusinessPanels};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
 use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
@@ -14,6 +15,7 @@ use infiltrator_presentation::script_workbench::ScriptWorkbench;
 use infiltrator_presentation::snapshot_restore_workbench::SnapshotRestoreWorkbench;
 use infiltrator_presentation::subscription_filter_editor::SubscriptionFilterEditor;
 use lurker_core_contract::error::Failure;
+use lurker_ui_presentation::log_follow::LogFollowState;
 use std::collections::VecDeque;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -38,6 +40,8 @@ pub enum PendingBusiness {
     Restore,
     /// The subscription filter editor.
     Filter,
+    /// One business panel of a workbench page.
+    Business(BusinessId),
 }
 
 /// The drafts of the panels that no shared reducer owns.
@@ -54,6 +58,8 @@ pub struct PanelDrafts {
     aggregation_target: String,
     /// The routing rule the policy editor applies to one application.
     routing_rule: String,
+    /// The query the user typed into the command palette.
+    command_query: String,
 }
 
 impl PanelDrafts {
@@ -100,6 +106,21 @@ impl PanelDrafts {
     /// Forgets the routing rule.
     pub fn clear_routing_rule(&mut self) {
         self.routing_rule.clear();
+    }
+
+    /// The query the user typed into the command palette.
+    pub fn command_query(&self) -> &str {
+        &self.command_query
+    }
+
+    /// Replaces the command palette query.
+    pub fn set_command_query(&mut self, value: String) {
+        self.command_query = value;
+    }
+
+    /// Forgets the command palette query.
+    pub fn clear_command_query(&mut self) {
+        self.command_query.clear();
     }
 }
 
@@ -175,6 +196,10 @@ pub struct Workbenches {
     pub filter: Mutex<SubscriptionFilterEditor>,
     /// The drafts of the panels that no shared reducer owns.
     pub drafts: Mutex<PanelDrafts>,
+    /// The presentation phase of every business panel the surface carries.
+    pub panels: SharedBusinessPanels,
+    /// The follow state of the log stream.
+    pub log_follow: Mutex<LogFollowState>,
     /// Whether the configuration difference view is open.
     pub difference: Mutex<DifferenceView>,
     /// Whether the synchronisation conflict resolver is open.
@@ -195,6 +220,12 @@ impl Workbenches {
     /// started its command. A command no shared reducer owns carries no
     /// reducer identity, but the surface still waits for its terminal.
     pub fn record(&self, business: Option<PendingBusiness>) {
+        if let Some(PendingBusiness::Business(id)) = business {
+            // The panel shows its own pending phase right away, so the user
+            // sees that the owner still owes its answer.
+            let mut panels = guard(&self.panels);
+            panels.pending(id);
+        }
         let mut queue = guard(&self.in_flight);
         queue.push_back(business);
     }
@@ -273,6 +304,13 @@ impl Workbenches {
                     Err(failure) => filter.finish(token, Err(failure)),
                 }
             }
+            PendingBusiness::Business(id) => {
+                // The panel that started the command learns the owner's
+                // answer, so the business shows its own terminal.
+                let mut panels = guard(&self.panels);
+                panels.settle(id, &result);
+                true
+            }
         }
     }
 
@@ -323,6 +361,6 @@ impl Workbenches {
 }
 
 /// Locks one shared reducer of the surface.
-fn guard<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub fn guard<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

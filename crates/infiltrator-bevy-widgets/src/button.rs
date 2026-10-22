@@ -5,7 +5,22 @@
 //! size ladders, and loading/disabled states.
 //! Callers wire `On<Activate>` themselves so one visual control can carry
 //! different typed events.
+//!
+//! Two axes describe a button, and each has exactly one truth:
+//!
+//! - the **skin** ([`ButtonVariant`]) says which color family the button
+//!   paints in and how it is filled;
+//! - the **hierarchy** ([`ButtonHierarchy`]) says how loud the button is in
+//!   its action group: the page's main action, a supporting action, or a
+//!   quiet one.
+//!
+//! The hierarchy refines the skin, so a destructive action can be the
+//! group's main action and a neutral one can be promoted to it, without
+//! either axis growing a second meaning.
 
+pub mod press;
+
+use crate::button::press::ButtonPressScale;
 use crate::interaction_block::InteractionBlocked;
 use crate::palette::UiPalette;
 use crate::palette::rem;
@@ -29,7 +44,7 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val,
 };
 use bevy::ui::widget::Text;
-use bevy::ui::{InteractionDisabled, Pressed};
+use bevy::ui::{InteractionDisabled, Pressed, UiTransform};
 use bevy::ui_widgets::Button;
 use zhuge_ui_kit_bevy::control::{self, ButtonLayout};
 
@@ -54,6 +69,143 @@ pub enum ButtonVariant {
 /// Component wrapper for button variant.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ButtonVariantStyle(pub ButtonVariant);
+
+/// The action hierarchy of a button: how loud the button is in its action
+/// group.
+///
+/// The hierarchy is a typed level, never a pair of flags: a button is the
+/// group's main action, a supporting action or a quiet one, and the three
+/// are mutually exclusive.
+///
+/// The hierarchy and the skin ([`ButtonVariant`]) are orthogonal facts. The
+/// skin says *which* color family the button paints in; the hierarchy says
+/// *how loud* it is. That is what lets a destructive action be the group's
+/// main action and a neutral one be promoted to it: neither fact can
+/// express the other on its own.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ButtonHierarchy {
+    /// The group's main action: the loudest button on screen.
+    Primary,
+    /// A supporting action: present, but not competing with the main one.
+    #[default]
+    Secondary,
+    /// A quiet action: the third level, meant to stay out of the way.
+    Tertiary,
+}
+
+/// Component wrapper for the button's action hierarchy.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ButtonHierarchyStyle(pub ButtonHierarchy);
+
+/// The color family a button paints in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ButtonTone {
+    /// The neutral family: the surface inks.
+    Neutral,
+    /// The accent family: the action color.
+    Accent,
+    /// The danger family: the destructive color.
+    Danger,
+}
+
+/// The fill family a button paints in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ButtonFill {
+    /// A solid fill in the tone's own color.
+    Solid,
+    /// The accent's container fill.
+    Container,
+    /// The card's elevated surface fill.
+    Surface,
+    /// A transparent fill with a hairline frame.
+    Framed,
+    /// A transparent fill with no frame.
+    Bare,
+}
+
+/// The tone and the fill a button paints in: the resolved skin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ButtonSkin {
+    /// The color family.
+    pub tone: ButtonTone,
+    /// The fill family.
+    pub fill: ButtonFill,
+}
+
+impl ButtonVariant {
+    /// The tone and the fill the skin vocabulary paints in.
+    pub fn skin(self) -> ButtonSkin {
+        match self {
+            ButtonVariant::Default => ButtonSkin {
+                tone: ButtonTone::Neutral,
+                fill: ButtonFill::Surface,
+            },
+            ButtonVariant::Primary => ButtonSkin {
+                tone: ButtonTone::Accent,
+                fill: ButtonFill::Solid,
+            },
+            ButtonVariant::Secondary => ButtonSkin {
+                tone: ButtonTone::Accent,
+                fill: ButtonFill::Container,
+            },
+            ButtonVariant::Ghost => ButtonSkin {
+                tone: ButtonTone::Neutral,
+                fill: ButtonFill::Bare,
+            },
+            ButtonVariant::Outline => ButtonSkin {
+                tone: ButtonTone::Neutral,
+                fill: ButtonFill::Framed,
+            },
+            ButtonVariant::Danger => ButtonSkin {
+                tone: ButtonTone::Danger,
+                fill: ButtonFill::Solid,
+            },
+        }
+    }
+}
+
+impl ButtonHierarchy {
+    /// The hierarchy a skin projects to: the level a button occupies when
+    /// the caller does not say otherwise.
+    ///
+    /// The projection is total and deterministic, so a button that carries
+    /// no explicit hierarchy still has exactly one.
+    pub fn of_variant(variant: ButtonVariant) -> Self {
+        match variant {
+            ButtonVariant::Primary | ButtonVariant::Danger => ButtonHierarchy::Primary,
+            ButtonVariant::Default | ButtonVariant::Secondary | ButtonVariant::Outline => {
+                ButtonHierarchy::Secondary
+            }
+            ButtonVariant::Ghost => ButtonHierarchy::Tertiary,
+        }
+    }
+
+    /// The tone and the fill the hierarchy asks of a skin.
+    ///
+    /// The hierarchy promotes a neutral skin to the accent family and
+    /// demotes an accent skin back to the neutral one, so the emphasis and
+    /// the color stay in step: a main action is the accent-colored button
+    /// and a quiet one is not.
+    pub fn refine(self, skin: ButtonSkin) -> ButtonSkin {
+        match self {
+            ButtonHierarchy::Primary => ButtonSkin {
+                tone: match skin.tone {
+                    ButtonTone::Neutral => ButtonTone::Accent,
+                    tone => tone,
+                },
+                fill: ButtonFill::Solid,
+            },
+            ButtonHierarchy::Secondary => skin,
+            ButtonHierarchy::Tertiary => ButtonSkin {
+                tone: match skin.tone {
+                    ButtonTone::Accent => ButtonTone::Neutral,
+                    tone => tone,
+                },
+                fill: ButtonFill::Bare,
+            },
+        }
+    }
+}
 
 /// Button size ladder.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -115,9 +267,31 @@ pub struct PillLabel;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ButtonLabel;
 
-/// Resolve button background fill from variant, selected, hovered, pressed, disabled and palette.
+/// The soft accent wash a disabled accent-tinted button paints.
+///
+/// The shared contract keeps accent-tinted derivations out of the interaction
+/// palette (they are surface-local decoration), so the widget layer derives
+/// it from the accent token the same way the Iced reference derives its
+/// `accent_soft`: the accent at a low alpha over whatever surface it sits on.
+pub const DISABLED_ACCENT_WASH_ALPHA: f32 = 0.16;
+
+/// The fill a resolved skin paints with.
+fn skin_fill(skin: ButtonSkin, palette: &UiPalette) -> Color {
+    match (skin.fill, skin.tone) {
+        (ButtonFill::Solid, ButtonTone::Accent) => palette.accent,
+        (ButtonFill::Solid, ButtonTone::Danger) => palette.danger,
+        (ButtonFill::Solid, ButtonTone::Neutral) => palette.surface_elevated,
+        (ButtonFill::Container, _) => palette.accent_container,
+        (ButtonFill::Surface, _) => palette.surface_elevated,
+        (ButtonFill::Framed | ButtonFill::Bare, _) => Color::NONE,
+    }
+}
+
+/// Resolve button background fill from hierarchy, variant, selected, hovered,
+/// pressed, disabled and palette.
 /// Pure function — 100% headless testable.
-pub fn button_fill(
+pub fn button_hierarchy_fill(
+    hierarchy: ButtonHierarchy,
     variant: ButtonVariant,
     selected: bool,
     hovered: bool,
@@ -125,27 +299,40 @@ pub fn button_fill(
     disabled: bool,
     palette: &UiPalette,
 ) -> Color {
+    let skin = hierarchy.refine(variant.skin());
     if disabled {
-        return match variant {
-            ButtonVariant::Ghost | ButtonVariant::Outline => Color::NONE,
-            _ => palette.surface_elevated.with_alpha(0.4),
+        // A disabled button keeps its family identity but loses the solid
+        // fill: the accent family paints the soft accent wash (the Iced
+        // reference's `accent_soft`), the neutral family keeps the recessed
+        // control fill, and the transparent family stays transparent. A
+        // disabled action must never look like the actionable one.
+        return match (skin.fill, skin.tone) {
+            (ButtonFill::Bare | ButtonFill::Framed, _) => Color::NONE,
+            (ButtonFill::Solid | ButtonFill::Container, ButtonTone::Accent) => {
+                palette.accent.with_alpha(DISABLED_ACCENT_WASH_ALPHA)
+            }
+            (ButtonFill::Solid | ButtonFill::Container, ButtonTone::Danger) => {
+                palette.danger.with_alpha(DISABLED_ACCENT_WASH_ALPHA)
+            }
+            (ButtonFill::Solid | ButtonFill::Container, ButtonTone::Neutral) => {
+                palette.surface_elevated
+            }
+            (ButtonFill::Surface, _) => palette.surface_elevated,
         };
     }
 
     if pressed {
-        return match variant {
-            ButtonVariant::Danger => palette.danger.with_alpha(0.7),
-            ButtonVariant::Primary => palette.accent.with_alpha(0.8),
-            ButtonVariant::Ghost => palette.pressed_bg,
+        return match (skin.fill, skin.tone) {
+            (ButtonFill::Solid, ButtonTone::Accent) => palette.accent.with_alpha(0.8),
+            (ButtonFill::Solid, ButtonTone::Danger) => palette.danger.with_alpha(0.7),
             _ => palette.pressed_bg,
         };
     }
 
     if hovered {
-        return match variant {
-            ButtonVariant::Danger => palette.danger.with_alpha(0.9),
-            ButtonVariant::Primary => palette.accent.with_alpha(0.9),
-            ButtonVariant::Ghost => palette.hover_bg,
+        return match (skin.fill, skin.tone) {
+            (ButtonFill::Solid, ButtonTone::Accent) => palette.accent.with_alpha(0.9),
+            (ButtonFill::Solid, ButtonTone::Danger) => palette.danger.with_alpha(0.9),
             _ => palette.hover_bg,
         };
     }
@@ -154,12 +341,62 @@ pub fn button_fill(
         return palette.accent;
     }
 
-    match variant {
-        ButtonVariant::Default => palette.surface_elevated,
-        ButtonVariant::Primary => palette.accent,
-        ButtonVariant::Secondary => palette.accent_container,
-        ButtonVariant::Ghost | ButtonVariant::Outline => Color::NONE,
-        ButtonVariant::Danger => palette.danger,
+    skin_fill(skin, palette)
+}
+
+/// Resolve button background fill from variant, selected, hovered, pressed, disabled and palette.
+/// Pure function — 100% headless testable.
+///
+/// The variant alone does not say how loud the button is, so this is the
+/// projection of the skin's own hierarchy: use
+/// [`button_hierarchy_fill`] when the button states its hierarchy.
+pub fn button_fill(
+    variant: ButtonVariant,
+    selected: bool,
+    hovered: bool,
+    pressed: bool,
+    disabled: bool,
+    palette: &UiPalette,
+) -> Color {
+    button_hierarchy_fill(
+        ButtonHierarchy::of_variant(variant),
+        variant,
+        selected,
+        hovered,
+        pressed,
+        disabled,
+        palette,
+    )
+}
+
+/// Resolve button border color from hierarchy, variant, selected, disabled and
+/// palette. Pure function.
+pub fn button_hierarchy_border(
+    hierarchy: ButtonHierarchy,
+    variant: ButtonVariant,
+    selected: bool,
+    disabled: bool,
+    palette: &UiPalette,
+) -> Color {
+    let skin = hierarchy.refine(variant.skin());
+    if disabled {
+        return match skin.fill {
+            ButtonFill::Bare => Color::NONE,
+            // The quiet card hairline: the disabled edge is the card's own
+            // border, not a stronger frame than the actionable button's.
+            _ => palette.border,
+        };
+    }
+
+    if selected {
+        return palette.accent;
+    }
+
+    match (skin.fill, skin.tone) {
+        (ButtonFill::Solid, ButtonTone::Accent) => palette.accent,
+        (ButtonFill::Solid, ButtonTone::Danger) => palette.danger,
+        (ButtonFill::Bare, _) => Color::NONE,
+        _ => palette.border,
     }
 }
 
@@ -173,24 +410,45 @@ pub fn button_border(
     disabled: bool,
     palette: &UiPalette,
 ) -> Color {
+    button_hierarchy_border(
+        ButtonHierarchy::of_variant(variant),
+        variant,
+        selected,
+        disabled,
+        palette,
+    )
+}
+
+/// Resolve button label text color from hierarchy, variant, selected, disabled
+/// and palette. Pure function.
+pub fn button_hierarchy_text_color(
+    hierarchy: ButtonHierarchy,
+    variant: ButtonVariant,
+    selected: bool,
+    disabled: bool,
+    palette: &UiPalette,
+) -> Color {
+    let skin = hierarchy.refine(variant.skin());
     if disabled {
-        return match variant {
-            ButtonVariant::Ghost => Color::NONE,
-            _ => palette.border.with_alpha(0.3),
+        // The accent family keeps its own ink on the soft accent wash, so a
+        // disabled primary still reads as the primary action (the Iced
+        // reference draws it exactly this way); every other variant reads as
+        // the shared disabled ink.
+        return match (skin.fill, skin.tone) {
+            (ButtonFill::Solid | ButtonFill::Container, ButtonTone::Accent) => palette.accent,
+            _ => palette.disabled_ink,
         };
     }
 
     if selected {
-        return palette.accent;
+        return palette.on_accent;
     }
 
-    match variant {
-        ButtonVariant::Ghost => Color::NONE,
-        ButtonVariant::Danger => palette.danger,
-        ButtonVariant::Primary => palette.accent,
-        ButtonVariant::Default | ButtonVariant::Secondary | ButtonVariant::Outline => {
-            palette.border
-        }
+    match (skin.fill, skin.tone) {
+        (ButtonFill::Solid, _) => palette.on_accent,
+        (ButtonFill::Container, ButtonTone::Accent) => palette.accent,
+        (ButtonFill::Bare | ButtonFill::Framed, ButtonTone::Danger) => palette.danger,
+        _ => palette.ink,
     }
 }
 
@@ -202,19 +460,13 @@ pub fn button_text_color(
     disabled: bool,
     palette: &UiPalette,
 ) -> Color {
-    if disabled {
-        return palette.disabled_ink;
-    }
-
-    if selected {
-        return palette.on_accent;
-    }
-
-    match variant {
-        ButtonVariant::Primary | ButtonVariant::Danger => palette.on_accent,
-        ButtonVariant::Secondary => palette.accent,
-        ButtonVariant::Default | ButtonVariant::Ghost | ButtonVariant::Outline => palette.ink,
-    }
+    button_hierarchy_text_color(
+        ButtonHierarchy::of_variant(variant),
+        variant,
+        selected,
+        disabled,
+        palette,
+    )
 }
 
 /// Resolve control fill for standard pills. Pure function.
@@ -254,6 +506,28 @@ pub fn button_sized_scene(
     )
 }
 
+/// A polymorphic button scene that states the button's action hierarchy.
+pub fn hierarchical_button_sized_scene(
+    label: String,
+    variant: ButtonVariant,
+    hierarchy: ButtonHierarchy,
+    size: ButtonSize,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let role = match size {
+        ButtonSize::Sm => Role::Caption,
+        ButtonSize::Md => Role::Body,
+        ButtonSize::Lg => Role::Heading,
+    };
+    hierarchical_button_with_label_scene(
+        bsn! { Text(label) TextRole(role) ButtonLabel },
+        variant,
+        hierarchy,
+        size,
+        palette,
+    )
+}
+
 /// A native label scene keeps translation metadata attached to the original widget.
 pub fn button_with_label_scene(
     label: impl Scene + 'static,
@@ -261,8 +535,30 @@ pub fn button_with_label_scene(
     size: ButtonSize,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let fill = button_fill(variant, false, false, false, false, palette);
-    let edge = button_border(variant, false, false, false, false, palette);
+    hierarchical_button_with_label_scene(
+        label,
+        variant,
+        ButtonHierarchy::of_variant(variant),
+        size,
+        palette,
+    )
+}
+
+/// A button scene that states the button's action hierarchy explicitly.
+///
+/// The hierarchy is stamped on the button as [`ButtonHierarchyStyle`], so
+/// the repaint system and any host read the same typed fact; the skin
+/// ([`ButtonVariant`]) keeps saying which color family the button paints
+/// in.
+pub fn hierarchical_button_with_label_scene(
+    label: impl Scene + 'static,
+    variant: ButtonVariant,
+    hierarchy: ButtonHierarchy,
+    size: ButtonSize,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let fill = button_hierarchy_fill(hierarchy, variant, false, false, false, false, palette);
+    let edge = button_hierarchy_border(hierarchy, variant, false, false, palette);
     let (height_px, padding_h) = match size {
         ButtonSize::Sm => (palette.control_height_px * 0.8, space::S8),
         ButtonSize::Md => (palette.control_height_px, space::S12),
@@ -284,8 +580,9 @@ pub fn button_with_label_scene(
         label,
     );
     Box::new(
-        bsn! { @{ scene } ButtonVariantStyle(variant) ButtonSizeStyle(size)
-        ControlVisual(false) ButtonLoading(false) ButtonDisabled(false) TouchHitbox::default() },
+        bsn! { @{ scene } ButtonVariantStyle(variant) ButtonHierarchyStyle(hierarchy)
+        ButtonSizeStyle(size) ControlVisual(false) ButtonLoading(false) ButtonDisabled(false)
+        TouchHitbox::default() ButtonPressScale::default() UiTransform },
     )
 }
 
@@ -333,11 +630,14 @@ pub fn button_action_scene<M: Component + Clone + Unpin>(
         @{ scene }
         marker
         ButtonVariantStyle(variant)
+        ButtonHierarchyStyle(ButtonHierarchy::of_variant(variant))
         ButtonSizeStyle(ButtonSize::Md)
         ControlVisual(false)
         ButtonLoading(false)
         ButtonDisabled(false)
         TouchHitbox::default()
+        ButtonPressScale::default()
+        UiTransform
     }
 }
 
@@ -368,12 +668,15 @@ pub fn loading_button_scene(
             BackgroundColor({ fill })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             ButtonVariantStyle(variant)
+            ButtonHierarchyStyle(ButtonHierarchy::of_variant(variant))
             ButtonSizeStyle(ButtonSize::Md)
             ControlVisual(false)
             ButtonLoading(loading)
             ButtonDisabled(loading)
             Button
             TouchHitbox::default()
+            ButtonPressScale::default()
+            UiTransform
             Children [
                 Text(display_text) TextRole(Role::Body) ButtonLabel
             ]
@@ -448,6 +751,7 @@ pub struct ControlPaint {
     visual: &'static ControlVisual,
     interaction: Option<&'static PickingInteraction>,
     variant: Option<&'static ButtonVariantStyle>,
+    hierarchy: Option<&'static ButtonHierarchyStyle>,
     disabled: Option<&'static ButtonDisabled>,
     blocked: Has<InteractionBlocked>,
     fill: &'static mut BackgroundColor,
@@ -456,13 +760,17 @@ pub struct ControlPaint {
 pub fn sync_control_visuals(palette: Res<UiPalette>, mut controls: Query<ControlPaint>) {
     for mut control in &mut controls {
         let variant = control.variant.map_or(ButtonVariant::Default, |v| v.0);
+        let hierarchy = control
+            .hierarchy
+            .map_or(ButtonHierarchy::of_variant(variant), |h| h.0);
         let disabled = control.blocked || control.disabled.is_some_and(|d| d.0);
         let (hovered, pressed) = match control.interaction {
             Some(PickingInteraction::Hovered) if !disabled => (true, false),
             Some(PickingInteraction::Pressed) if !disabled => (true, true),
             _ => (false, false),
         };
-        let fill = button_fill(
+        let fill = button_hierarchy_fill(
+            hierarchy,
             variant,
             control.visual.0,
             hovered,
@@ -470,14 +778,8 @@ pub fn sync_control_visuals(palette: Res<UiPalette>, mut controls: Query<Control
             disabled,
             &palette,
         );
-        let border = button_border(
-            variant,
-            control.visual.0,
-            hovered,
-            pressed,
-            disabled,
-            &palette,
-        );
+        let border =
+            button_hierarchy_border(hierarchy, variant, control.visual.0, disabled, &palette);
         if control.fill.0 != fill {
             control.fill.0 = fill;
         }
@@ -491,6 +793,7 @@ pub fn sync_control_visuals(palette: Res<UiPalette>, mut controls: Query<Control
 pub struct ControlLabelState {
     visual: &'static ControlVisual,
     variant: Option<&'static ButtonVariantStyle>,
+    hierarchy: Option<&'static ButtonHierarchyStyle>,
     disabled: Option<&'static ButtonDisabled>,
     blocked: Has<InteractionBlocked>,
     children: &'static Children,
@@ -504,6 +807,9 @@ pub fn sync_control_labels(
 ) {
     for control in &controls {
         let variant = control.variant.map_or(ButtonVariant::Default, |v| v.0);
+        let hierarchy = control
+            .hierarchy
+            .map_or(ButtonHierarchy::of_variant(variant), |h| h.0);
         let disabled = control.blocked || control.disabled.is_some_and(|d| d.0);
         let pill_ink = if disabled {
             palette.disabled_ink
@@ -512,7 +818,8 @@ pub fn sync_control_labels(
         } else {
             palette.ink
         };
-        let button_ink = button_text_color(variant, control.visual.0, disabled, &palette);
+        let button_ink =
+            button_hierarchy_text_color(hierarchy, variant, control.visual.0, disabled, &palette);
         for child in control.children.iter() {
             if let Ok((_, mut ink)) = pill_labels.get_mut(*child)
                 && ink.0 != pill_ink

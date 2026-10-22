@@ -325,9 +325,66 @@ def _matching_lines(path: Path, pattern: re.Pattern[str]) -> tuple[list[int], st
     )
 
 
+def _all_source_paths(root: Path) -> list[Path]:
+    """Return every source file the retired-surface scan may read."""
+    paths: set[Path] = set()
+    for language in Language:
+        paths.update(_source_paths(root, language))
+    return sorted(paths)
+
+
+IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _relocated_identifiers(
+    root: Path, surfaces: list[RetiredSurface]
+) -> dict[str, set[str]]:
+    """Map each retired identifier to the scopes it still appears in.
+
+    A retired surface is often *relocated* instead of deleted: the owner moves
+    to another crate and keeps the name. Documentation that names such a
+    surface describes the current product, so it is not a resurrection. The
+    map records, for every retired identifier, the set of scope roots it
+    still appears under plus the empty string when it appears outside every
+    scope. A surface whose identifier appears outside its own scope is
+    therefore alive under a new owner.
+    """
+    wanted = {
+        surface.text for surface in surfaces if surface.kind is SurfaceKind.PUBLIC_SYMBOL
+    }
+    scopes = sorted(
+        {
+            source_root
+            for surface in surfaces
+            for source_root in surface.source_roots
+        }
+    )
+    appearances: dict[str, set[str]] = {text: set() for text in wanted}
+    if not wanted:
+        return appearances
+    for path in _all_source_paths(root):
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        hits = set(IDENTIFIER.findall(content)) & wanted
+        if not hits:
+            continue
+        relative = path.relative_to(root).as_posix()
+        matched = {
+            scope
+            for scope in scopes
+            if relative == scope or relative.startswith(f"{scope}/")
+        }
+        for token in hits:
+            appearances[token].update(matched or {""})
+    return appearances
+
+
 def check_surfaces(root: Path, surfaces: list[RetiredSurface]) -> list[str]:
     problems: list[str] = []
     docs = _documentation_paths(root)
+    appearances: dict[str, set[str]] | None = None
     for surface in surfaces:
         problems.extend(_replacement_test_problems(root, surface))
         pattern = _surface_pattern(surface)
@@ -339,8 +396,32 @@ def check_surfaces(root: Path, surfaces: list[RetiredSurface]) -> list[str]:
                 for path in sources
                 if any(path == source_root or path.is_relative_to(source_root) for source_root in roots)
             ]
-        candidates = sources + docs
-        for path in candidates:
+        for path in sources:
+            lines, read_error = _matching_lines(path, pattern)
+            if read_error is not None:
+                problems.append(f"{path}: {read_error}")
+            for line in lines:
+                problems.append(
+                    f"{path}:{line}: retired surface `{surface.text}` ({surface.id}) has reappeared"
+                )
+        if surface.kind is not SurfaceKind.PUBLIC_SYMBOL:
+            for path in docs:
+                lines, read_error = _matching_lines(path, pattern)
+                if read_error is not None:
+                    problems.append(f"{path}: {read_error}")
+                for line in lines:
+                    problems.append(
+                        f"{path}:{line}: retired surface `{surface.text}` ({surface.id}) has reappeared"
+                    )
+            continue
+        if appearances is None:
+            appearances = _relocated_identifiers(root, surfaces)
+        scope = set(surface.source_roots)
+        if appearances.get(surface.text, set()) - scope:
+            # The identifier is still live under another owner: the product
+            # documentation names the current symbol, not a resurrected one.
+            continue
+        for path in docs:
             lines, read_error = _matching_lines(path, pattern)
             if read_error is not None:
                 problems.append(f"{path}: {read_error}")

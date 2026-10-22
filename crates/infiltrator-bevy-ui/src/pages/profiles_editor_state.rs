@@ -358,7 +358,7 @@ impl ProfileEditorState {
 
     /// Move the large-document window by a number of pages.
     pub fn scroll_large_window(&mut self, pages: i32) {
-        let LargeDocumentWindow::Open { first_line } = self.large_window else {
+        let LargeDocumentWindow::Open { first_line: _ } = self.large_window else {
             return;
         };
         let delta = pages.saturating_mul(LARGE_DOCUMENT_WINDOW_LINES as i32);

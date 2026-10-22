@@ -7,9 +7,11 @@ mod profile;
 mod service;
 mod sync;
 mod telemetry;
+mod terminal;
 
 use crate::commands::Commands;
 use crate::output;
+use crate::terminal_capability::TerminalCapabilities;
 
 /// Handler finished successfully with no failures to report.
 pub(crate) const EXIT_OK: i32 = 0;
@@ -20,8 +22,8 @@ pub(crate) const EXIT_ERROR: i32 = 2;
 
 /// Run a parsed command and return the process exit code. Handler errors are
 /// printed here so `main` can stay a one-liner.
-pub async fn run(command: Commands) -> i32 {
-    match dispatch(command).await {
+pub async fn run(command: Commands, capabilities: TerminalCapabilities) -> i32 {
+    match dispatch(command, capabilities).await {
         Ok(code) => code,
         Err(err) => {
             output::print_error(&format!("error: {err:#}"));
@@ -30,7 +32,7 @@ pub async fn run(command: Commands) -> i32 {
     }
 }
 
-async fn dispatch(command: Commands) -> anyhow::Result<i32> {
+async fn dispatch(command: Commands, capabilities: TerminalCapabilities) -> anyhow::Result<i32> {
     match command {
         Commands::Doctor { action } => doctor::handle(action).await,
         Commands::Bootstrap => bootstrap::handle().await.map(|()| EXIT_OK),
@@ -40,5 +42,6 @@ async fn dispatch(command: Commands) -> anyhow::Result<i32> {
         Commands::Outbound { action } => outbound::handle(action).await.map(|()| EXIT_OK),
         Commands::Connection { action } => connection::handle(action).await.map(|()| EXIT_OK),
         Commands::Sync { action } => sync::handle(action).await.map(|()| EXIT_OK),
+        Commands::Terminal { action } => terminal::handle(action, capabilities).map(|()| EXIT_OK),
     }
 }

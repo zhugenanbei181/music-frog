@@ -1453,3 +1453,12 @@ msgstr "Sync"
 
 msgid "应用路由"
 msgstr "App routing"
+
+msgid "概览卡片顺序"
+msgstr "Overview card order"
+
+msgid "调整卡片顺序"
+msgstr "Reorder cards"
+
+msgid "恢复默认顺序"
+msgstr "Restore default order"

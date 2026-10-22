@@ -1,4 +1,11 @@
 // One device-independent user zoom value shared by Lumen and Material Components.
+//
+// The zoom is a *length*, not a float factor: every length of the surface is
+// written as a number of design units, so the zoom is applied in this one
+// place instead of being multiplied into every literal of the tree.
+//
+// The unit is a logical pixel, so the operating system's own device scale
+// keeps working through Slint's native DPI handling.
 export global LumenUiScale {
-    in-out property <float> factor: 1.0;
+    in-out property <length> unit: 1px;
 }

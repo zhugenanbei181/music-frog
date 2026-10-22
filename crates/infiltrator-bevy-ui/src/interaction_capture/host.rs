@@ -32,6 +32,9 @@ pub(super) enum CaptureCapability {
     SnapshotRestore,
     AppRouting,
     Script,
+    Settings,
+    Profiles,
+    Layout,
 }
 
 /// Whether the capture hands the owner's terminal answer to the surface.
@@ -175,6 +178,20 @@ impl UiCommandSink for CaptureCommandSink {
                             | UiCommand::PrepareScriptExport { .. }
                             | UiCommand::SaveScriptExport { .. }
                             | UiCommand::CancelScriptExport { .. }
+                    )
+                    | (
+                        CaptureCapability::Settings,
+                        UiCommand::RepairPortConflicts
+                            | UiCommand::PrepareServiceMode
+                            | UiCommand::RunPrivilegedNetworkRegression
+                    )
+                    | (
+                        CaptureCapability::Profiles,
+                        UiCommand::DeleteProfile { .. } | UiCommand::UpdateProfile { .. }
+                    )
+                    | (
+                        CaptureCapability::Layout,
+                        UiCommand::ReorderOverviewCards { .. }
                     )
             ),
         };

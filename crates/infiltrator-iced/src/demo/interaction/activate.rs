@@ -19,6 +19,7 @@ use crate::demo::profiles_capture;
 use crate::demo::proxies;
 use crate::demo::routing_intent;
 use crate::demo::rule_list;
+use crate::demo::rule_provider;
 use crate::demo::rule_statistics;
 use crate::demo::rule_trace;
 use crate::demo::rules;
@@ -46,7 +47,9 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::DnsHostsEditor => dns_hosts::activate(state),
         FeatureId::DnsLeakAlert => dns_leak::activate(state),
         FeatureId::DnsQueryDetails => dns_query::activate(state),
-        FeatureId::DoctorFailureRecovery => doctor::activate(state),
+        FeatureId::DoctorFailureRecovery | FeatureId::DoctorRepairProgress => {
+            doctor::activate(state, feature)
+        }
         FeatureId::LifecycleRecoveryPanel => lifecycle::activate(state, feature),
         FeatureId::LogsRedactedExport
         | FeatureId::LogsScrollLock
@@ -70,14 +73,16 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::ProfilesScriptSandbox | FeatureId::ProfilesScriptExportReview => {
             script_capture::activate(state, feature)
         }
-        FeatureId::EditorYamlErrorNavigation | FeatureId::ProfilesDiffViewer => {
-            editor_capture::activate(state, feature)
-        }
+        FeatureId::EditorYamlErrorNavigation
+        | FeatureId::EditorLargeDocumentWindow
+        | FeatureId::EditorSnippetInsertion
+        | FeatureId::ProfilesDiffViewer => editor_capture::activate(state, feature),
         FeatureId::AppRoutingPolicyEditor => app_routing::activate(state),
         FeatureId::SyncConflictResolver => sync::activate(state),
         FeatureId::ProfilesFilterEditor => filter::activate(state),
         FeatureId::ProfilesSnapshotRestoreConfirm => snapshot_restore::activate(state),
         FeatureId::RulesListEditor => rule_list::activate(state),
+        FeatureId::RulesProviderRefreshError => rule_provider::activate(state),
         FeatureId::RulesOverrideEditor | FeatureId::RulesTracerDrawer => {
             rule_trace::activate(state, feature)
         }

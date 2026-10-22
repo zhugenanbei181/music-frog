@@ -34,6 +34,62 @@ fn unknown_zero_disabled_and_shadowed_local_trace_counts_have_shared_copy() {
 }
 
 #[test]
+fn the_count_and_the_status_are_two_chips_of_their_own() {
+    // The count chip carries the count and nothing else.
+    let observed = RuleRowChips::of(Some(12), true, false);
+    assert_eq!(observed.hits, RuleRowHits::Observed { count: 12 });
+    assert_eq!(observed.status, RuleRowStatus::Enabled);
+    assert_eq!(
+        row_hits_chip(observed.hits, &Lang("en-US")),
+        "12 local trace hits"
+    );
+    assert_eq!(
+        row_hits_chip(observed.hits, &Lang("zh-CN")),
+        "12 次本地追踪命中"
+    );
+
+    // An unobserved row says so, and says nothing else.
+    let unobserved = RuleRowChips::of(None, true, false);
+    assert_eq!(unobserved.hits, RuleRowHits::Unobserved);
+    assert_eq!(
+        row_hits_chip(unobserved.hits, &Lang("en-US")),
+        "Not observed"
+    );
+
+    // The status chip is its own fact: a plain row has none, a disabled or
+    // shadowed row names itself.
+    assert_eq!(
+        row_status_chip(RuleRowStatus::Enabled, &Lang("en-US")),
+        None
+    );
+    assert_eq!(
+        row_status_chip(RuleRowStatus::Disabled, &Lang("en-US")),
+        Some("Disabled".to_string())
+    );
+    assert_eq!(
+        row_status_chip(RuleRowStatus::Shadowed, &Lang("zh-CN")),
+        Some("被遮蔽".to_string())
+    );
+
+    // A disabled row is disabled first; a shadowed row is only shadowed.
+    let disabled = RuleRowChips::of(Some(3), false, true);
+    assert_eq!(disabled.status, RuleRowStatus::Disabled);
+    let shadowed = RuleRowChips::of(Some(3), true, true);
+    assert_eq!(shadowed.status, RuleRowStatus::Shadowed);
+
+    // The keys are the shared fact: a surface that renders a chip live (the
+    // Bevy row restamps its text) reads the same key the shared copy uses,
+    // so no surface names a key of its own.
+    assert_eq!(observed.hits.key(), "rule_hits_count");
+    assert_eq!(observed.hits.count(), Some(12));
+    assert_eq!(unobserved.hits.key(), "rule_hits_unobserved");
+    assert_eq!(unobserved.hits.count(), None);
+    assert_eq!(RuleRowStatus::Enabled.key(), None);
+    assert_eq!(RuleRowStatus::Disabled.key(), Some("rule_draft_disabled"));
+    assert_eq!(RuleRowStatus::Shadowed.key(), Some("rule_status_shadowed"));
+}
+
+#[test]
 fn regex_commas_logical_payloads_and_native_parameters_keep_exact_semantics() {
     for (raw, payload, target, source, resolve) in [
         (

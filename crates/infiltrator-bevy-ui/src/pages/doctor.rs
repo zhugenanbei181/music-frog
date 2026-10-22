@@ -8,7 +8,9 @@
 //! and check items restamp in place without tree rebuilds.
 
 use crate::localized_widgets::localized_button_scene;
-use crate::pages::doctor_actions::{BootstrapDoctorButton, DoctorFeedbackText, RetryDoctorButton};
+use crate::pages::doctor_actions::{
+    BootstrapDoctorButton, DoctorFeedbackText, RetryDoctorButton, on_action, on_result,
+};
 use crate::pages::doctor_rows::{DoctorRows, check_row_scene, refresh_rows};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
@@ -427,6 +429,11 @@ impl Plugin for DoctorPagePlugin {
         app.add_observer(apply_doctor_projection);
         app.add_observer(refresh_rows);
         app.add_observer(self_heal::on_apply_best_node);
+        // The page's own diagnostic controls are live: an activation on the
+        // run, repair, bootstrap or retry control submits the shared typed
+        // command, and the owner's answer settles the shared phase.
+        app.add_observer(on_action);
+        app.add_observer(on_result);
         app.add_systems(Update, self_heal::refresh_self_heal);
         app.add_systems(Update, spinner::spin);
     }

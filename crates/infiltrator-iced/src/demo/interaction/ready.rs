@@ -6,6 +6,7 @@
 //! as an activated business.
 use crate::demo::app_routing::DEMO_PROCESS;
 use crate::demo::profiles::IMPORT_URL;
+use crate::demo::rule_provider::CAPTURE_REFRESH_FAILURE;
 use crate::demo::rules::RULE_SEARCH_QUERY;
 use crate::demo::settings::LAN_ALLOWED_IPS;
 use crate::demo::sync::demo_conflict_key;
@@ -13,6 +14,7 @@ use crate::state::AppState;
 use crate::state::editor::SnapshotDiffModalState;
 use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::app::{ConfirmAction, Route};
+use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::fixture_identities::HK_PRIMARY;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::parity::FeatureId;
@@ -31,6 +33,7 @@ use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_test_support::doctor_capture_fixtures::CHECK_ID;
 use infiltrator_test_support::filter_capture_store::{FILTER_POLICY, FILTER_PROFILE};
+use infiltrator_test_support::profile_store_fixtures::LARGE_PROFILE_RULE_COUNT;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::outbound::details::OutboundObservation;
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -214,6 +217,15 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     .as_ref()
                     .is_some_and(|data| data.checks.iter().any(|check| check.id == CHECK_ID))
             })
+        }
+        FeatureId::DoctorRepairProgress => {
+            // The owner published its pending phase: the repair command runs
+            // and the surface renders the phase the owner really holds.
+            state.diag.doctor.is_busy()
+                && matches!(
+                    state.diag.doctor.current_action(),
+                    Some(DoctorAction::RepairAll | DoctorAction::RepairOne(_))
+                )
         }
         FeatureId::SettingsLanguageChoice => {
             state.shell.lang == "en-US"
@@ -494,6 +506,30 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
             // navigated to.
             state.editor.syntax_error.is_some() && state.editor.syntax_error_line.is_some()
         }
+        FeatureId::EditorLargeDocumentWindow => {
+            // The editor really holds the capture store's large document and
+            // renders it through the shared bounded window: the window does
+            // not cover the document.
+            let viewport = state.editor.profile_viewport;
+            viewport.total_lines() > LARGE_PROFILE_RULE_COUNT
+                && !viewport.covers_document()
+                && state.editor.document_session.can_edit()
+        }
+        FeatureId::EditorSnippetInsertion => {
+            // The shared codec spliced the catalogue body at the caret and the
+            // document is still valid, so the insertion really happened.
+            state
+                .editor
+                .editor_content
+                .text()
+                .contains("DOMAIN-SUFFIX,google.com,PROXIES")
+                && state.editor.syntax_error.is_none()
+                && state.editor.document_session.can_edit()
+        }
+        // The remaining businesses have no activator in this demo yet: the
+        // capture refuses to publish them as activated instead of claiming a
+        // route-only render as a performed business.
+        FeatureId::SyncRestoreConfirm => false,
         FeatureId::SyncConflictResolver => {
             // The merge session really carries the user's per-key decision.
             let Some(key) = demo_conflict_key(state) else {
@@ -505,12 +541,14 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 .as_ref()
                 .is_some_and(|diff| diff.picks.get(&key) == Some(&true))
         }
-        // The remaining businesses have no activator in this demo yet: the
-        // capture refuses to publish them as activated instead of claiming a
-        // route-only render as a performed business.
-        FeatureId::EditorSnippetInsertion
-        | FeatureId::EditorLargeDocumentWindow
-        | FeatureId::RulesProviderRefreshError
-        | FeatureId::SyncRestoreConfirm => false,
+        FeatureId::RulesProviderRefreshError => {
+            // The owner's typed refusal reached the durable error banner: the
+            // surface shows the provider source's own reason, not a local one.
+            state
+                .shell
+                .error_msg
+                .as_deref()
+                .is_some_and(|message| message.contains(CAPTURE_REFRESH_FAILURE))
+        }
     }
 }

@@ -181,7 +181,9 @@ impl Theme {
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
             scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.50),
             focus_ring: TokenColor::rgb(0.12, 0.56, 0.96),
-            disabled_ink: TokenColor::rgba(0.88, 0.90, 0.92, 0.35),
+            // The shared contract's disabled ink (DUAL-15-14): 0.55 reads at
+            // ≈4.9:1 on the dark card, where 0.35 read at ≈3:1.
+            disabled_ink: TokenColor::rgba(0.88, 0.90, 0.92, 0.55),
             border: TokenColor::rgba(0.85, 0.90, 0.95, 0.10),
             success: TokenColor::rgb(0.24, 0.78, 0.44), // #3DC770
             warning: TokenColor::rgb(0.96, 0.62, 0.15), // #F59E26

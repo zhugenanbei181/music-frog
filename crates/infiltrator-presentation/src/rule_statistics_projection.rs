@@ -131,6 +131,56 @@ pub fn can_disable_zero_hit_rows(
         .any(|id| requested.contains(id))
 }
 
+/// The tier of a rule by how often it is hit (EFFECTS-012 #42).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuleHitTier {
+    /// The rule was never hit.
+    Cold,
+    /// The rule is hit occasionally.
+    Warm,
+    /// The rule is hit often.
+    Hot,
+    /// The rule is dead: it never matched although traffic passed it.
+    Dead,
+}
+
+impl RuleHitTier {
+    /// Every tier of the badge.
+    pub const ALL: [Self; 4] = [Self::Cold, Self::Warm, Self::Hot, Self::Dead];
+}
+
+/// The hit count at which a rule counts as warm.
+pub const RULE_WARM_HIT_THRESHOLD: u64 = 1;
+
+/// The hit count at which a rule counts as hot.
+pub const RULE_HOT_HIT_THRESHOLD: u64 = 100;
+
+/// The badge of one rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RuleHitBadge {
+    /// The tier of the rule.
+    pub tier: RuleHitTier,
+    /// The hit count the badge stands for.
+    pub hits: u64,
+}
+
+/// The badge of one rule, from its hit count and whether it is dead.
+///
+/// A dead rule outranks every other tier: it never matched although traffic
+/// passed it, which is a different problem from being rarely matched.
+pub fn project_rule_hit_badge(hits: u64, dead: bool) -> RuleHitBadge {
+    let tier = if dead {
+        RuleHitTier::Dead
+    } else if hits >= RULE_HOT_HIT_THRESHOLD {
+        RuleHitTier::Hot
+    } else if hits >= RULE_WARM_HIT_THRESHOLD {
+        RuleHitTier::Warm
+    } else {
+        RuleHitTier::Cold
+    };
+    RuleHitBadge { tier, hits }
+}
+
 #[cfg(test)]
 #[path = "rule_statistics_projection_test.rs"]
 mod tests;

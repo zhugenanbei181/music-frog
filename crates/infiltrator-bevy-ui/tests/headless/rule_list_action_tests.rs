@@ -24,7 +24,9 @@ use infiltrator_bevy_ui::pages::rules_builder::{
 use infiltrator_bevy_ui::pages::rules_builder_input::{RuleBuilderField, RuleBuilderFieldKind};
 use infiltrator_bevy_ui::pages::rules_draft::{RuleListControl, RulesDraftState};
 use infiltrator_bevy_ui::pages::rules_edit::{RuleMoveUpButton, RuleToggleButton};
-use infiltrator_bevy_ui::pages::rules_projection::{RuleHitText, RulePayloadText};
+use infiltrator_bevy_ui::pages::rules_projection::{
+    RuleHitText, RulePayloadText, RuleRowStatusText,
+};
 use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabState};
 use infiltrator_bevy_ui::route::{ActiveRoute, PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::shell_readout::ShellReadoutText;
@@ -74,19 +76,37 @@ fn native_rule_hits_replay_shared_counts_and_localize_without_replacing_the_row_
     app.insert_resource(UiLocale::new("en-US"));
     app.update();
     let read = |app: &mut App| {
-        let (entity, _, text) = app
-            .world_mut()
-            .query::<(Entity, &RuleHitText, &Text)>()
-            .iter(app.world())
-            .find(|(_, marker, _)| marker.0 == 0)
-            .unwrap();
-        (entity, text.0.clone())
+        let (entity, value) = {
+            let (entity, _, text) = app
+                .world_mut()
+                .query::<(Entity, &RuleHitText, &Text)>()
+                .iter(app.world())
+                .find(|(_, marker, _)| marker.0 == 0)
+                .unwrap();
+            (entity, text.0.clone())
+        };
+        let status = {
+            let (_, _, text) = app
+                .world_mut()
+                .query::<(Entity, &RuleRowStatusText, &Text)>()
+                .iter(app.world())
+                .find(|(_, marker, _)| marker.0 == 0)
+                .unwrap();
+            text.0.clone()
+        };
+        (entity, value, status)
     };
-    let (entity, value) = read(&mut app);
-    assert_eq!(value, "5 local trace hits · Disabled");
+    let (entity, value, status) = read(&mut app);
+    // The row carries two facts of its own: the local trace's count and the
+    // row's status. They are two chips, each with its own copy.
+    assert_eq!(value, "5 local trace hits");
+    assert_eq!(status, "Disabled");
     app.insert_resource(UiLocale::new("zh-CN"));
     app.update();
-    assert_eq!(read(&mut app), (entity, "5 次本地追踪命中 · 已停用".into()));
+    assert_eq!(
+        read(&mut app),
+        (entity, "5 次本地追踪命中".into(), "禁用".into())
+    );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
 }
 fn action(app: &mut App, wanted: RuleListControl) -> Entity {

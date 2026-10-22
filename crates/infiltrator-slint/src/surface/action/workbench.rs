@@ -4,6 +4,8 @@
 //! a driven surface test observe exactly the same shared command and the same
 //! typed refusal. No workbench rule is implemented twice.
 
+pub mod business;
+
 use crate::surface::workbenches::{PendingBusiness, Workbenches};
 use crate::{CommandIntent, SlintAction};
 use infiltrator_contract::aggregator::AggregationDraft;
@@ -154,6 +156,11 @@ pub fn dispatch(
     if gesture.action == APP_ROUTING_REFRESH {
         return Ok(WorkbenchOutcome::Refresh);
     }
+    // A business panel's refresh control asks the owner for its next read
+    // exactly like the routing policy's refresh control does.
+    if let Some((_, business::BusinessAction::Refresh)) = business::classify(gesture.action) {
+        return Ok(WorkbenchOutcome::Refresh);
+    }
     match resolve(workbenches, snapshot, gesture)? {
         Some(action) => Ok(WorkbenchOutcome::Command(action)),
         None => Ok(WorkbenchOutcome::Local),
@@ -166,6 +173,9 @@ pub fn dispatch(
 /// vocabulary and the reducer that correlates it; the reducer keeps the
 /// command identity and the phase, so the surface keeps no second copy.
 pub fn owner_business(intent: &CommandIntent) -> Option<PendingBusiness> {
+    if let Some(business) = business::panel_for_intent(intent) {
+        return Some(PendingBusiness::Business(business));
+    }
     match intent {
         CommandIntent::QueryDns { .. } => Some(PendingBusiness::DnsQuery),
         CommandIntent::ClearDnsCache { .. } => Some(PendingBusiness::DnsCache),
@@ -187,6 +197,21 @@ pub fn owner_business(intent: &CommandIntent) -> Option<PendingBusiness> {
     }
 }
 
+/// The reducer that owns one owner command.
+///
+/// The mapping is the surface's routing table between the shared command
+/// vocabulary and the reducer that correlates it; the reducer keeps the
+/// command identity and the phase, so the surface keeps no second copy.
+///
+/// The business panels are correlated by the gesture that started the command,
+/// because one shared command can belong to more than one business.
+pub fn owner_business_for(action: &str, intent: &CommandIntent) -> Option<PendingBusiness> {
+    if let Some((business, _)) = business::classify(action) {
+        return Some(PendingBusiness::Business(business));
+    }
+    owner_business(intent)
+}
+
 /// Resolves one workbench gesture into an owner command.
 ///
 /// `Ok(Some(action))` dispatches a shared owner command and `Ok(None)` is a
@@ -197,6 +222,14 @@ fn resolve(
     snapshot: Option<&SurfaceSnapshot>,
     gesture: &WorkbenchGesture<'_>,
 ) -> Result<Option<SlintAction>, Failure> {
+    // The business panels own their gestures first, so a panel action never
+    // reaches the page-specific reducer below.
+    if let Some(outcome) = business::resolve(workbenches, snapshot, gesture) {
+        return outcome.map(|outcome| match outcome {
+            WorkbenchOutcome::Command(action) => Some(action),
+            WorkbenchOutcome::Refresh | WorkbenchOutcome::Local => None,
+        });
+    }
     match gesture.action {
         DNS_LEAK_PROBE => Ok(Some(SlintAction::Command(CommandIntent::TestDnsLeak))),
         DNS_QUERY_RUN | DNS_QUERY_RETRY => {

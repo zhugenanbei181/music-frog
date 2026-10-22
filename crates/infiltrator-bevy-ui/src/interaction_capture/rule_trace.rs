@@ -46,7 +46,7 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
-use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use infiltrator_test_support::core_process_fixtures::CoreCaptureProcess;
 use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 use lurker_core_contract::page::SurfaceOrigin;
 use std::mem::discriminant;
@@ -58,14 +58,15 @@ struct TraceCapture {
     store: Arc<RuleTraceStore>,
     reader: Arc<ProductSurfaceReader>,
     stage: u8,
+    reported: Option<u8>,
 }
 pub fn install(app: &mut App) {
     let store = mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let core = Arc::new(CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
+        Arc::new(CoreCaptureProcess::default()),
+        Arc::new(CoreCaptureProcess::default()),
         tokio_application_runtime().expect("isolated capture runtime"),
     ));
     let reader = Arc::new(
@@ -89,6 +90,7 @@ pub fn install(app: &mut App) {
         store,
         reader,
         stage: 0,
+        reported: None,
     });
 }
 #[derive(SystemParam)]
@@ -129,6 +131,24 @@ pub fn activate(mut probe: TraceActivation, mut geometry: CaptureGeometry, mut c
     let Ok((window_id, window)) = probe.windows.single() else {
         return;
     };
+    if probe.capture.reported != Some(probe.capture.stage) {
+        eprintln!(
+            "tracer capture progress: stage={} tab={:?} query={:?} source={:?} busy={} failure={:?} loads={} writes={}",
+            probe.capture.stage,
+            probe.tab.tab,
+            probe.state.model.query,
+            probe.state.model.source_ip,
+            probe.state.model.busy(),
+            probe
+                .state
+                .model
+                .current_failure()
+                .map(|failure| failure.code.clone()),
+            probe.capture.store.rule_loads.load(Ordering::SeqCst),
+            probe.capture.store.writes.load(Ordering::SeqCst),
+        );
+        probe.capture.reported = Some(probe.capture.stage);
+    }
     if probe.capture.stage == 0 {
         let Some((entity, _)) = probe
             .tabs
@@ -229,7 +249,10 @@ pub fn activate(mut probe: TraceActivation, mut geometry: CaptureGeometry, mut c
                 probe.capture.stage = 5;
             }
         }
-        5 if !probe.state.model.busy() => {
+        5 => {
+            // The owner's own report is the evidence: the capture waits for
+            // the owner to publish the simulation, not for the surface's
+            // transient phase to settle.
             let execution = probe.capture.owner.execution();
             if execution.report.is_none() {
                 return;

@@ -119,6 +119,14 @@ class NativeHostAdapter(private val activity: Activity, private val insetsDelive
     @Volatile
     private var latestWindowInsetsJson: String? = null
 
+    /**
+     * 最近一次收到的窗口内边距观测。
+     *
+     * Surface 重建与旋转之后必须把这份观测重新发布一次：新 Surface 拿到
+     * 的必须是当前的窗口事实，而不是上一次 Activity 留下的旧值。
+     */
+    private var latestInsets: WindowInsetsCompat? = null
+
     /** One typed lifecycle/focus observation; visibility is derived from phase. */
     private var lifecycleObservation = NativeHostLifecycleObservation(
         generation = generation,
@@ -169,6 +177,7 @@ class NativeHostAdapter(private val activity: Activity, private val insetsDelive
 
         override fun installInsetsListener(): NativeHostOperationResult {
             latestWindowInsetsJson = null
+            latestInsets = null
             return installOwnedInsetsListener(decorView, generation) {
                 ViewCompat.setOnApplyWindowInsetsListener(decorView) { _, insets ->
                     if (ownsInsetsListener(decorView, generation)) publishInsets(insets)
@@ -205,6 +214,7 @@ class NativeHostAdapter(private val activity: Activity, private val insetsDelive
                 result == NativeHostOperationResult.Superseded
             ) {
                 latestWindowInsetsJson = null
+                latestInsets = null
             }
             return result
         }
@@ -264,6 +274,92 @@ class NativeHostAdapter(private val activity: Activity, private val insetsDelive
         )
     }
 
+    /**
+     * EFFECTS-047 (#190): the platform created the Activity's render surface.
+     *
+     * The surface has no size yet, and the window facts of the previous
+     * surface are stale: they are published again as soon as the new surface
+     * is sized, so a recreated surface never keeps an outdated safe area.
+     */
+    internal fun onSurfaceCreated() {
+        publishSurfaceState(NativeSurfaceState.Created, 0, 0)
+    }
+
+    /**
+     * EFFECTS-047 (#190): the platform sized the Activity's render surface.
+     */
+    internal fun onSurfaceChanged(widthPx: Int, heightPx: Int) {
+        publishSurfaceState(NativeSurfaceState.Live, widthPx, heightPx)
+        republishWindowFacts()
+    }
+
+    /**
+     * EFFECTS-047 (#190): the platform destroyed the Activity's render surface.
+     *
+     * Nothing may be rendered into a destroyed surface; the Rust owner keeps
+     * the typed teardown so the shell stops presenting frames.
+     */
+    internal fun onSurfaceDestroyed() {
+        publishSurfaceState(NativeSurfaceState.Destroyed, 0, 0)
+    }
+
+    /**
+     * EFFECTS-047 (#192): the Activity published a new window configuration.
+     *
+     * The typed configuration fact goes to the Rust owner, and the window
+     * metrics are published again so a rotated native surface lays out with
+     * the current window instead of the size it had before the rotation.
+     */
+    internal fun onConfigurationChanged() {
+        if (!attachment.acceptsCallbacks()) return
+        val metrics = activity.resources.displayMetrics
+        val fontScale = activity.resources.configuration.fontScale
+        val widthPx = metrics.widthPixels
+        val heightPx = metrics.heightPixels
+        val orientation = nativeOrientationFor(widthPx, heightPx)
+        val result = nativeStatus(
+            "nativeOnConfiguration",
+            RustBridge.onConfiguration(
+                generation,
+                orientation.wireCode,
+                widthPx,
+                heightPx,
+                metrics.density,
+                fontScale,
+            ),
+        )
+        if (result is NativeHostOperationResult.Failed) {
+            Log.e(TAG, "configuration publish failed: ${result.detail}")
+        }
+        republishWindowFacts()
+    }
+
+    private fun publishSurfaceState(state: NativeSurfaceState, widthPx: Int, heightPx: Int) {
+        if (!attachment.acceptsCallbacks()) return
+        val code = RustBridge.onSurface(generation, state.wireCode, widthPx, heightPx)
+        when (nativeSurfaceReceiptFrom(code)) {
+            NativeSurfaceReceipt.Accepted -> Unit
+
+            NativeSurfaceReceipt.Stale ->
+                Log.d(TAG, "surface fact from a retired Activity generation was ignored")
+
+            NativeSurfaceReceipt.Failed ->
+                Log.e(TAG, "surface publish failed with code $code")
+        }
+    }
+
+    /**
+     * Publish the current window facts again.
+     *
+     * A recreated surface and a rotated window both need the current safe
+     * area and the current window metrics; without this the surface would
+     * keep the facts of the previous one.
+     */
+    private fun republishWindowFacts() {
+        val insets = latestInsets ?: return
+        publishInsets(insets)
+    }
+
     private fun updatePhase(next: NativeActivityPhase) {
         when (lifecycleObservation.phase.transitionTo(next)) {
             NativeActivityPhaseTransition.Unchanged -> return
@@ -303,6 +399,7 @@ class NativeHostAdapter(private val activity: Activity, private val insetsDelive
 
     private fun publishInsets(insets: WindowInsetsCompat) {
         if (!attachment.acceptsCallbacks()) return
+        latestInsets = insets
         val density = activity.resources.displayMetrics.density
         val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
         val status = insets.getInsets(WindowInsetsCompat.Type.statusBars())

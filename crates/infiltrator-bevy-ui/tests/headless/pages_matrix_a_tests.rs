@@ -78,7 +78,9 @@ use infiltrator_bevy_ui::pages::rules_mrs::{RulesMrsRoot, UnpackRuleProviderButt
 use infiltrator_bevy_ui::pages::rules_outcome::{
     RuleProviderFailureText, RuleProviderRefreshButton,
 };
-use infiltrator_bevy_ui::pages::rules_projection::{RuleTypeBadge, RuleTypeText};
+use infiltrator_bevy_ui::pages::rules_projection::{
+    RuleRowStatusText, RuleTypeBadge, RuleTypeText,
+};
 use infiltrator_bevy_ui::pages::rules_subrules::{
     RulesSubRuleState, SubRuleConditionRow, SubRuleInsertButton, SubRuleOperatorChip,
     SubRulePresetButton, SubRulePreviewLine, SubRuleRemoveConditionButton, SubRuleTargetField,

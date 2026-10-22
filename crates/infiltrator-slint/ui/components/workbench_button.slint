@@ -1,0 +1,72 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "theme.slint";
+
+// The action control of a workbench panel.
+//
+// The control is painted with the surface's own theme, so a workbench panel
+// reads as part of the product instead of a raw widget dump.
+//
+// The pointer only tints the label. The control's body keeps its pixels
+// whether the pointer rests on it or not, so a route-only render of the
+// panel is a stable baseline: a capture can tell the business's own change
+// apart from the surface's own run-to-run noise.
+export component WorkbenchButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+
+    callback clicked();
+
+    // A panel action fills the panel; a row action keeps its own width and
+    // asks the row layout not to stretch it.
+    min-width: max(96 * LumenUiScale.unit, i-layout.min-width);
+    height: 40 * LumenUiScale.unit;
+    border-radius: LumenTheme.radius-control;
+    background: LumenTheme.surface-muted;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: root.enabled ? LumenTheme.border : LumenTheme.disabled;
+
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+
+    forward-focus: focus;
+
+    focus := FocusScope {
+        x: 0;
+        width: 0;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    i-layout := HorizontalLayout {
+        x: 12 * LumenUiScale.unit;
+        width: parent.width - 24 * LumenUiScale.unit;
+        height: parent.height;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: !root.enabled ? LumenTheme.disabled
+                : touch.has-hover ? LumenTheme.accent
+                : LumenTheme.text-primary;
+            font-size: 14 * LumenUiScale.unit;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}

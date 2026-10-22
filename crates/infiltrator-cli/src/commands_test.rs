@@ -1,6 +1,6 @@
 use crate::commands::{
     Cli, Commands, ConfigsDirAction, ConnectionAction, DoctorAction, KernelAction, OutboundAction,
-    ProfileAction, ServiceAction, SyncAction,
+    ProfileAction, ServiceAction, SyncAction, TerminalAction,
 };
 use clap::{CommandFactory, Parser};
 use std::mem::discriminant;
@@ -359,6 +359,43 @@ fn sync_test_and_now_parse() {
 }
 
 #[test]
+fn terminal_commands_parse() {
+    match parse(&["terminal", "capabilities"]) {
+        Commands::Terminal {
+            action: TerminalAction::Capabilities { json },
+        } => assert!(!json, "capabilities defaults to the text output"),
+        _ => panic!("expected terminal capabilities"),
+    }
+
+    match parse(&["terminal", "capabilities", "--json"]) {
+        Commands::Terminal {
+            action: TerminalAction::Capabilities { json },
+        } => assert!(json),
+        _ => panic!("expected terminal capabilities with json"),
+    }
+
+    match parse(&["terminal", "quantize", "4f8cff"]) {
+        Commands::Terminal {
+            action: TerminalAction::Quantize { color, json },
+        } => {
+            assert_eq!(color, "4f8cff");
+            assert!(!json, "quantize defaults to the text output");
+        }
+        _ => panic!("expected terminal quantize"),
+    }
+
+    match parse(&["terminal", "quantize", "4f8cff", "--json"]) {
+        Commands::Terminal {
+            action: TerminalAction::Quantize { color, json },
+        } => {
+            assert_eq!(color, "4f8cff");
+            assert!(json);
+        }
+        _ => panic!("expected terminal quantize with json"),
+    }
+}
+
+#[test]
 fn root_help_lists_all_namespaced_groups() {
     let mut command = Cli::command();
     let mut buffer = Vec::new();
@@ -374,6 +411,7 @@ fn root_help_lists_all_namespaced_groups() {
         "outbound",
         "connection",
         "sync",
+        "terminal",
     ] {
         assert!(help.contains(group), "help is missing '{group}':\n{help}");
     }

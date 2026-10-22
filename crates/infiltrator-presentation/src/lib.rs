@@ -12,12 +12,15 @@
 
 pub mod aggregation_preview_projection;
 pub mod app_routing_page_model;
+pub mod chart;
+pub mod clock;
 pub mod command_palette_projection;
 pub mod connection_detail_projection;
 pub mod connection_grouping;
 pub mod connection_page_model;
 pub mod connection_search;
 pub mod core_control_projection;
+pub mod diff;
 pub mod dns_cache_actions;
 pub mod dns_cache_projection;
 pub mod dns_health_projection;
@@ -35,9 +38,12 @@ pub mod doctor_page_model;
 pub mod doctor_projection;
 pub mod editable_draft;
 pub mod filter_query;
+pub mod geo;
 pub mod host_network_projection;
+pub mod input_intent;
 pub mod language_choice;
 pub mod latency_projection;
+pub mod list_filter;
 pub mod log_export_actions;
 pub mod log_export_projection;
 pub mod log_page_model;
@@ -98,6 +104,8 @@ pub mod sync_projection;
 pub mod system_toggle_projection;
 pub mod traffic_readout;
 pub mod traffic_topology_projection;
+pub mod tween;
+pub mod ui_presence;
 pub mod unified_runtime_status;
 
 #[cfg(test)]

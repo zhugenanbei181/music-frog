@@ -12,6 +12,7 @@ use super::{FailureObserver, install_failure_observer};
 use crate::callbacks;
 use crate::lumen_projection;
 use crate::surface::workbenches::Workbenches;
+use crate::widget_vocabulary;
 use crate::{
     AppWindow, ObservationRow, SlintAction, SurfaceSnapshot, WorkbenchItem, WorkerRequest,
 };
@@ -121,6 +122,15 @@ impl SurfaceHarness {
         &self.window
     }
 
+    /// Runs the events the surface scheduled on the event loop of this thread.
+    ///
+    /// A projection the page schedules is delivered on the next turn of the
+    /// event loop, so a test that drives a page's own business runs the
+    /// pending events before it reads the page.
+    pub fn run_pending_events(&self) {
+        self.drain_events();
+    }
+
     /// The workbench reducers the surface owns.
     ///
     /// A capture activation projects the workbench page it opens, so a test
@@ -138,13 +148,17 @@ impl SurfaceHarness {
     /// Drives the real `set-route-mode` callback.
     pub fn set_route_mode(&self, mode: &str) -> SurfaceOutcome {
         let window = &self.window;
-        self.drive(|| window.invoke_set_route_mode(mode.into()))
+        self.drive(|| {
+            window.invoke_set_route_mode(widget_vocabulary::route_mode_from_action_name(mode))
+        })
     }
 
     /// Drives the real `set-network-mode` callback.
     pub fn set_network_mode(&self, mode: &str) -> SurfaceOutcome {
         let window = &self.window;
-        self.drive(|| window.invoke_set_network_mode(mode.into()))
+        self.drive(|| {
+            window.invoke_set_network_mode(widget_vocabulary::network_mode_from_action_name(mode))
+        })
     }
 
     /// Drives the real `select-proxy` callback.
@@ -189,8 +203,12 @@ impl SurfaceHarness {
     /// calls the callback, so the harness does the same.
     pub fn set_connection_sort(&self, sort: &str) -> SurfaceOutcome {
         let window = &self.window;
-        window.set_connection_sort(sort.into());
-        self.drive(|| window.invoke_set_connection_sort(sort.into()))
+        window.set_connection_sort(widget_vocabulary::connection_sort_from_action_name(sort));
+        self.drive(|| {
+            window.invoke_set_connection_sort(widget_vocabulary::connection_sort_from_action_name(
+                sort,
+            ))
+        })
     }
 
     /// Drives the real `set-log-level` callback.
@@ -199,8 +217,10 @@ impl SurfaceHarness {
     /// calls the callback, so the harness does the same.
     pub fn set_log_level(&self, level: &str) -> SurfaceOutcome {
         let window = &self.window;
-        window.set_log_level(level.into());
-        self.drive(|| window.invoke_set_log_level(level.into()))
+        window.set_log_level(widget_vocabulary::log_level_from_action_name(level));
+        self.drive(|| {
+            window.invoke_set_log_level(widget_vocabulary::log_level_from_action_name(level))
+        })
     }
 
     /// Drives the real `search-logs` callback.
@@ -237,8 +257,14 @@ impl SurfaceHarness {
 
     /// Drives the real `set-theme-mode` callback.
     pub fn set_theme_mode(&self, mode: &str) -> SurfaceOutcome {
+        let Some(mode) = widget_vocabulary::theme_mode_from_setting_name(mode) else {
+            return SurfaceOutcome::Rejected {
+                failure: Failure::unsupported("The surface has no theme to apply"),
+                actions: Vec::new(),
+            };
+        };
         let window = &self.window;
-        self.drive(|| window.invoke_set_theme_mode(mode.into()))
+        self.drive(|| window.invoke_set_theme_mode(mode))
     }
 
     /// Drives the real `set-theme-color` callback.
@@ -279,7 +305,11 @@ impl SurfaceHarness {
     /// Opens the network-mode confirmation, exactly as its control does.
     pub fn open_network_mode_dialog(&self, draft: &str) -> SurfaceOutcome {
         let window = &self.window;
-        self.drive(|| window.invoke_open_network_mode_dialog(draft.into()))
+        self.drive(|| {
+            window.invoke_open_network_mode_dialog(
+                widget_vocabulary::network_mode_from_action_name(draft),
+            )
+        })
     }
 
     /// Whether the toolkit's network-mode popup is open.
@@ -425,17 +455,17 @@ impl SurfaceHarness {
 
     /// The projected Core lifecycle label.
     pub fn runtime_status(&self) -> String {
-        self.window.get_runtime_status().to_string()
+        widget_vocabulary::runtime_status_text(self.window.get_runtime_status()).to_owned()
     }
 
     /// The projected routing mode label.
     pub fn route_mode(&self) -> String {
-        self.window.get_route_mode().to_string()
+        widget_vocabulary::route_mode_text(self.window.get_route_mode()).to_owned()
     }
 
     /// The projected network mode label.
     pub fn network_mode(&self) -> String {
-        self.window.get_network_mode().to_string()
+        widget_vocabulary::network_mode_text(self.window.get_network_mode()).to_owned()
     }
 
     /// The warning the surface projects when the owner publishes a bounded
@@ -454,14 +484,62 @@ impl SurfaceHarness {
         model_rows(&self.window.get_logs())
     }
 
+    /// The reason the shared log search could not apply the typed query.
+    pub fn log_search_error(&self) -> String {
+        self.window.get_log_search_error().to_string()
+    }
+
     /// The projected rule rows.
     pub fn rule_rows(&self) -> Vec<ObservationRow> {
         model_rows(&self.window.get_rules())
     }
 
+    /// The rows one product page shows.
+    ///
+    /// The page models are the shared reductions the page renders, so a test
+    /// that drives a page's own business reads the rows the page really
+    /// shows.
+    pub fn page_rows(&self, page: &str) -> Vec<ObservationRow> {
+        match page {
+            "Connections" => model_rows(&self.window.get_connections()),
+            "Logs" => model_rows(&self.window.get_logs()),
+            "Rules" => model_rows(&self.window.get_rules()),
+            "Proxy" => model_rows(&self.window.get_proxy_nodes()),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Drives the search of one product page, exactly as its search box does.
+    ///
+    /// The search box owns the typed text, so the harness writes the text and
+    /// asks the page to search for it, the way the widget tree does.
+    pub fn search_page(&self, page: &str, query: &str) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| match page {
+            "Connections" => {
+                window.set_connection_search(query.into());
+                window.invoke_search_connections(query.into());
+            }
+            "Logs" => {
+                window.set_log_search(query.into());
+                window.invoke_search_logs(query.into());
+            }
+            "Rules" => {
+                window.set_rule_search(query.into());
+                window.invoke_search_rules(query.into());
+            }
+            _ => {}
+        })
+    }
+
     /// The projected proxy node rows.
     pub fn proxy_node_rows(&self) -> Vec<ObservationRow> {
         model_rows(&self.window.get_proxy_nodes())
+    }
+
+    /// The query the proxies page search box holds.
+    pub fn proxy_search(&self) -> String {
+        self.window.get_proxy_search().to_string()
     }
 
     /// The accent colour draft the surface is editing.
@@ -568,6 +646,35 @@ impl SurfaceHarness {
     pub fn refresh_home_egress(&self) -> SurfaceOutcome {
         let window = &self.window;
         self.drive(|| window.invoke_refresh_home_egress())
+    }
+
+    /// Opens the Overview card order sheet, exactly as the overview page does.
+    pub fn open_overview_order(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_open_overview_order())
+    }
+
+    /// Drives the Overview card move, exactly as the card list's own move
+    /// control does.
+    pub fn move_overview_card(&self, id: &str, up: bool) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_move_overview_card(id.into(), up))
+    }
+
+    /// Drives the Overview card order reset, exactly as the card list's own
+    /// reset control does.
+    pub fn reset_overview_card_order(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_reset_overview_card_order())
+    }
+
+    /// The Overview card order the owner published.
+    pub fn overview_card_order(&self) -> Vec<String> {
+        let model = self.window.get_overview_cards();
+        (0..model.row_count())
+            .filter_map(|row| model.row_data(row))
+            .map(|card| card.id.as_str().to_owned())
+            .collect()
     }
 
     /// The workbench cells the surface projects for the open page.

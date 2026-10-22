@@ -266,24 +266,24 @@ export global FlagImages {
 export component FlagIcon inherits Rectangle {
     in property <int> index: -1;
     in property <string> country-code;
-    in property <length> diameter: 28px * LumenUiScale.factor;
+    in property <length> diameter: 28 * LumenUiScale.unit;
     in property <bool> show-layout-bounds: false;
     width: root.diameter;
     height: root.diameter;
     background: transparent;
-    border-width: 0px * LumenUiScale.factor;
+    border-width: 0 * LumenUiScale.unit;
     border-radius: root.diameter / 2;
     clip: true;
     accessible-role: image;
     accessible-label: country-code;
     if root.index >= 0: Image {
         source: FlagImages.flags[root.index];
-        x: 0px * LumenUiScale.factor; y: 0px * LumenUiScale.factor; width: parent.width; height: parent.height; image-fit: cover;
+        x: 0 * LumenUiScale.unit; y: 0 * LumenUiScale.unit; width: parent.width; height: parent.height; image-fit: cover;
     }
     if root.show-layout-bounds: Rectangle {
         width: parent.width; height: parent.height;
         border-radius: self.width / 2;
-        background: transparent; border-width: 1px * LumenUiScale.factor; border-color: #007AFF;
+        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #007AFF;
         z: 1000;
     }
 }

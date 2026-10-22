@@ -54,14 +54,14 @@ export component ProfileOverlays inherits Rectangle {
     // The real on-screen geometry of the sheets this overlay owns. The
     // parity capture path publishes the bounds of the sheet it activated, so
     // the receipt is bound to the pixels of the surface that was opened.
-    in-out property <length> add-sheet-x: 0px * LumenUiScale.factor;
-    in-out property <length> add-sheet-y: 0px * LumenUiScale.factor;
-    in-out property <length> add-sheet-width: 0px * LumenUiScale.factor;
-    in-out property <length> add-sheet-height: 0px * LumenUiScale.factor;
-    in-out property <length> delete-sheet-x: 0px * LumenUiScale.factor;
-    in-out property <length> delete-sheet-y: 0px * LumenUiScale.factor;
-    in-out property <length> delete-sheet-width: 0px * LumenUiScale.factor;
-    in-out property <length> delete-sheet-height: 0px * LumenUiScale.factor;
+    in-out property <length> add-sheet-x: 0 * LumenUiScale.unit;
+    in-out property <length> add-sheet-y: 0 * LumenUiScale.unit;
+    in-out property <length> add-sheet-width: 0 * LumenUiScale.unit;
+    in-out property <length> add-sheet-height: 0 * LumenUiScale.unit;
+    in-out property <length> delete-sheet-x: 0 * LumenUiScale.unit;
+    in-out property <length> delete-sheet-y: 0 * LumenUiScale.unit;
+    in-out property <length> delete-sheet-width: 0 * LumenUiScale.unit;
+    in-out property <length> delete-sheet-height: 0 * LumenUiScale.unit;
 
     callback add-sheet-reported(length, length, length, length);
     callback delete-sheet-reported(length, length, length, length);

@@ -35,7 +35,7 @@ lurker-core-contract = { path = "../lurker-core-contract" }
 zhuge-ui-tokens.workspace = true
 zhuge-ui-kit-iced.workspace = true
 zhuge-ui-core.workspace = true
-iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "wayland"] }
+iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "wayland", "lazy"] }
 wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
 # naga 27 enters this crate's graph via wgpu 27. When the bevy frontend
 # (infiltrator-bevy-*) shares the workspace build graph, its naga_oil turns
@@ -53,7 +53,7 @@ infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-presentation = { path = "../infiltrator-presentation" }
-lurker-ui-presentation = { version = "0.51.0", path = "../lurker-ui-presentation" }
+lurker-ui-presentation = { version = "0.68.0", path = "../lurker-ui-presentation" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }

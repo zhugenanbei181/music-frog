@@ -22,8 +22,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 conformance = []
 
 [dependencies]
-lurker-core-contract = { version = "0.51.0", path = "../lurker-core-contract" }
-lurker-core-ports = { version = "0.51.0", path = "../lurker-core-ports" }
+lurker-core-contract = { version = "0.68.0", path = "../lurker-core-contract" }
+lurker-core-ports = { version = "0.68.0", path = "../lurker-core-ports" }
 async-trait = { workspace = true }
 # Executor-neutral state fan-out and readiness deadline. No tokio dependency:
 # the facade must run on every host runtime.

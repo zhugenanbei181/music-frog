@@ -13,12 +13,14 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::TrafficHistory;
 use crate::pages::overview::{
     LastOverviewProjection, OverviewCardMoveDownButton, OverviewCardMoveUpButton, OverviewCardSlot,
-    OverviewTrafficCard, chips_row_scene, traffic_card_scene,
+    OverviewCardSlots, OverviewTrafficCard, chips_row_scene, traffic_card_scene,
 };
 use crate::pages::{overview_cards, overview_public_ip, overview_topology};
 use crate::projection::OverviewProjection;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
@@ -294,6 +296,54 @@ fn submit_reorder(
         return;
     }
     handle.submit(UiCommand::ReorderOverviewCards { order: next });
+}
+
+/// Put the card slots back in the order the owner published.
+///
+/// The move controls publish the shared reorder intent and the owner answers
+/// with the next layout snapshot. The page renders that answer: the slots are
+/// sorted by the published order, so the card order on screen is the owner's
+/// order and never a local guess.
+pub(crate) fn sync_overview_card_order(
+    last: Option<Res<LastOverviewProjection>>,
+    mut containers: Query<&mut Children, With<OverviewCardSlots>>,
+    slots: Query<(Entity, &OverviewCardSlot)>,
+) {
+    let Some(order) = last
+        .as_ref()
+        .and_then(|last| last.0.as_ref())
+        .map(|projection| published_order(&projection.layout))
+    else {
+        return;
+    };
+    let Ok(mut children) = containers.single_mut() else {
+        return;
+    };
+    let mut wanted: Vec<Entity> = Vec::with_capacity(order.len());
+    for kind in &order {
+        let Some((entity, _)) = slots.iter().find(|(_, slot)| slot.0 == *kind) else {
+            continue;
+        };
+        if !wanted.contains(&entity) {
+            wanted.push(entity);
+        }
+    }
+    // A card the owner did not list keeps its place at the end: no card may
+    // disappear because a layout listed only some of them.
+    let current: Vec<Entity> = children.iter().copied().collect();
+    for entity in &current {
+        if !wanted.contains(entity) {
+            wanted.push(*entity);
+        }
+    }
+    // The sort is stable, so a card the owner did not list keeps its relative
+    // order behind the listed ones.
+    children.sort_by_key(|entity| {
+        wanted
+            .iter()
+            .position(|listed| listed == entity)
+            .unwrap_or(wanted.len())
+    });
 }
 
 /// The move controls are only reachable when the card can actually move, so

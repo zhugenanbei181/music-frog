@@ -40,14 +40,14 @@ fn every_id_resolves_to_a_distinct_shared_png_asset() {
             .expect("every Bevy icon is registered in the shared catalog")
         })
         .collect();
-    assert_eq!(records.len(), 10);
+    assert_eq!(records.len(), IconId::ALL.len());
     assert_eq!(
         records
             .iter()
             .map(|record| &record.path)
             .collect::<HashSet<_>>()
             .len(),
-        10,
+        IconId::ALL.len(),
         "no two ids share a plate file"
     );
     for record in records {

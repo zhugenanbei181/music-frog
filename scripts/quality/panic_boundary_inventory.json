@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "note": "Every panic boundary is an explicit reliability decision. A new `catch_unwind` needs an entry here with the failure it contains; `panic = \"abort\"` anywhere would make these boundaries dead code and is rejected by the guard.",
+  "categories": ["crash_reporting", "runtime_supervision", "ui_event_loop"],
+  "boundaries": [
+    {
+      "path": "crates/infiltrator-application/src/core_application/execution.rs",
+      "sites": 1,
+      "category": "runtime_supervision",
+      "rationale": "A panicking speedtest probe becomes a typed Failed outcome instead of killing the scheduler."
+    },
+    {
+      "path": "crates/infiltrator-application/src/core_version_management_application.rs",
+      "sites": 1,
+      "category": "runtime_supervision",
+      "rationale": "A panicking version installer is reported as an Internal failure and the install slot is released."
+    },
+    {
+      "path": "crates/infiltrator-composition/src/lib.rs",
+      "sites": 1,
+      "category": "runtime_supervision",
+      "rationale": "A panicking background task moves the scheduler to WorkerFailed instead of unwinding the worker thread."
+    },
+    {
+      "path": "crates/infiltrator-iced/src/desktop_composition.rs",
+      "sites": 1,
+      "category": "crash_reporting",
+      "rationale": "Writing the sanitized crash report after a panic must not panic again during teardown."
+    },
+    {
+      "path": "crates/infiltrator-platform/src/crash_reporter.rs",
+      "sites": 1,
+      "category": "crash_reporting",
+      "rationale": "Emergency cleanup runs every registered hook even when an earlier hook panics."
+    }
+  ]
+}

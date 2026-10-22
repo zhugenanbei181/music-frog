@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "note": "Feature matrix of the workspace. The ledger mirrors the `[features]` tables of the manifests and classifies every feature, so a feature cannot appear without a declared owner. A `default` feature may only enable product or platform features; capture and test features stay opt-in.",
+  "kinds": ["capture", "platform", "product", "test"],
+  "crates": [
+    {
+      "package": "infiltrator-android",
+      "features": [
+        { "name": "default", "kind": "product", "members": [] },
+        {
+          "name": "slint-ui",
+          "kind": "product",
+          "members": ["dep:infiltrator-slint", "dep:slint"]
+        }
+      ]
+    },
+    {
+      "package": "infiltrator-application",
+      "features": [
+        { "name": "default", "kind": "product", "members": ["script-engine-boa"] },
+        {
+          "name": "script-engine-boa",
+          "kind": "product",
+          "members": ["dep:boa_engine"]
+        }
+      ]
+    },
+    {
+      "package": "infiltrator-bevy-desktop-host",
+      "features": [
+        { "name": "default", "kind": "product", "members": [] },
+        {
+          "name": "capture-tools",
+          "kind": "capture",
+          "members": ["infiltrator-bevy-ui/capture-tools"]
+        },
+        {
+          "name": "capture-controller",
+          "kind": "capture",
+          "members": ["capture-tools", "infiltrator-bevy-ui/capture-controller"]
+        },
+        {
+          "name": "static-openssl",
+          "kind": "platform",
+          "members": ["infiltrator-bevy-ui/static-openssl"]
+        }
+      ]
+    },
+    {
+      "package": "infiltrator-bevy-ui",
+      "features": [
+        { "name": "default", "kind": "product", "members": ["script-engine-boa"] },
+        {
+          "name": "script-engine-boa",
+          "kind": "product",
+          "members": [
+            "dep:infiltrator-application",
+            "infiltrator-application/script-engine-boa"
+          ]
+        },
+        {
+          "name": "capture-tools",
+          "kind": "capture",
+          "members": [
+            "dep:infiltrator-composition",
+            "dep:infiltrator-application",
+            "dep:infiltrator-test-support",
+            "infiltrator-composition/capture-fixtures"
+          ]
+        },
+        { "name": "capture-controller", "kind": "capture", "members": ["capture-tools"] },
+        {
+          "name": "static-openssl",
+          "kind": "platform",
+          "members": ["dep:openssl", "openssl/vendored"]
+        }
+      ]
+    },
+    {
+      "package": "infiltrator-composition",
+      "features": [
+        {
+          "name": "capture-fixtures",
+          "kind": "capture",
+          "members": ["dep:infiltrator-test-support"]
+        }
+      ]
+    },
+    {
+      "package": "infiltrator-core",
+      "features": [{ "name": "network-tests", "kind": "test", "members": [] }]
+    },
+    {
+      "package": "infiltrator-iced",
+      "features": [
+        { "name": "default", "kind": "product", "members": ["script-engine-boa"] },
+        { "name": "native-tray-backend", "kind": "platform", "members": [] },
+        {
+          "name": "static-openssl",
+          "kind": "platform",
+          "members": ["dep:openssl", "openssl/vendored"]
+        },
+        {
+          "name": "script-engine-boa",
+          "kind": "product",
+          "members": ["infiltrator-application/script-engine-boa"]
+        },
+        {
+          "name": "capture-tools",
+          "kind": "capture",
+          "members": [
+            "infiltrator-composition/capture-fixtures",
+            "dep:infiltrator-test-support"
+          ]
+        }
+      ]
+    },
+    {
+      "package": "infiltrator-slint",
+      "features": [
+        { "name": "default", "kind": "product", "members": ["desktop-host"] },
+        {
+          "name": "desktop-host",
+          "kind": "product",
+          "members": ["dep:infiltrator-application", "dep:infiltrator-desktop"]
+        },
+        {
+          "name": "capture-tools",
+          "kind": "capture",
+          "members": [
+            "desktop-host",
+            "dep:infiltrator-composition",
+            "infiltrator-composition/capture-fixtures",
+            "dep:infiltrator-test-support"
+          ]
+        },
+        {
+          "name": "static-openssl",
+          "kind": "platform",
+          "members": ["dep:openssl", "openssl/vendored"]
+        }
+      ]
+    },
+    {
+      "package": "lurker-engine-runtime",
+      "features": [{ "name": "conformance", "kind": "test", "members": [] }]
+    },
+    {
+      "package": "mihomo-driver",
+      "features": [
+        {
+          "name": "default",
+          "kind": "product",
+          "members": ["http", "process", "codec", "backend"]
+        },
+        {
+          "name": "backend",
+          "kind": "product",
+          "members": ["http", "process", "codec"]
+        },
+        { "name": "http", "kind": "product", "members": ["dep:tokio-tungstenite"] },
+        {
+          "name": "process",
+          "kind": "platform",
+          "members": ["dep:sysinfo", "dep:libc", "dep:windows-sys"]
+        },
+        { "name": "codec", "kind": "platform", "members": ["process"] }
+      ]
+    },
+    {
+      "package": "singbox-driver",
+      "features": [
+        {
+          "name": "default",
+          "kind": "product",
+          "members": ["http", "process", "codec", "backend"]
+        },
+        {
+          "name": "backend",
+          "kind": "product",
+          "members": ["http", "process", "codec"]
+        },
+        {
+          "name": "http",
+          "kind": "product",
+          "members": ["dep:reqwest", "dep:url", "dep:serde", "dep:serde_json"]
+        },
+        { "name": "process", "kind": "platform", "members": [] },
+        {
+          "name": "codec",
+          "kind": "platform",
+          "members": ["process", "dep:serde_json"]
+        }
+      ]
+    }
+  ]
+}

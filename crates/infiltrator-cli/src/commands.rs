@@ -51,6 +51,11 @@ pub enum Commands {
         #[command(subcommand)]
         action: SyncAction,
     },
+    /// Terminal capabilities negotiated at startup
+    Terminal {
+        #[command(subcommand)]
+        action: TerminalAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -266,6 +271,24 @@ pub enum SyncAction {
     Test,
     /// Run one full WebDAV sync round over the configs directory
     Now,
+}
+
+#[derive(Subcommand)]
+pub enum TerminalAction {
+    /// Show the color depth and graphics protocol negotiated at startup
+    Capabilities {
+        /// Render the capabilities as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Fold a truecolor value into every supported color tier
+    Quantize {
+        /// Truecolor value as six hexadecimal digits (rrggbb)
+        color: String,
+        /// Render the quantized tiers as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[cfg(test)]

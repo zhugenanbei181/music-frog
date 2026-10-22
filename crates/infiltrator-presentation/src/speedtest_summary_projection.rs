@@ -226,3 +226,47 @@ pub fn history_caption(snapshot: &SpeedtestSnapshot, catalog: &dyn TextCatalog) 
         )
     }
 }
+
+/// The breathing phase of the speedtest indicator (EFFECTS-012 #40).
+///
+/// The phase runs from 0.0 up to 1.0 and back down, so a surface drives a
+/// pulsing opacity or a pulsing scale from one number instead of writing an
+/// oscillator of its own — and two surfaces breathe in step.
+pub fn breathing_phase(elapsed_ms: f32, period_ms: f32) -> f32 {
+    if !elapsed_ms.is_finite() || !period_ms.is_finite() || period_ms <= 0.0 {
+        return 0.0;
+    }
+    let position = elapsed_ms.rem_euclid(period_ms) / period_ms;
+    let triangle = if position <= 0.5 {
+        position * 2.0
+    } else {
+        (1.0 - position) * 2.0
+    };
+    triangle.clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_breathing_phase_runs_from_zero_to_one_and_back() {
+        assert_eq!(breathing_phase(0.0, 1000.0), 0.0);
+        assert_eq!(breathing_phase(500.0, 1000.0), 1.0);
+        assert_eq!(breathing_phase(1000.0, 1000.0), 0.0);
+        assert_eq!(breathing_phase(250.0, 1000.0), 0.5);
+        // The phase repeats forever.
+        assert_eq!(breathing_phase(1250.0, 1000.0), 0.5);
+        for step in 0..100 {
+            let phase = breathing_phase(step as f32 * 10.0, 1000.0);
+            assert!((0.0..=1.0).contains(&phase));
+        }
+    }
+
+    #[test]
+    fn a_broken_period_holds_the_phase_at_zero() {
+        assert_eq!(breathing_phase(100.0, 0.0), 0.0);
+        assert_eq!(breathing_phase(100.0, -5.0), 0.0);
+        assert_eq!(breathing_phase(f32::NAN, 1000.0), 0.0);
+    }
+}

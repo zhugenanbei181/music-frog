@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "note": "Ledger of unsafe operations. `operations` must match the source exactly; `max_undocumented` is a ceiling that may only go down. New unsafe code needs an entry here plus a `SAFETY:` note at the call site.",
+  "categories": ["ffi", "jni", "env", "zeroize", "test_support"],
+  "scan_roots": ["crates", "android", "examples", "templates", "sandbox"],
+  "excluded_roots": ["crates/infiltrator-slint/lumen-source"],
+  "unsafe_files": [
+    {
+      "path": "android/bevy-host/driver/src/android_jni.rs",
+      "operations": 6,
+      "max_undocumented": 4,
+      "category": "jni",
+      "rationale": "JNI entry points and local reference handling of the Bevy Android host."
+    },
+    {
+      "path": "crates/infiltrator-admin/src/support.rs",
+      "operations": 3,
+      "max_undocumented": 1,
+      "category": "env",
+      "rationale": "Test-only CONFIGS_DIR process environment override."
+    },
+    {
+      "path": "crates/infiltrator-android/src/host_support.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "env",
+      "rationale": "Test-only CONFIGS_DIR process environment override."
+    },
+    {
+      "path": "crates/infiltrator-android/src/uniffi_api/doctor.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "env",
+      "rationale": "Test-only CONFIGS_DIR process environment override."
+    },
+    {
+      "path": "crates/infiltrator-android/src/uniffi_api/profile_age_credential_owner.rs",
+      "operations": 1,
+      "max_undocumented": 0,
+      "category": "zeroize",
+      "rationale": "Volatile erasure of an owner-held credential buffer."
+    },
+    {
+      "path": "crates/infiltrator-android/src/vpn_service/tun_fd.rs",
+      "operations": 3,
+      "max_undocumented": 0,
+      "category": "ffi",
+      "rationale": "Duplicates and owns the VPN tunnel descriptor through libc fcntl."
+    },
+    {
+      "path": "crates/infiltrator-cli/src/test_support.rs",
+      "operations": 2,
+      "max_undocumented": 0,
+      "category": "test_support",
+      "rationale": "Process environment guard shared by CLI tests."
+    },
+    {
+      "path": "crates/infiltrator-contract/src/profile_age_credential.rs",
+      "operations": 3,
+      "max_undocumented": 2,
+      "category": "zeroize",
+      "rationale": "Volatile erasure of credential strings at the contract boundary."
+    },
+    {
+      "path": "crates/infiltrator-core/src/profile_options_test.rs",
+      "operations": 3,
+      "max_undocumented": 3,
+      "category": "test_support",
+      "rationale": "Process environment override inside the profile options test module."
+    },
+    {
+      "path": "crates/infiltrator-core/src/settings_io.rs",
+      "operations": 3,
+      "max_undocumented": 3,
+      "category": "env",
+      "rationale": "Test-only HOME and CONFIGS_DIR process environment override."
+    },
+    {
+      "path": "crates/infiltrator-desktop/src/editor.rs",
+      "operations": 1,
+      "max_undocumented": 0,
+      "category": "env",
+      "rationale": "Test-only environment variable write."
+    },
+    {
+      "path": "crates/infiltrator-desktop/src/proxy/linux/env_fallback.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "env",
+      "rationale": "Sets and restores proxy variables in the process environment."
+    },
+    {
+      "path": "crates/infiltrator-desktop/src/system_proxy.rs",
+      "operations": 1,
+      "max_undocumented": 0,
+      "category": "ffi",
+      "rationale": "Windows MoveFileExW replacement of the proxy configuration file."
+    },
+    {
+      "path": "crates/infiltrator-domain/src/zeroize_guard.rs",
+      "operations": 3,
+      "max_undocumented": 3,
+      "category": "zeroize",
+      "rationale": "Volatile erasure and unchecked UTF-8 read of scrubbed secret buffers."
+    },
+    {
+      "path": "crates/infiltrator-iced/tests/gui/notify_tests.rs",
+      "operations": 4,
+      "max_undocumented": 4,
+      "category": "test_support",
+      "rationale": "GUI notification test manipulates process-global notification state."
+    },
+    {
+      "path": "crates/infiltrator-platform/src/crash_reporter.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "ffi",
+      "rationale": "libc kill and Windows OpenProcess probe of a recorded process id."
+    },
+    {
+      "path": "crates/infiltrator-platform/src/paths.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "env",
+      "rationale": "Test-only MIHOMO_HOME process environment override."
+    },
+    {
+      "path": "crates/infiltrator-profile-store/src/profile_age_credential.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "zeroize",
+      "rationale": "Volatile erasure of stored credential bytes."
+    },
+    {
+      "path": "crates/lurker-profile-store/src/platform.rs",
+      "operations": 11,
+      "max_undocumented": 11,
+      "category": "ffi",
+      "rationale": "Descriptor ownership plus flock and mutex based single-instance lock."
+    },
+    {
+      "path": "crates/mihomo-config/src/manager/paths.rs",
+      "operations": 2,
+      "max_undocumented": 2,
+      "category": "env",
+      "rationale": "Test-only CONFIGS_DIR process environment override."
+    },
+    {
+      "path": "crates/mihomo-driver/src/process.rs",
+      "operations": 6,
+      "max_undocumented": 1,
+      "category": "ffi",
+      "rationale": "libc prctl and Windows job object handling for child processes."
+    },
+    {
+      "path": "crates/mihomo-driver/src/process/controller_tests.rs",
+      "operations": 3,
+      "max_undocumented": 0,
+      "category": "test_support",
+      "rationale": "Process controller tests that signal child processes."
+    }
+  ]
+}

@@ -2,12 +2,13 @@
 
 use super::{
     ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleEnabledKnob, RuleHitText,
-    RulePayloadText, RuleProxyText, RuleTypeText, RulesLine,
+    RulePayloadText, RuleProxyText, RuleRowStatusChip, RuleRowStatusText, RuleTypeText, RulesLine,
 };
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, SystemParam};
 use bevy::feathers::theme::ThemeTextColor;
+use bevy::ui::prelude::Node;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::switch::SwitchKnob;
@@ -108,6 +109,16 @@ pub struct ApplyRulesProjectionProviderUpdatesFilter {
     without_provider_count_text: Without<ProviderCountText>,
 }
 
+#[derive(QueryFilter)]
+pub struct ApplyRulesProjectionStatusChipsFilter {
+    with_rule_row_status_chip: With<RuleRowStatusChip>,
+}
+
+#[derive(QueryFilter)]
+pub struct ApplyRulesProjectionStatusTextsFilter {
+    with_rule_row_status_text: With<RuleRowStatusText>,
+}
+
 #[derive(SystemParam)]
 pub struct RuleProjectionTargets<'w, 's> {
     pub(super) type_inks: Query<
@@ -141,6 +152,25 @@ pub struct RuleProjectionTargets<'w, 's> {
             &'static RuleHitText,
         ),
         ApplyRulesProjectionHitsFilter,
+    >,
+    /// The status chip's own box: the chip is shown only when the row has a
+    /// status fact of its own.
+    pub(super) status_chips: Query<
+        'w,
+        's,
+        (&'static mut Node, &'static RuleRowStatusChip),
+        ApplyRulesProjectionStatusChipsFilter,
+    >,
+    /// The status chip's copy.
+    pub(super) status_texts: Query<
+        'w,
+        's,
+        (
+            &'static mut Text,
+            &'static RuleRowStatusText,
+            &'static mut LocalizedText,
+        ),
+        ApplyRulesProjectionStatusTextsFilter,
     >,
     pub(super) proxies: Query<
         'w,

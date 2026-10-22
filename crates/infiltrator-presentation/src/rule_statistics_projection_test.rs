@@ -77,3 +77,18 @@ fn qualified_audit_and_duplicate_requests_cannot_disable_a_different_identical_r
     audit.source.as_mut().unwrap().profile = "another.yaml".into();
     assert!(zero_hit_rows(&editor, Some(&audit)).is_empty());
 }
+
+#[test]
+fn the_hit_badge_ranks_a_rule_by_how_often_it_is_hit() {
+    assert_eq!(project_rule_hit_badge(0, false).tier, RuleHitTier::Cold);
+    assert_eq!(project_rule_hit_badge(1, false).tier, RuleHitTier::Warm);
+    assert_eq!(project_rule_hit_badge(99, false).tier, RuleHitTier::Warm);
+    assert_eq!(
+        project_rule_hit_badge(RULE_HOT_HIT_THRESHOLD, false).tier,
+        RuleHitTier::Hot
+    );
+    // A dead rule outranks every other tier.
+    assert_eq!(project_rule_hit_badge(5_000, true).tier, RuleHitTier::Dead);
+    assert_eq!(project_rule_hit_badge(5_000, true).hits, 5_000);
+    assert_eq!(RuleHitTier::ALL.len(), 4);
+}

@@ -576,7 +576,7 @@ fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
             let rows = (0..4)
                 .map(|index| list_row_scene(format!("proxy {index}"), index == 1, &palette))
                 .collect();
-            commands.spawn_scene(list_scene(rows, Some(1)));
+            commands.spawn_scene(list_scene(rows, Some(1), &palette));
         },
     );
     app.update();
@@ -626,7 +626,7 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
             let rows = (0..3)
                 .map(|index| list_row_scene(format!("proxy {index}"), index == 0, &palette))
                 .collect();
-            commands.spawn_scene(list_scene(rows, Some(0)));
+            commands.spawn_scene(list_scene(rows, Some(0), &palette));
         },
     );
     app.update();

@@ -6,7 +6,7 @@ use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Startup, Update};
 use bevy::asset::AssetPlugin;
 use bevy::camera::NormalizedRenderTarget;
-use bevy::color::Color;
+use bevy::color::{Alpha, Color};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
@@ -31,8 +31,8 @@ use bevy::ui_widgets::{Activate, ButtonPlugin};
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{
     ButtonDisabled, ButtonLoading, ButtonSize, ButtonSizeStyle, ButtonVariant, ButtonVariantStyle,
-    button_fill, button_scene, button_sized_scene, button_text_color, loading_button_scene,
-    sync_button_disabled,
+    DISABLED_ACCENT_WASH_ALPHA, button_fill, button_scene, button_sized_scene, button_text_color,
+    loading_button_scene, sync_button_disabled,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
@@ -109,10 +109,24 @@ fn button_variants_fill_and_text_color_matrix() {
         palette.on_accent
     );
 
-    // Disabled states
+    // Disabled states: the accent family keeps its own identity on the soft
+    // accent wash (the Iced reference draws a disabled primary exactly this
+    // way), and every other variant reads as the shared disabled ink.
     assert_eq!(
         button_text_color(ButtonVariant::Primary, false, true, &palette),
+        palette.accent
+    );
+    assert_eq!(
+        button_text_color(ButtonVariant::Default, false, true, &palette),
         palette.disabled_ink
+    );
+    assert_eq!(
+        button_fill(ButtonVariant::Primary, false, false, false, true, &palette),
+        palette.accent.with_alpha(DISABLED_ACCENT_WASH_ALPHA)
+    );
+    assert_eq!(
+        button_fill(ButtonVariant::Default, false, false, false, true, &palette),
+        palette.surface_elevated
     );
 }
 

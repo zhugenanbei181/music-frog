@@ -16,6 +16,7 @@ use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::LogSnapshot;
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
     OverviewPageSnapshot, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
@@ -90,6 +91,14 @@ impl DemoSettings {
             "doctor" => "Doctor",
             "sync" => "Sync",
             "app_routing" | "app-routing" => "AppRouting",
+            "connections_workbench" | "connections-workbench" => "ConnectionsWorkbench",
+            "logs_workbench" | "logs-workbench" => "LogsWorkbench",
+            "runtime_workbench" | "runtime-workbench" => "RuntimeWorkbench",
+            "proxies_workbench" | "proxies-workbench" => "ProxiesWorkbench",
+            "rules_workbench" | "rules-workbench" => "RulesWorkbench",
+            "settings_workbench" | "settings-workbench" => "SettingsWorkbench",
+            "shell_workbench" | "shell-workbench" => "ShellWorkbench",
+            "overview_workbench" | "overview-workbench" => "OverviewWorkbench",
             _ => "Home",
         }
         .to_string();
@@ -252,6 +261,14 @@ fn demo_outbound_inventory() -> (
                     "AUTO",
                     &["HK-01", "HK-02", "JP-01"],
                     SelectionAvailability::Automatic,
+                    "HK-01",
+                ),
+                // The global group is the one the published exit names, so the
+                // proxies page opens on the group the owner marked as active.
+                collection(
+                    "GLOBAL",
+                    &["HK-01", "HK-02", "JP-01", "SG-01", "US-01"],
+                    SelectionAvailability::Selectable,
                     "HK-01",
                 ),
             ],
@@ -673,6 +690,14 @@ pub fn write_capture_marker(
         "Doctor" => "doctor",
         "Sync" => "sync",
         "AppRouting" => "app_routing",
+        "ConnectionsWorkbench" => "connections_workbench",
+        "LogsWorkbench" => "logs_workbench",
+        "RuntimeWorkbench" => "runtime_workbench",
+        "ProxiesWorkbench" => "proxies_workbench",
+        "RulesWorkbench" => "rules_workbench",
+        "SettingsWorkbench" => "settings_workbench",
+        "ShellWorkbench" => "shell_workbench",
+        "OverviewWorkbench" => "overview_workbench",
         _ => "overview",
     };
 
@@ -749,12 +774,29 @@ fn prepare_demo_window(
     // Explicitly enforce skin and page after projection.
     window.set_page(settings.page.clone().into());
     lumen_projection::project_workbench(window, snapshot, workbenches);
+    open_proxies_group(window, snapshot);
     let is_dark = settings.skin == "dark" || settings.skin == "amoled";
     window.set_theme_mode(settings.skin.clone().into());
     window.set_application_dark_mode(is_dark);
     window.set_notice("".into());
 
     install_capture_timer(window, Arc::clone(workbenches), settings, snapshot.clone());
+}
+
+/// Opens the proxies page on the group the owner marked as active.
+///
+/// The proxies page reaches its node list through a group, and the outbound
+/// search is only reachable on that list. The demo therefore opens the page
+/// the way a user reaches the search, so the route-only render and the
+/// activated render differ by the search and by nothing else.
+fn open_proxies_group(window: &AppWindow, snapshot: &SurfaceSnapshot) {
+    if window.get_page().as_str() != "Proxy" {
+        return;
+    }
+    let Some(group) = snapshot.active_exit.group.as_deref() else {
+        return;
+    };
+    window.set_selected_group(group.into());
 }
 
 /// Publishes the capture marker once the business really shows its outcome.

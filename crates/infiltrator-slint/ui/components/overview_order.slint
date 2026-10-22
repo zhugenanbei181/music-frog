@@ -1,0 +1,119 @@
+import { Button, ScrollView } from "std-widgets.slint";
+import { ModalBottomSheet } from "@material";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "./theme.slint";
+import { OverviewCardSlot } from "./models.slint";
+import { SheetActionButton } from "./cards.slint";
+
+// The Overview card order sheet.
+//
+// The list is the order the shared owner published, so the sheet never keeps
+// a copy of it: a move publishes the shared intent and the owner answers with
+// the order it now holds. The up/down controls are enabled by the owner's own
+// order, so a control that cannot change the rendered order is not offered.
+export component OverviewOrderSheet inherits ModalBottomSheet {
+    in property <[OverviewCardSlot]> cards;
+
+    callback dismiss();
+    callback move-card(string, bool);
+    callback reset-order();
+
+    // The sheet is as wide as the window allows and never taller than the
+    // window, so the list scrolls instead of pushing the controls off-screen.
+    property <length> content-width: min(560 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 24 * LumenUiScale.unit));
+    property <length> content-height: min(520 * LumenUiScale.unit, max(200 * LumenUiScale.unit, root.height - 96 * LumenUiScale.unit));
+
+    sheet_elevation_level: 1;
+    show_layout_bounds: LumenTheme.show-layout-bounds;
+    scrim_color: #000000.with_alpha(32%);
+    surface_color: LumenTheme.surface;
+    corner_radius: 32 * LumenUiScale.unit;
+    side_inset: 12 * LumenUiScale.unit;
+    dismissed => { root.dismiss(); }
+
+    Rectangle {
+        width: root.content-width;
+        height: root.content-height;
+        background: transparent;
+        VerticalLayout {
+            x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
+            padding-top: 8 * LumenUiScale.unit; padding-bottom: 8 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
+            Text {
+                text: @tr("概览卡片顺序");
+                color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550;
+                horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit;
+            }
+            ScrollView {
+                horizontal-stretch: 1; vertical-stretch: 1;
+                content-width: self.width;
+                vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                VerticalLayout {
+                    width: parent.width; spacing: 4 * LumenUiScale.unit; alignment: start;
+                    for slot in root.cards: HorizontalLayout {
+                        width: parent.width; height: 48 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
+                        Rectangle {
+                            width: 4 * LumenUiScale.unit; height: 24 * LumenUiScale.unit; border-radius: 2 * LumenUiScale.unit;
+                            background: LumenTheme.accent; y: (parent.height - self.height) / 2;
+                        }
+                        Text {
+                            text: slot.title; color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit;
+                            horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
+                        }
+                        Button {
+                            text: "↑"; width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit;
+                            enabled: slot.can-move-up;
+                            clicked => { root.move-card(slot.id, true); }
+                        }
+                        Button {
+                            text: "↓"; width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit;
+                            enabled: slot.can-move-down;
+                            clicked => { root.move-card(slot.id, false); }
+                        }
+                    }
+                }
+            }
+            SheetActionButton {
+                width: parent.width;
+                label: @tr("恢复默认顺序");
+                clicked => { root.reset-order(); }
+            }
+        }
+    }
+}
+
+// The overlay that owns the Overview card order sheet.
+//
+// The popup owns the sheet, so the real on-screen geometry of the sheet can
+// only leave the popup through a callback; the capture path publishes that
+// geometry as the bounds of the activated business.
+export component OverviewOrderOverlay inherits Rectangle {
+    in property <[OverviewCardSlot]> cards;
+
+    callback move-card(string, bool);
+    callback reset-order();
+    callback dismissed();
+
+    // The real on-screen geometry of the sheet this overlay owns.
+    in-out property <length> order-sheet-x: 0 * LumenUiScale.unit;
+    in-out property <length> order-sheet-y: 0 * LumenUiScale.unit;
+    in-out property <length> order-sheet-width: 0 * LumenUiScale.unit;
+    in-out property <length> order-sheet-height: 0 * LumenUiScale.unit;
+
+    background: transparent;
+
+    public function show-order() { order-sheet.show(); }
+    public function close-order() { order-sheet.close(); }
+
+    order-sheet := OverviewOrderSheet {
+        width: root.width; height: root.height;
+        cards: root.cards;
+        dismiss => { root.dismissed(); }
+        move-card(id, up) => { root.move-card(id, up); }
+        reset-order => { root.reset-order(); }
+        surface-reported(x, y, w, h) => {
+            root.order-sheet-x = x; root.order-sheet-y = y;
+            root.order-sheet-width = w; root.order-sheet-height = h;
+        }
+    }
+}

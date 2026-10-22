@@ -28,6 +28,10 @@ pub fn theme_color(token: TokenColor) -> Color {
     Color::srgba(token.r, token.g, token.b, token.a)
 }
 
+/// The alpha of a semantic ink's soft wash: the ink over the surface it
+/// sits on.
+pub const SEMANTIC_WASH_ALPHA: f32 = 0.16;
+
 /// The resolved token palette, injected as a resource by
 /// [`crate::WidgetsPlugin`].
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
@@ -158,6 +162,16 @@ impl UiPalette {
     /// Area fill under a chart's lower series (success wash).
     pub fn chart_fill_down(&self) -> Color {
         self.success.with_alpha(0.14)
+    }
+
+    /// A semantic ink's soft wash: the ink at [`SEMANTIC_WASH_ALPHA`] over
+    /// the surface it sits on.
+    ///
+    /// This is the one derivation a *semantic* ink needs: a badge or a chip
+    /// that announces a state paints the state's own ink as a wash, so the
+    /// state reads without a second colour.
+    pub fn ink_wash(&self, ink: Color) -> Color {
+        ink.with_alpha(SEMANTIC_WASH_ALPHA)
     }
 
     /// The opaque card fill: the elevated surface resolved over the base

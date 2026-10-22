@@ -35,6 +35,7 @@
 use crate::history::{ScrubberAction, TrafficHistory, TrafficReplay, chart_inputs};
 use crate::localized_widgets::localized_button_scene;
 use crate::pages::globe::GlobeSectionSlot;
+use crate::pages::overview_card_order;
 use crate::pages::overview_lifecycle::core_control_scene;
 use crate::pages::overview_public_ip::on_overview_public_ip_refresh_activated;
 use crate::pages::overview_quota_copy;
@@ -48,7 +49,6 @@ use crate::pages::overview_speedtest::{
 };
 use crate::pages::overview_topology::on_topology_stage_activated;
 use crate::pages::overview_topology_drilldown;
-use crate::pages::{overview_card_order, overview_cards, overview_topology};
 use crate::projection::{OverviewOrigin, OverviewProjection};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
@@ -218,6 +218,14 @@ impl Default for OverviewCardSlot {
         Self(default_overview_card_kind())
     }
 }
+
+/// Marker on the container that holds the reorderable card slots.
+///
+/// The cards live in one container so the page can put them back in the order
+/// the owner published: a move publishes the shared reorder intent, the owner
+/// answers with the next layout snapshot, and the page renders that order.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewCardSlots;
 
 /// Marker on the reload / reconnect graceful degradation overlay mask (DUAL-03-13).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -583,7 +591,15 @@ pub fn overview_page(
                 --
                 @{ globe_slot_scene() }
                 --
-                { cards }
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: rem(space::S16),
+                }
+                OverviewCardSlots
+                Children [
+                    { cards }
+                ]
                 --
                 @{ overview_reactive::reactive_summary_scene(palette) }
                 --
@@ -965,6 +981,7 @@ impl Plugin for OverviewPagePlugin {
                 sync_overview_replay,
                 overview_topology_drilldown::sync_topology_drilldown,
                 overview_pulse::animate_status_dot,
+                overview_card_order::sync_overview_card_order,
             ),
         );
         app.add_observer(apply_overview_projection);

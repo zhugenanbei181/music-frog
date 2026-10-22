@@ -18,6 +18,28 @@
 - `python3 scripts/quality/semver-compat-guard.py --mode check`：已发布中性 crate 的 SemVer 兼容门（源码层）；`--mode tool` 追加 `cargo-semver-checks` 的类型检查分析；`--mode negative` 是守门负例。
 - `python3 scripts/developer-journey-rehearsal.py --profile fast`：开发者全旅程演练与干跑审计，全链路预算五分钟。
 
+### 依赖政策与工程约束守卫
+
+这些守卫是纯离线的结构门，只读 TOML、源码与脚本文本，不编译、不联网，已在 `scripts/quality/check-structure.sh` 汇总：
+
+- `python3 scripts/quality/dependency-policy-guard.py --mode enforce`：仓库根 `deny.toml` 与第三方声明 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 的许可一致性、copyleft 禁止、来源与通配版本约束，并证明生态门禁里有 tag 门控的 `cargo deny check` 作业。
+- `cargo deny check advisories bans licenses sources`：依赖政策的执行面，本机可复跑；公告库需要网络，其余检查只读锁文件。
+- `python3 scripts/quality/toolchain-consistency-guard.py --mode enforce`：`rust-toolchain.toml` 与各 workflow、manifest 的 Rust 版本一致性，禁止浮动引用。
+- `python3 scripts/quality/unsafe-traceability-guard.py --mode enforce`：unsafe 操作与 `scripts/quality/unsafe_inventory.json` 台账一致，缺 `SAFETY:` 说明的数量只能下降。
+- `python3 scripts/quality/panic-boundary-guard.py --mode enforce`：`catch_unwind` 边界与 `scripts/quality/panic_boundary_inventory.json` 台账一致，且任何 profile 不得 `panic = "abort"`。
+- `python3 scripts/quality/stdout-discipline-guard.py --mode enforce`：库层直接写标准输出的站点与 `scripts/quality/stdout_inventory.json` 台账一致，内层 crate 保持零打印。
+- `python3 scripts/quality/build-surface-guard.py --mode enforce`：`build.rs` 与 `scripts/quality/build_surface_inventory.json` 台账一致，构建依赖与 manifest 一致，未声明的进程派生或文件写入被拒绝。
+- `python3 scripts/quality/feature-matrix-guard.py --mode enforce`：`scripts/quality/feature_matrix.json` 与全部 `[features]` 表一致，脚本与 CI 的 `--features` 指向已登记特性。
+
+每个守卫都支持 `--self-test` 自检，单元回归在 `scripts/quality/tests/` 下随结构门一起运行。
+
+### 可选审计工具（非门禁）
+
+覆盖率与变异测试是**补充证据**，不替代行为测试，也不进结构门；需要时本地手动跑：
+
+- `cargo llvm-cov --workspace --summary-only`：覆盖率基线报告，用于发现完全没有被测到的路径；结论只作线索，缺口按行为补测试。
+- `cargo mutants --package <crate>`：关键 crate 的变异测试，检查已有测试是否真的断言了行为；只在收口批次对少量 crate 抽样跑。
+
 CI 对 macOS 和 iOS 目标暂时不编译、不打包；用户解除暂缓并更新平台矩阵/门禁之前，不得恢复 Apple matrix。
 
 普通 push、PR 和版本分支不会自动启动编译、模拟器或全量测试。只有 `v*` tag 会进入 `release.yml`，并通过 `workflow_call` 执行 workspace `cargo nextest` gate 后再构建发行产物。Android、Bevy、parity 和真机证据的高成本专用 workflow 只能手动从 `v*` tag 派发；分支引用会在 job 启动 runner 前被跳过。Android release workflow 自身会构建三个 flavor 的 APK；专用 Android gate 额外执行两 ABI Rust compile/Clippy、各 flavor JVM 与 Android Emulator 插桩测试、APK 身份检查和静态 manifest contract guard。插桩入口是 `bash scripts/android-emulator-tests.sh`：它使用 Gradle Managed Device 建立一次性 API 36 x86_64 AOSP 模拟器、离线运行来宾系统并保存测试结果；不得用普通 `connected*` 命令把这些用例发到真机。脚本对比运行前后的宿主接口地址和 IPv4/IPv6 路由摘要，发现变化即失败，不尝试修改或恢复宿主网络。ARM64 真机证据仍由 Android 阶段验收补齐。

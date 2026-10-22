@@ -16,12 +16,14 @@
 //! [`bevy::ui_widgets::ScrollIntoView`] event. The list never keeps a scroll offset of its
 //! own next to the viewport's.
 
+pub mod feather;
 pub mod scroll_core;
 pub mod scrollbar;
 use scroll_core::*;
 use zhuge_ui_core::virtual_list::{ExtentUpdate, VariableExtentIndex, VirtualListConfig};
 
 use crate::feathers_theme::Token;
+use crate::list::feather::list_scroll_frame_with_feathers;
 use crate::nav::{NavActive, NavItem, NavLabel, nav_fill_token};
 use crate::palette::UiPalette;
 use crate::palette::rem;
@@ -43,7 +45,7 @@ use bevy::ui::widget::Text;
 use bevy::ui::{UiSystems, ui_layout_system};
 use bevy::ui_widgets::{ScrollArea, ScrollbarPlugin};
 use scrollbar::{
-    ListScrollContainer, bind_list_scrollbars, list_scroll_frame, reveal_selected_list_rows,
+    ListScrollContainer, bind_list_scrollbars, list_scrollbar_scene, reveal_selected_list_rows,
 };
 
 // ===========================================================================
@@ -618,8 +620,14 @@ pub fn list_row_scene(label: String, selected: bool, palette: &UiPalette) -> Box
 /// by the official scrollbar beside the official scroll container.
 ///
 /// The container owns the rows and the selection; the bar is its sibling, so
-/// the official scrollbar can drive the container's own scroll position.
-pub fn list_scene(rows: Vec<Box<dyn Scene>>, selected: Option<usize>) -> impl Scene + use<> {
+/// the official scrollbar can drive the container's own scroll position. The
+/// two edge feathers are the frame's overlays: they soften the scroll edges
+/// so a row is never cut off by the viewport.
+pub fn list_scene(
+    rows: Vec<Box<dyn Scene>>,
+    selected: Option<usize>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let container = Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -638,7 +646,7 @@ pub fn list_scene(rows: Vec<Box<dyn Scene>>, selected: Option<usize>) -> impl Sc
                 { rows }
             ]
     }) as Box<dyn Scene>;
-    list_scroll_frame(container)
+    list_scroll_frame_with_feathers(container, list_scrollbar_scene(), palette)
 }
 
 /// Project the list's [`ListSelection`] onto its rows' [`NavActive`] bits.

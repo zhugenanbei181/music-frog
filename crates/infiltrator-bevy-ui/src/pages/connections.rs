@@ -55,7 +55,6 @@ use bevy::ui_widgets::{Activate, ScrollArea};
 use infiltrator_bevy_widgets::button::{
     ButtonDisabled, ButtonSize, ButtonVariant, button_with_label_scene,
 };
-use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{

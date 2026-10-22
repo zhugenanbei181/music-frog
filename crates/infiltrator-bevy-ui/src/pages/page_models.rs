@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn the_overview_page_model_owns_the_run_state() {
-        let snapshot = demo_snapshot();
+        let _snapshot = demo_snapshot();
         let mut model = OverviewPageModel::default();
         observe_overview_model(&mut model, &snapshot);
         assert!(

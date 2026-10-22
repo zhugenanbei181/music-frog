@@ -10,6 +10,7 @@
 use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
+use super::scroll::{outermost_scroll_area, request_scroll};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::profiles::ProfilesProjectionUpdated;
@@ -19,10 +20,12 @@ use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, profiles_projection};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use bevy::ui_widgets::Activate;
+use bevy::ui::widget::Text;
+use bevy::ui_widgets::{Activate, ScrollArea};
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_contract::parity::FeatureId;
@@ -159,6 +162,8 @@ pub struct ScriptView<'w, 's> {
     bodies: Query<'w, 's, Entity, With<ScriptResultBody>>,
     rows: Query<'w, 's, (Entity, &'static ScriptResultRow)>,
     reviews: Query<'w, 's, (Entity, &'static ScriptReviewLine)>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    areas: Query<'w, 's, Entity, With<ScrollArea>>,
 }
 
 /// Observe the workbench's own console rows and its export review card.
@@ -167,6 +172,7 @@ pub fn observe(
     mut feature: ResMut<InteractionCapture>,
     mut geometry: CaptureGeometry,
     mut observation: ResMut<ObservedInteraction>,
+    mut commands: Commands,
 ) {
     let bounds = (|| {
         let export = export_business(feature.feature)?;
@@ -190,6 +196,13 @@ pub fn observe(
         }
         let body = surface.bodies.iter().next()?;
         let row = surface.rows.iter().next()?.0;
+        // The workbench sits far below the fold of the profiles page, so the
+        // capture scrolls the page's own viewport until the console is really
+        // rendered, and measures it on the next frame.
+        if !geometry.unclipped(body) {
+            reveal(&surface, &mut geometry, &mut commands, body);
+            return None;
+        }
         let body_bounds = geometry.bounds(body, "script console")?;
         let row_bounds = geometry.bounds(row, "script console row")?;
         if row_bounds[0] < body_bounds[0] || row_bounds[1] < body_bounds[1] {
@@ -198,4 +211,23 @@ pub fn observe(
         Some(body_bounds)
     })();
     observation.publish(&mut feature, bounds);
+}
+
+/// Scroll the profiles page until the console is really rendered.
+fn reveal(
+    surface: &ScriptView<'_, '_>,
+    geometry: &mut CaptureGeometry<'_, '_>,
+    commands: &mut Commands,
+    target: Entity,
+) {
+    let Some(page) = outermost_scroll_area(target, &surface.parents, &surface.areas) else {
+        return;
+    };
+    let Some(viewport) = geometry.rect(page) else {
+        return;
+    };
+    let Some(bounds) = geometry.rect(target) else {
+        return;
+    };
+    request_scroll(commands, page, bounds, viewport);
 }

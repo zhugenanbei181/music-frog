@@ -6,9 +6,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
+import android.view.SurfaceHolder
 import android.widget.Toast
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
@@ -233,6 +235,46 @@ class BevyHostActivity : NativeActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         nativeHost?.onWindowFocusChanged(hasFocus)
+    }
+
+    /**
+     * EFFECTS-047 (#190): the platform created the native surface.
+     *
+     * The `NativeActivity` super call keeps the native surface path alive: it
+     * hands the `android.view.Surface` to the native driver. The typed
+     * surface fact is published afterwards, so the owner learns about the
+     * recreation only after the platform surface really exists.
+     */
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        super.surfaceCreated(holder)
+        nativeHost?.onSurfaceCreated()
+    }
+
+    /**
+     * EFFECTS-047 (#190): the platform sized the native surface.
+     */
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        super.surfaceChanged(holder, format, width, height)
+        nativeHost?.onSurfaceChanged(width, height)
+    }
+
+    /**
+     * EFFECTS-047 (#190): the platform destroyed the native surface.
+     */
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        super.surfaceDestroyed(holder)
+        nativeHost?.onSurfaceDestroyed()
+    }
+
+    /**
+     * EFFECTS-047 (#192): the window was rotated or resized.
+     *
+     * The activity declares `configChanges`, so it survives the rotation and
+     * publishes the new window shape itself.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        nativeHost?.onConfigurationChanged()
     }
 
     override fun onDestroy() {

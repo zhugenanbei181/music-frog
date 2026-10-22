@@ -74,7 +74,9 @@ import com.musicfrog.infiltrator.ui.common.OwnerProtocolStudioSnapshot
 import com.musicfrog.infiltrator.ui.common.OwnerUiStatusText
 import com.musicfrog.infiltrator.ui.common.OwnerUiStatusTextKey
 import com.musicfrog.infiltrator.ui.common.ProtocolStudioPageState
+import com.musicfrog.infiltrator.ui.common.arbitratedRowGesture
 import com.musicfrog.infiltrator.ui.common.asDisplayString
+import com.musicfrog.infiltrator.ui.common.rememberRowGestureArbiter
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
@@ -384,6 +386,10 @@ private fun OutboundCollectionCard(
     val selectedId = (collection.selection as? OutboundSelectionState.Ready)?.selected
     val selectedLabel = selectedId?.let { entriesById[it]?.displayName ?: it.value }
     val canSelect = collection.availability == OutboundSelectionAvailability.Selectable
+    // EFFECTS-047 (#191): the group header and the member rows go through the
+    // typed gesture arbitration, so scrolling the list never expands a group
+    // and never selects an outbound by accident.
+    val cardGesture = rememberRowGestureArbiter()
 
     ElevatedCard(
         modifier = Modifier
@@ -397,7 +403,11 @@ private fun OutboundCollectionCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .arbitratedRowGesture(cardGesture)
                     .clickable(enabled = !commandInProgress) {
+                        if (cardGesture.blocksRowAction) {
+                            return@clickable
+                        }
                         if (preferences == null) {
                             localExpanded = !localExpanded
                         } else {
@@ -431,7 +441,12 @@ private fun OutboundCollectionCard(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = canSelect && !isSelected && !commandInProgress) { onSelect(entry) },
+                                .arbitratedRowGesture(cardGesture)
+                                .clickable(enabled = canSelect && !isSelected && !commandInProgress) {
+                                    if (!cardGesture.blocksRowAction) {
+                                        onSelect(entry)
+                                    }
+                                },
                             color = if (isSelected) {
                                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                             } else {

@@ -98,3 +98,24 @@ python3 scripts/quality/cross-build-guard.py --self-test
 python3 scripts/quality/cross-build-guard.py --mode enforce
 python3 scripts/quality/journey-rehearsal-guard.py --self-test
 python3 scripts/quality/journey-rehearsal-guard.py --mode enforce
+
+# ---------------------------------------------------------------------------
+# Engineering constraint gates (dependency policy, toolchain pin, unsafe
+# traceability, panic boundaries, library stdout, build scripts, feature
+# matrix). Every gate below is offline: it reads TOML, sources and scripts, it
+# never compiles, never downloads and never starts a Core.
+# ---------------------------------------------------------------------------
+python3 scripts/quality/dependency-policy-guard.py --self-test
+python3 scripts/quality/dependency-policy-guard.py --mode enforce
+python3 scripts/quality/toolchain-consistency-guard.py --self-test
+python3 scripts/quality/toolchain-consistency-guard.py --mode enforce
+python3 scripts/quality/unsafe-traceability-guard.py --self-test
+python3 scripts/quality/unsafe-traceability-guard.py --mode enforce
+python3 scripts/quality/panic-boundary-guard.py --self-test
+python3 scripts/quality/panic-boundary-guard.py --mode enforce
+python3 scripts/quality/stdout-discipline-guard.py --self-test
+python3 scripts/quality/stdout-discipline-guard.py --mode enforce
+python3 scripts/quality/build-surface-guard.py --self-test
+python3 scripts/quality/build-surface-guard.py --mode enforce
+python3 scripts/quality/feature-matrix-guard.py --self-test
+python3 scripts/quality/feature-matrix-guard.py --mode enforce

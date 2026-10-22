@@ -19,6 +19,8 @@ mod host_support;
 mod jni_bridge;
 #[cfg(target_os = "android")]
 mod jni_clipboard;
+#[cfg(target_os = "android")]
+mod jni_host_facts;
 pub mod native_host;
 pub mod owner_command;
 pub mod product;

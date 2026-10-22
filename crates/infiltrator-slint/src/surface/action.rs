@@ -14,6 +14,7 @@ use crate::{CommandIntent, SlintAction, SurfaceSnapshot};
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
 };
+use infiltrator_contract::overview_layout::OverviewCardMoveDirection;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_presentation::system_toggle_projection;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -346,6 +347,36 @@ pub fn rule_enabled_action(
         return Ok(None);
     }
     Ok(Some(CommandIntent::ToggleRuleEnabled { index }))
+}
+
+/// Builds the owner command that moves one Overview card one step.
+///
+/// The card order is the owner's fact: the surface names the card and the
+/// direction, and the owner applies the swap against the order it holds. The
+/// surface never derives the next order itself, so a refused or unanswered
+/// move leaves the published order exactly as the owner published it.
+pub fn overview_card_move_action(id: &str, up: bool) -> Result<SlintAction, Failure> {
+    let Some(kind) = widget_vocabulary::overview_card_kind(id) else {
+        return Err(Failure::new(
+            ErrorCode::InvalidInput,
+            "Unknown Overview card",
+            false,
+        ));
+    };
+    let direction = if up {
+        OverviewCardMoveDirection::Up
+    } else {
+        OverviewCardMoveDirection::Down
+    };
+    Ok(SlintAction::Command(CommandIntent::MoveOverviewCard {
+        kind,
+        direction,
+    }))
+}
+
+/// Builds the owner command that restores the canonical Overview card order.
+pub fn overview_card_reset_action() -> SlintAction {
+    SlintAction::Command(CommandIntent::ResetOverviewCardOrder)
 }
 
 /// Maps a theme mode label to the shared theme setting command.

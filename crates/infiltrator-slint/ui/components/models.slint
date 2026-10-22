@@ -70,6 +70,17 @@ export struct LicenseRow {
     identifier: string,
 }
 
+// One reorderable Overview card slot.
+//
+// The order of the slots is the order the shared owner published, so the
+// surface never keeps a copy of the card order of its own.
+export struct OverviewCardSlot {
+    id: string,
+    title: string,
+    can-move-up: bool,
+    can-move-down: bool,
+}
+
 // One rendered cell of a workbench page. The surface renders a flat list of
 // these cells so every business of a page shares one carrier.
 export struct WorkbenchItem {

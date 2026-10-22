@@ -8,13 +8,17 @@
 use super::capability::{capture_command_application, capture_host_capabilities};
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
+use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
-use crate::pages::app_routing::{AppRoutingProjectionUpdated, AppRuleText, SwitchAppRuleButton};
+use crate::pages::app_routing::{
+    AppRoutingPageRoot, AppRoutingProjectionUpdated, AppRuleText, SwitchAppRuleButton,
+};
 use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, app_routing_projection};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
@@ -108,6 +112,7 @@ pub struct RoutingSurface<'w, 's> {
     latest: ResMut<'w, LatestSurfaceSnapshot>,
     buttons: Query<'w, 's, (Entity, &'static SwitchAppRuleButton)>,
     rules: Query<'w, 's, (Entity, &'static AppRuleText, &'static Text)>,
+    pages: Query<'w, 's, Entity, With<AppRoutingPageRoot>>,
 }
 
 /// Drive the policy edit: the capture installs its own owner, activates the
@@ -115,6 +120,7 @@ pub struct RoutingSurface<'w, 's> {
 pub fn activate(
     mut surface: RoutingSurface,
     feature: Res<InteractionCapture>,
+    mut geometry: CaptureGeometry,
     mut commands: Commands,
 ) {
     if !selected(
@@ -144,6 +150,12 @@ pub fn activate(
         else {
             return;
         };
+        // The compact viewport starts the row below the fold: the capture
+        // scrolls the page's own viewport until the control is really on
+        // screen, and activates it on the next frame.
+        if reveal(&surface, &mut geometry, &mut commands, entity) {
+            return;
+        }
         surface.capture.submitted = true;
         commands.trigger(Activate { entity });
         return;
@@ -156,6 +168,28 @@ pub fn activate(
     };
     surface.capture.published = true;
     publish_owner_rule(&mut surface.latest, rule, &mut commands);
+}
+
+/// Scroll the app-routing page until the control is really rendered.
+///
+/// Returns `true` when a scroll was requested, so the caller waits for the
+/// next frame before it activates or measures the control.
+fn reveal(
+    surface: &RoutingSurface<'_, '_>,
+    geometry: &mut CaptureGeometry<'_, '_>,
+    commands: &mut Commands,
+    target: Entity,
+) -> bool {
+    let Ok(page) = surface.pages.single() else {
+        return false;
+    };
+    let Some(viewport) = geometry.rect(page) else {
+        return false;
+    };
+    let Some(bounds) = geometry.rect(target) else {
+        return false;
+    };
+    !request_scroll(commands, page, bounds, viewport)
 }
 
 /// Publish the owner's readback into the page's own projection.
@@ -187,6 +221,7 @@ pub fn observe(
     mut geometry: CaptureGeometry,
     mut feature: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,
+    mut commands: Commands,
 ) {
     let bounds = (|| {
         let initial = surface.capture.initial_rule_text.as_ref()?;
@@ -195,6 +230,13 @@ pub fn observe(
             .iter()
             .find(|(_, marker, _)| marker.0 == TARGET_ROW)?;
         if text.0 == *initial {
+            return None;
+        }
+        // The compact viewport starts the edited row below the fold: the
+        // capture scrolls the page's own viewport until the label is really
+        // rendered, and measures it on the next frame.
+        if !geometry.unclipped(entity) {
+            reveal(&surface, &mut geometry, &mut commands, entity);
             return None;
         }
         geometry.bounds(entity, "app routing rule")

@@ -17,6 +17,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeTextColor;
+use bevy::ui::prelude::Display;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -26,7 +27,9 @@ use infiltrator_presentation::rule_provider_projection::{
     default_action, etag_support_line, provider_count, provider_fingerprint_line,
     provider_lifecycle_line, published_truncation, rules_summary,
 };
-use infiltrator_presentation::rule_row_projection::{row_hits_copy, row_hits_key};
+use infiltrator_presentation::rule_row_projection::{
+    RuleRowChips, RuleRowStatus, row_hits_chip, row_status_chip,
+};
 use infiltrator_shared::locales::Lang;
 
 /// Marker for text lines updated by the projection observer.
@@ -50,6 +53,17 @@ pub enum RulesLineKind {
 /// Marker for a rule item hit count text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleHitText(pub usize);
+
+/// Marker on the status chip's own box.
+///
+/// The status chip appears only when the row carries a status fact of its
+/// own, so the box is hidden for a plain row.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuleRowStatusChip(pub usize);
+
+/// Marker for a rule item's status chip copy.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuleRowStatusText(pub usize);
 
 /// Marker for a rule item proxy outbound text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -119,14 +133,20 @@ pub(crate) fn rule_target_token(target: &str) -> Token {
     }
 }
 
-/// The ink of a rule row's hit statistics, by the row's own state.
-pub(crate) fn rule_hits_token(enabled: bool, shadowed: bool) -> Token {
-    if shadowed {
-        Token::Warning
-    } else if enabled {
-        Token::InkDim
-    } else {
-        Token::DisabledInk
+/// The ink of a rule row's count chip.
+///
+/// The count is a neutral statistic: the row's own status has its own chip,
+/// so the count chip no longer encodes the status in its ink.
+pub(crate) fn rule_hits_token() -> Token {
+    Token::InkDim
+}
+
+/// The ink of a rule row's status chip, by the row's own status.
+pub(crate) fn rule_status_token(status: RuleRowStatus) -> Token {
+    match status {
+        RuleRowStatus::Enabled => Token::InkDim,
+        RuleRowStatus::Disabled => Token::DisabledInk,
+        RuleRowStatus::Shadowed => Token::Warning,
     }
 }
 
@@ -143,6 +163,8 @@ pub(crate) fn apply_rules_projection(
         mut lines,
         mut hits,
         hit_inks,
+        mut status_chips,
+        mut status_texts,
         mut proxies,
         proxy_inks,
         mut payloads,
@@ -161,7 +183,7 @@ pub(crate) fn apply_rules_projection(
     // The badge's ink follows the shared type family: the chip reads as a tag
     // of that family instead of one flat blue pill.
     for (entity, current, marker) in &type_inks {
-        let Some(rule) = projection.rules.get(marker.0) else {
+        let Some(_rule) = projection.rules.get(marker.0) else {
             continue;
         };
         let want = rule_type_chip_token(&rule.rule_type);
@@ -198,8 +220,11 @@ pub(crate) fn apply_rules_projection(
 
     for (mut text, marker, mut copy) in &mut hits {
         if let Some(rule) = projection.rules.get(marker.0) {
+            // The count is one fact of its own: the row draws it as its count
+            // chip, beside the row's own status chip.
+            let chips = RuleRowChips::of(rule.hit_count, rule.is_enabled, rule.is_shadowed);
             let updated_copy = LocalizedText::new(
-                row_hits_key(rule.hit_count, rule.is_enabled, rule.is_shadowed),
+                chips.hits.key(),
                 vec![(
                     "count",
                     rule.hit_count
@@ -210,12 +235,7 @@ pub(crate) fn apply_rules_projection(
             if *copy != updated_copy {
                 *copy = updated_copy;
             }
-            let want = row_hits_copy(
-                rule.hit_count,
-                rule.is_enabled,
-                rule.is_shadowed,
-                &Lang(locale.code()),
-            );
+            let want = row_hits_chip(chips.hits, &Lang(locale.code()));
             if text.0 != want {
                 text.0 = want;
             }
@@ -228,11 +248,46 @@ pub(crate) fn apply_rules_projection(
         let Some(rule) = projection.rules.get(marker.0) else {
             continue;
         };
-        let want = rule_hits_token(rule.is_enabled, rule.is_shadowed);
+        let want = rule_hits_token();
         if current.is_none_or(|current| current.0 != want.theme_token()) {
             commands
                 .entity(entity)
                 .insert(ThemeTextColor(want.theme_token()));
+        }
+    }
+
+    // The status chip carries the row's other fact: it appears only when the
+    // row has a status of its own, and it says so in the shared wording.
+    for (mut node, marker) in &mut status_chips {
+        let Some(rule) = projection.rules.get(marker.0) else {
+            continue;
+        };
+        let chips = RuleRowChips::of(rule.hit_count, rule.is_enabled, rule.is_shadowed);
+        let want = if chips.status.key().is_some() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != want {
+            node.display = want;
+        }
+    }
+
+    for (mut text, marker, mut copy) in &mut status_texts {
+        let Some(rule) = projection.rules.get(marker.0) else {
+            continue;
+        };
+        let chips = RuleRowChips::of(rule.hit_count, rule.is_enabled, rule.is_shadowed);
+        let Some(key) = chips.status.key() else {
+            continue;
+        };
+        let updated_copy = LocalizedText::plain(key);
+        if *copy != updated_copy {
+            *copy = updated_copy;
+        }
+        let want = row_status_chip(chips.status, &Lang(locale.code())).unwrap_or_default();
+        if text.0 != want {
+            text.0 = want;
         }
     }
 
@@ -347,8 +402,11 @@ pub(crate) fn refresh_hit_copy(
     };
     for (marker, mut text, mut copy) in &mut hits {
         if let Some(rule) = projection.rules.get(marker.0) {
+            // The count is one fact of its own: the row draws it as its count
+            // chip, beside the row's own status chip.
+            let chips = RuleRowChips::of(rule.hit_count, rule.is_enabled, rule.is_shadowed);
             let updated_copy = LocalizedText::new(
-                row_hits_key(rule.hit_count, rule.is_enabled, rule.is_shadowed),
+                chips.hits.key(),
                 vec![(
                     "count",
                     rule.hit_count
@@ -359,12 +417,7 @@ pub(crate) fn refresh_hit_copy(
             if *copy != updated_copy {
                 *copy = updated_copy;
             }
-            let value = row_hits_copy(
-                rule.hit_count,
-                rule.is_enabled,
-                rule.is_shadowed,
-                &Lang(locale.code()),
-            );
+            let value = row_hits_chip(chips.hits, &Lang(locale.code()));
             if text.0 != value {
                 text.0 = value;
             }

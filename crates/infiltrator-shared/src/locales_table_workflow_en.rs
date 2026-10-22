@@ -186,6 +186,14 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "rule_local_hits" => "{count} local trace hits".into(),
         "rule_local_hits_disabled" => "{count} local trace hits · Disabled".into(),
         "rule_local_hits_shadowed" => "{count} local trace hits · Shadowed".into(),
+        // The rule row's two chips: the count on its own, and the status on
+        // its own. A surface draws them as two chips, not as one sentence.
+        "rule_hits_count" => "{count} local trace hits".into(),
+        "rule_hits_unobserved" => "Not observed".into(),
+        "rule_status_shadowed" => "Shadowed".into(),
+        // A profile without a name is still a profile: the draft sentence
+        // names it instead of trailing an empty name.
+        "rules_draft_unnamed_profile" => "Unnamed profile".into(),
         "core_source_live_version" => "Live core · {version}".into(),
         "core_source_live_unknown_version" => "Live core · Version not observed".into(),
         "overview_cpu" => "CPU".into(),

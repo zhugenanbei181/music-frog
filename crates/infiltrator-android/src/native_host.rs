@@ -13,11 +13,21 @@
 //! application owners, and the `:vpn` process is unaffected by UI lifecycle.
 
 pub mod clipboard;
+pub mod configuration;
+pub mod gesture;
 pub mod ime;
 pub mod insets;
 pub mod lifecycle;
+pub mod surface;
 
 use async_trait::async_trait;
+use configuration::ConfigurationChange;
+use configuration::ConfigurationFact;
+use configuration::ConfigurationTracker;
+use configuration::HostConfigurationState;
+use gesture::GestureArbitrator;
+use gesture::GestureOutcome;
+use gesture::GestureSample;
 use insets::NativeInsets;
 use insets::RawInsetsPx;
 use lifecycle::HostLifecycleFact;
@@ -26,6 +36,10 @@ use lifecycle::HostLifecycleTracker;
 use lifecycle::LifecycleUpdate;
 use std::sync::Mutex;
 use std::sync::OnceLock;
+use surface::SurfaceFact;
+use surface::SurfaceLifecycleState;
+use surface::SurfaceLifecycleTracker;
+use surface::SurfaceUpdate;
 
 use infiltrator_ports::touch_gesture::TouchGestureHostReport;
 use infiltrator_ports::touch_gesture::TouchGesturePort;
@@ -36,6 +50,10 @@ use lurker_core_ports::error::PortError;
 pub struct NativeHostFacts {
     pub lifecycle: HostLifecycleState,
     pub insets: NativeInsets,
+    /// EFFECTS-047 (#190): the render surface the Activity owns.
+    pub surface: SurfaceLifecycleState,
+    /// EFFECTS-047 (#192): the window shape the Activity published.
+    pub configuration: HostConfigurationState,
 }
 
 impl Default for NativeHostFacts {
@@ -43,6 +61,8 @@ impl Default for NativeHostFacts {
         Self {
             lifecycle: HostLifecycleState::Unobserved,
             insets: NativeInsets::ZERO,
+            surface: SurfaceLifecycleState::Unobserved,
+            configuration: HostConfigurationState::Unobserved,
         }
     }
 }
@@ -51,6 +71,9 @@ struct HostFactState {
     lifecycle: HostLifecycleTracker,
     insets: NativeInsets,
     touch_declared: bool,
+    surface: SurfaceLifecycleTracker,
+    configuration: ConfigurationTracker,
+    gesture: GestureArbitrator,
 }
 
 impl HostFactState {
@@ -59,6 +82,9 @@ impl HostFactState {
             lifecycle: HostLifecycleTracker::new(),
             insets: NativeInsets::ZERO,
             touch_declared: false,
+            surface: SurfaceLifecycleTracker::new(),
+            configuration: ConfigurationTracker::new(),
+            gesture: GestureArbitrator::default(),
         }
     }
 
@@ -66,6 +92,8 @@ impl HostFactState {
         NativeHostFacts {
             lifecycle: self.lifecycle.current(),
             insets: self.insets,
+            surface: self.surface.current(),
+            configuration: self.configuration.current(),
         }
     }
 }
@@ -97,6 +125,27 @@ pub fn push_raw_insets(raw: RawInsetsPx) -> NativeInsets {
     })
 }
 
+/// EFFECTS-047 (#190): push one surface fact from the native Activity.
+///
+/// The Activity generation fences a retired instance: a late callback from a
+/// destroyed Activity can never overwrite the live surface state.
+pub fn push_surface_fact(fact: SurfaceFact) -> SurfaceUpdate {
+    with_state(|state| state.surface.apply(fact))
+}
+
+/// EFFECTS-047 (#192): push one window configuration fact from the native
+/// Activity. The returned change tells the shell whether it must relayout.
+pub fn push_configuration_fact(fact: ConfigurationFact) -> ConfigurationChange {
+    with_state(|state| state.configuration.apply(fact))
+}
+
+/// EFFECTS-047 (#191): push one normalized pointer sample and read the typed
+/// arbitration verdict. The arbitration rule lives here, so the surface only
+/// consumes the verdict.
+pub fn push_gesture_sample(sample: GestureSample) -> GestureOutcome {
+    with_state(|state| state.gesture.apply(sample))
+}
+
 /// Declare that this host delivers touch (the native Activity adapter
 /// registered). Until then the touch port stays typed unsupported.
 pub fn declare_touch_host() {
@@ -114,6 +163,9 @@ pub fn clear_native_host_facts() {
         state.lifecycle = HostLifecycleTracker::new();
         state.insets = NativeInsets::ZERO;
         state.touch_declared = false;
+        state.surface = SurfaceLifecycleTracker::new();
+        state.configuration = ConfigurationTracker::new();
+        state.gesture = GestureArbitrator::default();
     });
 }
 
@@ -128,9 +180,17 @@ pub struct AndroidTouchGesturePort;
 #[async_trait]
 impl TouchGesturePort for AndroidTouchGesturePort {
     async fn touch_gesture_report(&self) -> Result<TouchGestureHostReport, PortError> {
-        let (declared, insets) = with_state(|state| (state.touch_declared, state.insets));
+        let (declared, insets, surface) =
+            with_state(|state| (state.touch_declared, state.insets, state.surface.current()));
         if !declared {
             return Ok(TouchGestureHostReport::default());
+        }
+        // A torn down surface has no touch surface to host a gesture on, so the
+        // host reports the typed unsupported boundary instead of pretending.
+        if surface.is_torn_down() {
+            return Ok(TouchGestureHostReport::unsupported(
+                "the Android host surface was torn down",
+            ));
         }
         // Android delivers multi-touch; the host declares it here. The real
         // device regression remains a device-evidence item.
@@ -207,6 +267,127 @@ mod tests {
         assert!(hosted.support.multi_touch());
         assert_eq!(hosted.insets.top, 30.0);
         assert_eq!(hosted.insets.bottom, 60.0);
+
+        clear_native_host_facts();
+    }
+
+    #[test]
+    fn the_surface_fact_is_projected_and_fences_retired_activities() {
+        clear_native_host_facts();
+
+        assert_eq!(
+            push_surface_fact(SurfaceFact::new(
+                2,
+                surface::HostSurfaceState::Live {
+                    width_px: 1080,
+                    height_px: 1920,
+                },
+            )),
+            SurfaceUpdate::Applied
+        );
+        assert_eq!(
+            native_host_facts().surface,
+            SurfaceLifecycleState::Live {
+                generation: 2,
+                width_px: 1080,
+                height_px: 1920,
+            }
+        );
+
+        // A retired Activity cannot tear down the live surface.
+        assert_eq!(
+            push_surface_fact(SurfaceFact::new(1, surface::HostSurfaceState::Destroyed)),
+            SurfaceUpdate::Stale
+        );
+        assert!(native_host_facts().surface.can_render());
+
+        assert_eq!(
+            push_surface_fact(SurfaceFact::new(2, surface::HostSurfaceState::Destroyed)),
+            SurfaceUpdate::Applied
+        );
+        assert!(native_host_facts().surface.is_torn_down());
+        assert!(!native_host_facts().surface.can_render());
+
+        clear_native_host_facts();
+        assert_eq!(
+            native_host_facts().surface,
+            SurfaceLifecycleState::Unobserved
+        );
+    }
+
+    #[test]
+    fn the_configuration_fact_reports_the_rotation_that_requires_a_relayout() {
+        clear_native_host_facts();
+
+        assert_eq!(
+            push_configuration_fact(ConfigurationFact::new(
+                1,
+                configuration::HostOrientation::Portrait,
+                1080,
+                1920,
+                2.75,
+                1.0,
+            )),
+            ConfigurationChange::Unchanged
+        );
+        assert_eq!(
+            push_configuration_fact(ConfigurationFact::new(
+                1,
+                configuration::HostOrientation::Landscape,
+                1920,
+                1080,
+                2.75,
+                1.0,
+            )),
+            ConfigurationChange::OrientationChanged {
+                from: configuration::HostOrientation::Portrait,
+                to: configuration::HostOrientation::Landscape,
+            }
+        );
+        assert!(matches!(
+            native_host_facts().configuration,
+            HostConfigurationState::Configured(_)
+        ));
+
+        clear_native_host_facts();
+        assert_eq!(
+            native_host_facts().configuration,
+            HostConfigurationState::Unobserved
+        );
+    }
+
+    #[test]
+    fn the_gesture_fact_answers_with_the_typed_arbitration_verdict() {
+        clear_native_host_facts();
+
+        assert_eq!(
+            push_gesture_sample(GestureSample::new(
+                1,
+                gesture::TouchPhase::Started,
+                100.0,
+                200.0,
+                0,
+            )),
+            GestureOutcome::Undecided
+        );
+        assert_eq!(
+            push_gesture_sample(GestureSample::new(
+                1,
+                gesture::TouchPhase::Ended,
+                100.0,
+                260.0,
+                90,
+            )),
+            GestureOutcome::Scroll {
+                direction: gesture::ScrollDirection::Vertical,
+            }
+        );
+        assert!(
+            GestureOutcome::Scroll {
+                direction: gesture::ScrollDirection::Vertical,
+            }
+            .blocks_row_action()
+        );
 
         clear_native_host_facts();
     }

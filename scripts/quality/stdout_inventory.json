@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "note": "Direct stdout/stderr writes in library crates are a signal that a diagnostic has no typed owner. The inner layers keep a hard zero; every other library site is registered with a ceiling. Binary entry points and the CLI crate own their output as the product surface and are not listed.",
+  "categories": ["capture_tooling", "crash_diagnostic", "platform_diagnostic", "test_support"],
+  "hard_zero_crates": [
+    "infiltrator-application",
+    "infiltrator-contract",
+    "infiltrator-domain",
+    "infiltrator-ports",
+    "infiltrator-presentation"
+  ],
+  "files": [
+    {
+      "path": "android/bevy-host/driver/src/android_jni.rs",
+      "sites": 2,
+      "category": "platform_diagnostic",
+      "rationale": "JNI bootstrap failures that happen before the Android logger exists."
+    },
+    {
+      "path": "crates/infiltrator-admin/src/admin_api/admin_api_test_cases/download.rs",
+      "sites": 2,
+      "category": "test_support",
+      "rationale": "Operator-visible progress while a test fixture is downloaded by hand."
+    },
+    {
+      "path": "crates/infiltrator-android/src/lib.rs",
+      "sites": 2,
+      "category": "platform_diagnostic",
+      "rationale": "Slint Android bootstrap failures that must reach logcat before the UI starts."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/capture.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports the written receipt path to the operator."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/interaction_capture/doctor.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports that the doctor scenario cannot run."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/interaction_capture/filter.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports a filter step that produced no rows."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/interaction_capture/geometry.rs",
+      "sites": 2,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports unusable widget geometry while recording."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/interaction_capture/rule_trace.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports a rule trace that stopped early."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/lifecycle.rs",
+      "sites": 1,
+      "category": "platform_diagnostic",
+      "rationale": "Window lifecycle failure that leaves no other observable channel."
+    },
+    {
+      "path": "crates/infiltrator-desktop/src/service_test/real.rs",
+      "sites": 2,
+      "category": "test_support",
+      "rationale": "Real-service test helper prints the service state it observed."
+    },
+    {
+      "path": "crates/infiltrator-iced/src/app.rs",
+      "sites": 1,
+      "category": "platform_diagnostic",
+      "rationale": "Tray backend failure reported before the iced runtime is running."
+    },
+    {
+      "path": "crates/infiltrator-iced/src/capture_frame.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports a frame that could not be written."
+    },
+    {
+      "path": "crates/infiltrator-iced/src/capture_geometry.rs",
+      "sites": 3,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports unusable widget geometry while recording."
+    },
+    {
+      "path": "crates/infiltrator-iced/src/desktop_composition.rs",
+      "sites": 2,
+      "category": "platform_diagnostic",
+      "rationale": "Desktop composition failures that must reach the terminal when no logger is installed."
+    },
+    {
+      "path": "crates/infiltrator-platform/src/crash_reporter.rs",
+      "sites": 1,
+      "category": "crash_diagnostic",
+      "rationale": "A cleanup hook that panics during emergency exit writes to stderr by design."
+    }
+  ]
+}

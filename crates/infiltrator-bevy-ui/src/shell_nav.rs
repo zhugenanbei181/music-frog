@@ -28,7 +28,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui_widgets::{Button, ScrollArea};
 use infiltrator_bevy_widgets::feathers_theme::Token;
-use infiltrator_bevy_widgets::icon::icon_scene;
+use infiltrator_bevy_widgets::icon::icon_scene_val;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::motion::Spring;
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill_token};
@@ -143,7 +143,7 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
             Children [
                 @{ nav_hover_fill_scene(palette) }
                 --
-                @{ icon_scene(route.icon(), NAV_ROW_ICON_PX, ink) }
+                @{ icon_scene_val(route.icon(), rem(NAV_ROW_ICON_PX), ink) }
                 --
                 Node { width: rem(space::S8) } NavSpacer SidebarExpandedOnly
                 --

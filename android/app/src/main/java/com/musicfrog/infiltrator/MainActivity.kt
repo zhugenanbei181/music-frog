@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -215,6 +216,19 @@ class MainActivity : AppCompatActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         nativeHost?.onWindowFocusChanged(hasFocus)
+    }
+
+    /**
+     * EFFECTS-047 (#192): the window was rotated or resized.
+     *
+     * The activity declares `configChanges`, so it survives the rotation.
+     * Compose re-lays out through the typed window size class, and the typed
+     * configuration fact goes to the Rust owner so the shared shell learns
+     * the new window shape as well.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        nativeHost?.onConfigurationChanged()
     }
 
     override fun onDestroy() {

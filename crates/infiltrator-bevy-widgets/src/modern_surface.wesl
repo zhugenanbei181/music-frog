@@ -20,8 +20,15 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
         let inner_mask = sdf_edge_coverage(d_inner, fwidth(d_inner));
         border_mask = surface_mask * (1.0 - inner_mask);
     }
-    let card_rgb = mix(surface.color.rgb, surface.border_color.rgb, border_mask);
-    let card_alpha = surface_mask * surface.color.a;
+    // The border is a stroke of its own colour with its own alpha, so it
+    // composites over the card fill instead of replacing it: a 10% hairline
+    // must read as a 10% line, not as an opaque near-white frame. Dropping
+    // `border_color.a` here painted every card in the app with a solid rim.
+    let border_alpha = border_mask * surface.border_color.a;
+    let fill_alpha = surface_mask * surface.color.a * (1.0 - border_alpha);
+    let card_alpha = border_alpha + fill_alpha;
+    let border_weight = border_alpha / max(card_alpha, 1e-6);
+    let card_rgb = mix(surface.color.rgb, surface.border_color.rgb, border_weight);
     let out_rgb = mix(surface.shadow_color.rgb, card_rgb, card_alpha);
     let out_a = max(card_alpha, shadow_alpha * (1.0 - card_alpha));
     return vec4<f32>(out_rgb, out_a);

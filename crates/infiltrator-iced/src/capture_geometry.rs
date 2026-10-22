@@ -3,6 +3,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::app_routing::APP_ROUTING_SCROLL_ID;
 use crate::view::doctor::DOCTOR_SCROLL_ID;
+use crate::view::editor::EDITOR_SCROLL_ID;
 use crate::view::overview::OVERVIEW_SCROLL_ID;
 use crate::view::profiles::PROFILES_SCROLL_ID;
 use crate::view::proxies::node_region_id;
@@ -302,6 +303,7 @@ impl AppState {
             FeatureId::ProfilesFilterEditor => InteractionRegion::FilterTransaction.id(),
             FeatureId::DnsFakeIpFlushConfirm => InteractionRegion::CacheDialog.id(),
             FeatureId::DoctorFailureRecovery => InteractionRegion::DoctorReport.id(),
+            FeatureId::DoctorRepairProgress => InteractionRegion::DoctorProgress.id(),
             FeatureId::SettingsLanguageChoice => InteractionRegion::LanguageChoices.id(),
             FeatureId::ProfilesSnapshotRestoreConfirm => InteractionRegion::RestoreReview.id(),
             FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication => {
@@ -329,11 +331,24 @@ impl AppState {
             FeatureId::ProfilesImportModal => InteractionRegion::ProfilesImportForm.id(),
             FeatureId::AppRoutingPolicyEditor => InteractionRegion::AppRoutingPolicy.id(),
             FeatureId::ProfilesSubscriptionError => InteractionRegion::OperationError.id(),
+            FeatureId::RulesProviderRefreshError => InteractionRegion::OperationError.id(),
             FeatureId::ProfilesAggregatorPreview => InteractionRegion::AggregatorPreview.id(),
             FeatureId::ProfilesScriptSandbox => InteractionRegion::ScriptSandbox.id(),
             FeatureId::ProfilesScriptExportReview => InteractionRegion::ScriptExportReview.id(),
             FeatureId::ProfilesDiffViewer => InteractionRegion::SnapshotDiff.id(),
             FeatureId::EditorYamlErrorNavigation => InteractionRegion::YamlSyntaxAlert.id(),
+            FeatureId::EditorLargeDocumentWindow | FeatureId::EditorSnippetInsertion => {
+                // The document slot is the business surface, but the native
+                // readback of this renderer never reproduces the text
+                // widget's glyphs: the readback re-renders the queued
+                // batches offscreen and the editor's text is queued through
+                // a weak editor reference, so the readback shows an empty
+                // document pane. The line-number gutter of the same slot is
+                // drawn as plain text, so the measured region is the gutter:
+                // the window's own line numbers, inside the document slot
+                // the capture requires next to it.
+                InteractionRegion::EditorGutter.id()
+            }
             FeatureId::SyncConflictResolver => InteractionRegion::SyncConflictMerge.id(),
             _ => Id::new("page-content"),
         };
@@ -380,8 +395,16 @@ impl AppState {
                 .requiring_peer(InteractionRegion::LogsSearch.id());
         }
         if feature == FeatureId::ProfilesFilterEditor {
+            // The narrow tier scrolls the editor page itself, so the filter
+            // form is reached through the page's scroll; the wide tier keeps
+            // the form's own scrollable.
+            let filter_scroll = if self.shell.viewport.tier.is_narrow() {
+                Id::new(EDITOR_SCROLL_ID)
+            } else {
+                Id::new("filter-scroll")
+            };
             probe = probe
-                .revealing(Id::new("filter-scroll"))
+                .revealing(filter_scroll)
                 .requiring(InteractionRegion::FilterAdvanced.id())
                 .requiring(InteractionRegion::FilterStatus.id())
                 .requiring(InteractionRegion::FilterDiscard.id())
@@ -471,6 +494,22 @@ impl AppState {
         }
         if feature == FeatureId::SyncConflictResolver {
             probe = probe.revealing(Id::new(SYNC_SCROLL_ID));
+        }
+        if matches!(
+            feature,
+            FeatureId::EditorLargeDocumentWindow | FeatureId::EditorSnippetInsertion
+        ) {
+            // The narrow tier scrolls the editor page, so the document slot
+            // has to be brought into view before it can be measured. The
+            // document slot the gutter belongs to has to be on screen too.
+            probe = probe
+                .revealing(Id::new(EDITOR_SCROLL_ID))
+                .requiring_peer(InteractionRegion::EditorDocument.id());
+        }
+        if feature == FeatureId::EditorYamlErrorNavigation {
+            // The narrow tier scrolls the editor page, so the syntax alert
+            // can sit below the fold: the page's own scroll brings it back.
+            probe = probe.revealing(Id::new(EDITOR_SCROLL_ID));
         }
         if feature == FeatureId::ProfilesAggregatorPreview {
             probe = probe.revealing(Id::new(AGGREGATOR_SCROLL_ID));

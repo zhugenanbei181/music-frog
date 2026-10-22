@@ -12,10 +12,79 @@
 use crate::log_search::{LogSearchOutcome, LogSearchRow, LogSearchState};
 use infiltrator_contract::logs::{LogLevel, LogStreamState};
 use infiltrator_contract::surface_snapshot::LogsPageSnapshot;
+use infiltrator_shared::effect_assets::text_width_em;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::page::{PageData, PageStatus};
 use lurker_core_contract::session::SessionToken;
 use lurker_ui_presentation::log_follow::LogFollowState;
+use zhuge_ui_core::text::SearchTextRun;
+
+/// The four sections of one log line (EFFECTS-012 #43).
+///
+/// A log record is not one string: it is a time, a level, a source and a
+/// body. The four sections are projected apart so a surface can align the
+/// time and the level in their own columns and still draw the body as the
+/// one part that wraps.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LogLineSections {
+    /// The time the record was written.
+    pub timestamp: String,
+    /// The level of the record.
+    pub level: String,
+    /// The source the record came from.
+    pub source: String,
+    /// The body of the record.
+    pub message: String,
+}
+
+/// The soft-wrap metrics of one log line (EFFECTS-012 #44).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LogWrapMetrics {
+    /// How many visual lines the record occupies.
+    pub lines: usize,
+    /// How many lines the record adds beyond its first.
+    pub extra_lines: usize,
+}
+
+/// The plain text of a run of highlighted text.
+fn runs_text(runs: &[SearchTextRun]) -> String {
+    let mut text = String::new();
+    for run in runs {
+        text.push_str(&run.text);
+    }
+    text
+}
+
+/// The four sections of one log line.
+pub fn project_log_line_sections(row: &LogSearchRow) -> LogLineSections {
+    LogLineSections {
+        timestamp: runs_text(&row.timestamp),
+        level: runs_text(&row.level_label),
+        source: runs_text(&row.tag),
+        message: runs_text(&row.message),
+    }
+}
+
+/// The soft-wrap metrics of a text at a given line width.
+///
+/// A long record is not cut: it is wrapped, and the row grows with it. The
+/// row height is therefore a projection of the text and the line width, not
+/// a constant a surface may guess. The width is measured in em, so a
+/// full-width character counts twice as much as a half-width one.
+pub fn project_log_wrap_metrics(text: &str, line_width_em: f32) -> LogWrapMetrics {
+    if !line_width_em.is_finite() || line_width_em <= 0.0 {
+        return LogWrapMetrics {
+            lines: 1,
+            extra_lines: 0,
+        };
+    }
+    let width_em = text_width_em(text);
+    let lines = (width_em / line_width_em).ceil().max(1.0) as usize;
+    LogWrapMetrics {
+        lines,
+        extra_lines: lines.saturating_sub(1),
+    }
+}
 
 /// The typed availability of the logs page.
 ///

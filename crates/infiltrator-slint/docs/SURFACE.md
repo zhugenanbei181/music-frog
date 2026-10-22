@@ -33,9 +33,9 @@
 
 2. **平价场景取证（Parity Scenario Capture）**：
    - `INFILTRATOR_SCENARIO=<feature>` 不再只是把场景名写进标记：`infiltrator_slint::capture_scenario::activate` 会让 surface 打开该业务真实对应的界面状态（与用户手势走同一条路径），`infiltrator_slint::capture_scenario::bounds` 再读取该界面在窗口中的真实几何；
-   - **激活是业务自己的手势，不是换路由**：`infiltrator_slint::capture_scenario::BusinessStep`（`Type(字段)` / `Press(控件)`）为每个承载业务声明唯一手势序列——业务自己的输入框（`DraftField`：DNS 查询名、Hosts 行、脚本源码、过滤 include、聚合目标名、路由规则）与业务自己的控件（`dns-leak-probe`、`dns-query-run`、`dns-cache-confirm`、`dns-hosts-add`+`dns-hosts-save`、`script-run`、`script-export-prepare`、`diff-load`、`restore-prepare`、`filter-save`、`aggregate-create`、`aggregate-preview`、`doctor-diagnose`、`doctor-bootstrap`、`sync-take-remote`、`sync-restore`、`app-routing-rule`）。手势通过 `AppWindow::invoke_workbench_draft_edited` / `invoke_workbench_action` 触发，与用户点击走同一条回调路径；
+   - **激活是业务自己的手势，不是换路由**：`infiltrator_slint::capture_scenario::BusinessStep`（`Type(字段)` / `Press(控件)` / `MoveOverviewCard(卡片, 上移)`）为每个承载业务声明唯一手势序列——业务自己的输入框（`DraftField`：DNS 查询名、Hosts 行、脚本源码、过滤 include、聚合目标名、路由规则）与业务自己的控件（`dns-leak-probe`、`dns-query-run`、`dns-cache-confirm`、`dns-hosts-add`+`dns-hosts-save`、`script-run`、`script-export-prepare`、`diff-load`、`restore-prepare`、`filter-save`、`aggregate-create`、`aggregate-preview`、`doctor-diagnose`、`doctor-bootstrap`、`sync-take-remote`、`sync-restore`、`app-routing-rule`、概览卡片的 `↑`/`↓`）。手势通过 `AppWindow::invoke_workbench_draft_edited` / `invoke_workbench_action` / `invoke_move_overview_card` 触发，与用户点击走同一条回调路径；
    - **激活的判定是渲染真的变了**：`capture_scenario::Activation` 记录手势前的页面签名（workbench 面板的 id/kind/status/detail/trailing/label/enabled + 两个草稿 + owner 可见 notice），只有签名在 owner 终态回灌后真的变化，`activate` 才返回 `true`；owner 命令在途时（`Workbenches::has_pending_command()`）不算激活，因此回执证明的是「业务跑完了并显示了 owner 的答案」，不是「路由换了页」；
-   - **演示宿主是真的 owner**：`infiltrator_slint::demo::DemoProductHost` 通过 `run_with_host_prepared` 复用产品接线（注册生产回调、起 owner worker、按 owner 节奏发布快照），并对每条业务命令回一个 typed 拒绝（`infiltrator_slint::demo::owner::respond`），因此取证里出现的是业务自己的失败路径与 owner 可见 notice，而不是一张空面板；
+   - **演示宿主是真的 owner**：`infiltrator_slint::demo::DemoProductHost` 通过 `run_with_host_prepared` 复用产品接线（注册生产回调、起 owner worker、按 owner 节奏发布快照），并对每条业务命令回一个 typed 拒绝（`infiltrator_slint::demo::owner::respond`），因此取证里出现的是业务自己的失败路径与 owner 可见 notice，而不是一张空面板；概览卡片顺序是 owner 自己的事实，所以演示 owner 对 `MoveOverviewCard` / `ResetOverviewCardOrder` 应用移动并回 `CommandOutput::OverviewLayoutApplied`，取证回执因此证明的是「owner 真的改了顺序并被界面渲染」；
    - **弹层取证走用户的开法**：添加配置弹层由 `open-profile-add()` 打开（与「添加配置」磁贴同一条路径），因此弹层记住的 profile 数量与 owner 发布的一致，不会被随后的快照发布误关；
    - surface 能承载的业务集合是**封闭且带类型**的：`infiltrator_slint::capture_scenario::CarriedScenario` 是唯一真源，`activate` 只认识这些变体；集合之外的业务名一律返回 `false`，标记因此永远不会为 surface 没有的业务背书；
    - 标记格式为 `CAPTURE_READY page=<p> skin=<s> scenario=<feature> activated=true bounds=<x>,<y>,<w>,<h>\n`。`bounds` 是被激活界面在窗口中的真实像素矩形，surface 未打开该界面时写 `activated=false` 且不带 `bounds`，因此截图链路无法为 surface 未实现的业务背书；
@@ -69,6 +69,22 @@
      - `doctor-failure-recovery`（`success`,`error`,`retry`）、`lifecycle-recovery-panel`（`success`,`error`,`retry`）；
      - `sync-conflict-resolver`（`success`,`cancel`,`error`）、`sync-restore-confirm`（`success`,`cancel`,`error`）、`app-routing-policy-editor`（`success`,`cancel`,`error`,`refresh`,`unsupported`）；
      - `profiles-import-modal`（`success`,`cancel`,`error`）与 `profiles-delete-confirm`（`success`,`cancel`,`error`）。
+     - `overview-card-reorder`（`success`,`cancel`,`error`）——概览卡片排序：界面派发共享 `CommandIntent::MoveOverviewCard` / `ResetOverviewCardOrder`，渲染 owner 发布的顺序，owner 拒绝时顺序不变（`tests/overview_card_reorder_tests.rs`）。
+      - **工作台业务面板**（`tests/business_*_tests.rs`）：每个业务一个面板，面板只渲染共享 owner 发布的事实与共享投影，手势经 `surface::action::workbench::business` 解析成共享 `CommandIntent`：
+        - 连接工作台（`ConnectionsWorkbench`）：`connections-close-all-confirm`（`success`,`cancel`）、`connections-details-drawer`（`success`,`close`,`unsupported`,`reorder`,`removed`）、`connections-grouping`（`success`）；
+        - 日志工作台（`LogsWorkbench`）：`logs-redacted-export`（`success`,`cancel`,`error`,`retry`,`stale`,`pending`,`unsupported`,`filtered`）、`logs-scroll-lock`（`success`,`lock`,`resume`,`history`,`growth`）；
+        - 运行时工作台（`RuntimeWorkbench`）：`runtime-telemetry-observation`（`unknown`,`zero`,`error`,`stale`,`refresh`,`locale`）、`speedtest-progress-cancel`（`success`,`cancel`,`error`）、`speedtest-details-modal`（`success`,`close`,`unsupported`）、`speedtest-history-comparison`（`success`,`empty`）；
+        - 代理工作台（`ProxiesWorkbench`）：`proxies-custom-node-modal`（`success`,`cancel`,`error`）、`proxies-group-expanded`（`success`,`close`,`reorder`,`added`,`removed`）、`proxies-group-reorder`（`success`,`cancel`,`error`,`retry`,`refresh`）、`proxies-node-detail-drawer`（`success`,`close`,`unsupported`,`reorder`,`removed`,`error`,`retry`）、`proxies-probe-settings`（`success`,`cancel`,`error`,`retry`,`refresh`）、`proxies-uri-import-preview`（`success`,`cancel`,`error`）；
+        - 规则工作台（`RulesWorkbench`）：`rules-list-editor`（`success`,`cancel`,`error`,`retry`,`refresh`,`stale`,`focus`）、`rules-override-editor`（`success`,`cancel`,`error`）、`rules-provider-refresh-error`（`success`,`error`,`retry`）、`rules-statistics-inspector`（`unknown`,`success`,`cancel`,`error`,`retry`,`refresh`,`stale`,`pending`,`locale`,`cleanup`）、`rules-tracer-drawer`（`success`,`close`,`error`）；
+        - 设置工作台（`SettingsWorkbench`）：`core-version-rollback-confirm`（`success`,`cancel`,`error`）、`settings-lan-security`（`success`,`error`）、`settings-language-choice`（`success`,`error`,`retry`,`refresh`,`focus`）、`settings-permission-panel`（`success`,`error`,`unsupported`）、`settings-port-conflict-repair`（`success`,`error`）、`settings-tun-permission`（`success`,`cancel`,`error`,`unsupported`）；
+        - 外壳工作台（`ShellWorkbench`）：`shell-command-palette`（`success`,`cancel`,`empty`,`full-list`,`locale`,`refresh`）、`shell-routing-intent-control`（`success`,`error`,`retry`,`close`,`stale`,`refresh`,`pending`,`unsupported`,`guide`）、`shell-routing-intent-authentication`（`error`,`guide`,`close`）；
+        - 概览工作台（`OverviewWorkbench`）：`overview-reconnect-mask`（`success`,`error`,`retry`）、`overview-topology-drilldown`（`success`,`close`）。
+      - **产品页搜索框**（`tests/page_search_business_tests.rs`）：搜索是页面自己的搜索框，业务由共享过滤/搜索归约收窄列表：
+        - 连接页（`Connections`）：`connections-search-highlight`（`success`,`empty`）；
+        - 日志页（`Logs`）：`logs-search-highlight`（`success`,`empty`,`error`,`clear`,`refresh`,`locale`,`stale`）——无效正则的 typed 理由由共享搜索模型给出，页面显示该理由而不冒充「没有匹配」；
+        - 规则页（`Rules`）：`rules-search-highlight`（`success`,`empty`）；
+        - 代理页（`Proxy`）：`proxies-search-highlight`（`success`,`empty`,`clear`,`error`,`retry`,`refresh`）——查询经共享 `ApplyOutboundUiPreference` 交给 owner，页面渲染 owner 读回的收窄节点表。
+      - **编辑器页与过滤页的业务面板**（`tests/business_editor_tests.rs`、`tests/business_filters_tests.rs`）：`editor-large-document-window`（`success`）、`editor-snippet-insertion`（`success`,`error`）、`editor-yaml-error-navigation`（`success`,`error`）、`profiles-subscription-error`（`error`,`retry`）。
    - 行为测试位于 `tests/workbench_page_tests.rs`（首批行为）、`tests/workbench_path_tests.rs`（DNS/编辑器/过滤业务的交互路径）与 `tests/workbench_service_path_tests.rs`（诊断/同步/路由业务的交互路径）；共享夹具位于 `tests/workbench_paths/fixture.rs`。
 
 5. **Slint surface 承载的业务（scenario 名称）**：
@@ -79,11 +95,14 @@
    - **诊断页**（`Doctor`）：`doctor-failure-recovery`、`lifecycle-recovery-panel`；
    - **同步页**（`Sync`）：`sync-conflict-resolver`、`sync-restore-confirm`；
    - **应用路由页**（`AppRouting`）：`app-routing-policy-editor`；
-   - **配置弹层**：`profiles-import-modal`、`profiles-delete-confirm`。
+   - **概览页**（`Home`）：`overview-card-reorder`——概览卡片顺序是共享 owner 的事实，界面发共享意图并渲染 owner 发布的顺序，排序面板由 `ui/components/overview_order.slint` 承载；
+   - **配置弹层**：`profiles-import-modal`、`profiles-delete-confirm`；
+   - **工作台业务页**（`ui/pages/page_workbench.slint` + `src/lumen_projection/workbench/panels/`）：`ConnectionsWorkbench`、`LogsWorkbench`、`RuntimeWorkbench`、`ProxiesWorkbench`、`RulesWorkbench`、`SettingsWorkbench`、`ShellWorkbench`、`OverviewWorkbench` 各自承载本工作台的业务面板，面板动作经 `invoke_workbench_action` 走共享命令；
+   - **产品页搜索框**：`Connections`、`Logs`、`Rules`、`Proxy` 四页的搜索框是共享过滤的入口，取证用手势写入页面自己的搜索框。
 
 6. **在 Slint surface 上仍无承载载体的业务**：
    - 下列业务在共享平价目录中存在，但 Slint surface 没有承载它们的界面状态，取证路径会拒绝它们，因此它们没有像素回执，也不能登记 Slint 的 scenario 锚点：
-   - `connections-close-all-confirm`、`connections-details-drawer`、`connections-grouping`、`connections-search-highlight`、`core-version-rollback-confirm`、`editor-large-document-window`、`editor-snippet-insertion`、`editor-yaml-error-navigation`、`logs-redacted-export`、`logs-scroll-lock`、`logs-search-highlight`、`overview-card-reorder`、`overview-reconnect-mask`、`overview-topology-drilldown`、`profiles-subscription-error`、`proxies-custom-node-modal`、`proxies-group-expanded`、`proxies-group-reorder`、`proxies-node-detail-drawer`、`proxies-probe-settings`、`proxies-search-highlight`、`proxies-uri-import-preview`、`rules-list-editor`、`rules-override-editor`、`rules-provider-refresh-error`、`rules-search-highlight`、`rules-statistics-inspector`、`rules-tracer-drawer`、`runtime-telemetry-observation`、`settings-language-choice`、`settings-lan-security`、`settings-permission-panel`、`settings-port-conflict-repair`、`settings-tun-permission`、`shell-command-palette`、`shell-keyboard-focus`、`shell-routing-intent-authentication`、`shell-routing-intent-control`、`speedtest-details-modal`、`speedtest-history-comparison`、`speedtest-progress-cancel`；
+   - `shell-keyboard-focus`——焦点环跟随焦点的像素证据需要能驱动真实指针或按键的取景台架，Slint 的取景路径只驱动产品回调，因此该业务在 Slint 表面上仍无像素回执；
    - 缺口随共享平价登记表 `scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 演进，本文档只声明「Slint 是否有承载载体」这一事实。
 
 

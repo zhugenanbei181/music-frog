@@ -87,6 +87,31 @@ pub fn proxy_protocol_chip(raw: &str) -> String {
     }
 }
 
+/// The reduced feature tags of one node (EFFECTS-012 #41).
+///
+/// The engine advertises the same capability under several spellings and
+/// sometimes twice; a chip row that reads "UDP, udp, UDP" is a defect, not a
+/// fact. The reduction drops the empty tags and keeps the first occurrence
+/// of every tag, comparing them case-insensitively, so the chip row is the
+/// same on every surface.
+pub fn proxy_feature_tags(tags: &[String]) -> Vec<String> {
+    let mut reduced: Vec<String> = Vec::with_capacity(tags.len());
+    let mut seen: Vec<String> = Vec::with_capacity(tags.len());
+    for tag in tags {
+        let trimmed = tag.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let key = trimmed.to_ascii_lowercase();
+        if seen.iter().any(|kept| kept == &key) {
+            continue;
+        }
+        seen.push(key);
+        reduced.push(trimmed.to_owned());
+    }
+    reduced
+}
+
 /// The proxies page match rule of the shared filter query.
 ///
 /// The query type is shared with the other pages; what a query *matches*

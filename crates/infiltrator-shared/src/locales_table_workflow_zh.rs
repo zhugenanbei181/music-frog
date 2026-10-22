@@ -186,6 +186,14 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "rule_local_hits" => "{count} 次本地追踪命中".into(),
         "rule_local_hits_disabled" => "{count} 次本地追踪命中 · 已停用".into(),
         "rule_local_hits_shadowed" => "{count} 次本地追踪命中 · 被遮蔽".into(),
+        // The rule row's two chips: the count on its own, and the status on
+        // its own. A surface draws them as two chips, not as one sentence.
+        "rule_hits_count" => "{count} 次本地追踪命中".into(),
+        "rule_hits_unobserved" => "未观测".into(),
+        "rule_status_shadowed" => "被遮蔽".into(),
+        // A profile without a name is still a profile: the draft sentence
+        // names it instead of trailing an empty name.
+        "rules_draft_unnamed_profile" => "未命名配置".into(),
         "core_source_live_version" => "实时内核 · {version}".into(),
         "core_source_live_unknown_version" => "实时内核 · 版本未观测".into(),
         "overview_cpu" => "CPU".into(),

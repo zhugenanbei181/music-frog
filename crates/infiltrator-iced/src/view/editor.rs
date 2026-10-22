@@ -9,7 +9,9 @@ use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::types::script::ScriptAction;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::{card_surface, chip, kbd_badge, segmented_control};
+use crate::view::components::{
+    card_surface, chip, kbd_badge, modern_scrollable, segmented_control,
+};
 use crate::view::mixin_studio::{cascade_strip, preflight_banner, three_column_row, toggle_row};
 use crate::view::profile_filter::filter_pane;
 use crate::view::script_export::export_section;
@@ -17,6 +19,7 @@ use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{editor_viewport, script_console, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
+use iced::advanced::widget::Id;
 use iced::widget::{Row, Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::script_export::ScriptExportKind;
@@ -39,6 +42,10 @@ pub fn format_syntax_line_pill(line: usize) -> String {
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
+    // The narrow tier stacks the sidebar into a rail and shortens the window,
+    // so the page itself scrolls: the document pane stays reachable instead of
+    // being pushed below the fold.
+    let narrow = state.shell.viewport.tier.is_narrow();
 
     let filename = state
         .editor
@@ -352,16 +359,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 &state.editor.editor_content,
                 state.editor.profile_viewport.first_line(),
             );
-            row![
-                editor_viewport::gutter(&state.editor.editor_content, viewport),
-                Space::new().width(theme::SP_XS),
-                editor_viewport::editor_element(
-                    &state.editor.editor_content,
-                    Message::EditorAction,
-                    viewport.rendered_len(),
-                    state.editor.document_session.can_edit(),
-                ),
-            ]
+            // The document slot is the bounded window the document widget
+            // renders together with its line-number gutter. The capture
+            // measures this slot, so the business is proven on the real
+            // document and not on a route-only repaint.
+            container(
+                row![
+                    editor_viewport::gutter(&state.editor.editor_content, viewport),
+                    Space::new().width(theme::SP_XS),
+                    editor_viewport::editor_element(
+                        &state.editor.editor_content,
+                        Message::EditorAction,
+                        viewport.rendered_len(),
+                        state.editor.document_session.can_edit(),
+                    ),
+                ]
+                .width(Length::Fill),
+            )
+            .id(InteractionRegion::EditorDocument.id())
+            .width(Length::Fill)
             .into()
         }
         EditorPane::Mixin => {
@@ -386,7 +402,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
     let editor = container(editor_document)
         .width(Length::Fill)
-        .height(Length::Fill)
+        .height(if narrow { Length::Shrink } else { Length::Fill })
         .style(card_surface);
 
     // History snapshots side panel
@@ -577,7 +593,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         _ => String::new(),
     };
     if !save_status.is_empty() {
-        content = content.push(text(save_status).size(12));
+        content = content
+            .push(container(text(save_status).size(12)).id(InteractionRegion::EditorStatus.id()));
     }
     if let Some(alert) = syntax_alert {
         content = content.push(alert).push(Space::new().height(theme::SP_SM));
@@ -594,15 +611,40 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // DUAL-09-14: every pane keeps the history side panel, so the snapshot
     // actions do not disappear when the Filter or Script pane is open (the
     // Bevy history card is always mounted on the page as well).
-    content = content
-        .push(row![editor, Space::new().width(theme::SP_MD), history_panel].height(Length::Fill));
+    //
+    // The narrow tier stacks the panel under the document instead of beside
+    // it: two panes side by side would squeeze the document box below its
+    // own window height.
+    content = if narrow {
+        content.push(
+            column![editor, Space::new().height(theme::SP_MD), history_panel].spacing(theme::SP_SM),
+        )
+    } else {
+        content.push(
+            row![editor, Space::new().width(theme::SP_MD), history_panel].height(Length::Fill),
+        )
+    };
     let content = content.spacing(theme::SP_SM);
 
-    container(content)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    if narrow {
+        // The compact tier stacks the sidebar under the content, so the page
+        // itself scrolls: every card stays reachable in that tier.
+        modern_scrollable(content)
+            .id(Id::new(EDITOR_SCROLL_ID))
+            .height(Length::Fill)
+            .width(Length::Fill)
+            .into()
+    } else {
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
 }
+
+/// The scrollable the narrow editor page scrolls in, so the capture can bring
+/// the document pane into view.
+pub const EDITOR_SCROLL_ID: &str = "editor-scroll";
 
 /// DUAL-09-14: the panes that carry the shared snippet bar. The Bevy editor
 /// card mounts the same catalogue in exactly these two panes, so a snippet can

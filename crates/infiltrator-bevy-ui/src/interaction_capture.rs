@@ -44,8 +44,11 @@ mod logs_export;
 pub mod observation;
 mod outbound_fixture;
 mod outbound_preferences;
+mod overview;
 mod panel;
 mod probe_settings;
+mod profiles;
+mod profiles_business;
 mod protocol;
 mod proxies;
 mod proxy_inspection;
@@ -57,6 +60,7 @@ mod rules_search;
 mod script;
 mod scroll;
 mod search;
+mod settings;
 mod snapshot_restore;
 mod telemetry;
 
@@ -100,7 +104,10 @@ impl InteractionCapture {
         );
         app.init_resource::<geometry::GeometryRejections>();
         app.init_resource::<ObservedInteraction>();
-        if feature == FeatureId::ProfilesSnapshotRestoreConfirm {
+        if matches!(
+            feature,
+            FeatureId::ProfilesSnapshotRestoreConfirm | FeatureId::SyncRestoreConfirm
+        ) {
             snapshot_restore::install(app);
         }
         if feature == FeatureId::RuntimeTelemetryObservation {
@@ -228,8 +235,9 @@ impl InteractionCapture {
             app.add_systems(Update, doctor::activate);
             app.add_systems(PostUpdate, doctor::observe.in_set(CaptureObservationSet));
         }
-        if feature.spec().id == doctor::REPAIR_PROGRESS_FEATURE_ID {
+        if feature == FeatureId::DoctorRepairProgress {
             doctor::install_repair_progress(app);
+            app.add_systems(Update, doctor::activate_repair_progress);
             app.add_systems(
                 PostUpdate,
                 doctor::observe_repair_progress.in_set(CaptureObservationSet),
@@ -291,6 +299,45 @@ impl InteractionCapture {
             script::install(app);
             app.add_systems(Update, script::activate);
             app.add_systems(PostUpdate, script::observe.in_set(CaptureObservationSet));
+        }
+        if matches!(
+            feature,
+            FeatureId::OverviewTopologyDrilldown
+                | FeatureId::OverviewReconnectMask
+                | FeatureId::SpeedtestHistoryComparison
+                | FeatureId::SpeedtestProgressCancel
+                | FeatureId::ShellKeyboardFocus
+                | FeatureId::OverviewCardReorder
+        ) {
+            overview::install(app, feature);
+            app.add_systems(Update, overview::activate);
+            app.add_systems(PostUpdate, overview::observe.in_set(CaptureObservationSet));
+        }
+        if feature == FeatureId::EditorLargeDocumentWindow {
+            profiles::install(app);
+            app.add_systems(Update, profiles::activate);
+            app.add_systems(PostUpdate, profiles::observe.in_set(CaptureObservationSet));
+        }
+        if matches!(
+            feature,
+            FeatureId::SettingsPortConflictRepair
+                | FeatureId::SettingsTunPermission
+                | FeatureId::SettingsPermissionPanel
+        ) {
+            settings::install(app);
+            app.add_systems(Update, settings::activate);
+            app.add_systems(PostUpdate, settings::observe.in_set(CaptureObservationSet));
+        }
+        if matches!(
+            feature,
+            FeatureId::ProfilesDeleteConfirm | FeatureId::ProfilesSubscriptionError
+        ) {
+            profiles_business::install(app);
+            app.add_systems(Update, profiles_business::activate);
+            app.add_systems(
+                PostUpdate,
+                profiles_business::observe.in_set(CaptureObservationSet),
+            );
         }
         app.insert_resource(Self {
             feature,
@@ -363,48 +410,61 @@ pub struct DefaultPageObservation<'w, 's> {
 }
 
 fn has_specialized_activator(feature: FeatureId) -> bool {
-    feature.spec().id == doctor::REPAIR_PROGRESS_FEATURE_ID
-        || matches!(
-            feature,
-            FeatureId::ConnectionsCloseAllConfirm
-                | FeatureId::RuntimeTelemetryObservation
-                | FeatureId::ConnectionsGrouping
-                | FeatureId::ConnectionsSearchHighlight
-                | FeatureId::LogsSearchHighlight
-                | FeatureId::LogsScrollLock
-                | FeatureId::LogsRedactedExport
-                | FeatureId::ConnectionsDetailsDrawer
-                | FeatureId::SpeedtestDetailsModal
-                | FeatureId::ShellCommandPalette
-                | FeatureId::ShellRoutingIntentControl
-                | FeatureId::ShellRoutingIntentAuthentication
-                | FeatureId::ProxiesCustomNodeModal
-                | FeatureId::ProxiesUriImportPreview
-                | FeatureId::ProxiesGroupExpanded
-                | FeatureId::ProxiesNodeDetailDrawer
-                | FeatureId::ProxiesSearchHighlight
-                | FeatureId::ProxiesProbeSettings
-                | FeatureId::ProxiesGroupReorder
-                | FeatureId::SettingsLanguageChoice
-                | FeatureId::DoctorFailureRecovery
-                | FeatureId::DnsLeakAlert
-                | FeatureId::DnsHostsEditor
-                | FeatureId::DnsQueryDetails
-                | FeatureId::DnsFakeIpFlushConfirm
-                | FeatureId::RulesTracerDrawer
-                | FeatureId::RulesOverrideEditor
-                | FeatureId::RulesStatisticsInspector
-                | FeatureId::RulesListEditor
-                | FeatureId::ProfilesFilterEditor
-                | FeatureId::ProfilesSnapshotRestoreConfirm
-                | FeatureId::ProfilesAggregatorWizard
-                | FeatureId::ProfilesDiffViewer
-                | FeatureId::RulesSearchHighlight
-                | FeatureId::AppRoutingPolicyEditor
-                | FeatureId::LifecycleRecoveryPanel
-                | FeatureId::ProfilesScriptSandbox
-                | FeatureId::ProfilesScriptExportReview
-        )
+    matches!(
+        feature,
+        FeatureId::DoctorRepairProgress
+            | FeatureId::ConnectionsCloseAllConfirm
+            | FeatureId::RuntimeTelemetryObservation
+            | FeatureId::ConnectionsGrouping
+            | FeatureId::ConnectionsSearchHighlight
+            | FeatureId::LogsSearchHighlight
+            | FeatureId::LogsScrollLock
+            | FeatureId::LogsRedactedExport
+            | FeatureId::ConnectionsDetailsDrawer
+            | FeatureId::SpeedtestDetailsModal
+            | FeatureId::ShellCommandPalette
+            | FeatureId::ShellRoutingIntentControl
+            | FeatureId::ShellRoutingIntentAuthentication
+            | FeatureId::ProxiesCustomNodeModal
+            | FeatureId::ProxiesUriImportPreview
+            | FeatureId::ProxiesGroupExpanded
+            | FeatureId::ProxiesNodeDetailDrawer
+            | FeatureId::ProxiesSearchHighlight
+            | FeatureId::ProxiesProbeSettings
+            | FeatureId::ProxiesGroupReorder
+            | FeatureId::SettingsLanguageChoice
+            | FeatureId::DoctorFailureRecovery
+            | FeatureId::DnsLeakAlert
+            | FeatureId::DnsHostsEditor
+            | FeatureId::DnsQueryDetails
+            | FeatureId::DnsFakeIpFlushConfirm
+            | FeatureId::RulesTracerDrawer
+            | FeatureId::RulesOverrideEditor
+            | FeatureId::RulesStatisticsInspector
+            | FeatureId::RulesListEditor
+            | FeatureId::ProfilesFilterEditor
+            | FeatureId::ProfilesSnapshotRestoreConfirm
+            | FeatureId::ProfilesAggregatorWizard
+            | FeatureId::ProfilesDiffViewer
+            | FeatureId::RulesSearchHighlight
+            | FeatureId::AppRoutingPolicyEditor
+            | FeatureId::LifecycleRecoveryPanel
+            | FeatureId::OverviewTopologyDrilldown
+            | FeatureId::OverviewReconnectMask
+            | FeatureId::OverviewCardReorder
+            | FeatureId::SpeedtestHistoryComparison
+            | FeatureId::SpeedtestProgressCancel
+            | FeatureId::ShellKeyboardFocus
+            | FeatureId::EditorLargeDocumentWindow
+            | FeatureId::SyncRestoreConfirm
+            | FeatureId::SettingsPortConflictRepair
+            | FeatureId::SettingsTunPermission
+            | FeatureId::SettingsPermissionPanel
+            | FeatureId::ProfilesDeleteConfirm
+            | FeatureId::ProfilesSubscriptionError
+            | FeatureId::ProfilesScriptSandbox
+            | FeatureId::ProfilesScriptExportReview
+    )
 }
 
 fn default_page_observation(

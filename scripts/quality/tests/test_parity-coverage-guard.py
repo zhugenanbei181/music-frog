@@ -105,8 +105,8 @@ class RepositoryCoverage(unittest.TestCase):
     def test_repository_registries_cover_every_business_cell(self):
         report = GUARD.check(REPO)
         self.assertEqual(report.problems, [])
-        self.assertEqual(report.total_cells, 354)
-        self.assertEqual(len(report.manifest), 177)
+        self.assertEqual(report.total_cells, 360)
+        self.assertEqual(len(report.manifest), 180)
 
     def test_repository_coverage_table_lists_every_surface(self):
         rendered = GUARD.render(GUARD.check(REPO))

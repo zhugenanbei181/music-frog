@@ -1,6 +1,8 @@
 //! Slint product callbacks routed to the shared product owner.
 
 use super::super::*;
+use crate::surface::action::overview_card_move_action;
+use crate::surface::action::overview_card_reset_action;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -110,5 +112,23 @@ pub(super) fn register(
     let latest_for_license_retry = Arc::clone(&latest);
     window.on_retry_license_catalog(move || {
         refresh_projection(&weak_for_license_retry, &latest_for_license_retry);
+    });
+    let tx_for_overview_move = requests.clone();
+    let weak_for_overview_move = weak.clone();
+    window.on_move_overview_card(move |id, up| {
+        queue_action(
+            &tx_for_overview_move,
+            &weak_for_overview_move,
+            overview_card_move_action(id.as_str(), up),
+        );
+    });
+    let tx_for_overview_reset = requests.clone();
+    let weak_for_overview_reset = weak.clone();
+    window.on_reset_overview_card_order(move || {
+        queue_action(
+            &tx_for_overview_reset,
+            &weak_for_overview_reset,
+            Ok(overview_card_reset_action()),
+        );
     });
 }

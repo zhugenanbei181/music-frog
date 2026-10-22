@@ -18,14 +18,13 @@
 use crate::pages::connections::{ConnectionsProjection, LastConnectionsProjection};
 use crate::pages::connections_idle::ConnectionsIdleState;
 use crate::pages::connections_search::ConnectionSearchNode;
-use crate::pages::connections_virtual::ConnectionsVirtualNodes;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{

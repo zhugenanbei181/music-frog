@@ -776,6 +776,13 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "custom_node_tls" => "TLS".into(),
         "mini_hud_empty_exit" => "未选择出口节点".into(),
         "protocol_form_no_feedback" => "宿主命令通道不提供终态回执，未提交操作".into(),
+        // The log view's wrap switch: the two modes the switch names.
+        "logs_wrap_soft" => "自动换行".into(),
+        "logs_wrap_single" => "单行显示".into(),
+        // The editor's own diagnostics: the widget kit names the fact, the
+        // shared table owns the words.
+        "editor_diagnostic_unclosed_quote" => "字符串引号未闭合 (Unclosed quotation mark)".into(),
+        "editor_diagnostic_rule_without_target" => "分流规则缺少目标策略组: {rule}".into(),
         _ => key.to_string().into(),
     }
 }

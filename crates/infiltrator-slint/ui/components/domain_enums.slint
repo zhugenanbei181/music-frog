@@ -1,0 +1,72 @@
+// The domain vocabulary of the surface, declared once as typed enums.
+//
+// These facts used to travel as free-form strings, so every consumer had to
+// spell the same word again and a typo silently became "some other value".
+// The enums below are the one place the vocabulary lives: the shared owner
+// publishes a typed value, the surface renders it, and the widget vocabulary
+// is derived from it instead of being spelled out again.
+
+// The lifecycle phase of the shared Core, as the owner publishes it.
+export enum RuntimeStatus {
+    stopped,
+    starting,
+    running,
+    stopping,
+    failed,
+}
+
+// The routing intent of the shared owner.
+export enum RouteMode {
+    rule,
+    global,
+    direct,
+    // The owner publishes it before the routing resolved.
+    unknown,
+}
+
+// The way the host takes over the traffic.
+export enum NetworkMode {
+    system-proxy,
+    tun,
+    vpn,
+    core-only,
+    // The owner publishes it before the traffic mode resolved.
+    unknown,
+}
+
+// The theme the user picked.
+export enum ThemeMode {
+    system,
+    light,
+    dark,
+    forest,
+    amoled,
+}
+
+// The severity the log page keeps.
+//
+// `all` is "no filter", and `unknown` is the level the owner reports for a
+// record whose severity it did not confirm. The widget offers no button for
+// `unknown`, so a page that keeps it shows no selected level.
+export enum LogLevel {
+    all,
+    debug,
+    info,
+    warning,
+    error,
+    unknown,
+}
+
+// The dimension the connection list is ordered by.
+export enum ConnectionSort {
+    time,
+    upload,
+    download,
+    host,
+}
+
+// The window the traffic page shows.
+export enum TrafficRange {
+    today,
+    week,
+}

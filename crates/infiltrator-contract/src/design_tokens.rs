@@ -12,8 +12,21 @@
 //! the interaction palette every programmable surface exposes (overlay scrim,
 //! hover/pressed washes, focus ring, disabled ink), the spacing ladder, the
 //! corner radii and the hairline width. Surface-only decoration (icon-tile
-//! tints, shadows, per-surface type scales, accent-tinted button derivations)
-//! stays with its surface: shadows are not programmable on either toolkit.
+//! tints, per-surface type scales, accent-tinted button derivations) stays
+//! with its surface.
+//!
+//! Four submodules carry the finer contracts of the token system:
+//!
+//! * [`palette`] — the semantic colour roles, the eight-step surface ladder,
+//!   the two-stop gradient, the highlight stroke and the WCAG text contrast
+//!   ladder (EFFECTS-001);
+//! * [`space`] — the 8pt/4pt layout grid, the closed physical-size whitelist
+//!   and the chrome heights, plus the one verdict that names the channel a
+//!   length travels in (EFFECTS-002 #6, #8);
+//! * [`radius`] — the mutually exclusive corner-radius roles and the radius
+//!   each role owns (EFFECTS-002 #7);
+//! * [`elevation`] — the elevation levels, the ladder and the two-layer
+//!   shadow specification (EFFECTS-002 #9).
 
 use crate::theme::ThemeSkin;
 
@@ -157,7 +170,12 @@ pub const fn skin_interaction(skin: ThemeSkin) -> SkinInteractionPalette {
             hover: RgbaToken::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: RgbaToken::rgba(1.0, 1.0, 1.0, 0.14),
             focus_ring: RgbaToken::rgb(0.12, 0.56, 0.96),
-            disabled_ink: RgbaToken::rgba(0.88, 0.90, 0.92, 0.35),
+            // The disabled ink is a readable label, not a whisper: at 0.35 it
+            // measured ≈3:1 against the dark card, which fails the product's
+            // own legibility floor for a label a user must still read. 0.55
+            // measures ≈4.9:1 on the same card and stays dimmer than the
+            // secondary ink.
+            disabled_ink: RgbaToken::rgba(0.88, 0.90, 0.92, 0.55),
         },
         ThemeSkin::Light => SkinInteractionPalette {
             scrim: RgbaToken::rgba(0.0, 0.0, 0.0, 0.40),
@@ -183,56 +201,22 @@ pub const fn skin_interaction(skin: ThemeSkin) -> SkinInteractionPalette {
     }
 }
 
-/// Spacing ladder (logical pixels) both shells lay out with.
-pub mod space {
-    pub const XS: f32 = 4.0;
-    pub const SM: f32 = 8.0;
-    pub const MD: f32 = 12.0;
-    pub const LG: f32 = 16.0;
-    pub const XL: f32 = 20.0;
-    pub const XXL: f32 = 24.0;
-    /// Mobile screen edge margin (compact smartphones: 16px).
-    pub const SCREEN_MARGIN_MOBILE: f32 = 16.0;
-    /// Tablet screen edge margin (medium viewports: 24px).
-    pub const SCREEN_MARGIN_TABLET: f32 = 24.0;
-}
+/// The semantic colour roles of the product (EFFECTS-001).
+#[path = "palette.rs"]
+pub mod palette;
 
-/// Corner radius ladder (logical pixels).
-///
-/// Every rung owns exactly one role, and the roles are mutually exclusive:
-/// a surface that needs a radius looks the role up here instead of picking
-/// a number.
-///
-/// | rung | role |
-/// | --- | --- |
-/// | [`XS`] | micro tag, compact tooltip bubble |
-/// | [`SM`] | secondary button, input inner chip, segmented control pill |
-/// | [`CONTROL`] | standard control, text input, primary button |
-/// | [`CARD`] | standard card container, **panel-style** dialog card |
-/// | [`MODAL`] | **centered** modal dialog, **centered** command palette |
-/// | [`BOTTOM_SHEET`] | mobile **bottom sheet** top edge |
-/// | [`PILL`] | fully rounded pill capsule, status chip |
-///
-/// A centered dialog is a [`MODAL`]; a panel-style dialog is a [`CARD`];
-/// a bottom sheet is a [`BOTTOM_SHEET`]. There is no fourth "dialog" rung:
-/// the old `DIALOG` constant duplicated `BOTTOM_SHEET` with an overlapping
-/// role and was retired, so the ladder cannot be read two ways.
-pub mod radius {
-    /// Micro tag, compact tooltip bubble (4px).
-    pub const XS: f32 = 4.0;
-    /// Secondary button, input inner chip, segmented control pill (8px).
-    pub const SM: f32 = 8.0;
-    /// Standard control, text input, primary button (10px).
-    pub const CONTROL: f32 = 10.0;
-    /// Standard card container, panel-style dialog card (16px).
-    pub const CARD: f32 = 16.0;
-    /// Centered modal dialog, centered command palette (24px).
-    pub const MODAL: f32 = 24.0;
-    /// Mobile bottom sheet top edge radius (28px).
-    pub const BOTTOM_SHEET: f32 = 28.0;
-    /// Fully-rounded pill capsule, status chip (999px).
-    pub const PILL: f32 = 999.0;
-}
+/// The spacing ladder, the layout grid and the physical-size whitelist
+/// (EFFECTS-002).
+#[path = "space.rs"]
+pub mod space;
+
+/// The corner-radius ladder and the role each rung owns (EFFECTS-002).
+#[path = "radius.rs"]
+pub mod radius;
+
+/// The elevation ladder and the two-layer shadow specification (EFFECTS-002).
+#[path = "elevation.rs"]
+pub mod elevation;
 
 /// Continuous curvature / superellipse specification (Squircle / G2 continuity).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -282,46 +266,14 @@ pub mod type_scale {
     pub const MONO: f32 = 13.0;
 }
 
-/// Two-layer elevation shadow specification (logical pixels & alphas).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ElevationToken {
-    pub offset_y: f32,
-    pub blur_radius: f32,
-    pub spread: f32,
-    pub ambient_alpha: f32,
-    pub key_alpha: f32,
-}
-
-pub mod elevation {
-    use super::ElevationToken;
-
-    pub const LOW: ElevationToken = ElevationToken {
-        offset_y: 2.0,
-        blur_radius: 4.0,
-        spread: 0.0,
-        ambient_alpha: 0.04,
-        key_alpha: 0.08,
-    };
-    pub const MEDIUM: ElevationToken = ElevationToken {
-        offset_y: 6.0,
-        blur_radius: 12.0,
-        spread: 1.0,
-        ambient_alpha: 0.06,
-        key_alpha: 0.12,
-    };
-    pub const HIGH: ElevationToken = ElevationToken {
-        offset_y: 16.0,
-        blur_radius: 32.0,
-        spread: 2.0,
-        ambient_alpha: 0.08,
-        key_alpha: 0.20,
-    };
-}
-
 /// Shared control metrics (logical pixels).
 pub mod metrics {
     /// Hairline border width.
     pub const HAIRLINE: f32 = 1.0;
+    /// The width of a text caret (the physical cursor of an input field).
+    pub const CURSOR: f32 = 2.0;
+    /// The width of the focus ring drawn around the focused control.
+    pub const FOCUS_RING: f32 = 2.0;
     /// Minimum mobile touch target dimension (px) for touch accessibility (WCAG 2.5.5 / Android HIG).
     pub const MIN_TOUCH_TARGET: f32 = 48.0;
     /// Compact mobile touch target (Apple HIG minimum: 44px).

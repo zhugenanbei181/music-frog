@@ -69,16 +69,16 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-21，基线 `musicfrog-todo-20261022-v266`）
+## Points 与完成度台账（2026-10-22，基线 `musicfrog-todo-20261022-v267`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 44 | 130 |
-| 过去佛 | 49 | 127 |
+| 现在佛 | 49 | 141 |
+| 过去佛 | 61 | 159 |
 | 斗战胜佛 | 17 | 51 |
-| **未办结联合分母** | **125** | **334** |
+| **未办结联合分母** | **142** | **377** |
 
-- **严格交付率：727 / 1061 = 68.5%**（archived 727pt / archived 727 + 未办结 334pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：727 / 1104 = 65.9%**（archived 727pt / archived 727 + 未办结 377pt）。执行态参考仍以看板状态计算，不替代验收。
 - 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt；2026-10-20 再补立 `BEVYCAP-003.1` 2pt（Bevy 场景律法唯一 owner 收敛：仓库自有 `bevy_bsn_guard.py` 与共享包场景门禁当前双份执行同一条 BSN 律法），未办结条目集合净增 58pt；2026-10-20 再补立 `WIDGET-001.1` 3pt（rem 迁移实测暴露的重复事实：开关轨道与旋钮几何在四个页面各写一份常量，widgets 缺 switch 控件真源），未办结条目集合净增 61pt；同日再补立 `BEVYCAP-004.1` 3pt（能力规范②④的浮层存量缺口：八个浮层 owner 补 `ThemeContext(SurfaceLevel::Floating)` 与 `FixedNode`，并加机器规则 `BEVY-BSN-011`）、`BEVYCAP-004.2` 3pt（modal 层迁官方 `Dialog`/`ModalDialog`/`RequestClose`，bool 对改 typed `ModalStage`）、`TOKEN-001.2` 2pt（契约圆角阶梯「居中对话框」角色重叠待裁决）；前三条已交付并迁入过去佛，未办结条目集合净增 69pt；2026-10-21 按实机截图与 Bevy 0.20 机制审计实测新立 Bevy UI 表现层 105 点视觉攻坚主线 7 条 / 21 pt（`BEVYUI-001`～`BEVYUI-007`，按页面簇切分 7 个并行条目，未办结集合 +21 pt）；同日按 Slint 现代化深度调研实测新立 Slint 质感与架构攻坚主线 7 条 / 20 pt（`SLINTUI-001`～`SLINTUI-007`，未办结集合 +20 pt）；同日全面研读《Rust GUI / TUI 高阶表现与跨平台实施报告》，自底向上（Layer 0~7）全面立项跨平台表现与渲染管线深化攻坚主线 50 条 / 145 pt（`EFFECTS-001`～`EFFECTS-050`，一个不留逐项覆盖底层 Token/数学、呈现投影、通用组件、Bevy 0.20 WESL/RTT、Iced 0.14 Animation/Canvas、Slint 1.18 Skia、Ratatui 0.30 与多端降级集成共 200 项工程点），未办结集合再净增 145 pt（217 → 362 pt），严格交付率更新为 715 / 1077 = 66.4%。
 - 2026-10-20 本批迁移：Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次与 CI runner 回执）；联合分母不变，严格交付率仍只计 archived points，故仍为 682 / 876 = 77.9%。
 - 2026-10-20 本批再迁移：隐式状态机全量审计（`STATE-001.1`，3 pt）与公共 API 文档质量门（`PUB-006.6`，2 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次复跑审计器与 docs.rs 等价门禁）；联合分母不变，严格交付率仍只计 archived points，故仍为 682 / 876 = 77.9%。
@@ -93,6 +93,7 @@
 - 2026-10-21 本批迁移：跨表面页面模型与像素认证三条（`GAP-7.1` 页面模型去重 5 pt、`GAP-4.1` Slint 功能验收与 parity 3 pt、`PARITY-001.2` 全业务双视口像素认证 5 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次与全量截图认证收口）；**新立一条** `GAP-7.2`（3 pt）——页面模型迁移实测暴露的契约缺口（LAN 共享快照、PAC `bypass_lan`/`minify` 读回、规则页过滤 API、应用路由「未观测」文案键、闭合连接 `ConnectionView` 实现），缺口回流现在佛；联合分母因新立一条 +3 pt（166 → 169 pt），严格交付率仍只计 archived points，故为 712 / 881 = 80.8%。批次证据：全仓 `cargo nextest run --workspace --no-fail-fast --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools` **5534/5534 通过（15 skipped）**、`bash scripts/quality/check-structure.sh` **exit 0**、`cargo fmt --all --check` 通过；版本号按身份改动一次做完升到 0.51.0。
 - 2026-10-21 本批再迁移：页面模型最后一公里的契约缺口（`GAP-7.2`，3 pt）**办结归档**——LAN 共享读回成为一份事实、PAC 读回能回环请求、规则列表过滤归共享层、应用路由「未观测」有文案、闭合连接并入共享连接模型，三端的私有副本与降级分支清零搜索为空；**新立两条**：`PARITY-001.5`（5 pt，桌面两端剩余业务的真实捕获与像素回执）与 `SLINT-001.10`（2 pt，Slint 概览卡片排序手势与控件）；联合分母因新立两条 +7 pt（166 → 173 pt），严格交付率仍只计 archived points，故为 715 / 888 = 80.5%。
 - 2026-10-21 本批登记：实测 Bevy 0.20 的未采用能力（`Scrollbar`/`ScrollbarThumb`/`ScrollbarPlugin` 0 处、`ScrollIntoView` 0 处、`MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` 0 处），立 `BEVY-020.1`（3 pt）收口；联合分母 +3 pt（173 → 176 pt），严格交付率 715 / 891 = 80.2%。能力规范文档新增「0.20 未采用能力台账」，未采用必须是记录在案的取舍而不是遗漏。
+- 2026-10-22 本批登记：工程约束门禁补齐——依赖政策（`deny.toml` + 披露一致性守卫 + 生态门禁 tag 门控 `cargo deny check` 作业）、工具链单一版本（钉版守卫 + 主门禁去浮动）、unsafe 可追溯台账、panic 边界台账与 `panic = "abort"` 禁令、库层标准输出纪律台账、构建脚本台账与副作用声明、特性矩阵台账与特性引用可解析，共 7 条 / 17 pt 交付并迁入过去佛（状态 `Integrated`，剩余闭环只差统一 cargo 批次的 `cargo deny check` 与工作区复跑）；**新立两条** `ENG-001.8`（工作区统一 lint 继承，3 pt）与 `ENG-001.9`（成员 manifest 的 `edition`/`rust-version` 继承，2 pt），因 48 个成员 manifest 与根 manifest 当前被另一会话持有而暂不可动手，按所有权纪律留在现在佛；联合分母因新立两条 +5 pt（334 → 371 pt），严格交付率仍只计 archived points，故为 727 / 1098 = 66.2%。同日再补立三条 / 6 pt：`ENG-002.1`（删 `infiltrator-contract` 未使用的 `anyhow` 依赖，1 pt）、`ENG-002.2`（domain 31 文件 208 处、core 22 文件 167 处 `anyhow` 收敛到 typed 错误，3 pt）、`ENG-002.3`（覆盖率与变异测试作为可选审计证据接入，2 pt），联合分母 371 → 377 pt，严格交付率 727 / 1104 = 65.9%。本批证据：七道守卫的 `--self-test` 与 `--mode enforce` 全绿、`scripts/quality/tests/` 新增 7 个回归文件 21 项全绿、`doc-governance`/`closure-questions`/`ci-trigger`/`license`/`check-test-policy` 全绿；cargo 侧（`cargo deny check`、`cargo fmt --all --check`、nextest）留待统一批次由 cargo 专责流执行。
 - 归档口径：累计 290 条 / 727 pt；
 | `BEVYUI-001` BEVYUI-001 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] 侧边栏与标题栏外壳表现整改（#1~#18） | 3 | 壳层 18 条里 16 条修复（路由药丸不重叠、紧凑轨道末位图标完整、侧栏三级微阶底色、三键一体、Follow rules 改只读 chip、导航顺序与 Iced 对齐）；捕获 3/3 ok（`.evidence/captures/bevy/20261021T173243Z_7261c8326541_dirty_3006708/`）；hover 缓动与 tooltip 只有代码路径（需带指针台架，已转未来佛 PIXEL-POINTER-001） |
 | `BEVYUI-002` BEVYUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] 总览页与地球组件质感提升（#19~#32） | 3 | 总览+地球 14 条全修（官方 TabList 分段、地球模式空态骨架屏、状态点呼吸动效、拓扑空状态插画、#29 紧凑视口 hero 被顶出视口的根因修复）；捕获 3/3 ok（`20261021T123803Z_c11e55a3be03_dirty_1904104/`） |

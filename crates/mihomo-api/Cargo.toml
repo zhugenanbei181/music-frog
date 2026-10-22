@@ -5,9 +5,9 @@ edition = "2024"
 publish = false
 
 [dependencies]
-lurker-core-ports = { version = "0.51.0", path = "../lurker-core-ports" }
-lurker-core-contract = { version = "0.51.0", path = "../lurker-core-contract" }
-mihomo-driver = { version = "0.51.0", path = "../mihomo-driver", default-features = false, features = [
+lurker-core-ports = { version = "0.68.0", path = "../lurker-core-ports" }
+lurker-core-contract = { version = "0.68.0", path = "../lurker-core-contract" }
+mihomo-driver = { version = "0.68.0", path = "../mihomo-driver", default-features = false, features = [
   "http",
 ] }
 async-trait = { workspace = true }

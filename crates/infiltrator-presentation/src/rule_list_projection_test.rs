@@ -5,6 +5,7 @@ use crate::rule_fixtures::list_document;
 use crate::rule_list_editor::RuleListReadback;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
+use infiltrator_shared::locales::Lang;
 
 fn observed_page() -> RulesPageSnapshot {
     let rule = RuleEntry {
@@ -68,6 +69,27 @@ fn draft_row_trace_observations_are_bound_to_the_exact_document_source() {
         assert_eq!(projected.rules[0].raw, "MATCH,DIRECT");
         assert_eq!(projected.hit_audit, None);
     }
+}
+
+#[test]
+fn a_profile_without_a_name_is_named_by_the_unnamed_profile_copy() {
+    let page = observed_page();
+    let mut document = page.document.clone().unwrap();
+    document.source.profile = String::new();
+    let mut editor = RuleListEditor::default();
+    editor.observe_readback(RuleListReadback::Observed(document));
+
+    // The sentence names the unnamed profile instead of trailing an empty
+    // name and its separator.
+    let status = editor_status(&editor, &Lang("en-US"));
+    assert!(
+        status.contains("Unnamed profile"),
+        "the unnamed profile must be named: {status}"
+    );
+    assert!(
+        !status.ends_with(": "),
+        "the sentence must not trail an empty name: {status}"
+    );
 }
 
 #[test]

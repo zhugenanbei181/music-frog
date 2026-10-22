@@ -18,6 +18,7 @@
 use crate::types::message::Message;
 use crate::view::theme;
 use crate::view::theme::{MONO, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::{LineHeight, Wrapping};
 use iced::border::Radius;
 use iced::widget::{Row, Space, column, container, row, text, text_editor};
@@ -176,6 +177,7 @@ pub fn gutter<'a>(
         rows.push(gutter_row(line, indent));
     }
     container(column(rows).spacing(0.0))
+        .id(InteractionRegion::EditorGutter.id())
         .width(Length::Fixed(GUTTER_WIDTH_PX))
         .height(Length::Fixed(editor_box_height_px(viewport.rendered_len())))
         .padding(iced::Padding {

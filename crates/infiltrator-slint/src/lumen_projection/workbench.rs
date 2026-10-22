@@ -6,11 +6,14 @@
 
 mod editor;
 mod pages;
+mod panels;
 mod routing;
 mod sync;
 
 use super::super::slint_model;
 use super::super::{AppWindow, WorkbenchItem};
+use crate::surface::action::workbench::business::panels;
+use crate::surface::business::BusinessPanels;
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::subscription_filter_form::FilterObservation;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -51,11 +54,59 @@ pub(super) fn project(
     let page = window.get_page().to_string();
     let (items, draft, draft2, draft_id, draft2_id) = match page.as_str() {
         "Dns" => pages::dns_page(snapshot, &catalog, workbenches),
-        "Editor" => editor::page(snapshot, &catalog, workbenches),
-        "Filters" => pages::filters_page(snapshot, &catalog, workbenches),
+        "Editor" => {
+            let (mut items, draft, draft2, draft_id, draft2_id) =
+                editor::page(snapshot, &catalog, workbenches);
+            // The editor page carries the business panels of the editor
+            // businesses next to the script sandbox and the export review.
+            items.extend(panels::render(
+                &panels::editor(snapshot, &catalog),
+                &business_phases(workbenches),
+                &catalog,
+            ));
+            (items, draft, draft2, draft_id, draft2_id)
+        }
+        "Filters" => {
+            let (mut items, draft, draft2, draft_id, draft2_id) =
+                pages::filters_page(snapshot, &catalog, workbenches);
+            // The filters page carries the subscription failure panel next to
+            // the filter editor and the aggregation wizard.
+            items.extend(panels::render(
+                &panels::filters(snapshot, &catalog),
+                &business_phases(workbenches),
+                &catalog,
+            ));
+            (items, draft, draft2, draft_id, draft2_id)
+        }
         "Doctor" => pages::doctor_page(snapshot, &catalog, workbenches),
         "Sync" => sync::page(snapshot, &catalog, workbenches),
         "AppRouting" => pages::app_routing_page(snapshot, &catalog, workbenches),
+        // The business workbench pages carry the panels of the businesses
+        // that have no product page of their own.
+        "ConnectionsWorkbench" => business_page(
+            panels::connections(snapshot, &catalog),
+            workbenches,
+            &catalog,
+        ),
+        "LogsWorkbench" => business_page(
+            panels::logs(snapshot, &catalog, workbenches),
+            workbenches,
+            &catalog,
+        ),
+        "RuntimeWorkbench" => {
+            business_page(panels::runtime(snapshot, &catalog), workbenches, &catalog)
+        }
+        "ProxiesWorkbench" => {
+            business_page(panels::proxies(snapshot, &catalog), workbenches, &catalog)
+        }
+        "RulesWorkbench" => business_page(panels::rules(snapshot, &catalog), workbenches, &catalog),
+        "SettingsWorkbench" => {
+            business_page(panels::settings(snapshot, &catalog), workbenches, &catalog)
+        }
+        "ShellWorkbench" => shell_page(snapshot, &catalog, workbenches),
+        "OverviewWorkbench" => {
+            business_page(panels::overview(snapshot, &catalog), workbenches, &catalog)
+        }
         _ => (Vec::new(), None, None, String::new(), String::new()),
     };
     window.set_workbench_items(slint_model(items));
@@ -72,6 +123,67 @@ pub(super) fn project(
     project_draft_placeholders(window, &page, &catalog);
 }
 
+/// Renders the business panels of one workbench page.
+///
+/// A business page has no draft of its own: every draft it needs belongs to
+/// the shared reducer of the business, so the page only renders the panels.
+fn business_page(
+    panels: Vec<panels::Panel>,
+    workbenches: &Workbenches,
+    catalog: &Lang<'_>,
+) -> (
+    Vec<WorkbenchItem>,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+) {
+    (
+        panels::render(&panels, &business_phases(workbenches), catalog),
+        None,
+        None,
+        String::new(),
+        String::new(),
+    )
+}
+
+/// Renders the business panels of the shell workbench page.
+///
+/// The shell page carries the command palette, and the palette owns the query
+/// the user types into it, so the page binds that one draft field.
+fn shell_page(
+    snapshot: &SurfaceSnapshot,
+    catalog: &Lang<'_>,
+    workbenches: &Workbenches,
+) -> (
+    Vec<WorkbenchItem>,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+) {
+    let query = {
+        let drafts = lock(&workbenches.drafts);
+        drafts.command_query().to_owned()
+    };
+    (
+        panels::render(
+            &panels::shell(snapshot, catalog, workbenches),
+            &business_phases(workbenches),
+            catalog,
+        ),
+        Some(query),
+        None,
+        "command-query".to_owned(),
+        String::new(),
+    )
+}
+
+/// The presentation phase of every business panel the surface carries.
+fn business_phases(workbenches: &Workbenches) -> MutexGuard<'_, BusinessPanels> {
+    panels(workbenches)
+}
+
 /// Publishes the localized placeholder of the draft fields the page shows.
 fn project_draft_placeholders(window: &AppWindow, page: &str, catalog: &Lang<'_>) {
     let (first, second) = match page {
@@ -79,6 +191,7 @@ fn project_draft_placeholders(window: &AppWindow, page: &str, catalog: &Lang<'_>
         "Editor" => ("script_sandbox_code_input", ""),
         "Filters" => ("field_filter_include", "aggregator_name_placeholder"),
         "AppRouting" => ("", "app_routing_rules_hint"),
+        "ShellWorkbench" => ("hotkey_command_palette", ""),
         _ => ("", ""),
     };
     window.set_workbench_draft_placeholder(catalog.text(first).into_owned().into());

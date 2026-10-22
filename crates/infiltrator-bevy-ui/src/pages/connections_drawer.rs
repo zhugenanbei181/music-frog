@@ -22,7 +22,9 @@ use infiltrator_shared::byte_units::format_bytes;
 
 use crate::route::{ActiveRoute, Route};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::message::MessageWriter;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
@@ -36,7 +38,10 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_bevy_widgets::drawer::{DrawerCloseButton, DrawerPlacement, drawer_scene};
+use infiltrator_bevy_widgets::drawer::{
+    DrawerCloseButton, DrawerCloseEvent, DrawerOpenEvent, DrawerPhase, DrawerPhaseState,
+    DrawerPlacement, DrawerScrim, drawer_scene_with_phase,
+};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -217,8 +222,12 @@ pub struct ConnectionsRuleDraft {
     pub entries: Vec<RuleEntry>,
 }
 
-/// Connection detail inspection drawer scene. Mounted hidden; the inspect
+/// Connection detail inspection drawer scene. Mounted closed; the inspect
 /// action opens it and restamps its fields from the last projection.
+///
+/// The drawer is mounted at the shared drawer's own closed phase, so the
+/// panel starts out of the way and the shared phase walks it in: the drawer
+/// really fades in instead of appearing at once.
 pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
     let content: Box<dyn Scene> = Box::new(connection_drawer_content(palette));
 
@@ -231,7 +240,7 @@ pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
             }
             ConnectionDrawerLayer
             Children [
-                @{ drawer_scene(DrawerPlacement::Right, 420.0, content, palette) }
+                @{ drawer_scene_with_phase(DrawerPlacement::Right, 420.0, DrawerPhase::Closed, content, palette) }
             ]
     }
 }
@@ -385,15 +394,60 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
     }
 }
 
-/// Toggle the drawer layer's visibility from the shared drawer state.
+/// Drive the shared drawer's typed phase from the drawer's own state.
+///
+/// The phase is the drawer's only state: the request is the drawer's own
+/// open/close transition, and the shared layer walks the slide from it.
+pub(crate) fn sync_connections_drawer_phase(
+    state: Option<Res<ConnectionsDrawerState>>,
+    scrims: Query<(Entity, &DrawerPhaseState), With<DrawerScrim>>,
+    mut opens: MessageWriter<DrawerOpenEvent>,
+    mut closes: MessageWriter<DrawerCloseEvent>,
+) {
+    let Some(state) = state else {
+        return;
+    };
+    let Ok((entity, phase)) = scrims.single() else {
+        return;
+    };
+    match (state.is_open(), phase.0) {
+        (true, DrawerPhase::Closed) => {
+            opens.write(DrawerOpenEvent(entity));
+        }
+        (false, DrawerPhase::Open | DrawerPhase::Opening { .. }) => {
+            closes.write(DrawerCloseEvent(entity));
+        }
+        _ => {}
+    }
+}
+
+/// Toggle the drawer layer's visibility from the shared drawer's phase.
+///
+/// The layer stays mounted while the drawer slides, so the panel is really
+/// seen sliding in; it is hidden only once the phase has settled closed.
 pub(crate) fn sync_connections_drawer(
     state: Option<Res<ConnectionsDrawerState>>,
+    phases: Query<&DrawerPhaseState, With<DrawerScrim>>,
     mut layers: Query<&mut Node, (With<ConnectionDrawerLayer>, Without<ConnectionsScrollArea>)>,
     mut scrolls: Query<&mut Node, (With<ConnectionsScrollArea>, Without<ConnectionDrawerLayer>)>,
 ) {
+    let phase = phases
+        .single()
+        .ok()
+        .map(|phase| phase.0)
+        .unwrap_or(DrawerPhase::Closed);
     let open = state.map(|state| state.is_open()).unwrap_or(false);
     for mut node in &mut layers {
-        node.display = if open { Display::Flex } else { Display::None };
+        // The layer stays flex while the drawer slides: the panel is only
+        // hidden once the shared phase has settled closed.
+        let want = if matches!(phase, DrawerPhase::Closed) && !open {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if node.display != want {
+            node.display = want;
+        }
     }
     // The open drawer owns the viewport: the layer below stops scrolling, so
     // neither the wheel nor the touch drag can move the connection list under

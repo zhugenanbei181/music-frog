@@ -191,8 +191,16 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
         right: 12.0,
         ..Padding::ZERO
     });
+    // The narrow tier scrolls the editor page itself, so the form keeps its
+    // own height and the page's scroll reaches every field; the wide tier
+    // keeps the form's own scrollable inside the page.
+    let form_height = if state.shell.viewport.tier.is_narrow() {
+        Length::Shrink
+    } else {
+        Length::Fill
+    };
     scrollable(content)
         .id(Id::new("filter-scroll"))
-        .height(Length::Fill)
+        .height(form_height)
         .into()
 }

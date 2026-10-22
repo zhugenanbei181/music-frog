@@ -10,11 +10,12 @@ use bevy::ui::prelude::Node;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::drawer::{
-    DrawerPanel, DrawerPlacement, DrawerScrim, drawer_rect, drawer_scene,
+    DrawerPanel, DrawerPhase, DrawerPlacement, DrawerRequest, DrawerScrim, drawer_rect,
+    drawer_scene_with_phase,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::popover::Rect;
-use infiltrator_bevy_widgets::theme::Theme;
+use infiltrator_bevy_widgets::theme::{REM_BASE, Theme};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -69,9 +70,10 @@ fn drawer_scene_spawns_scrim_and_panel() {
             let content = Box::new(bsn! {
                             Text({ "Drawer Content".to_owned() })
             });
-            commands.spawn_scene(drawer_scene(
+            commands.spawn_scene(drawer_scene_with_phase(
                 DrawerPlacement::Left,
                 280.0,
+                DrawerPhase::Open,
                 content,
                 &palette,
             ));
@@ -85,6 +87,38 @@ fn drawer_scene_spawns_scrim_and_panel() {
 
     let mut panels = world.query::<(&DrawerPanel, &Node)>();
     let (panel, node) = panels.iter(world).next().expect("drawer panel mounted");
-    assert_eq!(panel.0, DrawerPlacement::Left);
-    assert_eq!(node.width, Val::Px(280.0));
+    assert_eq!(panel.placement, DrawerPlacement::Left);
+    assert_eq!(panel.size_px, 280.0);
+    assert_eq!(node.width, Val::Rem(280.0 / REM_BASE));
+}
+
+/// The drawer's reveal is a typed phase: the transition is the only way it
+/// moves, and the progress it carries is the panel's own geometry.
+#[test]
+fn drawer_phase_transitions_and_carries_the_slide_progress() {
+    assert_eq!(DrawerPhase::default(), DrawerPhase::Closed);
+    assert_eq!(DrawerPhase::Closed.progress(), 0.0);
+    assert_eq!(DrawerPhase::Open.progress(), 1.0);
+    assert!(DrawerPhase::Opening { progress: 0.4 }.is_visible());
+    assert!(!DrawerPhase::Closed.is_visible());
+
+    // A reveal opens the drawer from wherever it is, and a hide closes it
+    // from wherever it is: the phase never jumps.
+    let opening = DrawerPhase::Closed.transition(DrawerRequest::Reveal);
+    assert_eq!(opening, DrawerPhase::Opening { progress: 0.0 });
+    let half = DrawerPhase::Opening { progress: 0.5 }.transition(DrawerRequest::Hide);
+    assert_eq!(half, DrawerPhase::Closing { progress: 0.5 });
+
+    // The slide settles: opening walks up to Open, closing walks down to
+    // Closed, and a settled phase does not move.
+    assert_eq!(
+        DrawerPhase::Opening { progress: 0.9 }.advance(1.0),
+        DrawerPhase::Open
+    );
+    assert_eq!(
+        DrawerPhase::Closing { progress: 0.1 }.advance(1.0),
+        DrawerPhase::Closed
+    );
+    assert_eq!(DrawerPhase::Open.advance(1.0), DrawerPhase::Open);
+    assert_eq!(DrawerPhase::Closed.advance(1.0), DrawerPhase::Closed);
 }

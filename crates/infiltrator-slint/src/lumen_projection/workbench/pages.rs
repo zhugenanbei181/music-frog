@@ -390,8 +390,10 @@ pub(super) fn doctor_page(
     let doctor = lock(&workbenches.doctor);
     // The diagnostic panel reports the owner's answer for its own action, so
     // the recovery business shows the typed refusal it has to recover from.
-    if let Some(failure) = doctor_failure(&doctor) {
-        items.push(text("doctor-failure", &failure));
+    // A running operation shows the shared pending copy, so the repair
+    // progress is visible while the owner still owes its terminal.
+    if let Some(feedback) = doctor_feedback(&doctor, catalog) {
+        items.push(text("doctor-failure", &feedback));
     }
     items.push(button(
         "doctor-diagnose",
@@ -517,10 +519,17 @@ pub(super) fn app_routing_page(
 ///
 /// The shared reducer owns the phase, so the panel reports the owner's answer
 /// instead of an empty state.
-fn doctor_failure(doctor: &DoctorActionState) -> Option<String> {
+/// The feedback the diagnostic panel shows for its own action.
+///
+/// A running operation shows the shared pending copy and a refused operation
+/// shows the typed refusal it has to recover from, so the panel that owns the
+/// business never shows a state the owner did not publish.
+fn doctor_feedback(doctor: &DoctorActionState, catalog: &Lang<'_>) -> Option<String> {
     match &doctor.phase {
         DoctorActionPhase::Idle => None,
-        DoctorActionPhase::Pending(_) => None,
+        DoctorActionPhase::Pending(_) => {
+            Some(catalog.text("doctor_operation_pending").into_owned())
+        }
         DoctorActionPhase::Failed { failure, .. } => Some(failure.message.clone()),
     }
 }

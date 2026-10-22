@@ -16,6 +16,7 @@
 use bevy::input::mouse::MouseScrollPixelsPerLine;
 use bevy::picking::pointer::PointerInput;
 use bevy::ui_widgets::{Button, ScrollAreaPlugin};
+use button::press::sync_button_press_scale;
 use chart::donut::sync_donut_charts;
 use chart::histogram::sync_histogram_charts;
 use chart::ring_buffer::{TelemetryCadenceManager, update_telemetry_cadence};
@@ -25,6 +26,7 @@ use globe::advance_globe_rotation;
 use globe::report::{GlobeMeasurement, sync_globe_measurement};
 use globe::stage::{GlobeIdleBudget, GlobeStage, sync_globe_stage};
 use globe::sync_globe_charts;
+use list::feather::sync_list_feather_masks;
 pub mod abi;
 pub mod accordion;
 pub mod adaptive_modal;
@@ -83,8 +85,10 @@ pub mod shader_fx;
 pub mod signal_dag;
 pub mod slider;
 pub mod smart_truncate;
+pub mod sparkline;
 pub mod splitter;
 pub mod stat_chip;
+pub mod status_badge;
 pub mod surface;
 pub mod surface_shader;
 pub mod switch;
@@ -117,6 +121,7 @@ use bevy::asset::AssetApp;
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
 use bevy::feathers::FeathersCorePlugin;
 use bevy::input_focus::InputFocusPlugin;
+use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::render::RenderPlugin;
 use bevy::shader::Shader;
 use bevy::text::RemSize;
@@ -145,6 +150,11 @@ impl Plugin for WidgetsPlugin {
         // Native required components attach at spawn, before any navigation can retire a control.
         app.register_required_components::<Button, responsive::TouchHitbox>()
             .register_required_components::<Button, ButtonDisabled>();
+        // The official focus marker belongs to the control layer: the widget
+        // that owns the button owns the official `TabIndex` it carries, so a
+        // host cannot register a focusable button that the kit does not know
+        // about (the shell used to register it for the whole app).
+        app.register_required_components::<Button, TabIndex>();
         // Official directional navigation (Bevy 0.20): the app marks the
         // focusable controls and the upstream navigator owns the arrow-key
         // movement between them, measured from the laid-out geometry.
@@ -281,6 +291,10 @@ impl Plugin for WidgetsPlugin {
             (
                 button::sync_control_visuals,
                 button::sync_control_labels,
+                // The button's elastic press feedback: the phase machine
+                // turns the official press marker into the scale the button
+                // is drawn at.
+                sync_button_press_scale,
                 checkbox::sync_checkbox_visuals,
                 radio::advance_radio_group_navigation,
                 radio::sync_radio_visuals,
@@ -329,10 +343,15 @@ impl Plugin for WidgetsPlugin {
                 icon_tile::sync_icon_tile_visuals,
                 nav::sync_nav_visuals,
                 stat_chip::sync_stat_chip_visuals,
+                status_badge::sync_status_badge_visuals,
+                sparkline::sync_mini_sparklines,
                 surface::sync_surface_visuals,
                 popover::sync_popover_visuals,
                 list::advance_virtual_lists,
                 list::sync_list_selection.before(nav::sync_nav_visuals),
+                // The list's edge feathers follow the scroll position: the
+                // fade appears only where there is content to dissolve.
+                sync_list_feather_masks,
                 chart::sync_chart_crosshair_tracking,
                 chart::sync_charts,
                 release_retired,
@@ -371,7 +390,10 @@ impl Plugin for WidgetsPlugin {
                 (combobox::advance_combobox, combobox::sync_combobox_visuals).chain(),
                 (tabs::sync_segmented_control_visuals,).chain(),
                 modal::sync_modal_visuals,
-                drawer::sync_drawer_visuals,
+                // The drawer's phase walks its own slide: the panel's offset
+                // and the scrim's wash are read from the phase, so the panel
+                // always shows exactly as much of itself as the phase says.
+                (drawer::animate_drawers, drawer::sync_drawer_visuals).chain(),
                 tooltip::sync_tooltip_visuals,
                 (toast::advance_toasts, toast::sync_toast_visuals).chain(),
                 (

@@ -2,7 +2,7 @@ name: ecosystem-gate
 
 # CI gate of the open-source ecosystem (PUB-006.9, PUB-006.10, PUB-006.7).
 #
-# Two jobs, both tag-gated:
+# Three jobs, all tag-gated:
 #
 #   * compile-examples builds every example of the neutral gallery against
 #     the neutral crates and its toolkit, so a gallery entry that stops
@@ -10,7 +10,10 @@ name: ecosystem-gate
 #     developer;
 #   * semver-and-chaos runs the type-checked SemVer analysis of
 #     `cargo-semver-checks` against the committed baseline and executes the
-#     headless chaos matrix of the neutral runtime.
+#     headless chaos matrix of the neutral runtime;
+#   * dependency-policy enforces `deny.toml` (advisories, licenses, bans,
+#     sources) against the committed lock file, so a new transitive crate
+#     cannot arrive with an undisclosed license or an unreviewed advisory.
 #
 # Trigger policy (enforced by scripts/quality/ci-trigger-guard.py):
 #   * a manual dispatch is the only automatic start;
@@ -130,3 +133,32 @@ jobs:
       - name: Run the headless chaos matrix
         shell: bash
         run: python3 scripts/quality/sandbox-chaos-guard.py --mode run
+
+  dependency-policy:
+    name: Dependency policy (advisories, licenses, bans, sources)
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ecosystem-gate
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@latest
+
+      # `deny.toml` is the enforcement twin of `THIRD-PARTY-NOTICES.md`; the
+      # structure gate keeps both consistent and proves this job exists.
+      - name: Enforce the dependency policy
+        shell: bash
+        run: cargo deny check advisories bans licenses sources

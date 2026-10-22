@@ -36,9 +36,9 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel, pill_caption_scene};
+use infiltrator_bevy_widgets::button::{ControlVisual, pill_caption_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
-use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -53,9 +53,13 @@ pub const SHELL_WAVEFORM_WIDTH_PX: f32 = 60.0;
 
 /// The history arrow button's edge in baseline pixels.
 ///
-/// The chevron is a text glyph, so its box is sized for the glyph: a 20-pixel
-/// chevron in a 28-pixel button reads as a control, not as a smudge.
+/// The chevron is the shared chevron plate, so its box is sized for the
+/// plate: a 14-pixel chevron in a 28-pixel button reads as a control, not as
+/// a smudge.
 const HISTORY_ARROW_PX: f32 = 28.0;
+
+/// The history chevron's plate box, in baseline pixels.
+const HISTORY_ARROW_ICON_PX: f32 = 14.0;
 
 /// The bottom navigation's icon edge in baseline pixels.
 const BOTTOM_NAV_ICON_PX: f32 = 18.0;
@@ -225,7 +229,7 @@ fn bottom_nav_item_scene(
             BottomNavActive(active)
             ShellFocusable
             Children [
-                @{ icon_scene(icon, BOTTOM_NAV_ICON_PX, ink) }
+                @{ icon_scene_val(icon, rem(BOTTOM_NAV_ICON_PX), ink) }
                 --
                 LocalizedText::plain(route.label_key()) TextRole(role)
             ]
@@ -271,11 +275,11 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
             header_node
             ShellDirectionRow
             Children [
-                @{ history_arrow_scene("‹", palette) }
+                @{ history_arrow_scene(IconId::ChevronLeft, palette) }
                 HistoryBackButton
                 ShellFocusable
                 --
-                @{ history_arrow_scene("›", palette) }
+                @{ history_arrow_scene(IconId::ChevronRight, palette) }
                 HistoryForwardButton
                 ShellFocusable
                 --
@@ -295,7 +299,10 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
 }
 
 /// The history arrow: a square control whose chevron is sized for its box.
-fn history_arrow_scene(glyph: &str, palette: &UiPalette) -> impl Scene + use<> {
+///
+/// The chevron is the shared chevron plate, not a text glyph: the embedded
+/// faces carry no decorative Unicode, so a "‹" glyph would be tofu.
+fn history_arrow_scene(icon: IconId, palette: &UiPalette) -> impl Scene + use<> {
     let edge = palette.border;
     bsn! {
             Node {
@@ -313,7 +320,7 @@ fn history_arrow_scene(glyph: &str, palette: &UiPalette) -> impl Scene + use<> {
             ControlVisual(false)
             TouchHitbox::default()
             Children [
-                Text({ glyph.to_owned() }) TextRole(Role::Heading) PillLabel
+                @{ icon_scene_val(icon, rem(HISTORY_ARROW_ICON_PX), palette.ink_dim) }
             ]
     }
 }

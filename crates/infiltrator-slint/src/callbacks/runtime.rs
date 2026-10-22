@@ -2,6 +2,8 @@
 
 use super::super::*;
 use crate::surface::action;
+use crate::widget_vocabulary;
+use lurker_core_contract::error::Failure;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -34,8 +36,14 @@ pub(super) fn register(
     let latest_for_route = Arc::clone(&latest);
     let weak_for_route = weak.clone();
     window.on_set_route_mode(move |mode| {
-        let action = require_snapshot(&latest_for_route)
-            .and_then(|_| action::route_mode_action(mode.as_str()));
+        let action = require_snapshot(&latest_for_route).and_then(|_| {
+            match widget_vocabulary::route_mode_action_name(mode) {
+                Some(name) => action::route_mode_action(name),
+                None => Err(Failure::unsupported(
+                    "The surface has no routing mode to apply",
+                )),
+            }
+        });
         queue_action(&tx, &weak_for_route, action);
     });
 
@@ -43,8 +51,15 @@ pub(super) fn register(
     let latest_for_network = Arc::clone(&latest);
     let weak_for_network = weak.clone();
     window.on_set_network_mode(move |mode| {
-        let action = require_snapshot(&latest_for_network)
-            .and_then(|snapshot| action::network_mode_action(&snapshot, mode.as_str()));
+        let action = require_snapshot(&latest_for_network).and_then(|snapshot| {
+            widget_vocabulary::network_mode_action_name(mode)
+                .map(|name| action::network_mode_action(&snapshot, name))
+                .unwrap_or_else(|| {
+                    Err(Failure::unsupported(
+                        "The surface has no traffic mode to apply",
+                    ))
+                })
+        });
         queue_action(&tx, &weak_for_network, action);
     });
 

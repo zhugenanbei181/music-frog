@@ -145,9 +145,15 @@ pub fn activate(
     if !probe.statistics.model.current() || !probe.draft.model.editable() {
         return;
     }
+    // The shared model re-observes the rules page on every published
+    // snapshot, so the capture re-selects its tab until the model really
+    // shows it; the step only advances once the tab is the model's own.
+    if probe.capture.stage == 0 && probe.statistics.model.tab == StatisticsTab::Inactive {
+        probe.capture.stage = 1;
+    }
     let wanted = match probe.capture.stage {
         0 => StatisticsControl::Tab(StatisticsTab::Inactive),
-        1 if probe.statistics.model.tab == StatisticsTab::Inactive => StatisticsControl::Inspect,
+        1 => StatisticsControl::Inspect,
         2 if probe.statistics.model.is_inspected() => StatisticsControl::PrepareCleanup,
         _ => return,
     };
@@ -163,18 +169,27 @@ pub fn activate(
     }) else {
         return;
     };
-    let (Ok(card), Ok(page)) = (probe.cards.single(), probe.pages.single()) else {
+    let Ok(page) = probe.pages.single() else {
         return;
     };
-    if let (Some(bounds), Some(viewport)) = (geometry.rect(card), geometry.rect(page)) {
-        request_scroll(&mut commands, page, bounds, viewport);
+    // The statistics panel sits deep in the rules page, so the capture
+    // scrolls the page's own viewport until the control it activates is
+    // really rendered, and activates it on the next frame.
+    if let (Some(bounds), Some(viewport)) = (geometry.rect(entity), geometry.rect(page))
+        && !request_scroll(&mut commands, page, bounds, viewport)
+    {
+        return;
     }
     if geometry
         .bounds(entity, "statistics-native-action")
         .is_some()
     {
         commands.trigger(Activate { entity });
-        probe.capture.stage += 1;
+        // The tab step is idempotent: it only advances once the shared model
+        // really shows the tab the capture selected.
+        if !matches!(wanted, StatisticsControl::Tab(_)) {
+            probe.capture.stage += 1;
+        }
     }
 }
 #[derive(SystemParam)]

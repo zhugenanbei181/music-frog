@@ -11,7 +11,8 @@ use crate::view::component_forms::{
     style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{
-    badge, empty_state, icon_button, kbd_badge, modern_scrollable, toggle_switch,
+    BadgeKind, SCROLLBAR_GUTTER, badge, empty_state, icon_button, kbd_badge, modern_scrollable,
+    toggle_switch,
 };
 use crate::view::rule_hit_card::rule_hit_card;
 use crate::view::rules_window::{
@@ -23,6 +24,7 @@ use crate::view::svg_icons::Icon;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
+use iced::widget::lazy;
 use iced::widget::scrollable::Viewport;
 use iced::widget::{Id, Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -52,7 +54,7 @@ pub(super) fn save_action(
     }
 }
 /// Render an enhanced target group pill with an appropriate icon and status-aware styling.
-fn target_group_pill<'a>(target: &str, is_enabled: bool) -> Element<'a, Message> {
+fn target_group_pill<'a>(target: String, is_enabled: bool) -> Element<'a, Message> {
     let target_upper = target.to_ascii_uppercase();
     let (icon, is_direct, is_reject) = if target_upper.starts_with("DIRECT") {
         (Icon::Zap, true, false)
@@ -77,7 +79,7 @@ fn target_group_pill<'a>(target: &str, is_enabled: bool) -> Element<'a, Message>
                 }
             }),
             Space::new().width(4.0),
-            text(target.to_string())
+            text(target)
                 .size(11)
                 .font(FONT_SEMIBOLD)
                 .style(move |t: &Theme| {
@@ -152,6 +154,146 @@ fn target_group_pill<'a>(target: &str, is_enabled: bool) -> Element<'a, Message>
 pub(crate) fn row_region_id(id: RuleRowId) -> Id {
     Id::from(format!("rule-list-row-{}", id.0))
 }
+
+/// One rendered rule row, owned by the row's own lazy band.
+///
+/// The toolkit's lazy widget rebuilds a band only when its dependency
+/// changes, so the band owns the row's rendered facts instead of borrowing
+/// them: the dependency *is* the rendered row, and a row that did not change
+/// keeps the widget tree the toolkit already built for it.
+#[derive(Clone, PartialEq, Hash)]
+struct RuleRowBand {
+    row_id: RuleRowId,
+    enabled: bool,
+    display_type: String,
+    badge: u8,
+    payload: String,
+    detail: String,
+    hits: String,
+    target: String,
+    can_move_up: bool,
+    can_move_down: bool,
+    /// The width the band is painted with, in whole pixels.
+    width: u32,
+}
+
+impl RuleRowBand {
+    /// The semantic badge the row carries, as the palette's own kind.
+    fn badge_kind(&self) -> BadgeKind {
+        match self.badge {
+            0 => BadgeKind::Accent,
+            1 => BadgeKind::Warning,
+            2 => BadgeKind::Neutral,
+            _ => BadgeKind::Neutral,
+        }
+    }
+}
+
+/// The width one rule row is painted with.
+///
+/// The toolkit's lazy widget paints a band only when the band itself has an
+/// exact width: a band whose own width is fluid is never painted, so the
+/// rows take the content width the shared responsive contract describes — the
+/// window less the shell's rail and the page's padding — less the scrollbar's
+/// own gutter.
+fn rules_row_width(state: &AppState) -> u32 {
+    let viewport = &state.shell.viewport;
+    let rail = viewport.tier.sidebar_form().width_px().unwrap_or(0) as f32;
+    let padding = 2.0 * viewport.tier.content_padding_px() as f32;
+    (viewport.width_px - rail - padding - SCROLLBAR_GUTTER)
+        .round()
+        .max(0.0) as u32
+}
+
+/// Build the row the band owns.
+///
+/// The band owns its facts, so the element owns them too: the toolkit's lazy
+/// widget keeps the element it built and hands it back without rebuilding it.
+fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
+    let row_id = band.row_id;
+    let is_enabled = band.enabled;
+    let up_button = if band.can_move_up {
+        icon_button(Icon::ArrowUp, 13.0, Message::MoveRuleUp(row_id))
+    } else {
+        Space::new().width(26).height(26).into()
+    };
+    let down_button = if band.can_move_down {
+        icon_button(Icon::ArrowDown, 13.0, Message::MoveRuleDown(row_id))
+    } else {
+        Space::new().width(26).height(26).into()
+    };
+    let target_label = if band.target.is_empty() {
+        "—".to_owned()
+    } else {
+        band.target.clone()
+    };
+    container(
+        row![
+            toggle_switch(is_enabled, move |_| Message::ToggleRuleEnabled(row_id)),
+            Space::new().width(theme::SP_SM),
+            badge(band.display_type.clone(), band.badge_kind()),
+            Space::new().width(theme::SP_MD),
+            column![
+                text(if band.payload.is_empty() {
+                    "—".to_owned()
+                } else {
+                    band.payload.clone()
+                })
+                .size(13)
+                .font(MONO)
+                .style(move |t: &Theme| text::Style {
+                    color: Some(if is_enabled {
+                        tokens(t).text_primary
+                    } else {
+                        tokens(t).text_tertiary
+                    }),
+                }),
+                text(band.detail.clone()).size(11),
+                if !band.target.is_empty() {
+                    Element::from(
+                        row![
+                            text("➔ ").size(11).style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_tertiary)
+                            }),
+                            text(band.target.clone()).size(11).font(FONT_MEDIUM).style(
+                                move |t: &Theme| text::Style {
+                                    color: Some(if is_enabled {
+                                        tokens(t).text_secondary
+                                    } else {
+                                        tokens(t).text_tertiary
+                                    }),
+                                }
+                            ),
+                        ]
+                        .align_y(Alignment::Center),
+                    )
+                } else {
+                    Element::from(Space::new().width(0).height(0))
+                },
+            ]
+            .width(Length::Fill),
+            text(band.hits.clone()).size(11),
+            Space::new().width(theme::SP_MD),
+            target_group_pill(target_label, is_enabled),
+            Space::new().width(theme::SP_SM),
+            row![up_button, down_button]
+                .spacing(2)
+                .align_y(Alignment::Center),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([theme::SP_SM, SP_MD])
+    .id(row_region_id(row_id))
+    .width(Length::Fixed(band.width as f32))
+    // DUAL-11-08: fixed-height rows are what makes the window
+    // arithmetic exact; content that would overflow is clipped
+    // instead of pushing the row taller.
+    .height(Length::Fixed(RULE_ROW_HEIGHT_PX))
+    .clip(true)
+    .style(row_card_surface)
+    .into()
+}
+
 fn add_rule_panel<'a>(
     state: &'a AppState,
     lang: &Lang<'_>,
@@ -361,22 +503,14 @@ pub(super) fn rules_list_view<'a>(
             let is_enabled = entry.enabled;
             let bkind = semantic_badge_kind(&item.rule_type, item.badge);
             let display_type = display_rule_type(&item.rule_type);
-
-            let up_button = if source_index > 0 {
-                icon_button(Icon::ArrowUp, 13.0, Message::MoveRuleUp(row_id))
+            let payload = if item.payload.is_empty() {
+                if item.rule_type.eq_ignore_ascii_case("MATCH") {
+                    lang.tr("rule_match_all").to_string()
+                } else {
+                    "\u{2014}".to_string()
+                }
             } else {
-                Space::new().width(26).height(26).into()
-            };
-            let down_button = if source_index + 1 < state.editor.rule_list.draft.len() {
-                icon_button(Icon::ArrowDown, 13.0, Message::MoveRuleDown(row_id))
-            } else {
-                Space::new().width(26).height(26).into()
-            };
-
-            let target_label = if item.target.is_empty() {
-                "—"
-            } else {
-                &item.target
+                item.payload.clone()
             };
             let detail = row_detail(
                 item.source_ip,
@@ -384,85 +518,33 @@ pub(super) fn rules_list_view<'a>(
                 item.failure.as_ref(),
                 &Lang(&state.shell.lang),
             );
-
-            rules_list = rules_list.push(
-                container(
-                    row![
-                        toggle_switch(is_enabled, move |_| Message::ToggleRuleEnabled(row_id)),
-                        Space::new().width(theme::SP_SM),
-                        badge(display_type, bkind),
-                        Space::new().width(theme::SP_MD),
-                        column![
-                            text(if item.payload.is_empty() {
-                                if item.rule_type.eq_ignore_ascii_case("MATCH") {
-                                    lang.tr("rule_match_all").to_string()
-                                } else {
-                                    "—".to_string()
-                                }
-                            } else {
-                                item.payload.clone()
-                            })
-                            .size(13)
-                            .font(MONO)
-                            .style(move |t: &Theme| text::Style {
-                                color: Some(if is_enabled {
-                                    tokens(t).text_primary
-                                } else {
-                                    tokens(t).text_tertiary
-                                }),
-                            }),
-                            text(detail).size(11),
-                            if !item.target.is_empty()
-                                && !item.rule_type.eq_ignore_ascii_case("MATCH")
-                            {
-                                Element::from(
-                                    row![
-                                        text("➔ ").size(11).style(|t: &Theme| text::Style {
-                                            color: Some(tokens(t).text_tertiary)
-                                        }),
-                                        text(item.target.clone()).size(11).font(FONT_MEDIUM).style(
-                                            move |t: &Theme| text::Style {
-                                                color: Some(if is_enabled {
-                                                    tokens(t).text_secondary
-                                                } else {
-                                                    tokens(t).text_tertiary
-                                                }),
-                                            }
-                                        ),
-                                    ]
-                                    .align_y(Alignment::Center),
-                                )
-                            } else {
-                                Element::from(Space::new().width(0).height(0))
-                            },
-                        ]
-                        .width(Length::Fill),
-                        text(row_hits_copy(
-                            item.hit_count,
-                            is_enabled,
-                            item.is_shadowed,
-                            &Lang(&state.shell.lang)
-                        ))
-                        .size(11),
-                        Space::new().width(theme::SP_MD),
-                        target_group_pill(target_label, is_enabled),
-                        Space::new().width(theme::SP_SM),
-                        row![up_button, down_button]
-                            .spacing(2)
-                            .align_y(Alignment::Center),
-                    ]
-                    .align_y(Alignment::Center),
-                )
-                .padding([theme::SP_SM, SP_MD])
-                .id(row_region_id(row_id))
-                .width(Length::Fill)
-                // DUAL-11-08: fixed-height rows are what makes the window
-                // arithmetic exact; content that would overflow is clipped
-                // instead of pushing the row taller.
-                .height(Length::Fixed(RULE_ROW_HEIGHT_PX))
-                .clip(true)
-                .style(row_card_surface),
+            let hits = row_hits_copy(
+                item.hit_count,
+                is_enabled,
+                item.is_shadowed,
+                &Lang(&state.shell.lang),
             );
+            // The band owns the row's rendered facts, so the toolkit's lazy
+            // widget can keep the row it already built while the row itself
+            // did not change.
+            let band = RuleRowBand {
+                row_id,
+                enabled: is_enabled,
+                width: rules_row_width(state),
+                display_type,
+                badge: match bkind {
+                    BadgeKind::Accent => 0,
+                    BadgeKind::Warning => 1,
+                    _ => 2,
+                },
+                payload,
+                detail,
+                hits,
+                target: item.target.clone(),
+                can_move_up: source_index > 0,
+                can_move_down: source_index + 1 < state.editor.rule_list.draft.len(),
+            };
+            rules_list = rules_list.push(lazy(band, |band| rule_row_element(band)));
         }
         if bottom_spacer > 0.0 {
             rules_list = rules_list.push(Space::new().height(Length::Fixed(bottom_spacer)));

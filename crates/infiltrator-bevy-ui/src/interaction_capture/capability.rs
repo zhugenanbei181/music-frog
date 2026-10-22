@@ -90,7 +90,7 @@ impl CapabilityProvider for CaptureHostCapabilityProvider {
 pub fn capture_core_operations() -> Vec<CoreOperation> {
     use infiltrator_contract::core_capabilities::{
         CoreLifecycleOperation, DnsOperation, FakeIpCacheOperation, ProfileOperation,
-        RulesOperation,
+        RulesOperation, SubscriptionOperation,
     };
     vec![
         CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
@@ -105,6 +105,9 @@ pub fn capture_core_operations() -> Vec<CoreOperation> {
         // travels the product's own profile-apply path.
         CoreOperation::Profile(ProfileOperation::Apply),
         CoreOperation::Profile(ProfileOperation::ApplyFeature),
+        // The capture's own subscription source really answers a refresh, so
+        // the update of one subscription profile is a real operation.
+        CoreOperation::Subscription(SubscriptionOperation::Update),
     ]
 }
 

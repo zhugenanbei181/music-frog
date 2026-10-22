@@ -29,6 +29,16 @@
 - 严禁硬编码未归一化的原始状态颜色（如 `#0B667F`、`#9A6810` 等），所有视觉和语义色彩必须经由 `LumenTheme` 的语义化属性统一输出；
 - 移动端控件（按钮、点击卡片、开关、导航项等）在 `compact-layout` 模式下必须遵守 $\ge 48\text{px} \times \text{LumenUiScale.factor}$ 的最小触控热区底线。
 
+## 依赖、工具链与不安全点
+
+- **依赖政策只有两个面、互不越权**：仓库根的 `deny.toml` 是 cargo 依赖图的许可、公告、禁用与来源裁决面；第三方声明文件是分发披露面。`scripts/quality/dependency-policy-guard.py` 强制两者一致：披露面出现的许可必须在许可白名单内，copyleft（GPL/AGPL/SSPL/BUSL）不得进入 cargo 图，未知注册表与未知 git 源一律拒绝，通配版本号一律拒绝。生态门禁必须存在一个 tag 门控的 `cargo deny check` 作业，否则政策只是注释。
+- **工具链只有一个版本**：`rust-toolchain.toml` 是唯一真源。各 CI workflow 必须钉同一个发布号，禁止 `stable`/`nightly` 之类浮动引用，manifest 的 `rust-version` 不得与真源分歧；`scripts/quality/toolchain-consistency-guard.py` 强制。
+- **不安全点必须可追溯**：本仓的 unsafe 是真实需求（libc 文件锁、Windows API、JNI、volatile 擦除），但必须登记在 `scripts/quality/unsafe_inventory.json`：条目记录操作数、类别与用途，操作数必须与源码一致，缺少 `SAFETY:` 说明的数量只能下降，新文件不得绕过登记。
+- **panic 边界必须显式**：每个 `catch_unwind` 都要在 `scripts/quality/panic_boundary_inventory.json` 登记它拦住的失败；任何 profile 禁止 `panic = "abort"`，否则登记的边界变成死代码。
+- **库层不得直接写标准输出**：内层 crate（契约、领域、端口、应用、呈现）保持零打印，诊断必须以 typed 值回到调用方；其它库层站点在 `scripts/quality/stdout_inventory.json` 登记上限；二进制入口与 CLI crate 的输出是产品表面，不登记。
+- **构建脚本是被声明的表面**：每个 `build.rs` 都要在 `scripts/quality/build_surface_inventory.json` 登记归属 crate、构建依赖、是否派生进程与是否写文件；构建依赖必须与 manifest 一致，未声明的进程派生或文件写入即门禁失败。
+- **特性矩阵必须完整**：`scripts/quality/feature_matrix.json` 镜像全部 `[features]` 表并给每个特性分类；`default` 只能启用产品或平台特性，捕获与测试特性必须显式开启；脚本与 CI 里的 `--features` 必须指向已登记特性，依赖边请求的工作区特性必须真实存在。
+
 ## 验证
 
 - 质量门只在 `scripts/quality/check-structure.sh` 汇总；禁止通过删除断言、放宽门槛、消音错误或复制第二套检查获得通过。

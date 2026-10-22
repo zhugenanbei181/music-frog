@@ -11,18 +11,19 @@ pub(super) mod workbench;
 
 use super::flag_assets;
 use super::slint_model;
-use super::{AppWindow, OverrideCard, ProfileCard, ProfileOverrideChoice};
+use super::{AppWindow, OverrideCard, OverviewCardSlot, ProfileCard, ProfileOverrideChoice};
 use crate::surface::workbenches::Workbenches;
 use crate::theme_util::apply_theme_color;
+use crate::widget_vocabulary;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_presentation::overview_page_model::{
-    OverviewHost, OverviewNetworkMode, OverviewNetworkStatus, OverviewPageModel,
-    OverviewRoutingMode,
+    OverviewHost, OverviewNetworkStatus, OverviewPageModel,
 };
 use infiltrator_presentation::profile_preview::redact_profile_preview;
 use infiltrator_presentation::shell_readout::profile_name;
@@ -114,13 +115,6 @@ pub(super) fn project_snapshot(
     let mut overview = OverviewPageModel::default();
     overview.observe(overview_host(), snapshot);
     let running = overview.is_running();
-    let lifecycle = match &snapshot.core.lifecycle {
-        CoreLifecycle::Starting => "Starting",
-        CoreLifecycle::Ready | CoreLifecycle::Running => "Running",
-        CoreLifecycle::Stopping => "Stopping",
-        CoreLifecycle::Stopped => "Stopped",
-        CoreLifecycle::Failed => "Failed",
-    };
     let profile = profile_name(&snapshot.shell_readout, &lang);
     let current_profile = snapshot.shell_readout.profile.current_value().is_some();
     let active_node = if snapshot.active_exit.is_drawable() {
@@ -135,7 +129,9 @@ pub(super) fn project_snapshot(
     let traffic =
         project_traffic_readout(&snapshot.shell_readout, &snapshot.traffic_waveform, &lang);
 
-    window.set_runtime_status(lifecycle.into());
+    window.set_runtime_status(widget_vocabulary::runtime_status(
+        snapshot.core.lifecycle.clone(),
+    ));
     let runtime_detail = snapshot
         .core
         .failure
@@ -154,8 +150,8 @@ pub(super) fn project_snapshot(
     window.set_runtime_detail(runtime_detail.into());
     window.set_active_profile(profile.into());
     window.set_has_current_profile(current_profile);
-    window.set_route_mode(routing_mode_label(overview.routing_mode()).into());
-    window.set_network_mode(network_mode_label(overview.network_mode()).into());
+    window.set_route_mode(widget_vocabulary::route_mode(overview.routing_mode()));
+    window.set_network_mode(widget_vocabulary::network_mode(overview.network_mode()));
     window.set_network_mode_status(network_status_copy(overview.network_status(), &lang).into());
     window.set_network_mode_status_warning(overview.network_warning().is_warned());
     let tun_availability = snapshot.capabilities.availability(Capability::Tun);
@@ -278,6 +274,7 @@ pub(super) fn project_snapshot(
     }
 
     project_settings(window, snapshot, autostart);
+    project_overview_layout(window, snapshot, &language);
     lan::project_lan_sharing(window, snapshot, &language);
     project_profiles(window, snapshot, &language);
     collections::project_proxies(window, snapshot);
@@ -382,30 +379,10 @@ fn overview_host() -> OverviewHost {
 /// The routing mode label the widget names.
 ///
 /// The routing mode itself is the shared model's; only the vocabulary the
-/// imported segmented button speaks belongs to the surface.
-fn routing_mode_label(mode: OverviewRoutingMode) -> &'static str {
-    match mode {
-        OverviewRoutingMode::Rule => "Rule",
-        OverviewRoutingMode::Global => "Global",
-        OverviewRoutingMode::Direct => "Direct",
-        OverviewRoutingMode::Unknown => "Unknown",
-    }
-}
-
 /// The traffic mode label the widget names.
 ///
 /// The traffic mode itself is the shared model's; only the vocabulary the
 /// imported buttons speak belongs to the surface.
-fn network_mode_label(mode: OverviewNetworkMode) -> &'static str {
-    match mode {
-        OverviewNetworkMode::Vpn => "VPN",
-        OverviewNetworkMode::Tun => "TUN",
-        OverviewNetworkMode::SystemProxy => "System Proxy",
-        OverviewNetworkMode::CoreOnly => "Core only",
-        OverviewNetworkMode::Unknown => "Unknown",
-    }
-}
-
 /// The localized copy of the typed traffic mode status.
 ///
 /// The status is the shared model's; only the wording belongs to the surface.
@@ -432,6 +409,69 @@ fn network_status_copy(status: &OverviewNetworkStatus, lang: &Lang<'_>) -> Strin
     }
 }
 
+/// Projects the shared Overview card order into the card list of the surface.
+///
+/// The list is the owner's readback: the surface renders the order the owner
+/// published and keeps no order of its own, so a refused or unanswered move
+/// leaves the list exactly as the owner published it.
+fn project_overview_layout(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &str) {
+    let lang = Lang(language);
+    let order = published_overview_order(&snapshot.overview_layout);
+    let total = order.len();
+    let rows = order
+        .iter()
+        .enumerate()
+        .map(|(index, kind)| OverviewCardSlot {
+            id: kind.as_str().into(),
+            title: overview_card_title(*kind, &lang).into(),
+            // The owner owns the order, so a card can only move where the
+            // owner's own order allows it to move.
+            can_move_up: index > 0,
+            can_move_down: index + 1 < total,
+        })
+        .collect::<Vec<_>>();
+    window.set_overview_cards(slint_model(rows));
+}
+
+/// The card order the shared owner published.
+///
+/// The owner's order comes first; a card the owner did not list is appended
+/// in the contract's default order, so every card is rendered exactly once
+/// and no card disappears because a layout listed only some of them.
+fn published_overview_order(layout: &OverviewLayoutSnapshot) -> Vec<OverviewCardKind> {
+    let mut order: Vec<OverviewCardKind> =
+        Vec::with_capacity(OverviewCardKind::DEFAULT_ORDER.len());
+    for kind in &layout.order {
+        if !order.contains(kind) {
+            order.push(*kind);
+        }
+    }
+    for kind in OverviewCardKind::DEFAULT_ORDER {
+        if !order.contains(&kind) {
+            order.push(kind);
+        }
+    }
+    order
+}
+
+/// The title the surface names one shared Overview card with.
+///
+/// The card identity is the shared contract's; only the wording belongs to
+/// the surface. Every title is a copy the shared product catalog already
+/// carries, so the card list reads the same in every locale.
+fn overview_card_title(kind: OverviewCardKind, lang: &Lang<'_>) -> String {
+    match kind {
+        OverviewCardKind::RoutingIntentSegment => lang.tr("代理模式").into_owned(),
+        OverviewCardKind::Traffic => lang.tr("实时流量").into_owned(),
+        OverviewCardKind::Metrics => lang.tr("运行概况").into_owned(),
+        OverviewCardKind::MasterSwitches => lang.tr("网络接管").into_owned(),
+        OverviewCardKind::ActiveExit => lang.tr("当前节点").into_owned(),
+        OverviewCardKind::PublicIp => lang.tr("出口 IP").into_owned(),
+        OverviewCardKind::Topology => lang.tr("代理链路").into_owned(),
+        OverviewCardKind::Quota => lang.tr("订阅信息").into_owned(),
+    }
+}
+
 fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: Option<bool>) {
     let Some(settings) = snapshot.pages.settings.data.as_ref() else {
         return;
@@ -450,7 +490,7 @@ fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: O
         ThemePreference::Fixed(ThemeSkin::Forest) => "forest",
         ThemePreference::Fixed(ThemeSkin::Amoled) => "amoled",
     };
-    window.set_theme_mode(mode.into());
+    window.set_theme_mode(widget_vocabulary::theme_mode(mode));
     match theme {
         ThemePreference::System => {}
         ThemePreference::Fixed(skin) => window.set_application_dark_mode(skin.is_dark()),

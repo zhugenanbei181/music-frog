@@ -764,6 +764,13 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "custom_node_tls" => "TLS".into(),
         "mini_hud_empty_exit" => "No exit node selected".into(),
         "protocol_form_no_feedback" => "The host does not provide terminal acknowledgments; operation was not submitted".into(),
+        // The log view's wrap switch: the two modes the switch names.
+        "logs_wrap_soft" => "Soft wrap".into(),
+        "logs_wrap_single" => "Single line".into(),
+        // The editor's own diagnostics: the widget kit names the fact, the
+        // shared table owns the words.
+        "editor_diagnostic_unclosed_quote" => "Unclosed quotation mark".into(),
+        "editor_diagnostic_rule_without_target" => "The rule has no target policy group: {rule}".into(),
         _ => key.to_string().into(),
     }
 }

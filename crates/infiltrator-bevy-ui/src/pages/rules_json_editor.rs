@@ -17,7 +17,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
-use infiltrator_bevy_widgets::editor::{SyntaxToken, SyntaxTokenKind};
+use infiltrator_bevy_widgets::editor::{SyntaxToken, SyntaxTokenKind, syntax_token_ink};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -33,20 +33,9 @@ const JSON_EDITOR_LINE_HEIGHT_PX: f32 = 20.0;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesJsonEditorPanel;
 
-/// The semantic ink of one syntax token.
-///
-/// The token vocabulary is the shared editor's; the hue is this surface's
-/// reading of it, so the source reads as code and not as a wall of text.
-fn json_token_ink(kind: SyntaxTokenKind) -> Token {
-    match kind {
-        SyntaxTokenKind::Keyword => Token::Accent,
-        SyntaxTokenKind::StringLiteral => Token::Success,
-        SyntaxTokenKind::NumberLiteral => Token::Warning,
-        SyntaxTokenKind::Comment => Token::InkDim,
-        SyntaxTokenKind::Punctuation => Token::InkDim,
-        SyntaxTokenKind::Plain => Token::Ink,
-    }
-}
+/// The semantic ink of one syntax token is the shared editor's own reading:
+/// the JSON view and the YAML editor paint the same vocabulary alike, so the
+/// source reads as code on every surface.
 
 /// Tokenize one JSON source line into the shared syntax vocabulary.
 ///
@@ -159,7 +148,7 @@ pub fn json_editor_body_scene(state: &CodeEditorState) -> Box<dyn Scene> {
             let token_nodes: Vec<Box<dyn Scene>> = tokenize_json_line(line)
                 .into_iter()
                 .map(|token| {
-                    let ink = json_token_ink(token.kind);
+                    let ink = syntax_token_ink(token.kind);
                     Box::new(bsn! {
                             Text({ token.text })
                             TextRole(Role::Mono)

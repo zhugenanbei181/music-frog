@@ -12,6 +12,7 @@ use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::log_page_model::{LogLevelFilter, LogsPageModel};
 use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::interpolate;
 
 /// Projects the logs page from the shared page model.
 ///
@@ -29,9 +30,7 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     // model instead of deriving the filter here. Without a published page
     // there is no readback, and the level the user chose stays the model's
     // own selection.
-    model.select_level(LogLevelFilter::from_identifier(
-        window.get_log_level().as_str(),
-    ));
+    model.select_level(widget_vocabulary::log_level_filter(window.get_log_level()));
     if let Some(page) = snapshot.pages.logs.data.as_ref() {
         model.observe_level(LogLevelFilter::from_active_level(
             page.active_level.as_deref(),
@@ -68,6 +67,23 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     window.set_log_level(widget_vocabulary::log_level_value(active_level).into());
     window.set_logs(slint_model(rows));
     window.set_log_stream_status(log_stream_copy(&model.stream(), &lang).into());
+    // The invalid pattern is the shared model's own outcome, so the page
+    // shows the reason the shared search reports instead of an empty list
+    // that looks like a query that matched nothing.
+    window.set_log_search_error(log_search_error(&model, &lang).into());
+}
+
+/// The reason the shared log search could not apply the typed query.
+///
+/// The shared model owns the outcome, so the page shows its reason and never
+/// a reason of its own.
+fn log_search_error(model: &LogsPageModel, lang: &Lang<'_>) -> String {
+    model.invalid_pattern().map_or_else(String::new, |reason| {
+        interpolate(
+            lang.tr("logs_search_invalid_detail").as_ref(),
+            &[("reason", reason)],
+        )
+    })
 }
 
 /// The localized copy of the typed log stream state the model reports.

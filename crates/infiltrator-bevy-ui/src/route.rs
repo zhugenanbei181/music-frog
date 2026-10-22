@@ -28,7 +28,7 @@ use crate::pages::connections_confirm::{cancel_on_escape_or_navigation, request_
 use crate::pages::connections_drawer::dismiss_connection_inspection;
 use crate::pages::connections_drawer::{
     ConnectionsDrawerState, ConnectionsRuleDraft, reconcile_connection_inspection,
-    sync_connections_drawer,
+    sync_connections_drawer, sync_connections_drawer_phase,
 };
 use crate::pages::connections_idle::ConnectionsIdleState;
 use crate::pages::connections_pulse::{ConnectionsPulseState, animate_connection_pulses};
@@ -229,18 +229,21 @@ impl Route {
     }
 
     /// Semantic icon id for each route.
+    ///
+    /// Every route carries its own plate: the rail used to repeat five plates
+    /// for eleven routes, which made the navigation unreadable.
     pub const fn icon(&self) -> IconId {
         match self {
-            Self::Overview => IconId::Activity,
+            Self::Overview => IconId::LayoutGrid,
             Self::Proxies => IconId::Globe,
             Self::Profiles => IconId::FileText,
-            Self::Rules => IconId::Network,
+            Self::Rules => IconId::ListChecks,
             Self::Connections => IconId::Zap,
-            Self::Logs => IconId::FileText,
-            Self::Dns => IconId::Globe,
+            Self::Logs => IconId::Code2,
+            Self::Dns => IconId::Shield,
             Self::Doctor => IconId::Activity,
-            Self::AppRouting => IconId::Network,
-            Self::Sync => IconId::Settings,
+            Self::AppRouting => IconId::Target,
+            Self::Sync => IconId::Server,
             Self::Settings => IconId::Settings,
         }
     }
@@ -735,6 +738,7 @@ impl Plugin for PagesPlugin {
                 )
                     .chain()
                     .after(sync_shared_page_models),
+                sync_connections_drawer_phase,
                 sync_connections_drawer,
                 sync_connections_virtual_window,
                 sync_logs_virtual_window,

@@ -124,11 +124,17 @@ fn test_rules_hit_audit_projection_and_clear_command() {
         statistics_line(&mut app, |line| matches!(line, StatisticsLine::Latency)),
         "18.5µs"
     );
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "56 local trace hits · Shadowed"
-    ));
+    // The row carries two facts of its own: the local trace's count and the
+    // row's status. The shadowed row says so in its own status chip.
+    assert!(subtree_has_text(app.world(), root, "56 local trace hits"));
+    let shadowed_chip = app
+        .world_mut()
+        .query::<(Entity, &RuleRowStatusText, &Text)>()
+        .iter(app.world())
+        .map(|(_, _, text)| text.0.clone())
+        .find(|value| value == "Shadowed")
+        .expect("the shadowed row carries its own status chip");
+    assert_eq!(shadowed_chip, "Shadowed");
 
     // The clear button submits the shared reset intent (no UI-local reset).
     let clear_entity = {

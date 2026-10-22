@@ -485,9 +485,10 @@ impl Plugin for ShellFocusPlugin {
         // reach a control that carries a `TabIndex`, and the official
         // directional navigation reaches a control that carries
         // `AutoDirectionalNavigation`.
+        // The widget layer owns the button's official tab index; registering
+        // it twice is a duplicate registration and Bevy refuses it.
         app.register_required_components::<ShellFocusable, TabIndex>()
-            .register_required_components::<ShellFocusable, AutoDirectionalNavigation>()
-            .register_required_components::<Button, TabIndex>();
+            .register_required_components::<ShellFocusable, AutoDirectionalNavigation>();
         app.init_resource::<ShellFocusConfig>();
         app.init_resource::<ShellFocusState>();
         app.init_resource::<ShellFocusCause>();

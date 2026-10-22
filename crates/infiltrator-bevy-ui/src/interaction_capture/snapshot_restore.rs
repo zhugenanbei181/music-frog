@@ -46,13 +46,19 @@ fn activate(
     mut fixture: ResMut<RestoreFixture>,
     mut commands: Commands,
 ) {
-    if selected(
+    if fixture.launched {
+        return;
+    }
+    // The Sync page publishes the same restoration request as the profiles
+    // page: the capture opens the review on the page that carries the
+    // business.
+    let carries = selected(
         &feature,
         &route,
         FeatureId::ProfilesSnapshotRestoreConfirm,
         Route::Profiles,
-    ) && !fixture.launched
-    {
+    ) || selected(&feature, &route, FeatureId::SyncRestoreConfirm, Route::Sync);
+    if carries {
         fixture.launched = true;
         commands.trigger(OpenSnapshotRestore(fixture.fixture.target.clone()));
     }

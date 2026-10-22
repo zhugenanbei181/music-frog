@@ -33,14 +33,6 @@ use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::page::PageStatus;
 use std::sync::Arc;
 
-/// The repair-progress business identity.
-///
-/// The parity registry owns the feature's identity; the capture names it by
-/// the registry's stable id, the same identity the capture rig passes as the
-/// scenario name. When the registry row lands, this constant becomes the
-/// typed `FeatureId::DoctorRepairProgress` variant.
-pub const REPAIR_PROGRESS_FEATURE_ID: &str = "doctor-repair-progress";
-
 #[derive(Resource)]
 struct CaptureDoctor {
     application: DoctorApplication,
@@ -252,13 +244,14 @@ pub struct RepairProgressActivation<'w, 's> {
 
 /// Submit the page's own diagnostic control once.
 pub fn activate_repair_progress(mut activation: RepairProgressActivation, mut commands: Commands) {
-    if activation.feature.feature.spec().id != REPAIR_PROGRESS_FEATURE_ID
+    if activation.feature.feature != FeatureId::DoctorRepairProgress
         || activation.route.0 != Some(Route::Doctor)
         || activation.capture.started
     {
         return;
     }
     let Some(entity) = activation.run.iter().next() else {
+        eprintln!("repair progress capture: the doctor page has no run control");
         return;
     };
     activation.capture.started = true;
@@ -280,7 +273,7 @@ pub fn observe_repair_progress(
     mut published: ResMut<ObservedInteraction>,
 ) {
     let bounds = (|| {
-        if state.feature.spec().id != REPAIR_PROGRESS_FEATURE_ID {
+        if state.feature != FeatureId::DoctorRepairProgress {
             return None;
         }
         // The ring turns exactly while the owner owes an answer: the phase

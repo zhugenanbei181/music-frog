@@ -9,3 +9,5 @@
 跨表面列表过滤只有一个 typed 查询：[`filter_query`](src/filter_query.rs) 的 `FilterQuery` 决定原始文本是空查询、自由文本还是延迟上界；代理页与规则页共用它，规则页只使用适用的自由文本变体，匹配规则留在各自的行事实旁。
 
 设置页模型 [`settings_page_model`](src/settings_page_model.rs) 持有 LAN 共享与 PAC 的草稿：LAN 共享读回以 `LanSharingObservation` 表达“未观测”与“已观测”，缺省读回不表达成写入意图；PAC 草稿读回 owner 请求的 `bypass_lan` 与 `minify`，不再读成默认值。应用分流页的未观测模式有独立文案键（`app_routing_mode_unobserved`），不回落成默认模式。
+
+跨表面的键盘语义与输入法组合态只有一处真源：[`input_intent`](src/input_intent.rs) 的 `ShellKey` → `KeyIntent` 转换把工具链按键归一为移动焦点、激活、关闭与方向四类意图，表面只做映射、不各自派生语义；同一模块的 `CompositionGuard` 复用共享的输入法组合词汇（`infiltrator_contract::ime` 的 `ImeCompositionAction`）守住字段：输入法组合期间与用户刚提交之后，owner 发布的值被抑制，模型不会强行刷新用户正在输入的文本框。

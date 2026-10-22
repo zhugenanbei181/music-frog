@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "note": "Build scripts run before a crate is compiled, so they are the one place where the workspace executes code outside the product. Each entry names its package, its build dependencies, and whether it spawns processes or writes files; the guard proves the inventory and the manifests agree.",
+  "build_scripts": [
+    {
+      "path": "crates/infiltrator-contract/build.rs",
+      "package": "infiltrator-contract",
+      "build_dependencies": [],
+      "spawns_process": false,
+      "writes_files": false,
+      "purpose": "Exposes the exact Rust target triple as INFILTRATOR_BUILD_TARGET."
+    },
+    {
+      "path": "crates/infiltrator-android/build.rs",
+      "package": "infiltrator-android",
+      "build_dependencies": ["camino"],
+      "spawns_process": false,
+      "writes_files": false,
+      "purpose": "Registers the uniffi definition files as rebuild inputs."
+    },
+    {
+      "path": "crates/infiltrator-slint/build.rs",
+      "package": "infiltrator-slint",
+      "build_dependencies": ["slint-build"],
+      "spawns_process": false,
+      "writes_files": true,
+      "purpose": "Stages the shared product catalogs inside OUT_DIR and compiles the Slint surface."
+    },
+    {
+      "path": "examples/minimal-slint/build.rs",
+      "package": "lurker-example-minimal-slint",
+      "build_dependencies": ["slint-build"],
+      "spawns_process": false,
+      "writes_files": false,
+      "purpose": "Compiles the example Slint window."
+    },
+    {
+      "path": "templates/slint/build.rs",
+      "package": "lurker-template-slint",
+      "build_dependencies": ["slint-build"],
+      "spawns_process": false,
+      "writes_files": false,
+      "purpose": "Compiles the scaffold Slint window for generated projects."
+    }
+  ]
+}

@@ -1,10 +1,10 @@
 use super::{dead_archive, history_lines, metrics_label, node_metrics};
+use infiltrator_contract::speedtest::{
+    HistoricalSpeedtestRecord, SpeedtestConcurrency, SpeedtestOutboundResult, SpeedtestResultState,
+    SpeedtestRunId, SpeedtestSampleOutcome, SpeedtestSnapshot,
+};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::outbound::identity::OutboundId;
-use infiltrator_contract::speedtest::{
-    HistoricalSpeedtestRecord, SpeedtestConcurrency, SpeedtestOutboundResult,
-    SpeedtestResultState, SpeedtestRunId, SpeedtestSampleOutcome, SpeedtestSnapshot,
-};
 
 fn outbound_result(
     id: &str,
@@ -26,35 +26,35 @@ fn snapshot() -> SpeedtestSnapshot {
     let mut snapshot = SpeedtestSnapshot::demo_fixture();
     snapshot.concurrency = SpeedtestConcurrency::new(12).unwrap();
     snapshot.results = vec![
-            outbound_result(
-                "proxy-a",
-                "Node A",
-                vec![
-                    SpeedtestSampleOutcome::Measured { delay_ms: 40 },
-                    SpeedtestSampleOutcome::TimedOut,
-                    SpeedtestSampleOutcome::Measured { delay_ms: 44 },
-                ],
-                SpeedtestResultState::Completed,
-            ),
-            outbound_result(
-                "proxy-b",
-                "Node B",
-                vec![
-                    SpeedtestSampleOutcome::TimedOut,
-                    SpeedtestSampleOutcome::TimedOut,
-                ],
-                SpeedtestResultState::TimedOut,
-            ),
-        ];
+        outbound_result(
+            "proxy-a",
+            "Node A",
+            vec![
+                SpeedtestSampleOutcome::Measured { delay_ms: 40 },
+                SpeedtestSampleOutcome::TimedOut,
+                SpeedtestSampleOutcome::Measured { delay_ms: 44 },
+            ],
+            SpeedtestResultState::Completed,
+        ),
+        outbound_result(
+            "proxy-b",
+            "Node B",
+            vec![
+                SpeedtestSampleOutcome::TimedOut,
+                SpeedtestSampleOutcome::TimedOut,
+            ],
+            SpeedtestResultState::TimedOut,
+        ),
+    ];
     snapshot.recent_history = vec![HistoricalSpeedtestRecord {
-            run_id: SpeedtestRunId::new(5).unwrap(),
-            timestamp_epoch_ms: 1_700_000_000_000,
-            target: None,
-            total_targets: 2,
-            completed_targets: 2,
-            avg_latency_ms: Some(42.0),
-            avg_jitter_ms: Some(4.0),
-        }];
+        run_id: SpeedtestRunId::new(5).unwrap(),
+        timestamp_epoch_ms: 1_700_000_000_000,
+        target: None,
+        total_targets: 2,
+        completed_targets: 2,
+        avg_latency_ms: Some(42.0),
+        avg_jitter_ms: Some(4.0),
+    }];
     snapshot
 }
 

@@ -23,7 +23,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCard, ModalState};
 use infiltrator_bevy_widgets::chart::ChartPlate;
-use infiltrator_bevy_widgets::drawer::DrawerPanel;
+use infiltrator_bevy_widgets::drawer::{DrawerPanel, DrawerPhase, DrawerPhaseState};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
@@ -68,6 +68,7 @@ pub struct DrawerSurface<'w, 's> {
     projection: Option<Res<'w, LastConnectionsProjection>>,
     roots: Query<'w, 's, Entity, With<ConnectionDrawerLayer>>,
     panels: Query<'w, 's, Entity, With<DrawerPanel>>,
+    phases: Query<'w, 's, &'static DrawerPhaseState>,
 }
 pub fn drawer_observation(
     surface: DrawerSurface,
@@ -84,6 +85,13 @@ pub fn drawer_observation(
             || surface.state.inspected_index(projection) != Some(0)
             || !geometry.visible(surface.roots.iter().next()?)
         {
+            return None;
+        }
+        // The drawer really fades in: the panel is measured once the shared
+        // phase has settled open, so the receipt shows the drawer in place
+        // and not a panel that is still sliding.
+        let phase = surface.phases.single().ok()?;
+        if phase.0 != DrawerPhase::Open {
             return None;
         }
         geometry.bounds(surface.panels.iter().next()?, "connection details")

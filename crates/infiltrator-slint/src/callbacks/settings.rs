@@ -3,6 +3,7 @@
 use super::super::*;
 use crate::surface::action;
 use crate::theme_util::{apply_theme_color, hsv_hex, parse_color};
+use crate::widget_vocabulary;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -69,9 +70,11 @@ pub(super) fn register(
 
     let tx = requests.clone();
     let weak_for_theme = weak.clone();
-    window.on_set_theme_mode(move |mode| match action::theme_mode_action(mode.as_str()) {
-        Ok(action) => queue_action(&tx, &weak_for_theme, Ok(action)),
-        Err(failure) => show_failure(&weak_for_theme, failure),
+    window.on_set_theme_mode(move |mode| {
+        match action::theme_mode_action(widget_vocabulary::theme_mode_setting(mode)) {
+            Ok(action) => queue_action(&tx, &weak_for_theme, Ok(action)),
+            Err(failure) => show_failure(&weak_for_theme, failure),
+        }
     });
 
     let weak_for_invert = weak.clone();

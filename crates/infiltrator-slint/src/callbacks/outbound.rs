@@ -3,6 +3,7 @@
 use super::super::*;
 use crate::lumen_projection::collections::project_connection_detail;
 use crate::surface::action;
+use crate::widget_vocabulary;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -138,7 +139,7 @@ pub(super) fn register(
         queue_intent(
             &tx,
             &weak_for_log_level,
-            action::log_level_action(level.as_str()),
+            action::log_level_action(widget_vocabulary::log_level_action_name(level)),
         );
     });
 

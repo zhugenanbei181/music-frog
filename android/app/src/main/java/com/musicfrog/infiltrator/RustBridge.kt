@@ -44,6 +44,27 @@ object RustBridge {
         imeBottom: Int,
         imeLeft: Int,
     ): Int
+    private external fun nativeOnSurface(
+        generation: Long,
+        stateCode: Int,
+        widthPx: Int,
+        heightPx: Int,
+    ): Int
+    private external fun nativeOnConfiguration(
+        generation: Long,
+        orientationCode: Int,
+        widthPx: Int,
+        heightPx: Int,
+        density: Float,
+        fontScale: Float,
+    ): Int
+    private external fun nativeOnGesture(
+        pointerId: Long,
+        phaseCode: Int,
+        x: Float,
+        y: Float,
+        timeMillis: Long,
+    ): Int
 
     fun ensureLoaded(): Boolean {
         if (loaded) {
@@ -159,6 +180,72 @@ object RustBridge {
             )
         } catch (err: LinkageError) {
             Log.e("RustBridge", "nativeOnInsets failed: ${err.message}", err)
+            255
+        }
+    } else {
+        255
+    }
+
+    /**
+     * EFFECTS-047 (#190): push one surface fact of the Activity's render
+     * surface. The Rust owner answers with a typed lifecycle update.
+     */
+    internal fun onSurface(generation: Long, stateCode: Int, widthPx: Int, heightPx: Int): Int =
+        if (ensureLoaded()) {
+            try {
+                nativeOnSurface(generation, stateCode, widthPx, heightPx)
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeOnSurface failed: ${err.message}", err)
+                255
+            }
+        } else {
+            255
+        }
+
+    /**
+     * EFFECTS-047 (#192): push one window configuration fact so the owner can
+     * relayout after a rotation.
+     */
+    internal fun onConfiguration(
+        generation: Long,
+        orientationCode: Int,
+        widthPx: Int,
+        heightPx: Int,
+        density: Float,
+        fontScale: Float,
+    ): Int = if (ensureLoaded()) {
+        try {
+            nativeOnConfiguration(
+                generation,
+                orientationCode,
+                widthPx,
+                heightPx,
+                density,
+                fontScale,
+            )
+        } catch (err: LinkageError) {
+            Log.e("RustBridge", "nativeOnConfiguration failed: ${err.message}", err)
+            255
+        }
+    } else {
+        255
+    }
+
+    /**
+     * EFFECTS-047 (#191): push one normalized pointer sample and read the typed
+     * arbitration verdict. The returned code is a verdict, not an error code.
+     */
+    internal fun onGestureSample(
+        pointerId: Long,
+        phaseCode: Int,
+        x: Float,
+        y: Float,
+        timeMillis: Long,
+    ): Int = if (ensureLoaded()) {
+        try {
+            nativeOnGesture(pointerId, phaseCode, x, y, timeMillis)
+        } catch (err: LinkageError) {
+            Log.e("RustBridge", "nativeOnGesture failed: ${err.message}", err)
             255
         }
     } else {

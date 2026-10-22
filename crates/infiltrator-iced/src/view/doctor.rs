@@ -112,11 +112,16 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
     let mut body = column![].spacing(theme::SP_SM);
 
     if busy {
-        body = body.push(secondary_text(
+        // The pending phase is the owner's own answer: the capture measures
+        // the progress the diagnostic command really published. The indicator
+        // is the surface's own themed badge, so it restates that shared phase
+        // instead of keeping a second state of its own.
+        let mut pending = column![badge(
             lang.tr("doctor_operation_pending").into_owned(),
-        ));
+            BadgeKind::Accent,
+        )];
         if let Some(action) = doctor.current_action() {
-            body = body.push(secondary_text(match action {
+            pending = pending.push(secondary_text(match action {
                 DoctorAction::Diagnose => lang.tr("doctor_running_check").to_string(),
                 DoctorAction::RepairAll | DoctorAction::RepairOne(_) => {
                     lang.tr("doctor_running_fix").to_string()
@@ -124,6 +129,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
                 DoctorAction::Bootstrap => lang.tr("doctor_running_bootstrap").to_string(),
             }));
         }
+        body = body.push(container(pending).id(InteractionRegion::DoctorProgress.id()));
     }
     if let Some(failure) = doctor.failure() {
         body = body.push(error_text(failure.message.as_str()));

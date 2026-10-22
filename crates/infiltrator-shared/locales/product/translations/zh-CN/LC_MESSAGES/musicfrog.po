@@ -1452,3 +1452,12 @@ msgstr "同步"
 
 msgid "应用路由"
 msgstr "应用路由"
+
+msgid "概览卡片顺序"
+msgstr "概览卡片顺序"
+
+msgid "调整卡片顺序"
+msgstr "调整卡片顺序"
+
+msgid "恢复默认顺序"
+msgstr "恢复默认顺序"

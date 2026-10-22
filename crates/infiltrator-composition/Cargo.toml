@@ -11,7 +11,7 @@ capture-fixtures = ["dep:infiltrator-test-support"]
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
-lurker-engine-runtime = { version = "0.51.0", path = "../lurker-engine-runtime" }
+lurker-engine-runtime = { version = "0.68.0", path = "../lurker-engine-runtime" }
 async-trait = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
@@ -24,7 +24,7 @@ lurker-profile-store = { path = "../lurker-profile-store" }
 infiltrator-test-support = { path = "../infiltrator-test-support", optional = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
-mihomo-driver = { version = "0.51.0", path = "../mihomo-driver" }
+mihomo-driver = { version = "0.68.0", path = "../mihomo-driver" }
 mihomo-config = { path = "../mihomo-config" }
 singbox-api = { path = "../singbox-api" }
 singbox-config = { path = "../singbox-config" }

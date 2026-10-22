@@ -52,6 +52,8 @@ settings-language-choice-standard	settings	dark	1180x780
 settings-language-choice-compact	settings	dark	720x480
 doctor-failure-recovery-standard	doctor	dark	1180x780
 doctor-failure-recovery-compact	doctor	dark	720x480
+doctor-repair-progress-standard	doctor	dark	1180x780
+doctor-repair-progress-compact	doctor	dark	720x480
 dns-leak-alert-standard	dns	dark	1180x780
 dns-leak-alert-compact	dns	dark	720x480
 dns-hosts-editor-standard	dns	dark	1180x780
@@ -80,3 +82,7 @@ runtime-telemetry-observation-standard	overview	dark	1180x780
 runtime-telemetry-observation-compact	overview	dark	720x480
 profiles-snapshot-restore-confirm-standard	profiles	dark	1180x780
 profiles-snapshot-restore-confirm-compact	profiles	dark	720x480
+rules-list-editor-standard	rules	dark	1180x780
+rules-list-editor-compact	rules	dark	720x480
+rules-statistics-inspector-standard	rules	dark	1180x780
+rules-statistics-inspector-compact	rules	dark	720x480

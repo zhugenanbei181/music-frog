@@ -29,36 +29,36 @@ export component ProfileAddSheet inherits ModalBottomSheet {
     show_layout_bounds: root.layout-debug-bounds;
     scrim_color: root.application-dark-mode ? #000000.with_alpha(94%) : #000000.with_alpha(32%);
     surface_color: LumenTheme.surface;
-    corner_radius: 28px * LumenUiScale.factor;
+    corner_radius: 28 * LumenUiScale.unit;
     dismissed => { root.dismiss(); }
 
     Rectangle {
         width: root.profile-sheet-content-width;
         height: root.profile-sheet-content-height;
         background: transparent;
-        border-width: LumenTheme.show-layout-bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+        border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
         border-color: #FF2D55;
         VerticalLayout {
             width: parent.width;
             height: parent.height;
-            padding-bottom: 16px * LumenUiScale.factor;
-            spacing: 8px * LumenUiScale.factor;
+            padding-bottom: 16 * LumenUiScale.unit;
+            spacing: 8 * LumenUiScale.unit;
             alignment: start;
 
             HorizontalLayout {
-                x: 16px * LumenUiScale.factor;
-                width: max(0px * LumenUiScale.factor, root.profile-sheet-content-width - 32px * LumenUiScale.factor);
-                height: 44px * LumenUiScale.factor;
-                spacing: 4px * LumenUiScale.factor;
+                x: 16 * LumenUiScale.unit;
+                width: max(0 * LumenUiScale.unit, root.profile-sheet-content-width - 32 * LumenUiScale.unit);
+                height: 44 * LumenUiScale.unit;
+                spacing: 4 * LumenUiScale.unit;
                 IconButton {
-                    width: 44px * LumenUiScale.factor; height: 44px * LumenUiScale.factor;
+                    width: 44 * LumenUiScale.unit; height: 44 * LumenUiScale.unit;
                     icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
                     tooltip: @tr("关闭添加配置");
                     clicked => { root.dismiss(); }
                 }
-                Text { text: @tr("添加配置文件"); color: LumenTheme.text-primary; font-size: 20px * LumenUiScale.factor; font-weight: 550; horizontal-stretch: 1; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: @tr("添加配置文件"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-stretch: 1; horizontal-alignment: center; vertical-alignment: center; }
                 IconButton {
-                    width: 44px * LumenUiScale.factor; height: 44px * LumenUiScale.factor;
+                    width: 44 * LumenUiScale.unit; height: 44 * LumenUiScale.unit;
                     icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg");
                     tooltip: @tr("确认添加");
                     enabled: root.profile-add-kind-index != 2;
@@ -67,48 +67,48 @@ export component ProfileAddSheet inherits ModalBottomSheet {
             }
 
             Rectangle {
-                width: root.profile-sheet-content-width; height: 50px * LumenUiScale.factor;
-                border-radius: 25px * LumenUiScale.factor; background: LumenTheme.surface-muted;
+                width: root.profile-sheet-content-width; height: 50 * LumenUiScale.unit;
+                border-radius: 25 * LumenUiScale.unit; background: LumenTheme.surface-muted;
                 HorizontalLayout {
-                    x: 18px * LumenUiScale.factor; width: root.profile-sheet-content-width - 36px * LumenUiScale.factor; height: parent.height; spacing: 8px * LumenUiScale.factor;
-                    Text { text: @tr("配置类型"); color: LumenTheme.text-secondary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; }
+                    x: 18 * LumenUiScale.unit; width: root.profile-sheet-content-width - 36 * LumenUiScale.unit; height: parent.height; spacing: 8 * LumenUiScale.unit;
+                    Text { text: @tr("配置类型"); color: LumenTheme.text-secondary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; background: transparent; }
                     Text {
                         text: root.profile-add-kind-index == 0 ? @tr("订阅链接") : root.profile-add-kind-index == 1 ? @tr("本地文件") : @tr("扫码添加");
-                        color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center;
+                        color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center;
                     }
-                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; y: (parent.height - self.height) / 2; image-fit: contain; }
+                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; }
                 }
                 TouchArea { width: parent.width; height: parent.height; clicked => { root.toggle-type-menu(); } }
             }
 
             if root.profile-add-kind-index == 0: VerticalLayout {
                 width: root.profile-sheet-content-width;
-                spacing: 8px * LumenUiScale.factor;
+                spacing: 8 * LumenUiScale.unit;
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("配置名称"); text <=> root.profile-name; }
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("订阅链接"); text <=> root.profile-url; }
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("Age 私钥（可选）"); password: true; text <=> root.profile-age-key; }
             }
             if root.profile-add-kind-index == 1: VerticalLayout {
                 width: root.profile-sheet-content-width;
-                spacing: 8px * LumenUiScale.factor;
+                spacing: 8 * LumenUiScale.unit;
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("配置名称（可选）"); text <=> root.profile-name; }
                 Rectangle {
-                    width: root.profile-sheet-content-width; height: 50px * LumenUiScale.factor; border-radius: 25px * LumenUiScale.factor; background: LumenTheme.surface-muted;
-                    Text { x: 20px * LumenUiScale.factor; width: parent.width - 40px * LumenUiScale.factor; height: parent.height; text: @tr("选择 YAML / YML 文件"); color: LumenTheme.text-secondary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; }
+                    width: root.profile-sheet-content-width; height: 50 * LumenUiScale.unit; border-radius: 25 * LumenUiScale.unit; background: LumenTheme.surface-muted;
+                    Text { x: 20 * LumenUiScale.unit; width: parent.width - 40 * LumenUiScale.unit; height: parent.height; text: @tr("选择 YAML / YML 文件"); color: LumenTheme.text-secondary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; }
                     TouchArea { width: parent.width; height: parent.height; clicked => { root.choose-file(); } }
                 }
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("Age 私钥（可选）"); password: true; text <=> root.profile-age-key; }
             }
             if root.profile-add-kind-index == 2: Rectangle {
                 width: root.profile-sheet-content-width;
-                height: 130px * LumenUiScale.factor;
-                border-radius: 28px * LumenUiScale.factor;
+                height: 130 * LumenUiScale.unit;
+                border-radius: 28 * LumenUiScale.unit;
                 background: LumenTheme.surface;
                 VerticalLayout {
-                    x: 18px * LumenUiScale.factor; width: root.profile-sheet-content-width - 36px * LumenUiScale.factor; height: parent.height; spacing: 6px * LumenUiScale.factor; alignment: center;
-                    Text { text: @tr("扫码添加"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 550; }
-                    Text { text: @tr("扫描二维码以导入配置订阅地址"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; wrap: word-wrap; horizontal-alignment: center; }
+                    x: 18 * LumenUiScale.unit; width: root.profile-sheet-content-width - 36 * LumenUiScale.unit; height: parent.height; spacing: 6 * LumenUiScale.unit; alignment: center;
+                    Text { text: @tr("扫码添加"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 550; }
+                    Text { text: @tr("扫描二维码以导入配置订阅地址"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; wrap: word-wrap; horizontal-alignment: center; }
                     Button { text: @tr("开始扫描"); clicked => { root.scan-qr(); } }
                 }
             }
@@ -116,46 +116,46 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                 width: root.profile-sheet-content-width;
                 text: root.notice;
                 color: root.notice == "请输入订阅链接" ? LumenTheme.error : LumenTheme.text-secondary;
-                font-size: 13px * LumenUiScale.factor;
+                font-size: 13 * LumenUiScale.unit;
                 wrap: word-wrap;
             }
             Rectangle { vertical-stretch: 1; background: transparent; }
         }
 
         if root.profile-type-menu-open: Rectangle {
-            x: max(0px * LumenUiScale.factor, parent.width - 236px * LumenUiScale.factor);
-            y: 64px * LumenUiScale.factor;
-            width: 220px * LumenUiScale.factor;
-            height: 168px * LumenUiScale.factor;
-            border-radius: 16px * LumenUiScale.factor;
+            x: max(0 * LumenUiScale.unit, parent.width - 236 * LumenUiScale.unit);
+            y: 64 * LumenUiScale.unit;
+            width: 220 * LumenUiScale.unit;
+            height: 168 * LumenUiScale.unit;
+            border-radius: 16 * LumenUiScale.unit;
             background: LumenTheme.surface;
             clip: true;
             VerticalLayout {
-                width: parent.width; height: parent.height; spacing: 0px * LumenUiScale.factor;
+                width: parent.width; height: parent.height; spacing: 0 * LumenUiScale.unit;
                 Rectangle {
-                    width: parent.width; height: 56px * LumenUiScale.factor; background: transparent;
+                    width: parent.width; height: 56 * LumenUiScale.unit; background: transparent;
                     HorizontalLayout {
-                        x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor; height: parent.height; spacing: 8px * LumenUiScale.factor;
-                        Text { text: @tr("订阅链接"); color: root.profile-add-kind-index == 0 ? LumenTheme.accent : LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; horizontal-stretch: 1; }
-                        if root.profile-add-kind-index == 0: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
+                        x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height; spacing: 8 * LumenUiScale.unit;
+                        Text { text: @tr("订阅链接"); color: root.profile-add-kind-index == 0 ? LumenTheme.accent : LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; horizontal-stretch: 1; }
+                        if root.profile-add-kind-index == 0: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
                     }
                     TouchArea { width: parent.width; height: parent.height; clicked => { root.select-kind(0); } }
                 }
                 Rectangle {
-                    width: parent.width; height: 56px * LumenUiScale.factor; background: transparent;
+                    width: parent.width; height: 56 * LumenUiScale.unit; background: transparent;
                     HorizontalLayout {
-                        x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor; height: parent.height; spacing: 8px * LumenUiScale.factor;
-                        Text { text: @tr("本地文件"); color: root.profile-add-kind-index == 1 ? LumenTheme.accent : LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; horizontal-stretch: 1; }
-                        if root.profile-add-kind-index == 1: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
+                        x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height; spacing: 8 * LumenUiScale.unit;
+                        Text { text: @tr("本地文件"); color: root.profile-add-kind-index == 1 ? LumenTheme.accent : LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; horizontal-stretch: 1; }
+                        if root.profile-add-kind-index == 1: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
                     }
                     TouchArea { width: parent.width; height: parent.height; clicked => { root.select-kind(1); } }
                 }
                 Rectangle {
-                    width: parent.width; height: 56px * LumenUiScale.factor; background: transparent;
+                    width: parent.width; height: 56 * LumenUiScale.unit; background: transparent;
                     HorizontalLayout {
-                        x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor; height: parent.height; spacing: 8px * LumenUiScale.factor;
-                        Text { text: @tr("扫码添加"); color: root.profile-add-kind-index == 2 ? LumenTheme.accent : LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; vertical-alignment: center; horizontal-stretch: 1; }
-                        if root.profile-add-kind-index == 2: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
+                        x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height; spacing: 8 * LumenUiScale.unit;
+                        Text { text: @tr("扫码添加"); color: root.profile-add-kind-index == 2 ? LumenTheme.accent : LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; horizontal-stretch: 1; }
+                        if root.profile-add-kind-index == 2: Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
                     }
                     TouchArea { width: parent.width; height: parent.height; clicked => { root.select-kind(2); } }
                 }
@@ -177,20 +177,20 @@ export component ProfileActionSheet inherits ModalBottomSheet {
     show_layout_bounds: root.layout-debug-bounds;
     scrim_color: #000000.with_alpha(32%);
     surface_color: LumenTheme.surface;
-    corner_radius: 32px * LumenUiScale.factor;
-    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32 * LumenUiScale.unit;
+    side_inset: 12 * LumenUiScale.unit;
     dismissed => { root.dismiss(); }
 
     Rectangle {
         width: root.profile-dialog-content-width;
-        height: 280px * LumenUiScale.factor;
+        height: 280 * LumenUiScale.unit;
         background: transparent;
-        border-width: LumenTheme.show-layout-bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+        border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
         border-color: #FF2D55;
         VerticalLayout {
-            x: 16px * LumenUiScale.factor; width: parent.width - 32px * LumenUiScale.factor; height: parent.height;
-            padding-top: 8px * LumenUiScale.factor; padding-bottom: 8px * LumenUiScale.factor; spacing: 10px * LumenUiScale.factor;
-            Text { text: @tr("编辑配置"); color: LumenTheme.text-primary; font-size: 20px * LumenUiScale.factor; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32px * LumenUiScale.factor; }
+            x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
+            padding-top: 8 * LumenUiScale.unit; padding-bottom: 8 * LumenUiScale.unit; spacing: 10 * LumenUiScale.unit;
+            Text { text: @tr("编辑配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
             SheetActionButton {
                 width: parent.width;
                 label: @tr("编辑器打开");
@@ -222,25 +222,25 @@ export component ProfileShareSheet inherits ModalBottomSheet {
     show_layout_bounds: root.layout-debug-bounds;
     scrim_color: #000000.with_alpha(32%);
     surface_color: LumenTheme.surface;
-    corner_radius: 32px * LumenUiScale.factor;
-    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32 * LumenUiScale.unit;
+    side_inset: 12 * LumenUiScale.unit;
     dismissed => { root.dismiss(); }
 
     Rectangle {
         width: root.profile-dialog-content-width;
-        height: 252px * LumenUiScale.factor;
+        height: 252 * LumenUiScale.unit;
         background: transparent;
-        border-width: LumenTheme.show-layout-bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+        border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
         border-color: #FF2D55;
         VerticalLayout {
-            x: 16px * LumenUiScale.factor; width: parent.width - 32px * LumenUiScale.factor; height: parent.height;
-            padding-top: 8px * LumenUiScale.factor; padding-bottom: 8px * LumenUiScale.factor; spacing: 10px * LumenUiScale.factor;
-            Text { text: @tr("分享配置"); color: LumenTheme.text-primary; font-size: 20px * LumenUiScale.factor; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32px * LumenUiScale.factor; }
+            x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
+            padding-top: 8 * LumenUiScale.unit; padding-bottom: 8 * LumenUiScale.unit; spacing: 10 * LumenUiScale.unit;
+            Text { text: @tr("分享配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
             Text {
                 width: parent.width;
                 text: @tr("来源配置可能包含节点认证信息；导出仅包含来源 YAML，不含订阅凭据或绑定的覆写。");
                 color: LumenTheme.text-secondary;
-                font-size: 13px * LumenUiScale.factor;
+                font-size: 13 * LumenUiScale.unit;
                 wrap: word-wrap;
                 horizontal-alignment: center;
             }
@@ -270,32 +270,32 @@ export component ProfileDeleteSheet inherits ModalBottomSheet {
     show_layout_bounds: root.layout-debug-bounds;
     scrim_color: #000000.with_alpha(32%);
     surface_color: LumenTheme.surface;
-    corner_radius: 32px * LumenUiScale.factor;
-    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32 * LumenUiScale.unit;
+    side_inset: 12 * LumenUiScale.unit;
     dismissed => { root.dismiss(); }
 
     Rectangle {
         width: root.profile-dialog-content-width;
-        height: 224px * LumenUiScale.factor;
+        height: 224 * LumenUiScale.unit;
         background: transparent;
-        border-width: LumenTheme.show-layout-bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+        border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
         border-color: #FF2D55;
         VerticalLayout {
-            x: 16px * LumenUiScale.factor; width: parent.width - 32px * LumenUiScale.factor; height: parent.height;
-            padding-top: 8px * LumenUiScale.factor; padding-bottom: 8px * LumenUiScale.factor; spacing: 10px * LumenUiScale.factor;
-            Text { text: @tr("删除配置"); color: LumenTheme.text-primary; font-size: 20px * LumenUiScale.factor; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32px * LumenUiScale.factor; }
+            x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
+            padding-top: 8 * LumenUiScale.unit; padding-bottom: 8 * LumenUiScale.unit; spacing: 10 * LumenUiScale.unit;
+            Text { text: @tr("删除配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
             Text {
                 width: parent.width;
                 text: @tr("确定要删除「") + root.pending-delete-name + @tr("」吗？如果该配置正在运行，会先停止代理。");
                 color: LumenTheme.text-secondary;
-                font-size: 16px * LumenUiScale.factor;
+                font-size: 16 * LumenUiScale.unit;
                 wrap: word-wrap;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
             Rectangle { vertical-stretch: 1; background: transparent; }
             HorizontalLayout {
-                width: parent.width; height: 56px * LumenUiScale.factor; spacing: 12px * LumenUiScale.factor;
+                width: parent.width; height: 56 * LumenUiScale.unit; spacing: 12 * LumenUiScale.unit;
                 SheetActionButton {
                     horizontal-stretch: 1;
                     label: @tr("取消");
@@ -338,19 +338,19 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
     show_layout_bounds: root.layout-debug-bounds;
     scrim_color: #000000.with_alpha(32%);
     surface_color: LumenTheme.surface;
-    corner_radius: 32px * LumenUiScale.factor;
-    side_inset: 12px * LumenUiScale.factor;
+    corner_radius: 32 * LumenUiScale.unit;
+    side_inset: 12 * LumenUiScale.unit;
     dismissed => { root.dismiss(); }
 
     Rectangle {
         width: root.profile-dialog-content-width;
         height: root.sheet-height;
         background: transparent;
-        border-width: LumenTheme.show-layout-bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+        border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
         border-color: #FF2D55;
         VerticalLayout {
-            x: 16px * LumenUiScale.factor; width: parent.width - 32px * LumenUiScale.factor; height: parent.height;
-            padding-top: 8px * LumenUiScale.factor; padding-bottom: 8px * LumenUiScale.factor; spacing: 8px * LumenUiScale.factor;
+            x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
+            padding-top: 8 * LumenUiScale.unit; padding-bottom: 8 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
             ProfileSheetTitle {
                 width: parent.width;
                 title: @tr("订阅设置");
@@ -358,13 +358,13 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                 confirm => { root.save(); }
             }
             Rectangle {
-                width: parent.width; height: 50px * LumenUiScale.factor; border-radius: 25px * LumenUiScale.factor; background: LumenTheme.surface-muted;
+                width: parent.width; height: 50 * LumenUiScale.unit; border-radius: 25 * LumenUiScale.unit; background: LumenTheme.surface-muted;
                 HorizontalLayout {
-                    x: 18px * LumenUiScale.factor; width: parent.width - 36px * LumenUiScale.factor; height: parent.height; spacing: 8px * LumenUiScale.factor;
-                    Text { text: @tr("设置类型"); color: LumenTheme.text-secondary; font-size: 17px * LumenUiScale.factor; vertical-alignment: center; }
+                    x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height; spacing: 8 * LumenUiScale.unit;
+                    Text { text: @tr("设置类型"); color: LumenTheme.text-secondary; font-size: 17 * LumenUiScale.unit; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; background: transparent; }
-                    Text { text: root.profile-settings-type-index == 0 ? @tr("订阅信息") : @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 17px * LumenUiScale.factor; vertical-alignment: center; }
-                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20px * LumenUiScale.factor; height: 20px * LumenUiScale.factor; image-fit: contain; vertical-alignment: center; }
+                    Text { text: root.profile-settings-type-index == 0 ? @tr("订阅信息") : @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit; vertical-alignment: center; }
+                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
                 }
                 TouchArea {
                     width: parent.width; height: parent.height;
@@ -378,14 +378,14 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                 vertical-scrollbar-policy: ScrollBarPolicy.always-off;
                 horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
                 VerticalLayout {
-                    width: parent.width; spacing: 10px * LumenUiScale.factor; alignment: start;
+                    width: parent.width; spacing: 10 * LumenUiScale.unit; alignment: start;
                     if root.profile-settings-type-index == 0: VerticalLayout {
-                        width: parent.width; spacing: 8px * LumenUiScale.factor;
+                        width: parent.width; spacing: 8 * LumenUiScale.unit;
                         LightRoundedInput { width: parent.width; label: @tr("配置名称"); text <=> root.profile-settings-name; }
                         if root.profile-settings-kind == "remote_subscription": LightRoundedInput { width: parent.width; label: @tr("订阅链接"); text <=> root.profile-settings-url; }
                         if root.profile-settings-kind == "remote_subscription": HorizontalLayout {
                             width: parent.width;
-                            spacing: 8px * LumenUiScale.factor;
+                            spacing: 8 * LumenUiScale.unit;
                             LightRoundedInput {
                                 horizontal-stretch: 1;
                                 label: @tr("Age 私钥（可选）");
@@ -397,15 +397,15 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                                 clicked => { root.clear-age-key(); }
                             }
                         }
-                        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地来源配置保持只读；名称可在此修改。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
+                        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地来源配置保持只读；名称可在此修改。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
                     }
                     if root.profile-settings-type-index == 1: VerticalLayout {
-                        width: parent.width; spacing: 8px * LumenUiScale.factor;
-                        Text { text: @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 600; }
-                        Text { text: @tr("选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; wrap: word-wrap; }
-                        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的 YAML 覆写"); color: LumenTheme.text-secondary; font-size: 14px * LumenUiScale.factor; }
+                        width: parent.width; spacing: 8 * LumenUiScale.unit;
+                        Text { text: @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
+                        Text { text: @tr("选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+                        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的 YAML 覆写"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; }
                         for option in root.profile-settings-overrides: HorizontalLayout {
-                            width: parent.width; height: 56px * LumenUiScale.factor; spacing: 4px * LumenUiScale.factor;
+                            width: parent.width; height: 56 * LumenUiScale.unit; spacing: 4 * LumenUiScale.unit;
                             CheckBox { text: option.name + " · " + option.format; checked: option.selected; horizontal-stretch: 1; toggled => { root.toggle-override(option.id, self.checked); } }
                             Button { text: "↑"; enabled: option.selected && option.can-move-up; clicked => { root.move-override(option.id, true); } }
                             Button { text: "↓"; enabled: option.selected && option.can-move-down; clicked => { root.move-override(option.id, false); } }

@@ -25,7 +25,7 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeBorderColor};
-use bevy::scene::{Scene, bsn};
+use bevy::scene::{Scene, bsn, bsn_list};
 use bevy::text::RemSize;
 use bevy::ui::prelude::{
     BorderRadius, Display, GridPlacement, Node, RepeatedGridTrack, UiRect, percent,
@@ -44,6 +44,10 @@ pub struct ListScrollbar;
 
 /// The official vertical scrollbar: a rem-sized track in the frame's second
 /// column, with the official thumb inside it.
+///
+/// The thumb paints the shared disabled ink: the recessed control fill is a
+/// 7% white wash, which is invisible on a dark card, and a scrollbar nobody
+/// can see is a scrollbar nobody can use.
 pub fn list_scrollbar_scene() -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
@@ -57,19 +61,48 @@ pub fn list_scrollbar_scene() -> Box<dyn Scene> {
                     border_radius: BorderRadius::all(rem(radius::XS)),
                     border: UiRect::all(rem(space::S2)),
                 }
-                ThemeBackgroundColor({ Token::SurfaceElevated })
+                ThemeBackgroundColor({ Token::DisabledInk })
                 ThemeBorderColor({ Token::Border })
             ]
     }) as Box<dyn Scene>
 }
 
-/// The list's grid frame: the scroll container's cell plus the official
+/// The list's grid frame: the scroll container's cell plus the shared
 /// scrollbar in the frame's second column.
 ///
 /// The frame is a grid because the bar must sit *beside* the viewport, not
 /// inside it: a child of the scrolling container would travel with the
 /// content.
 pub fn list_scroll_frame(container: Box<dyn Scene>) -> Box<dyn Scene> {
+    list_scroll_frame_with(container, list_scrollbar_scene())
+}
+
+/// The list's grid frame with the caller's own scrollbar.
+///
+/// The scrollbar is a parameter, not a fixed part: a page that draws its own
+/// list (a rules table with its own rows and pagination) supplies its own
+/// bar, and the frame only owns the geometry beside the viewport.
+pub fn list_scroll_frame_with(
+    container: Box<dyn Scene>,
+    scrollbar: Box<dyn Scene>,
+) -> Box<dyn Scene> {
+    list_scroll_frame_with_overlays(container, scrollbar, Vec::new())
+}
+
+/// The list's grid frame with the scroll container, the scrollbar and the
+/// caller's own overlays.
+///
+/// An overlay is a scene placed in the content cell — the cell the scroll
+/// container occupies — so it floats over the scrolling rows. The overlay
+/// owns its own placement inside that cell (which edge it hugs, how tall
+/// it is); the frame only owns the cell and the paint order, and the
+/// overlays come after the container so they cover the rows.
+pub fn list_scroll_frame_with_overlays(
+    container: Box<dyn Scene>,
+    scrollbar: Box<dyn Scene>,
+    overlays: Vec<Box<dyn Scene>>,
+) -> Box<dyn Scene> {
+    let overlay_list = bsn_list! { { overlays } };
     Box::new(bsn! {
             Node {
                 display: Display::Grid,
@@ -84,7 +117,9 @@ pub fn list_scroll_frame(container: Box<dyn Scene>) -> Box<dyn Scene> {
             Children [
                 @{ container }
                 --
-                @{ list_scrollbar_scene() }
+                @{ scrollbar }
+                --
+                { overlay_list }
             ]
     }) as Box<dyn Scene>
 }

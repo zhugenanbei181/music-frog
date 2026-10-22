@@ -5332,6 +5332,116 @@
       "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
     },
     {
+      "id": "icon.minus",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/minus.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.square",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/square.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.x",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/x.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.chevron-left",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/chevron-left.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.chevron-right",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/chevron-right.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.layout-grid",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/layout-grid.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.list-checks",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/list-checks.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.server",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/server.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.shield",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/shield.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.code-2",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/code-2.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
+      "id": "icon.target",
+      "format": "png",
+      "variant": "white-plate-64",
+      "path": "ui/bevy/png/target.png",
+      "mime_type": "image/png",
+      "license": "ISC",
+      "license_path": "crates/infiltrator-shared/assets/ui/bevy/LUCIDE-LICENSE.txt",
+      "source": "White-ink Bevy plate rasterized from the canonical Lucide SVG"
+    },
+    {
       "id": "icon.activity",
       "format": "svg",
       "variant": "default",

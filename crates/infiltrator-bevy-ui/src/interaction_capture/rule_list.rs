@@ -2,7 +2,7 @@
 use super::capability::capture_command_application;
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
-use super::scroll::request_scroll;
+use super::scroll::{request_scroll, union};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::rules::RulesPageRoot;
@@ -150,19 +150,43 @@ pub fn activate(
             surface.capture.stage += 1;
         }
     }
-    if surface.capture.stage == 3
-        && let (Ok(card), Ok(page)) = (surface.cards.single(), surface.pages.single())
-        && let (Some(bounds), Some(viewport)) = (geometry.rect(card), geometry.rect(page))
-    {
-        request_scroll(&mut commands, page, bounds, viewport);
+    if surface.capture.stage == 3 && reveal(&surface, &mut geometry, &mut commands) {
+        // The receipt needs the editor card and the changed rule row on screen
+        // at the same time: the page scrolls its own viewport until both are
+        // really rendered, and the capture measures them on the next frame.
+        return;
     }
-    if surface.capture.stage == 3
-        && let Some((row, _)) = surface.rows.iter().find(|(_, marker)| marker.0 == 0)
-        && let Ok(page) = surface.pages.single()
-        && let (Some(bounds), Some(viewport)) = (geometry.rect(row), geometry.rect(page))
-    {
-        request_scroll(&mut commands, page, bounds, viewport);
-    }
+}
+
+/// Scroll the rules page until the editor card and the changed rule row are
+/// really rendered together.
+///
+/// Returns `true` when a scroll was requested, so the caller waits for the
+/// next frame before it measures the controls.
+fn reveal(
+    surface: &ListActivation<'_, '_>,
+    geometry: &mut CaptureGeometry<'_, '_>,
+    commands: &mut Commands,
+) -> bool {
+    let Ok(page) = surface.pages.single() else {
+        return false;
+    };
+    let Some(viewport) = geometry.rect(page) else {
+        return false;
+    };
+    let Ok(card) = surface.cards.single() else {
+        return false;
+    };
+    let Some((row, _)) = surface.rows.iter().find(|(_, marker)| marker.0 == 0) else {
+        return false;
+    };
+    let (Some(card_box), Some(row_box)) = (geometry.rect(card), geometry.rect(row)) else {
+        return false;
+    };
+    let Some(subject) = union(&[card_box, row_box]) else {
+        return false;
+    };
+    !request_scroll(commands, page, subject, viewport)
 }
 #[derive(SystemParam)]
 pub struct ListObservation<'w, 's> {
@@ -174,6 +198,7 @@ pub struct ListObservation<'w, 's> {
     status: Query<'w, 's, (Entity, &'static Text), With<RuleListStatus>>,
     preview: Query<'w, 's, (Entity, &'static Text), With<RuleListPreview>>,
     controls: Query<'w, 's, (Entity, &'static RuleListControl, &'static ButtonDisabled)>,
+    pages: Query<'w, 's, Entity, With<RulesPageRoot>>,
 }
 
 #[derive(QueryData)]
@@ -241,6 +266,7 @@ pub fn observe(
     mut geometry: CaptureGeometry,
     mut feature: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,
+    mut commands: Commands,
 ) {
     if feature.feature != FeatureId::RulesListEditor
         || probe.capture.stage != 3
@@ -268,10 +294,17 @@ pub fn observe(
     if status_text.0.is_empty() || !preview_text.0.contains("SRC-IP-CIDR,10.0.0.0/8,DIRECT") {
         return;
     }
-    let Some(bounds) = geometry.bounds(card, "rule-list-editor") else {
+    let Some((row, _)) = probe.rows.iter().find(|(_, marker)| marker.0 == 0) else {
         return;
     };
-    let Some((row, _)) = probe.rows.iter().find(|(_, marker)| marker.0 == 0) else {
+    // The receipt needs the editor card and the rule row it really changed on
+    // screen at the same time: the page scrolls its own viewport until both
+    // are rendered, and the capture measures them on the next frame.
+    if !geometry.unclipped(card) || !geometry.unclipped(row) {
+        reveal_observation(&probe, &mut geometry, &mut commands);
+        return;
+    }
+    let Some(bounds) = geometry.bounds(card, "rule-list-editor") else {
         return;
     };
     if geometry.bounds(row, "rule-list-actual-first-row").is_none() {
@@ -303,4 +336,32 @@ pub fn observe(
     }
     feature.activated = true;
     observation.0 = Some(bounds);
+}
+
+/// Scroll the rules page until the editor card and the changed rule row are
+/// really rendered together.
+fn reveal_observation(
+    probe: &ListObservation<'_, '_>,
+    geometry: &mut CaptureGeometry<'_, '_>,
+    commands: &mut Commands,
+) {
+    let Ok(page) = probe.pages.single() else {
+        return;
+    };
+    let Some(viewport) = geometry.rect(page) else {
+        return;
+    };
+    let Ok(card) = probe.cards.single() else {
+        return;
+    };
+    let Some((row, _)) = probe.rows.iter().find(|(_, marker)| marker.0 == 0) else {
+        return;
+    };
+    let (Some(card_box), Some(row_box)) = (geometry.rect(card), geometry.rect(row)) else {
+        return;
+    };
+    let Some(subject) = union(&[card_box, row_box]) else {
+        return;
+    };
+    request_scroll(commands, page, subject, viewport);
 }

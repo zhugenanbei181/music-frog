@@ -48,11 +48,12 @@ use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button;
 use bevy::window::{PrimaryWindow, Window};
 #[cfg(not(target_os = "android"))]
-use infiltrator_bevy_widgets::button::{
-    ButtonVariant, ButtonVariantStyle, ControlVisual, PillLabel,
-};
+use infiltrator_bevy_widgets::button::{ButtonVariant, ButtonVariantStyle, ControlVisual};
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::feathers_theme::Token;
+#[cfg(not(target_os = "android"))]
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val};
+#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::palette::UiPalette;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::palette::rem;
@@ -71,6 +72,13 @@ use infiltrator_contract::window_chrome::{NativeShadow, WindowChrome, WindowChro
 /// The window control's edge in baseline pixels.
 #[cfg(not(target_os = "android"))]
 const CHROME_CONTROL_PX: f32 = 28.0;
+
+/// The window key's plate box, in baseline pixels.
+///
+/// The plate is smaller than the key itself: the key is a target, the plate
+/// is the mark inside it.
+#[cfg(not(target_os = "android"))]
+const CHROME_CONTROL_ICON_PX: f32 = 14.0;
 
 /// Marker on the draggable chrome bar.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -278,9 +286,9 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
 /// The three window controls as one group.
 ///
 /// The group is a single surface with a hairline edge, and the controls
-/// inside it are ghost buttons: one object, three targets. The glyphs are
-/// the faces the embedded font actually carries — a dash, a square and a
-/// multiplication sign, never a codepoint the face does not have.
+/// inside it are ghost buttons: one object, three targets. Each control
+/// carries its own plate — the embedded faces carry no decorative Unicode,
+/// so a "✕" glyph would be tofu.
 #[cfg(not(target_os = "android"))]
 fn chrome_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
     let minimize_node = semantic_node(ShellA11yNode::ChromeMinimize);
@@ -299,15 +307,15 @@ fn chrome_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
             BackgroundColor({ palette.surface_elevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             Children [
-                @{ chrome_control_button_scene("–", palette) }
+                @{ chrome_control_button_scene(IconId::Minus, palette) }
                 ChromeMinimizeButton
                 minimize_node
                 --
-                @{ chrome_control_button_scene("▢", palette) }
+                @{ chrome_control_button_scene(IconId::Square, palette) }
                 ChromeMaximizeButton
                 maximize_node
                 --
-                @{ chrome_control_button_scene("×", palette) }
+                @{ chrome_control_button_scene(IconId::Close, palette) }
                 ChromeCloseButton
                 close_node
             ]
@@ -316,7 +324,7 @@ fn chrome_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 /// One window control: a ghost button that only paints on hover.
 #[cfg(not(target_os = "android"))]
-fn chrome_control_button_scene(glyph: &str, palette: &UiPalette) -> impl Scene + use<> {
+fn chrome_control_button_scene(icon: IconId, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
                 width: rem(CHROME_CONTROL_PX),
@@ -331,7 +339,7 @@ fn chrome_control_button_scene(glyph: &str, palette: &UiPalette) -> impl Scene +
             ControlVisual(false)
             TouchHitbox::default()
             Children [
-                Text({ glyph.to_owned() }) TextRole(Role::Body) PillLabel
+                @{ icon_scene_val(icon, rem(CHROME_CONTROL_ICON_PX), palette.ink_dim) }
             ]
     }
 }

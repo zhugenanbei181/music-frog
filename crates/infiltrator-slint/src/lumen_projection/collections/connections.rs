@@ -27,7 +27,7 @@ pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot
     let mut model = ConnectionsPageModel::<ConnectionSnapshot>::default();
     model.edit_query(window.get_connection_search().as_str());
     model.select_sort(widget_vocabulary::connection_sort_key(
-        window.get_connection_sort().as_str(),
+        window.get_connection_sort(),
     ));
     if let Some(page) = snapshot.pages.connections.data.as_ref() {
         model.observe(&page.connections);
@@ -73,7 +73,7 @@ fn closed_connection_rows(window: &AppWindow, snapshot: &SurfaceSnapshot) -> Vec
     let mut model = ConnectionsPageModel::<ClosedConnectionSnapshot>::default();
     model.edit_query(window.get_connection_search().as_str());
     model.select_sort(widget_vocabulary::connection_sort_key(
-        window.get_connection_sort().as_str(),
+        window.get_connection_sort(),
     ));
     model.observe(&snapshot.closed_connections.records);
     let mut rows = model

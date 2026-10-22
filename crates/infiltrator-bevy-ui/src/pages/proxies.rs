@@ -27,7 +27,7 @@ use crate::pages::proxies_refresh::apply_proxies_projection;
 use crate::pages::proxies_virtual::ProxiesVirtualState;
 use crate::route::Route;
 use crate::surface::LatestSurfaceSnapshot;
-use bevy::app::{App, Last, Plugin, PostUpdate, Update};
+use bevy::app::{App, Last, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;

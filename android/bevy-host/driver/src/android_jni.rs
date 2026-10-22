@@ -7,7 +7,6 @@ use crate::insets::{
 use crate::owner_client::OwnerTransport;
 use android_activity::AndroidApp;
 use infiltrator_contract::android_control::VpnOwnerSnapshot;
-use lurker_core_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::vpn::VpnOwnerStopReceipt;
 use jni::JavaVM;
 use jni::NativeMethod;
@@ -17,6 +16,7 @@ use jni::objects::{Global, JObject, JString, JValue, Reference as _};
 use jni::signature::RuntimeMethodSignature;
 use jni::strings::JNIString;
 use jni::sys::jobject;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::ffi::c_void;
 
 pub(crate) struct AndroidActivityOwnerTransport {

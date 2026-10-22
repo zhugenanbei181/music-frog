@@ -31,7 +31,7 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::image::{CompressedImageFormats, Image, ImageSampler, ImageType};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{Node, px};
+use bevy::ui::prelude::{Node, Val, px};
 use bevy::ui::widget::ImageNode;
 use infiltrator_shared::assets::bevy_icon_png;
 
@@ -55,11 +55,41 @@ pub enum IconId {
     /// (a distinct Lucide glyph, not a flipped copy of `arrow-up.svg`),
     /// through the same currentColor→white pipeline as every plate above.
     ArrowDown,
+    // ---- the window's own three keys and the history arrows -------------
+    //
+    // The chrome keys are plates, never text glyphs: the embedded faces
+    // guarantee no decorative Unicode coverage, so a "✕" glyph is tofu.
+    /// The minimize key (Lucide `minus`).
+    Minus,
+    /// The maximize key (Lucide `square`).
+    Square,
+    /// The close key (Lucide `x`).
+    Close,
+    /// The history-back arrow (Lucide `chevron-left`).
+    ChevronLeft,
+    /// The history-forward arrow (Lucide `chevron-right`).
+    ChevronRight,
+    // ---- the routes' own plates ------------------------------------------
+    //
+    // Every route carries a distinct plate: the rail used to repeat five
+    // plates for eleven routes, which made the navigation unreadable.
+    /// The overview route (Lucide `layout-grid`).
+    LayoutGrid,
+    /// The rules route (Lucide `list-checks`).
+    ListChecks,
+    /// The sync route (Lucide `server` — the remote backup host).
+    Server,
+    /// The DNS route (Lucide `shield` — the resolver's secure path).
+    Shield,
+    /// The logs route (Lucide `code-2` — the console's own lines).
+    Code2,
+    /// The app-routing route (Lucide `target` — the targeted application).
+    Target,
 }
 
 impl IconId {
     /// Every id, in stable order (the [`IconSources`] plate order).
-    pub const ALL: [IconId; 10] = [
+    pub const ALL: [IconId; 21] = [
         IconId::Settings,
         IconId::Network,
         IconId::Activity,
@@ -70,6 +100,17 @@ impl IconId {
         IconId::Trash,
         IconId::ArrowUp,
         IconId::ArrowDown,
+        IconId::Minus,
+        IconId::Square,
+        IconId::Close,
+        IconId::ChevronLeft,
+        IconId::ChevronRight,
+        IconId::LayoutGrid,
+        IconId::ListChecks,
+        IconId::Server,
+        IconId::Shield,
+        IconId::Code2,
+        IconId::Target,
     ];
 
     /// Position in the [`IconSources`] plate table.
@@ -85,6 +126,17 @@ impl IconId {
             IconId::Trash => 7,
             IconId::ArrowUp => 8,
             IconId::ArrowDown => 9,
+            IconId::Minus => 10,
+            IconId::Square => 11,
+            IconId::Close => 12,
+            IconId::ChevronLeft => 13,
+            IconId::ChevronRight => 14,
+            IconId::LayoutGrid => 15,
+            IconId::ListChecks => 16,
+            IconId::Server => 17,
+            IconId::Shield => 18,
+            IconId::Code2 => 19,
+            IconId::Target => 20,
         }
     }
 
@@ -101,6 +153,17 @@ impl IconId {
             IconId::Trash => "trash-2",
             IconId::ArrowUp => "arrow-up",
             IconId::ArrowDown => "arrow-down",
+            IconId::Minus => "minus",
+            IconId::Square => "square",
+            IconId::Close => "x",
+            IconId::ChevronLeft => "chevron-left",
+            IconId::ChevronRight => "chevron-right",
+            IconId::LayoutGrid => "layout-grid",
+            IconId::ListChecks => "list-checks",
+            IconId::Server => "server",
+            IconId::Shield => "shield",
+            IconId::Code2 => "code-2",
+            IconId::Target => "target",
         }
     }
 }
@@ -193,20 +256,34 @@ pub fn sync_icon_tints(mut icons: Query<(&IconTint, &mut ImageNode)>) {
     }
 }
 
-/// The icon scene: a fixed square carrying the plate + tint markers; the
-/// stamp observer turns it into a tinted bitmap. Plate resolution is
-/// deferred to that observer, so a missing bitmap is an invisible square —
-/// not a panic and not a glyph.
-pub fn icon_scene(icon: IconId, size_px: f32, tint: Color) -> impl Scene + use<> {
+/// The icon scene on the rem channel: the layout box travels with the root
+/// font size, so the plate follows the user's font scale instead of staying
+/// a physical size.
+///
+/// The plate itself is a physical asset (one 64px bitmap per semantic id),
+/// but its **box** is a layout size: a shell that keeps the box in physical
+/// pixels makes every icon the same size at every font scale, which is the
+/// residual jitter of the rem migration.
+pub fn icon_scene_val(icon: IconId, size: Val, tint: Color) -> impl Scene + use<> {
     bsn! {
             Node {
-                width: px(size_px),
-                height: px(size_px),
+                width: size,
+                height: size,
                 flex_shrink: 0.0,
             }
             IconPlate({ icon })
             IconTint({ tint })
     }
+}
+
+/// The icon scene with a physical pixel box.
+///
+/// The shell's remaining call sites still state their box in physical pixels;
+/// this entry keeps them compiling while they migrate to the rem channel
+/// ([`icon_scene_val`]). Once the last one has moved, this entry goes with
+/// it: one icon entry, one sizing channel.
+pub fn icon_scene(icon: IconId, size_px: f32, tint: Color) -> impl Scene + use<> {
+    icon_scene_val(icon, px(size_px), tint)
 }
 
 /// A 9×9 filled circle for text-inline status dots (capability norm ⑤):

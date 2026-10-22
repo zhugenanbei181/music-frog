@@ -16,6 +16,7 @@
 //! `Failure`.
 
 pub mod action;
+pub mod business;
 pub mod harness;
 pub mod workbenches;
 

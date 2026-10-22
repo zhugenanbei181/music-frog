@@ -21,22 +21,22 @@ export component PageConfig inherits VerticalLayout {
 
     Rectangle {
         width: parent.width;
-        height: 58px * LumenUiScale.factor;
-        border-radius: 29px * LumenUiScale.factor;
+        height: 58 * LumenUiScale.unit;
+        border-radius: 29 * LumenUiScale.unit;
         background: LumenTheme.surface;
         HorizontalLayout {
-            width: max(0px * LumenUiScale.factor, parent.width - 32px * LumenUiScale.factor);
-            x: 16px * LumenUiScale.factor;
+            width: max(0 * LumenUiScale.unit, parent.width - 32 * LumenUiScale.unit);
+            x: 16 * LumenUiScale.unit;
             height: parent.height;
-            spacing: 10px * LumenUiScale.factor;
+            spacing: 10 * LumenUiScale.unit;
             alignment: center;
-            Image { source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/add-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/add.svg"); width: 24px * LumenUiScale.factor; height: 24px * LumenUiScale.factor; y: (parent.height - self.height) / 2; image-fit: contain; }
-            Text { text: @tr("添加配置"); color: LumenTheme.accent; font-size: 18px * LumenUiScale.factor; height: parent.height; vertical-alignment: center; }
+            Image { source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/add-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/add.svg"); width: 24 * LumenUiScale.unit; height: 24 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; }
+            Text { text: @tr("添加配置"); color: LumenTheme.accent; font-size: 18 * LumenUiScale.unit; height: parent.height; vertical-alignment: center; }
         }
         TouchArea { width: parent.width; height: parent.height; clicked => { root.open-profile-add(); } }
     }
     if root.profiles.length == 0: SurfaceCard {
-        Text { text: @tr("暂无配置文件"); color: LumenTheme.text-primary; font-size: 18px * LumenUiScale.factor; font-weight: 600; }
+        Text { text: @tr("暂无配置文件"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
         Text { text: @tr("订阅或导入 YAML 配置后，可以选择当前配置并启动 Mihomo。"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
     }
     for profile in root.profiles: ProfileCardSurface {
@@ -69,16 +69,16 @@ export component PageProfileSettings inherits VerticalLayout {
     callback move-override(string, bool);
 
     width: 100%;
-    spacing: 16px * LumenUiScale.factor;
+    spacing: 16 * LumenUiScale.unit;
 
     SectionCard {
         heading: @tr("订阅信息");
         detail: root.profile-settings-kind == "remote_subscription" ? @tr("当前地址：") + root.profile-settings-location + @tr("。留空保持已保存地址；新地址会先下载并校验。") : @tr("本地来源：") + root.profile-settings-location + @tr("。来源文件保持只读。");
-        Text { text: @tr("配置名称"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; }
+        Text { text: @tr("配置名称"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; }
         LineEdit { text <=> root.profile-settings-name; placeholder-text: @tr("配置名称"); }
         if root.profile-settings-kind == "remote_subscription": LineEdit { text <=> root.profile-settings-url; input-type: password; placeholder-text: @tr("输入新订阅链接；留空不更改"); }
         if root.profile-settings-kind == "remote_subscription": HorizontalLayout {
-            spacing: 8px * LumenUiScale.factor;
+            spacing: 8 * LumenUiScale.unit;
             TextField {
                 horizontal-stretch: 1;
                 label: @tr("Age 私钥（可选）");
@@ -91,12 +91,12 @@ export component PageProfileSettings inherits VerticalLayout {
                 clicked => { root.clear-age-key(root.profile-settings-id); }
             }
         }
-        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"); color: LumenTheme.text-secondary; font-size: 12px * LumenUiScale.factor; wrap: word-wrap; }
+        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
     }
     SectionCard {
         heading: @tr("覆写配置");
         detail: @tr("选中项按列表顺序应用。修改暂存到草稿，保存后生效。");
-        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的用户 Override"); color: LumenTheme.text-secondary; font-size: 13px * LumenUiScale.factor; }
+        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的用户 Override"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
         for option in root.profile-settings-overrides: HorizontalLayout {
             CheckBox { text: option.name + "  ·  " + option.format; checked: option.selected; toggled => { root.toggle-override(option.id, self.checked); } }
             Button { text: @tr("上移"); enabled: option.selected && option.can-move-up; clicked => { root.move-override(option.id, true); } }

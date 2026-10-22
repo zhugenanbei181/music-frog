@@ -392,10 +392,8 @@ ffect_math 模块。
   - 验收：各平台渲染图标清晰无栅格毛刺，等宽数字在多端均实现物理等宽。
   - 计划：更新 assets 目录与 font 资源加载逻辑。
 
-- [ ] EFFECTS-006 [k
-
-涵盖 #26~#50）
-
+- [ ] EFFECTS-006 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 契约层效果语义规格基线
+  - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。
 - [ ] EFFECTS-007 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 呈现生命周期解耦与可组合交互状态（#26~#28）
   - 产物：在 presentation 建立 #26 UiPresence（Absent/Entering/Visible/Exiting）生命周期模型、#27 退出中交互阻断机制、#28 hover/press/focus/select/disabled 可组合交互位状态。
   - 依赖：EFFECTS-003。
@@ -418,24 +416,10 @@ ffect_math 模块。
   - 验收：数值跳变时输出连续插值帧，静止时时钟立即休眠。
   - 计划：实现 presentation::clock 与 tween 模块。
 
-- [ ] EFFECTS-012 [kind: presentation] [priority:
-
-atus: Planned] 快照 Diff、地球极坐标与错误 Banner 模型（#45~#50）
-  - 产物：实现 #45 配置快照 Diff 差异分块投影、#46 地球经纬度极坐标转换、#47 跨国连接贝塞尔飞行光点相位、#48 ErrorBannerState、#49 抽屉焦点栈、#50 自愈步骤旋转信号。
-  - 依赖：EFFECTS-004。
-  - 验收：单测断言经纬度转三维球面坐标精确，Diff 分块正确识别增删改。
-  - 计划：编写 presentation::diff 与 geo 模块。
-
+- [ ] EFFECTS-012 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 快照 Diff、地球极坐标与错误 Banner 模型（#45~#50）
 ### 10.3 Layer 2: 共享通用组件库与材质着色基座（7条 / 20pt，涵盖 #51~#75）
 
-- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points:
-
-anned] 主次动作按钮层级与按下态弹性缩放（#53~#54）
-  - 产物：实现 #53 ButtonHierarchy（Primary/Secondary/Tertiary 明确层级）、#54 按下态 0.98 比例弹性缩放与 80ms 回弹。
-  - 依赖：EFFECTS-003。
-  - 验收：按钮交互层次分明，按下松开弹簧反馈细腻。
-  - 计划：重构 infiltrator-bevy-widgets::button。
-
+- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 主次动作按钮层级与按下态弹性缩放（#53~#54）
 - [ ] EFFECTS-016 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabLi
 
 status: Planned] 虚拟化列表容器与悬浮细滚动条控件（#58~#61）
@@ -444,18 +428,9 @@ status: Planned] 虚拟化列表容器与悬浮细滚动条控件（#58~#61）
   - 验收：千级列表流畅滚动，滚轮与键盘聚焦均能平滑定位到项。
   - 计划：重构 infiltrator-bevy-widgets::list 与 scrollarea。
 
-- [ ] EFFECTS-018 [kind: widget] [priority: P1] [points: 3] [owner:
-
-r-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
-  - 产物：实现 #65 带清除按钮与 2px 外发光环的 TextField、#66 清除操作淡出动画、#67 集成搜索图标与筛选标签的 SearchBar。
-  - 依赖：EFFECTS-002。
-  - 验收：聚焦时发光环平滑亮起，清除按钮点击平稳清空文本。
-  - 计划：重构 infiltrator-bevy-widgets::text_input。
-
-- [ ] EFFECTS-020 [kind: widget] [priority: P1] [points
-
-划：扩充 infiltrator-bevy-widgets 弹出组件家族。
-
+- [ ] EFFECTS-018 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
+- [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
+  - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。
 ### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（8条 / 24pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
@@ -477,3 +452,53 @@ U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入�
 
 - [ ] EFFECTS-025 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 官方 BoxShadow、渐变与 UiTransform 位移（#90~#92）
   - 产物：实现 #90 全量卡片应用 0.20 原生 BoxShadow、#91 BackgroundGradi
+## 十一、工程约束门禁补齐（2026-10-22，依赖/工具链/不安全点/panic 边界/库层输出/构建脚本/特性矩阵）
+
+- [ ] ENG-001.1 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace + ecosystem-gate] [status: Integrated] 依赖政策落地：`deny.toml` 裁决面、披露一致性守卫与 tag 门控生态作业
+  - 产物：仓库根新增 `deny.toml`（许可白名单、公告、禁用、来源四段；copyleft 禁止、未知注册表与未知 git 源拒绝、通配版本拒绝、`[licenses.private] ignore` 只跳过未发布工作区 crate）；`scripts/quality/dependency-policy-guard.py` 离线校验 `deny.toml` 与第三方声明文件一致并证明生态门禁里存在 tag 门控的 `cargo deny check` 作业；`.github/workflows/ecosystem-gate.yml` 新增 `dependency-policy` 作业。
+  - 依赖：无（纯离线守卫与配置，不依赖 cargo）。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿；结构门已注册该守卫与自检。
+  - 当前证据：守卫自检 4 项通过、enforce 回执 `dependency policy guard: deny.toml matches the disclosed licenses`；`cargo deny check advisories bans licenses sources` 的执行面留给统一 cargo 批次（公告库需网络）。
+  - 待验证：统一 cargo 批次跑一次 `cargo deny check advisories bans licenses sources`，按实测依赖图校准许可白名单（当前白名单为 MIT/Apache-2.0/BSD/ISC/Unlicense/CC0-1.0/Zlib/MPL-2.0/OFL-1.1/Unicode-3.0 等宽松许可）。
+
+- [ ] ENG-001.2 [kind: toolchain] [priority: P1] [points: 1] [owner: workspace + CI] [status: Integrated] 工具链单一版本：钉版守卫与主门禁去浮动引用
+  - 产物：`scripts/quality/toolchain-consistency-guard.py` 以 `rust-toolchain.toml` 为唯一真源，禁止各 workflow 浮动引用并禁止 manifest 的 `rust-version` 与真源分歧；`.github/workflows/main-gate.yml` 的 `dtolnay/rust-toolchain@stable` 改为钉住 `1.99.0`。
+  - 依赖：无。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿；结构门已注册。
+  - 当前证据：守卫自检 3 项通过、enforce 回执 `toolchain consistency guard: single pinned Rust release`；CI trigger guard 同步全绿。
+  - 待验证：随统一批次复跑远端 `main-gate`（只做格式化与结构守卫，不编译）。
+
+- [ ] ENG-001.3 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] unsafe 操作可追溯台账与棘轮守卫
+  - 产物：`scripts/quality/unsafe_inventory.json` 登记 22 个文件、67 处 unsafe 操作（ffi/jni/env/zeroize/test_support 五类与用途说明）；`scripts/quality/unsafe-traceability-guard.py` 要求操作数与源码逐个一致、缺 `SAFETY:` 说明的数量只能下降、未登记文件不得引入 unsafe。
+  - 依赖：无（离线词法扫描，注释与字面量已屏蔽，`#[unsafe(no_mangle)]` 之类不算 unsafe 操作）。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿；新增 unsafe 必须带 `SAFETY:` 说明并同步台账。
+  - 当前证据：守卫自检 4 项通过、enforce 回执 `unsafe traceability guard: 22 files, 67 operations, 46 documented-debt ceiling`。
+  - 待验证：随统一批次把 46 处缺说明的存量逐步降到 0（每降一处同步下调台账上限）。
+
+- [ ] ENG-001.4 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Integrated] panic 边界显式台账与 `panic = "abort"` 禁令
+  - 产物：`scripts/quality/panic_boundary_inventory.json` 登记 5 处 `catch_unwind` 及其拦住的失败（runtime_supervision/crash_reporting/ui_event_loop）；`scripts/quality/panic-boundary-guard.py` 要求台账与源码一一对应，并拒绝任何 profile 设置 `panic = "abort"`（否则登记的边界变成死代码）。
+  - 依赖：无。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
+  - 当前证据：守卫自检 4 项通过、enforce 回执 `panic boundary guard: 5 registered boundaries, 5 sites, no panic=abort`。
+  - 待验证：随统一批次复跑，确认无 profile 在构建配置里引入 abort。
+
+- [ ] ENG-001.5 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] 库层标准输出纪律台账与内层零打印硬门
+  - 产物：`scripts/quality/stdout_inventory.json` 登记 15 个库层打印站点（23 处 print/eprint）及其类别；`scripts/quality/stdout-discipline-guard.py` 让内层 crate（契约/领域/端口/应用/呈现）保持零打印，二进制入口与 CLI crate 的输出视为产品表面不登记。
+  - 依赖：无。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
+  - 当前证据：守卫自检 4 项通过、enforce 回执 `stdout discipline guard: 15 registered library sites, 23 print macros, inner layers at zero`。
+  - 待验证：随统一批次把 23 处库层打印逐处迁成 typed 诊断（每迁一处同步下调台账上限）。
+
+- [ ] ENG-001.6 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Integrated] 构建脚本台账与副作用声明
+  - 产物：`scripts/quality/build_surface_inventory.json` 登记 5 个 `build.rs` 的归属 crate、构建依赖、是否派生进程与是否写文件；`scripts/quality/build-surface-guard.py` 要求台账与磁盘一一对应、构建依赖与 manifest 一致，并拒绝未声明的进程派生或文件写入。
+  - 依赖：无。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
+  - 当前证据：守卫自检 4 项通过、enforce 回执 `build surface guard: 5 declared build scripts, 1 write inside their own output directory`。
+  - 待验证：随统一批次复跑，确认新增 build 脚本都会先登记。
+
+- [ ] ENG-001.7 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] 特性矩阵台账与特性引用可解析
+  - 产物：`scripts/quality/feature_matrix.json` 镜像 11 个 crate 的 35 个特性并逐个分类（product/platform/capture/test）；`scripts/quality/feature-matrix-guard.py` 要求台账与 manifest 逐字一致、`default` 不得隐式开启 capture/test 特性、脚本与 CI 的 `--features` 必须指向已登记特性、依赖边请求的工作区特性必须存在。
+  - 依赖：无。
+  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
+  - 当前证据：守卫自检 4 项通过、enforce 回执 `feature matrix guard: 11 crates, 35 declared features, every script flag resolves`。
+  - 待验证：随统一批次复跑，确认各 CI 腿的 `--features` 组合仍能解析。

@@ -27,7 +27,8 @@ use infiltrator_contract::surface_snapshot::{
 };
 use infiltrator_contract::sync_snapshot::SyncPageSnapshot;
 use infiltrator_slint::SlintAction;
-use infiltrator_slint::surface::harness::{SurfaceHarness, SurfaceOutcome};
+use infiltrator_slint::surface::harness::SurfaceHarness;
+use infiltrator_slint::surface::harness::SurfaceOutcome;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::page::PageData;

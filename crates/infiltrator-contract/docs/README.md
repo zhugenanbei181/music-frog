@@ -5,6 +5,7 @@
 本目录记录由 `infiltrator-contract` 拥有的跨 UI 语义与布局契约。
 
 - [跨表面语义与场景验收](UI_PARITY_AUDIT.md)：共享场景身份、同异律和证据要求。
+- 布局与效果尺寸由三个闭集裁决：[`space`](../src/space.rs) 发布 8pt/4pt 网格阶梯（`SpaceStep`）、屏幕边距（`ScreenMargin`）、物理像素白名单（`PhysicalSize`）与 chrome 高度（`ChromeHeight`），并以 `classify_length` 判定任一长度所属通道，通道之外的长度即缺陷；[`radius`](../src/radius.rs) 发布互斥圆角角色（`RadiusRole`：居中对话框＝MODAL、面板式对话框＝CARD、底部抽屉＝BOTTOM_SHEET）与只能由角色构造的 `Radius`；[`elevation`](../src/elevation.rs) 发布带层级的 `ElevationLevel` 与双层 `ShadowSpec`。越出闭集的硬编码尺寸与重叠圆角角色由 [`design_token_guard`](../tests/design_token_guard.rs) 静态守卫拦截（EFFECTS-002）。
 - ProfileDocument codec 的 Mixin Studio 跨端观察由 [`profile_mixin_studio`](../src/profile_mixin_studio.rs) 定义；展示文案由 presentation 投影。
 - Profile 展示名由 [`profile_display_name`](../src/profile_display_name.rs) 用 typed Identity/Custom 读写结果表达，稳定 ProfileId 与文件名不变。
 - Profile catalog 顺序由 [`profile_catalog_order`](../src/profile_catalog_order.rs) 以完整引擎身份快照、精确目标排列和 Applied/Unchanged/Stale 回执表达。

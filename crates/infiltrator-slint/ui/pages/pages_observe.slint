@@ -2,16 +2,17 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ObservationRow, TrafficBar } from "../components/models.slint";
 import { PageConnections, PageConnectionDetail, PageLogs, PageRules, PageProviders, PageTraffic } from "page_observe.slint";
+import { ConnectionSort, LogLevel, RuntimeStatus, TrafficRange } from "../components/domain_enums.slint";
 
 export component PagesObserve inherits VerticalLayout {
     in property <string> page;
     in property <bool> android-platform;
     in property <bool> predictive-back-enabled;
-    in property <string> runtime-status;
+    in property <RuntimeStatus> runtime-status;
     in property <bool> connection-show-closed;
     in property <string> snapshot-window-warning;
     in-out property <string> connection-search;
-    in-out property <string> connection-sort;
+    in-out property <ConnectionSort> connection-sort;
     in property <[ObservationRow]> connections;
     in property <string> connection-breaking-id;
 
@@ -33,8 +34,9 @@ export component PagesObserve inherits VerticalLayout {
 
     // Logs
     in property <string> log-stream-status;
+    in property <string> log-search-error;
     in-out property <string> log-search;
-    in-out property <string> log-level;
+    in-out property <LogLevel> log-level;
     in property <[ObservationRow]> logs;
 
     // Rules & Providers
@@ -47,7 +49,7 @@ export component PagesObserve inherits VerticalLayout {
     in property <string> traffic-stream-status;
     in property <string> stat-down;
     in property <string> stat-up;
-    in-out property <string> traffic-range;
+    in-out property <TrafficRange> traffic-range;
     in-out property <string> traffic-selected-detail;
     in property <string> traffic-today-down;
     in property <string> traffic-today-up;
@@ -63,13 +65,13 @@ export component PagesObserve inherits VerticalLayout {
     callback set-connection-view(bool);
     callback refresh-observations();
     callback search-connections(string);
-    callback set-connection-sort(string);
+    callback set-connection-sort(ConnectionSort);
     callback open-connection(string);
     callback close-connection(string);
     callback cache-back-preview();
     callback go-back();
     callback search-logs(string);
-    callback set-log-level(string);
+    callback set-log-level(LogLevel);
     callback export-logs();
     callback search-rules(string);
     callback toggle-rule(string, bool);
@@ -120,7 +122,7 @@ export component PagesObserve inherits VerticalLayout {
 
     if root.page == "Logs": PageLogs {
         runtime-status: root.runtime-status;
-        log-stream-status: root.log-stream-status;
+        log-stream-status: root.log-stream-status; log-search-error: root.log-search-error;
         snapshot-window-warning: root.snapshot-window-warning;
         log-search <=> root.log-search;
         log-level <=> root.log-level;

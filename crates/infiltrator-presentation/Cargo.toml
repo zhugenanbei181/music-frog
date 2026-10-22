@@ -7,7 +7,7 @@ description = "Pure cross-surface read-model projections and presentation folds.
 
 [dependencies]
 lurker-core-contract = { path = "../lurker-core-contract" }
-lurker-ui-presentation = { version = "0.51.0", path = "../lurker-ui-presentation" }
+lurker-ui-presentation = { version = "0.68.0", path = "../lurker-ui-presentation" }
 chrono = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }

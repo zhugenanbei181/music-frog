@@ -69,6 +69,10 @@ mod language_choice_tests;
 
 #[path = "headless/doctor_action_tests.rs"]
 mod doctor_action_tests;
+
+#[path = "headless/doctor_repair_progress_tests.rs"]
+mod doctor_repair_progress_tests;
+
 #[path = "common/doctor_port.rs"]
 mod doctor_port;
 

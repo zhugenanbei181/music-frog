@@ -5,6 +5,7 @@
 //! capture pipeline uses) and then reads the real surface state. A demo that
 //! only repainted its page could not satisfy any of these assertions.
 use super::*;
+use crate::demo::rule_provider::CAPTURE_REFRESH_FAILURE;
 use crate::demo::sync::demo_conflict_key;
 use crate::state::AppState;
 use crate::test_mounts::surface_task_harness::drain_surface_task;
@@ -21,6 +22,7 @@ use infiltrator_domain::app_routing::AppRoutingRule;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
+use infiltrator_test_support::profile_store_fixtures::LARGE_PROFILE_RULE_COUNT;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
@@ -35,6 +37,14 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
         window_size: DEFAULT_WINDOW,
         capture_marker: None,
         scenario: Some(scenario),
+    }
+}
+
+/// The demo environment of the providers tab, the way the capture opens it.
+fn providers_demo_env(scenario: FeatureId) -> DemoEnv {
+    DemoEnv {
+        providers_tab: true,
+        ..demo_env(Route::Rules, scenario)
     }
 }
 
@@ -610,5 +620,78 @@ fn the_sync_conflict_capture_records_the_per_key_decision() {
         diff.picks.get(&key).copied(),
         Some(true),
         "the session carries the user's per-key decision"
+    );
+}
+
+#[test]
+fn the_large_document_capture_renders_a_bounded_window_over_the_real_document() {
+    let env = demo_env(Route::Editor, FeatureId::EditorLargeDocumentWindow);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let viewport = state.editor.profile_viewport;
+    assert!(
+        viewport.total_lines() > LARGE_PROFILE_RULE_COUNT,
+        "the editor really holds the capture store's large document: {} lines",
+        viewport.total_lines()
+    );
+    assert!(
+        !viewport.covers_document(),
+        "the window renders a band of the document, not the whole file"
+    );
+    assert!(
+        state.editor.document_session.can_edit(),
+        "the loaded document is the owner's editable draft"
+    );
+    assert!(
+        state
+            .editor
+            .editor_content
+            .text()
+            .contains("DOMAIN-SUFFIX,node-0.example.com,DIRECT"),
+        "the rendered document is the owner's own bytes"
+    );
+}
+
+#[test]
+fn the_snippet_capture_splices_the_shared_catalogue_body_at_the_caret() {
+    let env = demo_env(Route::Editor, FeatureId::EditorSnippetInsertion);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    assert!(
+        state
+            .editor
+            .editor_content
+            .text()
+            .contains("DOMAIN-SUFFIX,google.com,PROXIES"),
+        "the shared codec spliced the catalogue body into the document"
+    );
+    assert!(
+        state.editor.syntax_error.is_none(),
+        "the document is still valid after the insertion: {:?}",
+        state.editor.syntax_error
+    );
+}
+
+#[test]
+fn the_rule_provider_capture_lands_the_owner_network_refusal() {
+    let env = providers_demo_env(FeatureId::RulesProviderRefreshError);
+    let (mut state, task) = AppState::demo(&env);
+    drain(&mut state, task);
+    let refusal = state
+        .shell
+        .error_msg
+        .as_deref()
+        .expect("the owner refused the provider refresh");
+    assert!(
+        refusal.contains(CAPTURE_REFRESH_FAILURE),
+        "the banner carries the owner's own refusal: {refusal}"
+    );
+    assert!(
+        state
+            .editor
+            .rule_providers
+            .iter()
+            .any(|provider| provider.controller.is_some()),
+        "the provider list carries the controller reference the refresh submits"
     );
 }

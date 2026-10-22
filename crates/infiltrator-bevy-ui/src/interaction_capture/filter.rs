@@ -41,6 +41,8 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
@@ -60,6 +62,10 @@ struct FilterCapture {
     store: Arc<FilterCaptureStore>,
     stage: u8,
     reported: Option<(u8, ProfileEditorPane, bool)>,
+    /// The owner's own readback of the editor card: the document and the
+    /// stored sidecar the card renders.
+    document: Option<ProfileDocumentSnapshot>,
+    options: Option<ProfileOptionsSnapshot>,
 }
 pub fn install(app: &mut App) {
     let store = Arc::new(FilterCaptureStore::default());
@@ -93,6 +99,8 @@ pub fn install(app: &mut App) {
         store,
         stage: 0,
         reported: None,
+        document: None,
+        options: None,
     });
 }
 #[derive(SystemParam)]
@@ -150,14 +158,16 @@ pub fn activate(
     if probe.capture.reported != Some(progress) {
         let filter = &probe.options.filter;
         eprintln!(
-            "filter capture progress: stage={} pane={:?} editable={} tabs={} fields={} pages={} source={:?} include={:?} advanced={:?} failure={:?} writes={}",
+            "filter capture progress: stage={} pane={:?} editable={} current={} tabs={} fields={} pages={} source={:?} latest={:?} include={:?} advanced={:?} failure={:?} writes={}",
             progress.0,
             progress.1,
             progress.2,
+            filter.current(),
             probe.tabs.iter().count(),
             probe.fields.iter().count(),
             probe.pages.iter().count(),
             filter.source_profile(),
+            filter.latest_profile(),
             filter.draft.include,
             filter.draft.advanced_policy,
             filter
@@ -179,7 +189,7 @@ pub fn activate(
         tokio_application_runtime()
             .expect("filter runtime")
             .block_on(Box::pin(async move {
-                scoped_commands
+                let document = scoped_commands
                     .execute(CommandIntent::LoadProfileDocument {
                         profile: Some(FILTER_PROFILE.into()),
                     })
@@ -200,9 +210,9 @@ pub fn activate(
                     .into_profile_options()
                     .expect("typed options");
                 let snapshot = reader.read().await;
-                *reply.lock().expect("filter read") = Some((snapshot, options));
+                *reply.lock().expect("filter read") = Some((snapshot, document, options));
             }));
-        let (snapshot, options) = result
+        let (snapshot, document, options) = result
             .lock()
             .expect("filter read")
             .take()
@@ -210,14 +220,41 @@ pub fn activate(
         let mut snapshot = snapshot.expect("actual page");
         snapshot.origin = SurfaceOrigin::Demo;
         snapshot.revision = probe.latest.0.revision + 1;
+        // The owner's own readback: the loaded document and the stored
+        // sidecar are what the editor card renders, so the capture publishes
+        // the owner's answers instead of leaving the card on the demo
+        // fixture's own profile.
+        snapshot.profile_editor.document = Some(document.clone());
+        snapshot.profile_editor.options = Some(options.clone());
         probe.options.adopt_snapshot(
             &options.workspace_identity,
             &options.mixin_yaml,
             &options.filter,
         );
+        probe.capture.document = Some(document);
+        probe.capture.options = Some(options);
         probe.latest.0 = snapshot;
         replay_surface_snapshot(probe.latest.0.clone(), &mut commands);
         probe.capture.stage = 1;
+        return;
+    }
+    // The filter editor is bound to the profile the editor card carries, so
+    // the owner's readback has to reach the surface before the pane can be
+    // edited. When the surface has not adopted it yet, the capture
+    // republishes the owner's readback until the pane really is editable.
+    if probe.capture.stage >= 1
+        && !probe.options.filter.can_edit()
+        && let (Some(document), Some(options)) = (
+            probe.capture.document.clone(),
+            probe.capture.options.clone(),
+        )
+    {
+        let mut snapshot = probe.latest.0.clone();
+        snapshot.profile_editor.document = Some(document);
+        snapshot.profile_editor.options = Some(options);
+        snapshot.revision = probe.latest.0.revision + 1;
+        probe.latest.0 = snapshot.clone();
+        replay_surface_snapshot(snapshot, &mut commands);
         return;
     }
     let target = match probe.capture.stage {

@@ -55,6 +55,7 @@ mod proxies;
 mod proxy_fixtures;
 mod routing_intent;
 mod rule_list;
+mod rule_provider;
 mod rule_statistics;
 mod rule_trace;
 mod rules;
@@ -212,9 +213,14 @@ fn update(state: &mut AppState, message: Message) -> Task<Message> {
         rule_statistics::update(state, message)
     } else if matches!(
         state.shell.capture_scenario,
-        Some(FeatureId::EditorYamlErrorNavigation) | Some(FeatureId::ProfilesDiffViewer)
+        Some(FeatureId::EditorYamlErrorNavigation)
+            | Some(FeatureId::EditorLargeDocumentWindow)
+            | Some(FeatureId::EditorSnippetInsertion)
+            | Some(FeatureId::ProfilesDiffViewer)
     ) {
         editor_capture::update(state, message)
+    } else if state.shell.capture_scenario == Some(FeatureId::RulesProviderRefreshError) {
+        rule_provider::update(state, message)
     } else {
         rule_list::update(state, message)
     }

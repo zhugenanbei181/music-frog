@@ -115,18 +115,25 @@ pub fn editor_status(editor: &RuleListEditor, catalog: &dyn TextCatalog) -> Stri
     } else {
         "rules_draft_unavailable"
     };
-    let profile = editor
+    // A profile without a name has no name to state: the sentence names the
+    // unnamed profile instead of trailing an empty name and its separator.
+    let named = editor
         .base
         .as_ref()
         .map(|document| document.source.profile.as_str())
         .unwrap_or_default();
+    let profile = if named.trim().is_empty() {
+        catalog.text("rules_draft_unnamed_profile").to_string()
+    } else {
+        named.to_string()
+    };
     let reason = editor
         .current_failure()
         .map(|failure| failure.message.as_str())
         .unwrap_or_default();
     interpolate(
         catalog.text(key).as_ref(),
-        &[("profile", profile), ("reason", reason)],
+        &[("profile", profile.as_str()), ("reason", reason)],
     )
 }
 pub fn editor_preview(editor: &RuleListEditor, catalog: &dyn TextCatalog) -> Vec<String> {

@@ -55,7 +55,7 @@ fn mount_list(app: &mut App, row_count: usize, selected: Option<usize>) {
             let rows = (0..row_count)
                 .map(|index| list_row_scene(format!("proxy {index}"), false, &palette))
                 .collect();
-            commands.spawn_scene(list_scene(rows, selected));
+            commands.spawn_scene(list_scene(rows, selected, &palette));
         },
     );
     app.update();

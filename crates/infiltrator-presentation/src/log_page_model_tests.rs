@@ -1,5 +1,8 @@
 //! test-intent: behavior
-use crate::log_page_model::{LogLevelFilter, LogLevelSelection, LogPageStatus, LogsPageModel};
+use crate::log_page_model::{
+    LogLevelFilter, LogLevelSelection, LogPageStatus, LogsPageModel, project_log_line_sections,
+    project_log_wrap_metrics,
+};
 use crate::log_search::LogSearchOutcome;
 use infiltrator_contract::logs::{LogLevel, LogStreamState};
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
@@ -196,4 +199,37 @@ fn an_empty_page_reports_no_records_rather_than_no_matches() {
     assert!(model.status().is_readable());
     assert_eq!(model.search_outcome(), LogSearchOutcome::NoRecords);
     assert_eq!(model.status_key(), "logs_no_realtime_records");
+}
+
+#[test]
+fn a_log_line_is_projected_into_its_four_sections() {
+    let mut model = LogsPageModel::default();
+    model.observe(1, None, &ready_page(vec![entry(1, "info", "hello")], None));
+    let row = model.row(1).expect("the record must be projected");
+    let sections = project_log_line_sections(row);
+    assert_eq!(sections.timestamp, "2026-10-20T00:00:00Z");
+    assert_eq!(sections.level, "[INFO]");
+    assert_eq!(sections.source, "[TCP]");
+    assert_eq!(sections.message, "hello");
+}
+
+#[test]
+fn a_long_record_wraps_into_more_than_one_line() {
+    let short = project_log_wrap_metrics("abc", 10.0);
+    assert_eq!(short.lines, 1);
+    assert_eq!(short.extra_lines, 0);
+
+    let long = project_log_wrap_metrics("abcdefghijklmno", 10.0);
+    assert_eq!(long.lines, 2);
+    assert_eq!(long.extra_lines, 1);
+
+    // A full-width character counts twice as much as a half-width one.
+    let wide = project_log_wrap_metrics("中中", 2.0);
+    assert_eq!(wide.lines, 1);
+    let wider = project_log_wrap_metrics("中中中", 2.0);
+    assert_eq!(wider.lines, 2);
+
+    // A line without a width keeps the record on one line.
+    let narrow = project_log_wrap_metrics("abc", 0.0);
+    assert_eq!(narrow.lines, 1);
 }
