@@ -278,3 +278,21 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
   The selected distribution terms and accompanying license texts must follow
   Slint's upstream license materials; the Rust crates are fetched at build time
   and are not vendored in this repository.
+
+## 13. Android host tunnelling stack (`tun2proxy`, `tun2`, `socks5-impl`)
+
+- Source: crates.io, pinned by `Cargo.lock`: `tun2proxy` 0.5.4 and `tun2` 3.1.8
+  are direct dependencies of the Android host crate
+  (`crates/infiltrator-android/Cargo.toml`), and `socks5-impl` 0.5.17 is pulled
+  in by `tun2proxy`.
+- License: **`socks5-impl` is GPL-3.0-or-later**; `tun2` is under the WTFPL
+  and the rest of the stack is MIT/Apache-2.0. The copyleft crate is the one
+  item in the cargo graph that is not permissive, so it is the only one that
+  needs a per-crate exception in `deny.toml`; the disclosure lives here and
+  the open item is tracked in the engineering ledger.
+- Why it is here: the Android host opens the userspace tunnel through this
+  stack, so the crate is compiled into the shipped APK. The distribution model
+  of the product therefore has to account for it: either the host stops
+  linking a GPL-3.0-or-later crate, or the release explicitly ships the
+  corresponding license text and source offer. Do not remove this section
+  while the dependency is still in the lock file.

@@ -172,6 +172,8 @@
 
 | 条目 | 所在看板 | 阻塞腿 | 阻塞方 | 本板状态 |
 | --- | --- | --- | --- | --- |
+| EFFECTS-046 | [过去佛](CODE_TODO_PAST.md) | Windows 11 DWM 亚克力/云母与 macOS NSVisualEffectView 混成的**原生材质像素回执** | Windows 11 / macOS 实机或对应 CI 渲染环境 | 随条目本体推进，条目本体不因该腿阻塞 |
+| EFFECTS-047 | [过去佛](CODE_TODO_PAST.md) | Android 真机的 Activity 挂起恢复无黑屏与列表滑动不误触发子项点击的**实机截图回执** | ARM64 物理设备（Android flavor） | 随条目本体推进，条目本体不因该腿阻塞 |
 | BANDROID-002.1 | [过去佛](CODE_TODO_PAST.md) | `[ARM64真机 D]` always-on 恢复与真实连通性 | ARM64 物理设备 | 随条目本体推进，条目本体不因该腿阻塞 |
 | BANDROID-002.2 | [过去佛](CODE_TODO_PAST.md) | `[ARM64真机 D]` 真实流量、Wi-Fi/蜂窝切换、WakeLock 释放 | ARM64 物理设备 | 随条目本体推进，条目本体不因该腿阻塞 |
 | BANDROID-039.2 | 本板 §三 | 设备升级腿 | ARM64 物理设备 | 随条目本体推进 |

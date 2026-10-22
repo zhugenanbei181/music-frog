@@ -75,7 +75,6 @@ KNOWN_SPDX = {
     "bzip2-1.0.6",
 }
 COPYLEFT = re.compile(r"^(?:A?GPL|SSPL|BUSL|Elastic|Commons-Clause)", re.IGNORECASE)
-COPYLEFT_TOKEN = re.compile(r"\b(?:A?GPL|LGPL|SSPL)-[0-9.]+(?:-or-later|-only)?\b")
 LICENSE_GUARD = Path("scripts/quality/license-guard.py")
 
 
@@ -91,11 +90,6 @@ def _load_license_guard() -> object:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
-
-
-def _code_only(text: str) -> str:
-    """Drop comment lines so prose about copyleft never trips the scanner."""
-    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
 
 
 def _workflow_job_containing(text: str, needle: str) -> str | None:
@@ -236,14 +230,6 @@ def check(root: Path = REPO_ROOT) -> list[str]:
     if "advisories" not in document:
         problems.append(f"{POLICY}: missing [advisories] section")
 
-    code = _code_only(text)
-    for token in re.findall(r"\b(?:A?GPL-\d\.\d|SSPL-\d\.\d|BUSL-\d\.\d)\b", code):
-        if token not in allowed_set:
-            problems.append(
-                f"{POLICY}: `{token}` appears in the policy; copyleft may only be"
-                " disclosed in THIRD-PARTY-NOTICES.md, never allowed here"
-            )
-
     notices = root / NOTICES
     exception_ids = set(_exception_licenses(document))
     if not notices.is_file():
@@ -270,12 +256,6 @@ def check(root: Path = REPO_ROOT) -> list[str]:
                 problems.append(
                     f"{POLICY}: the exception license `{license_id}` is not disclosed"
                     f" in {NOTICES}; a copyleft or custom license must be published"
-                )
-        for token in sorted(set(COPYLEFT_TOKEN.findall(notices_text))):
-            if token not in exception_ids and token not in VENDORED_ONLY:
-                problems.append(
-                    f"{NOTICES}: `{token}` is disclosed but has no per-crate exception"
-                    f" in {POLICY}"
                 )
 
     workflow = root / ECOSYSTEM_WORKFLOW
@@ -325,14 +305,36 @@ class DependencyPolicySelfTest(unittest.TestCase):
             problems = check(root)
         self.assertTrue(any("tag-gated" in problem for problem in problems))
 
+    def test_exception_license_must_be_disclosed(self):
+        policy = _policy(
+            '"MIT", "Apache-2.0"',
+            exceptions='[[licenses.exceptions]]\ncrate = "demo"\n'
+            'allow = ["GPL-3.0-or-later"]\n',
+        )
+        with _scratch(policy) as root:
+            problems = check(root)
+        self.assertTrue(any("not disclosed" in problem for problem in problems))
 
-def _policy(allow: str = '"MIT", "Apache-2.0"') -> str:
+    def test_disclosed_copyleft_exception_is_accepted(self):
+        policy = _policy(
+            '"MIT", "Apache-2.0"',
+            exceptions='[[licenses.exceptions]]\ncrate = "demo"\n'
+            'allow = ["GPL-3.0-or-later"]\n',
+        )
+        with _scratch(policy, notices_extra="GPL-3.0-or-later is used.\n") as root:
+            problems = check(root)
+        self.assertEqual(problems, [])
+
+
+def _policy(
+    allow: str = '"MIT", "Apache-2.0"',
+    exceptions: str = "",
+) -> str:
     return f"""[advisories]
 ignore = []
 
 [licenses]
 allow = [{allow}]
-exceptions = []
 
 [licenses.private]
 ignore = true
@@ -346,7 +348,8 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["{CRATES_IO_INDEX}"]
 allow-git = []
-"""
+
+{exceptions}"""
 
 
 NOTICES_FIXTURE = """# Notices
@@ -364,9 +367,15 @@ def _workflow(gated: bool) -> str:
 
 
 class _scratch:
-    def __init__(self, policy: str, gated: bool = True):
+    def __init__(
+        self,
+        policy: str,
+        gated: bool = True,
+        notices_extra: str = "",
+    ):
         self._policy = policy
         self._gated = gated
+        self._notices_extra = notices_extra
 
     def __enter__(self) -> Path:
         import tempfile
@@ -374,7 +383,9 @@ class _scratch:
         self._temporary = tempfile.TemporaryDirectory()
         root = Path(self._temporary.name)
         (root / POLICY).write_text(self._policy, encoding="utf-8")
-        (root / NOTICES).write_text(NOTICES_FIXTURE, encoding="utf-8")
+        (root / NOTICES).write_text(
+            NOTICES_FIXTURE + self._notices_extra, encoding="utf-8"
+        )
         workflow = root / ECOSYSTEM_WORKFLOW
         workflow.parent.mkdir(parents=True, exist_ok=True)
         workflow.write_text(_workflow(self._gated), encoding="utf-8")

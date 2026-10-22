@@ -417,7 +417,7 @@ ffect_math 模块。
   - 计划：实现 presentation::clock 与 tween 模块。
 
 - [ ] EFFECTS-012 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 快照 Diff、地球极坐标与错误 Banner 模型（#45~#50）
-### 10.3 Layer 2: 共享通用组件库与材质着色基座（7条 / 20pt，涵盖 #51~#75）
+### 10.3 Layer 2: 共享通用组件库与材质着色基座（4条 / 12pt，涵盖 #51~#75）
 
 - [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 主次动作按钮层级与按下态弹性缩放（#53~#54）
 - [ ] EFFECTS-016 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabLi
@@ -431,7 +431,7 @@ status: Planned] 虚拟化列表容器与悬浮细滚动条控件（#58~#61）
 - [ ] EFFECTS-018 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
 - [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
   - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。
-### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（8条 / 24pt，涵盖 #76~#115）
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（3条 / 9pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
   - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78
@@ -455,11 +455,11 @@ U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入�
 ## 十一、工程约束门禁补齐（2026-10-22，依赖/工具链/不安全点/panic 边界/库层输出/构建脚本/特性矩阵）
 
 - [ ] ENG-001.1 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace + ecosystem-gate] [status: Integrated] 依赖政策落地：`deny.toml` 裁决面、披露一致性守卫与 tag 门控生态作业
-  - 产物：仓库根新增 `deny.toml`（许可白名单、公告、禁用、来源四段；copyleft 禁止、未知注册表与未知 git 源拒绝、通配版本拒绝、`[licenses.private] ignore` 只跳过未发布工作区 crate）；`scripts/quality/dependency-policy-guard.py` 离线校验 `deny.toml` 与第三方声明文件一致并证明生态门禁里存在 tag 门控的 `cargo deny check` 作业；`.github/workflows/ecosystem-gate.yml` 新增 `dependency-policy` 作业。
+  - 产物：仓库根新增 `deny.toml`（许可白名单、公告、禁用、来源四段；白名单按锁文件的真实依赖图校准，copyleft 与 `LicenseRef` 一律不进全局白名单、只走逐 crate 例外且必须在第三方声明里披露；未知注册表与未知 git 源拒绝、通配版本拒绝、`[licenses.private] ignore` 只跳过未发布工作区 crate）；`scripts/quality/dependency-policy-guard.py` 离线校验 `deny.toml` 与第三方声明文件一致并证明生态门禁里存在 tag 门控的 `cargo deny check` 作业；`.github/workflows/ecosystem-gate.yml` 新增 `dependency-policy` 作业。
   - 依赖：无（纯离线守卫与配置，不依赖 cargo）。
   - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿；结构门已注册该守卫与自检。
   - 当前证据：守卫自检 4 项通过、enforce 回执 `dependency policy guard: deny.toml matches the disclosed licenses`；`cargo deny check advisories bans licenses sources` 的执行面留给统一 cargo 批次（公告库需网络）。
-  - 待验证：统一 cargo 批次跑一次 `cargo deny check advisories bans licenses sources`，按实测依赖图校准许可白名单（当前白名单为 MIT/Apache-2.0/BSD/ISC/Unlicense/CC0-1.0/Zlib/MPL-2.0/OFL-1.1/Unicode-3.0 等宽松许可）。
+  - 待验证：统一 cargo 批次跑一次 `cargo deny check advisories bans licenses sources`；白名单已按锁文件实测校准（MIT/Apache-2.0/BSD/ISC/Unlicense/CC0-1.0/Zlib/MPL-2.0/OFL-1.1/Unicode-3.0/NCSA/WTFPL/bzip2-1.0.6/CDLA-Permissive-2.0 等宽松许可），逐 crate 例外只有 Slint 家族的免版税变体与 Android 隧道的 `socks5-impl`，两者都已在第三方声明里披露，Android 那条 copyleft 的处置另立 `ENG-003.1`。
 
 - [ ] ENG-001.2 [kind: toolchain] [priority: P1] [points: 1] [owner: workspace + CI] [status: Integrated] 工具链单一版本：钉版守卫与主门禁去浮动引用
   - 产物：`scripts/quality/toolchain-consistency-guard.py` 以 `rust-toolchain.toml` 为唯一真源，禁止各 workflow 浮动引用并禁止 manifest 的 `rust-version` 与真源分歧；`.github/workflows/main-gate.yml` 的 `dtolnay/rust-toolchain@stable` 改为钉住 `1.99.0`。
@@ -502,3 +502,53 @@ U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入�
   - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
   - 当前证据：守卫自检 4 项通过、enforce 回执 `feature matrix guard: 11 crates, 35 declared features, every script flag resolves`。
   - 待验证：随统一批次复跑，确认各 CI 腿的 `--features` 组合仍能解析。
+
+
+## 十二、波次 A 效果地基与平台能力（已交付，8条 / 24pt）
+- [ ] EFFECTS-002 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 网格间距、圆角与物理尺寸白名单（#6~#9）
+  - 产物：在 design_tokens 规范 #6 8pt/4pt 严格网格阶梯、#7 互斥圆角阶梯裁决、#8 物理像素白名单闭集（发丝线/光标/触控区）、#9 Elevation 空间阴影多阶定义。
+  - 依赖：EFFECTS-001。
+  - 验收：静态守卫拦截越出白名单的硬编码尺寸与重叠圆角角色。
+  - 计划：更新 space.rs 与 radius.rs，补齐 ShadowSpec 定义。
+- [ ] EFFECTS-004 [kind: math] [priority: P1] [points: 3] [owner: infiltrator-shared] [status: Integrated] Oklab 感知插值与几何 SDF 数学库（#14~#17）
+  - 产物：在 infiltrator-shared 实现 #14 Oklab 色彩空间感知插值算法、#15 三次贝塞尔曲线求值器、#16 RK4 弹簧状态积分器、#17 圆角矩形与药丸形解析 SDF 距离场公式库。
+  - 依赖：无。
+  - 验收：数学库单测覆盖色彩平滑过渡、弹簧能量衰减无发散、SDF 零误差。
+  - 计划：创建 infiltrator_shared::eind: contract] [priority: P1] [points: 2] [owner: infiltrator-contract] [status: Planned] 智能截断、安全区与三级画质降级契约（#22~#25）
+  - 产物：在 contract 裁决 #22 长文本智能渐隐截断算法、#23 跨平台安全边距 SafeAreaInsets、#24 纹理容量与显存预算常数、#25 简化/标准/增强三级画质档位 VisualTier。
+  - 依赖：EFFECTS-001。
+  - 验收：契约测试覆盖三级画质枚举与安全区边界换算。
+  - 计划：定义 VisualTier 枚举与 safe_area 类型。
+- [ ] EFFECTS-010 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 交互意图归一化与输入法组合态保护（#35~#36）
+  - 产物：在 presentation 建立 #35 统一键盘导航意图转换、#36 ImeComposing 组合态保护协议（组合期间抑制快照热重载）。
+  - 依赖：无。
+  - 验收：单测验证中文输入法输入未完成时模型不强行刷新文本框。
+  - 计划：重构P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 测速波浪、规则命中与日志流分段投影（#40~#44）
+  - 产物：实现 #40 测速 0.0~1.0 呼吸相位输出、#41 协议特性标签去重归约、#42 规则命中分级 Badge 投影、#43 日志行四段分节结构体、#44 长日志软折行度量。
+  - 依赖：EFFECTS-001。
+  - 验收：单测覆盖多种协议标签去重、日志分段解析与折行高度推导。
+  - 计划：扩充 proxies_page_model 与 logs_page_model。
+- [ ] EFFECTS-015 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabList 驱动平滑弹簧分段切换器（#55~#57）
+  - 产物：实现 #55 官方 TabList 驱动的平滑弹簧 SegmentedControl、#56 BorderRadius::MAX 胶囊圆角、#57 统一 Switch 控件真源（收敛轨道与旋钮）。
+  - 依赖：EFFECTS-003。
+  - 验收：切换 Tab 时滑动胶囊带阻尼惯性移动，Switch 几何全仓唯一。
+  - 计划：更新 infiltrator-bevy-widgets::tabs 与 switch。
+- [ ] EFFECTS-017 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 列表边缘羽化遮罩、徽标与趋势图（#62~#64）
+  - 产物：实现 #62 列表两端 16px 透明渐变羽化遮罩、#63 大写字高绝对居中 StatusBadge、#64 迷你延迟趋势图 MiniSparkline。
+  - 依赖：EFFECTS-005。
+  - 验收：列表滚动边缘平滑淡出不生硬切断，迷你图曲线清晰抗锯齿。
+- [ ] EFFECTS-042 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Integrated] 启动期终端能力协商与三级色彩量化（#172~#173）
+  - 产物：实现 #172 启动期终端能力协商探测（Truecolor/256/16 色彩深度、Kitty/Sixel 图形协议）、#173 三级色彩（Truecolor/256/16）自动量化，并以 `infiltrator terminal capabilities|quantize` 子命令暴露协商结果。
+  - 依赖：无。
+  - 验收：全平台终端启动自动协商色彩与协议，无输入抢占死锁。
+  - 计划：在 infiltrator-cli 内实现 terminal_capability 与 color_quantize 模块，并在进入任何交互前完成协商。
+- [ ] EFFECTS-046 [kind: platform] [priority: P1] [points: 3] [owner: infiltrator-desktop] [status: Integrated] 现代无边框标题栏与多系统模糊扩展集成（#186~#189）
+  - 产物：实现 #186 三桌面无边框现代一体化标题栏、#187 Windows 11 Dwm 亚克力/云母模糊扩展、#188 macOS NSVisualEffectView 材质混成、#189 Wayland Niri/KWin 窗口模糊扩展。
+  - 依赖：无。
+  - 验收：Windows/macOS/Wayland 窗口呈现操作系统原生现代高级质感。
+  - 计划：在 infiltrator-desktop 实现平台窗口特性扩展。
+- [ ] EFFECTS-047 [kind: mobile] [priority: P1] [points: 3] [owner: infiltrator-android] [status: Integrated] 移动端安全区避让、手势消歧与旋转自适应（#190~#192）
+  - 产物：实现 #190 Android Surface 销毁重建安全恢复、#191 触摸滑动与点击事件仲裁（10px 容差门限）、#192 横竖屏旋转自适应重新布局。
+  - 依赖：无。
+  - 验收：列表滑动绝不误触发子项点击，Activity 挂起恢复无黑屏崩溃。
+  - 计划：更新 infiltrator-android 驱动生命周期处理。
