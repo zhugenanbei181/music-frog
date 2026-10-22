@@ -639,10 +639,11 @@ pub(super) fn app_routing_projection(
     // loopback packages and the scan phase.
     let mut model = AppRoutingPageModel::default();
     observe_app_routing_model(&mut model, snapshot);
-    let mut uwp_loopback = UwpLoopbackSnapshot::default();
-    uwp_loopback.availability = model.uwp_availability().clone();
-    uwp_loopback.packages = model.uwp_packages().to_vec();
-    uwp_loopback.revision = model.uwp_revision();
+    let uwp_loopback = UwpLoopbackSnapshot {
+        availability: model.uwp_availability().clone(),
+        packages: model.uwp_packages().to_vec(),
+        revision: model.uwp_revision(),
+    };
     AppRoutingProjection {
         mode: model.mode(),
         include_system: model.include_system().unwrap_or(false),

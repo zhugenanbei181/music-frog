@@ -64,7 +64,7 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
             }
         })
         .collect::<Vec<_>>();
-    window.set_log_level(widget_vocabulary::log_level_value(active_level).into());
+    window.set_log_level(widget_vocabulary::log_level_value(active_level));
     window.set_logs(slint_model(rows));
     window.set_log_stream_status(log_stream_copy(&model.stream(), &lang).into());
     // The invalid pattern is the shared model's own outcome, so the page

@@ -36,7 +36,10 @@ impl SpherePoint {
 /// equator on the prime meridian is `(r, 0, 0)` and the equator a quarter
 /// turn east is `(0, r, 0)`.
 pub fn lat_lon_to_sphere(latitude_deg: f64, longitude_deg: f64, radius: f64) -> SpherePoint {
-    let latitude = latitude_deg.to_radians();
+    // A latitude is an angle at the pole: a value beyond ±90° describes no
+    // place on the globe, so it is clamped to the pole it names instead of
+    // wrapping around to the far side.
+    let latitude = latitude_deg.clamp(-90.0, 90.0).to_radians();
     let longitude = longitude_deg.to_radians();
     let (sin_lat, cos_lat) = latitude.sin_cos();
     let (sin_lon, cos_lon) = longitude.sin_cos();

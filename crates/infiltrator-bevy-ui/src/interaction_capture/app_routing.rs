@@ -143,7 +143,7 @@ pub fn activate(
         return;
     }
     if !surface.capture.submitted {
-        let Some((entity, button)) = surface
+        let Some((entity, _button)) = surface
             .buttons
             .iter()
             .find(|(_, button)| button.app_id == TARGET_APP)

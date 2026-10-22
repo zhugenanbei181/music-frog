@@ -134,15 +134,14 @@ impl FilterProjector {
             self.decisions.resize(index + 1, false);
         }
         self.decisions[index] = matched;
-        if matched {
-            if !previous.unwrap_or(false) {
-                let position = self.matched.partition_point(|value| *value < index);
-                self.matched.insert(position, index);
-            }
-        } else if previous.unwrap_or(false) {
-            if let Ok(position) = self.matched.binary_search(&index) {
-                self.matched.remove(position);
-            }
+        if matched && !previous.unwrap_or(false) {
+            let position = self.matched.partition_point(|value| *value < index);
+            self.matched.insert(position, index);
+        } else if !matched
+            && previous.unwrap_or(false)
+            && let Ok(position) = self.matched.binary_search(&index)
+        {
+            self.matched.remove(position);
         }
     }
 }
@@ -261,7 +260,7 @@ mod tests {
 
     #[test]
     fn the_projector_indexes_the_matching_rows() {
-        let rows = vec![row("a", "alpha"), row("b", "beta"), row("c", "gamma")];
+        let rows = vec![row("a", "alpha"), row("b", "kernel"), row("c", "gamma")];
         let mut projector = FilterProjector::new();
         projector.set_query(FilterQuery::Text("a".to_owned()));
         let refresh = projector.reset(&rows);
@@ -272,7 +271,7 @@ mod tests {
 
     #[test]
     fn a_refresh_that_changes_one_row_evaluates_one_row() {
-        let rows = vec![row("a", "alpha"), row("b", "beta"), row("c", "gamma")];
+        let rows = vec![row("a", "alpha"), row("b", "kernel"), row("c", "gamma")];
         let mut projector = FilterProjector::new();
         projector.set_query(FilterQuery::Text("a".to_owned()));
         projector.reset(&rows);
@@ -290,13 +289,13 @@ mod tests {
 
     #[test]
     fn a_new_query_invalidates_every_decision() {
-        let rows = vec![row("a", "alpha"), row("b", "beta")];
+        let rows = vec![row("a", "alpha"), row("b", "kernel")];
         let mut projector = FilterProjector::new();
         projector.set_query(FilterQuery::Text("a".to_owned()));
         projector.reset(&rows);
         assert_eq!(projector.matched(), &[0]);
 
-        projector.set_query(FilterQuery::Text("b".to_owned()));
+        projector.set_query(FilterQuery::Text("k".to_owned()));
         let refresh = projector.reset(&rows);
         assert_eq!(refresh.reevaluated, 2);
         assert_eq!(projector.matched(), &[1]);
@@ -304,7 +303,7 @@ mod tests {
 
     #[test]
     fn a_removed_row_leaves_the_index() {
-        let rows = vec![row("a", "alpha"), row("b", "beta"), row("c", "gamma")];
+        let rows = vec![row("a", "alpha"), row("b", "kernel"), row("c", "gamma")];
         let mut projector = FilterProjector::new();
         projector.set_query(FilterQuery::Text("a".to_owned()));
         projector.reset(&rows);

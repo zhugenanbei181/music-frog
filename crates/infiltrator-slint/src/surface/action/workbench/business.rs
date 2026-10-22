@@ -294,7 +294,6 @@ fn probe_url(draft: &str) -> String {
 }
 
 /// The shared engine the outbound inventory belongs to.
-
 /// The inventory revision the outbound preferences are fenced against.
 fn inventory_revision(snapshot: Option<&SurfaceSnapshot>) -> Option<SnapshotRevision> {
     let inventory = snapshot?.outbound_inventory.data.as_ref()?;

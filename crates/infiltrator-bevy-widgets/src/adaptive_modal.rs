@@ -25,7 +25,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
@@ -277,6 +277,21 @@ pub fn on_modal_close(_trigger: On<CloseModal>, mut state: Option<ResMut<ModalSt
 /// morphology system and the card's own system never fight over a node.
 type AdaptiveModalRootFilter = (With<AdaptiveModalRoot>, Without<ModalCard>);
 
+/// The lookups the morphology system reads while it morphs the modal.
+///
+/// The three lookups travel together, so they are one parameter and not
+/// three: a system that takes nine of them says nothing about which of them
+/// belong together.
+#[derive(SystemParam)]
+pub struct AdaptiveModalLookups<'w, 's> {
+    /// The parent of every entity in the tree.
+    parents: Query<'w, 's, &'static ChildOf>,
+    /// The control that closes the modal.
+    closes: Query<'w, 's, Entity, With<ModalCloseButton>>,
+    /// The window the modal lives in.
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
 pub fn sync_adaptive_modal_morphology(
     ctx: Option<Res<ResponsiveContext>>,
     state: Option<Res<ModalState>>,
@@ -284,9 +299,7 @@ pub fn sync_adaptive_modal_morphology(
     mut cards: Query<&mut Node, (With<ModalCard>, Without<AdaptiveModalRoot>)>,
     mut commands: Commands,
     mut focus: ResMut<InputFocus>,
-    parents: Query<&ChildOf>,
-    closes: Query<Entity, With<ModalCloseButton>>,
-    windows: Query<Entity, With<PrimaryWindow>>,
+    lookups: AdaptiveModalLookups,
 ) {
     let is_open = state.as_ref().is_some_and(|s| s.is_presented());
     let form = ctx
@@ -343,9 +356,9 @@ pub fn sync_adaptive_modal_morphology(
     hand_off_focus(
         &mut commands,
         &mut focus,
-        &parents,
-        &closes,
-        &windows,
+        &lookups.parents,
+        &lookups.closes,
+        &lookups.windows,
         root_entity,
         is_open,
     );

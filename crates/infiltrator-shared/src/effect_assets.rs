@@ -28,6 +28,25 @@ pub fn canonical_icon_source(name: &str) -> Option<&'static [u8]> {
     iced_icon_svg(name)
 }
 
+/// How many shapes an icon drawing carries.
+///
+/// An icon draws with paths, rectangles, lines, circles, ellipses and
+/// polygons alike, so every one of them is a shape the icon draws.
+fn drawable_shape_count(text: &str) -> usize {
+    [
+        "<path",
+        "<rect",
+        "<line",
+        "<circle",
+        "<ellipse",
+        "<polygon",
+        "<polyline",
+    ]
+    .iter()
+    .map(|tag| text.matches(tag).count())
+    .sum()
+}
+
 /// The white-ink model of one icon.
 ///
 /// The canonical icons draw with `currentColor`, so the model is the same
@@ -50,8 +69,11 @@ pub struct IconModel {
     pub view_box: [f32; 4],
     /// The stroke width of the drawing.
     pub stroke_width: f32,
-    /// How many path elements the drawing carries.
-    pub path_count: usize,
+    /// How many shapes the drawing carries.
+    ///
+    /// An icon draws with paths, rectangles, lines and circles alike, so the
+    /// count is of every drawable element and not of the paths only.
+    pub shape_count: usize,
 }
 
 impl IconModel {
@@ -94,13 +116,13 @@ pub fn icon_model(name: &str) -> Option<IconModel> {
     let stroke_width = attribute(&text, "stroke-width")
         .and_then(|value| value.parse::<f32>().ok())
         .unwrap_or(ICON_STROKE_WIDTH);
-    let path_count = text.matches("<path").count();
+    let shape_count = drawable_shape_count(&text);
     Some(IconModel {
         width,
         height,
         view_box: [view_box[0], view_box[1], view_box[2], view_box[3]],
         stroke_width,
-        path_count,
+        shape_count,
     })
 }
 
@@ -287,7 +309,7 @@ mod tests {
             let model = icon_model(name).expect("the canonical icon must be embedded");
             assert!(model.is_canonical_grid(), "{name} left the 24x24 grid");
             assert_eq!(model.stroke_width, ICON_STROKE_WIDTH, "{name}");
-            assert!(model.path_count >= 1, "{name} carries no path");
+            assert!(model.shape_count >= 1, "{name} carries no shape");
             checked += 1;
         }
         assert!(checked >= 30, "the canonical icon set must stay complete");
@@ -306,7 +328,7 @@ mod tests {
         // The geometry survives the substitution untouched.
         let model = icon_model("zap").expect("the canonical icon must be embedded");
         let white_model_text = white.clone();
-        assert_eq!(white_model_text.matches("<path").count(), model.path_count);
+        assert_eq!(drawable_shape_count(&white_model_text), model.shape_count);
         assert!(white_ink_icon("not-an-icon").is_none());
     }
 

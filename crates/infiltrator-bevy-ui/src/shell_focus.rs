@@ -384,15 +384,11 @@ fn next_in_order(
     current: Option<Entity>,
     backwards: bool,
 ) -> Option<Entity> {
-    let Some(first) = targets.first() else {
-        return None;
-    };
+    let first = targets.first()?;
     let Some(current) = current else {
         return Some(first.entity);
     };
-    let Some(index) = targets.iter().position(|target| target.entity == current) else {
-        return None;
-    };
+    let index = targets.iter().position(|target| target.entity == current)?;
     let next = if backwards {
         (index + targets.len() - 1) % targets.len()
     } else {

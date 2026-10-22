@@ -175,13 +175,18 @@ mod tests {
 
     #[test]
     fn the_elevation_ladder_rises() {
-        assert!(LOW.blur_radius < MEDIUM.blur_radius);
-        assert!(MEDIUM.blur_radius < HIGH.blur_radius);
-        assert!(LOW.offset_y < MEDIUM.offset_y);
-        assert!(MEDIUM.offset_y < HIGH.offset_y);
-        assert!(LOW.key_alpha <= MEDIUM.key_alpha);
-        assert!(MEDIUM.key_alpha <= HIGH.key_alpha);
-        assert_eq!(ALL.len(), 3);
+        // The ladder is a set of constants, so the ladder is checked as a
+        // constant: a ladder that does not rise is a broken contract, not a
+        // runtime surprise.
+        const {
+            assert!(LOW.blur_radius < MEDIUM.blur_radius);
+            assert!(MEDIUM.blur_radius < HIGH.blur_radius);
+            assert!(LOW.offset_y < MEDIUM.offset_y);
+            assert!(MEDIUM.offset_y < HIGH.offset_y);
+            assert!(LOW.key_alpha <= MEDIUM.key_alpha);
+            assert!(MEDIUM.key_alpha <= HIGH.key_alpha);
+            assert!(ALL.len() == 3);
+        }
     }
 
     #[test]

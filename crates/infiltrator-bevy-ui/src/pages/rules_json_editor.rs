@@ -12,9 +12,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent, px,
-};
+use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent, px};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::editor::{SyntaxToken, SyntaxTokenKind, syntax_token_ink};
@@ -36,7 +34,6 @@ pub struct RulesJsonEditorPanel;
 /// The semantic ink of one syntax token is the shared editor's own reading:
 /// the JSON view and the YAML editor paint the same vocabulary alike, so the
 /// source reads as code on every surface.
-
 /// Tokenize one JSON source line into the shared syntax vocabulary.
 ///
 /// A string that a colon follows is a key; every other string is a value.

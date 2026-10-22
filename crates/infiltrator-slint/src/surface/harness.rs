@@ -17,7 +17,7 @@ use crate::{
     AppWindow, ObservationRow, SlintAction, SurfaceSnapshot, WorkbenchItem, WorkerRequest,
 };
 use infiltrator_contract::command_output::CommandOutput;
-use lurker_core_contract::error::Failure;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use slint::Model;
 use slint::platform;
 use slint::platform::software_renderer;
@@ -258,8 +258,13 @@ impl SurfaceHarness {
     /// Drives the real `set-theme-mode` callback.
     pub fn set_theme_mode(&self, mode: &str) -> SurfaceOutcome {
         let Some(mode) = widget_vocabulary::theme_mode_from_setting_name(mode) else {
+            // The gesture is refused before it reaches the owner, so the
+            // surface has to project the refusal itself: the notice the
+            // owner sees is the same one the failure path publishes.
+            let failure = Failure::new(ErrorCode::InvalidInput, "Unknown theme mode", false);
+            self.window.set_notice(failure.message.clone().into());
             return SurfaceOutcome::Rejected {
-                failure: Failure::unsupported("The surface has no theme to apply"),
+                failure,
                 actions: Vec::new(),
             };
         };

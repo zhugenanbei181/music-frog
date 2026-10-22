@@ -17,6 +17,7 @@ use infiltrator_bevy_widgets::switch::SwitchKnob;
 pub struct ApplyRulesProjectionLinesFilter {
     with_rules_line: With<RulesLine>,
     without_rule_hit_text: Without<RuleHitText>,
+    without_rule_row_status_text: Without<RuleRowStatusText>,
     without_rule_proxy_text: Without<RuleProxyText>,
     without_rule_payload_text: Without<RulePayloadText>,
     without_rule_type_text: Without<RuleTypeText>,
@@ -29,6 +30,7 @@ pub struct ApplyRulesProjectionLinesFilter {
 pub struct ApplyRulesProjectionHitsFilter {
     with_rule_hit_text: With<RuleHitText>,
     without_rules_line: Without<RulesLine>,
+    without_rule_row_status_text: Without<RuleRowStatusText>,
     without_rule_proxy_text: Without<RuleProxyText>,
     without_rule_payload_text: Without<RulePayloadText>,
     without_rule_type_text: Without<RuleTypeText>,
@@ -117,6 +119,14 @@ pub struct ApplyRulesProjectionStatusChipsFilter {
 #[derive(QueryFilter)]
 pub struct ApplyRulesProjectionStatusTextsFilter {
     with_rule_row_status_text: With<RuleRowStatusText>,
+    without_rules_line: Without<RulesLine>,
+    without_rule_hit_text: Without<RuleHitText>,
+    without_rule_proxy_text: Without<RuleProxyText>,
+    without_rule_payload_text: Without<RulePayloadText>,
+    without_rule_type_text: Without<RuleTypeText>,
+    without_provider_name_text: Without<ProviderNameText>,
+    without_provider_count_text: Without<ProviderCountText>,
+    without_provider_updated_text: Without<ProviderUpdatedText>,
 }
 
 #[derive(SystemParam)]

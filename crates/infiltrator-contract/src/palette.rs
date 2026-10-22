@@ -491,13 +491,16 @@ fn composite_over(foreground: RgbaToken, background: RgbaToken) -> RgbaToken {
 
 /// The WCAG relative luminance of one opaque colour.
 pub fn relative_luminance(color: RgbaToken) -> f32 {
-    0.2126 * channel_luminance(color.r)
-        + 0.7152 * channel_luminance(color.g)
-        + 0.0722 * channel_luminance(color.b)
+    // The weights are measured in f64: in f32 the three channels of a pure
+    // white do not sum to exactly one, and a contrast ratio that is off by
+    // two millionths is not a measurement of anything.
+    (0.2126_f64 * channel_luminance(color.r)
+        + 0.7152_f64 * channel_luminance(color.g)
+        + 0.0722_f64 * channel_luminance(color.b)) as f32
 }
 
-fn channel_luminance(channel: f32) -> f32 {
-    let value = channel.clamp(0.0, 1.0);
+fn channel_luminance(channel: f32) -> f64 {
+    let value = f64::from(channel).clamp(0.0, 1.0);
     if value <= 0.04045 {
         value / 12.92
     } else {
@@ -516,9 +519,12 @@ pub fn contrast_ratio(foreground: RgbaToken, background: RgbaToken) -> f32 {
     let painted = composite_over(foreground, base);
     let foreground_luminance = relative_luminance(painted);
     let background_luminance = relative_luminance(base);
-    let lighter = foreground_luminance.max(background_luminance);
-    let darker = foreground_luminance.min(background_luminance);
-    (lighter + 0.05) / (darker + 0.05)
+    // The ratio is measured in f64: in f32 the division of the two offsets
+    // is off by two millionths, and a contrast ratio that reads 20.999998
+    // for black on white is not a measurement of anything.
+    let lighter = f64::from(foreground_luminance).max(f64::from(background_luminance));
+    let darker = f64::from(foreground_luminance).min(f64::from(background_luminance));
+    ((lighter + 0.05) / (darker + 0.05)) as f32
 }
 
 /// The measured contrast of one text tier on the reading surface.

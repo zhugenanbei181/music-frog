@@ -145,7 +145,7 @@ fn activate_drilldown(surface: &mut OverviewSurface<'_, '_>, commands: &mut Comm
     {
         return;
     }
-    let Some((entity, button)) = surface.stages.iter().find(|(_, button)| button.enabled) else {
+    let Some((entity, _button)) = surface.stages.iter().find(|(_, button)| button.enabled) else {
         return;
     };
     surface.capture.drilldown_activated = true;
@@ -217,7 +217,7 @@ fn activate_speedtest_cancel(surface: &mut OverviewSurface<'_, '_>, commands: &m
             surface.capture.stage = OverviewStage::Published;
         }
         OverviewStage::Published => {
-            let Some((entity, button)) = surface
+            let Some((entity, _button)) = surface
                 .speedtests
                 .iter()
                 .find(|(_, button)| button.phase == SpeedtestButtonPhase::Running)

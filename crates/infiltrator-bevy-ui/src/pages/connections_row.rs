@@ -18,7 +18,7 @@ use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
-    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
+    JustifyContent, Node, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;

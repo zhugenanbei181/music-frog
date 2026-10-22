@@ -3,6 +3,10 @@
 //! Every panel of the fixture observes the shared read models of the
 //! businesses it carries, so a driven test sees the same panel a capture
 //! photographs.
+//!
+//! Each test binary uses only the helpers it needs, so the helpers that
+//! stay quiet in one binary are still live in another.
+#![allow(dead_code)]
 
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::rule_document::RuleDocumentSnapshot;

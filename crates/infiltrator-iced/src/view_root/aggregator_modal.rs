@@ -399,7 +399,7 @@ fn toggle_row<'a>(
     checked: bool,
     message: Message,
 ) -> Element<'a, Message> {
-    check_box(checked, lang.tr(key).to_string(), move |_| message.clone()).into()
+    check_box(checked, lang.tr(key).to_string(), move |_| message.clone())
 }
 
 /// DUAL-08-10: the appended custom groups with their remove action.

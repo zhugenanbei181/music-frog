@@ -40,8 +40,10 @@ fn activate_subscription_failure(state: &mut AppState) -> Task<Message> {
     Task::perform(
         async move {
             let store = Arc::new(ProfileStoreCapture::default());
-            let mut metadata = ProfileMetadata::default();
-            metadata.subscription_url = Some(CAPTURE_SUBSCRIPTION_URL.to_string());
+            let metadata = ProfileMetadata {
+                subscription_url: Some(CAPTURE_SUBSCRIPTION_URL.to_string()),
+                ..ProfileMetadata::default()
+            };
             let _ = store
                 .update_profile_metadata(CAPTURE_PROFILE, &metadata)
                 .await;

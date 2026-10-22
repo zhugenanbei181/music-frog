@@ -129,11 +129,20 @@ pub fn list_scroll_frame_with_overlays(
 /// The bar and its container are siblings inside the list's grid frame, so the
 /// shared parent identifies the pair. The official plugin then owns the
 /// thumb's size and the drag behaviour.
+/// The list's own scrollbars: the bar and the parent it is mounted under.
+type ListScrollbarQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static ChildOf), (With<ListScrollbar>, Without<Scrollbar>)>;
+
+/// The list's scroll containers: the container and the parent it shares with
+/// the bar.
+type ListScrollContainerQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static ChildOf), (With<ListScrollContainer>, With<ScrollArea>)>;
+
 pub fn bind_list_scrollbars(
     mut commands: Commands,
     rem_size: Res<RemSize>,
-    bars: Query<(Entity, &ChildOf), (With<ListScrollbar>, Without<Scrollbar>)>,
-    containers: Query<(Entity, &ChildOf), (With<ListScrollContainer>, With<ScrollArea>)>,
+    bars: ListScrollbarQuery,
+    containers: ListScrollContainerQuery,
 ) {
     let min_thumb_length = space::S24 * rem_size.0 / REM_BASE;
     for (bar, bar_parent) in &bars {

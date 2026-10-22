@@ -183,7 +183,7 @@ pub(crate) fn apply_rules_projection(
     // The badge's ink follows the shared type family: the chip reads as a tag
     // of that family instead of one flat blue pill.
     for (entity, current, marker) in &type_inks {
-        let Some(_rule) = projection.rules.get(marker.0) else {
+        let Some(rule) = projection.rules.get(marker.0) else {
             continue;
         };
         let want = rule_type_chip_token(&rule.rule_type);
@@ -245,7 +245,7 @@ pub(crate) fn apply_rules_projection(
     // The hit statistics are a chip of their own: their ink follows the row's
     // state, so a disabled or shadowed row says so without another word.
     for (entity, current, marker) in &hit_inks {
-        let Some(rule) = projection.rules.get(marker.0) else {
+        let Some(_rule) = projection.rules.get(marker.0) else {
             continue;
         };
         let want = rule_hits_token();

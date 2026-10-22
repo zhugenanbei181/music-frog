@@ -8,9 +8,8 @@
 mod fixture;
 
 use fixture::{
-    assert_accepted, assert_dismissed, assert_keeps_review, assert_locale, assert_pending,
-    assert_refreshed, assert_refused, assert_retried, assert_review_open, assert_stable,
-    assert_unsupported, business_surface, cell,
+    assert_accepted, assert_dismissed, assert_keeps_review, assert_locale, assert_refreshed,
+    assert_refused, assert_retried, assert_unsupported, business_surface, cell,
 };
 use infiltrator_slint::surface::business::BusinessId;
 

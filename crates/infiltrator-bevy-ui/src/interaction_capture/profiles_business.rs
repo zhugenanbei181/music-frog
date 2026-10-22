@@ -232,7 +232,7 @@ pub struct ProfilesObservation<'w, 's> {
 
 /// Observe the copy the Profiles page really renders for the business.
 pub fn observe(
-    mut controls: ProfilesObservation,
+    controls: ProfilesObservation,
     mut geometry: CaptureGeometry,
     mut state: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,
@@ -254,7 +254,7 @@ pub fn observe(
             Some((entity, "profile delete outcome"))
         }
         FeatureId::ProfilesSubscriptionError => {
-            let (entity, text) = controls
+            let (entity, _text) = controls
                 .refreshes
                 .iter()
                 .find(|(_, text)| !text.0.is_empty())?;

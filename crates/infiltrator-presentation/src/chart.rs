@@ -283,9 +283,9 @@ fn lttb_indices(points: &[ChartPoint], threshold: usize) -> Vec<usize> {
         let mut average_x = 0.0;
         let mut average_y = 0.0;
         let count = average_end.saturating_sub(average_start);
-        for index in average_start..average_end {
-            average_x += points[index].x;
-            average_y += points[index].y;
+        for point in &points[average_start..average_end] {
+            average_x += point.x;
+            average_y += point.y;
         }
         if count > 0 {
             average_x /= count as f64;
@@ -296,9 +296,9 @@ fn lttb_indices(points: &[ChartPoint], threshold: usize) -> Vec<usize> {
         let anchor_point = points[anchor];
         let mut best_area = -1.0;
         let mut best = range_start.min(length.saturating_sub(1));
-        for index in range_start..range_end {
-            let area = ((anchor_point.x - average_x) * (points[index].y - anchor_point.y)
-                - (anchor_point.x - points[index].x) * (average_y - anchor_point.y))
+        for (index, point) in points.iter().enumerate().take(range_end).skip(range_start) {
+            let area = ((anchor_point.x - average_x) * (point.y - anchor_point.y)
+                - (anchor_point.x - point.x) * (average_y - anchor_point.y))
                 .abs()
                 * 0.5;
             if area > best_area {

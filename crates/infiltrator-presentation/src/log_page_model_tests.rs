@@ -219,7 +219,9 @@ fn a_long_record_wraps_into_more_than_one_line() {
     assert_eq!(short.lines, 1);
     assert_eq!(short.extra_lines, 0);
 
-    let long = project_log_wrap_metrics("abcdefghijklmno", 10.0);
+    // A half-width character is half an em wide, so a record of 21 of them
+    // is 10.5 em and needs two lines on a ten em line.
+    let long = project_log_wrap_metrics("abcdefghijklmnopqrstu", 10.0);
     assert_eq!(long.lines, 2);
     assert_eq!(long.extra_lines, 1);
 

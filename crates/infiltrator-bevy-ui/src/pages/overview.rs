@@ -951,12 +951,16 @@ pub(crate) fn chips_row_scene(
 /// 4-stage network traffic topology chain scene (BEVY-GAP-018).
 #[cfg(any(feature = "capture-tools", test))]
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
+    use crate::pages::overview_topology;
+
     overview_topology::topology_chain_scene(palette)
 }
 
 /// Subscription quota and billing cycle visualization card (BEVY-GAP-020).
 #[cfg(any(feature = "capture-tools", test))]
 pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
+    use crate::pages::overview_cards;
+
     overview_cards::subscription_quota_scene(palette)
 }
 

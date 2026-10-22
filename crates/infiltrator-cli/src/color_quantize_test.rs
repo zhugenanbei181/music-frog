@@ -38,7 +38,7 @@ fn ansi256_falls_back_to_the_cube_when_no_base_color_is_close() {
         panic!("the 256 color tier must answer with a palette index");
     };
     assert!(
-        index >= 16 && index <= 231,
+        (16..=231).contains(&index),
         "unexpected palette index {index}"
     );
     let (red, green, blue) = palette_entry(index);

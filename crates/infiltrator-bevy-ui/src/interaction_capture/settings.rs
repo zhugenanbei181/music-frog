@@ -264,7 +264,7 @@ pub struct SettingsObservation<'w, 's> {
 
 /// Observe the copy the Settings page really renders for the business.
 pub fn observe(
-    mut controls: SettingsObservation,
+    controls: SettingsObservation,
     mut geometry: CaptureGeometry,
     mut state: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,
@@ -298,7 +298,7 @@ pub fn observe(
                 let (entity, text, _) = controls
                     .service
                     .iter()
-                    .find(|(_, text, line)| line.0 == SettingsLineKind::ServiceMode)?;
+                    .find(|(_, _text, line)| line.0 == SettingsLineKind::ServiceMode)?;
                 if text.0 != expected {
                     return None;
                 }

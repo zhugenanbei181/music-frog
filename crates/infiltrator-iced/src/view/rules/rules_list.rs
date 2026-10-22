@@ -544,7 +544,7 @@ pub(super) fn rules_list_view<'a>(
                 can_move_up: source_index > 0,
                 can_move_down: source_index + 1 < state.editor.rule_list.draft.len(),
             };
-            rules_list = rules_list.push(lazy(band, |band| rule_row_element(band)));
+            rules_list = rules_list.push(lazy(band, rule_row_element));
         }
         if bottom_spacer > 0.0 {
             rules_list = rules_list.push(Space::new().height(Length::Fixed(bottom_spacer)));

@@ -1,4 +1,12 @@
-#![allow(clippy::collapsible_match, clippy::large_enum_variant)]
+// A Bevy system carries its queries and its resources as parameters, and a
+// widget's query type is a compound of the filters it reads by; both are
+// part of the shape of the framework and not a shape this crate chooses.
+#![allow(
+    clippy::collapsible_match,
+    clippy::large_enum_variant,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 //! MusicFrog Infiltrator — independent Bevy UI surface.
 //!
 //! This crate owns the ECS UI and accepts host-owned surface, command, and

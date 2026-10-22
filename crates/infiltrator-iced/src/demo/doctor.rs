@@ -29,16 +29,9 @@ use std::sync::Arc;
 /// The owner publishes its pending phase: the repair command is submitted and
 /// the host keeps its answer, so the surface shows the progress the owner
 /// really published instead of a locally drawn spinner.
+#[derive(Default)]
 struct HoldingDoctorPort {
     inner: DoctorCapturePort,
-}
-
-impl Default for HoldingDoctorPort {
-    fn default() -> Self {
-        Self {
-            inner: DoctorCapturePort::default(),
-        }
-    }
 }
 
 #[async_trait::async_trait]

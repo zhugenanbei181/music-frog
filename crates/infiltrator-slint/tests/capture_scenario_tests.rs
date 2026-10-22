@@ -484,7 +484,6 @@ fn a_business_the_surface_does_not_carry_is_never_activated() {
 fn the_capture_matrix_lists_exactly_the_carried_businesses() {
     let rows = matrix_rows();
     let expected: BTreeSet<String> = CarriedScenario::all()
-        .into_iter()
         .flat_map(|scenario| {
             [
                 format!("{}-standard", scenario.name()),

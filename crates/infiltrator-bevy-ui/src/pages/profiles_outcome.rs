@@ -137,7 +137,7 @@ pub fn sync_profiles_outcomes(
 /// The deletion outcome line: the owner's answer to the delete this page
 /// submitted last.
 fn deletion_copy(outcomes: &CommandOutcomes, submitted: Option<&SubmittedProfileDelete>) -> String {
-    let Some((id, name)) = submitted.map(|submitted| submitted.0.clone()).flatten() else {
+    let Some((id, name)) = submitted.and_then(|submitted| submitted.0.clone()) else {
         return String::new();
     };
     let key = OutcomeKey::ProfileDelete(id);

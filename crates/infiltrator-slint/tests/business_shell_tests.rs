@@ -9,7 +9,7 @@ mod fixture;
 
 use fixture::{
     assert_accepted, assert_dismissed, assert_locale, assert_refreshed, assert_refused,
-    assert_retried, assert_review_open, assert_stable, assert_unsupported, business_surface, cell,
+    assert_retried, assert_stable, assert_unsupported, business_surface, cell,
 };
 use infiltrator_contract::command_catalogue::CommandCatalogue;
 use infiltrator_slint::surface::business::BusinessId;

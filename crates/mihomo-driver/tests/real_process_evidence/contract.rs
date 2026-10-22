@@ -138,7 +138,11 @@ pub enum RealProcessEnvironment {
         missing: Vec<&'static str>,
     },
     /// The environment provides a runnable engine target.
-    Present(RealProcessTarget),
+    ///
+    /// The target is boxed: it is much larger than the other two answers,
+    /// and an environment that is absent is the answer a test asks for most
+    /// of the time.
+    Present(Box<RealProcessTarget>),
     /// The environment names an engine that cannot run.
     Invalid {
         /// Why the environment cannot run an engine.
@@ -217,7 +221,7 @@ where
         .map(|key| (*key, optional_value(&mut lookup, key)))
         .collect();
 
-    RealProcessEnvironment::Present(RealProcessTarget {
+    RealProcessEnvironment::Present(Box::new(RealProcessTarget {
         binary: binary_path,
         config: config_path,
         home: PathBuf::from(&home),
@@ -228,7 +232,7 @@ where
         probe_outbound,
         selector,
         receipt: optional_entry(&optional, RECEIPT_ENV).map(PathBuf::from),
-    })
+    }))
 }
 
 /// Returns the receipt file the environment names, when it names one.

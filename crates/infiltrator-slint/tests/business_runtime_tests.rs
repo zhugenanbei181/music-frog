@@ -8,9 +8,8 @@
 mod fixture;
 
 use fixture::{
-    assert_accepted, assert_dismissed, assert_empty, assert_locale, assert_pending,
-    assert_refreshed, assert_refused, assert_retried, assert_review_open, assert_stable,
-    assert_unsupported, business_surface, cell,
+    assert_accepted, assert_dismissed, assert_empty, assert_locale, assert_refreshed,
+    assert_refused, assert_stable, assert_unsupported, business_surface, cell,
 };
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_slint::surface::business::BusinessId;
@@ -97,7 +96,7 @@ fn the_runtime_telemetry_observation_unknown_path() {
         .expect("the telemetry panel is projected");
 
     assert!(
-        summary.detail.contains("0") == false,
+        !summary.detail.contains("0"),
         "an unobserved telemetry must not claim a measured rate"
     );
 }

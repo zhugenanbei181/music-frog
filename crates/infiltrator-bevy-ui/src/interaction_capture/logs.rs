@@ -101,7 +101,7 @@ pub fn install(app: &mut App) {
 fn publish_capture_snapshot(
     latest: &mut LatestSurfaceSnapshot,
     snapshot: &SurfaceSnapshot,
-    mut commands: &mut Commands,
+    commands: &mut Commands,
 ) {
     latest.0 = snapshot.clone();
     commands.trigger(LogsProjectionUpdated(logs_projection(snapshot)));

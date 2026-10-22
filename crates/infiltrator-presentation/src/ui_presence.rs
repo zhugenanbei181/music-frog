@@ -56,7 +56,7 @@ impl UiPresence {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PresenceState {
     phase: UiPresence,
-    progress: f32,
+    progress: f64,
 }
 
 impl PresenceState {
@@ -82,8 +82,12 @@ impl PresenceState {
     }
 
     /// How much of the thing is on screen, in 0.0..=1.0.
-    pub const fn progress(&self) -> f32 {
-        self.progress
+    ///
+    /// The transition is measured in f64 and only the answer is an f32, so
+    /// a progress that comes back from a subtraction is the fraction the
+    /// transition actually reached and not its neighbour in f32.
+    pub fn progress(&self) -> f32 {
+        self.progress as f32
     }
 
     /// Whether the thing accepts input right now.
@@ -121,7 +125,11 @@ impl PresenceState {
     }
 
     /// Advance the transition by `delta` and report whether it settled.
-    pub fn advance(&mut self, delta: f32) -> bool {
+    ///
+    /// The delta is an f64: the transition adds and subtracts fractions of
+    /// the whole, and an f32 step would leave the progress a millionth away
+    /// from the fraction it reached.
+    pub fn advance(&mut self, delta: f64) -> bool {
         if !delta.is_finite() || delta <= 0.0 {
             return false;
         }

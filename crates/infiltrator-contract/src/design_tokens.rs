@@ -493,9 +493,12 @@ mod tests {
         assert_eq!(radius::CARD, 16.0, "the panel-style dialog role");
         assert_eq!(radius::BOTTOM_SHEET, 28.0, "the bottom sheet role");
         // The centered dialog is rounder than the panel-style one, and the
-        // bottom sheet is rounder than the centered dialog.
-        assert!(radius::MODAL > radius::CARD);
-        assert!(radius::BOTTOM_SHEET > radius::MODAL);
+        // bottom sheet is rounder than the centered dialog. The roles are
+        // constants, so the ladder between them is checked as a constant.
+        const {
+            assert!(radius::MODAL > radius::CARD);
+            assert!(radius::BOTTOM_SHEET > radius::MODAL);
+        }
     }
 
     #[test]

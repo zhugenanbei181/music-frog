@@ -30,7 +30,6 @@ use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_presentation::overview_page_model::{OverviewRunState, core_run_state};
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
-use lurker_core_contract::lifecycle::CoreLifecycle;
 use std::env::var;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

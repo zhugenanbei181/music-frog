@@ -3,7 +3,7 @@
 use super::super::*;
 use crate::surface::action;
 use crate::widget_vocabulary;
-use lurker_core_contract::error::Failure;
+use lurker_core_contract::error::{ErrorCode, Failure};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -39,8 +39,10 @@ pub(super) fn register(
         let action = require_snapshot(&latest_for_route).and_then(|_| {
             match widget_vocabulary::route_mode_action_name(mode) {
                 Some(name) => action::route_mode_action(name),
-                None => Err(Failure::unsupported(
-                    "The surface has no routing mode to apply",
+                None => Err(Failure::new(
+                    ErrorCode::InvalidInput,
+                    "Unknown routing mode",
+                    false,
                 )),
             }
         });
@@ -55,8 +57,10 @@ pub(super) fn register(
             widget_vocabulary::network_mode_action_name(mode)
                 .map(|name| action::network_mode_action(&snapshot, name))
                 .unwrap_or_else(|| {
-                    Err(Failure::unsupported(
-                        "The surface has no traffic mode to apply",
+                    Err(Failure::new(
+                        ErrorCode::InvalidInput,
+                        "Unknown network mode",
+                        false,
                     ))
                 })
         });

@@ -62,6 +62,6 @@ where
         .size(CHECKBOX_SIZE_PX)
         .text_size(12)
         .style(checkbox_style)
-        .on_toggle(move |value| on_change(value))
+        .on_toggle(on_change)
         .into()
 }

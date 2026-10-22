@@ -80,7 +80,7 @@ pub fn activate(mut controls: SearchControls, feature: Res<'_, InteractionCaptur
 
 /// Observe the shared filter reduction's result and the row it kept.
 pub fn observe(
-    mut controls: SearchControls,
+    controls: SearchControls,
     mut geometry: CaptureGeometry,
     mut feature: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,

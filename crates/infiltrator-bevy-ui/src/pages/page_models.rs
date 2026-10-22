@@ -23,15 +23,12 @@
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Res, ResMut};
-use infiltrator_contract::lan::LanSecuritySnapshot;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::dns_page_model::DnsPageModel;
 use infiltrator_presentation::doctor_page_model::DoctorPageModel;
-use infiltrator_presentation::overview_page_model::{
-    OverviewHost, OverviewPageModel, OverviewRunState,
-};
+use infiltrator_presentation::overview_page_model::{OverviewHost, OverviewPageModel};
 use infiltrator_presentation::profiles_page_model::{ProfilesOperation, ProfilesPageModel};
 use infiltrator_presentation::proxies_page_model::ProxiesPageModel;
 use infiltrator_presentation::rules_page_model::RulesPageModel;
@@ -149,17 +146,6 @@ pub fn observe_settings_model(model: &mut SettingsPageModel, snapshot: &SurfaceS
     }
 }
 
-/// The owner's LAN security configuration, when it was observed.
-fn observed_lan_security(snapshot: &SurfaceSnapshot) -> Option<&LanSecuritySnapshot> {
-    snapshot
-        .pages
-        .settings
-        .data
-        .as_ref()
-        .and_then(|page| page.lan_security.as_ref())
-        .or_else(|| snapshot.runtime_control.lan_security.as_ref())
-}
-
 /// Fold the owner facts of the rules page into the shared model.
 pub fn observe_rules_model(model: &mut RulesPageModel, snapshot: &SurfaceSnapshot) {
     if let Some(page) = snapshot.pages.rules.data.as_ref() {
@@ -249,6 +235,7 @@ mod tests {
     use infiltrator_contract::doctor::DoctorAction;
     use infiltrator_contract::rules_workspace::RulesJsonSection;
     use infiltrator_contract::sync::SyncStatus;
+    use infiltrator_presentation::overview_page_model::OverviewRunState;
     use lurker_core_contract::error::{ErrorCode, Failure};
     use lurker_core_contract::identity::EngineId;
     use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -257,7 +244,7 @@ mod tests {
 
     #[test]
     fn the_overview_page_model_owns_the_run_state() {
-        let _snapshot = demo_snapshot();
+        let snapshot = demo_snapshot();
         let mut model = OverviewPageModel::default();
         observe_overview_model(&mut model, &snapshot);
         assert!(
@@ -329,7 +316,7 @@ mod tests {
 
     #[test]
     fn the_profiles_page_model_owns_the_list_filter() {
-        let snapshot = demo_snapshot();
+        let _snapshot = demo_snapshot();
         let mut model = ProfilesPageModel::default();
         observe_profiles_model(&mut model);
         assert!(model.filter().is_empty());

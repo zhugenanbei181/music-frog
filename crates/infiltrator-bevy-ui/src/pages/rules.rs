@@ -26,17 +26,16 @@ use crate::pages::rules_json::{
 };
 use crate::pages::rules_mrs::{
     RulesMrsState, apply_mrs_projection, apply_provider_cache_projection,
-    on_rules_mrs_action_activated, rules_mrs_scene,
+    on_rules_mrs_action_activated,
 };
 use crate::pages::rules_outcome::{
-    RuleProviderFailureText, on_rule_provider_refresh_activated, rule_provider_refresh_scene,
-    sync_rule_provider_outcomes,
+    on_rule_provider_refresh_activated, sync_rule_provider_outcomes,
 };
 use crate::pages::rules_projection::{
-    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleEnabledKnob, RuleHitText,
-    RuleIndexText, RulePayloadText, RuleProxyText, RuleRowStatusChip, RuleRowStatusText,
-    RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind, apply_rules_projection,
-    refresh_hit_copy, rule_hits_token, rule_status_token, rule_target_token, rule_type_chip_token,
+    RuleEnabledKnob, RuleHitText, RuleIndexText, RulePayloadText, RuleProxyText, RuleRowStatusChip,
+    RuleRowStatusText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind,
+    apply_rules_projection, refresh_hit_copy, rule_hits_token, rule_status_token,
+    rule_target_token, rule_type_chip_token,
 };
 use crate::pages::rules_providers::{provider_scenes, providers_partition};
 use crate::pages::rules_statistics::{RulesStatisticsPlugin, statistics_scene};
@@ -105,8 +104,7 @@ use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesTab}
 use infiltrator_domain::rules::matrix::matrix_label;
 use infiltrator_domain::rules::view::{RULE_DEFAULT_VIEWPORT_PX, rule_window};
 use infiltrator_presentation::rule_provider_projection::{
-    default_action, etag_support_line, provider_count, provider_fingerprint_line,
-    provider_lifecycle_line, published_truncation, rules_summary,
+    default_action, published_truncation, rules_summary,
 };
 use infiltrator_presentation::rule_row_projection::RuleRowChips;
 use infiltrator_shared::locales::Lang;

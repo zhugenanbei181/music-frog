@@ -20,6 +20,7 @@ use infiltrator_contract::surface_snapshot::{
 };
 use infiltrator_contract::traffic_history::{ClosedConnectionSnapshot, ClosedConnectionsSnapshot};
 use infiltrator_domain::connection_view::{ConnectionSortKey, sort_connections};
+use infiltrator_slint::ConnectionSort;
 use infiltrator_slint::SlintAction;
 use infiltrator_slint::surface::harness;
 use infiltrator_slint::widget_vocabulary::connection_sort_key;
@@ -316,11 +317,20 @@ fn the_connection_rows_use_the_shared_sort_reduction() {
     surface.publish_snapshot(snapshot.clone());
 
     // The widget's vocabulary names one shared key per dimension.
-    assert_eq!(connection_sort_key("time"), ConnectionSortKey::LatestDesc);
-    assert_eq!(connection_sort_key("host"), ConnectionSortKey::HostAsc);
-    assert_eq!(connection_sort_key("upload"), ConnectionSortKey::UploadDesc);
     assert_eq!(
-        connection_sort_key("download"),
+        connection_sort_key(ConnectionSort::Time),
+        ConnectionSortKey::LatestDesc
+    );
+    assert_eq!(
+        connection_sort_key(ConnectionSort::Host),
+        ConnectionSortKey::HostAsc
+    );
+    assert_eq!(
+        connection_sort_key(ConnectionSort::Upload),
+        ConnectionSortKey::UploadDesc
+    );
+    assert_eq!(
+        connection_sort_key(ConnectionSort::Download),
         ConnectionSortKey::DownloadDesc
     );
 

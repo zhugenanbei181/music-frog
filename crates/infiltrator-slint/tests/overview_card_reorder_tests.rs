@@ -9,7 +9,6 @@
 //! leaves the published order untouched.
 
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::overview_layout::{
     OverviewCardKind, OverviewCardMoveDirection, OverviewLayoutSnapshot,
 };

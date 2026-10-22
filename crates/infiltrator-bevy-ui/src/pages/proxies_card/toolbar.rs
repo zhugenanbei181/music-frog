@@ -186,7 +186,7 @@ fn sort_strip_scene(sort_order: OutboundSortOrder, palette: &UiPalette) -> impl 
         .zip(SORT_MODES.iter())
         .enumerate()
         .map(|(index, (key, mode))| {
-            let copy = LocalizedText::plain(*key);
+            let copy = LocalizedText::plain(key);
             let mode = *mode;
             Box::new(bsn! {
                 Node {

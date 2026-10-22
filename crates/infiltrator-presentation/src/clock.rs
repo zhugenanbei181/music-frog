@@ -66,9 +66,13 @@ impl RenderClock {
     }
 
     /// Start the clock again.
+    ///
+    /// The time of the last frame is left alone: a clock that was stopped
+    /// has not rendered anything since, so the surface that starts it again
+    /// has a frame waiting for it and must not keep the old picture on
+    /// screen for another interval.
     pub fn start(&mut self) {
         self.running = true;
-        self.last = Instant::now();
     }
 
     /// Stop the clock.

@@ -7,9 +7,7 @@
 #[path = "business_panels/fixture.rs"]
 mod fixture;
 
-use fixture::{
-    assert_accepted, assert_dismissed, assert_refreshed, assert_unsupported, business_surface, cell,
-};
+use fixture::{assert_accepted, assert_dismissed, assert_unsupported, business_surface};
 use infiltrator_slint::surface::business::BusinessId;
 use infiltrator_slint::surface::harness::SurfaceHarness;
 
