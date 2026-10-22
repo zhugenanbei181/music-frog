@@ -372,3 +372,108 @@
   - 遗留共享改动需求（转 `BEVYUI-003R`）：`business_panel.rs` 的 `launcher_scene` 加描边与尾部箭头；`infiltrator-shared` locale 表新增四个键（分组类型 Fallback/LoadBalance/Relay + 测速就绪提示）；`infiltrator-bevy-widgets/src/palette.rs` 新增 `card_fill()`；`infiltrator-bevy-ui/src/surface_projection.rs` 的 `ProxyNode` 增加 `latency_samples`、`ProxiesProjection` 增加 `sort_order`；`infiltrator-bevy-widgets/src/tabs.rs` 增加带自定义标记的分段控件入口。
   - 已知风险（须写进共享控件层说明）：卡片填色必须跑在 `Last` 调度——共享皮肤在 `Update` 把每个 `ControlVisual.0 == true` 的控件重涂成实心 accent，若把卡片填色移回 `Update` 会重新引入 #42（"选中控件=实心 accent 填色"与"卡片必须保留阅读面"不可组合）。
 
+- [ ] EFFECTS-001 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 语义色彩与 Zinc 多阶暗底契约（#1~#5）
+  - 产物：在 design_tokens.rs 裁决 #1 Zinc 8阶表面系统、#2 双色标线性渐变规范、#3 高光描边与半透明语义、#4 延迟与生命周期状态色阶、#5 WCAG AA 文本对比度梯阶。
+  - 依赖：无。
+  - 验收：契约测试断言颜色值与对比度合法，各表面统一从 contract 获取语义色。
+  - 计划：扩展 design_tokens::palette 与 SemanticToken 枚举。
+
+TS-003 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 统一物理动效参数契约（#10~#13）
+  - 产物：在 contract 设立 motion_spec 模块，裁决 #10 全局动效时长（120/200/250ms）、#11 阻尼弹簧参数（stiffness:170/damping:26）、#12 动效可中断性继承规则、#13 减少动态效果偏好。
+  - 依赖：无。
+  - 验收：契约导出 MotionSpec 结构体，单测验证参数合法性与默认减弱模式。
+  - 计划：新建 infiltrator_contract::mot
+
+ffect_math 模块。
+
+- [ ] EFFECTS-005 [kind: asset] [priority: P1] [points: 3] [owner: infiltrator-shared] [status: Integrated] 统一 SVG 矢量白模与等宽字体嵌入（#18~#21）
+  - 产物：在 shared 建立 #18 统一 24x24 SVG 矢量图标白模管线、#19 支持 tnum 特性的等宽字体嵌入、#20 HarmonyOS/Inter 多字重排版字体打包、#21 全半角字符宽度度量表。
+  - 依赖：无。
+  - 验收：各平台渲染图标清晰无栅格毛刺，等宽数字在多端均实现物理等宽。
+  - 计划：更新 assets 目录与 font 资源加载逻辑。
+
+- [ ] EFFECTS-006 [k
+
+涵盖 #26~#50）
+
+- [ ] EFFECTS-007 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 呈现生命周期解耦与可组合交互状态（#26~#28）
+  - 产物：在 presentation 建立 #26 UiPresence（Absent/Entering/Visible/Exiting）生命周期模型、#27 退出中交互阻断机制、#28 hover/press/focus/select/disabled 可组合交互位状态。
+  - 依赖：EFFECTS-003。
+  - 验收：行为测试断言退出阶段点击不触发命令
+
+%。
+  - 计划：实现 presentation::chart 投影管线。
+
+- [ ] EFFECTS-009 [kind: domain] [priority: P1] [points: 3] [owner: infiltrator-domain + presentation] [status: Integrated] 监控指标环形缓冲与增量列表排序（#32~#34）
+  - 产物：在 domain 引入 #32 固定容量 RingBuffer 环形缓冲、#33 增量 FilterProjector 索引缓存、#34 多维连接四维排序纯投影计算。
+  - 依赖：无。
+  - 验收：每秒高频推流无额外堆内存分配，增量过滤耗时 <1ms。
+  - 计划：
+
+ presentation 的 input 映射层。
+
+- [ ] EFFECTS-011 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 平滑渲染时钟与仪表盘数值补间器（#37~#39）
+  - 产物：实现 #37 呈现层微秒级独立平滑时钟 RenderClock、#38 空闲状态主动停止下发帧请求、#39 速率与连接数 120ms 数值滚动补间器。
+  - 依赖：EFFECTS-004。
+  - 验收：数值跳变时输出连续插值帧，静止时时钟立即休眠。
+  - 计划：实现 presentation::clock 与 tween 模块。
+
+- [ ] EFFECTS-012 [kind: presentation] [priority:
+
+atus: Planned] 快照 Diff、地球极坐标与错误 Banner 模型（#45~#50）
+  - 产物：实现 #45 配置快照 Diff 差异分块投影、#46 地球经纬度极坐标转换、#47 跨国连接贝塞尔飞行光点相位、#48 ErrorBannerState、#49 抽屉焦点栈、#50 自愈步骤旋转信号。
+  - 依赖：EFFECTS-004。
+  - 验收：单测断言经纬度转三维球面坐标精确，Diff 分块正确识别增删改。
+  - 计划：编写 presentation::diff 与 geo 模块。
+
+### 10.3 Layer 2: 共享通用组件库与材质着色基座（7条 / 20pt，涵盖 #51~#75）
+
+- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points:
+
+anned] 主次动作按钮层级与按下态弹性缩放（#53~#54）
+  - 产物：实现 #53 ButtonHierarchy（Primary/Secondary/Tertiary 明确层级）、#54 按下态 0.98 比例弹性缩放与 80ms 回弹。
+  - 依赖：EFFECTS-003。
+  - 验收：按钮交互层次分明，按下松开弹簧反馈细腻。
+  - 计划：重构 infiltrator-bevy-widgets::button。
+
+- [ ] EFFECTS-016 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabLi
+
+status: Planned] 虚拟化列表容器与悬浮细滚动条控件（#58~#61）
+  - 产物：实现 #58 原生虚拟化列表基座 VirtualListContainer、#59 闲置自动淡出的悬浮细滚动条 SleekScrollbar、#60 触控惯性减速、#61 平滑滚动入视 SmoothScrollIntoView。
+  - 依赖：EFFECTS-009。
+  - 验收：千级列表流畅滚动，滚轮与键盘聚焦均能平滑定位到项。
+  - 计划：重构 infiltrator-bevy-widgets::list 与 scrollarea。
+
+- [ ] EFFECTS-018 [kind: widget] [priority: P1] [points: 3] [owner:
+
+r-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
+  - 产物：实现 #65 带清除按钮与 2px 外发光环的 TextField、#66 清除操作淡出动画、#67 集成搜索图标与筛选标签的 SearchBar。
+  - 依赖：EFFECTS-002。
+  - 验收：聚焦时发光环平滑亮起，清除按钮点击平稳清空文本。
+  - 计划：重构 infiltrator-bevy-widgets::text_input。
+
+- [ ] EFFECTS-020 [kind: widget] [priority: P1] [points
+
+划：扩充 infiltrator-bevy-widgets 弹出组件家族。
+
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（8条 / 24pt，涵盖 #76~#115）
+
+- [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
+  - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78
+
+U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
+  - 依赖：infiltrator-bevy-widgets。
+  - 验收：规则与连接页滑块可拖拽且与内容联动，方向键导航可呼出官方菜单。
+  - 计划：重构 menu.rs 与 list.rs。
+
+- [ ] EFFECTS-023 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] WESL 材质管线、发光与流光着色器（#82~#85）
+  - 产物：实现 #82 Bevy 0.20 WE
+
+86~#89）
+  - 产物：实现 #86 基于 RenderApp 与 ViewTarget 的离屏高斯模糊、#87 4x 降采样双 pass 优化、#88 输入输出纹理防冲突分离、#89 前景清晰文字最后顶层合成。
+  - 依赖：EFFECTS-023。
+  - 验收：弹窗背景呈现平滑高斯模糊，文字刀刻般清晰，显存带宽占用降低 75%。
+  - 计划：在 infiltrator-bevy-ui 建立后处理渲染调度子图。
+
+- [ ] EFFECTS-025 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 官方 BoxShadow、渐变与 UiTransform 位移（#90~#92）
+  - 产物：实现 #90 全量卡片应用 0.20 原生 BoxShadow、#91 BackgroundGradi
