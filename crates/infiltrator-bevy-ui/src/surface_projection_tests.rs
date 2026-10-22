@@ -53,7 +53,7 @@ fn the_proxies_projection_keeps_the_favourite_first_on_every_order() {
     assert_eq!(
         names,
         vec![
-            "US-Silicon-Valley 04 · IEPL 专线 · 4K 加速",
+            "US-Silicon-Valley 04 · IEPL Private Line · 4K Boost",
             "HK-01",
             "JP-02",
             "SG-03"
