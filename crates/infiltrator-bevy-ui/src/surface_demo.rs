@@ -394,7 +394,10 @@ fn demo_outbound_inventory() -> OutboundInventorySnapshot {
         ("HK-01", "HK-01"),
         ("JP-02", "JP-02"),
         ("SG-03", "SG-03"),
-        ("US-04", "US-Silicon-Valley 04 · IEPL Private Line · 4K Boost"),
+        (
+            "US-04",
+            "US-Silicon-Valley 04 · IEPL Private Line · 4K Boost",
+        ),
     ]
     .into_iter()
     .map(|(value, display_name)| OutboundSnapshot {
