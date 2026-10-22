@@ -2,7 +2,7 @@
 
 > 层级：L4
 
-这是项目内部执行台账。公开文档只描述当前边界；这里记录任务、依赖、未决问题和验收顺序。**2026-10-11 起采用三佛体系（学习 ZhuGeTower 模式），2026-10-19 起收敛为三板：现在佛（全部可推工作）、过去佛（已交付待验证）、斗战胜佛（只等外部环境）；原未来佛全部并入现在佛并退役。本页只导航与记账；任务正文、执行态与验收在 `todos/` 看板。**
+这是项目内部执行台账。公开文档只描述当前边界；这里记录任务、依赖、未决问题和验收顺序。**2026-10-11 起采用三佛体系（学习 ZhuGeTower 模式），2026-10-22 恢复为**四板**：现在佛（全部可推工作）、过去佛（已交付待验证）、斗战胜佛（实现工作本身要等外部环境）、**未来佛（验收项：实现已交付，回执必须到真实环境里取）**。本页只导航与记账；任务正文、执行态与验收在 `todos/` 看板。**
 
 ## 看板导航
 
@@ -12,7 +12,7 @@
 | 过去佛 | [todos/CODE_TODO_PAST.md](todos/CODE_TODO_PAST.md) | 已交付实现，等待统一集成验证批次或实机取证收口（待验证） |
 | 斗战胜佛 | [todos/CODE_TODO_BLOCKED.md](todos/CODE_TODO_BLOCKED.md) | 剩余闭环动作只能靠外部环境（真机/tag CI/secrets/上架凭证/异构目标机）解锁的条目（环境阻塞） |
 
-## 三佛工作流程（2026-10-11 起生效，2026-10-15 纯粹化收敛，2026-10-19 增设斗战胜佛并退役未来佛）
+## 四佛工作流程（2026-10-11 起生效，2026-10-15 纯粹化收敛，2026-10-19 增设斗战胜佛并退役未来佛）
 
 三佛是同一工程队列的三种未办结形态，不是三套范围或三份完成台账；位置描述用途，状态描述执行态，二者不能相互推断。**全仓任务纯粹收敛于三板，不设任何体外孤岛看板（模拟器与真机证据要求直接内聚在条目本体的“待验证”中）。**`Verified` 只是办结过渡态，不驻留任何看板；真正验收完成的工作退出看板并在本页登记 archived points。
 
@@ -23,6 +23,7 @@
 | 现在佛 | 可推的必要产品能力与直接前置，以及可推的增强项；明确产物、依赖、验收、计划与证据要求 | 实现包完成只剩验证时迁入过去佛；同片验证完成则直接办结退出 |
 | 过去佛 | 已交付实现包；列清待验证范围（含统一测试批次与实机/模拟器证据）、证据身份与未证明层 | 验证收口通过后退出并登记 archived points；发现实现缺口回流现在佛 |
 | 斗战胜佛 | 条目的下一个可执行动作只能靠外部环境：ARM64 真机、受控 tag CI、用户 secrets/keystore、crates.io 上架凭证、异构目标机与被禁平台 target | 环境到位后同次迁回过去佛/现在佛；办结后登记 archived points |
+| 未来佛 | **验收项**：实现已交付，剩下唯一动作是到真实环境里取回执（真机/受控 CI/真实产物/真实相机/带指针台架），本机无法以任何替代手段伪造 | 环境到位 → 取回执 → 回执齐备即办结并登记 archived points；回执证明实现有缺口则迁回现在佛 |
 
 ### Agent 执行循环（每次开发会话按此执行：先做什么、再做什么）
 
@@ -47,6 +48,7 @@
 | 现在佛/过去佛 | 剩余闭环动作只剩外部环境（真机/tag CI/secrets/上架凭证/异构目标机） | 斗战胜佛 | 同次整条迁入；写明阻塞方、解锁条件与本板停留期间的可执行动作；状态 → `Blocked` |
 | 斗战胜佛 | 外部环境到位 | 过去佛/现在佛 | 同次整条迁回；恢复原状态与证据身份；本板 §七 登记迁出记录 |
 | 斗战胜佛 | 迁出后验证通过 | （退出） | 删除并登记 archived；更新 ledger 与交付率 |
+| 未来佛 | 真实环境回执到手且齐备 | （退出） | 删除并登记 archived；更新 ledger 与交付率 |
 | 任何看板 | 上游决定取消/被新语义取代 | （退出） | 删除；本页台账记一行注销原因与去向 |
 
 ### 恒定规则
@@ -67,16 +69,16 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-21，基线 `musicfrog-todo-20261022-v264`）
+## Points 与完成度台账（2026-10-21，基线 `musicfrog-todo-20261022-v265`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 61 | 178 |
-| 过去佛 | 47 | 120 |
-| 斗战胜佛 | 29 | 72 |
-| **未办结联合分母** | **137** | **370** |
+| 现在佛 | 58 | 170 |
+| 过去佛 | 39 | 97 |
+| 斗战胜佛 | 17 | 51 |
+| **未办结联合分母** | **129** | **344** |
 
-- **严格交付率：715 / 1085 = 65.9%**（archived 715pt / archived 715 + 未办结 370pt）。执行态参考仍以看板状态计算，不替代验收。
+- **严格交付率：727 / 1071 = 67.9%**（archived 727pt / archived 727 + 未办结 344pt）。执行态参考仍以看板状态计算，不替代验收。
 - 交付率分母变化的唯一原因：上一基线（`musicfrog-todo-20261018-v236`）的看板计数已过期（记为现在佛 3/3pt、过去佛 26/69pt、未来佛 19/47pt，合计 119pt），本次按看板实际条目重算为 131pt；随后未来佛 16 条 / 36pt 全部并入现在佛，新立 6 条 / 17pt 截图认证与平台覆盖条目（+23pt），按 2026-10-19 的 Slint 表面审计实测补立 7 条 / 16pt 第三 UI 补齐条目（+16pt），本批次再补立 `SLINT-001.8`/`001.9` 3pt 并把已交付的 `PUB-006.1`、`PARITY-001.1` 4pt 迁入过去佛（净 +3pt）；2026-10-20 按 Bevy UI 强制化实测审计补立 3 条 / 8pt（`BEVYCAP-001.1` rem 守卫、`BEVYCAP-001.2` 存量 px 迁移、`BEVYCAP-002.1` ⑦ 小件收敛），未办结条目集合净增 56pt；2026-10-20 再补立 `BEVYCAP-003.1` 2pt（Bevy 场景律法唯一 owner 收敛：仓库自有 `bevy_bsn_guard.py` 与共享包场景门禁当前双份执行同一条 BSN 律法），未办结条目集合净增 58pt；2026-10-20 再补立 `WIDGET-001.1` 3pt（rem 迁移实测暴露的重复事实：开关轨道与旋钮几何在四个页面各写一份常量，widgets 缺 switch 控件真源），未办结条目集合净增 61pt；同日再补立 `BEVYCAP-004.1` 3pt（能力规范②④的浮层存量缺口：八个浮层 owner 补 `ThemeContext(SurfaceLevel::Floating)` 与 `FixedNode`，并加机器规则 `BEVY-BSN-011`）、`BEVYCAP-004.2` 3pt（modal 层迁官方 `Dialog`/`ModalDialog`/`RequestClose`，bool 对改 typed `ModalStage`）、`TOKEN-001.2` 2pt（契约圆角阶梯「居中对话框」角色重叠待裁决）；前三条已交付并迁入过去佛，未办结条目集合净增 69pt；2026-10-21 按实机截图与 Bevy 0.20 机制审计实测新立 Bevy UI 表现层 105 点视觉攻坚主线 7 条 / 21 pt（`BEVYUI-001`～`BEVYUI-007`，按页面簇切分 7 个并行条目，未办结集合 +21 pt）；同日按 Slint 现代化深度调研实测新立 Slint 质感与架构攻坚主线 7 条 / 20 pt（`SLINTUI-001`～`SLINTUI-007`，未办结集合 +20 pt）；同日全面研读《Rust GUI / TUI 高阶表现与跨平台实施报告》，自底向上（Layer 0~7）全面立项跨平台表现与渲染管线深化攻坚主线 50 条 / 145 pt（`EFFECTS-001`～`EFFECTS-050`，一个不留逐项覆盖底层 Token/数学、呈现投影、通用组件、Bevy 0.20 WESL/RTT、Iced 0.14 Animation/Canvas、Slint 1.18 Skia、Ratatui 0.30 与多端降级集成共 200 项工程点），未办结集合再净增 145 pt（217 → 362 pt），严格交付率更新为 715 / 1077 = 66.4%。
 - 2026-10-20 本批迁移：Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次与 CI runner 回执）；联合分母不变，严格交付率仍只计 archived points，故仍为 682 / 876 = 77.9%。
 - 2026-10-20 本批再迁移：隐式状态机全量审计（`STATE-001.1`，3 pt）与公共 API 文档质量门（`PUB-006.6`，2 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次复跑审计器与 docs.rs 等价门禁）；联合分母不变，严格交付率仍只计 archived points，故仍为 682 / 876 = 77.9%。
@@ -91,7 +93,18 @@
 - 2026-10-21 本批迁移：跨表面页面模型与像素认证三条（`GAP-7.1` 页面模型去重 5 pt、`GAP-4.1` Slint 功能验收与 parity 3 pt、`PARITY-001.2` 全业务双视口像素认证 5 pt）由现在佛迁入过去佛（状态 `Integrated`，待统一批次与全量截图认证收口）；**新立一条** `GAP-7.2`（3 pt）——页面模型迁移实测暴露的契约缺口（LAN 共享快照、PAC `bypass_lan`/`minify` 读回、规则页过滤 API、应用路由「未观测」文案键、闭合连接 `ConnectionView` 实现），缺口回流现在佛；联合分母因新立一条 +3 pt（166 → 169 pt），严格交付率仍只计 archived points，故为 712 / 881 = 80.8%。批次证据：全仓 `cargo nextest run --workspace --no-fail-fast --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools` **5534/5534 通过（15 skipped）**、`bash scripts/quality/check-structure.sh` **exit 0**、`cargo fmt --all --check` 通过；版本号按身份改动一次做完升到 0.51.0。
 - 2026-10-21 本批再迁移：页面模型最后一公里的契约缺口（`GAP-7.2`，3 pt）**办结归档**——LAN 共享读回成为一份事实、PAC 读回能回环请求、规则列表过滤归共享层、应用路由「未观测」有文案、闭合连接并入共享连接模型，三端的私有副本与降级分支清零搜索为空；**新立两条**：`PARITY-001.5`（5 pt，桌面两端剩余业务的真实捕获与像素回执）与 `SLINT-001.10`（2 pt，Slint 概览卡片排序手势与控件）；联合分母因新立两条 +7 pt（166 → 173 pt），严格交付率仍只计 archived points，故为 715 / 888 = 80.5%。
 - 2026-10-21 本批登记：实测 Bevy 0.20 的未采用能力（`Scrollbar`/`ScrollbarThumb`/`ScrollbarPlugin` 0 处、`ScrollIntoView` 0 处、`MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` 0 处），立 `BEVY-020.1`（3 pt）收口；联合分母 +3 pt（173 → 176 pt），严格交付率 715 / 891 = 80.2%。能力规范文档新增「0.20 未采用能力台账」，未采用必须是记录在案的取舍而不是遗漏。
-- 归档口径：累计 278 条 / 715 pt；明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
+- 归档口径：累计 290 条 / 727 pt；
+| `BEVYUI-001` BEVYUI-001 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] 侧边栏与标题栏外壳表现整改（#1~#18） | 3 | 壳层 18 条里 16 条修复（路由药丸不重叠、紧凑轨道末位图标完整、侧栏三级微阶底色、三键一体、Follow rules 改只读 chip、导航顺序与 Iced 对齐）；捕获 3/3 ok（`.evidence/captures/bevy/20261021T173243Z_7261c8326541_dirty_3006708/`）；hover 缓动与 tooltip 只有代码路径（需带指针台架，已转未来佛 PIXEL-POINTER-001） |
+| `BEVYUI-002` BEVYUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] 总览页与地球组件质感提升（#19~#32） | 3 | 总览+地球 14 条全修（官方 TabList 分段、地球模式空态骨架屏、状态点呼吸动效、拓扑空状态插画、#29 紧凑视口 hero 被顶出视口的根因修复）；捕获 3/3 ok（`20261021T123803Z_c11e55a3be03_dirty_1904104/`） |
+| `BEVYUI-003R` BEVYUI-003R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui + infiltrator-bevy-widgets + infiltrator-shared] 代理页余项与共享改动落地 | 3 | 共享层落地：不透明卡片填色 `card_fill()` + 线性空间合成 `over_surface()`（渐隐区最暗像素=卡片底，无接缝）、带标记分段控件、四个 locale 键、投影的 `latency_samples`/`sort_order`；#39 栏目条、#47 迷你折线图（画 owner 自己的历史）、#52 长名渐隐修复；捕获 4/4 ok（`20261021T173059Z_7261c8326541_dirty_3002393/`） |
+| `BEVYUI-004` BEVYUI-004 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] 规则系统与分段标签收口（#53~#68） | 3 | 规则 16 条里 12 条修复（官方 TabList 分段、官方滚动条且滑块可见、页码游标由视口派生、行改扁平等宽序号、语义色、JSON 行号槽与词法着色），另修掉规则行溢出卡片压住统计卡；4 条部分/未做转条目；捕获 2/2 + 双视口 4/4 ok |
+| `BEVYUI-006` BEVYUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] 实时日志与控制台流式重构（#83~#94） | 3 | 日志 12 条全修（扁平行带、等宽暗墨时间戳、官方 per-run 徽章芯片、官方 TabList 级别过滤、按钮三级、placeholder 对比度 4.34→7.91、软折行、实况条渐隐、行号与复制）；捕获 8/8 ok |
+| `BEVYUI-007` BEVYUI-007 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] DNS、自愈诊断与设置页交互收口（#95~#105） | 3 | DNS+诊断+设置 11 条全修（法律英文整段移入官方模态、告警进带框告警井、开关行去重复文字、配置行分离、审阅恢复接 owner 的 Myers diff 双栏、弹窗操作收拢、语言错误进 typed 相位告警条、诊断转圈按共享 typed 相位显形）；#103 像素回执缺一个可停 pending 相位的捕获场景，已转未来佛 PIXEL-POINTER-001 同类台架缺口 |
+| `BEVY-020.1` BEVY-020.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] Bevy 0.20 未采用能力收口（滚动条 / 滚动入视 / 官方菜单） | 3 | 官方能力接管：菜单（官方 MenuPopup/MenuItem/MenuEvent/MenuFocusState，本地导航状态机与手写视口翻转删除）、滚动条（官方 Scrollbar/ScrollbarThumb/ScrollbarPlugin + ScrollIntoView，自算偏移删除）、行内文字（InlineBox + InFlow/OutOfFlow + rem 通道）、方向导航（官方 DirectionalNavigationPlugin）；widgets 446/446 通过 |
+| `BEVY-020.2` BEVY-020.2 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-bevy-ui] 可见焦点归一：官方 `InputFocus` 成为唯一焦点真源 | 2 | 官方 `InputFocus` 成为唯一焦点真源（本地空间搜索与两份影子焦点账本删除，控件补官方 TabIndex），焦点测试 33/33；官方自动空间搜索的证据需真实相机，已转未来佛 BEVY-AUTO-NAV-001 |
+| `BEVYUI-001R` BEVYUI-001R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-shared + infiltrator-bevy-ui] 壳层余项：图标 rem 通道、专属图标资产、悬停像素回执 | 3 | 共享批次落地：图标盒走 rem 通道（`icon_scene_val`）、11 块专属图标牌（由既有 Lucide 源按 currentColor→白 流程栅格化，21/21 登记）、`Button` 的 TabIndex 归控件层、悬停 capture feature 判定为台架缺口（转未来佛 PIXEL-POINTER-001） |
+| `UI-FRAMEWORK-001` UI-FRAMEWORK-001 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-iced + infiltrator-slint] 跨表面「框架能力自研重造」余项收口 | 3 | 跨表面重造清零：Iced 手绘开关→官方 `toggler`、字形勾选框→官方 `checkbox`；Slint 两只搓模态→官方 `PopupWindow`、类型下拉→官方 `PopupMenu`、`AppColorSlider`→官方 `Slider`、返回手势补两个确认弹窗；Iced 规则虚拟窗口→官方 `lazy`（旧构建与 lazy 构建 `rules-dark` 0 差异像素） |
+| `SLINT-001.10` SLINT-001.10 [kind: mechanism] [priority: P2] [points: 2] [owner: infiltrator-slint] 概览卡片排序手势与控件 | 2 | Slint 概览卡片排序：派发共享 `CommandIntent::MoveOverviewCard`、渲染 owner 发布的顺序（无本地副本）、拒绝时列表原样不动；像素差 61.1%/81.4%（非路由切换），marker 带真实几何 |明细表内可查 262 条 / 681 pt（本次补登 `PUB-004.2`、`PUB-004.3`、`PUB-006.3` 三条 6pt），与累计口径的 1 条 / 1pt 差额是 v143 继承的历史差额，旧任务 ID 与证据无法还原，未猜填。
 - 主工作流口径：59 个父工作流（Android 主线及身份/CI 40、owner/VPN/Kotlin 质量 5、Engine-neutral Core 10、Slint 第三 UI 1、桌面共享页面/服务管理 1、跨 UI typed operation states 1、开源独立框架 1.0 中性内核 1）全部未完整关闭（0/59）。父工作流只有全部原子条目办结才能关闭；本页不再逐条罗列，执行态以看板为准。
 - 计数边界：iOS 原生 UI / NetworkExtension 未登记为活动任务，Apple 构建按当前决定暂缓；Bevy 概览 `SHOT-OV-01..08` 是 BANDROID 页面任务的验收分解（仅 P0 的 OV-07 在现在佛建条），阶段门、历史回执、旧 ID 目录与跨端队列映射是说明/记录，不另计工作项。
 

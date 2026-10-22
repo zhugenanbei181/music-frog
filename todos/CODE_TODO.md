@@ -21,11 +21,21 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261022-v264`：现在佛 178 pt（61 条）/ 过去佛 120 pt（47 条）/ 斗战胜佛 72 pt（29 条），联合未办结分母 370 pt；已归档交付 715 pt（278 条）；累计 1085 pt，严格归档完成率 65.9%。
-- 本板 61 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261022-v265`：现在佛 170 pt（58 条）/ 过去佛 97 pt（39 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 344 pt；已归档交付 727 pt（290 条）；累计 1071 pt，严格归档完成率 67.9%。
+- 本板 58 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、Ratatui 0.30 终端与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
 <!-- POINT_LEDGER:END -->
+
+- **执行次序（2026-10-22 重新整理）**：本板条目按 **Core-first** 排成一条可推的链——① 契约层事实（`EFFECTS-001`~`003`、`006`）→ ② 共享数学与资产（`EFFECTS-004`、`005`）→ ③ 表现层（`EFFECTS-007`~`013`）→ ④ 共享控件（`EFFECTS-014`~`020`）→ ⑤ Bevy 表面（`EFFECTS-021`~`028`）→ ⑥ Iced 表面（`EFFECTS-029`~`035`）→ ⑦ Slint 表面（`EFFECTS-036`~`041`）→ ⑧ TUI（`EFFECTS-042`~`045`）→ ⑨ 平台/移动/质量（`EFFECTS-046`~`048`）→ ⑩ a11y（`EFFECTS-049`）→ ⑪ 证据（`EFFECTS-050`）→ ⑫ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑬ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
+- **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
+
+- [ ] BEVYCAP-002 [kind: evidence] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] Bevy 九个业务仍缺捕获模块（17 格）
+  - 产物：为 `core-version-rollback-confirm`、`editor-snippet-insertion`、`editor-yaml-error-navigation`、`profiles-aggregator-preview`、`profiles-import-modal`、`rules-provider-refresh-error`、`settings-lan-security`、`sync-conflict-resolver`（各 standard+compact）与 `proxies-group-expanded` 补捕获模块（owner 装配 + typed 命令 + 能力闸 + 观测）；`proxies-group-expanded` 的观测要量「折叠→展开」的**可见差异**，而不是量展开节点自身的框。
+  - 依赖：表面控件与生产回调都已在树里，只差 capture 侧接线。
+  - 验收：三表面捕获矩阵全绿；这 17 格拿到像素回执并被验收认证为 `ready`。
+  - 事实依据：2026-10-22 Bevy 捕获流逐格分类的结论（缺 capture 模块，非环境阻塞，故留本板）。
+
 
 ## 一、大计划主线与推进顺序
 
@@ -69,112 +79,17 @@
 
 ## 四、质量红线：隐式状态机全量审计与逐条改写
 
-
 ## 五、A 主线：crates.io 发布流水线与开发者生态
-
 
 ## 六、B 主线：截图认证与平台证据（每个业务都真跑过）
 
-
 ### 5.1 Slint 第三 UI 的 360° 补齐（7条 / 16pt）
 
-
-
-
 ## 七、C 主线：质量红线与安装包
-
 
 ### 7.1 Bevy UI 能力规范强制化（2026-10-20 实测立项：bsn! 已是机器红线，rem 部分机器强制）
 
 立项依据（2026-10-20 实测审计，证据等级 L）：场景结构口径已闭合——`scripts/quality/bevy_bsn_guard.py` 扫描两个 Bevy crate 生产树 349 文件零违例并接入 `scripts/quality/check-structure.sh` 与 CI；rem/em 尺寸通道同批由共享包执行器 `scripts/quality/bevy_scene_gate.py` 接上机器红线（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记），但 token/计算值通道的白名单边界与能力规范 ⑦ 小件收敛**仍仅人工评审**，生产树另有 263 处 `Val::Px` 写入（其中初筛 183 处非白名单、字号通道已全量 `FontSize::Rem`）、`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处。执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
-
-
-
-- [ ] PARITY-001.5 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 桌面两端剩余业务的真实捕获与像素回执
-  - 产物：Iced 与 Bevy 两端尚未认证的业务各有一条真实交互与双视口像素回执；缺载体或缺可滚动身份的业务逐条立项。
-  - 依赖：本批交付的 owner 能力（13 个端口 fixture、同步冲突与概览卡片排序的应用实现、契约层的 LAN/PAC/路由读回）。
-  - 验收：每条业务在两端都有「demo/捕获真的执行了业务」的证据与黑盒像素差回执。
-  - 计划：① 用 `crates/infiltrator-test-support` 新增的端口 fixture 补 Bevy 捕获（规则提供者刷新、订阅源失败、配置导入、端口冲突修复、LAN 安全、TUN 权限、版本回滚、快照存储、测速历史、文档 codec、核心进程）；② 用同一批 fixture 补 Iced demo 的 owner 绑定（脚本沙箱与导出评审、差异视图、同步冲突与恢复、编辑器文档会话、聚合预览、应用路由枚举）；③ 逐条重跑 `scripts/parity/accept_surface_interactions.py --all --surfaces iced,bevy` 并把 certified 格登记为 `ready`。
-  - 已知阻塞（不是本条的缺口）：部分业务的成功态与「仅路由到页面」的基线像素相同（如端口冲突修复后的「无冲突」空态），需要契约层补一个「已修复」标记，否则像素判据无法区分。
-  - 进展（2026-10-21）：已建**已验证回执账本** `.evidence/visual_receipts.json`（159 份进程绑定像素回执，逐份绑定场景图与哈希、激活标记与原生边界、像素签名、进程与窗口身份、归档的产品构建与捕获源码指纹），解析器对齐格 **0 → 76**，验收把 **74 格提升为 `ready`**（注册表：76 ready / 44 implemented / 57 pending）。Iced 全量矩阵 93/93、Slint 60/60。
-  - 剩余缺口（诚实列出）：① Bevy 全量矩阵 10 场失败——`dns-hosts-editor`（双视口）、`runtime-telemetry-observation`（双视口）、`proxies-uri-import-preview`（双视口）、`profiles-filter-editor`（双视口）、`dns-query-details-compact`、`doctor-failure-recovery-compact`，app 日志显示表面自己的捕获几何拒绝该控件（`capture geometry rejected …`、`filter capture progress: stage=2 pane=Filter editable=false`）；② 13 个 Iced 业务按契约没有 demo activator；③ 16 个 Slint 业务虽然 `activated=true`，但激活前后像素完全一致（0 像素变化）。
-  - **最终认证（2026-10-21 静止树，一次跑完）**：账本 `.evidence/visual_receipts.json` **208 份回执**（iced 108 / bevy 69 / slint 31），**全部通过严格 `verified_receipts`**；解析器 `aligned` **97 / 177**、`unclosed` 80、`complete` false、`anchored` 312、`invalid` 1；验收 **208/272 格**认证、**97/136 业务-表面对**、64 格未认证、11 个锚点包全 `ok`、`receipt_failures {}`。注册表：ready 76 / implemented 44 / pending 57（iced 46/13、bevy 28/31、slint 2/57）。**`tree_moved_after_the_capture` 不再出现**（捕获写 `.evidence/`，不落在指纹路径内）。
-  - 诚实缺口（未弱化任何断言）：① 唯一 invalid 是 `rules-list-editor/bevy` 的**紧凑视口缺回执**（该格已是 ready）；② Bevy 全量矩阵 **79/81**（`profiles-filter-editor` 两场 failed-marker，app 日志 `filter capture progress: stage=2 pane=Filter editable=false tabs=3 fields=5`，该格在注册表里是 implemented 非 ready，未损失已证像素）；验收矩阵 Bevy 11 场 failed-marker（几何拒绝：`script console/clipped: size=Vec2(874.0, 38.0)`、`rule-list-editor/clipped: size=Vec2(622.0, 85.0)`、`rules keyword field/clipped: size=Vec2(590.0, 36.0)`、`app routing rule/clipped: size=Vec2(44.0, 18.0)`）、Iced 10 场（编辑页窄档不滚动、无刷新控件、同步页无该业务、目录页名错配）；③ 剩余 43 格未认证是像素差为 0（激活像素与纯路由渲染相同）；④ Slint 侧 57 格 pending 的主因是该表面**没有对应业务页**（20 格报 `required feature lacks L1/L2/L3 closure`）。
-  - 账本来源说明：严格入口拒绝任何含失败或非交互行的整跑，故按**验收自己的容错路径**（`build_receipts_tolerant` + 严格逐份验签）从三份验收跑批构建——全量矩阵只覆盖 27/27/18 个特性，直接用会让 25 个 ready 格失去像素、`aligned` 掉到 72。
-  - 下一步：修 Bevy 那 10 场的捕获几何拒绝；为 13 个 Iced 业务补 activator 或按契约记为不承载；给 16 个 Slint 业务补真实交互差异；然后重跑三表面矩阵并重签账本。
-  - 追加进展（2026-10-21，Iced 认证簇交付）：**8 个此前无 activator 的业务拿到真实交互与像素回执**——`app-routing-policy-editor`（std 52 268 / compact 12 370 px）、`profiles-subscription-error`（13 506 / 9 590）、`profiles-aggregator-preview`（151 895 / 168 566）、`profiles-script-sandbox`（7 008 / 8 073）、`profiles-script-export-review`（453 891 / 262 626）、`profiles-diff-viewer`（561 725 / 279 470）、`editor-yaml-error-navigation`（48 063 / 33 862）、`sync-conflict-resolver`（122 986 / compact 4 382——首跑 compact 为 0，原因是测的合并面板 404px 高于 393px 紧凑视口永远居不中，改测**第一条冲突键行**后复取复证）。每个业务都是真手势经真实 update 管道（共享 `ProfileApplication`/`ProfileAggregationApplication`/`ScriptApplication`/`ScriptExportApplication`/快照 Myers diff/codec 诊断），不是路由切换。
-  - Iced 官方化与修复：`UI-FRAMEWORK-001` 的字形勾选框改官方 `iced::widget::checkbox`（**行为变更**：点击目标从整行收窄为方框+标签，行尾状态徽章不再可点、成为装饰）；`capture_frame.rs` 的已发布 `rendered-frame.png` 改为**跟随表面**（读回变化就重写），此前它冻结在写回执那一刻的帧，与合成器截图差 2.64% 且回执的帧证明是陈旧的。Iced 发布矩阵 **93/93**，新增业务场景 **16/16**。
-  - **验收现状**：解析器 `aligned` **76 → 108**、`unclosed` 77、`complete` 仍 false；认证 209/272 格、100/136 业务-表面对。回执账本**仍被拒**（严格构建器拒绝任何含失败场景的整跑：`ValueError: iced: failed or non-interaction capture editor-large-document-window-standard`），须待剩余格闭合后重建；验收同时报 `tree_moved_after_the_capture`（树在跑批中移动），重绑要等树静默后由收口批次做。
-  - **5 项未交付（确切原因）**：① `editor-large-document-window`/`editor-snippet-insertion`——编辑页窄档**不滚动**，文档面板被工具条与横幅挤出 480px 折叠线，业务像素不可观测（修法：窄档让编辑页像 App Routing 一样滚动并给文档/行号槽加 region；demo 手势已就绪，`ProfileStoreCapture::CAPTURE_LARGE_PROFILE` 4 000 条规则）；② `rules-provider-refresh-error`——demo 的规则提供者 fixture 带 `controller: None`，页面**没有可按的刷新控件**，须发布带 `RuleProviderControllerReference` 的提供者并经命令门面拒绝刷新（共用订阅错误那条 region）；③ `sync-restore-confirm`——Iced 同步页**根本没有快照恢复业务**（不渲染快照列表、不投恢复动作，共享 `SyncPageSnapshot.snapshots` 未投影），不伪造手势：要么表面补该业务，要么目录诚实写"该表面不承载"；④ `overview-topology-drilldown`——手势与就绪判据**已工作**（下钻落到共享导航目标），但捕获标记发布的是**已挂载的路由**（`rules`）而目录写的捕获页是 `overview`，属共享目录缺陷。
-  - 共享改动需求（契约级，须一次落地）：① `crates/infiltrator-contract/src/parity.rs` 的 `OverviewTopologyDrilldown` 行把捕获页由 `overview` 改为 `rules`（Iced 下钻落到规则页；Bevy 是概览页原位面板，保持 `overview`）；② `SyncRestoreConfirm` 行按"该表面不承载"改为空页（或表面补业务后保持 `sync`）；③ `scripts/capture_iced_scenarios.tsv` 补 16 行新业务场景（app-routing-policy-editor / profiles-subscription-error / profiles-aggregator-preview / profiles-script-sandbox / profiles-script-export-review / profiles-diff-viewer / editor-yaml-error-navigation / sync-conflict-resolver，各 standard+compact）。
-  - `UI-FRAMEWORK-001` ⑥（Iced 规则虚拟窗口改官方 `iced::widget::lazy`）**未交付并附证据**：开了 `lazy` feature 后规则页**整片渲染为空**（分页器仍报"15 rules"）；逐段二分（每次都是真实捕获）：纯 `text` 的段渲染、`column![text]` 的段渲染、**含 `Length::Fill` 子项的行渲染为空**、同一段放在 lazy 外渲染正确（`rules-dark.png` 与 HEAD 逐字节相同）；给段 `Length::Fill` 无效。结论：iced 0.14.2 的 `lazy` 会压掉规则行的 fill 宽度，故保留表面正确、**不开这个死依赖**；要落地必须让该带不含 `Length::Fill`（用共享内容宽度的固定宽）或修上游——属产品决定。
-
-- [ ] SLINT-001.10 [kind: mechanism] [priority: P2] [points: 2] [owner: infiltrator-slint] [status: Planned] 概览卡片排序手势与控件
-  - 产物：Slint 概览页的卡片可按共享 `CommandIntent::MoveOverviewCard` 排序（Iced 与 Bevy 两端已有，Slint 端缺手势与控件）。
-  - 依赖：共享命令与 owner 已就位（`OverviewLayoutApplication` + `CommandIntent::MoveOverviewCard`）。
-  - 验收：Slint 派发同一 typed intent，页面渲染 owner 发布的顺序；排序手势有行为测试。
-  - 计划：在 `surface/action/workbench.rs` 增加上下移动手势并在概览页挂控件；注意 `ui/lumen-app.slint` 已接近 600 行预算，新控件走页面文件。
-  - 缺口来源：应用层实现批次的报告（Slint 端没有任何概览排序动作）。
-
-
-
-
-## 八、Bevy UI 表现层与视觉质感 105 点攻坚（GPUI 标杆收口，7条 / 21pt）
-
-- **推进方式（2026-10-21 决定）**：七条按**页面簇**切分并行推进，文件所有权互不相交——001 侧边栏/标题栏、002 总览+地球、003 代理、004 规则、005 连接、006 日志、007 DNS+诊断+设置。共享文件（theme/palette/page_models/text/list/menu/shell_readout）对各流**只读**，需要共享改动的一律报给收口流成批落地，避免并行流互相覆盖。
-- **cargo 纪律（减少 cargo 次数）**：并行期**禁止各流跑 nextest/clippy/build**，每条流的编译验证与像素取证统一走捕获脚本 `bash scripts/capture-bevy-matrix.sh <场景>`（脚本自建 Bevy 二进制，兼作编译检查），全仓 nextest 与结构门由收口流在末批**只跑一次**；捕获是共享资源，同一时刻只允许一条流在跑。
-- **依赖与次序**：001（`shell_readout.rs`）、004（规则列表接官方 Scrollbar）、006（日志行内排版接 InlineBox）与 BEVY-020.1 的三条流**抢同一批文件**，按"0.20 流先落、视觉整改后落"的次序排队；002/003/005/007 与 0.20 流文件不重叠，立即并行开工。
-
-
-
-
-## 九、Slint UI 表现层与现代架构 34 点攻坚（Qt/GPUI 对标收口，7条 / 20pt）
-
-- [ ] SLINTUI-001 [kind: infra] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 渲染管线升级 —— 接入 Skia GPU 硬件加速与 VSync（#1~#4）
-  - 产物：解决 #1 桌面端脱离 CPU 软件光栅化引入 renderer-skia、#2 保留 renderer-femtovg 轻量通道、#3 预留 backend-qt 原生桥接支持、#4 开启 GPU VSync 垂直同步消除宽屏撕裂。
-  - 依赖：infiltrator-slint/Cargo.toml。
-  - 验收：桌面运行确认 Skia GPU 渲染器加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
-  - 计划：更新 Cargo.toml 配置桌面 target 的 renderer-skia 特性，配置 Winit 后端。
-
-- [ ] SLINTUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 桌面设计系统重构 —— 响应式多列网格与 Zinc 空间光影（#5~#10）
-  - 产物：解决 #5 终结移动端竖屏拉伸重构为桌面多列仪表板、#6 根除 1180x780 桌面端 70% 纯黑空洞、#7 建立 Zinc 8 阶微差暗色底板系统、#8 引入 Slint 原生 drop-shadow 柔和漫反射两阶阴影、#9 卡片增加 1px 微发光半透明内描边、#10 规范化全局圆角阶梯与内边距 Token。
-  - 依赖：SLINTUI-001。
-  - 验收：1180x780 桌面视口下呈现饱满双列/三列仪表板，消灭纯黑 void，双视口回执通过。
-  - 计划：重构 theme.slint 与 cards.slint，在 page_home 与 page_proxies 引入 GridLayout。
-
-- [ ] SLINTUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 声明式状态机与微交互 —— 原生 states 贝塞尔动效（#11~#15）
-  - 产物：解决 #11 按钮/卡片/开关/导航全面注入原生 states 状态机、#12 状态迁移配置 120ms ease-out 与 cubic-bezier 缓动、#13 按钮与卡片悬停增加 Y 轴 -1px 微抬升与边缘高光、#14 路由分段切换器增加弹性平移胶囊动画、#15 测速与状态切换增加脉冲呼吸动效消除瞬间跳色。
-  - 依赖：SLINTUI-002。
-  - 验收：鼠标悬停与点击交互平滑跟手，动画无掉帧，通过表面行为测试与交互捕获。
-  - 计划：在 base_widgets.slint 与 cards.slint 注入 states 与 transitions 声明块。
-
-- [ ] SLINTUI-004 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 列表虚拟化与增量模型 —— ListView 视口回收与零拷贝管道（#16~#20）
-  - 产物：解决 #16 代理节点列表迁移为原生虚拟化 ListView、#17 规则/连接/日志长列表改用 ListView 视口回收委托、#18 废除 Rust 轮询每次全量销毁重建 VecModel、#19 接入官方 FilterModel 与 SortModel 零拷贝增量管道、#20 日志流实现自定义零拷贝流式 Model。
-  - 依赖：infiltrator-presentation。
-  - 验收：500+ 代理节点长列表流畅滚动达 120fps，即时搜索与排序无内存突增与卡顿。
-  - 计划：重构 page_proxies.slint 与 lumen_projection/collections，接入 ListView 与 FilterModel。
-
-- [ ] SLINTUI-005 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 现代 Slint 语法与工程清理 —— 消除占位 Hack 与强类型枚举（#21~#25）
-  - 产物：解决 #21 全面消除透明 Rectangle 占位 hack 改用原生 spacing/padding、#22 清理全仓散落的 * LumenUiScale.factor 手动乘法改走系统原生 DPI、#23 在 .slint 声明领域强类型 export enum 替代弱类型字符串、#24 全面改用现代 <=> 双向属性绑定、#25 收敛规范 lumen-app.slint 中堆积的全局属性。
-  - 依赖：无。
-  - 验收：ui/ 目录下无任何透明占位 Rectangle，编译后无语法弃用警告，单测全绿。
-  - 计划：系统性重构 ui/*.slint 文件的布局声明，定义 domain enums。
-
-- [ ] SLINTUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 现代操作系统沉浸式集成 —— 一体化无边框与 Mica/Vibrancy 特效（#26~#30）
-  - 产物：解决 #26 启用 no-frame 自绘现代一体化标题栏与拖拽区、#27 标题栏集成历史导航与面包屑、#28 Windows 11 下通过 Winit 启用系统级 Mica/Acrylic 亚克力底衬、#29 macOS 下启用 Vibrancy 毛玻璃底色、#30 宽屏多列/中屏折叠/窄屏紧凑底栏的优雅响应式切换。
-  - 依赖：SLINTUI-001。
-  - 验收：多平台窗口边框与底衬呈现操作系统原生现代高级质感，响应式断点平滑。
-  - 计划：重构 app_chrome.slint 与 desktop.rs 窗口构建属性。
-
-- [ ] SLINTUI-007 [kind: visual] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] 排版网格与数据指标美化 —— 等宽数字防抖与基线对齐（#31~#34）
-  - 产物：解决 #31 实时上下行速率与连接数启用等宽数字（Tabular Figures）消除刷新抖动、#32 统一长文本末尾渐隐与自动省略（overflow: elide）杜绝撑破、#33 优化代码字体行高与字距消除日志串行、#34 节点卡片内国旗/协议/延迟严格基线中心对齐。
-  - 依赖：infiltrator-slint。
-  - 验收：双视口下动态数据刷新无字符拉扯跳动，长字符安全截断，基线对齐。
-  - 计划：引入 tnum 字体配置与 elide 属性，校准 cards.slint 的 HorizontalLayout 对齐。
-
-## 十、跨平台 GUI/TUI 表现深化 200 点自底向上攻坚（报告实施，50条 / 145pt）
-
-### 10.1 Layer 0: 底层数学、动效参数与跨端 Token 契约层（6条 / 17pt，涵盖 #1~#25）
 
 - [ ] EFFECTS-001 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Planned] 语义色彩与 Zinc 多阶暗底契约（#1~#5）
   - 产物：在 design_tokens.rs 裁决 #1 Zinc 8阶表面系统、#2 双色标线性渐变规范、#3 高光描边与半透明语义、#4 延迟与生命周期状态色阶、#5 WCAG AA 文本对比度梯阶。
@@ -490,27 +405,67 @@
   - 验收：CI 流水线一键复跑所有 UI 双视口像素差比对，无感知视觉退化被拒。
   - 计划：更新 scripts/parity/ 自动化取证套件。
 
-- [ ] UI-FRAMEWORK-001 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-iced + infiltrator-slint] [status: Planned] 跨表面「框架能力自研重造」余项收口
-  - 产物：① Iced 字形勾选框（`view_root/aggregator_modal.rs` 的 `checkbox_glyph`/`toggle_row`、`view/uwp_card.rs` 的 `glyph`）改官方 `iced::widget::checkbox`（点击目标从整行收窄到方框是产品决定，需先定）；② Slint `profile_sheets.slint` 的 Profile-Settings 类型下拉改官方 `PopupWindow`/`PopupMenu`（同族的主题/语言/代理排序菜单已是官方件；S-3 记录的 Android 理由要先在同一 pin 上复核）；③ Slint `base_widgets.slint` 的 `AppColorSlider` 手搓滑块改标准 `Slider`（`step`/`changed`/`released`）或 Lumen `Slider`（`stop_count`），需定 22px 滑块与可换肤轨道的皮肤契约；④ Slint 的 `ScrollView{for …}` 列表改标准 `ListView` 做虚拟化（行高契约以共享域为准）；⑤ Slint 返回手势补齐两个确认弹窗的关闭（与菜单同形）；⑥ Iced 规则虚拟窗口改 `iced::widget::lazy`（需在 pinned 依赖开 `lazy` feature，属共享 owner 层改动）。
-  - 依赖：Iced/Slint 表面各自可在自己的视图层内推进；⑥ 需共享 owner 决策。
-  - 验收：三个表面各自 nextest 全绿；每项都有「改前/改后」证据；Iced 开关像素回执需重取（改用工具链 2:1 药丸后像素变了，`source_fingerprint` 绑定要重绑）。
-  - 事实依据：2026-10-21 按 pinned 依赖源码符号名实测（iced 0.14 / iced_widget 0.14.2 / slint 1.18.1 / Compose M3）：Iced 手绘开关（`canvas::Program`）已改官方 `toggler` 并补 4 条测试；Slint 两个 `inherits Rectangle` 手搓模态已改官方 `PopupWindow` 并删掉产品层 open bool，补 2 条测试；Android Compose 零命中。
-  - 追加进展（2026-10-21）：① Iced 字形勾选框已改官方 `iced::widget::checkbox`（行为变更已记录在 `PARITY-001.5`）；⑥ Iced 规则虚拟窗口改官方 `lazy` **未交付**（开了 feature 后规则页整片渲染为空，二分证明是 `lazy` 压掉含 `Length::Fill` 行的宽度；保留表面正确、不开死依赖，落地需产品决定：改带宽或修上游）。
+- [ ] SLINTUI-001 [kind: infra] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 渲染管线升级 —— 接入 Skia GPU 硬件加速与 VSync（#1~#4）
+  - 产物：解决 #1 桌面端脱离 CPU 软件光栅化引入 renderer-skia、#2 保留 renderer-femtovg 轻量通道、#3 预留 backend-qt 原生桥接支持、#4 开启 GPU VSync 垂直同步消除宽屏撕裂。
+  - 依赖：infiltrator-slint/Cargo.toml。
+  - 验收：桌面运行确认 Skia GPU 渲染器加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
+  - 计划：更新 Cargo.toml 配置桌面 target 的 renderer-skia 特性，配置 Winit 后端。
 
-- [ ] BEVYUI-001R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-shared + infiltrator-bevy-ui] [status: Planned] 壳层余项：图标 rem 通道、专属图标资产、悬停像素回执
-  - 产物：① `widgets/src/icon.rs` 增加 `icon_scene_val(icon: IconId, size: Val, tint: Color)`（图标底板是物理资产，但盒子是布局尺寸，必须随根字号缩放），壳层改用它（#14 残余抖动）；② `infiltrator-shared/src/assets.rs` 的 `bevy_icon_png` 增补 `minus/square/x/chevron-left/chevron-right` 与 11 条路由的专属图标（`shield/list-checks/server/layout-grid/code-2/target`），由既有 Iced Lucide 源按现有 currentColor→白 流程栅格化；`widgets/src/icon.rs` 的 `IconId`/`index()`/`asset_name()` 同步——窗口三键与历史箭头脱离文本字形（合规 tofu law），路由图标不再重复（#5/#7/#16）；③ 捕获台增加「指针悬停轨道行」的 capture feature（`infiltrator-bevy-ui/src/capture.rs` + `interaction_capture/`），使 hover 填充与 tooltip 获得真实像素回执（#4/#18 的证据缺口）。
-  - 追加（日志簇交付时提出）：软折行开关的可见文案需要两个本地化键 `logs_wrap_soft`（自动换行/Soft wrap）与 `logs_wrap_single`（单行显示/Single line），落在 `infiltrator-shared/src/locales_table_ext.rs` 与 `locales_table_en_ext.rs`，随后由日志页消费。
-  - 追加（焦点真源流交付时提出）：`crates/infiltrator-bevy-widgets/src/lib.rs` 由**控件层**拥有按钮的官方焦点标记 `app.register_required_components::<Button, TabIndex>()`（现由壳层插件注册，owner 位置不对）。
-  - 追加（捕获几何簇交付时提出，**契约级改动，不得半落地**）：新增业务 `DoctorRepairProgress` 需要连带落地五处——① `crates/infiltrator-contract/src/parity.rs` 的 `DoctorRepairProgress => ("doctor-repair-progress", "doctor", "doctor", "doctor", ["pending", "success", "error", "retry"])` 及其 typed `FeatureId` 变体（三个表面的 carried 列表与 spec 表同步）；② `scripts/parity/cross_surface_manifest.tsv` 三行（iced/slint `pending`+理由，bevy `implemented`）；③ `scripts/parity/feature_evidence.tsv` 六行（bevy 的 contract/scenario 两行 `anchored`，其余 `pending`）；④ `scripts/capture_bevy_scenarios.tsv` 两行（`doctor-repair-progress-standard` 1180x780、`-compact` 720x480）；⑤ `crates/infiltrator-test-support/src/doctor_capture_fixtures.rs` 的 owner 侧 `hold_pending()`（可选：捕获侧已用 `AnswerDelivery::Hold` 留住 owner 的答复，owner 侧挂起是备选）。捕获侧已用注册表稳定 id 暂代 typed 变体，落地后必须换成 typed 变体。
-  - 追加（规则簇交付时提出，共 8 项，逐项见该条目的「共享改动需求」）：空档案名的草稿文案键、禁用墨对比度、`modern_surface.wesl` 边框 alpha 丢弃（全应用卡片边框的根因）、滚动条滑块墨色、命中统计拆分、代码编辑器按 token 着色、抽屉过渡驱动、规则页双视口捕获场景行。
-  - 依赖：与 `BEVYUI-003R` 同属共享层批次，收口流须把两批共享改动合并成一次落地，避免两条流同时改 `widgets/src/` 与 `infiltrator-shared/src/`。
-  - 验收：图标盒走 rem 通道（`bevy_rem_guard` 零新增物理 px 命名值）、路由图标不再重复、悬停与 tooltip 有双视口像素回执。
-  - 事实依据：2026-10-21 壳层整改交付时给出的三段共享改动需求（文件 + 符号 + 可落地片段）。
+- [ ] SLINTUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 桌面设计系统重构 —— 响应式多列网格与 Zinc 空间光影（#5~#10）
+  - 产物：解决 #5 终结移动端竖屏拉伸重构为桌面多列仪表板、#6 根除 1180x780 桌面端 70% 纯黑空洞、#7 建立 Zinc 8 阶微差暗色底板系统、#8 引入 Slint 原生 drop-shadow 柔和漫反射两阶阴影、#9 卡片增加 1px 微发光半透明内描边、#10 规范化全局圆角阶梯与内边距 Token。
+  - 依赖：SLINTUI-001。
+  - 验收：1180x780 桌面视口下呈现饱满双列/三列仪表板，消灭纯黑 void，双视口回执通过。
+  - 计划：重构 theme.slint 与 cards.slint，在 page_home 与 page_proxies 引入 GridLayout。
 
-## 十一、办结与登记
+- [ ] SLINTUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 声明式状态机与微交互 —— 原生 states 贝塞尔动效（#11~#15）
+  - 产物：解决 #11 按钮/卡片/开关/导航全面注入原生 states 状态机、#12 状态迁移配置 120ms ease-out 与 cubic-bezier 缓动、#13 按钮与卡片悬停增加 Y 轴 -1px 微抬升与边缘高光、#14 路由分段切换器增加弹性平移胶囊动画、#15 测速与状态切换增加脉冲呼吸动效消除瞬间跳色。
+  - 依赖：SLINTUI-002。
+  - 验收：鼠标悬停与点击交互平滑跟手，动画无掉帧，通过表面行为测试与交互捕获。
+  - 计划：在 base_widgets.slint 与 cards.slint 注入 states 与 transitions 声明块。
 
-- 本板条目全部验收通过后，按 [TODO.md](../TODO.md) 流转规则同次移入[过去佛](CODE_TODO_PAST.md)（实现已交付、只剩统一批次）或直接办结退出并登记 archived points。
-- 需要实机、tag CI、用户 secrets、上架凭证或异构目标机才能收口的条目，在迁移前先完成本板所有可推动作，再整条迁入[斗战胜佛](CODE_TODO_BLOCKED.md)。
+- [ ] SLINTUI-004 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 列表虚拟化与增量模型 —— ListView 视口回收与零拷贝管道（#16~#20）
+  - 产物：解决 #16 代理节点列表迁移为原生虚拟化 ListView、#17 规则/连接/日志长列表改用 ListView 视口回收委托、#18 废除 Rust 轮询每次全量销毁重建 VecModel、#19 接入官方 FilterModel 与 SortModel 零拷贝增量管道、#20 日志流实现自定义零拷贝流式 Model。
+  - 依赖：infiltrator-presentation。
+  - 验收：500+ 代理节点长列表流畅滚动达 120fps，即时搜索与排序无内存突增与卡顿。
+  - 计划：重构 page_proxies.slint 与 lumen_projection/collections，接入 ListView 与 FilterModel。
 
-### 7.2 共享控件真源补齐（rem 迁移暴露的重复事实）
+- [ ] SLINTUI-005 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 现代 Slint 语法与工程清理 —— 消除占位 Hack 与强类型枚举（#21~#25）
+  - 产物：解决 #21 全面消除透明 Rectangle 占位 hack 改用原生 spacing/padding、#22 清理全仓散落的 * LumenUiScale.factor 手动乘法改走系统原生 DPI、#23 在 .slint 声明领域强类型 export enum 替代弱类型字符串、#24 全面改用现代 <=> 双向属性绑定、#25 收敛规范 lumen-app.slint 中堆积的全局属性。
+  - 依赖：无。
+  - 验收：ui/ 目录下无任何透明占位 Rectangle，编译后无语法弃用警告，单测全绿。
+  - 计划：系统性重构 ui/*.slint 文件的布局声明，定义 domain enums。
 
+- [ ] SLINTUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 现代操作系统沉浸式集成 —— 一体化无边框与 Mica/Vibrancy 特效（#26~#30）
+  - 产物：解决 #26 启用 no-frame 自绘现代一体化标题栏与拖拽区、#27 标题栏集成历史导航与面包屑、#28 Windows 11 下通过 Winit 启用系统级 Mica/Acrylic 亚克力底衬、#29 macOS 下启用 Vibrancy 毛玻璃底色、#30 宽屏多列/中屏折叠/窄屏紧凑底栏的优雅响应式切换。
+  - 依赖：SLINTUI-001。
+  - 验收：多平台窗口边框与底衬呈现操作系统原生现代高级质感，响应式断点平滑。
+  - 计划：重构 app_chrome.slint 与 desktop.rs 窗口构建属性。
+
+- [ ] SLINTUI-007 [kind: visual] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] 排版网格与数据指标美化 —— 等宽数字防抖与基线对齐（#31~#34）
+  - 产物：解决 #31 实时上下行速率与连接数启用等宽数字（Tabular Figures）消除刷新抖动、#32 统一长文本末尾渐隐与自动省略（overflow: elide）杜绝撑破、#33 优化代码字体行高与字距消除日志串行、#34 节点卡片内国旗/协议/延迟严格基线中心对齐。
+  - 依赖：infiltrator-slint。
+  - 验收：双视口下动态数据刷新无字符拉扯跳动，长字符安全截断，基线对齐。
+  - 计划：引入 tnum 字体配置与 elide 属性，校准 cards.slint 的 HorizontalLayout 对齐。
+
+## 十、跨平台 GUI/TUI 表现深化 200 点自底向上攻坚（报告实施，50条 / 145pt）
+
+### 10.1 Layer 0: 底层数学、动效参数与跨端 Token 契约层（6条 / 17pt，涵盖 #1~#25）
+
+- [ ] PARITY-001.5 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 桌面两端剩余业务的真实捕获与像素回执
+  - 产物：Iced 与 Bevy 两端尚未认证的业务各有一条真实交互与双视口像素回执；缺载体或缺可滚动身份的业务逐条立项。
+  - 依赖：本批交付的 owner 能力（13 个端口 fixture、同步冲突与概览卡片排序的应用实现、契约层的 LAN/PAC/路由读回）。
+  - 验收：每条业务在两端都有「demo/捕获真的执行了业务」的证据与黑盒像素差回执。
+  - 计划：① 用 `crates/infiltrator-test-support` 新增的端口 fixture 补 Bevy 捕获（规则提供者刷新、订阅源失败、配置导入、端口冲突修复、LAN 安全、TUN 权限、版本回滚、快照存储、测速历史、文档 codec、核心进程）；② 用同一批 fixture 补 Iced demo 的 owner 绑定（脚本沙箱与导出评审、差异视图、同步冲突与恢复、编辑器文档会话、聚合预览、应用路由枚举）；③ 逐条重跑 `scripts/parity/accept_surface_interactions.py --all --surfaces iced,bevy` 并把 certified 格登记为 `ready`。
+  - 已知阻塞（不是本条的缺口）：部分业务的成功态与「仅路由到页面」的基线像素相同（如端口冲突修复后的「无冲突」空态），需要契约层补一个「已修复」标记，否则像素判据无法区分。
+  - 进展（2026-10-21）：已建**已验证回执账本** `.evidence/visual_receipts.json`（159 份进程绑定像素回执，逐份绑定场景图与哈希、激活标记与原生边界、像素签名、进程与窗口身份、归档的产品构建与捕获源码指纹），解析器对齐格 **0 → 76**，验收把 **74 格提升为 `ready`**（注册表：76 ready / 44 implemented / 57 pending）。Iced 全量矩阵 93/93、Slint 60/60。
+  - 剩余缺口（诚实列出）：① Bevy 全量矩阵 10 场失败——`dns-hosts-editor`（双视口）、`runtime-telemetry-observation`（双视口）、`proxies-uri-import-preview`（双视口）、`profiles-filter-editor`（双视口）、`dns-query-details-compact`、`doctor-failure-recovery-compact`，app 日志显示表面自己的捕获几何拒绝该控件（`capture geometry rejected …`、`filter capture progress: stage=2 pane=Filter editable=false`）；② 13 个 Iced 业务按契约没有 demo activator；③ 16 个 Slint 业务虽然 `activated=true`，但激活前后像素完全一致（0 像素变化）。
+  - **最终认证（2026-10-21 静止树，一次跑完）**：账本 `.evidence/visual_receipts.json` **208 份回执**（iced 108 / bevy 69 / slint 31），**全部通过严格 `verified_receipts`**；解析器 `aligned` **97 / 177**、`unclosed` 80、`complete` false、`anchored` 312、`invalid` 1；验收 **208/272 格**认证、**97/136 业务-表面对**、64 格未认证、11 个锚点包全 `ok`、`receipt_failures {}`。注册表：ready 76 / implemented 44 / pending 57（iced 46/13、bevy 28/31、slint 2/57）。**`tree_moved_after_the_capture` 不再出现**（捕获写 `.evidence/`，不落在指纹路径内）。
+  - 诚实缺口（未弱化任何断言）：① 唯一 invalid 是 `rules-list-editor/bevy` 的**紧凑视口缺回执**（该格已是 ready）；② Bevy 全量矩阵 **79/81**（`profiles-filter-editor` 两场 failed-marker，app 日志 `filter capture progress: stage=2 pane=Filter editable=false tabs=3 fields=5`，该格在注册表里是 implemented 非 ready，未损失已证像素）；验收矩阵 Bevy 11 场 failed-marker（几何拒绝：`script console/clipped: size=Vec2(874.0, 38.0)`、`rule-list-editor/clipped: size=Vec2(622.0, 85.0)`、`rules keyword field/clipped: size=Vec2(590.0, 36.0)`、`app routing rule/clipped: size=Vec2(44.0, 18.0)`）、Iced 10 场（编辑页窄档不滚动、无刷新控件、同步页无该业务、目录页名错配）；③ 剩余 43 格未认证是像素差为 0（激活像素与纯路由渲染相同）；④ Slint 侧 57 格 pending 的主因是该表面**没有对应业务页**（20 格报 `required feature lacks L1/L2/L3 closure`）。
+  - 账本来源说明：严格入口拒绝任何含失败或非交互行的整跑，故按**验收自己的容错路径**（`build_receipts_tolerant` + 严格逐份验签）从三份验收跑批构建——全量矩阵只覆盖 27/27/18 个特性，直接用会让 25 个 ready 格失去像素、`aligned` 掉到 72。
+  - 下一步：修 Bevy 那 10 场的捕获几何拒绝；为 13 个 Iced 业务补 activator 或按契约记为不承载；给 16 个 Slint 业务补真实交互差异；然后重跑三表面矩阵并重签账本。
+  - 追加进展（2026-10-21，Iced 认证簇交付）：**8 个此前无 activator 的业务拿到真实交互与像素回执**——`app-routing-policy-editor`（std 52 268 / compact 12 370 px）、`profiles-subscription-error`（13 506 / 9 590）、`profiles-aggregator-preview`（151 895 / 168 566）、`profiles-script-sandbox`（7 008 / 8 073）、`profiles-script-export-review`（453 891 / 262 626）、`profiles-diff-viewer`（561 725 / 279 470）、`editor-yaml-error-navigation`（48 063 / 33 862）、`sync-conflict-resolver`（122 986 / compact 4 382——首跑 compact 为 0，原因是测的合并面板 404px 高于 393px 紧凑视口永远居不中，改测**第一条冲突键行**后复取复证）。每个业务都是真手势经真实 update 管道（共享 `ProfileApplication`/`ProfileAggregationApplication`/`ScriptApplication`/`ScriptExportApplication`/快照 Myers diff/codec 诊断），不是路由切换。
+  - Iced 官方化与修复：`UI-FRAMEWORK-001` 的字形勾选框改官方 `iced::widget::checkbox`（**行为变更**：点击目标从整行收窄为方框+标签，行尾状态徽章不再可点、成为装饰）；`capture_frame.rs` 的已发布 `rendered-frame.png` 改为**跟随表面**（读回变化就重写），此前它冻结在写回执那一刻的帧，与合成器截图差 2.64% 且回执的帧证明是陈旧的。Iced 发布矩阵 **93/93**，新增业务场景 **16/16**。
+  - **验收现状**：解析器 `aligned` **76 → 108**、`unclosed` 77、`complete` 仍 false；认证 209/272 格、100/136 业务-表面对。回执账本**仍被拒**（严格构建器拒绝任何含失败场景的整跑：`ValueError: iced: failed or non-interaction capture editor-large-document-window-standard`），须待剩余格闭合后重建；验收同时报 `tree_moved_after_the_capture`（树在跑批中移动），重绑要等树静默后由收口批次做。
+  - **5 项未交付（确切原因）**：① `editor-large-document-window`/`editor-snippet-insertion`——编辑页窄档**不滚动**，文档面板被工具条与横幅挤出 480px 折叠线，业务像素不可观测（修法：窄档让编辑页像 App Routing 一样滚动并给文档/行号槽加 region；demo 手势已就绪，`ProfileStoreCapture::CAPTURE_LARGE_PROFILE` 4 000 条规则）；② `rules-provider-refresh-error`——demo 的规则提供者 fixture 带 `controller: None`，页面**没有可按的刷新控件**，须发布带 `RuleProviderControllerReference` 的提供者并经命令门面拒绝刷新（共用订阅错误那条 region）；③ `sync-restore-confirm`——Iced 同步页**根本没有快照恢复业务**（不渲染快照列表、不投恢复动作，共享 `SyncPageSnapshot.snapshots` 未投影），不伪造手势：要么表面补该业务，要么目录诚实写"该表面不承载"；④ `overview-topology-drilldown`——手势与就绪判据**已工作**（下钻落到共享导航目标），但捕获标记发布的是**已挂载的路由**（`rules`）而目录写的捕获页是 `overview`，属共享目录缺陷。
+  - 共享改动需求（契约级，须一次落地）：① `crates/infiltrator-contract/src/parity.rs` 的 `OverviewTopologyDrilldown` 行把捕获页由 `overview` 改为 `rules`（Iced 下钻落到规则页；Bevy 是概览页原位面板，保持 `overview`）；② `SyncRestoreConfirm` 行按"该表面不承载"改为空页（或表面补业务后保持 `sync`）；③ `scripts/capture_iced_scenarios.tsv` 补 16 行新业务场景（app-routing-policy-editor / profiles-subscription-error / profiles-aggregator-preview / profiles-script-sandbox / profiles-script-export-review / profiles-diff-viewer / editor-yaml-error-navigation / sync-conflict-resolver，各 standard+compact）。
+  - `UI-FRAMEWORK-001` ⑥（Iced 规则虚拟窗口改官方 `iced::widget::lazy`）**未交付并附证据**：开了 `lazy` feature 后规则页**整片渲染为空**（分页器仍报"15 rules"）；逐段二分（每次都是真实捕获）：纯 `text` 的段渲染、`column![text]` 的段渲染、**含 `Length::Fill` 子项的行渲染为空**、同一段放在 lazy 外渲染正确（`rules-dark.png` 与 HEAD 逐字节相同）；给段 `Length::Fill` 无效。结论：iced 0.14.2 的 `lazy` 会压掉规则行的 fill 宽度，故保留表面正确、**不开这个死依赖**；要落地必须让该带不含 `Length::Fill`（用共享内容宽度的固定宽）或修上游——属产品决定。

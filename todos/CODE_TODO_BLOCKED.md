@@ -88,14 +88,7 @@
   - 阻塞方：ARM64 Android 物理设备。
   - 解锁条件：同 ABI 候选 APK 在 Core Stopped 下的 `-t` 子进程与回执归档设备记录；取得后同次迁回过去佛。
   - 本板停留期间：本地批次已闭环，无剩余本机可执行动作。
-- [ ] BANDROID-040.4 [kind: validation] [priority: P0] [points: 2] [owner: android/bevy-host driver] [status: Blocked] Bevy 产品 IPC 源码路径
-  - 产物：driver 注入 AndroidOwnerClient request/snapshot source；JNI→Activity→UniFFI→MihomoHost→Messenger→`:vpn` 路径接通；移除 driver 对 infiltrator-android 静态链接；双 ABI 与 universal Debug APK 构建通过 identity/aapt（2026-10-11 记录）。
-  - 依赖：BANDROID-040.2。
-  - 验收：fake transport scope/stale/timeout 批次回执记录。
-  - 当前证据：`bd01251d-c13c-4bf7-a8d5-f316a852c7f4`；13/13。
-  - 阻塞方：ARM64 Android 物理设备。
-  - 解锁条件：真机运行与 IPC 记录回执；取得后同次迁回过去佛。
-  - 本板停留期间：源码路径与 fake 批次已闭环，无剩余本机可执行动作。
+
 - [ ] BANDROID-043.4 [kind: mechanism] [priority: P1] [points: 2] [owner: Rust AndroidBridge seam] [status: Blocked] 同步 JNI host 等待改为 request-ID 异步回调
   - 产物：Rust application await typed owner reply；Kotlin 用单一有界 executor、Application 持有的 Binder client 与同一绝对 deadline；timeout/cancel 按 request ID 撤销并丢弃迟到回执，不得从缓存伪造成功；凭据写删结果为 `Applied/Rejected` enum。
   - 依赖：BANDROID-043.3。
@@ -109,30 +102,6 @@
 
 > 本节的共同前置已满足：**`v0.51.0` tag 已于 2026-10-21 推到远端，指向 `60ad2ed`**（页面模型收编批次的收口提交），`main` 同步在该提交。三条流水线同时起跑：`release` run `39561908722`（tag-only）、`release-neutral-crates` run `39561908671`、`main-gate` run `39561877283`（绿）。**tag 回执现状**：`release` 的 validate 与 **test-gate 全绿**（全仓 nextest 在网络隔离命名空间里跑完），**四条桌面构建腿全绿**（x86_64/aarch64 Linux 与 x86_64/aarch64 Windows），**Android 腿按设计 fail closed**（`Resolve the release signing material` 缺四个用户 keystore secret），因此 `Generate Manifest & Publish Release` 被跳过——**没有产出未签名的发布件**。`release-neutral-crates` 也按设计 fail closed（缺 `CARGO_REGISTRY_TOKEN`，未发布任何 crate）。两次前置失败已修并复跑：parity 证据解析的锚点名（`logs-search-highlight/iced/scenario` 指向了被迁移改回的测试名）与 runner 磁盘（测试门禁的构建写爆根分区，改为只保留行号表并回收镜像里用不到的工具链）。**Android 腿按设计 fail closed**：`release.yml` 的签名前置要求四个用户 keystore secret（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），缺失时在 Gradle 配置期即以缺失清单失败，debug key 不再为任何 release 产物背书。因此本节条目的剩余阻塞方是**用户 secrets 与受控 runner 的真实产物**，而不是「尚未打 tag」。既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，其 run 回执绑定的是旧代码，不覆盖当前代码。
 
-- [ ] BANDROID-018.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] tag-only CI 实际全绿回执
-  - 产物：受控 `v*` tag release 与 Android workflow 的完整 run 链接和分项证据；普通 push/PR 不运行。
-  - 依赖：高成本 tag-only 工作流；CI-QUALITY-001～005；CORE-UI-002（全仓绿）。
-  - 验收：tag run 中 nextest、构建、Clippy、APK identity 与 Android tests 全绿并归档。
-  - 当前证据：本地 5200+ nextest 与 Clippy 0 警告全绿；受控 tag 流水线定义在 `.github/workflows/` 已对齐。
-  - 阻塞方：受控 tag release runner 的 **Android 腿缺用户 keystore secrets**（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），签名前置因此 fail closed，发布作业被跳过；`v0.51.0` tag 已打好（run `39477624601`），test-gate 与四条桌面腿全绿，缺的就是签名材料与 crates.io 令牌。
-  - 解锁条件：用户授权打受控 `v*` tag 后取得的 workflow run 回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：本地全量门禁已闭环，无剩余本机可执行动作。
-- [ ] BANDROID-019.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI] [status: Blocked] manifest/aapt 守卫 CI 回执
-  - 产物：`android-manifest-contract-guard.py` 与 aapt identity 检查在 CI 实际执行并留存回执。
-  - 依赖：BANDROID-018.2。
-  - 验收：回执绑定 run 与 APK 哈希。
-  - 当前证据：本地 manifest guard 11/11 全通。
-  - 阻塞方：受控 tag release runner。
-  - 解锁条件：伴随 tag release 工作流的实际 runner 回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：本地 guard 全通，无剩余本机可执行动作。
-- [ ] BANDROID-038.2 [kind: evidence] [priority: P0] [points: 1] [owner: CI + release workflow] [status: Blocked] 每个 APK 的 aapt identity CI 检查
-  - 产物：tag release 对每个最终 APK 的 aapt identity 检查实际接入并留存回执；普通 push/PR 不触发构建。
-  - 依赖：已交付的 identity registry 与 guard（BANDROID-038.1）。
-  - 验收：负例（drift APK）在 CI 被拒；回执绑定 APK SHA。
-  - 当前证据：本地 identity registry 与 guard 已交付闭环。
-  - 阻塞方：受控 tag release runner。
-  - 解锁条件：tag release 工作流对各 APK 的 SHA 校验回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：本地 identity registry 与 guard 已闭环，无剩余本机可执行动作。
 - [ ] BANDROID-020.1 [kind: infra] [priority: P0] [points: 2] [owner: toolchain baseline] [status: Blocked] Android SDK/NDK/Gradle/JDK 基线与核对
   - 产物：SDK/NDK/JDK 值统一由 `android/toolchain.properties` 提供给 Gradle、CI、模拟器与 Bevy 诊断构建；wrapper 和 Rust 使用各自唯一版本文件；本机/CI 核对由 `scripts/android-toolchain.py check` 执行。
   - 依赖：无。
@@ -141,14 +110,6 @@
   - 阻塞方：受控 tag release runner（CI 侧同一核对尚未执行）。
   - 解锁条件：tag run 中 toolchain 核对步骤的回执；取得后同次迁回过去佛办结。
   - 本板停留期间：本机核对已闭环，无剩余本机可执行动作。
-- [ ] BANDROID-024.1 [kind: validation] [priority: P0] [points: 2] [owner: android gradle] [status: Blocked] AGP/Kotlin/Gradle 兼容复核
-  - 产物：AGP 9.3.1、KGP 2.4.21、Gradle 9.7.0、JDK 17 的组合落在官方 fully-supported 矩阵；API 37 与 AGP 9.3 上限一致；SDK/NDK/JDK pins 由 BANDROID-020.1 唯一登记。
-  - 依赖：BANDROID-020.1（本条同板阻塞）。
-  - 验收：官方兼容矩阵复核；Gradle 配置与 Core host JVM 测试通过；版本漂移由 toolchain checker 拒绝。
-  - 当前证据：183/183；本机 toolchain checker 通过。
-  - 阻塞方：受控 tag release runner（AGP 9.3.1 + JDK 17 的 Lint crash 另行登记在 BANDROID-044.1）。
-  - 解锁条件：真实 tag CI 证据回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：本机矩阵复核与 JVM 批次已闭环，无剩余本机可执行动作。
 
 ## 三、用户 secrets 与持久 keystore（3 条 / 6 pt）
 
@@ -160,23 +121,6 @@
   - 阻塞方：用户提供的持久 release keystore 与 CI secrets。
   - 解锁条件：用户下发 keystore/alias/password 并完成 secret 配置后的发布 job 回执；取得后同次迁回过去佛办结。
   - 本板停留期间：仓库侧 fail-closed 路径已闭环并实测，剩余闭环只依赖用户 secrets。
-- [ ] BANDROID-015.2 [kind: evidence] [priority: P0] [points: 2] [owner: android/app Gradle + release] [status: Blocked] release universal APK 签名/identity 校验
-  - 产物：Compose/Bevy/Slint release universal APK 通过 identity/aapt 与签名校验。
-  - 依赖：BANDROID-039 持久 keystore。
-  - 验收：签名指纹稳定；identity/aapt 全部匹配。
-  - 当前证据：Debug 变体 identity/aapt 本地通过；release 签名未验证。
-  - 阻塞方：持久 release keystore（同板 BANDROID-039.1）。
-  - 解锁条件：keystore 就绪后的 release universal APK 签名与 identity 回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：Debug 变体本地核验已闭环，无剩余本机可执行动作。
-- [ ] BANDROID-039.2 [kind: evidence] [priority: P0] [points: 1] [owner: release workflow] [status: Blocked] 连续两候选签名一致
-  - 产物：连续两个候选 release 签名证书指纹一致；前版安装后 `adb install -r` 升级可用。
-  - 依赖：BANDROID-039.1。
-  - 验收：升级验证记录（设备部分按对应任务实机条件记录）。
-  - 当前证据：无。
-  - 阻塞方：持久 release keystore；指纹比对可在 keystore 就绪后由 CI 产出，设备升级腿另受 ARM64 真机限制。
-  - 解锁条件：两候选版本的签名指纹一致回执与升级验证记录；取得后同次迁回过去佛办结。
-  - 本板停留期间：无独立本机动作（前置整条被 keystore 阻塞）。
-  - 交叉索引：设备升级腿见 §一 ARM64 真机取证组。
 
 ## 四、crates.io 上架与发布顺序门（5 条 / 11 pt）
 
@@ -212,49 +156,9 @@
   - 阻塞方：crates.io 上架凭证与 GPG 签名材料（依赖链 PUB-006.1～006.11 仍在本板外推进中）。
   - 解锁条件：RC 版本基线冻结、校验和清单与签名草案归档回执；取得后同次迁回过去佛办结。
   - 本板停留期间：依赖链尚未完成，本条无独立本机动作。
-- [ ] PUB-006.5 [kind: evidence] [priority: P1] [points: 1] [owner: release] [status: Blocked] 1.0.0 首发布回执
-  - 产物：`v1.0.0` tag、release notes、crates.io 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）顺序发布回执与 docs.rs 构建链接。
-  - 依赖：PUB-006.1、PUB-006.3、PUB-006.4、PUB-006.12。
-  - 验收：crates.io 七 crate 版本严格对齐；docs.rs 七页构建成功；回执绑定 tag 与 commit。
-  - 当前证据：无。
-  - 阻塞方：crates.io 上架凭证、受控 tag 与 PUB-006.12 基线冻结。
-  - 解锁条件：`v1.0.0` tag 发布回执与 docs.rs 构建链接；取得后同次迁回过去佛办结。
-  - 本板停留期间：本条无独立本机动作。
 
 ## 五、异构目标机与被禁平台 target（5 条 / 15 pt）
 
-- [ ] APPID-001.4 [kind: evidence] [priority: P0] [points: 2] [owner: packaging/windows] [status: Blocked] Windows NSIS/Wix 产物
-  - 产物：Windows NSIS/Wix 最终产物构建与验收。
-  - 依赖：APPID-001.2。
-  - 验收：版本/名称/图标来自登记表；安装冒烟通过。
-  - 当前证据：登记表与 builder 脚本已交付；Windows 产物未构建。
-  - 阻塞方：Windows 目标机（安装与卸载冒烟必须在真实 Windows 环境执行）。
-  - 解锁条件：Windows CI 或本机产物与安装冒烟回执；取得后同次迁回未来佛办结。
-  - 本板停留期间：builder 与登记表已闭环，无剩余本机可执行动作。
-- [ ] GAP-2.1 [kind: evidence] [priority: P2] [points: 2] [owner: release] [status: Blocked] Windows/Linux 安装包与系统集成验证
-  - 产物：NSIS/AppImage/deb 产物与安装、托盘、TUN 回执。
-  - 依赖：`GAP-3.1` 之外的发布流水线；需要 CI 或本机打包环境。
-  - 验收：每个安装包有可复跑构建与安装回执；不达标项显式 Unsupported。
-  - 当前证据：无。
-  - 阻塞方：Windows 目标机（NSIS 腿）；Linux 腿由 APPID-001.3 在未来佛推进。
-  - 解锁条件：Windows 安装、托盘与 TUN 回执；取得后同次迁回未来佛办结。
-  - 本板停留期间：Linux 侧由 APPID-001.3 承担，本条无独立本机动作。
-- [ ] GAP-2.2 [kind: evidence] [priority: P2] [points: 3] [owner: release] [status: Blocked] macOS 产物与签名
-  - 产物：App bundle、签名、权限与安装运行回执。
-  - 依赖：Apple target 解禁（当前由 `apple-ci-deferral-guard.py` 显式禁止）。
-  - 验收：更新平台矩阵并取得目标产物证据。
-  - 当前证据：无。
-  - 阻塞方：macOS 目标机与 Apple target 解禁决策。
-  - 解锁条件：macOS bundle、签名与安装运行回执；取得后同次迁回未来佛办结。
-  - 本板停留期间：被 deferral guard 显式禁止，本条无本机动作。
-- [ ] GAP-3.1 [kind: evidence] [priority: P1] [points: 3] [owner: android/release] [status: Blocked] Android APK 构建修复取证
-  - 产物：cmdline-tools 重链修复后的 APK 与模拟器/真机回执。
-  - 依赖：CI tag 或本机完整 SDK/Gradle。
-  - 验收：APK 产物 + 启动/触摸/权限回执；否则保持 Unsupported。
-  - 当前证据：本机 SDK 已含 cmdline-tools 12.0、NDK 29.0.14206865 与 platform 37.0；修复后的 APK 与模拟器回执尚未产出。
-  - 阻塞方：受控 tag CI runner（Android 变体构建与 aapt 身份回执只在 tag 工作流产出）。
-  - 解锁条件：tag 工作流的 APK 构建与身份回执；取得后同次迁回未来佛办结。
-  - 本板停留期间：本机 toolchain 齐备但缺少 CI 回执，无剩余本机可执行动作。
 - [ ] GAP-3.2 [kind: mechanism] [priority: P2] [points: 5] [owner: ios] [status: Blocked] iOS target 与应用骨架
   - 产物：`aarch64-apple-ios` 构建、应用包与 NetworkExtension 骨架。
   - 依赖：Apple target 解禁。

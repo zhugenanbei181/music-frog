@@ -200,27 +200,13 @@
 
 ## 八、Android 静态质量门（已交付，4条 / 9pt）
 
-
-
-
-
 ## 九、文档与状态表达红线（已交付，2条 / 5pt）
-
-
 
 ## 十、开源生态与发布门禁（已交付，4条 / 7pt）
 
-
-
-
-
 ## 十一、平台证据与安装包（已交付，2条 / 5pt）
 
-
-
 ## 十二、地球增强与其帧/内存报告（已交付，2条 / 4pt）
-
-
 
 ## 十三、行为锚点补齐（已交付，1条 / 2pt）
 
@@ -374,27 +360,6 @@
   - 当前证据：① **LAN 共享读回成为一份事实**——契约的 `RuntimeControlSnapshot` 与 `SettingsPageSnapshot` 用 `lan_sharing: Option<LanSharingSnapshot>` 取代三个必须互相吻合的独立 `Option`（`None` = 未观测，不是「关闭」），共享层新增 typed `LanSharingObservation` 与 `observe_settings_page` 折叠；Iced、Bevy、Slint 三端的私有合成（`revision: 0`）全部删除。② **PAC 读回能回环请求**——`PacSnapshot` 增 `bypass_lan`/`minify`（`#[serde(default)]`），共享草稿读 owner 的值，Iced 写路径不再硬编码 `bypass_lan: true, minify: false`。③ **规则列表过滤归共享层**——`FilterQuery` 成为每个页面共用的 typed 查询，规则页过滤进 `RulesPageModel`，三端的私有字符串过滤删除。④ **应用路由「未观测」有文案**——`app_routing_mode_unobserved` / `app_routing_unobserved_summary` 两种语言齐备，模型报 `Option<AppRoutingMode>`，三端不再回落到 `ProxyAll`。⑤ **闭合连接并入共享模型**——`infiltrator-domain` 补 `ConnectionView` 实现，闭合历史按共享模型过滤、排序与分组。
   - 批次证据：全仓 `cargo nextest run --workspace --no-fail-fast --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools` **全绿**、`bash scripts/quality/check-structure.sh` **exit 0**、`cargo fmt --all --check` 通过；三端的清零搜索（`allow_lan`/`lan_bind_address`/`observed_lan_sharing`/`filter_rule_indices`/`ProxyFilterQuery`/`revision: 0`）全部为空。
 
-
-- [ ] BEVYUI-007 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] DNS、自愈诊断与设置页交互收口（#95~#105）
-  - 产物：解决 #95 DNS 页面顶部 Query DNS 灰色长条二义、#96 跨源探测报警红字粗暴裸奔缺乏容器、#97 DNS 解析调试格式简陋、#98 DNS 配置行 Enabled 文本与开关双重冗余、#99 配置项无缝隙斑马条表格感、#100 设置页字体版权数百行全大写法律英文平铺倾倒、#101 语言设置报错单薄缺乏 Banner、#102 语言选择巨大深灰方块死板、#103 Doctor 修复步骤缺少旋转 Spinner、#104 审阅快照恢复弹窗缺乏 Diff 比较器、#105 弹窗取消与恢复按钮分居左右两极视距过远。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
-  - 验收：DNS 与设置页双视口像素回执消除法律文本倾倒与红字裸奔，弹窗操作收拢。
-  - 计划：将字体许可改为折叠或弹窗展示，重构 DNS 状态指示与弹窗操作按钮组。
-  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ DNS/诊断/设置三页双视口像素回执复核（1180x780 / 720x480）+ #103 转圈指示器的像素回执（缺一个能停在 `DoctorActionPhase::Pending` 的捕获场景，需新增 parity 特性 `DoctorRepairProgress`、fixture 的 pending 开关、捕获 activator 与两个场景行）+ 官方捕获矩阵是否登记 dns/doctor/settings 的紧凑整页场景待定。
-  - 证据身份：改后整页捕获 6/6 ok（`.evidence/captures/bevy/20261021T123324Z_..._1880922`）、改前整页 6/6 ok（`20261021T122645Z_..._1854539`）、交互场景 12 中 9 ok（`20261021T121710Z_..._1831009`）；改前/改后像素副本在 `/tmp/opencode/bevyui007/`。
-  - 已证明层：#95~#105 共 11 条逐条处置（法律英文整段移出设置页进官方模态、告警进带框告警井、开关行去重复文字、配置行分离成圆角行卡、审阅恢复接 owner 自己的 Myers diff 双栏对照、弹窗操作收拢、语言错误进 typed 相位告警条、诊断转圈按共享 typed 相位显形）。
-  - 未证明层：#103 仅有代码无像素回执（pending 相位是瞬态，缺可停在该相位的捕获场景）；`dns-hosts-editor-standard/compact` 与 `doctor-failure-recovery-compact` 三个 failed-marker 为 2026-10-20 基线既有失败，非本条引入；披露按钮文案复用 `common_details`，更贴切的许可协议文案需共享 locale 表新增键（未擅改共享表）。
-
-- [ ] BEVYUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 总览页与地球组件质感提升（#19~#32）
-  - 产物：解决 #19 空状态卡片暗哑死板、#20 地球模式切换未走 TabList、#21 副标题字重过轻、#22 贯穿横向分割线生硬、#23 底部 Demo Mode 蓝块失衡、#24 状态圆点缺乏呼吸动画、#25 Follow rules 徽标与按钮重名混淆、#26 提示小框圆角过大、#27 Start probes 次级操作层级过弱、#28 拓扑空状态插画缺失、#29 紧凑模式下横幅被挤出视口、#30 地球未保留骨架屏、#31 卡片内外留白比例失调、#32 卡片圆角规格不统一。
-  - 依赖：BEVY-020.1。
-  - 验收：总览页双视口像素回执消除蓝块失衡与内容溢出，TabList 接入官方控件。
-  - 计划：接入 TabList 替换普通按钮组，重构 Demo Mode 横幅与 Geo Globe 空态卡片。
-  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ 总览/地球双视口像素回执复核（1180x780 dark/light、720x480 dark）+ 官方捕获矩阵是否登记 `overview-page-1180`/`overview-page-720`/`overview-page-light-1180` 三个场景名待定。
-  - 证据身份：改后捕获 3/3 ok（`.evidence/captures/bevy/20261021T123803Z_c11e55a3be03_dirty_1904104/`）；改前对照取自 2026-10-20 基线跑批的 `baseline-overview-720x480`（紧凑视口里地球卡占满全屏、hero 零像素可见）与 `baseline-r2-overview-1180x780`。
-  - 已证明层：#19~#32 共 14 条逐条处置（空态改线框地球骨架 + typed 原因；地球模式改走共享 owner 的官方 `TabList` 分段控件并只观察官方 `ValueChange`；副标题字重上调；贯穿线改短标；Demo Mode 蓝块压成两行紧凑带；状态圆点按 `MotionPreference` 呼吸并尊重 Reduced 动效；删除 hero 里重复的 Follow rules 药丸；三档圆角各归其位；拓扑空状态补插画与 typed 原因；卡片内外留白改用共享 `surface_scene`）。**#29 的根因**：地球段原被 `Add<PageRoot>` 观察者插成页根第一个子节点，把 hero 顶出视口——改为页面拥有 `GlobeSectionSlot`、地球段自己声明进槽位，页内顺序由页面决定。
-  - 未证明层：本条改动的 headless 测试文件按并行协议未编译验证，须由收口流的 `cargo nextest run -p infiltrator-bevy-ui` 覆盖；共享分段控件的滑动药丸比页签宽约 2–3px（百分比定位在 padding box 上），像素级对齐需改 widgets crate，本条未擅改共享文件。
-
 - [ ] BEVYUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 代理选择与节点卡片重构（#33~#52）
   - 产物：解决 #33 顶部操作按钮杂乱、#34 Test All 浅蓝块撕裂、#35 搜索框与 Clear/Retry 挤压、#36 Alive Only 与排序垂直错位、#37 排序标签未走 TabList、#38 Probe settings 文本粘连、#39 Custom Node Editor 栏目条缺乏交互暗示、#40 分组标题技术术语生硬外露、#41 分组折叠上移下移按钮微小、#42 激活节点整卡亮蓝底色遮蔽内容、#43 卡片内图标过密、#44 未激活卡片死灰单调、#45 协议特性标签重复啰嗦、#46 延迟方块锐角嵌套、#47 延迟折线图微小抽象、#48 卡片悬停无位移阴影、#49 卡片网格换行留白断裂、#50 两端横条/卡片形态分裂、#51 Ready to test 状态缺乏指引、#52 长节点名称缺失渐隐截断。
   - 依赖：BEVY-020.1，infiltrator-bevy-widgets::tabs。
@@ -407,70 +372,3 @@
   - 遗留共享改动需求（转 `BEVYUI-003R`）：`business_panel.rs` 的 `launcher_scene` 加描边与尾部箭头；`infiltrator-shared` locale 表新增四个键（分组类型 Fallback/LoadBalance/Relay + 测速就绪提示）；`infiltrator-bevy-widgets/src/palette.rs` 新增 `card_fill()`；`infiltrator-bevy-ui/src/surface_projection.rs` 的 `ProxyNode` 增加 `latency_samples`、`ProxiesProjection` 增加 `sort_order`；`infiltrator-bevy-widgets/src/tabs.rs` 增加带自定义标记的分段控件入口。
   - 已知风险（须写进共享控件层说明）：卡片填色必须跑在 `Last` 调度——共享皮肤在 `Update` 把每个 `ControlVisual.0 == true` 的控件重涂成实心 accent，若把卡片填色移回 `Update` 会重新引入 #42（"选中控件=实心 accent 填色"与"卡片必须保留阅读面"不可组合）。
 
-- [ ] BEVY-020.1 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets + infiltrator-bevy-ui] [status: Integrated] Bevy 0.20 未采用能力收口（滚动条 / 滚动入视 / 官方菜单）
-  - 产物：① 列表与规则页挂官方 `bevy_ui_widgets::Scrollbar` + `ScrollbarThumb`（滑块与 `ScrollArea` 的滚动位置绑定），替掉"只有一行文字页码"的现状；② 用官方 `ScrollIntoView` 事件替掉 `infiltrator-bevy-widgets/src/list.rs` 里自算偏移的 `scroll_to_item`；③ 菜单层迁回官方 `MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout`，删除本地 `MenuState`/`MenuNavEvent`/`MenuOutcome` 状态机与旧回归路径。
-  - 依赖：0.20 官方 `bevy_ui_widgets` 的 `ScrollbarPlugin`、`ScrollIntoView` 观察者、`MenuLayout` 键盘导航已就位（已核对上游 0.20.0 源码）；本地 rem 通道与 token 体系不变（滑块颜色走 `ThemeBackgroundColor`/`ThemeBorderColor`）。
-  - 验收：全仓 nextest 全绿；官方滑块可拖动且与滚动位置一致；键盘导航能滚动到聚焦项；菜单的方向键导航与焦点圈闭由官方提供；「Bevy 0.20 UI 能力规范」的「0.20 未采用能力台账」里 SCROLL-01/SCROLL-02/MENU-01 三行清零。
-  - 剩余缺口（NAV-01 收口）：官方方向导航已接上并有 7 条测试，但**可见焦点真源仍是本地的**（`crates/infiltrator-bevy-ui/src/shell_focus.rs` 的 `ShellFocusState`/`GamepadFocusController`/本地空间搜索），控件也没有官方 `TabIndex`，所以官方指针焦点够不到按钮、可见焦点环不跟随。收口需要「一个焦点真源」：`shell_focus.rs` 改为从官方 `InputFocus` 派生可见焦点并退役本地空间搜索，控件补官方 `TabIndex`。
-  - 推进方式：按文件所有权拆成互不相干的三条流并行推进——官方菜单（`menu.rs`/`context_menu.rs`）、滚动条与滚动入视（`list.rs`）、行内文字与方向导航（`text.rs`/`shell_readout.rs`）；Iced/Slint/Android 三个表面的同类「框架能力自研重造」由第四条流审计并给出整改清单。
-  - 事实依据：2026-10-21 在两个生产树上按官方符号名实测——`Scrollbar`/`ScrollbarThumb`/`ScrollbarPlugin` 0 处、`ScrollIntoView` 0 处（官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，本仓从不触发）、`MenuPopup`/`MenuItem`/`MenuFocusState`/`MenuLayout` 0 处（仅头注释提及）。0.20 官方菜单已带键盘导航与焦点圈闭，本地实现"官方仅指针驱动"的旧理由已失效。
-  - 交付实况（2026-10-21）：官方菜单（`MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState`，本地菜单状态机与手写视口翻转全删，13 条新测试）、官方滚动（`Scrollbar`+`ScrollbarThumb`+`ScrollbarPlugin`，本地偏移算术全删改官方 `ScrollIntoView`，4 条新测试；跨 crate 断口 `acceptance_list.rs` 已迁到官方事件并把"居中"诚实改成"露出"、locale 键同步改名）、官方行内文字（`InlineBox`+`InFlow`/`OutOfFlow`+rem 通道，富文本改单文本块+官方 per-run 背景芯片）、官方方向导航（`DirectionalNavigationPlugin`+仓库配置，7 条测试）。
-  - 待验证范围：统一验证批次（全仓 nextest + 结构门 + fmt + clippy）+ Bevy 双视口像素回执复核 + 菜单/滚动/行内三处官方化的视觉回执重取。
-  - 未证明层：NAV-01 只完成一半——官方导航动的是 `InputFocus`，而本仓可见焦点真源仍是本地的（`shell_focus.rs`），控件也没有官方 `TabIndex`，可见焦点环不跟随官方焦点；该缺口转 `BEVY-020.2`。
-
-- [ ] BEVYUI-001 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 侧边栏与标题栏外壳表现整改（#1~#18）
-  - 产物：解决 #1 路由药丸三行重叠、#2 紧凑模式底部图标裁切、#3 侧边栏电光蓝对比过载、#4 未激活项缺少 Hover 缓动、#5 窗口三金刚键一体化、#6 顶栏 1px 分割线、#7 导航箭头比例、#8 Follow rules 胶囊禁用态二义、#9 系统代理/TUN 卡片拥挤、#10 On 徽标文字垂直对齐、#11 订阅卡片折行基线、#12 数量徽标溢出、#13 流量速率排版、#14 rem 物理对齐抖动、#15 图标文字间距统一、#16 Iced/Bevy 导航架构对齐、#17 侧边栏微阶底色、#18 纯图标模式 Tooltip。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
-  - 验收：双视口像素回执（720x480/1180x780）消除重叠与截断，通过 visual_receipts 校验。
-  - 计划：重构 shell_scene.rs 与 shell_readout.rs 布局约束，添加 Tooltip 与 Hover 状态。
-  - 交付实况：#1~#18 共 18 条中 **16 条已修**——路由段由「一行三丸互压」改为一列三枚自适应 chip（三行 y80–185 互不重叠）；紧凑模式轨道改官方 `ScrollArea` + 32px 行高（720×480 末位图标由切半变完整）；侧栏电光蓝过载收敛（数量徽标改中性 elevated+dim、蓝色「On」药丸换共享开关、卡片面 `(80,81,82)`→`(37,41,44)`）；三金刚键收进同一容器，关闭字形由无字形的「✕」改为有字形的「×」；顶栏补 1px 分割线；历史箭头改 28×28 方钮+人字（墨迹 6px→9px）；Follow rules 胶囊改只读 chip（不再有「可点却点不动」的二义）；订阅卡改 Iced 同构的图标+双行；数量徽标改自适应胶囊；速率改 mono 遥测字形；图标↔文字间距统一 `space::S8`；侧栏形成三级微阶底色；导航顺序与 Iced `view/sidebar.rs` 对齐（身份→路由控制→双开关卡→订阅卡→2×2 磁贴→速率页脚→分隔线→路由行）。
-  - 未证明层（诚实列出）：#4 路由行 hover 缓动与 #18 纯图标模式 Tooltip **只有代码路径**——捕获台不注入指针，hover/焦点态无法成像（已按共享动效 owner `Spring` + `HostPreferences::effective_motion()` 实现，`Reduced` 时直接落位）；#14 rem 物理对齐抖动**部分**修复（壳层自身尺寸全部走 rem 通道，残余抖动源是共享图标底板仍是物理 px）；#16 导航架构**结构已对齐但图标仍重复**（共享底板只有 10 个 id）。
-  - 像素证据：改后捕获 3/3 ok（`.evidence/captures/bevy/20261021T173243Z_7261c8326541_dirty_3006708/`）；改前对照取自 `20261021T133305Z_8a3c2e16724e_dirty_2187724/`；量测：路由文字带 80–139（三丸互压）→80–185（三行分离）、计数徽标 `#0D3971`+accent 字→`#535556`+dim 字、侧栏卡片面 `(80,81,82)`→`(37,41,44)`。
-  - 共享改动需求（转 `BEVYUI-001R`）：S1 `crates/infiltrator-bevy-widgets/src/icon.rs` 增 `icon_scene_val(icon, size: Val, tint)` 让图标盒走 rem 通道；S2 `crates/infiltrator-shared/src/assets.rs` 的 `bevy_icon_png` 增补 `minus/square/x/chevron-left/chevron-right` 与 11 条路由的专属图标（由既有 Lucide 源栅格化），`widgets/src/icon.rs` 的 `IconId` 同步；S3 捕获台增加「指针悬停轨道行」的 capture feature，使 hover 填充与 tooltip 获得真实像素回执。
-
-- [ ] BEVYUI-003R [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui + infiltrator-bevy-widgets + infiltrator-shared] [status: Integrated] 代理页余项与共享改动落地
-  - 产物：① #47 延迟迷你折线图（需 owner 的延迟采样历史进投影：`surface_projection.rs` 的 `ProxyNode` 增加 `latency_samples`）；② #39 Custom Node Editor 栏目条加描边与尾部箭头（`business_panel.rs` 的 `launcher_scene`）；③ #52 长名的像素渐隐（需 `palette.rs` 新增不透明 `card_fill()`，否则渐变会二次合成出色带）；④ locale 表新增四个键（分组类型 Fallback/LoadBalance/Relay、测速就绪提示）；⑤ `ProxiesProjection` 增加 `sort_order`，排序条由 owner 顺序播种而非采用备忘；⑥ `widgets/src/tabs.rs` 增加带自定义标记的分段控件入口；⑦ 把"卡片填色必须跑 `Last` 调度"写进共享控件层说明。
-  - 依赖：BEVYUI-003 已交付的部分（现在佛已无此条）。
-  - 验收：代理页双视口像素回执；#47/#48/#52 的像素证据到位（#48 需带指针的捕获台架，取不到就明确标注为代码级证据）。
-  - 事实依据：BEVYUI-003 交付时逐条列出的共享改动需求（文件 + 符号 + 代码片段）。
-  - 交付实况：共享层与代理页两处一并落地——`UiPalette::card_fill()`（`surface_elevated` over `surface` 解析成**不透明**色）与 `UiPalette::over_surface()`（在**线性空间**合成，即渲染器混合所处的空间）；`segmented_control_with_marked_labels_scene`（调用方的标记成为所属页签的子节点，且与既有实现共用同一份胶囊/边框逻辑，防止漂移）；四个 locale 键；`ProxyNode.latency_samples` 与 `ProxiesProjection.sort_order` 进入投影，排序条改由 owner 已发布顺序播种。
-  - 缺陷处置：#39 栏目条加发丝描边 + `column_gap` + 尾部暗色 `›`（字形真实渲染，非豆腐）；**#47 迷你折线图**改画 owner 自己的历史（未测量的节点没有线，不造数据），📈 emoji 已删；**#52 长名像素渐隐**在卡片**自身不透明填色**上绘制，绝不二次合成；#48 hover/press 渐隐从卡片实时 `BackgroundColor` 于 `Last` 重贴（在 `sync_proxy_card_visuals` 之后），随静止/悬停/按下/禁用四态跟随；分组类型文案改用新键（英文面不再漏中文）。
-  - 像素证据：改后捕获 4/4 ok（`.evidence/captures/bevy/20261021T173059Z_7261c8326541_dirty_3002393/`，dark+light × 1180×780/720×480）；改前对照 `20261021T133305Z_8a3c2e16724e_dirty_2187724/`。**渐隐无接缝的数值证明**：卡片底 `(83,85,86)`，渐隐区最暗像素 **83**（完全一致 → 无缝）；首版在 sRGB 空间合成时产生 30 级暗带（最暗 53 vs 卡片 83，见 `20261021T170433Z_..._2919115/proxies-dark/image.png`），改为线性空间合成后消除（实测 `over(7% 白, 37 sRGB) = 83` 线性 / `52` sRGB）。
-  - 未证明层：#48 悬停/按下**仅代码级**（捕获台无指针）；`proxies_test_ready_hint` 已加键但**未被可见面消费**（会让页头状态在每个表面变长，属文案与布局决定，留给收口流，未擅自改页头）；带标记分段控件已作为共享能力交付并有 headless 测试，但代理排序条**仍自建**（它需要固定 440px 宽与 25% 页签宽，共享条不提供），改接会改几何与页签查找，故证明 API 而不半接线。
-  - 依赖提示：`BEVYUI-001R` 的共享层需求（图标 rem 通道、专属图标资产）与本批**必须合并成一次落地**。
-
-- [ ] BEVYUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 实时日志与控制台流式重构（#83~#94）
-  - 产物：解决 #83 日志条目整行大圆角胶囊堆叠臃肿、#84 时间戳未等宽且颜色过亮、#85 日志级别标签缺乏底衬被底灰冲淡、#86 模块标签方括号间距松散、#87 级别过滤栏未走 TabList、#88 控制台顶部按钮主次不分、#89 正则输入框 Placeholder 对比度过低、#90 长日志无软折行开关撑破卡片、#91 代码字体行高偏小易串行、#92 刷新追加缺乏渐隐指示、#93 缺少行号与单行快速复制、#94 紧凑模式下日志卡片右侧冲出屏幕。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
-  - 验收：日志页双视口像素回执呈现流式控制台质感，消除胶囊卡片堆叠。
-  - 计划：重构 logs_rows.rs 与 logs_virtual.rs，采用单行平铺流与 InlineBox 排版。
-  - 交付实况：#83~#94 共 12 条**全部已修**——日志行去圆角胶囊改为扁平发丝行带（行区底色=卡片面 `(37,41,44)`，旧为浅灰 `(83,85,86)`）；时间戳进 mono 段落且用暗墨 `(69,72,75)`；级别徽章是带官方 per-run `TextBackgroundColor` 的 `TextSpan`（level 色 @0.18，如 INFO `(36,73,119)`）；模块标签进入同一段落（`[TCP] 127.0.0.1:54120` 只一个空格）；级别过滤改官方 `TabList`/`Tab`/`SelectedTab`（`TabActivation::Automatic`，唯一真源=官方 `SelectedTab`）；顶部按钮分 Ghost/Secondary/Outline 三级；搜索框底色改与页面同面，placeholder 对比度 **4.34:1 → 7.91:1**（实测）；长记录在列内折行且可切单行；控制台行高统一 `LineHeight::RelativeToFont(1.45)`；新记录到达时实况条 0.85 alpha 亮起并 2.5s 渐隐回常态（typed `StreamAppendPulse{Idle,Fading}`，无 bool 组合）；每行有右对齐行号与行尾「复制」按钮（走 `ClipboardHost` 裁剪板缝 + typed toast）；紧凑视口行不再横向溢出。
-  - **与计划的一处有意偏离**：日志行实现为**两个文本块**（meta rail 段落 + message 段落），而非计划里的单块。原因是共享交互捕获 `interaction_capture/logs.rs` 以 `LogMessageText` 实体的首 run 与 accent 墨色作为"高亮已生效"的观测事实；把 meta 并进同一段会让 message 移出根 `Text`，`logs-search-highlight-*` 场景会直接失败。徽章仍是 rail 段落内带官方 per-run 背景芯片的 `TextSpan`。
-  - 像素证据：改后捕获 **8/8 ok**（含交互场景 `logs-search-highlight-*` 仍能观测高亮文本与 accent 墨色）；改前对照 `20261021T115155Z_..._1705499` / `20261021T133305Z_..._2187724`；量测：行底色 `(37,41,44)`、徽章 `(36,73,119)`、placeholder 对比度 4.34→7.91。
-  - 未证明层：软折行开关的**可见文案**缺本地化键（当前只有无文字开关 + 英文 a11y label）；追加指示条的**亮起→渐隐过程**未进截图（捕获在 60 帧就绪后拍摄，2.5s 渐隐已结束），像素证据只有常态实况条。
-  - 共享改动需求（并入 `BEVYUI-001R` 那一批）：`infiltrator-shared/src/locales_table_ext.rs` 与 `locales_table_en_ext.rs` 各加 `logs_wrap_soft`（自动换行/Soft wrap）与 `logs_wrap_single`（单行显示/Single line），随后 `pages/logs.rs` 的软折行开关旁挂 `LocalizedText::plain("logs_wrap_soft")`（i18n 守卫禁止引用不存在的键，故本切片未加）。
-
-- [ ] BEVY-020.2 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-bevy-ui] [status: Integrated] 可见焦点归一：官方 `InputFocus` 成为唯一焦点真源
-  - 产物：`crates/infiltrator-bevy-ui/src/shell_focus.rs` 的 `ShellFocusState`/`GamepadFocusController`/`apply_shell_focus_marker`/`apply_shell_focus_ring`/`advance_shell_focus_by_keyboard` 改为从官方 `bevy_input_focus::InputFocus` 派生可见焦点，退役本地空间搜索 `crate::focus::find_spatial_neighbor`；控件补官方 `TabIndex`（widgets 插件的必需组件）使官方指针/标签焦点可达；非按钮的 `ShellFocusable` 补 `AutoDirectionalNavigation`。
-  - 依赖：BEVY-020.1 已交付的官方方向导航（手势已存在，只差焦点真源归一）。
-  - 验收：方向键移动焦点时可见焦点环跟随官方焦点；本地空间搜索与其回归路径删除；全仓 nextest 全绿。
-  - 事实依据：2026-10-21 官方方向导航接线时实测——官方导航确实移动 `InputFocus`，但本仓可见焦点是本地的、控件无官方 `TabIndex`，官方焦点在壳层里是空的，故可见环不跟随。
-  - 交付实况：**官方 `InputFocus` 成为唯一焦点真源**。`shell_focus.rs` 重写——`ShellFocusState` 改为每帧由官方焦点**派生**（不再有手势写它），新增 `ShellFocusCause`（读官方 `FocusGained` 的 cause）、`ShellFocusOrder`/`ShellFocusTarget`（只说"下一个是谁"，不说"谁被聚焦"，并排除官方 `ModalDialog` 子树）、`land_shell_focus`（官方焦点落到首个可测控件的自动基线，绝不把焦点从打开的对话框里抢走）；方向键/D-pad/摇杆经官方 `AutoDirectionalNavigator` 移动**官方**焦点；Tab/Shift+Tab 走壳层顺序后**交还给官方焦点**；焦点环与标记由官方焦点+官方 cause 派生（用户驱动的焦点才显示环，自动基线不显示）。
-  - 已退役的本地符号（删除而非别名）：`infiltrator_bevy_widgets::focus::find_spatial_neighbor`（本地空间搜索）及其词汇 `FocusDirection`/`FocusMoveEvent`；`focus::Focusable`/`FocusManager`/`sync_focus_rings`（**影子焦点账本**：手写 `tab_index`/`is_enabled` 与第二份 `focused_entity`）；`gamepad_ui::GamepadFocusController`/`GamepadFocusTarget`（第二份焦点真源）；`GamepadDirection::focus_direction()` 改用官方词汇 `compass_octant()`；被退役搜索的回归路径 `test_spatial_focus_navigation` 一并删除。
-  - 控件补官方 `TabIndex`（官方指针/标签焦点可达），非按钮的 `ShellFocusable` 与按钮同样带官方 `AutoDirectionalNavigation`；焦点模式仍是 typed `ShellFocusState::{NoFocus,Focused}` 与 `ShellFocusCause`，无 bool 组合。
-  - 测试：新增 `shell_tests/keyboard_focus_tests.rs`(6) 与 `gamepad_focus_tests.rs`(8) 加模块内 5 条——箭头手势移动官方焦点**且焦点环跟随**、Tab/Shift+Tab 移动官方焦点、纯路由基线保持不可见（自动 cause 无环）、控件带 `TabIndex`+`AutoDirectionalNavigation`、官方 `AcquireFocus` 请求能到达带 `TabIndex` 的控件、D-pad 经官方导航器移动焦点、摇杆尊重死区、环绕回退到行首/行尾、阅读顺序、确认/取消映射到官方焦点与返回词汇。实测 `cargo nextest run -p infiltrator-bevy-ui --features capture-tools -E 'test(focus)'` → **33/33 通过**；`cargo nextest run -p infiltrator-bevy-widgets` → **446/446 通过**。
-  - 像素证据与其边界：head 与补丁版捕获差异仅限 `(273,121)-(299,140)` 的 331 个子像素（0.0123%），且**同一构建两次捕获在同一区域也差 0.0095%** —— 那是概览 hero 呼吸光晕的动画相位，不是产品改动；两个视口与模态场景除该光晕外像素一致。**焦点环跟随焦点未被像素证明**（捕获台不发指针/键盘），证据是 headless 行为测试。
-  - 未证明层：官方**自动**空间搜索无法 headless 演练（`ComputedUiTargetCamera` 的相机字段 crate 私有），headless 证明走的是官方**手动**导航图 `DirectionalNavigationMap::add_edge`（官方声明边的通道），自动搜索只在真实应用里跑；D-pad 环绕保留为回退（官方导航器无环绕），且 D-pad 接缝仍无产品宿主（除测试外无人写 `ShellFocusNav`）。
-  - 共享改动需求（并入 `BEVYUI-001R` 那一批）：① `crates/infiltrator-bevy-widgets/src/lib.rs` 里由**控件层**拥有按钮的官方焦点标记 `app.register_required_components::<Button, TabIndex>()`（现由壳层插件注册，owner 位置不对）；② 能力规范文档的 `NAV-01` 行仍写"0 处"（BEVY-020.1 已接上，需改口）；③ `InputDispatchPlugin` 未装进壳层应用 → 官方"键盘→聚焦实体"的派发（聚焦按钮上的 Enter/Space）到不了控件，是既有缺口但现在官方焦点真落在控件上就显眼了，是否安装属产品决定。
-  - 行为变更（须知会）：指针按下现在会把官方焦点移到控件上（控件带 `TabIndex`），壳层焦点环因此会出现在被点控件上——此前官方指针焦点根本够不到控件；焦点回到基线控件时环也会出现（cause 是用户驱动），此前只要焦点停在首个控件环就隐藏；焦点环场景改在 `PostUpdate`（官方焦点变更事件之后）生成，布局落位比原来晚约一帧；壳层的焦点顺序与环排除官方 `ModalDialog` 子树（模态在自己的焦点圈闭里拥有焦点，这也让模态捕获场景像素不变）。
-
-- [ ] BEVYUI-004 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 规则系统与分段标签收口（#53~#68）
-  - 产物：解决 #53 头部堆砌技术日志长文本、#54 辅助操作按钮体积过大、#55 Rules 分段标签切换生硬、#56 Retained draft for 悬挂句号、#57 草稿保存丢弃禁用态对比度过低、#58 分页工具栏插在搜索栏右侧压缩空间、#59 长规则列表缺失滚动条退化分页、#60 规则行圆角梯级白线框杂乱、#61 规则序号未等宽对齐、#62 匹配类型徽标色彩单调、#63 目标动作 DIRECT/REJECT 缺乏语义色彩、#64 Toggle rule 样式割裂、#65 重排序箭头蓝底黑图对比度反转、#66 命中统计与状态纯文本混杂、#67 编辑抽屉无渐入动效、#68 JSON Editor 缺乏代码高亮与行号槽。
-  - 依赖：BEVY-020.1，infiltrator-bevy-widgets。
-  - 验收：消除长文本堆砌，规则列表接入官方 Scrollbar，双视口像素回执通过。
-  - 计划：重构 rules_tabs.rs 与 rules_view.rs，将分页工具栏移出并接入滚动条。
-  - 交付实况：#53~#68 共 16 条中 **12 条已修**——头部去掉重复的命中审计行与技术日志（4 行 y145..205 → 2 行 y137..165）；头部动作改共享按钮 `ButtonSize::Sm`；分段条改 `segmented_control_with_labels_scene`（官方 `TabList`/`Tab`/`SelectedTab` + 滑动胶囊，页面写官方 `SelectedTab`）；搜索框独占整行、分页行下移右对齐；规则表接**官方滚动条**并把滑块改成看得见的 token（x=1140 处旧 `(79,79,80)` → 新 `(83,88,94)`）、视口限定 320px、页码游标由视口偏移**派生**（无第二份偏移）；规则行不再是 `SurfacePanel` 卡（无圆角无框，只有发丝分隔线）、序号改 `Role::Mono` 固定 40px 右对齐列；匹配类型徽章按族取色（Host=accent/Geo=success/Address=warning/Process=danger）、目标动作取语义色（DIRECT=success `(61,199,112)`、REJECT=danger）；行开关改**共享开关**、重排序手柄改中性图标（蓝底蓝图的 accent@0.62 方块已删）；JSON 分区编辑器有行号槽 + JSON 词法着色（key=accent/string=success/number=warning/标点=dim）。
-  - **额外修掉一条清单外的更严重问题**：规则行原本会溢出卡片并压在统计卡上（改前 PNG 的 y=540..740 可见），由页根 `flex_shrink: 0` 列 + 有界视口修掉——布局不再把卡片挤到内容逃逸。
-  - 像素证据：官方矩阵 2/2 ok（`.evidence/captures/bevy/20261021T192331Z_12c608ff7853_dirty_3469493/`）；双视口自定矩阵 4/4 ok（`20261021T192700Z_..._3488831/`）；改前对照 `20261021T115155Z_..._1705499`。
-  - 未证明层（诚实列出）：#56 悬垂句号**部分**（空档案名时共享投影的 `editor_status` 文案缺"未命名"变体）；#57 禁用态对比度**部分**（动作已分 Primary/Default/Ghost 三级，但禁用墨仍是共享 token ≈3:1）；#66 命中统计与状态**部分**（已独立成芯片，但计数与状态仍是同一串共享文案）；#67 抽屉渐入**仅本簇可开的面板**（JSON 分区编辑器有真实过渡：typed `Closed/Opening/Open/Closing` + typed `transition(request)` + 穷尽匹配，高度和填色随 0.2s 进度；工作区本无抽屉形态面，共享抽屉控件缺过渡驱动）；**#68 JSON 分区无像素回执**（契约无该 `FeatureId`，矩阵只开列表分区）；`rules-tracer-drawer` 捕获仍 failed-marker（矩阵无该场景行且 tracer 分区在折叠线下；已补 `on_rules_tab_chip_activated` 这条捕获需要的 `Activate` 接缝，但几何门在非本簇文件里，仍是阻塞）。
-  - 共享改动需求（并入 `BEVYUI-001R` 那一批，共 8 项）：① `presentation/src/rule_list_projection.rs::editor_status` 空档案名时改用"未命名"文案键 + 两条 locale；② `widgets/src/theme.rs` 的 `disabled_ink` alpha 0.35→0.55（约 3:1→4.9:1）且 `button.rs` 禁用主按钮仍读作主按钮；③ **根因**：`widgets/src/modern_surface.wesl` 边框 alpha 被丢弃，10% 发丝线画成了不透明的近白框（全应用每张卡都受影响）→ 边框色须乘自己的 alpha；④ `widgets/src/list/scrollbar.rs` 滑块 7% 白在暗卡上不可见（改 `Token::DisabledInk`），且 `list_scroll_frame` 应把滚动条作为参数以便页面画自己的列表；⑤ `presentation/src/rule_row_projection.rs` 拆出 `RuleRowHits`/`RuleRowStatus` 让表面把计数与状态画成两个芯片（+ 三个 locale 键）；⑥ `widgets/src/editor.rs::code_editor_scene` 加按 token 种类的墨色（YAML 编辑器与规则 JSON 视图同等待遇）；⑦ `widgets/src/drawer.rs` 的 `DrawerState.slide_progress` 从未动画、面板静态摆放，全应用没有抽屉能渐入；⑧ `scripts/capture_bevy_scenarios.tsv` 补规则页双视口四行（**注意命名**：捕获名不得以 `-standard`/`-compact` 结尾，除非那真是 `FeatureId` id，`rules-dark-standard` 会 panic 报"unknown or unimplemented interaction capture"）。
