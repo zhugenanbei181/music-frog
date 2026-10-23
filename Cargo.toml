@@ -153,3 +153,11 @@ boa_engine = { version = "0.22.0", default-features = false }
 bevy = { version = "=0.20.0", default-features = false }
 accesskit = "0.24.1"
 unicode-segmentation = "1.12"
+
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.test]
+debug = "line-tables-only"
+incremental = false

@@ -116,9 +116,9 @@ jobs:
       # 3. CI 用 `unshare -n` 强制执行以上策略：网络命名空间内只保留 loopback
       #    接口（mockito 需要），任何意外的外网请求都会直接失败，而不是侥幸通过。
       #
-      # 说明：通过 `env` 透传 PATH/HOME 与 RUSTFLAGS，保证 sudo 降层后仍使用同一套
-      # rustup/cargo 安装、缓存与链接参数（上一步已预编译，此阶段 cargo 无需联网且直接执行测试）。
+      # 说明：通过 `env` 透传完整环境（PATH/HOME/RUSTFLAGS/CARGO_*），保证 sudo 降层后仍使用
+      # 绝对相同的 rustup/cargo 安装、缓存、profile 与链接参数，杜绝因环境漂移触发二次重编。
       - name: Run tests in network-isolated namespace (loopback only)
         run: |
-          sudo env "PATH=$PATH" "HOME=$HOME" "RUSTFLAGS=${RUSTFLAGS:-}" MUSICFROG_SKIP_GUARDS=1 MUSICFROG_SKIP_PARITY=1 unshare -n bash -c \
+          sudo env "PATH=$PATH" "HOME=$HOME" "RUSTFLAGS=${RUSTFLAGS:-}" "CARGO_PROFILE_TEST_DEBUG=${CARGO_PROFILE_TEST_DEBUG:-}" "CARGO_PROFILE_DEV_DEBUG=${CARGO_PROFILE_DEV_DEBUG:-}" "CARGO_INCREMENTAL=${CARGO_INCREMENTAL:-0}" MUSICFROG_SKIP_GUARDS=1 MUSICFROG_SKIP_PARITY=1 unshare -n bash -c \
             'ip link set lo up && bash scripts/test.sh'
