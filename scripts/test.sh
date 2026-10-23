@@ -6,10 +6,14 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" && "$1" != "--guards-only" ) 
   echo "usage: bash scripts/test.sh [--no-run|--guards-only]" >&2
   exit 2
 fi
-bash scripts/quality/check-structure.sh
+if [[ "${MUSICFROG_SKIP_GUARDS:-0}" != "1" ]]; then
+  bash scripts/quality/check-structure.sh
+fi
 if [[ "${1:-}" == "--guards-only" ]]; then exit 0; fi
 # Compile the Rust authority and resolve all declared anchors against real discovery.
-python3 scripts/parity/resolve_surface_evidence.py --report-json target/parity/evidence.json
+if [[ "${MUSICFROG_SKIP_PARITY:-0}" != "1" ]]; then
+  python3 scripts/parity/resolve_surface_evidence.py --report-json target/parity/evidence.json
+fi
 if [[ "${1:-}" == "--no-run" ]]; then
   exec cargo nextest run --locked --workspace --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools --build-jobs 4 --test-threads 4 --no-run
 fi

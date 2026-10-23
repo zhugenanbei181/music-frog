@@ -38,6 +38,7 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_INCREMENTAL: "0"
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
 
     steps:
       - name: Checkout
@@ -97,14 +98,15 @@ jobs:
             libasound2-dev \
             libudev-dev \
             libssl-dev \
-            pkg-config
+            pkg-config \
+            lld \
+            clang
 
       # 第一步：在有网络的环境中预编译全部测试目标（此时仅解析/下载依赖并编译，
       # mockito 等 mock server 尚未启动，不会有任何真实请求发出）。
-      # scripts/test.sh 的守卫段会在编译前先行执行（--guards-only 已跑过，此处
-      # 属全量脚本自身流程的一部分）。
+      # 前置 fail-fast 已通过完整的结构守卫，此处跳过重复扫描，仅解析证据与预编译。
       - name: Pre-compile tests (network allowed)
-        run: bash scripts/test.sh --no-run
+        run: MUSICFROG_SKIP_GUARDS=1 bash scripts/test.sh --no-run
 
       # 第二步：在无外网的命名空间中运行完整测试套件。
       #
@@ -114,9 +116,9 @@ jobs:
       # 3. CI 用 `unshare -n` 强制执行以上策略：网络命名空间内只保留 loopback
       #    接口（mockito 需要），任何意外的外网请求都会直接失败，而不是侥幸通过。
       #
-      # 说明：通过 `env` 透传 PATH/HOME，保证 sudo 降层后仍使用同一套
-      # rustup/cargo 安装与缓存（上一步已预编译，此阶段 cargo 无需联网）。
+      # 说明：通过 `env` 透传 PATH/HOME 与 RUSTFLAGS，保证 sudo 降层后仍使用同一套
+      # rustup/cargo 安装、缓存与链接参数（上一步已预编译，此阶段 cargo 无需联网且直接执行测试）。
       - name: Run tests in network-isolated namespace (loopback only)
         run: |
-          sudo env "PATH=$PATH" "HOME=$HOME" unshare -n bash -c \
+          sudo env "PATH=$PATH" "HOME=$HOME" "RUSTFLAGS=${RUSTFLAGS:-}" MUSICFROG_SKIP_GUARDS=1 MUSICFROG_SKIP_PARITY=1 unshare -n bash -c \
             'ip link set lo up && bash scripts/test.sh'
