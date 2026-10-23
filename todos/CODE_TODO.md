@@ -21,14 +21,15 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261024-v269`（2026-10-24 看板迁移损伤修复批次实测复核，同日 manifest 批次交付后更新）：现在佛 116 pt（40 条）/ 过去佛 189 pt（73 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
-- 本板 40 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 26 条（`EFFECTS-012`/`014`/`022`/`024`、`026`~`041`、`043`~`045`、`048`~`050`，76 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 5 条（`ENG-002.2`/`002.3`、`ENG-003.1`~`003.3`，10 pt）。
+- Point 基线 `musicfrog-todo-20261024-v270`：现在佛 110 pt（38 条）/ 过去佛 195 pt（75 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
+- 本板 38 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 24 条（`EFFECTS-014`/`024`、`026`~`041`、`043`~`045`、`048`~`050`，70 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 5 条（`ENG-002.2`/`002.3`、`ENG-003.1`~`003.3`，10 pt）。
+- 2026-10-24 记录找回批次：`EFFECTS-012`（五个子项实现与测试在树、源码注释逐项标注，交付载体 3887ef6）与 `EFFECTS-022`（官方菜单/滚动条由 e2c6ad9 菜单波次与 `BEVY-020.1` 接管，headless 测试在树）经代码实测复核为已交付，迁入过去佛；两者的编译/测试回执随统一 cargo 批次。
 - 2026-10-24 迁移损伤修复（依 168b83c pristine 复位；证据 = e680ed8/1e00aa3 两次波次提交信息 + 代码实测）：e680ed8/3887ef6/1e00aa3 三次看板迁移的行拼接乱码逐行修复；`EFFECTS-003`（残形「TS-003」）与 `EFFECTS-008`（被截断并入 007 尾部且曾误回登本板）复位重建；`EFFECTS-013` 与 `EFFECTS-015`（`ButtonHierarchy`/`ButtonPressScale` 已在树）由误标的 Planned 复位 Integrated；Layer 2 的 `EFFECTS-016`~`020` 错位 ID 全部复位；`EFFECTS-006`/`013`/`020` 的 points 依 pristine 复位（3→2）；本板误留的 `EFFECTS-008` 与 `EFFECTS-020`（曾误标 019）重复项删除，`EFFECTS-012`/`014` 归位本板；空壳节（§四/§五/§六/5.1）与 EFFECTS-007 孤儿残句清除；§7.1 过期事实按强制化台账刷新；`TODO.md` 波次 A 日志的羽化条目 ID 复位为 018。修复前实测两板为 44 条/122 pt 与 68 条/180 pt（v268 所记过去佛 69 条/183 pt 与当时实际不符），修复后以本行实测为准。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 能力四条源自 2026-10-20 的强制化实测审计；执行状态（机器强制还是人工评审、存量欠账多少）以 Bevy UI 能力规范文档「强制化台账」为单一事实源，本板不另记第二份。
 <!-- POINT_LEDGER:END -->
 
-- **执行次序（2026-10-24 迁移损伤修复后复核）**：本板条目按 **Core-first** 排成一条可推的链——① 表现层残留（`EFFECTS-012`）→ ② 共享控件残留（`EFFECTS-014`）→ ③ Bevy 表面（`EFFECTS-022`、`024`、`026`~`028`）→ ④ Iced 表面（`EFFECTS-029`~`035`）→ ⑤ Slint 表面（`EFFECTS-036`~`041`）→ ⑥ CLI 终端输出（`EFFECTS-043`~`045`）→ ⑦ 平台/质量（`EFFECTS-048`）→ ⑧ a11y（`EFFECTS-049`）→ ⑨ 证据（`EFFECTS-050`）→ ⑩ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑪ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
+- **执行次序（2026-10-24 记录找回批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① 共享控件残留（`EFFECTS-014`）→ ② Bevy 表面（`EFFECTS-024`、`026`~`028`）→ ③ Iced 表面（`EFFECTS-029`~`035`）→ ④ Slint 表面（`EFFECTS-036`~`041`）→ ⑤ CLI 终端输出（`EFFECTS-043`~`045`）→ ⑥ 平台/质量（`EFFECTS-048`）→ ⑦ a11y（`EFFECTS-049`）→ ⑧ 证据（`EFFECTS-050`）→ ⑨ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑩ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
 - **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
 
 ## 一、大计划主线与推进顺序
@@ -85,18 +86,9 @@
 
 ## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施；现存 34 条 / 101 pt，已交付 24 条见[过去佛](CODE_TODO_PAST.md)）
 
-### 10.2 Layer 1: 跨端呈现投影、时间驱动与图表数据归约层（1条 / 3pt，涵盖 #26~#50）
-
-- [ ] EFFECTS-012 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 测速波浪、规则命中与日志流分段投影（#40~#44）
-  - 产物：实现 #40 测速 0.0~1.0 呼吸相位输出、#41 协议特性标签去重归约、#42 规则命中分级 Badge 投影、#43 日志行四段分节结构体、#44 长日志软折行度量。
-  - 依赖：EFFECTS-001。
-  - 验收：单测覆盖多种协议标签去重、日志分段解析与折行高度推导。
-  - 计划：扩充 proxies_page_model 与 logs_page_model。
-  - 事实依据：2026-10-24 迁移损伤修复——本条在归档迁移中被误并入过去佛 EFFECTS-010 条目体，从未作为 Integrated 交付（e680ed8 交付清单不含 #40~#44），依 168b83c pristine 归位本板。
-
 ### 10.3 Layer 2: 共享通用组件库与材质着色基座（1条 / 3pt，涵盖 #51~#75）
 
-> 2026-10-24 迁移损伤修复：本节条目曾错位一格（卡片基座被误标 EFFECTS-013）；EFFECTS-015~020 已交付并在过去佛 §10.3/§十二，模态卡片家族（020）曾被误回登本板为「EFFECTS-019」重复项，已删除。
+> 2026-10-24 记录找回：Layer 1（EFFECTS-007~013）与 EFFECTS-022 已全部交付（过去佛 §10.2~10.4/§十二）；本节 EFFECTS-015~020 已交付并在过去佛 §10.3/§十二，模态卡片家族（020）曾被误回登本板为「EFFECTS-019」重复项，已删除。
 
 - [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
   - 产物：实现 #51 带 1px 内描边与 Level 1 柔和阴影的 ModernCard、#52 鼠标悬停 Y 轴 -1px 微位移与高光提亮反馈。
@@ -104,13 +96,8 @@
   - 验收：多页面复用 ModernCard，悬停反馈流畅跟手无闪烁。
   - 计划：重构 infiltrator-bevy-widgets::card。
 
-### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（5条 / 15pt，涵盖 #76~#115）
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（4条 / 12pt，涵盖 #76~#115）
 
-- [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 官方菜单与滑块双向绑定（#79~#81）
-  - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENU-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
-  - 依赖：infiltrator-bevy-widgets。
-  - 验收：规则与连接页滑块可拖拽且与内容联动，方向键导航可呼出官方菜单。
-  - 计划：重构 menu.rs 与 list.rs。
 - [ ] EFFECTS-024 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ViewTarget 离屏多 pass 降采样高斯模糊（#86~#89）
   - 产物：实现 #86 基于 RenderApp 与 ViewTarget 的离屏高斯模糊、#87 4x 降采样双 pass 优化、#88 输入输出纹理防冲突分离、#89 前景清晰文字最后顶层合成。
   - 依赖：EFFECTS-023。

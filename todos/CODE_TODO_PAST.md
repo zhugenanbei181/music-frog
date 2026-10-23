@@ -445,7 +445,7 @@
 - [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
 - [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 2] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
   - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。pristine 身份是「居中模态卡片、就近操作组与抽屉（#68~#75）」，`adaptive_modal.rs`/`drawer.rs`/`accordion.rs` 在树；points 2026-10-24 依 pristine 复位为 2（原误记 3）。
-### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（3条 / 9pt，涵盖 #76~#115）
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（4条 / 12pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
   - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78 连接行状态点与域名文字基线物理居中对齐。
@@ -464,6 +464,13 @@
   - 依赖：EFFECTS-002。
   - 验收：悬停位移不触发布局树重新计算，阴影平滑多阶。
   - 计划：更新各页面的卡片定义。
+
+- [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 官方菜单与滑块双向绑定（#79~#81）
+  - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENU-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
+  - 依赖：infiltrator-bevy-widgets。
+  - 验收：规则与连接页滑块可拖拽且与内容联动，方向键导航可呼出官方菜单。
+  - 计划：重构 menu.rs 与 list.rs。
+  - 备注：**2026-10-24 记录找回**——交付载体是 e2c6ad9 前后的菜单波次与 `BEVY-020.1`（官方能力接管）：`bevy-widgets::menu`/`context_menu` 全面使用官方 `MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState`（headless `menu_tests.rs`/`context_menu_tests.rs` 在树），本地导航状态机与手写视口翻转已删（旧符号全仓仅剩 `acceptance_list.rs` 捕获台自己的开关位）；`rules_view.rs` 接官方 `ScrollbarThumb` + `ListScrollbar`；e2c6ad9 提交信息记录迁移完成。曾因迁移乱码被误留在现在佛，本条复核后归位。
 
 ## 十一、工程约束门禁补齐（2026-10-22，依赖/工具链/不安全点/panic 边界/库层输出/构建脚本/特性矩阵）
 
@@ -536,9 +543,9 @@
   - 验收：`grep -rn anyhow crates/infiltrator-contract` 零命中（2026-10-24 词法复核 src/tests/build.rs 均 0 处）；feature-matrix/toolchain 守卫全绿。
   - 待验证：`cargo check -p infiltrator-contract --all-targets`（统一 cargo 批次）。
 
-## 十二、波次 A 效果地基与平台能力（已交付，8条 / 24pt）
+## 十二、波次 A 效果地基与平台能力（已交付，9条 / 27pt）
 
-> 2026-10-24 迁移损伤修复：`EFFECTS-016`（TabList）与 `EFFECTS-018`（羽化遮罩）曾错位为 015/017，已依 168b83c pristine 复位；误并入 `EFFECTS-004`/`EFFECTS-010` 条目体的两段 Planned 残块（006 智能截断、012 测速波浪）已清除——006 已交付（见本板 EFFECTS-006），012 未交付、归位现在佛。
+> 2026-10-24 迁移损伤修复：`EFFECTS-016`（TabList）与 `EFFECTS-018`（羽化遮罩）曾错位为 015/017，已依 168b83c pristine 复位；误并入 `EFFECTS-004`/`EFFECTS-010` 条目体的两段 Planned 残块（006 智能截断、012 测速波浪）已清除——006 与 012 均经 2026-10-24 代码实测复核为已交付（各自条目在案），012 登记于本节。
 - [ ] EFFECTS-002 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 网格间距、圆角与物理尺寸白名单（#6~#9）
   - 产物：在 design_tokens 规范 #6 8pt/4pt 严格网格阶梯、#7 互斥圆角阶梯裁决、#8 物理像素白名单闭集（发丝线/光标/触控区）、#9 Elevation 空间阴影多阶定义。
   - 依赖：EFFECTS-001。
@@ -554,6 +561,13 @@
   - 依赖：无。
   - 验收：单测验证中文输入法输入未完成时模型不强行刷新文本框。
   - 计划：重构 presentation 的 input 映射层。
+
+- [ ] EFFECTS-012 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 测速波浪、规则命中与日志流分段投影（#40~#44）
+  - 产物：实现 #40 测速 0.0~1.0 呼吸相位输出、#41 协议特性标签去重归约、#42 规则命中分级 Badge 投影、#43 日志行四段分节结构体、#44 长日志软折行度量。
+  - 依赖：EFFECTS-001。
+  - 验收：单测覆盖多种协议标签去重、日志分段解析与折行高度推导。
+  - 计划：扩充 proxies_page_model 与 logs_page_model。
+  - 备注：**2026-10-24 记录找回**——五个子项的实现与测试全部在树（`speedtest_summary_projection::breathing_phase`、`proxies_page_model::proxy_feature_tags`、`rule_statistics_projection::project_rule_hit_badge` + `rule_statistics_projection_test`、`log_page_model::{LogLineSections, project_log_line_sections, project_log_wrap_metrics}` + `log_page_model_tests` 行 209~224 的分段与短/长文本折行用例；源码注释逐项标注 EFFECTS-012 #40~#44），交付载体是 3887ef6 批次（其看板记录被同日的迁移乱码吞掉，2026-10-24 修复批次曾按 e680ed8 清单误判为未交付并留在现在佛，本条复核后归位）。
 - [ ] EFFECTS-016 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabList 驱动平滑弹簧分段切换器（#55~#57）
   - 产物：实现 #55 官方 TabList 驱动的平滑弹簧 SegmentedControl、#56 BorderRadius::MAX 胶囊圆角、#57 统一 Switch 控件真源（收敛轨道与旋钮）。
   - 依赖：EFFECTS-003。
