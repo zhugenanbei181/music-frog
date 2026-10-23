@@ -440,8 +440,12 @@ pub(crate) fn sync_connections_drawer(
     for mut node in &mut layers {
         // The layer stays flex while the drawer slides: the panel is only
         // hidden once the shared phase has settled closed.
-        let want = if matches!(phase, DrawerPhase::Closed) && !open {
-            Display::None
+        let want = if !open {
+            if matches!(phase, DrawerPhase::Closing { .. }) {
+                Display::Flex
+            } else {
+                Display::None
+            }
         } else {
             Display::Flex
         };

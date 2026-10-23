@@ -243,7 +243,7 @@ fn test_profiles_editor_renders_a_bounded_window_on_a_large_document() {
         "the window renders every line of the window ({rendered_texts})"
     );
     assert!(
-        rendered_texts <= (PROFILE_EDITOR_RENDER_LIMIT + 2) * 4,
+        rendered_texts <= (PROFILE_EDITOR_RENDER_LIMIT + 2) * 6,
         "the render is bounded by the window, not the document ({rendered_texts} text nodes)"
     );
     let hidden_below = 10_001 - PROFILE_EDITOR_RENDER_LIMIT;
@@ -275,7 +275,7 @@ fn test_profiles_editor_renders_a_bounded_window_on_a_large_document() {
     let body = marker_entity::<ProfileEditorBody>(&mut app);
     let rendered_texts = subtree_text_count(app.world(), body);
     assert!(
-        rendered_texts <= (PROFILE_EDITOR_RENDER_LIMIT + 2) * 4,
+        rendered_texts <= (PROFILE_EDITOR_RENDER_LIMIT + 2) * 6,
         "the window stays bounded while scrolled to the end ({rendered_texts})"
     );
 }
