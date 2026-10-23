@@ -274,3 +274,18 @@ fn the_aligned_palette_keeps_every_skin_distinct() {
     assert_ne!(amoled.window_bg, dark.window_bg);
     assert_ne!(dark.accent, light.accent);
 }
+
+#[test]
+fn the_scrollbar_metrics_aligns_with_shared_contract() {
+    use infiltrator_contract::scrollbar::ScrollbarMetrics;
+    let canonical = ScrollbarMetrics::DEFAULT;
+    assert_eq!(canonical.track_width_px, 6.0);
+    assert_eq!(canonical.thumb_radius_px, 3.0);
+    assert_eq!(canonical.min_thumb_length_px, 24.0);
+    assert_eq!(canonical.content_gutter_px, 16.0);
+    assert_eq!(canonical.thumb_margin_px, 2.0);
+    assert_eq!(canonical.fade_duration_ms, 150);
+    assert_eq!(canonical.idle_opacity, 0.0);
+    assert_eq!(canonical.active_opacity, 0.40);
+    assert!(canonical.is_true_pill());
+}

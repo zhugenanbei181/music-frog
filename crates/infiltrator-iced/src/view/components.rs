@@ -18,6 +18,7 @@ use iced::widget::{
 use iced::{
     Border, Color, Element, Length, Point, Rectangle, Shadow, Theme, Vector, border, mouse,
 };
+use infiltrator_contract::scrollbar::ScrollbarMetrics;
 use zhuge_ui_kit_iced::surface::{self, BadgeGeometry, SurfaceGeometry, rgba, surface_style};
 use zhuge_ui_tokens::surface::SurfaceColors;
 
@@ -28,21 +29,24 @@ use zhuge_ui_tokens::surface::SurfaceColors;
 pub const WEB_ACCENT: Color = theme::LIGHT.accent;
 pub const WEB_SUCCESS: Color = theme::LIGHT.success;
 pub const WEB_SURFACE: Color = Color::from_rgba(0.06, 0.09, 0.16, 0.82);
-pub const SCROLLBAR_GUTTER: f32 = 16.0;
+pub const SCROLLBAR_GUTTER: f32 = ScrollbarMetrics::DEFAULT.content_gutter_px;
 
 // ---------------------------------------------------------------------------
 // Scrollable
 // ---------------------------------------------------------------------------
 
 pub fn modern_scrollable<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Scrollable<'a, T> {
+    let metrics = ScrollbarMetrics::DEFAULT;
     let safe_content = container(content).padding(iced::Padding {
         top: 0.0,
-        right: SCROLLBAR_GUTTER,
+        right: metrics.content_gutter_px,
         bottom: 0.0,
         left: 0.0,
     });
     scrollable(safe_content).direction(scrollable::Direction::Vertical(
-        scrollable::Scrollbar::new().width(6).margin(4),
+        scrollable::Scrollbar::new()
+            .width(metrics.track_width_px)
+            .margin(metrics.thumb_margin_px),
     ))
 }
 

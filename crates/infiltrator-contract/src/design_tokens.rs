@@ -218,6 +218,10 @@ pub mod radius;
 #[path = "elevation.rs"]
 pub mod elevation;
 
+/// The canonical scrollbar metrics and interaction contract across surfaces.
+#[path = "scrollbar.rs"]
+pub mod scrollbar;
+
 /// Continuous curvature / superellipse specification (Squircle / G2 continuity).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CornerCurvature {

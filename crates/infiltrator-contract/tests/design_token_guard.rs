@@ -69,6 +69,8 @@ enum Rule {
     Alpha,
     /// The value must be a viewport breakpoint on the 4pt grid.
     Viewport,
+    /// The value belongs to the canonical scrollbar specification.
+    Scrollbar,
 }
 
 /// The rule that owns the hard-coded lengths of one file.
@@ -81,6 +83,7 @@ fn rule_of(file: &str) -> Option<Rule> {
         "src/text_truncation.rs" => Some(Rule::Layout),
         "src/responsive_viewport.rs" => Some(Rule::Viewport),
         "src/palette.rs" => Some(Rule::Alpha),
+        "src/scrollbar.rs" => Some(Rule::Scrollbar),
         _ => None,
     }
 }
@@ -140,6 +143,7 @@ fn accepts(rule: Rule, declaration: &Declaration) -> bool {
         Rule::PhysicalOrChrome => is_physical_value(value) || is_chrome_value(value),
         Rule::Alpha => declaration.name.ends_with("_ALPHA") && value > 0.0 && value < 1.0,
         Rule::Viewport => value > 0.0 && is_on_grid(value),
+        Rule::Scrollbar => value >= 0.0 && value.is_finite(),
     }
 }
 

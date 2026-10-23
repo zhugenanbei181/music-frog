@@ -109,6 +109,7 @@ pub mod script_export_review;
 pub mod script_run;
 pub mod script_sandbox;
 pub mod script_sandbox_matrix;
+pub mod scrollbar;
 pub mod service_mode;
 pub mod shell_gesture;
 pub mod shell_readout;
