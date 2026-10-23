@@ -203,6 +203,20 @@ pub fn proxy_card_paint(
     paint
 }
 
+type ProxyCardVisualQueryItem = (
+    Entity,
+    &'static ControlVisual,
+    Option<&'static ButtonDisabled>,
+    Option<&'static PickingInteraction>,
+    &'static mut BackgroundColor,
+    &'static mut BorderColor,
+    &'static mut Node,
+    Option<&'static mut BoxShadow>,
+    &'static mut UiTransform,
+);
+
+type ProxyCardVisualQuery<'w, 's> = Query<'w, 's, ProxyCardVisualQueryItem, With<ProxyNodeButton>>;
+
 /// Paint every mounted proxy card from the owner's selected bit and the
 /// pointer's interaction.
 ///
@@ -212,20 +226,7 @@ pub fn proxy_card_paint(
 pub fn sync_proxy_card_visuals(
     palette: Res<UiPalette>,
     mut commands: Commands,
-    mut cards: Query<
-        (
-            Entity,
-            &ControlVisual,
-            Option<&ButtonDisabled>,
-            Option<&PickingInteraction>,
-            &mut BackgroundColor,
-            &mut BorderColor,
-            &mut Node,
-            Option<&mut BoxShadow>,
-            &mut UiTransform,
-        ),
-        With<ProxyNodeButton>,
-    >,
+    mut cards: ProxyCardVisualQuery,
 ) {
     for (
         entity,

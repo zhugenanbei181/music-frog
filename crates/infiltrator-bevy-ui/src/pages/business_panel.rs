@@ -7,6 +7,7 @@ use crate::pages::proxies_form::CustomNodeForm;
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::prelude::*;
+use bevy::ecs::system::SystemParam;
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
@@ -204,18 +205,31 @@ pub fn profiles_panels(
     ]
 }
 
-pub(crate) fn activate_panel(
-    activate: On<Activate>,
-    open: Query<&OpenBusinessPanel>,
-    close: Query<(Entity, &CloseBusinessPanel), Without<ModalScrim>>,
-    mut state: ResMut<BusinessPanelState>,
-    mut form: ResMut<CustomNodeForm>,
-    latest: Option<Res<LatestSurfaceSnapshot>>,
-    mut roots: Query<(&BusinessPanelRoot, &mut Node)>,
-    mut commands: Commands,
-    mut focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+pub(crate) struct BusinessPanelActionParams<'w, 's> {
+    open: Query<'w, 's, &'static OpenBusinessPanel>,
+    close: Query<'w, 's, (Entity, &'static CloseBusinessPanel), Without<ModalScrim>>,
+    state: ResMut<'w, BusinessPanelState>,
+    form: ResMut<'w, CustomNodeForm>,
+    latest: Option<Res<'w, LatestSurfaceSnapshot>>,
+    roots: Query<'w, 's, (&'static BusinessPanelRoot, &'static mut Node)>,
+    commands: Commands<'w, 's>,
+    focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+pub(crate) fn activate_panel(activate: On<Activate>, params: BusinessPanelActionParams) {
+    let BusinessPanelActionParams {
+        open,
+        close,
+        mut state,
+        mut form,
+        latest,
+        mut roots,
+        mut commands,
+        mut focus,
+        windows,
+    } = params;
     if let Ok(open) = open.get(activate.entity) {
         if !roots.iter().any(|(root, _)| root.0 == open.0) {
             return;

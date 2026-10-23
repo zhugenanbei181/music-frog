@@ -80,6 +80,17 @@
 7. 模块化：**本批：五份台账成为常驻门禁**——unsafe 操作数必须与源码逐个一致、缺少安全说明的数量只能下降；每个 panic 边界必须登记它拦住的失败，任何 profile 禁止 abort；内层 crate 的标准输出清零，其它库层站点登记上限；每个构建脚本必须声明归属 crate、构建依赖、是否派生进程与是否写文件；每个特性必须分类，default 不得隐式开启捕获与测试特性 → 部分（L）。
 8. CI：**本批：生态门禁新增 tag 门控的依赖政策作业**（公告、许可、禁用、来源四项一起执行），主门禁原先浮动的工具链引用改为钉住与工作区同一个发布版，工具链版本从此只有一个真源；本批的改动全部是离线门禁与配置，不触发任何编译成本 → 部分（L）。
 
+## 最近一批问答（2026-10-23 Bevy ECS 规范收敛与质量门禁收尾批次）
+
+1. x86_64/aarch64：本批未动交叉构建腿，`scripts/cross-check.sh` 与 `scripts/android-check.sh` 的既有结论不变；本批改动仅针对 Bevy UI 表面系统参数与类型定义，不产生也不消耗新的目标架构证据 → 部分（L）。
+2. Windows/Linux/macOS：本批未新增平台构建腿，安装包证据仍缺；本批聚焦消除 Bevy UI 的 ECS 复杂度与参数超限，确保桌面编译与 Clippy 零警告零错误 → 部分（L）。
+3. Android/iOS：Android 静态质量门与单测保持全绿，release keystore 签名约束与模拟器取证流保持生效；本批改动使 Bevy Android 宿主所依赖的 UI 表面同样满足 BEVY-ECS-009 架构硬约束 → 部分（L）。
+4. 各 UI：三大 UI 表面统一经中立 `SurfaceReader` + `CommandSink`；**本批：Bevy UI 表面彻底符合 ECS 架构规范**——消除了 `business_panel`、`connections_confirm`、`connections_view`、`dns_cache`、`dns_hosts_sync`、`dns_query`、`page_models`、`rules_tabs`、`settings_lan`、`settings_pac`、`settings_language`、`snapshot_restore` 等 18 处系统函数的参数超限（`too_many_arguments`），全部声明为派生 `SystemParam` 的局部聚合参数；消除了 `logs_export`、`profiles_outcome`、`proxies_card/node_card`、`snapshot_restore_view`、`shell_sidebar` 等多处的复杂元组 Query（`type_complexity`），提取为精确命名的类型别名；顶层清理了违规的 `#![allow(clippy::too_many_arguments, clippy::type_complexity)]`，完全通过 `bevy_bsn_guard.py`（BEVY-ECS-009）红线门禁，同时 `cargo clippy -p infiltrator-bevy-ui --all-targets -- -D warnings` 与 188 项单元测试 100% 全绿 → 部分（L）。
+5. 复用：**本批保持唯一真源原则**——页面模型统一依赖 `infiltrator-presentation` 的共享页面模型（`sync_shared_page_models` 封装为 `SharedPageModelsSyncParams`），各页面不设私有业务推导副本，所有 ECS Query 严格按 typed access 分发 → 部分（L）。
+6. 功能接入：59 业务 × 三表面 358 证据格与 180 清单格保持登记，本批改动不破坏既有场景锚点与像素回执；全量像素认证按现有流水线可推 → 缺失（L）。
+7. 模块化：文件级模块化（<=800 行）与 `mod.rs` 清退持续 100% 达标；**本批：彻底根除了在 Bevy UI 表面使用全局 lint 抑制掩盖 ECS 复杂度的技术债务**，所有 Query 与系统参数均按照精确作用域（Scoped Parameters）和类型定义组织，符合总纲 L0 编码纪律 → 部分（L）。
+8. CI：远端 `main-gate` 门禁持续绿；本次收尾批次通过 `cargo fmt --all -- --check` 格式化检查、全量 `check-structure.sh` 结构守卫与各 crate 的 Clippy `-D warnings` 门禁，消除历史遗留的静态门禁冲突隐患 → 部分（L）。
+
 ## 更新纪律
 
 - 批次提交信息不需要复述八问，但本文件必须与批次同一提交更新。

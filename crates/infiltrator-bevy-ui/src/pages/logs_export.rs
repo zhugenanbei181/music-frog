@@ -63,13 +63,13 @@ impl Plugin for LogsExportPlugin {
     }
 }
 
+type DismissControlsQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static LogsExportAction), (Without<ModalScrim>, Without<TabIndex>)>;
+
 /// The modal's dismiss control is the dialog's focusable control: the
 /// official `TabIndex` marks it for Bevy's focus scheme, so the official
 /// focus containment and the official `AcquireFocus` request know it.
-fn mark_dismiss_control(
-    mut commands: Commands,
-    controls: Query<(Entity, &LogsExportAction), (Without<ModalScrim>, Without<TabIndex>)>,
-) {
+fn mark_dismiss_control(mut commands: Commands, controls: DismissControlsQuery) {
     for (entity, action) in &controls {
         if matches!(action, LogsExportAction::Cancel) {
             commands.entity(entity).insert(TabIndex(0));

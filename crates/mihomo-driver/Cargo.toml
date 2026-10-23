@@ -29,8 +29,8 @@ process = ["dep:sysinfo", "dep:libc", "dep:windows-sys"]
 codec = ["process"]
 
 [dependencies]
-lurker-core-contract = { version = "0.68.0", path = "../lurker-core-contract" }
-lurker-core-ports = { version = "0.68.0", path = "../lurker-core-ports" }
+lurker-core-contract = { version = "0.68.1", path = "../lurker-core-contract" }
+lurker-core-ports = { version = "0.68.1", path = "../lurker-core-ports" }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }

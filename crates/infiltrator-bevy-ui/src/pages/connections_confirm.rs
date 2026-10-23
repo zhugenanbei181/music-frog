@@ -5,6 +5,7 @@ use crate::pages::connections::CloseAllConnectionsButton;
 use crate::pages::connections_view::ConnectionsCloseAllState;
 use crate::route::{ActiveRoute, Route, RouteChanged};
 use bevy::ecs::prelude::*;
+use bevy::ecs::system::SystemParam;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
@@ -158,17 +159,32 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
     }
 }
 
+#[derive(SystemParam)]
+pub(crate) struct ConnectionsConfirmActionParams<'w, 's> {
+    open_buttons: Query<'w, 's, (), With<CloseAllConnectionsButton>>,
+    actions: Query<'w, 's, (Entity, &'static CloseAllConfirmationAction), Without<ModalScrim>>,
+    roots: Query<'w, 's, &'static mut Node, With<CloseAllConfirmationRoot>>,
+    state: Option<ResMut<'w, ConnectionsCloseAllState>>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    commands: Commands<'w, 's>,
+    focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
 pub(crate) fn on_confirmation_activated(
     activate: On<Activate>,
-    open_buttons: Query<(), With<CloseAllConnectionsButton>>,
-    actions: Query<(Entity, &CloseAllConfirmationAction), Without<ModalScrim>>,
-    mut roots: Query<&mut Node, With<CloseAllConfirmationRoot>>,
-    mut state: Option<ResMut<ConnectionsCloseAllState>>,
-    handle: Option<Res<CommandSinkHandle>>,
-    mut commands: Commands,
-    mut focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
+    params: ConnectionsConfirmActionParams,
 ) {
+    let ConnectionsConfirmActionParams {
+        open_buttons,
+        actions,
+        mut roots,
+        mut state,
+        handle,
+        mut commands,
+        mut focus,
+        windows,
+    } = params;
     let Some(state) = state.as_deref_mut() else {
         return;
     };

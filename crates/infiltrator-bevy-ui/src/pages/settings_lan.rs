@@ -416,16 +416,27 @@ pub(super) fn on_toggle_changed(
     }
 }
 
-pub(super) fn on_apply_activated(
-    activate: On<Activate>,
-    apply_buttons: Query<(), With<LanSharingApplyButton>>,
-    toggles: Query<&Children, With<LanSharingToggle>>,
-    checkboxes: Query<&Checked>,
-    handle: Option<Res<CommandSinkHandle>>,
-    policy: RuntimePolicy,
-    inputs: LanListenerInputs,
-    mut model: Option<ResMut<SettingsPageModelState>>,
-) {
+#[derive(SystemParam)]
+pub(super) struct LanApplyActivatedParams<'w, 's> {
+    apply_buttons: Query<'w, 's, (), With<LanSharingApplyButton>>,
+    toggles: Query<'w, 's, &'static Children, With<LanSharingToggle>>,
+    checkboxes: Query<'w, 's, &'static Checked>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    policy: RuntimePolicy<'w>,
+    inputs: LanListenerInputs<'w, 's>,
+    model: Option<ResMut<'w, SettingsPageModelState>>,
+}
+
+pub(super) fn on_apply_activated(activate: On<Activate>, params: LanApplyActivatedParams) {
+    let LanApplyActivatedParams {
+        apply_buttons,
+        toggles,
+        checkboxes,
+        handle,
+        policy,
+        inputs,
+        mut model,
+    } = params;
     let LanListenerInputs {
         mixed_fields,
         bind_fields,

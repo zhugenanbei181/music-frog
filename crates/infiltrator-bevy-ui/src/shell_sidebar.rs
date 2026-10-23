@@ -432,6 +432,20 @@ type SidebarToggleQuery<'w, 's> = Query<
     ),
 >;
 
+type SwitchTrackQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static mut BackgroundColor, &'static mut BorderColor),
+    (With<SwitchTrack>, Without<SwitchKnob>),
+>;
+
+type SwitchKnobQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static mut SwitchKnob, &'static mut BackgroundColor),
+    (With<SwitchKnob>, Without<SwitchTrack>),
+>;
+
 /// Restamp the two sidebar switches from the shared projection.
 ///
 /// A pending/unknown/unsupported control is visibly non-actionable and cannot
@@ -441,14 +455,8 @@ pub fn sync_sidebar_toggle_visuals(
     projection: Res<SidebarToggleProjection>,
     palette: Res<UiPalette>,
     mut toggles: SidebarToggleQuery,
-    mut tracks: Query<
-        (&mut BackgroundColor, &mut BorderColor),
-        (With<SwitchTrack>, Without<SwitchKnob>),
-    >,
-    mut knobs: Query<
-        (&mut SwitchKnob, &mut BackgroundColor),
-        (With<SwitchKnob>, Without<SwitchTrack>),
-    >,
+    mut tracks: SwitchTrackQuery,
+    mut knobs: SwitchKnobQuery,
     mut commands: Commands,
 ) {
     for (entity, mut visual, children, proxy_marker, tun_marker, mut semantic) in &mut toggles {

@@ -16,7 +16,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-lurker-core-contract = { version = "0.68.0", path = "../lurker-core-contract" }
+lurker-core-contract = { version = "0.68.1", path = "../lurker-core-contract" }
 async-trait = { workspace = true }
 url = { workspace = true }
 

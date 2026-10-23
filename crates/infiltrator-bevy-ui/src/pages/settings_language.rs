@@ -7,7 +7,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, SceneList, bsn, bsn_list};
 use bevy::text::TextColor;
@@ -217,19 +217,35 @@ pub struct LanguageButtonParts {
     disabled: &'static mut ButtonDisabled,
     background: &'static mut BackgroundColor,
 }
-pub fn sync_language_controls(
-    state: Res<LanguageChoiceResource>,
-    locale: Res<UiLocale>,
-    palette: Res<UiPalette>,
-    mut choices: Query<LanguageButtonParts, Without<RetryLanguageChoice>>,
-    mut ink: Query<&mut TextColor>,
-    mut retries: Query<
-        &mut ButtonDisabled,
+#[derive(SystemParam)]
+pub struct LanguageControlsSyncParams<'w, 's> {
+    state: Res<'w, LanguageChoiceResource>,
+    locale: Res<'w, UiLocale>,
+    palette: Res<'w, UiPalette>,
+    choices: Query<'w, 's, LanguageButtonParts, Without<RetryLanguageChoice>>,
+    ink: Query<'w, 's, &'static mut TextColor>,
+    retries: Query<
+        'w,
+        's,
+        &'static mut ButtonDisabled,
         (With<RetryLanguageChoice>, Without<LanguageChoiceButton>),
     >,
-    mut status: Query<&mut Text, With<LanguageChoiceStatus>>,
-    mut banners: Query<(&mut Node, &mut BorderColor), With<LanguageChoiceBanner>>,
-) {
+    status: Query<'w, 's, &'static mut Text, With<LanguageChoiceStatus>>,
+    banners:
+        Query<'w, 's, (&'static mut Node, &'static mut BorderColor), With<LanguageChoiceBanner>>,
+}
+
+pub fn sync_language_controls(params: LanguageControlsSyncParams) {
+    let LanguageControlsSyncParams {
+        state,
+        locale,
+        palette,
+        mut choices,
+        mut ink,
+        mut retries,
+        mut status,
+        mut banners,
+    } = params;
     let model = &state.model;
     let applied = match &model.read {
         LanguageReadPhase::Unobserved => None,

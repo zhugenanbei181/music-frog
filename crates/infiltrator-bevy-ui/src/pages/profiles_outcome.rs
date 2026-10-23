@@ -59,6 +59,42 @@ pub(crate) fn fold_refresh_failures(
     }
 }
 
+type ProfileRefreshQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static ProfileRefreshText, &'static mut Text),
+    (
+        With<ProfileRefreshText>,
+        Without<ProfileDeleteOutcomeText>,
+        Without<ProfileImportOutcomeText>,
+        Without<RuleProviderFailureText>,
+    ),
+>;
+
+type ProfileDeleteQuery<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Text,
+    (
+        With<ProfileDeleteOutcomeText>,
+        Without<ProfileRefreshText>,
+        Without<ProfileImportOutcomeText>,
+        Without<RuleProviderFailureText>,
+    ),
+>;
+
+type ProfileImportQuery<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Text,
+    (
+        With<ProfileImportOutcomeText>,
+        Without<ProfileRefreshText>,
+        Without<ProfileDeleteOutcomeText>,
+        Without<RuleProviderFailureText>,
+    ),
+>;
+
 /// Restamp the profiles page's outcome lines from the owner's answers.
 pub fn sync_profiles_outcomes(
     outcomes: Option<Res<CommandOutcomes>>,
@@ -67,33 +103,9 @@ pub fn sync_profiles_outcomes(
     // The three outcome lines and the rule provider's failure line are
     // written by different systems in this schedule, so every query is
     // disjoint from the others.
-    mut refreshes: Query<
-        (&ProfileRefreshText, &mut Text),
-        (
-            With<ProfileRefreshText>,
-            Without<ProfileDeleteOutcomeText>,
-            Without<ProfileImportOutcomeText>,
-            Without<RuleProviderFailureText>,
-        ),
-    >,
-    mut deletions: Query<
-        &mut Text,
-        (
-            With<ProfileDeleteOutcomeText>,
-            Without<ProfileRefreshText>,
-            Without<ProfileImportOutcomeText>,
-            Without<RuleProviderFailureText>,
-        ),
-    >,
-    mut imports: Query<
-        &mut Text,
-        (
-            With<ProfileImportOutcomeText>,
-            Without<ProfileRefreshText>,
-            Without<ProfileDeleteOutcomeText>,
-            Without<RuleProviderFailureText>,
-        ),
-    >,
+    mut refreshes: ProfileRefreshQuery,
+    mut deletions: ProfileDeleteQuery,
+    mut imports: ProfileImportQuery,
 ) {
     let Some(outcomes) = outcomes else {
         return;

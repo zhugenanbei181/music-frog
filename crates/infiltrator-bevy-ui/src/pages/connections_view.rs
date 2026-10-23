@@ -24,7 +24,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
@@ -379,32 +379,54 @@ pub(crate) fn sync_connections_strips(
 ///
 /// The shared model stays the only place a choice lives: the official
 /// `SelectedTab` mirrors it, never the other way round.
-pub(crate) fn on_connections_strip_changed(
-    change: On<ValueChange<Option<Entity>>>,
-    mut commands: Commands,
-    mut view: Option<ResMut<ConnectionsViewState>>,
-    mut idle: Option<ResMut<ConnectionsIdleState>>,
-    strips: Query<&ConnStrip>,
-    tabs: Query<&ConnStripTab>,
-    last: Option<Res<LastConnectionsProjection>>,
-    mut containers: Query<&mut Children, With<ConnRowsContainer>>,
-    rows: Query<&ConnectionRow>,
-    row_subtrees: Query<&Children, Without<ConnRowsContainer>>,
-    mut summary_containers: Query<
-        &mut Node,
+#[derive(SystemParam)]
+pub(crate) struct ConnectionsStripChangeParams<'w, 's> {
+    commands: Commands<'w, 's>,
+    view: Option<ResMut<'w, ConnectionsViewState>>,
+    idle: Option<ResMut<'w, ConnectionsIdleState>>,
+    strips: Query<'w, 's, &'static ConnStrip>,
+    tabs: Query<'w, 's, &'static ConnStripTab>,
+    last: Option<Res<'w, LastConnectionsProjection>>,
+    containers: Query<'w, 's, &'static mut Children, With<ConnRowsContainer>>,
+    rows: Query<'w, 's, &'static ConnectionRow>,
+    row_subtrees: Query<'w, 's, &'static Children, Without<ConnRowsContainer>>,
+    summary_containers: Query<
+        'w,
+        's,
+        &'static mut Node,
         (
             With<ConnAggregationSummaryContainer>,
             Without<ConnRowsContainer>,
         ),
     >,
-    mut rows_containers: Query<
-        &mut Node,
+    rows_containers: Query<
+        'w,
+        's,
+        &'static mut Node,
         (
             With<ConnRowsContainer>,
             Without<ConnAggregationSummaryContainer>,
         ),
     >,
+}
+
+pub(crate) fn on_connections_strip_changed(
+    change: On<ValueChange<Option<Entity>>>,
+    params: ConnectionsStripChangeParams,
 ) {
+    let ConnectionsStripChangeParams {
+        mut commands,
+        mut view,
+        mut idle,
+        strips,
+        tabs,
+        last,
+        mut containers,
+        rows,
+        row_subtrees,
+        mut summary_containers,
+        mut rows_containers,
+    } = params;
     let Ok(_strip) = strips.get(change.source) else {
         return;
     };

@@ -22,7 +22,7 @@
 
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Res, ResMut};
+use bevy::ecs::system::{Res, ResMut, SystemParam};
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
@@ -202,21 +202,35 @@ pub fn observe_app_routing_model(model: &mut AppRoutingPageModel, snapshot: &Sur
     }
 }
 
+#[derive(SystemParam)]
+pub struct SharedPageModelsSyncParams<'w> {
+    snapshot: Res<'w, LatestSurfaceSnapshot>,
+    overview: ResMut<'w, OverviewPageModelState>,
+    proxies: ResMut<'w, ProxiesPageModelState>,
+    settings: ResMut<'w, SettingsPageModelState>,
+    rules: ResMut<'w, RulesPageModelState>,
+    profiles: ResMut<'w, ProfilesPageModelState>,
+    doctor: ResMut<'w, DoctorPageModelState>,
+    dns: ResMut<'w, DnsPageModelState>,
+    app_routing: ResMut<'w, AppRoutingPageModelState>,
+}
+
 /// Read the latest accepted snapshot into the nine shared page models.
 ///
 /// One fold for every page: the page projections and the live handles share
 /// it, so a page can never render a fact the shared model does not hold.
-pub fn sync_shared_page_models(
-    snapshot: Res<LatestSurfaceSnapshot>,
-    mut overview: ResMut<OverviewPageModelState>,
-    mut proxies: ResMut<ProxiesPageModelState>,
-    mut settings: ResMut<SettingsPageModelState>,
-    mut rules: ResMut<RulesPageModelState>,
-    mut profiles: ResMut<ProfilesPageModelState>,
-    mut doctor: ResMut<DoctorPageModelState>,
-    mut dns: ResMut<DnsPageModelState>,
-    mut app_routing: ResMut<AppRoutingPageModelState>,
-) {
+pub fn sync_shared_page_models(params: SharedPageModelsSyncParams) {
+    let SharedPageModelsSyncParams {
+        snapshot,
+        mut overview,
+        mut proxies,
+        mut settings,
+        mut rules,
+        mut profiles,
+        mut doctor,
+        mut dns,
+        mut app_routing,
+    } = params;
     let snapshot = &snapshot.0;
     observe_overview_model(&mut overview.0, snapshot);
     observe_proxies_model(&mut proxies.0, snapshot);

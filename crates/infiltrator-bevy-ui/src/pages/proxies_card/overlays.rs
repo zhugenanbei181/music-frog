@@ -22,7 +22,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, SystemParam};
 use bevy::image::Image;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
@@ -140,6 +140,17 @@ fn fade_ends_with(gradient: &BackgroundGradient, fill: Color) -> bool {
     }) == Some(fill)
 }
 
+#[derive(SystemParam)]
+pub struct ProxyLatencySparklineParams<'w, 's> {
+    palette: Res<'w, UiPalette>,
+    last: Option<Res<'w, LastProxiesProjection>>,
+    images: Option<ResMut<'w, Assets<Image>>>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    identities: Query<'w, 's, &'static ProxyNodeButton>,
+    slots: Query<'w, 's, (Entity, Option<&'static ImageNode>), With<LatencyTrendIcon>>,
+    commands: Commands<'w, 's>,
+}
+
 /// Paint the latency sparkline from the owner's recorded history.
 ///
 /// The strip shows the node's own samples: the height of a sample is its
@@ -147,15 +158,18 @@ fn fade_ends_with(gradient: &BackgroundGradient, fill: Color) -> bool {
 /// top and a flat history sits in the middle. A node the owner never
 /// measured carries no sample and therefore no line.
 pub fn sync_proxy_latency_sparklines(
-    palette: Res<UiPalette>,
-    last: Option<Res<LastProxiesProjection>>,
-    images: Option<ResMut<Assets<Image>>>,
-    parents: Query<&ChildOf>,
-    identities: Query<&ProxyNodeButton>,
-    slots: Query<(Entity, Option<&ImageNode>), With<LatencyTrendIcon>>,
+    params: ProxyLatencySparklineParams,
     mut painted: Local<PaintedSparklines>,
-    mut commands: Commands,
 ) {
+    let ProxyLatencySparklineParams {
+        palette,
+        last,
+        images,
+        parents,
+        identities,
+        slots,
+        mut commands,
+    } = params;
     let Some(mut images) = images else {
         return;
     };

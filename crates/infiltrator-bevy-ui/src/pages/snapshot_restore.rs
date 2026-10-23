@@ -11,7 +11,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::ui_widgets::Activate;
@@ -74,16 +74,27 @@ fn submit(state: &mut RestoreState, handle: Option<&CommandSinkHandle>, pending:
         );
     }
 }
-fn open(
-    event: On<OpenSnapshotRestore>,
-    route: Res<ActiveRoute>,
-    handle: Option<Res<CommandSinkHandle>>,
-    mut state: ResMut<RestoreState>,
-    mut commands: Commands,
-    mut focus: ResMut<InputFocus>,
-    controls: Query<(Entity, &RestoreControl), Without<ModalScrim>>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+struct SnapshotRestoreOpenParams<'w, 's> {
+    route: Res<'w, ActiveRoute>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    state: ResMut<'w, RestoreState>,
+    commands: Commands<'w, 's>,
+    focus: ResMut<'w, InputFocus>,
+    controls: Query<'w, 's, (Entity, &'static RestoreControl), Without<ModalScrim>>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+fn open(event: On<OpenSnapshotRestore>, params: SnapshotRestoreOpenParams) {
+    let SnapshotRestoreOpenParams {
+        route,
+        handle,
+        mut state,
+        mut commands,
+        mut focus,
+        controls,
+        windows,
+    } = params;
     if let Some(pending) = state.model.open(event.0.clone()) {
         state.opened_on = route.0;
         submit(&mut state, handle.as_deref(), pending);

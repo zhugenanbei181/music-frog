@@ -9,7 +9,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::input_focus::tab_navigation::TabIndex;
@@ -74,22 +74,38 @@ pub enum QueryLine {
     /// section it shows.
     SectionLabel,
 }
-pub fn activate(
-    event: On<Activate>,
-    actions: Query<(Entity, &QueryAction)>,
-    route: Res<ActiveRoute>,
-    mut state: ResMut<QueryPanel>,
-    sink: Option<Res<CommandSinkHandle>>,
-    mut fields: Query<(
-        Entity,
-        &TextField,
-        &mut TextFieldFocused,
-        Option<&QueryNameField>,
-    )>,
-    mut commands: Commands,
-    mut input_focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+pub struct DnsQueryActivateParams<'w, 's> {
+    actions: Query<'w, 's, (Entity, &'static QueryAction)>,
+    route: Res<'w, ActiveRoute>,
+    state: ResMut<'w, QueryPanel>,
+    sink: Option<Res<'w, CommandSinkHandle>>,
+    fields: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static TextField,
+            &'static mut TextFieldFocused,
+            Option<&'static QueryNameField>,
+        ),
+    >,
+    commands: Commands<'w, 's>,
+    input_focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+pub fn activate(event: On<Activate>, params: DnsQueryActivateParams) {
+    let DnsQueryActivateParams {
+        actions,
+        route,
+        mut state,
+        sink,
+        mut fields,
+        mut commands,
+        mut input_focus,
+        windows,
+    } = params;
     if route.0 != Some(Route::Dns) {
         return;
     }

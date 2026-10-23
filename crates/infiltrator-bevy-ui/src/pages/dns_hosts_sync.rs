@@ -8,7 +8,7 @@ use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::{Has, Or, QueryData, QueryFilter, With, Without};
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::ui::widget::Text;
@@ -21,17 +21,31 @@ use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_presentation::dns_hosts_projection::{feedback, legacy_hint, summary};
 use infiltrator_shared::locales::Lang;
-pub fn observe(
-    latest: Res<LatestSurfaceSnapshot>,
-    route: Res<ActiveRoute>,
-    mut state: ResMut<DnsHostsEditorState>,
-    parents: Query<&ChildOf>,
-    cards: Query<Entity, With<HostsModalCard>>,
-    actions: Query<(Entity, &HostAction), Without<ModalScrim>>,
-    mut commands: Commands,
-    mut input_focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+pub struct DnsHostsObserveParams<'w, 's> {
+    latest: Res<'w, LatestSurfaceSnapshot>,
+    route: Res<'w, ActiveRoute>,
+    state: ResMut<'w, DnsHostsEditorState>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    cards: Query<'w, 's, Entity, With<HostsModalCard>>,
+    actions: Query<'w, 's, (Entity, &'static HostAction), Without<ModalScrim>>,
+    commands: Commands<'w, 's>,
+    input_focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+pub fn observe(params: DnsHostsObserveParams) {
+    let DnsHostsObserveParams {
+        latest,
+        route,
+        mut state,
+        parents,
+        cards,
+        actions,
+        mut commands,
+        mut input_focus,
+        windows,
+    } = params;
     let previous = (
         state.editor.address().to_owned(),
         state.editor.domain().to_owned(),

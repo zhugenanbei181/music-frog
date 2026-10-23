@@ -25,7 +25,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::InteractionDisabled;
 use bevy::ui::prelude::{Display, FlexDirection, Node, percent};
@@ -115,6 +115,27 @@ pub fn tab_body_scene(tab: RulesTab, content: Box<dyn Scene>) -> Box<dyn Scene> 
     })
 }
 
+type UnbridgedTabQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static SegmentedTab), (With<Tab>, Without<RulesTabChip>)>;
+
+type UnlabeledTabQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static SegmentedTab), (With<Tab>, Without<LocalizedLabel>)>;
+
+#[derive(SystemParam)]
+pub struct RulesTabsSyncParams<'w, 's> {
+    state: Option<Res<'w, RulesPageModelState>>,
+    view: Option<ResMut<'w, RulesTabState>>,
+    statistics: Option<Res<'w, RulesStatisticsState>>,
+    json: Option<ResMut<'w, RulesJsonState>>,
+    commands: Commands<'w, 's>,
+    bodies: Query<'w, 's, (&'static mut Node, &'static RulesTabBody)>,
+    strips:
+        Query<'w, 's, (Entity, &'static mut SelectedTab, &'static Children), With<RulesTabStrip>>,
+    tabs: Query<'w, 's, (Entity, &'static SegmentedTab, Has<InteractionDisabled>), With<Tab>>,
+    unbridged: UnbridgedTabQuery<'w, 's>,
+    unlabeled: UnlabeledTabQuery<'w, 's>,
+}
+
 /// DUAL-11-14: show only the active partition and drive the official strip's
 /// selection from the shared page model.
 ///
@@ -122,18 +143,19 @@ pub fn tab_body_scene(tab: RulesTab, content: Box<dyn Scene>) -> Box<dyn Scene> 
 /// selection (`ValueChange`), and the owner writes [`SelectedTab`]. The shared
 /// rules page model is that owner, so the strip's official selection is
 /// written from the model's partition — never from a second page-local truth.
-pub fn sync_rules_tabs(
-    state: Option<Res<RulesPageModelState>>,
-    mut view: Option<ResMut<RulesTabState>>,
-    statistics: Option<Res<RulesStatisticsState>>,
-    mut json: Option<ResMut<RulesJsonState>>,
-    mut commands: Commands,
-    mut bodies: Query<(&mut Node, &RulesTabBody)>,
-    mut strips: Query<(Entity, &mut SelectedTab, &Children), With<RulesTabStrip>>,
-    tabs: Query<(Entity, &SegmentedTab, Has<InteractionDisabled>), With<Tab>>,
-    unbridged: Query<(Entity, &SegmentedTab), (With<Tab>, Without<RulesTabChip>)>,
-    unlabeled: Query<(Entity, &SegmentedTab), (With<Tab>, Without<LocalizedLabel>)>,
-) {
+pub fn sync_rules_tabs(params: RulesTabsSyncParams) {
+    let RulesTabsSyncParams {
+        state,
+        mut view,
+        statistics,
+        mut json,
+        mut commands,
+        mut bodies,
+        mut strips,
+        tabs,
+        unbridged,
+        unlabeled,
+    } = params;
     // The page's own identity for the official chips: the shared segmented
     // control owns the chip, the page owns which partition a chip stands for.
     // The bridge does not depend on the model, so a chip is always the page's

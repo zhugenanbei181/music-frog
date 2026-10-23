@@ -150,6 +150,13 @@ fn diff_row_scene(
     }
 }
 
+type RestoreDiffNodeQuery<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static mut Node, Option<&'static RestoreLine>),
+    Or<(With<RestoreDiffRoot>, With<RestoreLine>)>,
+>;
+
 /// The review's diff comparator.
 ///
 /// The owner's own Myers diff is the fact: the review shows the two
@@ -159,10 +166,7 @@ pub fn sync_restore_diff(
     state: Res<RestoreState>,
     palette: Res<UiPalette>,
     mut rendered: ResMut<RenderedRestoreDiff>,
-    mut nodes: Query<
-        (Entity, &mut Node, Option<&RestoreLine>),
-        Or<(With<RestoreDiffRoot>, With<RestoreLine>)>,
-    >,
+    mut nodes: RestoreDiffNodeQuery,
     mut summaries: Query<&mut Text, With<RestoreDiffSummary>>,
     mut commands: Commands,
 ) {

@@ -143,16 +143,27 @@ pub(super) fn on_changed(
     }
 }
 
-pub(super) fn on_apply_activated(
-    activate: On<Activate>,
-    apply_buttons: Query<(), With<PacApplyButton>>,
-    toggles: Query<&Children, With<PacToggle>>,
-    checkboxes: Query<&Checked>,
-    fields: Query<&Children, With<PacBypassField>>,
-    text_fields: Query<&TextField>,
-    handle: Option<Res<CommandSinkHandle>>,
-    mut model: Option<ResMut<SettingsPageModelState>>,
-) {
+#[derive(SystemParam)]
+pub(super) struct PacApplyActivatedParams<'w, 's> {
+    apply_buttons: Query<'w, 's, (), With<PacApplyButton>>,
+    toggles: Query<'w, 's, &'static Children, With<PacToggle>>,
+    checkboxes: Query<'w, 's, &'static Checked>,
+    fields: Query<'w, 's, &'static Children, With<PacBypassField>>,
+    text_fields: Query<'w, 's, &'static TextField>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    model: Option<ResMut<'w, SettingsPageModelState>>,
+}
+
+pub(super) fn on_apply_activated(activate: On<Activate>, params: PacApplyActivatedParams) {
+    let PacApplyActivatedParams {
+        apply_buttons,
+        toggles,
+        checkboxes,
+        fields,
+        text_fields,
+        handle,
+        mut model,
+    } = params;
     let Some(handle) = handle else {
         return;
     };

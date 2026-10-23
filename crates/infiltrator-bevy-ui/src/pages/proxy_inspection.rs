@@ -16,7 +16,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Or, QueryData, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
@@ -309,16 +309,27 @@ impl Plugin for ProxyInspectionPlugin {
         );
     }
 }
-fn activate_inspection(
-    activated: On<Activate>,
-    details: Query<&NodeDetailButton>,
-    close: Query<(Entity, &CloseProxyInspection)>,
-    latest: Res<LatestSurfaceSnapshot>,
-    mut state: ResMut<ProxyInspectionState>,
-    mut commands: Commands,
-    mut focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+struct ProxyInspectionActivateParams<'w, 's> {
+    details: Query<'w, 's, &'static NodeDetailButton>,
+    close: Query<'w, 's, (Entity, &'static CloseProxyInspection)>,
+    latest: Res<'w, LatestSurfaceSnapshot>,
+    state: ResMut<'w, ProxyInspectionState>,
+    commands: Commands<'w, 's>,
+    focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+fn activate_inspection(activated: On<Activate>, params: ProxyInspectionActivateParams) {
+    let ProxyInspectionActivateParams {
+        details,
+        close,
+        latest,
+        mut state,
+        mut commands,
+        mut focus,
+        windows,
+    } = params;
     if close.get(activated.entity).is_ok() {
         state.dismiss();
         return;

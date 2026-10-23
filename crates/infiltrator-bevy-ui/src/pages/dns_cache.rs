@@ -12,7 +12,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
 use bevy::text::TextColor;
@@ -69,18 +69,31 @@ pub fn request(
         commands.trigger(RouteChanged(Route::Dns));
     }
 }
-pub fn activate(
-    event: On<Activate>,
-    launchers: Query<(), With<ClearDnsCacheButton>>,
-    buttons: Query<(Entity, &CacheAction), Without<ModalScrim>>,
-    route: Res<ActiveRoute>,
-    mut state: ResMut<CacheConfirmation>,
-    sink: Option<Res<CommandSinkHandle>>,
-    mut focus: CacheFocus,
-    mut commands: Commands,
-    mut input_focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+pub struct DnsCacheActivateParams<'w, 's> {
+    launchers: Query<'w, 's, (), With<ClearDnsCacheButton>>,
+    buttons: Query<'w, 's, (Entity, &'static CacheAction), Without<ModalScrim>>,
+    route: Res<'w, ActiveRoute>,
+    state: ResMut<'w, CacheConfirmation>,
+    sink: Option<Res<'w, CommandSinkHandle>>,
+    focus: CacheFocus<'w, 's>,
+    commands: Commands<'w, 's>,
+    input_focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+pub fn activate(event: On<Activate>, params: DnsCacheActivateParams) {
+    let DnsCacheActivateParams {
+        launchers,
+        buttons,
+        route,
+        mut state,
+        sink,
+        mut focus,
+        mut commands,
+        mut input_focus,
+        windows,
+    } = params;
     if route.0 != Some(Route::Dns) || state.model.is_pending() {
         return;
     }
@@ -142,16 +155,29 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<CacheConfirmati
         state.request = None;
     }
 }
-pub fn observe(
-    latest: Res<LatestSurfaceSnapshot>,
-    route: Res<ActiveRoute>,
-    mut state: ResMut<CacheConfirmation>,
-    mut focus: CacheFocus,
-    buttons: Query<(Entity, &CacheAction), Without<ModalScrim>>,
-    mut commands: Commands,
-    mut input_focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
-) {
+#[derive(SystemParam)]
+pub struct DnsCacheObserveParams<'w, 's> {
+    latest: Res<'w, LatestSurfaceSnapshot>,
+    route: Res<'w, ActiveRoute>,
+    state: ResMut<'w, CacheConfirmation>,
+    focus: CacheFocus<'w, 's>,
+    buttons: Query<'w, 's, (Entity, &'static CacheAction), Without<ModalScrim>>,
+    commands: Commands<'w, 's>,
+    input_focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
+pub fn observe(params: DnsCacheObserveParams) {
+    let DnsCacheObserveParams {
+        latest,
+        route,
+        mut state,
+        mut focus,
+        buttons,
+        mut commands,
+        mut input_focus,
+        windows,
+    } = params;
     state.model.observe(&latest.0.dns_cache);
     if state.requested && route.0 == Some(Route::Dns) {
         state.requested = false;

@@ -307,7 +307,7 @@
         "src/session::SessionToken::new": "pub const fn new(value: u128) -> Self",
         "src/session::SessionToken::value": "pub const fn value(self) -> u128"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     },
     "lurker-core-ports": {
       "api": {
@@ -386,7 +386,7 @@
         "src/profile_document_codec::ProfileDocumentSnippetOutcome": "pub enum ProfileDocumentSnippetOutcome { variant Inserted; variant Rejected }",
         "src/routing_intent::RoutingIntentPort": "pub trait RoutingIntentPort: Send + Sync { async fn observe(&self, scope: &CoreScope) -> Result<RoutingIntent, PortError>; async fn apply( &self, scope: &CoreScope, intent: RoutingIntent, ) -> Result<RoutingIntent, PortError> }"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     },
     "lurker-engine-runtime": {
       "api": {
@@ -533,7 +533,7 @@
         "src/switch::host": "pub mod host",
         "src/switch::memory_journal": "pub mod memory_journal"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     },
     "lurker-profile-store": {
       "api": {
@@ -865,7 +865,7 @@
         "src/workspace_store::ProfileWorkspaceEdit": "pub enum ProfileWorkspaceEdit { variant Derived; variant DirectEdit }",
         "src/workspace_store::ProfileWorkspacePublicationTarget": "pub enum ProfileWorkspacePublicationTarget<'a> { variant InactiveSelection; variant AuthorizedActive }"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     },
     "lurker-ui-presentation": {
       "api": {
@@ -957,7 +957,7 @@
         "src/settings_preference_projection::PreferencePresentation": "pub struct PreferencePresentation { field key: &'static str; field params: Vec<(&'static str; field editable: bool }",
         "src/settings_preference_projection::project": "pub fn project( value: Option<bool>, status: &PageStatus, catalog: &dyn TextCatalog, ) -> PreferencePresentation"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     },
     "mihomo-driver": {
       "api": {
@@ -1116,7 +1116,7 @@
         "src/version::fixture_automation": "pub mod fixture_automation",
         "src/version::target_matrix": "pub mod target_matrix"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     },
     "singbox-driver": {
       "api": {
@@ -1220,11 +1220,11 @@
         "src/version::parse_binary_version": "pub fn parse_binary_version(output: &str) -> Result<CoreVersion, PortError>",
         "src/version::validate_version": "pub fn validate_version(version: &str) -> Result<(), PortError>"
       },
-      "version": "0.68.0"
+      "version": "0.68.1"
     }
   },
   "generated_by": "scripts/quality/semver-compat-guard.py --mode capture",
   "schema": 1,
   "tool_baseline_revision": "e680ed8d13c1a6e1f41d09cda2f9b7231763175a",
-  "workspace_version": "0.68.0"
+  "workspace_version": "0.68.1"
 }

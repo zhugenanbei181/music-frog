@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-lurker-ui-presentation = { version = "0.68.0", path = "../lurker-ui-presentation" }
+lurker-ui-presentation = { version = "0.68.1", path = "../lurker-ui-presentation" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sys-locale = "0.3"
