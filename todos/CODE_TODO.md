@@ -21,16 +21,15 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261022-v268`：现在佛 122 pt（44 条）/ 过去佛 183 pt（69 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 382 pt；已归档交付 727 pt（290 条）；累计 1109 pt，严格归档完成率 65.6%。
-- 本板 44 条 = 既有机制与真实捕获 3 条（`PARITY-001.5` 5 pt、`SLINT-001.10` 2 pt、`BEVY-020.1` 3 pt）+ Bevy UI 105 点视觉攻坚 7 条（`BEVYUI-001`～`BEVYUI-007`，21 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`～`SLINTUI-007`，20 pt）+ 跨平台 GUI/TUI 表现深化 200 点自底向上攻坚 50 条（`EFFECTS-001`～`EFFECTS-050`，145 pt，涵盖 Layer 0~7 底层 Token、数学库、呈现投影、通用组件、Bevy 0.20 WESL、Iced 0.14 Canvas/动效、Slint 1.18 Skia、CLI 终端输出与多端降级集成）；原未来佛 16 条 + 截图认证与平台覆盖 5 条（`PARITY-001.2`～`001.4`、`PLATFORM-001.1`）+ Slint 第三 UI 补齐 9 条（`SLINT-001.1`～`001.9`）+ 共享控件真源补齐 1 条（`WIDGET-001.1`，本批新增 3 pt）；Bevy UI 能力规范强制化 5 条（`BEVYCAP-001.1`／`001.2`／`002.1`／`003.1` 与 `TOKEN-001.1`）本批全部交付并迁入过去佛，`PUB-006.1`、`PARITY-001.1` 与 `PLATFORM-001.2` 同样已交付并迁入过去佛；Android 静态质量门 4 条（`BANDROID-044.1`／`044.2`／`044.4`／`044.5`，9 pt）与状态表达/文档红线 2 条（`STATE-001.1` 隐式状态机全量审计、`PUB-006.6` 公共 API 文档质量门，5 pt）与开源生态四条（`PUB-006.7`／`006.9`／`006.10`／`006.11`，7 pt）、平台证据与安装包两条（`PLATFORM-001.1`、`APPID-001.3`，5 pt）、地球增强两条（`BANDROID-016.2`、`016.3`，4 pt）、双引擎真实二进制 smoke 与 Android 取证两条（`PUB-006.8`、`PARITY-001.4`，5 pt）与 Slint 第三表面补齐七条（`SLINT-001.2`～`001.7`、`001.9`，15 pt）本批交付并迁入过去佛。
+- Point 基线 `musicfrog-todo-20261024-v269`（2026-10-24 看板迁移损伤修复批次实测复核）：现在佛 120 pt（43 条）/ 过去佛 183 pt（70 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
+- 本板 43 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 26 条（`EFFECTS-012`/`014`/`022`/`024`、`026`~`041`、`043`~`045`、`048`~`050`，76 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 8 条（`ENG-001.8`/`001.9`、`ENG-002.1`~`002.3`、`ENG-003.1`~`003.3`，16 pt）。
+- 2026-10-24 迁移损伤修复（依 168b83c pristine 复位；证据 = e680ed8/1e00aa3 两次波次提交信息 + 代码实测）：e680ed8/3887ef6/1e00aa3 三次看板迁移的行拼接乱码逐行修复；`EFFECTS-003`（残形「TS-003」）与 `EFFECTS-008`（被截断并入 007 尾部且曾误回登本板）复位重建；`EFFECTS-013` 与 `EFFECTS-015`（`ButtonHierarchy`/`ButtonPressScale` 已在树）由误标的 Planned 复位 Integrated；Layer 2 的 `EFFECTS-016`~`020` 错位 ID 全部复位；`EFFECTS-006`/`013`/`020` 的 points 依 pristine 复位（3→2）；本板误留的 `EFFECTS-008` 与 `EFFECTS-020`（曾误标 019）重复项删除，`EFFECTS-012`/`014` 归位本板；空壳节（§四/§五/§六/5.1）与 EFFECTS-007 孤儿残句清除；§7.1 过期事实按强制化台账刷新；`TODO.md` 波次 A 日志的羽化条目 ID 复位为 018。修复前实测两板为 44 条/122 pt 与 68 条/180 pt（v268 所记过去佛 69 条/183 pt 与当时实际不符），修复后以本行实测为准。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
-- Bevy UI 四条来自 2026-10-20 的强制化实测审计：场景结构（`bsn!` 唯一入口 + ECS 边界）已由 `bevy_bsn_guard.py` 机器强制（349 文件零违例），rem/em 尺寸通道同批由共享包执行器 `bevy_scene_gate.py`（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记）与产品守卫 `bevy_rem_guard.py`（命名/派生 px 值白名单边界，存量 52 处独立台账）两段互补强制，两份台账站点不重叠；`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处（⑦ 小件收敛仍仅人工评审）；执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
+- Bevy UI 能力四条源自 2026-10-20 的强制化实测审计；执行状态（机器强制还是人工评审、存量欠账多少）以 Bevy UI 能力规范文档「强制化台账」为单一事实源，本板不另记第二份。
 <!-- POINT_LEDGER:END -->
 
-- **执行次序（2026-10-22 重新整理）**：本板条目按 **Core-first** 排成一条可推的链——① 契约层事实（`EFFECTS-001`~`003`、`006`）→ ② 共享数学与资产（`EFFECTS-004`、`005`）→ ③ 表现层（`EFFECTS-007`~`013`）→ ④ 共享控件（`EFFECTS-014`~`020`）→ ⑤ Bevy 表面（`EFFECTS-021`~`028`）→ ⑥ Iced 表面（`EFFECTS-029`~`035`）→ ⑦ Slint 表面（`EFFECTS-036`~`041`）→ ⑧ CLI 终端输出（`EFFECTS-042`~`045`）→ ⑨ 平台/移动/质量（`EFFECTS-046`~`048`）→ ⑩ a11y（`EFFECTS-049`）→ ⑪ 证据（`EFFECTS-050`）→ ⑫ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑬ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
+- **执行次序（2026-10-24 迁移损伤修复后复核）**：本板条目按 **Core-first** 排成一条可推的链——① 表现层残留（`EFFECTS-012`）→ ② 共享控件残留（`EFFECTS-014`）→ ③ Bevy 表面（`EFFECTS-022`、`024`、`026`~`028`）→ ④ Iced 表面（`EFFECTS-029`~`035`）→ ⑤ Slint 表面（`EFFECTS-036`~`041`）→ ⑥ CLI 终端输出（`EFFECTS-043`~`045`）→ ⑦ 平台/质量（`EFFECTS-048`）→ ⑧ a11y（`EFFECTS-049`）→ ⑨ 证据（`EFFECTS-050`）→ ⑩ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑪ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
 - **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
-
-
 
 ## 一、大计划主线与推进顺序
 
@@ -72,67 +71,11 @@
 
 缺口来源与实测结论（2026-10-19 全量审计）：`scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 原先只登记 iced/bevy 两表面（各 118 单元格），`scripts/parity/visual_receipts.py` 只接受 `--iced-run`/`--bevy-run`。现已补齐第三表面：**177 单元格（59 业务 × 3 表面）全部登记并可解析**，Slint 侧 57 格为 `pending` + 逐条原因，2 格已转 `ready`（`profiles-import-modal` 与 `profiles-delete-confirm`：真实表面行为测试 + 标准/紧凑双视口真实像素回执，PNG 摘要与原生 bounds 全部绑定）。四个 pending 行为锚点已全部 anchored（含运行中测速控件的取消路径）。Slint 表面审计得到五条硬事实：① 页面词汇只有 Home/Proxy/Config/Settings/Network/Connections/Logs/Rules/Traffic/AppSettings/About，**dns、editor、filter、mixin、sync、app_routing、doctor 七类页面不存在**，按契约页面归属共 **19 条业务在第三 UI 无载体**（产品缺口）；② Slint 只派发 42 种 `CommandIntent`，DNS、编辑器、脚本沙箱、测速、快照、聚合器、命令面板等 30 余种意图从未派发；③ 59 条业务里 **2 条完整实现、18 条部分实现、39 条未实现**（2026-10-19 实测），今天这 2 条已各自带上面行为测试与像素回执，其余 57 条仍不能合法标记为 Slint scenario 锚点；④ 四个测试文件在用例里**重实现 Slint 逻辑**（路由模式映射、网络模式序列、主题白名单、十六进制解析、连接排序），构成仓库禁止的「第二业务真源」，且永远无法当表面锚点；⑤ 两个已声明回调 `refresh-profile(string)`、`refresh-home-egress()` 在任何 `.slint` 文件里都没有调用点。收口由 `PARITY-001.2`～`001.4`、`PLATFORM-001.1`～`001.2` 与 `SLINT-001.1`～`SLINT-001.9` 共同承担。
 
-## 四、质量红线：隐式状态机全量审计与逐条改写
-
-## 五、A 主线：crates.io 发布流水线与开发者生态
-
-## 六、B 主线：截图认证与平台证据（每个业务都真跑过）
-
-### 5.1 Slint 第三 UI 的 360° 补齐（7条 / 16pt）
-
 ## 七、C 主线：质量红线与安装包
 
 ### 7.1 Bevy UI 能力规范强制化（2026-10-20 实测立项：bsn! 已是机器红线，rem 部分机器强制）
 
-立项依据（2026-10-20 实测审计，证据等级 L）：场景结构口径已闭合——`scripts/quality/bevy_bsn_guard.py` 扫描两个 Bevy crate 生产树 349 文件零违例并接入 `scripts/quality/check-structure.sh` 与 CI；rem/em 尺寸通道同批由共享包执行器 `scripts/quality/bevy_scene_gate.py` 接上机器红线（硬编码 px 字面量与 `FontSize::Px` 零容忍，存量 128 处棘轮登记），但 token/计算值通道的白名单边界与能力规范 ⑦ 小件收敛**仍仅人工评审**，生产树另有 263 处 `Val::Px` 写入（其中初筛 183 处非白名单、字号通道已全量 `FontSize::Rem`）、`bsn_list!` 0 处 / 内联 `Children [` 974 处、`bevy_scene::Ready` 0 处、`despawn_all` 2 处。执行状态台账见 Bevy UI 能力规范文档的「强制化台账」一节。
-
-
-
-
-  - 计划：重构 presentation 视图状态模型。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+立项与现状（2026-10-20 实测立项，2026-10-24 复核刷新）：`bsn!` 场景律法与 rem/em 尺寸通道均已机器强制——产品守卫 `scripts/quality/bevy_rem_guard.py` 是唯一阻塞执行器（命名/派生 px 值、硬编码 px 字面量、非 rem 字号、字面量 `em` 全部拦截，存量台账 `scripts/quality/bevy_rem_inventory.json` 已归零，180 处存量迁移由 `BEVYCAP-001.2` 收口），共享包场景门 `scripts/quality/bevy_scene_gate.py` 为上游 advisory 镜像；⑦ 小件收敛（`bsn_list!`/`Ready`/`despawn_all`/胶囊圆角）已由 `BEVYCAP-002.1` 机器化。执行状态的单一事实源是 Bevy UI 能力规范文档的「强制化台账」一节，本节不另记第二份。剩余未闭环：字号档位的像素回执（唯一证据项）与 `BEVYCAP-002` 的 17 格捕获。
 
 - [ ] BEVYCAP-002 [kind: evidence] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] Bevy 九个业务仍缺捕获模块（17 格）
   - 产物：为 `core-version-rollback-confirm`、`editor-snippet-insertion`、`editor-yaml-error-navigation`、`profiles-aggregator-preview`、`profiles-import-modal`、`rules-provider-refresh-error`、`settings-lan-security`、`sync-conflict-resolver`（各 standard+compact）与 `proxies-group-expanded` 补捕获模块（owner 装配 + typed 命令 + 能力闸 + 观测）；`proxies-group-expanded` 的观测要量「折叠→展开」的**可见差异**，而不是量展开节点自身的框。
@@ -140,43 +83,39 @@
   - 验收：三表面捕获矩阵全绿；这 17 格拿到像素回执并被验收认证为 `ready`。
   - 事实依据：2026-10-22 Bevy 捕获流逐格分类的结论（缺 capture 模块，非环境阻塞，故留本板）。
 
-## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施，50条 / 145pt）
+## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施；现存 34 条 / 101 pt，已交付 24 条见[过去佛](CODE_TODO_PAST.md)）
 
 ### 10.2 Layer 1: 跨端呈现投影、时间驱动与图表数据归约层（1条 / 3pt，涵盖 #26~#50）
 
-- [ ] EFFECTS-008 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 实时图表三层数据分离与平滑曲线拟合（#29~#31）
-  - 产物：在 TrafficProjector 分离 #29 静态标尺/动态折线/实时采样三层数据、#30 Catmull-Rom 贝塞尔平滑样条拟合算法、#31 LTTB 视口动态降采样。
-  - 依赖：EFFECTS-004。
-  - 验收：高频数据输入下样条曲线平滑连续，降采样后峰值保留率 100实现 domain::ring_buffer 与 presentation::list_filter。
+- [ ] EFFECTS-012 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 测速波浪、规则命中与日志流分段投影（#40~#44）
+  - 产物：实现 #40 测速 0.0~1.0 呼吸相位输出、#41 协议特性标签去重归约、#42 规则命中分级 Badge 投影、#43 日志行四段分节结构体、#44 长日志软折行度量。
+  - 依赖：EFFECTS-001。
+  - 验收：单测覆盖多种协议标签去重、日志分段解析与折行高度推导。
+  - 计划：扩充 proxies_page_model 与 logs_page_model。
+  - 事实依据：2026-10-24 迁移损伤修复——本条在归档迁移中被误并入过去佛 EFFECTS-010 条目体，从未作为 Integrated 交付（e680ed8 交付清单不含 #40~#44），依 168b83c pristine 归位本板。
 
-### 10.3 Layer 2: 共享通用组件库与材质着色基座（2条 / 5pt，涵盖 #51~#75）
+### 10.3 Layer 2: 共享通用组件库与材质着色基座（1条 / 3pt，涵盖 #51~#75）
 
-- [ ] EFFECTS-013 [kind: widget] [priority: P1] [points: 2] [owner: infiltrator-bevy-widgets] [status: Planned] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
+> 2026-10-24 迁移损伤修复：本节条目曾错位一格（卡片基座被误标 EFFECTS-013）；EFFECTS-015~020 已交付并在过去佛 §10.3/§十二，模态卡片家族（020）曾被误回登本板为「EFFECTS-019」重复项，已删除。
+
+- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
   - 产物：实现 #51 带 1px 内描边与 Level 1 柔和阴影的 ModernCard、#52 鼠标悬停 Y 轴 -1px 微位移与高光提亮反馈。
   - 依赖：EFFECTS-002。
   - 验收：多页面复用 ModernCard，悬停反馈流畅跟手无闪烁。
   - 计划：重构 infiltrator-bevy-widgets::card。
-- [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 居中模态卡片、就近操作组与抽屉（#68~#75）
-  - 产物：实现 #68 MODAL(24) 居中模态 ModalCard、#69 就近操作按钮组、#70 自适应 DrawerContainer、#71 智能 Tooltip、#72 骨架屏 SkeletonLoader、#73 AlertBox、#74 CodeBlock、#75 AccordionItem。
-  - 依赖：EFFECTS-002。
-  - 验收：抽屉滑入滑出平滑，骨架屏微光扫描动效正常，弹窗操作收敛右侧。
-  - 计连接行状态点与域名文字基线物理居中对齐。
-  - 依赖：EFFECTS-001。
-  - 验收：日志与连接列表彻底移除 Row 拼凑节点，容器窄化时徽标随文自然折行。
-  - 计划：重构 logs_rows.rs、connections_rows.rs 与 shell_readout.rs。
 
 ### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（5条 / 15pt，涵盖 #76~#115）
 
-- [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 官方菜单与滑块双向绑定（#79~#85）
-  - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENSL 着色器迁移、#83 GlassMaterial 磨砂反射材质、#84 PulseGlowMaterial 呼吸发光材质、#85 BorderStreamMaterial 边缘流光材质。
-  - 依赖：EFFECTS-004。
-  - 验收：WESL 着色器在桌面与移动端安全编译加载，活动节点呈现流光描边。
-  - 计划：在 infiltrator-bevy-widgets::shader_fx 建立材质管线。
+- [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 官方菜单与滑块双向绑定（#79~#81）
+  - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENU-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
+  - 依赖：infiltrator-bevy-widgets。
+  - 验收：规则与连接页滑块可拖拽且与内容联动，方向键导航可呼出官方菜单。
+  - 计划：重构 menu.rs 与 list.rs。
 - [ ] EFFECTS-024 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ViewTarget 离屏多 pass 降采样高斯模糊（#86~#89）
-  - 产物：实现 ViewTarget 离屏渲染多 pass 降采样与高斯模糊；规格区间 #86~#89 由相邻条目区间（#79~#85 与 #90~#92）推得，子项编号与逐条产物未在板面留存，不臆造。
-  - 依赖：EFFECTS-002。
-  - 验收：离屏模糊在 UI 纹理上呈现柔和过渡，无锯齿与色带。
-  - 计划：在 infiltrator-bevy-ui 的 ViewTarget 管线补齐多 pass 降采样与高斯模糊。
+  - 产物：实现 #86 基于 RenderApp 与 ViewTarget 的离屏高斯模糊、#87 4x 降采样双 pass 优化、#88 输入输出纹理防冲突分离、#89 前景清晰文字最后顶层合成。
+  - 依赖：EFFECTS-023。
+  - 验收：弹窗背景呈现平滑高斯模糊，文字刀刻般清晰，显存带宽占用降低 75%。
+  - 计划：在 infiltrator-bevy-ui 建立后处理渲染调度子图。
 - [ ] EFFECTS-026 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ECS 调度 UiMotionPlugin 弹簧组件系统（#93~#97）
   - 产物：实现 #93 UiMotionPlugin 动画系统调度、#94 SpringPosition 弹簧物理积分、#95 挂载全量订阅 bevy_scene::Ready、#96 commands.despawn_all 批量退役、#97 bsn_list! 列表宏。
   - 依赖：EFFECTS-003。

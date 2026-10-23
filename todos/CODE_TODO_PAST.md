@@ -378,13 +378,12 @@
   - 验收：契约测试断言颜色值与对比度合法，各表面统一从 contract 获取语义色。
   - 计划：扩展 design_tokens::palette 与 SemanticToken 枚举。
 
-TS-003 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 统一物理动效参数契约（#10~#13）
+- [ ] EFFECTS-003 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 统一物理动效参数契约（#10~#13）
   - 产物：在 contract 设立 motion_spec 模块，裁决 #10 全局动效时长（120/200/250ms）、#11 阻尼弹簧参数（stiffness:170/damping:26）、#12 动效可中断性继承规则、#13 减少动态效果偏好。
   - 依赖：无。
   - 验收：契约导出 MotionSpec 结构体，单测验证参数合法性与默认减弱模式。
-  - 计划：新建 infiltrator_contract::mot
-
-ffect_math 模块。
+  - 计划：新建 infiltrator_contract::motion_spec 模块。
+  - 备注：条目头与计划行在 e680ed8 归档迁移中被截断（残形「TS-003」/「::mot」），2026-10-24 依 168b83c pristine 复位；`crates/infiltrator-contract/src/motion_spec.rs` 在树。
 
 - [ ] EFFECTS-005 [kind: asset] [priority: P1] [points: 3] [owner: infiltrator-shared] [status: Integrated] 统一 SVG 矢量白模与等宽字体嵌入（#18~#21）
   - 产物：在 shared 建立 #18 统一 24x24 SVG 矢量图标白模管线、#19 支持 tnum 特性的等宽字体嵌入、#20 HarmonyOS/Inter 多字重排版字体打包、#21 全半角字符宽度度量表。
@@ -392,23 +391,26 @@ ffect_math 模块。
   - 验收：各平台渲染图标清晰无栅格毛刺，等宽数字在多端均实现物理等宽。
   - 计划：更新 assets 目录与 font 资源加载逻辑。
 
-- [ ] EFFECTS-006 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 契约层效果语义规格基线
-  - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。
+- [ ] EFFECTS-006 [kind: contract] [priority: P1] [points: 2] [owner: infiltrator-contract] [status: Integrated] 契约层效果语义规格基线
+  - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。pristine 身份是「智能截断、安全区与三级画质降级契约（#22~#25）」，对应 `visual_tier.rs`/`safe_area.rs` 已在树；points 2026-10-24 依 pristine 复位为 2（原误记 3）。
 - [ ] EFFECTS-007 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 呈现生命周期解耦与可组合交互状态（#26~#28）
   - 产物：在 presentation 建立 #26 UiPresence（Absent/Entering/Visible/Exiting）生命周期模型、#27 退出中交互阻断机制、#28 hover/press/focus/select/disabled 可组合交互位状态。
   - 依赖：EFFECTS-003。
-  - 验收：行为测试断言退出阶段点击不触发命令
+  - 验收：行为测试断言退出阶段点击不触发命令，反向打开平滑恢复。
+  - 计划：重构 presentation 视图状态模型。
 
-%。
+- [ ] EFFECTS-008 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 实时图表三层数据分离与平滑曲线拟合（#29~#31）
+  - 产物：在 TrafficProjector 分离 #29 静态标尺/动态折线/实时采样三层数据、#30 Catmull-Rom 贝塞尔平滑样条拟合算法、#31 LTTB 视口动态降采样。
+  - 依赖：EFFECTS-004。
+  - 验收：高频数据输入下样条曲线平滑连续，降采样后峰值保留率 100%。
   - 计划：实现 presentation::chart 投影管线。
+  - 备注：e680ed8 波次交付（提交信息明列 the three-layer chart with peak retention；`presentation::chart` 的 `TrafficChartLayers`/`downsampled` 在树）。条目在归档迁移中被截断并入 EFFECTS-007 尾部，且曾被误回登现在佛为 Planned；2026-10-24 依 168b83c pristine 重建归位。
 
 - [ ] EFFECTS-009 [kind: domain] [priority: P1] [points: 3] [owner: infiltrator-domain + presentation] [status: Integrated] 监控指标环形缓冲与增量列表排序（#32~#34）
   - 产物：在 domain 引入 #32 固定容量 RingBuffer 环形缓冲、#33 增量 FilterProjector 索引缓存、#34 多维连接四维排序纯投影计算。
   - 依赖：无。
   - 验收：每秒高频推流无额外堆内存分配，增量过滤耗时 <1ms。
-  - 计划：
-
- presentation 的 input 映射层。
+  - 计划：实现 domain::ring_buffer 与 presentation::list_filter。
 
 - [ ] EFFECTS-011 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 平滑渲染时钟与仪表盘数值补间器（#37~#39）
   - 产物：实现 #37 呈现层微秒级独立平滑时钟 RenderClock、#38 空闲状态主动停止下发帧请求、#39 速率与连接数 120ms 数值滚动补间器。
@@ -416,42 +418,53 @@ ffect_math 模块。
   - 验收：数值跳变时输出连续插值帧，静止时时钟立即休眠。
   - 计划：实现 presentation::clock 与 tween 模块。
 
-- [ ] EFFECTS-012 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 快照 Diff、地球极坐标与错误 Banner 模型（#45~#50）
-### 10.3 Layer 2: 共享通用组件库与材质着色基座（4条 / 12pt，涵盖 #51~#75）
+- [ ] EFFECTS-013 [kind: presentation] [priority: P1] [points: 2] [owner: infiltrator-presentation] [status: Integrated] 快照 Diff、地球极坐标与错误 Banner 模型（#45~#50）
+  - 产物：实现 #45 配置快照 Diff 差异分块投影、#46 地球经纬度极坐标转换、#47 跨国连接贝塞尔飞行光点相位、#48 ErrorBannerState、#49 抽屉焦点栈、#50 自愈步骤旋转信号。
+  - 依赖：EFFECTS-004。
+  - 验收：单测断言经纬度转三维球面坐标精确，Diff 分块正确识别增删改。
+  - 计划：编写 presentation::diff 与 geo 模块。
+  - 备注：e680ed8 波次交付（提交信息明列 the diff, globe and focus stack）。条目体在归档迁移中被截断且误标 Planned，2026-10-24 依 168b83c pristine 重建，状态与 points 复位（原误记 3 pt）。
 
-- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 主次动作按钮层级与按下态弹性缩放（#53~#54）
-- [ ] EFFECTS-016 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabLi
+### 10.3 Layer 2: 共享通用组件库与材质着色基座（已交付 4条 / 11pt，涵盖 #51~#75）
 
-status: Planned] 虚拟化列表容器与悬浮细滚动条控件（#58~#61）
+> 2026-10-24 迁移损伤修复：本节与 §十二 的 Layer 2 条目 ID 曾整体错位一格，已按 168b83c pristine 复位——主次按钮=015（状态由误标的 Planned 复位 Integrated）、TabList=016（§十二）、虚拟化列表=017、羽化遮罩=018（§十二）、外发光输入框=019、弹出家族=020；卡片基座（014）未交付，留在现在佛 §10.3。
+
+- [ ] EFFECTS-015 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 主次动作按钮层级与按下态弹性缩放（#53~#54）
+  - 产物：实现 #53 ButtonHierarchy（Primary/Secondary/Tertiary 明确层级）、#54 按下态 0.98 比例弹性缩放与 80ms 回弹。
+  - 依赖：EFFECTS-003。
+  - 验收：按钮交互层次分明，按下松开弹簧反馈细腻。
+  - 计划：重构 infiltrator-bevy-widgets::button。
+  - 备注：3887ef6 批次交付（`button::ButtonHierarchy` 与 `button::press::ButtonPressScale` 在树）；曾误标 Planned 且错位为 EFFECTS-014，2026-10-24 依 pristine 复位。
+
+- [ ] EFFECTS-017 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 虚拟化列表容器与悬浮细滚动条控件（#58~#61）
   - 产物：实现 #58 原生虚拟化列表基座 VirtualListContainer、#59 闲置自动淡出的悬浮细滚动条 SleekScrollbar、#60 触控惯性减速、#61 平滑滚动入视 SmoothScrollIntoView。
   - 依赖：EFFECTS-009。
   - 验收：千级列表流畅滚动，滚轮与键盘聚焦均能平滑定位到项。
   - 计划：重构 infiltrator-bevy-widgets::list 与 scrollarea。
 
-- [ ] EFFECTS-018 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
-- [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
-  - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。
+- [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
+- [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 2] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
+  - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。pristine 身份是「居中模态卡片、就近操作组与抽屉（#68~#75）」，`adaptive_modal.rs`/`drawer.rs`/`accordion.rs` 在树；points 2026-10-24 依 pristine 复位为 2（原误记 3）。
 ### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（3条 / 9pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
-  - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78
-
-U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
-  - 依赖：infiltrator-bevy-widgets。
-  - 验收：规则与连接页滑块可拖拽且与内容联动，方向键导航可呼出官方菜单。
-  - 计划：重构 menu.rs 与 list.rs。
+  - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78 连接行状态点与域名文字基线物理居中对齐。
+  - 依赖：EFFECTS-001。
+  - 验收：日志与连接列表彻底移除 Row 拼凑节点，容器窄化时徽标随文自然折行。
+  - 计划：重构 logs_rows.rs、connections_rows.rs 与 shell_readout.rs。
 
 - [ ] EFFECTS-023 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] WESL 材质管线、发光与流光着色器（#82~#85）
-  - 产物：实现 #82 Bevy 0.20 WE
-
-86~#89）
-  - 产物：实现 #86 基于 RenderApp 与 ViewTarget 的离屏高斯模糊、#87 4x 降采样双 pass 优化、#88 输入输出纹理防冲突分离、#89 前景清晰文字最后顶层合成。
-  - 依赖：EFFECTS-023。
-  - 验收：弹窗背景呈现平滑高斯模糊，文字刀刻般清晰，显存带宽占用降低 75%。
-  - 计划：在 infiltrator-bevy-ui 建立后处理渲染调度子图。
+  - 产物：实现 #82 Bevy 0.20 WESL 着色器迁移、#83 GlassMaterial 磨砂反射材质、#84 PulseGlowMaterial 呼吸发光材质、#85 BorderStreamMaterial 边缘流光材质。
+  - 依赖：EFFECTS-004。
+  - 验收：WESL 着色器在桌面与移动端安全编译加载，活动节点呈现流光描边。
+  - 计划：在 infiltrator-bevy-widgets::shader_fx 建立材质管线。
 
 - [ ] EFFECTS-025 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 官方 BoxShadow、渐变与 UiTransform 位移（#90~#92）
-  - 产物：实现 #90 全量卡片应用 0.20 原生 BoxShadow、#91 BackgroundGradi
+  - 产物：实现 #90 全量卡片应用 0.20 原生 BoxShadow、#91 BackgroundGradient/BorderGradient、#92 动效位移走 UiTransform 避免触发 Relayout。
+  - 依赖：EFFECTS-002。
+  - 验收：悬停位移不触发布局树重新计算，阴影平滑多阶。
+  - 计划：更新各页面的卡片定义。
+
 ## 十一、工程约束门禁补齐（2026-10-22，依赖/工具链/不安全点/panic 边界/库层输出/构建脚本/特性矩阵）
 
 - [ ] ENG-001.1 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace + ecosystem-gate] [status: Integrated] 依赖政策落地：`deny.toml` 裁决面、披露一致性守卫与 tag 门控生态作业
@@ -505,6 +518,8 @@ U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入�
 
 
 ## 十二、波次 A 效果地基与平台能力（已交付，8条 / 24pt）
+
+> 2026-10-24 迁移损伤修复：`EFFECTS-016`（TabList）与 `EFFECTS-018`（羽化遮罩）曾错位为 015/017，已依 168b83c pristine 复位；误并入 `EFFECTS-004`/`EFFECTS-010` 条目体的两段 Planned 残块（006 智能截断、012 测速波浪）已清除——006 已交付（见本板 EFFECTS-006），012 未交付、归位现在佛。
 - [ ] EFFECTS-002 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 网格间距、圆角与物理尺寸白名单（#6~#9）
   - 产物：在 design_tokens 规范 #6 8pt/4pt 严格网格阶梯、#7 互斥圆角阶梯裁决、#8 物理像素白名单闭集（发丝线/光标/触控区）、#9 Elevation 空间阴影多阶定义。
   - 依赖：EFFECTS-001。
@@ -514,29 +529,22 @@ U-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入�
   - 产物：在 infiltrator-shared 实现 #14 Oklab 色彩空间感知插值算法、#15 三次贝塞尔曲线求值器、#16 RK4 弹簧状态积分器、#17 圆角矩形与药丸形解析 SDF 距离场公式库。
   - 依赖：无。
   - 验收：数学库单测覆盖色彩平滑过渡、弹簧能量衰减无发散、SDF 零误差。
-  - 计划：创建 infiltrator_shared::eind: contract] [priority: P1] [points: 2] [owner: infiltrator-contract] [status: Planned] 智能截断、安全区与三级画质降级契约（#22~#25）
-  - 产物：在 contract 裁决 #22 长文本智能渐隐截断算法、#23 跨平台安全边距 SafeAreaInsets、#24 纹理容量与显存预算常数、#25 简化/标准/增强三级画质档位 VisualTier。
-  - 依赖：EFFECTS-001。
-  - 验收：契约测试覆盖三级画质枚举与安全区边界换算。
-  - 计划：定义 VisualTier 枚举与 safe_area 类型。
+  - 计划：创建 infiltrator_shared::effect_math 模块。
 - [ ] EFFECTS-010 [kind: presentation] [priority: P1] [points: 3] [owner: infiltrator-presentation] [status: Integrated] 交互意图归一化与输入法组合态保护（#35~#36）
   - 产物：在 presentation 建立 #35 统一键盘导航意图转换、#36 ImeComposing 组合态保护协议（组合期间抑制快照热重载）。
   - 依赖：无。
   - 验收：单测验证中文输入法输入未完成时模型不强行刷新文本框。
-  - 计划：重构P1] [points: 3] [owner: infiltrator-presentation] [status: Planned] 测速波浪、规则命中与日志流分段投影（#40~#44）
-  - 产物：实现 #40 测速 0.0~1.0 呼吸相位输出、#41 协议特性标签去重归约、#42 规则命中分级 Badge 投影、#43 日志行四段分节结构体、#44 长日志软折行度量。
-  - 依赖：EFFECTS-001。
-  - 验收：单测覆盖多种协议标签去重、日志分段解析与折行高度推导。
-  - 计划：扩充 proxies_page_model 与 logs_page_model。
-- [ ] EFFECTS-015 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabList 驱动平滑弹簧分段切换器（#55~#57）
+  - 计划：重构 presentation 的 input 映射层。
+- [ ] EFFECTS-016 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 官方 TabList 驱动平滑弹簧分段切换器（#55~#57）
   - 产物：实现 #55 官方 TabList 驱动的平滑弹簧 SegmentedControl、#56 BorderRadius::MAX 胶囊圆角、#57 统一 Switch 控件真源（收敛轨道与旋钮）。
   - 依赖：EFFECTS-003。
   - 验收：切换 Tab 时滑动胶囊带阻尼惯性移动，Switch 几何全仓唯一。
   - 计划：更新 infiltrator-bevy-widgets::tabs 与 switch。
-- [ ] EFFECTS-017 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 列表边缘羽化遮罩、徽标与趋势图（#62~#64）
+- [ ] EFFECTS-018 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 列表边缘羽化遮罩、徽标与趋势图（#62~#64）
   - 产物：实现 #62 列表两端 16px 透明渐变羽化遮罩、#63 大写字高绝对居中 StatusBadge、#64 迷你延迟趋势图 MiniSparkline。
   - 依赖：EFFECTS-005。
   - 验收：列表滚动边缘平滑淡出不生硬切断，迷你图曲线清晰抗锯齿。
+  - 计划：实现 infiltrator-bevy-widgets::mask 与 sparkline。
 - [ ] EFFECTS-042 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Integrated] 启动期终端能力协商与三级色彩量化（#172~#173）
   - 产物：实现 #172 启动期终端能力协商探测（Truecolor/256/16 色彩深度、Kitty/Sixel 图形协议）、#173 三级色彩（Truecolor/256/16）自动量化，并以 `infiltrator terminal capabilities|quantize` 子命令暴露协商结果。
   - 依赖：无。
