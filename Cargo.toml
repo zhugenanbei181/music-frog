@@ -57,6 +57,21 @@ members = [
 
 [workspace.package]
 version = "0.68.1"
+edition = "2024"
+rust-version = "1.99.0"
+
+[workspace.lints.rust]
+# 编译器侧禁止项：只登记在 edition 2024 下构成硬错误、随任何成功构建天然为零违例的
+# 未来不兼容语法禁令；更多 rustc 禁止项由统一 cargo 批次的 clippy `-D warnings` 门收紧。
+ellipsis_inclusive_range_patterns = "deny"
+keyword_idents = "deny"
+
+[workspace.lints.clippy]
+# 调试残留与未实现占位零容忍；2026-10-24 词法预检 src/ 与 tests/ 均为零违例
+# （tests 中出现的 todo! 均为守卫夹具字符串，不参与编译）。
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
 
 [workspace.dependencies]
 

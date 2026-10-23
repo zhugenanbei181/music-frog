@@ -1,7 +1,8 @@
 [package]
 name = "lurker-example-minimal-iced"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Minimal Lurker Iced example: a neutral lifecycle rendered by an Iced surface."
 license = "MIT OR Apache-2.0"
@@ -18,3 +19,6 @@ iced = { version = "0.14", default-features = false, features = ["tokio", "wgpu-
 [[example]]
 name = "minimal-iced"
 path = "main.rs"
+
+[lints]
+workspace = true

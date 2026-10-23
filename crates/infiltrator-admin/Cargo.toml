@@ -2,7 +2,8 @@
 name = "infiltrator-admin"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
@@ -36,3 +37,6 @@ mihomo-api = { path = "../mihomo-api" }
 mihomo-driver = { version = "0.68.1", path = "../mihomo-driver" }
 tempfile = { workspace = true }
 mockito = { workspace = true }
+
+[lints]
+workspace = true

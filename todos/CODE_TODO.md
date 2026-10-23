@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261024-v269`（2026-10-24 看板迁移损伤修复批次实测复核）：现在佛 120 pt（43 条）/ 过去佛 183 pt（70 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
-- 本板 43 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 26 条（`EFFECTS-012`/`014`/`022`/`024`、`026`~`041`、`043`~`045`、`048`~`050`，76 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 8 条（`ENG-001.8`/`001.9`、`ENG-002.1`~`002.3`、`ENG-003.1`~`003.3`，16 pt）。
+- Point 基线 `musicfrog-todo-20261024-v269`（2026-10-24 看板迁移损伤修复批次实测复核，同日 manifest 批次交付后更新）：现在佛 116 pt（40 条）/ 过去佛 189 pt（73 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
+- 本板 40 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 26 条（`EFFECTS-012`/`014`/`022`/`024`、`026`~`041`、`043`~`045`、`048`~`050`，76 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 5 条（`ENG-002.2`/`002.3`、`ENG-003.1`~`003.3`，10 pt）。
 - 2026-10-24 迁移损伤修复（依 168b83c pristine 复位；证据 = e680ed8/1e00aa3 两次波次提交信息 + 代码实测）：e680ed8/3887ef6/1e00aa3 三次看板迁移的行拼接乱码逐行修复；`EFFECTS-003`（残形「TS-003」）与 `EFFECTS-008`（被截断并入 007 尾部且曾误回登本板）复位重建；`EFFECTS-013` 与 `EFFECTS-015`（`ButtonHierarchy`/`ButtonPressScale` 已在树）由误标的 Planned 复位 Integrated；Layer 2 的 `EFFECTS-016`~`020` 错位 ID 全部复位；`EFFECTS-006`/`013`/`020` 的 points 依 pristine 复位（3→2）；本板误留的 `EFFECTS-008` 与 `EFFECTS-020`（曾误标 019）重复项删除，`EFFECTS-012`/`014` 归位本板；空壳节（§四/§五/§六/5.1）与 EFFECTS-007 孤儿残句清除；§7.1 过期事实按强制化台账刷新；`TODO.md` 波次 A 日志的羽化条目 ID 复位为 018。修复前实测两板为 44 条/122 pt 与 68 条/180 pt（v268 所记过去佛 69 条/183 pt 与当时实际不符），修复后以本行实测为准。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 能力四条源自 2026-10-20 的强制化实测审计；执行状态（机器强制还是人工评审、存量欠账多少）以 Bevy UI 能力规范文档「强制化台账」为单一事实源，本板不另记第二份。
@@ -299,29 +299,9 @@
   - `UI-FRAMEWORK-001` ⑥（Iced 规则虚拟窗口改官方 `iced::widget::lazy`）**未交付并附证据**：开了 `lazy` feature 后规则页**整片渲染为空**（分页器仍报"15 rules"）；逐段二分（每次都是真实捕获）：纯 `text` 的段渲染、`column![text]` 的段渲染、**含 `Length::Fill` 子项的行渲染为空**、同一段放在 lazy 外渲染正确（`rules-dark.png` 与 HEAD 逐字节相同）；给段 `Length::Fill` 无效。结论：iced 0.14.2 的 `lazy` 会压掉规则行的 fill 宽度，故保留表面正确、**不开这个死依赖**；要落地必须让该带不含 `Length::Fill`（用共享内容宽度的固定宽）或修上游——属产品决定。
 
 
-## 十一、工程约束门禁补齐（2026-10-22，lint 继承与版本继承）
+## 十一、工程约束门禁补齐（错误类型纪律与合规收尾）
 
-- [ ] ENG-001.8 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Planned] 工作区统一 lint 继承：根 `[workspace.lints]` + 全成员 `[lints] workspace = true`
-  - 产物：根 manifest 落 `[workspace.lints]`（rustc 与 clippy 禁止项各一组），48 个成员 manifest 统一改为 `[lints] workspace = true`，成员内重复的 lint 配置删除。
-  - 依赖：需要 48 个成员 manifest 与根 manifest 的独占写窗口——当前工作树有 21 个成员 manifest 与根 manifest 被另一会话持有（版本 pin 与工作区版本改动），按同仓多会话所有权纪律不得插入。
-  - 验收：`cargo clippy --workspace --all-targets -- -D warnings` 全绿；新增 lint 继承守卫证明每个成员都从工作区继承。
-  - 事实依据：2026-10-22 实测——全仓 `[workspace.lints]` 为 0 处、成员各自硬写配置；`unsafe_code = "forbid"` 不适用本仓（61 处 unsafe 是真 FFI：libc flock、Windows API、JNI、zeroize、edition 2024 的 `env::set_var`），故只继承与收紧 lint，不 forbid unsafe。
-  - 计划：取得独占窗口后一次性落地 48 个 manifest，同批改完不拆半改。
-
-- [ ] ENG-001.9 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Planned] 成员 manifest 的 `edition` 与 `rust-version` 继承到 `[workspace.package]`
-  - 产物：根 manifest 落 `[workspace.package] edition = "2024"` 与 `rust-version = "1.99.0"`，48 个成员 manifest 删除各自硬写的 `edition` 行并继承 `rust-version`。
-  - 依赖：同 `ENG-001.8` 的独占写窗口。
-  - 验收：`scripts/quality/toolchain-consistency-guard.py` 证明各 manifest 的 `rust-version` 与 `rust-toolchain.toml` 同版本；`cargo metadata --locked` 与工作区编译全绿。
-  - 事实依据：2026-10-22 实测——`rust-version` 全仓 0 处出现，`edition = "2024"` 在 35 个 crate 硬写重复；工具链版本已由 `rust-toolchain.toml` 统一，成员 manifest 尚未继承。
-  - 计划：与 `ENG-001.8` 同批落地，避免两次改同一批 manifest。
-### 11.1 错误类型纪律与可选审计工具（2026-10-22 实测登记）
-
-- [ ] ENG-002.1 [kind: cleanup] [priority: P1] [points: 1] [owner: infiltrator-contract] [status: Planned] 删除 `infiltrator-contract` 的未使用 `anyhow` 依赖
-  - 产物：`crates/infiltrator-contract/Cargo.toml` 去掉 `anyhow = { workspace = true }`；契约层保持零 `anyhow` 引用（它现在是契约层的错误类型纪律边界）。
-  - 依赖：无（单文件 manifest 改动，但需独占该 manifest 的写窗口）。
-  - 验收：`cargo check -p infiltrator-contract --all-targets` 全绿；`grep -rn anyhow crates/infiltrator-contract` 零命中。
-  - 事实依据：2026-10-22 实测——该 crate 声明了 anyhow 依赖但 src/tests/build.rs 内 0 处引用；同一纪律下 `infiltrator-ports`、`infiltrator-application`、`infiltrator-presentation` 本来就不声明该依赖。
-  - 计划：与 `ENG-001.8`／`ENG-001.9` 的 manifest 批次同次改完，避免二次动同一批 manifest。
+### 11.1 错误类型纪律与可选审计工具（2026-10-22 实测登记；manifest 批次已交付）
 
 - [ ] ENG-002.2 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-domain + infiltrator-core] [status: Planned] domain / core 层的 `anyhow` 收敛到 typed 错误
   - 产物：`infiltrator-domain`（31 文件 / 208 处引用）与 `infiltrator-core`（22 文件 / 167 处引用）的错误类型从 `anyhow::Result` 收敛为每层一个 typed 错误枚举（可复用的失败类别 + 上下文），边界处保留一处 `From<anyhow::Error>` 收敛（`lurker-core-contract` 已有该范式）。

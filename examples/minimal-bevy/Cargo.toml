@@ -1,7 +1,8 @@
 [package]
 name = "lurker-example-minimal-bevy"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Minimal Lurker Bevy example: a neutral lifecycle rendered by a Bevy 0.20 surface."
 license = "MIT OR Apache-2.0"
@@ -18,3 +19,6 @@ bevy = { version = "0.20", default-features = false, features = ["bevy_ui", "bev
 [[example]]
 name = "minimal-bevy"
 path = "main.rs"
+
+[lints]
+workspace = true

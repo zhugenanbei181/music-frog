@@ -1,7 +1,8 @@
 [package]
 name = "mihomo-api"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -25,3 +26,6 @@ mockito = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 url = { workspace = true }
+
+[lints]
+workspace = true

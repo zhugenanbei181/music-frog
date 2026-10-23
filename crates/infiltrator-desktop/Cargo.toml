@@ -2,7 +2,8 @@
 name = "infiltrator-desktop"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
@@ -51,3 +52,6 @@ infiltrator-presentation = { path = "../infiltrator-presentation" }
 lurker-ui-presentation = { version = "0.68.1", path = "../lurker-ui-presentation" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-test-support = { path = "../infiltrator-test-support" }
+
+[lints]
+workspace = true

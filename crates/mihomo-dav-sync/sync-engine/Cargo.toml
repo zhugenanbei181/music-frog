@@ -1,7 +1,8 @@
 [package]
 name = "sync-engine"
 version = "0.1.1"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -20,3 +21,6 @@ async-trait = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

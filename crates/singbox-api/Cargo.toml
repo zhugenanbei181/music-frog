@@ -1,7 +1,8 @@
 [package]
 name = "singbox-api"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -9,3 +10,6 @@ lurker-core-contract = { path = "../lurker-core-contract" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-domain"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Runtime- and UI-independent domain state and algorithms for MusicFrog Infiltrator."
 
@@ -28,3 +29,6 @@ zip = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }
+
+[lints]
+workspace = true

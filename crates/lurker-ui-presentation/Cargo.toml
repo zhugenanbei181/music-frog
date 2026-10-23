@@ -1,7 +1,8 @@
 [package]
 name = "lurker-ui-presentation"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 description = "Engine-, platform- and UI-neutral presentation kernel: typed reducers, viewport policy and text-catalog port."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
@@ -20,3 +21,6 @@ lurker-core-contract = { version = "0.68.1", path = "../lurker-core-contract" }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

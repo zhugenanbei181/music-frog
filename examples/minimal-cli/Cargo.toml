@@ -1,7 +1,8 @@
 [package]
 name = "lurker-example-minimal-cli"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Minimal Lurker CLI example: the neutral contract plus the shared presentation kernel."
 license = "MIT OR Apache-2.0"
@@ -16,3 +17,6 @@ lurker-ui-presentation = { path = "../../crates/lurker-ui-presentation" }
 [[example]]
 name = "minimal-cli"
 path = "main.rs"
+
+[lints]
+workspace = true

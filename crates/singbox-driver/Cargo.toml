@@ -1,7 +1,8 @@
 [package]
 name = "singbox-driver"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 description = "Engine driver for the sing-box core: control API, configuration codec and process supervision."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
@@ -48,3 +49,6 @@ tempfile = { workspace = true }
 # The paused clock lets the probe's own deadline be proven without waiting for
 # it, so the timeout behaviour is covered by an ordinary hermetic test.
 tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

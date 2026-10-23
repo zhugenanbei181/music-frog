@@ -1,7 +1,8 @@
 [package]
 name = "lurker-engine-runtime"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 description = "Engine-neutral backend registry, owner-switch coordinator and runtime facade for Lurker core hosts."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
@@ -37,3 +38,6 @@ futures-executor = "0.3"
 [[test]]
 name = "third_party_adapter"
 required-features = ["conformance"]
+
+[lints]
+workspace = true

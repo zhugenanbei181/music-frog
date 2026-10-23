@@ -2,7 +2,8 @@
 name = "infiltrator-slint"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 build = "build.rs"
 description = "Native Slint surface for MusicFrog Infiltrator"
 
@@ -56,3 +57,6 @@ slint = { workspace = true, features = ["backend-android-activity-06"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 openssl = { version = "0.10", optional = true }
+
+[lints]
+workspace = true

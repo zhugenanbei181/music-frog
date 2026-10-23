@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-application"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Runtime-neutral application services over MusicFrog ports."
 
@@ -39,3 +40,6 @@ infiltrator-presentation = { path = "../infiltrator-presentation" }
 mihomo-config = { path = "../mihomo-config" }
 tokio = { workspace = true, features = ["test-util"] }
 infiltrator-test-support = { path = "../infiltrator-test-support" }
+
+[lints]
+workspace = true

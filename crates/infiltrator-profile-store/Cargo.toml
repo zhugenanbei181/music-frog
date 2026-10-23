@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-profile-store"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Product profile persistence for MusicFrog Infiltrator: credentials, catalog and owner state over the neutral lurker-profile-store kernel."
 
@@ -26,3 +27,6 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

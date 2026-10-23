@@ -1,7 +1,8 @@
 [package]
 name = "mihomo-driver"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 description = "Engine driver for the mihomo (Clash.Meta) core: control API, configuration codec and process supervision."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
@@ -69,3 +70,6 @@ windows-sys = { workspace = true, optional = true, features = [
 mockito = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,7 +1,8 @@
 [package]
 name = "lurker-template-bevy"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "High-performance ECS desktop proxy client template built on Bevy 0.20."
 license = "MIT OR Apache-2.0"
@@ -16,3 +17,6 @@ tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
 bevy = { version = "0.20", default-features = false }
+
+[lints]
+workspace = true

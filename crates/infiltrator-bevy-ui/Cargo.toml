@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-bevy-ui"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+mobile product."
 
@@ -172,3 +173,6 @@ icon = "@drawable/ic_app_icon"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 bevy = { workspace = true, features = ["system_clipboard"] }
+
+[lints]
+workspace = true

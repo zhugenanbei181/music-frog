@@ -1,7 +1,8 @@
 [package]
 name = "mihomo-config"
 version = "0.1.1"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -31,3 +32,6 @@ yaml-rust2 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

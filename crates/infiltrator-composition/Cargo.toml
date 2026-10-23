@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-composition"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Composition roots that wire concrete outbound and host adapters into the application layer."
 
@@ -37,3 +38,6 @@ infiltrator-test-support = { path = "../infiltrator-test-support" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 url = { workspace = true }
+
+[lints]
+workspace = true

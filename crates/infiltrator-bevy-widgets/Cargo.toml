@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-bevy-widgets"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene functions over the official unstyled bevy_ui_widgets."
 
@@ -119,3 +120,6 @@ bevy = { workspace = true, features = [
     "ui_picking",
     "system_font_discovery",
 ] }
+
+[lints]
+workspace = true

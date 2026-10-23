@@ -2,7 +2,8 @@
 name = "infiltrator-core"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 
 [features]
 # Opt-in live network probes. These tests are also `#[ignore]`, so the default
@@ -60,3 +61,6 @@ singbox-driver = { path = "../singbox-driver" }
 infiltrator-composition = { path = "../infiltrator-composition" }
 # Integration tests run the neutral adapter conformance kit.
 lurker-engine-runtime = { path = "../lurker-engine-runtime", features = ["conformance"] }
+
+[lints]
+workspace = true

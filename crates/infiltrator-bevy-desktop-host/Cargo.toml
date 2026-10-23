@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-bevy-desktop-host"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Desktop product composition and executable host for the Bevy UI surface."
 
@@ -23,3 +24,6 @@ infiltrator-ports = { path = "../infiltrator-ports" }
 [[bin]]
 name = "infiltrator-bevy-ui"
 path = "src/main.rs"
+
+[lints]
+workspace = true

@@ -1,7 +1,8 @@
 [package]
 name = "mihomo-version"
 version = "0.1.2"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -34,3 +35,6 @@ reqwest = { workspace = true, default-features = false, features = ["native-tls"
 mockito = { workspace = true }
 tokio = { workspace = true }
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

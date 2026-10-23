@@ -1,7 +1,8 @@
 [package]
 name = "lurker-profile-store"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 description = "Portable profile-store kernel: durable layout, atomic document I/O, settings/state schema and cross-process write fences with an injectable native platform."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/zhugenanbei181/music-frog"
@@ -41,3 +42,6 @@ windows-sys = { workspace = true, features = [
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

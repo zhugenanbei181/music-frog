@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-presentation"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Pure cross-surface read-model projections and presentation folds."
 
@@ -19,3 +20,6 @@ zhuge-ui-core.workspace = true
 
 [dev-dependencies]
 infiltrator-test-support = { path = "../infiltrator-test-support" }
+
+[lints]
+workspace = true

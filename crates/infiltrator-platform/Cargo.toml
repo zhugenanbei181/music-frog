@@ -2,7 +2,8 @@
 name = "infiltrator-platform"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 lurker-core-ports = { path = "../lurker-core-ports" }
@@ -48,3 +49,6 @@ jni = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

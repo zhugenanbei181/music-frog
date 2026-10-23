@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-test-support"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Engine-neutral fake ports and deterministic fixtures for MusicFrog tests and captures."
 
@@ -22,3 +23,6 @@ serde_yaml_ng = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

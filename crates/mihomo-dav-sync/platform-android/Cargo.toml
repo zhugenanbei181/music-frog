@@ -1,7 +1,8 @@
 [package]
 name = "platform-android"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [lib]
@@ -11,3 +12,6 @@ crate-type = ["staticlib", "cdylib"]
 sync-engine = { path = "../sync-engine" }
 anyhow = { workspace = true }
 # uniffi = { version = "0.28" }
+
+[lints]
+workspace = true

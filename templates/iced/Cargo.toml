@@ -1,7 +1,8 @@
 [package]
 name = "lurker-template-iced"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Responsive Elm-architecture desktop proxy client template built on Iced."
 license = "MIT OR Apache-2.0"
@@ -13,3 +14,6 @@ infiltrator-contract = { path = "../../crates/infiltrator-contract" }
 infiltrator-ports = { path = "../../crates/infiltrator-ports" }
 iced = { version = "0.14", default-features = false, features = ["tokio", "wgpu-bare", "wayland", "x11"] }
 tokio = { workspace = true, features = ["full"] }
+
+[lints]
+workspace = true

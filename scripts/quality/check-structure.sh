@@ -109,6 +109,8 @@ python3 scripts/quality/dependency-policy-guard.py --self-test
 python3 scripts/quality/dependency-policy-guard.py --mode enforce
 python3 scripts/quality/toolchain-consistency-guard.py --self-test
 python3 scripts/quality/toolchain-consistency-guard.py --mode enforce
+python3 scripts/quality/lint-inheritance-guard.py --self-test
+python3 scripts/quality/lint-inheritance-guard.py --mode enforce
 python3 scripts/quality/unsafe-traceability-guard.py --self-test
 python3 scripts/quality/unsafe-traceability-guard.py --mode enforce
 python3 scripts/quality/panic-boundary-guard.py --self-test

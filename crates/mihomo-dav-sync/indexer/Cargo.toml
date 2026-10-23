@@ -1,7 +1,8 @@
 [package]
 name = "indexer"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
@@ -12,3 +13,6 @@ glob = { workspace = true }
 md5 = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
+
+[lints]
+workspace = true

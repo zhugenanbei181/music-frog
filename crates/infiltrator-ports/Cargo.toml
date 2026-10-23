@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-ports"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Runtime-neutral outbound ports for MusicFrog Infiltrator application services."
 
@@ -15,3 +16,6 @@ infiltrator-domain = { path = "../infiltrator-domain" }
 
 [dev-dependencies]
 tokio = { workspace = true }
+
+[lints]
+workspace = true

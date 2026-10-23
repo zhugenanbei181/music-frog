@@ -1,7 +1,8 @@
 [package]
 name = "infiltrator-ios"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "iOS host adapter seams for NetworkExtension and Swift/Objective-C lifecycle bridges."
 
@@ -19,3 +20,6 @@ infiltrator-ports = { path = "../infiltrator-ports" }
 [dev-dependencies]
 mihomo-api = { path = "../mihomo-api" }
 tokio = { workspace = true }
+
+[lints]
+workspace = true

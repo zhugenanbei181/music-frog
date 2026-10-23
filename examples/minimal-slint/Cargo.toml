@@ -1,7 +1,8 @@
 [package]
 name = "lurker-example-minimal-slint"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Minimal Lurker Slint example: a neutral lifecycle rendered by a Slint surface."
 license = "MIT OR Apache-2.0"
@@ -21,3 +22,6 @@ slint-build = { workspace = true }
 [[example]]
 name = "minimal-slint"
 path = "main.rs"
+
+[lints]
+workspace = true

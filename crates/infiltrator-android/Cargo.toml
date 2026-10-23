@@ -2,7 +2,8 @@
 name = "infiltrator-android"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -78,3 +79,6 @@ camino = "1.0.8"
 infiltrator-slint = { path = "../infiltrator-slint" }
 tempfile = { workspace = true }
 syn = { workspace = true }
+
+[lints]
+workspace = true

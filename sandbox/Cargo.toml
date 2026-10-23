@@ -1,7 +1,8 @@
 [package]
 name = "lurker-sandbox"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Headless sandbox and chaos fault injection suite for the neutral Lurker runtime."
 license = "MIT OR Apache-2.0"
@@ -20,3 +21,6 @@ tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

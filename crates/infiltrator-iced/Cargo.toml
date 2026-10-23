@@ -2,7 +2,8 @@
 name = "infiltrator-iced"
 version.workspace = true
 publish = false
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 
 # Lib + thin binary: `src/lib.rs` hosts the module tree and the application
 # bootstrap (`infiltrator_iced::run`), `src/main.rs` is a one-call wrapper.
@@ -117,3 +118,6 @@ mihomo-version = { path = "../mihomo-version" }
 name = "headless"
 path = "tests/headless.rs"
 required-features = ["capture-tools"]
+
+[lints]
+workspace = true

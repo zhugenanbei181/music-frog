@@ -1,16 +1,19 @@
 [package]
 name = "infiltrator-contract"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Stable cross-surface commands, snapshots, events, capabilities, and failures."
 
 [dependencies]
 lurker-core-contract = { path = "../lurker-core-contract" }
-anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

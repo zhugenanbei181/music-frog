@@ -516,6 +516,25 @@
   - 当前证据：守卫自检 4 项通过、enforce 回执 `feature matrix guard: 11 crates, 35 declared features, every script flag resolves`。
   - 待验证：随统一批次复跑，确认各 CI 腿的 `--features` 组合仍能解析。
 
+- [ ] ENG-001.8 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] 工作区统一 lint 继承：根 `[workspace.lints]` + 全成员 `[lints] workspace = true`
+  - 产物：根 manifest 落 `[workspace.lints]`（rustc 组：`ellipsis_inclusive_range_patterns`/`keyword_idents` 两条在 edition 2024 下构成硬错误、随任何成功构建天然为零违例的语法禁令；clippy 组：`dbg_macro`/`todo`/`unimplemented` 三条调试残留零容忍，2026-10-24 词法预检 src/tests 零违例、tests 中出现的 `todo!` 均为守卫夹具字符串不参与编译）；48 个成员 manifest 统一 `[lints] workspace = true`（此前成员内无任何私有 lint 配置需删除）；新增 `scripts/quality/lint-inheritance-guard.py` 并注册进 `check-structure.sh`。
+  - 依赖：无（独占写窗口已取得——工作树静默）。
+  - 验收：守卫 `--self-test`（4 项）与 `--mode enforce` 全绿；结构门 exit 0。
+  - 当前证据：`lint inheritance guard: every member inherits the workspace lint baseline`；`check-structure.sh` exit 0（2026-10-24 实跑）。
+  - 待验证：统一 cargo 批次跑 `cargo clippy --workspace --all-targets -- -D warnings` 确认三 deny 零触发（本批按指令不跑 cargo）。
+
+- [ ] ENG-001.9 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Integrated] 成员 manifest 的 `edition` 与 `rust-version` 继承到 `[workspace.package]`
+  - 产物：根 manifest `[workspace.package]` 落 `edition = "2024"` 与 `rust-version = "1.99.0"`；48 个成员 manifest 删除各自硬写的 `edition` 行改 `edition.workspace = true`，并新增 `rust-version.workspace = true`。
+  - 依赖：与 `ENG-001.8` 同批（同一批 manifest 的独占写窗口）。
+  - 验收：`toolchain-consistency-guard --mode enforce` 全绿（根声明与 `rust-toolchain.toml` 的 1.99.0 一致、成员零本地版本声明）；`feature-matrix-guard --mode enforce` 复跑全绿。
+  - 当前证据：`toolchain consistency guard: single pinned Rust release` + `feature matrix guard: 11 crates, 35 declared features`（2026-10-24 实跑）；结构门 exit 0。
+  - 待验证：`cargo metadata --locked` 与工作区编译（统一 cargo 批次）。
+
+- [ ] ENG-002.1 [kind: cleanup] [priority: P1] [points: 1] [owner: infiltrator-contract] [status: Integrated] 删除 `infiltrator-contract` 的未使用 `anyhow` 依赖
+  - 产物：`crates/infiltrator-contract/Cargo.toml` 去掉 `anyhow = { workspace = true }`；契约层保持零 `anyhow` 引用（错误类型纪律边界）。
+  - 依赖：与 manifest 批次同次改完。
+  - 验收：`grep -rn anyhow crates/infiltrator-contract` 零命中（2026-10-24 词法复核 src/tests/build.rs 均 0 处）；feature-matrix/toolchain 守卫全绿。
+  - 待验证：`cargo check -p infiltrator-contract --all-targets`（统一 cargo 批次）。
 
 ## 十二、波次 A 效果地基与平台能力（已交付，8条 / 24pt）
 
