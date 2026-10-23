@@ -38,6 +38,8 @@ mod list_tests;
 mod menu_tests;
 #[path = "headless/modal_dialog_tests.rs"]
 mod modal_dialog_tests;
+#[path = "headless/modern_card_tests.rs"]
+mod modern_card_tests;
 #[path = "headless/motion_tests.rs"]
 mod motion_tests;
 #[path = "headless/nav_tests.rs"]

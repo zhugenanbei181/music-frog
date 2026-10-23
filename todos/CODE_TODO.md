@@ -21,15 +21,15 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261024-v270`：现在佛 110 pt（38 条）/ 过去佛 195 pt（75 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
-- 本板 38 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 24 条（`EFFECTS-014`/`024`、`026`~`041`、`043`~`045`、`048`~`050`，70 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 5 条（`ENG-002.2`/`002.3`、`ENG-003.1`~`003.3`，10 pt）。
-- 2026-10-24 记录找回批次：`EFFECTS-012`（五个子项实现与测试在树、源码注释逐项标注，交付载体 3887ef6）与 `EFFECTS-022`（官方菜单/滚动条由 e2c6ad9 菜单波次与 `BEVY-020.1` 接管，headless 测试在树）经代码实测复核为已交付，迁入过去佛；两者的编译/测试回执随统一 cargo 批次。
+- Point 基线 `musicfrog-todo-20261024-v271`：现在佛 102 pt（36 条）/ 过去佛 201 pt（77 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
+- 本板 36 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 22 条（`EFFECTS-024`、`027`~`041`、`043`~`045`、`048`~`050`，64 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 5 条（`ENG-002.2`/`002.3`、`ENG-003.1`~`003.3`，10 pt）。
+- 2026-10-24 第三交付批次：`EFFECTS-014` 交付（新共享模块 `bevy-widgets::modern_card` + headless 四用例，见过去佛条目备注）；`EFFECTS-026` 记录找回（`SpringAnimationPlugin` 即交付形态，#95~#97 已由 `BEVYCAP-002.1` 机器化）。Layer 0~2 全部交付完毕，本板剩余为 Bevy/Iced/Slint/CLI 表面与取证收口。
 - 2026-10-24 迁移损伤修复（依 168b83c pristine 复位；证据 = e680ed8/1e00aa3 两次波次提交信息 + 代码实测）：e680ed8/3887ef6/1e00aa3 三次看板迁移的行拼接乱码逐行修复；`EFFECTS-003`（残形「TS-003」）与 `EFFECTS-008`（被截断并入 007 尾部且曾误回登本板）复位重建；`EFFECTS-013` 与 `EFFECTS-015`（`ButtonHierarchy`/`ButtonPressScale` 已在树）由误标的 Planned 复位 Integrated；Layer 2 的 `EFFECTS-016`~`020` 错位 ID 全部复位；`EFFECTS-006`/`013`/`020` 的 points 依 pristine 复位（3→2）；本板误留的 `EFFECTS-008` 与 `EFFECTS-020`（曾误标 019）重复项删除，`EFFECTS-012`/`014` 归位本板；空壳节（§四/§五/§六/5.1）与 EFFECTS-007 孤儿残句清除；§7.1 过期事实按强制化台账刷新；`TODO.md` 波次 A 日志的羽化条目 ID 复位为 018。修复前实测两板为 44 条/122 pt 与 68 条/180 pt（v268 所记过去佛 69 条/183 pt 与当时实际不符），修复后以本行实测为准。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
 - Bevy UI 能力四条源自 2026-10-20 的强制化实测审计；执行状态（机器强制还是人工评审、存量欠账多少）以 Bevy UI 能力规范文档「强制化台账」为单一事实源，本板不另记第二份。
 <!-- POINT_LEDGER:END -->
 
-- **执行次序（2026-10-24 记录找回批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① 共享控件残留（`EFFECTS-014`）→ ② Bevy 表面（`EFFECTS-024`、`026`~`028`）→ ③ Iced 表面（`EFFECTS-029`~`035`）→ ④ Slint 表面（`EFFECTS-036`~`041`）→ ⑤ CLI 终端输出（`EFFECTS-043`~`045`）→ ⑥ 平台/质量（`EFFECTS-048`）→ ⑦ a11y（`EFFECTS-049`）→ ⑧ 证据（`EFFECTS-050`）→ ⑨ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑩ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
+- **执行次序（2026-10-24 第三批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① Bevy 表面（`EFFECTS-024`、`027`、`028`）→ ② Iced 表面（`EFFECTS-029`~`035`）→ ③ Slint 表面（`EFFECTS-036`~`041`）→ ④ CLI 终端输出（`EFFECTS-043`~`045`）→ ⑤ 平台/质量（`EFFECTS-048`）→ ⑥ a11y（`EFFECTS-049`）→ ⑦ 证据（`EFFECTS-050`）→ ⑧ Slint 表面专项（`SLINTUI-001`~`007`）→ ⑨ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
 - **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
 
 ## 一、大计划主线与推进顺序
@@ -86,28 +86,13 @@
 
 ## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施；现存 34 条 / 101 pt，已交付 24 条见[过去佛](CODE_TODO_PAST.md)）
 
-### 10.3 Layer 2: 共享通用组件库与材质着色基座（1条 / 3pt，涵盖 #51~#75）
-
-> 2026-10-24 记录找回：Layer 1（EFFECTS-007~013）与 EFFECTS-022 已全部交付（过去佛 §10.2~10.4/§十二）；本节 EFFECTS-015~020 已交付并在过去佛 §10.3/§十二，模态卡片家族（020）曾被误回登本板为「EFFECTS-019」重复项，已删除。
-
-- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Planned] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
-  - 产物：实现 #51 带 1px 内描边与 Level 1 柔和阴影的 ModernCard、#52 鼠标悬停 Y 轴 -1px 微位移与高光提亮反馈。
-  - 依赖：EFFECTS-002。
-  - 验收：多页面复用 ModernCard，悬停反馈流畅跟手无闪烁。
-  - 计划：重构 infiltrator-bevy-widgets::card。
-
-### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（4条 / 12pt，涵盖 #76~#115）
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（3条 / 9pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-024 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ViewTarget 离屏多 pass 降采样高斯模糊（#86~#89）
   - 产物：实现 #86 基于 RenderApp 与 ViewTarget 的离屏高斯模糊、#87 4x 降采样双 pass 优化、#88 输入输出纹理防冲突分离、#89 前景清晰文字最后顶层合成。
   - 依赖：EFFECTS-023。
   - 验收：弹窗背景呈现平滑高斯模糊，文字刀刻般清晰，显存带宽占用降低 75%。
   - 计划：在 infiltrator-bevy-ui 建立后处理渲染调度子图。
-- [ ] EFFECTS-026 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] ECS 调度 UiMotionPlugin 弹簧组件系统（#93~#97）
-  - 产物：实现 #93 UiMotionPlugin 动画系统调度、#94 SpringPosition 弹簧物理积分、#95 挂载全量订阅 bevy_scene::Ready、#96 commands.despawn_all 批量退役、#97 bsn_list! 列表宏。
-  - 依赖：EFFECTS-003。
-  - 验收：动效由 ECS 系统统一调度，首帧挂载无异步竞态，批量销毁彻底。
-  - 计划：实现 infiltrator-bevy-ui::motion_plugin。
 - [ ] EFFECTS-027 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] 3D 地球 UI 渲染到纹理与射线拾取映射（#98~#99）
   - 产物：实现 #98 Geo Globe 3D 相机 UI 渲染到纹理（RTT）、#99 视口点击坐标向 3D 球面 UV 与鼠标射线逆变换映射。
   - 依赖：infiltrator-bevy-widgets::globe。

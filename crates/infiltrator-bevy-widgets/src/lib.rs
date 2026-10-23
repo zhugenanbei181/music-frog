@@ -67,6 +67,7 @@ pub mod master_detail;
 pub mod menu;
 pub mod mobile_view;
 pub mod modal;
+pub mod modern_card;
 pub mod motion;
 pub mod multiline_editor;
 pub mod nav;
@@ -410,6 +411,8 @@ impl Plugin for WidgetsPlugin {
         );
 
         app.add_plugins(motion::SpringAnimationPlugin);
+
+        app.add_systems(Update, modern_card::sync_modern_card_paint);
     }
 }
 

@@ -425,7 +425,14 @@
   - 计划：编写 presentation::diff 与 geo 模块。
   - 备注：e680ed8 波次交付（提交信息明列 the diff, globe and focus stack）。条目体在归档迁移中被截断且误标 Planned，2026-10-24 依 168b83c pristine 重建，状态与 points 复位（原误记 3 pt）。
 
-### 10.3 Layer 2: 共享通用组件库与材质着色基座（已交付 4条 / 11pt，涵盖 #51~#75）
+### 10.3 Layer 2: 共享通用组件库与材质着色基座（已交付 5条 / 14pt，涵盖 #51~#75）
+
+- [ ] EFFECTS-014 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代通用暗色卡片基座与 Hover 微抬升（#51~#52）
+  - 产物：实现 #51 带 1px 内描边与 Level 1 柔和阴影的 ModernCard、#52 鼠标悬停 Y 轴 -1px 微位移与高光提亮反馈。
+  - 依赖：EFFECTS-002。
+  - 验收：多页面复用 ModernCard，悬停反馈流畅跟手无闪烁。
+  - 计划：重构 infiltrator-bevy-widgets::card。
+  - 备注：2026-10-24 交付——新共享模块 `bevy-widgets::modern_card`（typed `ModernCardState` 六态阶梯 + 纯数据 `modern_card_paint`（resting 即带 Level 1 阴影、hover 加深阴影 + `over_surface(hover_bg)` 高光提亮 + `-1px` UiTransform 微抬升，不触发 relayout）+ `modern_card_scene` bsn! 场景 + `sync_modern_card_paint` 就地重绘（compare-before-write），注册进 `WidgetsPlugin`；headless `modern_card_tests` 四用例覆盖状态阶梯、阴影/抬升/提亮投影与挂载后同实体就地重绘）。物理与几何积木（`card_fill`/`over_surface`、`SpringCardHoverLift`）沿 BEVYUI-003/003R 波次已在树，proxies 页 `node_card` 为参考实现。待验证：统一 cargo 批次编译+测试、双视口像素回执、其余页面渐进采用。
 
 > 2026-10-24 迁移损伤修复：本节与 §十二 的 Layer 2 条目 ID 曾整体错位一格，已按 168b83c pristine 复位——主次按钮=015（状态由误标的 Planned 复位 Integrated）、TabList=016（§十二）、虚拟化列表=017、羽化遮罩=018（§十二）、外发光输入框=019、弹出家族=020；卡片基座（014）未交付，留在现在佛 §10.3。
 
@@ -445,7 +452,7 @@
 - [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
 - [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 2] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
   - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。pristine 身份是「居中模态卡片、就近操作组与抽屉（#68~#75）」，`adaptive_modal.rs`/`drawer.rs`/`accordion.rs` 在树；points 2026-10-24 依 pristine 复位为 2（原误记 3）。
-### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（4条 / 12pt，涵盖 #76~#115）
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（5条 / 15pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
   - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78 连接行状态点与域名文字基线物理居中对齐。
@@ -464,6 +471,13 @@
   - 依赖：EFFECTS-002。
   - 验收：悬停位移不触发布局树重新计算，阴影平滑多阶。
   - 计划：更新各页面的卡片定义。
+
+- [ ] EFFECTS-026 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] ECS 调度 UiMotionPlugin 弹簧组件系统（#93~#97）
+  - 产物：实现 #93 UiMotionPlugin 动画系统调度、#94 SpringPosition 弹簧物理积分、#95 挂载全量订阅 bevy_scene::Ready、#96 commands.despawn_all 批量退役、#97 bsn_list! 列表宏。
+  - 依赖：EFFECTS-003。
+  - 验收：动效由 ECS 系统统一调度，首帧挂载无异步竞态，批量销毁彻底。
+  - 计划：实现 infiltrator-bevy-ui::motion_plugin。
+  - 备注：**2026-10-24 记录找回，交付形态命名差异**——#93/#94 以 `bevy-widgets::motion` 的 `SpringAnimationPlugin`（`lib.rs` 注册全部弹簧系统进 `Update`）与 `Spring`/`SpringAnimator`/`sync_spring_*` 系统族交付（headless `motion_tests` 在树，含 StaggeredEnter/按钮回弹/开关滑块/路径转场/卡片悬停）；#95~#97（Ready 订阅、despawn_all、bsn_list!）由 `BEVYCAP-002.1` 机器强制收口（存量使用在树）。待验证：统一 cargo 批次复跑。
 
 - [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 官方菜单与滑块双向绑定（#79~#81）
   - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENU-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
