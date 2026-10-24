@@ -1,5 +1,6 @@
 //! Canvas-based waveform and traffic charts for the Infiltrator UI.
 
+use crate::view::chart::{self, ChartLayers};
 use crate::view::theme;
 use iced::widget::canvas;
 use iced::{Color, Element, Point, Rectangle, Renderer, Theme, border, mouse};
@@ -24,11 +25,11 @@ pub struct TrafficChart {
 }
 
 impl<Message> canvas::Program<Message> for TrafficChart {
-    type State = ();
+    type State = ChartLayers;
 
     fn draw(
         &self,
-        _state: &(),
+        state: &ChartLayers,
         renderer: &Renderer,
         theme: &Theme,
         bounds: Rectangle,
@@ -37,29 +38,35 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         let tk = theme::tokens(theme);
         let accent = tk.accent;
         let success = tk.success;
-        let grid_color = Color {
-            a: 0.12,
-            ..tk.card_border
-        };
-
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let skin = theme::theme_to_name(theme);
         let (width, height) = (bounds.width, bounds.height);
 
-        // 1. Draw subtle background horizontal grid lines (25%, 50%, 75%)
-        for ratio in [0.25, 0.50, 0.75] {
-            let y = height * ratio;
-            let grid_line = canvas::Path::line(Point::new(0.0, y), Point::new(width, y));
-            frame.stroke(
-                &grid_line,
-                canvas::Stroke::default()
-                    .with_color(grid_color)
-                    .with_width(1.0),
-            );
-        }
+        // Layer 1 (#123): the static grid, rebuilt only when bounds or skin
+        // move.
+        state.sync_background(chart::BackgroundFacts {
+            width,
+            height,
+            skin,
+        });
+        let grid = state.background().draw(renderer, bounds.size(), |frame| {
+            let grid_color = Color {
+                a: 0.12,
+                ..tk.card_border
+            };
+            for ratio in [0.25, 0.50, 0.75] {
+                let y = height * ratio;
+                frame.stroke(
+                    &canvas::Path::line(Point::new(0.0, y), Point::new(width, y)),
+                    canvas::Stroke::default()
+                        .with_color(grid_color)
+                        .with_width(1.0),
+                );
+            }
+        });
 
         let (upload_raw, download_raw) = self.raw_series();
         if upload_raw.len() < 2 || download_raw.len() < 2 {
-            return vec![frame.into_geometry()];
+            return vec![grid];
         }
 
         let left_pad = 4.0_f32;
@@ -77,6 +84,16 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             height - (ratio * (height - 8.0)) - 4.0
         };
 
+        // Layer 2 (#124): the data geometry, rebuilt only when the window
+        // slides, the bounds move, or the skin changes.
+        state.sync_data(chart::DataFacts {
+            width,
+            height,
+            skin,
+            samples: curve_count,
+            head: (upload_raw[0], download_raw[0]),
+        });
+        let data = state.data().draw(renderer, bounds.size(), |frame| {
         // 2. Download area fill & glowing curve
         let down_path = canvas::Path::new(|p| {
             p.move_to(Point::new(left_pad, height));
@@ -151,6 +168,12 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                 .with_color(success)
                 .with_width(2.0),
         );
+
+        });
+
+        // Layer 3 (#125): the crosshair and its HUD tooltip draw immediately
+        // every frame — no cache could hold them by construction.
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
 
         // 4. Interactive cursor tracking crosshair with Micro HUD Tooltip (UI-04-04)
         if let Some(cursor_pos) = cursor.position_in(bounds) {
@@ -276,7 +299,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             }
         }
 
-        vec![frame.into_geometry()]
+        vec![grid, data, frame.into_geometry()]
     }
 }
 

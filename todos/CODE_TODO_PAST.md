@@ -732,3 +732,12 @@
   - 计划：重构 infiltrator-iced::style。
   - 备注：2026-10-24 交付——`view/theme` 拆分为 theme.rs（类型/分级/选择器）+ `theme/skins.rs`（四皮肤常量，行预算门 800 适配）：#119 `Tokens` 目录新增 `hero_wash`/`control_wash`（官方 `Gradient::Linear`，`Linear.stops` 即 8 色标官方上限）与 `highlight_border`（`toward_white` const 混白）；`soft_wash` const 构造器保持双 stop（0.0/1.0 单调），wgpu 与 tiny-skia 两后端合成一致（registry 源核实 iced_tiny_skia engine.rs 线性渐变腿）。#120 应用位：chrome 顶栏背景 `sidebar→canvas` 双 stop 竖向 hero_wash + 底部 hairline 换 highlight_border；侧栏活动行按钮背景换 control_wash（accent_soft 单色退役）+ 活动态高光 hairline。#121 typed `Elevation{Card,Lifted,Floating}` 阶梯 + `Tokens::elevation_shadow` 单一权威，四个双层阴影面（card/floating ambient+key）全部改为按阶取影；既有单层 hover_lift 保留单层物理不动。皮肤常量消费者（components WEB_ACCENT/WEB_SUCCESS、gui multimodal 四臂、headless 新测试）全部迁 `theme::skins` 路径，仓内 `theme::LIGHT` 旧路径清零。测试：headless `theme_wash_tests` 四用例（四皮肤双 wash 恒两 stop 且偏移单调在 8 上限内、hero 顶 stop 钉在 sidebar 色、升降阶梯 Card≠Floating 且 Lifted=Floating、高光边框严格亮于卡片 hairline）。待验证：统一 cargo 批次（编译 + nextest）；渐变/高光实机像素回执随 PARITY 批次。
 
+### 12.9 Iced 图表三层缓存（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-031 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] 图表三层 Canvas 绘制分离与增量失效机制（#122~#125）
+  - 产物：实现 #122 图表三层 Canvas 分离、#123 坐标轴 BackgroundCache 静态缓存、#124 数据曲线 DataGeometryCache 增量失效、#125 悬浮十字星零缓存即时绘制。
+  - 依赖：EFFECTS-008。
+  - 验收：鼠标高频移动时仅重绘交互层，静态标尺与折线零开销。
+  - 计划：重构 view/overview/chart.rs。
+  - 备注：2026-10-24 交付——新模块 `view/chart.rs`（三层架构）：#122 typed 分层（背景/数据几何两缓存 + 十字星**结构性无缓存**——#125 靠「没有可缓存的字段」保证而非约定）；#123 `BackgroundFacts{width,height,skin}` 事实比较（含皮肤身份，主题切换必重绘缓存色）；#124 `DataFacts{width,height,skin,samples,head}`（窗口滑动改 head、采样落地改 samples，均为增量失效事实）+ `needs_rebuild` 纯函数 + `ChartLayers`（`Program::State: Default+'static` 约束下用 RefCell 记账，`Cache::clear` 本身内可变，registry 源核实 iced_graphics geometry/cache.rs）。主消费者 `waveform.rs` `TrafficChart` 迁移：`State=ChartLayers`，网格进背景缓存、双曲线面积填充+发光描边进数据缓存、既有十字星+HUD tooltip（UI-04-04）改为每帧即时 overlay（返回 `[grid, data, overlay]` 三层）。**边界**：`runtime/traffic.rs` 大图表与 Mini 波形条仍为单层路径，迁移为后续切片（模式已在案）；仓内其零 cargo 验证由统一批次承担。测试：headless `chart_layers_tests` 五用例（首建必重建、同事实不重建、尺寸/皮肤变化重建背景、窗口头滑动与长度变化重建数据几何、ChartLayers 双同步幂等）。
+
