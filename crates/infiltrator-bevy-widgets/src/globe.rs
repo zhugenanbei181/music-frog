@@ -498,6 +498,99 @@ impl GlobeProjection {
         };
         self.project_direction(point, radius_scale)
     }
+
+    /// Map a pointer position in raster pixels to the sphere surface it hits:
+    /// the exact inverse of `project_lat_lon`. The pointer acts as an
+    /// orthographic ray fired straight into the screen, so the hit is the
+    /// front-hemisphere surface point that ray meets. Returns `None` when
+    /// the pointer is outside the projected disc.
+    pub fn unproject(&self, pointer_px: Vec2) -> Option<GlobeHit> {
+        let u = (pointer_px.x - self.center.x) / self.radius_px;
+        let v = (self.center.y - pointer_px.y) / self.radius_px;
+        let r2 = u * u + v * v;
+        if r2 > 1.0 {
+            return None;
+        }
+        let depth = (1.0 - r2).sqrt();
+        let yaw = self.yaw_deg.to_radians();
+        let pitch = self.pitch_deg.to_radians();
+        let (sin_yaw, cos_yaw) = yaw.sin_cos();
+        let (sin_pitch, cos_pitch) = pitch.sin_cos();
+        // `project_direction` rotates by yaw, then pitch, and reads the
+        // screen axes from z1 (right) and y2 (up). Run both rotations
+        // backwards from (u, v, depth) to recover the world direction.
+        let x1 = depth * cos_pitch - v * sin_pitch;
+        let y1 = depth * sin_pitch + v * cos_pitch;
+        let direction = Vec3::new(
+            x1 * cos_yaw - u * sin_yaw,
+            y1,
+            x1 * sin_yaw + u * cos_yaw,
+        );
+        let lat_deg = direction.y.asin().to_degrees();
+        let lon_deg = direction.z.atan2(direction.x).to_degrees();
+        Some(GlobeHit {
+            lat_deg,
+            lon_deg,
+            direction,
+            depth,
+        })
+    }
+}
+
+/// A pointer ray's hit on the globe sphere: the inverse leg of
+/// [`GlobeProjection`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GlobeHit {
+    /// Latitude of the hit in degrees.
+    pub lat_deg: f32,
+    /// Longitude of the hit in degrees.
+    pub lon_deg: f32,
+    /// The unit world direction of the hit (unrotated from the view frame).
+    pub direction: Vec3,
+    /// Toward-viewer depth at the hit; `1.0` at the disc center, `0.0` at
+    /// the rim — the same axis as [`ProjectedPoint::depth`].
+    pub depth: f32,
+}
+
+/// Great-circle angular distance between two unit directions, in degrees.
+pub fn angular_distance_deg(a: Vec3, b: Vec3) -> f32 {
+    let dot = a.dot(b).clamp(-1.0, 1.0);
+    dot.acos().to_degrees()
+}
+
+impl GlobeSpec {
+    /// The plottable node nearest to a hit, within a great-circle
+    /// `tolerance_deg` and on the visible hemisphere. A click that misses
+    /// every plottable front node picks nothing — there is deliberately no
+    /// nearest-node fallback, and a node on the back of the globe can never
+    /// be picked through it.
+    pub fn nearest_node_to<'a>(
+        &'a self,
+        hit: &GlobeHit,
+        tolerance_deg: f32,
+    ) -> Option<&'a GlobeNode> {
+        let tolerance = tolerance_deg.max(0.0);
+        // The same projection the caller unprojected through — a node only
+        // picks when its own projection lands on the visible hemisphere.
+        let projection = GlobeProjection::from_spec(self);
+        self.nodes
+            .iter()
+            .filter_map(|node| {
+                let point = node.location.plottable()?;
+                let direction = GreatCircleArc::lat_lon_to_cartesian(
+                    point.lat_deg() as f32,
+                    point.lon_deg() as f32,
+                    1.0,
+                );
+                if projection.project_direction(direction, 1.0).is_none() {
+                    return None;
+                }
+                let distance = angular_distance_deg(hit.direction, direction);
+                (distance <= tolerance).then_some((distance, node))
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, node)| node)
+    }
 }
 
 /// Project every node with a plottable location, culling the back hemisphere.

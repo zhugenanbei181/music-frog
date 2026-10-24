@@ -7,14 +7,15 @@ use super::render_cache_tests::{app, image_handle, modifications};
 use bevy::asset::Assets;
 use bevy::ecs::message::MessageCursor;
 use bevy::image::Image;
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3};
 use bevy::scene::CommandsSceneExt;
 use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_widgets::globe::raster::rasterize_globe;
 use infiltrator_bevy_widgets::globe::{
     ARC_ALTITUDE_FRACTION, GeoLocation, GeoPoint, GeoPrecision, GeoSource, GeoUnknown, GlobeLink,
     GlobeMode, GlobeNode, GlobeNodeCategory, GlobePlate, GlobeProjection, GlobeSpec,
-    build_globe_arcs, build_globe_particles, globe_scene, project_flat_nodes, project_globe_nodes,
+    angular_distance_deg, build_globe_arcs, build_globe_particles, globe_scene,
+    project_flat_nodes, project_globe_nodes,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
@@ -319,4 +320,121 @@ fn globe_one_hundred_mount_retire_cycles_return_assets_to_baseline() {
             "retire {cycle}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// EFFECTS-027 #99: pointer unprojection and node picking
+// ---------------------------------------------------------------------------
+
+#[test]
+fn unproject_round_trips_projected_points() {
+    let projection = GlobeProjection::new(0.0, 0.0, 100.0, Vec2::new(100.0, 100.0));
+    for (lat, lon) in [(0.0f32, 0.0), (45.0, 30.0), (-33.9, 151.2), (89.0, 0.0), (0.0, 179.0)] {
+        let projected = projection
+            .project_lat_lon(lat, lon)
+            .expect("front-hemisphere coordinate projects");
+        let hit = projection
+            .unproject(Vec2::new(projected.x, projected.y))
+            .expect("projected point unprojects");
+        assert!(
+            (hit.lat_deg - lat).abs() < 1e-2,
+            "latitude round trip {lat} -> {}",
+            hit.lat_deg
+        );
+        assert!(
+            (hit.lon_deg - lon).abs() < 1e-2,
+            "longitude round trip {lon} -> {}",
+            hit.lon_deg
+        );
+    }
+}
+
+#[test]
+fn unproject_round_trips_under_rotation() {
+    let projection = GlobeProjection::new(37.0, -22.0, 80.0, Vec2::new(80.0, 80.0));
+    // Points around the rotated view center (latitude -22, longitude 37).
+    for (lat, lon) in [(-22.0f32, 37.0), (-10.0, 37.0), (-22.0, 50.0), (-40.0, 20.0)] {
+        let projected = projection
+            .project_lat_lon(lat, lon)
+            .expect("rotated front-hemisphere coordinate projects");
+        let hit = projection
+            .unproject(Vec2::new(projected.x, projected.y))
+            .expect("projected point unprojects");
+        assert!(
+            (hit.lat_deg - lat).abs() < 1e-2,
+            "latitude round trip {lat} -> {}",
+            hit.lat_deg
+        );
+        assert!(
+            (hit.lon_deg - lon).abs() < 1e-2,
+            "longitude round trip {lon} -> {}",
+            hit.lon_deg
+        );
+    }
+}
+
+#[test]
+fn unproject_misses_outside_the_disc_and_hits_the_rim() {
+    let projection = GlobeProjection::new(0.0, 0.0, 50.0, Vec2::new(60.0, 60.0));
+    assert!(projection.unproject(Vec2::new(60.0 + 51.0, 60.0)).is_none());
+    assert!(projection.unproject(Vec2::new(60.0 - 51.0, 60.0)).is_none());
+    let rim = projection
+        .unproject(Vec2::new(60.0 + 50.0, 60.0))
+        .expect("grazing hit at the eastern rim");
+    assert!(rim.depth.abs() < 1e-4);
+    assert!(rim.lat_deg.abs() < 1e-2);
+    assert!((rim.lon_deg - 90.0).abs() < 1e-2);
+}
+
+#[test]
+fn angular_distance_is_great_circle_degrees() {
+    let north = Vec3::new(0.0, 1.0, 0.0);
+    let south = Vec3::new(0.0, -1.0, 0.0);
+    let east = Vec3::new(1.0, 0.0, 0.0);
+    assert!((angular_distance_deg(north, south) - 180.0).abs() < 1e-4);
+    assert!((angular_distance_deg(north, east) - 90.0).abs() < 1e-4);
+    assert!(angular_distance_deg(north, north).abs() < 1e-4);
+}
+
+#[test]
+fn nearest_node_picks_within_tolerance_and_rejects_beyond() {
+    let nodes = vec![
+        GlobeNode::new("london", "London", known(51.5, -0.1), GlobeNodeCategory::Home),
+        GlobeNode::new("sf", "San Francisco", known(37.7, -122.4), GlobeNodeCategory::Exit),
+    ];
+    let spec = GlobeSpec::new(nodes, Vec::new(), 200, 200).with_view(-0.1, 51.5);
+    let projection = GlobeProjection::from_spec(&spec);
+    let hit = projection
+        .unproject(projection.center)
+        .expect("the disc center hits the sphere");
+    let picked = spec
+        .nearest_node_to(&hit, 8.0)
+        .expect("London sits at the view center");
+    assert_eq!(picked.id, "london");
+    let rim = projection
+        .unproject(projection.center + Vec2::new(projection.radius_px, 0.0))
+        .expect("the eastern rim still hits");
+    assert!(
+        spec.nearest_node_to(&rim, 8.0).is_none(),
+        "a rim click is far from every plottable node"
+    );
+}
+
+#[test]
+fn a_back_only_globe_picks_nothing_through_the_sphere() {
+    let nodes = vec![GlobeNode::new(
+        "back",
+        "Back",
+        known(0.0, 180.0),
+        GlobeNodeCategory::Exit,
+    )];
+    let spec = GlobeSpec::new(nodes, Vec::new(), 200, 200);
+    let projection = GlobeProjection::from_spec(&spec);
+    let hit = projection
+        .unproject(projection.center)
+        .expect("the disc center hits the sphere");
+    assert!(
+        spec.nearest_node_to(&hit, 180.0).is_none(),
+        "the visibility gate must cull the hidden node even at total tolerance"
+    );
 }

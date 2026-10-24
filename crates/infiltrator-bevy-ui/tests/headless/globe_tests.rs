@@ -14,7 +14,8 @@ use bevy::ui_widgets::ValueChange;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::globe::{
     GlobeData, GlobeDataUpdated, GlobeEmptyState, GlobeModeStrip, GlobePagePlugin, GlobePageRoot,
-    GlobeSectionSlot, GlobeViewState, LastGlobeData, globe_page, globe_unknown_detail,
+    GlobePickRecord, GlobePicked, GlobeSectionSlot, GlobeViewState, LastGlobeData, globe_page,
+    globe_unknown_detail,
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route};
 use infiltrator_bevy_widgets::globe::{
@@ -509,4 +510,40 @@ fn test_geo_projection_five_states_fixtures_distinguish_and_hide_map() {
         assert_eq!(plate.0.links.len(), 1);
         assert_eq!(data.plottable_count(), 2);
     }
+}
+
+/// EFFECTS-027 #99: the pick record restamps the header's detail line from
+/// the single pick truth, and the idle line states that no pick happened.
+#[test]
+fn picked_record_restamps_the_detail_line() {
+    let palette = UiPalette::new(&Theme::dark());
+    let mut app = page_app(palette);
+    let data = GlobeData::new(
+        vec![node("london", 51.5, -0.1, GlobeNodeCategory::Home)],
+        Vec::new(),
+    );
+    mount(&mut app, globe_page(&data, GlobeMode::Globe, &palette));
+
+    let root = globe_root(&mut app);
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "Click a plottable node to inspect its location."
+        ),
+        "the idle detail line states that no pick happened"
+    );
+
+    app.world_mut().insert_resource(GlobePicked(Some(GlobePickRecord {
+        id: "london".to_owned(),
+        label: "london".to_owned(),
+        lat_deg: 51.5,
+        lon_deg: -0.1,
+    })));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), globe_root(&mut app), "london — 51.50°, -0.10°"),
+        "the detail line restamps from the pick record"
+    );
 }

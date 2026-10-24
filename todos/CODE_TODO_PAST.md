@@ -704,3 +704,13 @@
   - 验收：弹窗背景呈现平滑高斯模糊，文字刀刻般清晰，显存带宽占用降低 75%。
   - 计划：在 infiltrator-bevy-ui 建立后处理渲染调度子图。
   - 备注：2026-10-24 交付——新模块 `infiltrator-bevy-ui` `post_process::backdrop_blur`（.rs + `backdrop_blur.wesl`，lib 装配 `BackdropBlurPlugin`）：#86/#87/#88 为一次 `ViewTarget::post_process_write` 的三 pass 管线——全分辨率 source → 1/4 离屏纹理 H 向高斯降采样 → 第二张 1/4 纹理 V 向高斯 → span=0 恒等双线性升采样回 destination；系统排 `Core2dSystems::PostProcess` 且 `.before(tonemapping)`；九 tap 高斯以线性采样坍缩为五次 `textureSample`（权重 0.2270270270/0.3162162162/0.0702702703，和恒 1，span 0 即恒等——升采样 pass 依赖此性质，见 `kernel_weights` 用例）；#88 防冲突由 post-process 契约的 source/destination 对 + 两张 `RENDER_ATTACHMENT|TEXTURE_BINDING` 1/4 纹理（仅视口/格式变化时重建，`QuarterTargets`）承担；pipeline 按 `main_texture_format` 在 `BackdropBlurPipeline` 内去重入 `PipelineCache`（queue 不去重，故每格式只排一次）；主世界 `sync_backdrop_blur_gate` 把共享包 typed `ModalStage`（Hidden/Open/Dismissed，Open 与退场 Dismissed 都糊）投影为相机 `BackdropBlur{span}` 挂/摘——单一业务真源在 ModalStage，本模块不藏第二状态机。全部 API 按 bevy 0.20 registry 源逐项核实（FullscreenMaterialPlugin 构造形态、tonemapping 系统签名与 pass descriptor 字段、`post_process_write`/`main_texture_format`、`BindGroupLayoutDescriptor::new`+`binding_types`、encase 再导出），非热写。#89 前景合成仍为集成边界：弹窗前景层由 modal 表面切片接线（模块文档在案），本条按 #86~#88 主体交付登记。伴生 `backdrop_blur_tests` 六用例（kernel 归一/quarter 数学含退化视口/texel 倒数/span 正值）。待验证：统一 cargo 批次（编译 + nextest）；实机弹窗模糊与 75% 带宽降低的像素/性能回执随 PARITY 批次。
+
+### 12.6 地球拾取逆映射（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-027 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 3D 地球 UI 渲染到纹理与射线拾取映射（#98~#99）
+  - 产物：实现 #98 Geo Globe 3D 相机 UI 渲染到纹理（RTT）、#99 视口点击坐标向 3D 球面 UV 与鼠标射线逆变换映射。
+  - 依赖：infiltrator-bevy-widgets::globe。
+  - 验收：3D 地球作为独立卡片内嵌渲染，点击球体节点准确高亮并弹出详情。
+  - 计划：重构 pages/globe.rs。
+  - 备注：2026-10-24 交付——**#99 本批主体**：widgets `globe` 新增逆映射层 `GlobeProjection::unproject`（视口 px → 正交射线 → 前半球命中：经纬度 + 世界单位向量 + 深度；与 `project_direction` 的 yaw→pitch 旋转逐步反解，rim r²>1 判 miss）、`angular_distance_deg`（单位向量大圆角）与 `GlobeSpec::nearest_node_to`（可绘图节点 + 前半球可见性门 + 容差内最近者；无兜底命中，背半球节点穿透不选；投影唯一真源复用 `from_spec`）。页面 `pages/globe.rs` 新增点击观察者 `on_globe_plate_clicked`：UI 拾取后端的节点归一化命中位（±0.5，registry 源核实）→ 栅格 px → unproject → 最近节点 → 置 `hovered_node`（光栅既有高亮腿）+ typed `GlobeNodePicked` 意图（`Commands::trigger`）+ `GlobePicked` 单一拾取真源；头部详情行 `GlobePickedDetail`（`Text(pub String)` 原位 restamp，先例 appearance.rs）随拾取显示「label — lat, lon」（坐标取节点自己的观测值，非点击点重构）。**#98 分腿既有 + 架构裁决**：纹理腿已由 `ChartTextureView` CPU 光栅化进 `Assets<Image>` 承担（既有，sleep/预算纪律齐全）；GPU 3D 相机腿被裁决不引入——需 `bevy_pbr` 新依赖且与 EFFECTS-048 档位纪律冲突，球体唯一业务真源保持 CPU 正射投影，本裁决在案。测试：widgets `globe_tests` 六新用例（0°/旋转往返、盘外 miss + rim 命中、大圆角、容差命中/拒绝、背半球不可穿透拾取）；bevy-ui `globe_tests` 一新用例（详情行 idle 文案 + 拾取 restamp）。待验证：统一 cargo 批次（编译 + nextest）；点击观察者的实机交互回执（PointerClick 构造依赖真实拾取后端，留给 capture/交互批次）与「弹出详情」像素回执随 PARITY 批次。
+

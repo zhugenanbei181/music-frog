@@ -35,7 +35,7 @@
 //! honestly shows the typed "not observed" state until a real geo observation
 //! is composed.
 
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::event::Event;
@@ -46,6 +46,9 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::math::Vec2;
+use bevy::picking::events::PointerClick;
+use bevy::picking::pointer::PointerButton;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
@@ -55,7 +58,8 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::ValueChange;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::globe::{
-    GeoLocation, GeoUnknown, GlobeLink, GlobeMode, GlobeNode, GlobePlate, GlobeSpec, globe_scene,
+    GeoLocation, GeoUnknown, GlobeLink, GlobeMode, GlobeNode, GlobePlate, GlobeProjection,
+    GlobeSpec, globe_scene,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -158,6 +162,36 @@ impl Default for GlobeViewState {
         Self(GlobeMode::Globe)
     }
 }
+
+/// A typed record of the node the user picked on the globe. The coordinate is
+/// the node's own provenance-bearing observation, never a derived guess.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GlobePickRecord {
+    pub id: String,
+    pub label: String,
+    pub lat_deg: f64,
+    pub lon_deg: f64,
+}
+
+/// The typed intent that a node was picked; observers (capture, telemetry)
+/// consume it, the page never inspects consumers.
+#[derive(Event, Clone, Debug, PartialEq)]
+pub struct GlobeNodePicked(pub GlobePickRecord);
+
+/// The current pick, as the single truth the detail line restamps from.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
+pub struct GlobePicked(pub Option<GlobePickRecord>);
+
+/// Great-circle click tolerance in degrees; a click farther from every
+/// plottable visible node picks nothing.
+const NODE_PICK_TOLERANCE_DEG: f32 = 8.0;
+
+/// The detail line's text before any pick has happened.
+const GLOBE_PICK_DEFAULT_TEXT: &str = "Click a plottable node to inspect its location.";
+
+/// Marker on the header's picked-node detail line.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct GlobePickedDetail;
 
 /// Build the widget spec for one projection and mode.
 pub fn globe_spec(data: &GlobeData, mode: GlobeMode) -> GlobeSpec {
@@ -268,6 +302,8 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
                 ]
                 --
                 Text(summary) TextRole(Role::BodyStrong)
+                --
+                Text(GLOBE_PICK_DEFAULT_TEXT.to_owned()) TextRole(Role::Body) GlobePickedDetail
             ]
     }
 }
@@ -364,9 +400,12 @@ impl Plugin for GlobePagePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GlobeViewState>();
         app.init_resource::<LastGlobeData>();
+        app.init_resource::<GlobePicked>();
         app.add_observer(on_globe_section_slot_added);
+        app.add_observer(on_globe_plate_clicked);
         app.add_observer(on_globe_mode_selected);
         app.add_observer(on_globe_data_updated);
+        app.add_systems(Update, restamp_globe_picked_detail);
     }
 }
 
@@ -430,6 +469,92 @@ fn on_globe_data_updated(
     for mut plate in &mut plates {
         if plate.0 != spec {
             plate.0 = spec.clone();
+        }
+    }
+}
+
+/// A primary click on the globe: resolve the clicked UI node up to its
+/// plate, turn the UI picking backend's node-normalized hit position into
+/// raster pixels, invert the projection onto the sphere, and pick the
+/// nearest plottable visible node (#99). The pick becomes the plate's
+/// hovered node — the raster already paints that highlight — plus the typed
+/// [`GlobeNodePicked`] intent and the [`GlobePicked`] record.
+fn on_globe_plate_clicked(
+    trigger: On<PointerClick>,
+    parents: Query<&ChildOf>,
+    mut plates: Query<&mut GlobePlate>,
+    mut picked: ResMut<GlobePicked>,
+    mut commands: Commands,
+) {
+    let event = trigger.event();
+    if event.button != PointerButton::Primary {
+        return;
+    }
+    let Some(hit_position) = event.hit.position else {
+        return;
+    };
+    // The charter renders the raster on a child node of the plate, so the
+    // clicked entity walks up the hierarchy until it carries the plate.
+    let mut entity = event.entity;
+    let mut plate = plates.get_mut(entity);
+    while plate.is_err() {
+        let Ok(parent) = parents.get(entity) else {
+            return;
+        };
+        entity = parent.parent();
+        plate = plates.get_mut(entity);
+    }
+    let Ok(mut plate) = plate else {
+        return;
+    };
+    let spec = &plate.0;
+    // The UI backend reports (-0.5, -0.5) top-left .. (0.5, 0.5) bottom-right
+    // across the whole node, so the fraction maps straight into raster px.
+    let fraction = hit_position.xy() + Vec2::splat(0.5);
+    let raster_px = Vec2::new(
+        fraction.x * spec.width as f32,
+        fraction.y * spec.height as f32,
+    );
+    let projection = GlobeProjection::from_spec(spec);
+    let Some(hit) = projection.unproject(raster_px) else {
+        return;
+    };
+    let Some(node) = spec.nearest_node_to(&hit, NODE_PICK_TOLERANCE_DEG) else {
+        return;
+    };
+    let Some(point) = node.location.plottable() else {
+        return;
+    };
+    let record = GlobePickRecord {
+        id: node.id.clone(),
+        label: node.label.clone(),
+        lat_deg: point.lat_deg(),
+        lon_deg: point.lon_deg(),
+    };
+    plate.hovered_node = Some(record.id.clone());
+    if picked.0.as_ref() != Some(&record) {
+        picked.0 = Some(record.clone());
+    }
+    commands.trigger(GlobeNodePicked(record));
+}
+
+/// Restamp the section's picked-node detail line from the single pick
+/// record. The line states the node's own observed coordinate — never a
+/// derived or rounded reconstruction of the click.
+fn restamp_globe_picked_detail(
+    picked: Res<GlobePicked>,
+    mut detail: Query<&mut Text, With<GlobePickedDetail>>,
+) {
+    let Some(record) = picked.0.as_ref() else {
+        return;
+    };
+    let line = format!(
+        "{} — {:.2}°, {:.2}°",
+        record.label, record.lat_deg, record.lon_deg
+    );
+    for mut text in &mut detail {
+        if text.0 != line {
+            text.0.clone_from(&line);
         }
     }
 }
